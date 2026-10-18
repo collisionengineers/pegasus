@@ -35,6 +35,8 @@ public sealed class CaseImagesWindowWebTests
 
         // The window: no shell, no Case record, no form, no lease controls.
         Assert.Contains("class=\"case-images-window\"", html, StringComparison.Ordinal);
+        // It draws the viewer's glyphs from the sprite file, whose address it carries for site.js.
+        Assert.Matches("<html [^>]*data-icon-sprite=\"/images/lucide-sprite", html);
         Assert.DoesNotContain("data-case-record", html, StringComparison.Ordinal);
         Assert.DoesNotContain("case-edit-form", html, StringComparison.Ordinal);
         Assert.DoesNotContain("editLeaseToken", html, StringComparison.Ordinal);

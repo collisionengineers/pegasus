@@ -76,9 +76,9 @@
         @if (Model.ProposedValuesWereDropped)
         {
             <div class="notice notice--warning" data-dismissable>
-                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                 <span>Your change was not applied. The values you submitted were too large to keep and are not shown here; enter edit mode again and re-enter them.</span>
-                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
             </div>
         }
         else if (Model.ProposedValues.Count > 0)
@@ -88,7 +88,7 @@
                 @if (Model.ProposedValuesWereShortened)
                 {
                     <div class="notice notice--warning mb-2">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                         <span>Some values were too long to keep in full and are shown shortened; re-enter those in full.</span>
                     </div>
                 }

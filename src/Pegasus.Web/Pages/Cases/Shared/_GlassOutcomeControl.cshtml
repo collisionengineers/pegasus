@@ -23,9 +23,9 @@
     @if (text is not null)
     {
         <div class="notice @tone" role="status" data-estimate-notice>
-            <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
             <span>@text</span>
-            <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
         </div>
     }
 </div>

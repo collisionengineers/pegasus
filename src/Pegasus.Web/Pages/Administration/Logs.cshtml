@@ -140,7 +140,7 @@
                 <aside class="logs-drawer" role="dialog" aria-modal="false" aria-labelledby="intake-drawer-title" data-intake-drawer="@detail.Row.ReceiptId">
                     <div class="logs-drawer__head">
                         <h2 id="intake-drawer-title">@detail.Row.Item</h2>
-                        <a class="icon-button" href="@Model.IntakeUrl()" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></a>
+                        <a class="icon-button" href="@Model.IntakeUrl()" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></a>
                     </div>
                     <div class="logs-drawer__body">
                         <dl class="logs-facts">
@@ -154,12 +154,12 @@
                             <div class="panel-head"><h3>Retained original</h3></div>
                             <div class="panel-body button-row">
                                 <a class="btn" href="/Received/@detail.Row.ReceiptId.ToString("D")/Source" target="_blank" rel="noopener" data-intake-open-file>
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>@OperatorLabels.IntakeLog.OpenFile</span>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg><span>@OperatorLabels.IntakeLog.OpenFile</span>
                                 </a>
                                 @if (detail.Row.MessageId is { } drawerMessageId)
                                 {
                                     <a class="btn" href="/Inbox/@drawerMessageId.ToString("D")" data-intake-open-message>
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg><span>@OperatorLabels.IntakeLog.OpenMessage</span>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail")" /></svg><span>@OperatorLabels.IntakeLog.OpenMessage</span>
                                     </a>
                                 }
                             </div>

@@ -39,13 +39,13 @@
                 <div class="button-row">
                     @* A secondary button: Files' Add evidence is the one red primary on this screen (v36 item Q, 9 October 2026). *@
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                         <span>Add Case note</span>
                     </button>
                     @if (offersChase)
                     {
                         <button type="button" class="btn" data-dialog-open="case-chase-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-clock")" /></svg>
                             <span>@CaseWorkspaceLabels.Chase.RecordChase</span>
                         </button>
                     }
@@ -108,7 +108,7 @@
             <div class="dialog-head">
                 <h2 id="case-chase-dialog-title" tabindex="-1">@CaseWorkspaceLabels.Chase.RecordChase</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="RecordManualChase">
@@ -128,7 +128,7 @@
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Recording" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
                         <span>@CaseWorkspaceLabels.Chase.RecordChase</span>
                     </button>
                 </div>

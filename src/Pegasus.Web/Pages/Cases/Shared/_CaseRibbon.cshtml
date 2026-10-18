@@ -123,7 +123,7 @@
             @if (Model.ColleagueIsEditing && Model.EditAuthorityHolder is { } holder)
             {
                 <span class="status status--navy status--plain" data-edit-authority>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-lock")" /></svg>
                     @EditModeDisplay.HolderName(holder) is editing
                 </span>
             }
@@ -174,12 +174,12 @@
                    without script it is the save. It stands first so
                    Enter in a cell never lands on a Repair Spec line button. *@
                 <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" data-busy-done="@OperatorLabels.Busy.Done.Saved" form="case-edit-form" class="btn btn--small" data-case-save-now>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>
                     <span>@Frame.SaveNow</span>
                 </button>
             }
             <button type="submit" data-busy-label="@OperatorLabels.Busy.Finishing" form="case-finish-editing-form" class="btn" data-case-done>
-                <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
                 <span>@Frame.Done</span>
             </button>
         }
@@ -204,18 +204,18 @@
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--dark" data-case-edit>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pencil")" /></svg>
                     <span>@(Model.ColleagueIsEditing ? Frame.TakeOver : Frame.EditCase)</span>
                 </button>
             </form>
         }
         <details class="menu" data-menu data-case-actions>
-            <summary class="btn"><span>@Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+            <summary class="btn"><span>@Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg></summary>
             <div class="menu-body">
                 @if (canAssignEngineer)
                 {
                     <button type="button" class="btn" data-dialog-open="case-handoff-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
                         <span>@CaseWorkspaceLabels.AssignEngineer</span>
                     </button>
                 }
@@ -229,7 +229,7 @@
                     <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Exporting" data-busy-done="@OperatorLabels.Busy.Done.Exported">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
                         <span>@Frame.ExportCase</span>
                     </button>
                 </form>
@@ -239,20 +239,20 @@
                 <a class="btn" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
                    asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
                    data-dialog-open="case-tasks-dialog" data-case-tasks-open>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-check-square" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-square")" /></svg>
                     <span>@CaseWorkspaceLabels.Tasks.Title</span>
                 </a>
                 @if (canConfirmReportSent)
                 {
                     <button type="button" class="btn" data-dialog-open="case-report-sent-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
                         <span>@Frame.MarkReportSent</span>
                     </button>
                 }
                 @if (canLogQuery)
                 {
                     <button type="button" class="btn" data-dialog-open="case-log-query-dialog" data-log-query>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-reply")" /></svg>
                         <span>@Frame.LogQuery</span>
                     </button>
                 }
@@ -263,14 +263,14 @@
                 @if (canReturnToReview)
                 {
                     <button type="button" class="btn" data-dialog-open="case-return-review-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
                         <span>@Frame.ReturnToReview</span>
                     </button>
                 }
                 @if (canReturnToEngineer)
                 {
                     <button type="button" class="btn" data-dialog-open="case-return-engineer-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
                         <span>@Frame.ReturnToEngineer</span>
                     </button>
                 }
@@ -280,7 +280,7 @@
                     {
                         <span class="menu-gated" title="@openTasksCondition" data-open-tasks-condition="@openTasksCondition">
                             <button type="button" class="btn" disabled aria-disabled="true" data-archive-case>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-archive")" /></svg>
                                 <span>@Frame.ArchiveCase</span>
                             </button>
                         </span>
@@ -288,7 +288,7 @@
                     else
                     {
                         <button type="button" class="btn" data-dialog-open="case-archive-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-archive")" /></svg>
                             <span>@Frame.ArchiveCase</span>
                         </button>
                     }
@@ -296,14 +296,14 @@
                 @if (canUnlinkEvidence)
                 {
                     <button type="button" class="btn" data-dialog-open="case-unlink-evidence-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-unlink" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-unlink")" /></svg>
                         <span>@Frame.UnlinkReportEvidence</span>
                     </button>
                 }
                 @if (canSendChaser)
                 {
                     <a class="btn" asp-page="/Cases/Chaser" asp-route-id="@summary.CaseId" data-send-chaser>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
                         <span>@Frame.SendChaser</span>
                     </a>
                 }
@@ -315,19 +315,19 @@
                         @if (isHeld)
                         {
                             <button type="button" class="btn" data-dialog-open="case-release-hold-dialog">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-play")" /></svg>
                                 <span>@Frame.ReleaseHold</span>
                             </button>
                         }
                         else if (Model.CanPlaceOnHold)
                         {
                             <button type="button" class="btn" data-dialog-open="case-hold-dialog">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pause")" /></svg>
                                 <span>@Frame.PlaceOnHold</span>
                             </button>
                         }
                         <button type="button" class="btn" data-dialog-open="case-correct-principal-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                             <span>@Frame.CorrectPrincipal</span>
                         </button>
                     }
@@ -341,7 +341,7 @@
                                pointer events. *@
                             <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
                                 <button type="button" class="btn" disabled aria-disabled="true" data-create-audit>
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                                     <span>@Frame.CreateAudit</span>
                                 </button>
                             </span>
@@ -349,7 +349,7 @@
                         else
                         {
                             <button type="button" class="btn" data-dialog-open="case-create-audit-dialog" data-create-audit>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                                 <span>@Frame.CreateAudit</span>
                             </button>
                         }
@@ -362,7 +362,7 @@
                        red. It closes the Case; it never deletes one. *@
                     <div class="menu-sep"></div>
                     <button type="button" class="btn btn--danger" data-dialog-open="case-close-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                         <span>@OperatorLabels.CaseWorkspace.CloseCase</span>
                     </button>
                 }

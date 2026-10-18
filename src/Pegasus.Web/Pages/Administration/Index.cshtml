@@ -15,12 +15,12 @@
             <div class="panel-body">
                 <div class="admin-grid">
                     <a class="admin-card" asp-page="/Administration/Accounts/Index">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-user")" /></svg>
                         <h3>@OperatorLabels.Admin.Accounts</h3>
                         <p>Manage staff access and sign-off roles.</p>
                     </a>
                     <a class="admin-card" asp-page="/Administration/Contacts/Index">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-shield")" /></svg>
                         <h3>Contacts</h3>
                         <p>Manage principals, claim sources and service contacts.</p>
                     </a>
@@ -33,22 +33,22 @@
             <div class="panel-body">
                 <div class="admin-grid">
                     <a class="admin-card" asp-page="/Administration/Configuration">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
                         <h3>@OperatorLabels.Admin.Configuration</h3>
                         <p>View the current workflow policy.</p>
                     </a>
                     <a class="admin-card" asp-page="/Administration/Mailboxes">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail")" /></svg>
                         <h3>@OperatorLabels.Admin.Mail</h3>
                         <p>Approve mailboxes.</p>
                     </a>
                     <a class="admin-card" asp-page="/Administration/EmailTemplates/Index">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-mail-open" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail-open")" /></svg>
                         <h3>@OperatorLabels.EmailTemplates.Area</h3>
                         <p>@OperatorLabels.EmailTemplates.Card</p>
                     </a>
                     <a class="admin-card" asp-page="/Administration/ValuationPresets/Index">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-pound-sterling" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pound-sterling")" /></svg>
                         <h3>@OperatorLabels.Admin.ValuationPresets</h3>
                         <p>Manage valuation values used in case assessments.</p>
                     </a>
@@ -61,39 +61,39 @@
             <div class="panel-body">
             <div class="admin-grid">
                 <a class="admin-card" asp-page="/Administration/Health">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-heart-pulse" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-heart-pulse")" /></svg>
                     <h3>@OperatorLabels.Admin.Health</h3>
                     <p>Review recorded service and mailbox health.</p>
                 </a>
                 <a class="admin-card" asp-page="/Administration/Logs">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-scroll-text" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-scroll-text")" /></svg>
                     <h3>@OperatorLabels.IntakeLog.Logs</h3>
                     <p>Action logs and the intake log.</p>
                 </a>
                 <a class="admin-card" asp-page="/Administration/Reports">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-bar-chart" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-bar-chart")" /></svg>
                     <h3>@OperatorLabels.Admin.Reports</h3>
                     <p>Review report activity and turnaround, and export the Case list.</p>
                 </a>
                 <a class="admin-card" asp-page="/Administration/ReleaseNotes/Index">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-flag" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-flag")" /></svg>
                     <h3>@OperatorLabels.Admin.ReleaseNotes</h3>
                     <p>Write and publish what changed.</p>
                 </a>
                 <a class="admin-card" asp-page="/Administration/ProblemReports">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                     <h3>@OperatorLabels.Admin.ProblemReports</h3>
                     <p>Reports raised from the application and where they went.</p>
                 </a>
                 <a class="admin-card" asp-page="/Administration/AiJobs">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                     <h3>@OperatorLabels.Admin.AiJobs</h3>
                     <p>Review queued and completed AI work.</p>
                 </a>
                 @if (Model.AutomationComposed)
                 {
                     <a class="admin-card" asp-page="/Administration/Automation/Index">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                         <h3>@OperatorLabels.Admin.Automation</h3>
                         <p>Control composed automation channels.</p>
                     </a>

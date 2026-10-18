@@ -2032,7 +2032,7 @@ public sealed class MailWorkspaceWebTests
         var message = await GetHtmlAsync(client, $"/Inbox/{left:D}?mailbox={FirstMailboxFilter}");
         var back = WebUtility.HtmlDecode(Regex.Match(
             message,
-            "<a class=\"btn\" href=\"(?<href>/Inbox\\?[^\"]*)\">\\s*<svg class=\"icon\" aria-hidden=\"true\"><use href=\"#icon-arrow-right\" />").Groups["href"].Value);
+            "<a class=\"btn\" href=\"(?<href>/Inbox\\?[^\"]*)\">\\s*<svg class=\"icon\" aria-hidden=\"true\"><use href=\"[^\"]*#icon-arrow-right\" />").Groups["href"].Value);
         Assert.Contains($"mailbox={FirstMailboxFilter}", back, StringComparison.Ordinal);
         Assert.Contains($"selected={left:D}", back, StringComparison.Ordinal);
 

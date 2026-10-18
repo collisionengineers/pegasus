@@ -125,7 +125,7 @@ else
                                     <input type="hidden" name="editLeaseToken" value="@leaseToken" />
                                     <input type="hidden" name="view" value="@Model.ViewRoute" />
                                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" class="image-tile-toggle" aria-pressed="@(preparation.InReport ? "true" : "false")" data-image-in-report>
-                                        <svg class="icon" aria-hidden="true"><use href="@(preparation.InReport ? "#icon-square-check" : "#icon-square")" /></svg>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(preparation.InReport ? "icon-square-check" : "icon-square")" /></svg>
                                         <span>@ReportImageLabels.InReport</span>
                                     </button>
                                 </form>
@@ -147,17 +147,17 @@ else
                                          Model.ViewRoute))" />
                             @if (mayCrop)
                             {
-                                <button type="button" class="icon-button" data-preparation-crop data-preparation-crop-occurrence="@occurrence.Id" title="@TagLabels.Crop" aria-label="@TagLabels.Crop"><svg class="icon" aria-hidden="true"><use href="#icon-crop" /></svg></button>
+                                <button type="button" class="icon-button" data-preparation-crop data-preparation-crop-occurrence="@occurrence.Id" title="@TagLabels.Crop" aria-label="@TagLabels.Crop"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-crop")" /></svg></button>
                             }
                             @if (preparation is not null)
                             {
                                 <span class="image-tile-tools" data-image-report data-image-tools hidden>
-                                    <button type="button" class="icon-button" data-preparation-rotate="90" title="@ReportImageLabels.Rotate" aria-label="@ReportImageLabels.Rotate"><svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg></button>
-                                    <button type="button" class="icon-button" data-image-full-page hidden="@(preparation.InReport ? null : "hidden")" aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.PrintOnItsOwnPage"><svg class="icon" aria-hidden="true"><use href="#icon-file-image" /></svg></button>
+                                    <button type="button" class="icon-button" data-preparation-rotate="90" title="@ReportImageLabels.Rotate" aria-label="@ReportImageLabels.Rotate"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg></button>
+                                    <button type="button" class="icon-button" data-image-full-page hidden="@(preparation.InReport ? null : "hidden")" aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.PrintOnItsOwnPage"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-image")" /></svg></button>
                                 </span>
                                 @if (!placeFixed)
                                 {
-                                    <span class="grip" data-image-report hidden draggable="true" title="@ReportImageLabels.DragToReorder" aria-hidden="true"><svg class="icon"><use href="#icon-grip-vertical" /></svg></span>
+                                    <span class="grip" data-image-report hidden draggable="true" title="@ReportImageLabels.DragToReorder" aria-hidden="true"><svg class="icon"><use href="@IconSprite.Href("icon-grip-vertical")" /></svg></span>
                                 }
                             }
                         </div>

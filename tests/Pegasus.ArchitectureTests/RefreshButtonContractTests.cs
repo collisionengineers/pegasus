@@ -14,10 +14,6 @@ public sealed class RefreshButtonContractTests
 {
     private const string PartialPath = "src/Pegasus.Web/Pages/Shared/_RefreshButton.cshtml";
 
-    // The sprite declares the glyph once as a symbol; the partial is the one
-    // page-level drawing of it.
-    private const string SpritePath = "src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml";
-
     [Fact]
     public void TheRefreshButtonPartialIsTheOnlyOwnerOfARefreshForm()
     {
@@ -86,12 +82,7 @@ public sealed class RefreshButtonContractTests
 
     private static IEnumerable<string> RazorFiles() => Directory
         .EnumerateFiles(Path.Combine(RepositoryRoot.Find(), "src/Pegasus.Web/Pages"), "*.cshtml", SearchOption.AllDirectories)
-        .Where(path =>
-        {
-            var relative = Relative(path).Replace('\\', '/');
-            return !relative.Equals(PartialPath, StringComparison.Ordinal)
-                && !relative.Equals(SpritePath, StringComparison.Ordinal);
-        });
+        .Where(path => !Relative(path).Replace('\\', '/').Equals(PartialPath, StringComparison.Ordinal));
 
     private static string Read(string relativePath) =>
         File.ReadAllText(Path.Combine(RepositoryRoot.Find(), relativePath));

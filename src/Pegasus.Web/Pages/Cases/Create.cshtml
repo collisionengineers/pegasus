@@ -139,7 +139,7 @@ else
     </div>
     <div class="page-actions">
         <a class="btn" asp-page="/Cases/Index">
-            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
             <span>Cancel</span>
         </a>
     </div>
@@ -148,7 +148,7 @@ else
 @* Seeded values say where they came from in one line; the file and the message
    open from here, never a received-item page. *@
 <div class="notice notice--info" data-create-seeded>
-    <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
     <span>Seeded from <strong>@Model.Receipt.SourceFileName</strong></span>
     <a class="btn btn--small" href="@Model.OpenFileHref" target="_blank" rel="noopener" data-create-action="open-file">Open file</a>
     @if (Model.SourceMessageId is { } seedMessageId)
@@ -160,7 +160,7 @@ else
 @if (Model.CreateError is { } createError)
 {
     <div class="notice notice--danger" role="alert">
-        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
         <span>@createError</span>
     </div>
 }
@@ -173,7 +173,7 @@ else
         </div>
         <div class="panel-section stack">
             <div class="notice notice--danger" role="alert">
-                <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
                 <span>@refusal</span>
             </div>
             <div class="cluster">
@@ -240,7 +240,7 @@ else
                     @* A rule that overrides whatever the instruction says, so it
                        is a notice rather than a paragraph. *@
                     <div class="notice notice--warning">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
                         <span>Image Based Assessment: the inspection address is recorded as &ldquo;Image Based Assessment&rdquo;.</span>
                     </div>
                 }
@@ -298,7 +298,7 @@ else
                 else
                 {
                     <div class="notice notice--warning">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                         <span>Nothing in this file said where the vehicle is.</span>
                     </div>
                     @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)

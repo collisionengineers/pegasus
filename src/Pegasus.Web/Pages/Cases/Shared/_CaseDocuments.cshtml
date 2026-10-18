@@ -45,7 +45,7 @@ else
             var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
                 || occurrence.Source == DocumentSource.ExternalCorrespondence;
             <div class="doc-row" data-document-row="@occurrence.Id">
-                <svg class="icon" aria-hidden="true"><use href="#@(isMail ? "icon-mail" : "icon-file-text")" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(isMail ? "icon-mail" : "icon-file-text")" /></svg>
                 <div class="doc-row-name">
                     <b>@version.FileName</b>
                     <small>@OperatorLabels.DocumentOrigin(occurrence.Source) · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc) · @OperatorLabels.FileSize(version.ContentLength)</small>
@@ -71,12 +71,12 @@ else
                                data-download-href="@Model.DownloadUrl(entry)"
                                data-media-type="@version.MediaType"
                                data-file-name="@version.FileName">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
                                 <span>@FilesLabels.View</span>
                             </a>
                         }
                         <a class="btn btn--small btn--icon" href="@Model.DownloadUrl(entry)" download title="@OperatorLabels.CaseWorkspace.SaveAs" aria-label="@OperatorLabels.CaseWorkspace.SaveAs @version.FileName">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
                         </a>
                     }
                     @if (Model.CanImportEstimate(entry))
@@ -99,7 +99,7 @@ else
                             </form>
                         }
                         <button type="button" class="btn btn--small btn--icon btn--danger" data-dialog-open="remove-doc-@occurrence.Id" title="@FilesLabels.Remove" aria-label="@FilesLabels.Remove @version.FileName">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-trash-2")" /></svg>
                         </button>
                     }
                 </span>

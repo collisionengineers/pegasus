@@ -349,11 +349,11 @@
         {
             <div class="cluster est-add-line">
                 <button type="submit" class="btn btn--small btn--danger" name="clearLines" value="true" form="case-edit-form" formaction="@editLineAction" data-estimate-delete-all data-undo-label="@EstimateLabels.Undo">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-trash-2")" /></svg>
                     <span>@EngineerLabels.DeleteAllLines</span>
                 </button>
                 <button type="submit" class="btn btn--small" name="addLine" value="true" form="case-edit-form" formaction="@editLineAction" data-estimate-add-line>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                     <span>@EngineerLabels.AddLine</span>
                 </button>
             </div>
@@ -410,7 +410,7 @@
                             <span class="mono" data-scale-read data-scale-idle="@scaleIdle" aria-live="polite">@scaleIdle</span>
                             <span class="status status--navy status--plain" data-scale-preview hidden>@EstimateLabels.ScalePreview</span>
                             <button type="submit" data-busy-label="@OperatorLabels.Busy.Removing" class="btn btn--small" form="remove-scaling-form" data-scale-remove hidden="@(scaled ? null : "hidden")">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                                 <span>@EstimateLabels.RemoveScaling</span>
                             </button>
                             <button type="submit" data-busy-label="@OperatorLabels.Busy.Applying" class="btn btn--small btn--primary" form="case-estimate-scale-form" data-scale-apply hidden><span>@EstimateLabels.Apply</span></button>
@@ -650,7 +650,7 @@
                         }
                     </select>
                     <button type="button" class="btn btn--small" data-supp-dismiss>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                         <span>@EstimateLabels.Dismiss</span>
                     </button>
                 </div>
@@ -671,7 +671,7 @@
     // beside its words: the control's shape, never a disabled control.
     void StaticChoice(bool on, string label)
     {
-        <span class="choice is-static" data-on="@(on ? "true" : "false")"><span class="tick" role="img" aria-label="@(on ? "Yes" : "No")">@if (on){<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>}</span><span>@label</span></span>
+        <span class="choice is-static" data-on="@(on ? "true" : "false")"><span class="tick" role="img" aria-label="@(on ? "Yes" : "No")">@if (on){<svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>}</span><span>@label</span></span>
     }
 }
 
@@ -720,12 +720,12 @@
                                    accept="@Model.EstimateImportExtensions"
                                    required data-estimate-import-input />
                             <button type="submit" data-busy-label="@OperatorLabels.Busy.Importing" class="btn btn--small">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-upload")" /></svg>
                                 <span>@EngineerLabels.ImportEstimate</span>
                             </button>
                         </div>
                         <button type="button" data-busy-label="@OperatorLabels.Busy.Importing" class="btn btn--small" hidden data-estimate-import-picker>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-upload")" /></svg>
                             <span>@EstimateLabels.Import</span>
                         </button>
                         <span class="estimate-import-status" role="status" aria-live="polite" hidden
@@ -739,7 +739,7 @@
                 <a class="btn btn--small btn--primary" asp-page="/Cases/Details" asp-route-id="@caseId"
                    asp-route-section="estimate" asp-route-dialog="send-to-claude" asp-route-view="@Model.ViewRoute"
                    data-dialog-open="send-to-ai-dialog" data-estimate-send-to-ai>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                     <span>@EstimateLabels.SendToAi</span>
                 </a>
             }
@@ -754,13 +754,13 @@
                    Spec for a saved spec with lines, Versions, and Compare —
                    offered with two specs or a frozen version (v38 P2). *@
                 <details class="menu" data-menu data-estimate-more>
-                    <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                    <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg></summary>
                     <div class="menu-body">
                         @if (offersNewEstimate)
                         {
                             <a class="btn" asp-page="/Cases/Details" asp-route-id="@caseId"
                                asp-route-section="estimate" asp-route-estimate="new" asp-route-view="@Model.ViewRoute" data-estimate-new>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                                 <span>@EngineerLabels.NewEstimate</span>
                             </a>
                         }
@@ -768,7 +768,7 @@
                         {
                             <a class="btn" href="@estimateDocumentHref" target="_blank" rel="noopener"
                                data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@EstimateLabels.PrintRepairSpec" data-no-inplace data-estimate-print>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
                                 <span>@EstimateLabels.PrintRepairSpec</span>
                             </a>
                         }
@@ -778,7 +778,7 @@
                                asp-route-section="estimate" asp-route-estimate="@estimate.SpecificationId"
                                asp-route-dialog="versions" asp-route-view="@Model.ViewRoute"
                                data-dialog-open="versions-dialog" data-estimate-versions>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-history")" /></svg>
                                 <span>@EstimateLabels.VersionsCount(Model.SelectedEstimateSnapshots.Count)</span>
                             </a>
                         }
@@ -788,7 +788,7 @@
                                asp-route-section="estimate" asp-route-estimate="@estimate?.SpecificationId"
                                asp-route-dialog="compare-estimates" asp-route-view="@Model.ViewRoute"
                                data-dialog-open="compare-estimates-dialog" data-estimate-compare>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-list")" /></svg>
                                 <span>@EngineerLabels.Compare</span>
                             </a>
                         }
@@ -799,7 +799,7 @@
             <button type="button" class="btn btn--small btn--icon" data-estimate-expand
                     title="@EstimateLabels.Expand" aria-label="@EstimateLabels.ExpandEstimate"
                     data-label-expand="@EstimateLabels.Expand" data-label-close="@EstimateLabels.CloseFullScreen">
-                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-external-link")" /></svg>
             </button>
             <partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" />
         </div>
@@ -860,7 +860,7 @@
                         <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
                         <button type="submit" data-busy-label="@OperatorLabels.Busy.Applying" class="btn btn--small btn--primary" data-estimate-use>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
                             <span>@EngineerLabels.UseEstimate</span>
                         </button>
                     </form>
@@ -874,7 +874,7 @@
                         <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
                         <button type="submit" data-busy-label="@OperatorLabels.Busy.Duplicating" class="btn btn--small" data-estimate-duplicate>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
                             <span>@EngineerLabels.Duplicate</span>
                         </button>
                     </form>
@@ -885,7 +885,7 @@
                        asp-route-id="@caseId" asp-route-section="estimate"
                        asp-route-estimate="@estimate.SpecificationId"
                        asp-route-dialog="delete-estimate" asp-route-view="@Model.ViewRoute" data-dialog-open="delete-estimate-dialog" data-estimate-discard>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-trash-2")" /></svg>
                         <span>@EstimateLabels.Discard</span>
                     </a>
                 }
@@ -938,7 +938,7 @@
     </div>
     <div class="estimate-import-drop-overlay" hidden data-estimate-import-overlay aria-hidden="true">
         <div class="estimate-import-drop-card">
-            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-upload")" /></svg>
             <strong>@ImportLabels.DropEstimate</strong>
             <span>@ImportLabels.DropHint</span>
         </div>
@@ -961,7 +961,7 @@
             <div class="dialog-head">
                 <h2 id="compare-estimates-dialog-title" tabindex="-1">@EngineerLabels.CompareEstimates</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <div class="dialog-body noprint">
@@ -1032,7 +1032,7 @@
                 @if (Model.Comparison is not null)
                 {
                     <button type="button" class="btn" data-compare-print>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
                         <span>@EstimateLabels.PrintComparisonSheet</span>
                     </button>
                 }
@@ -1053,7 +1053,7 @@
             <div class="dialog-head">
                 <h2 id="versions-dialog-title" tabindex="-1">@EstimateLabels.VersionsTitle</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <div class="dialog-body">
@@ -1126,7 +1126,7 @@
             <div class="dialog-head">
                 <h2 id="delete-lines-dialog-title" tabindex="-1">@EngineerLabels.DeleteAllLines</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <div class="dialog-body stack">
@@ -1151,7 +1151,7 @@
             <div class="dialog-head">
                 <h2 id="delete-estimate-dialog-title" tabindex="-1">@EstimateLabels.DiscardEstimate</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <form method="post" asp-page="/Cases/Details" asp-page-handler="DiscardEstimate"
@@ -1187,7 +1187,7 @@
             <div class="dialog-head">
                 <h2 id="send-to-ai-dialog-title" tabindex="-1">@EstimateLabels.SendToAi</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <form method="post" asp-page="/Cases/Details" asp-page-handler="SendToClaude"
@@ -1215,7 +1215,7 @@
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>@EngineerLabels.Cancel</button>
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                         <span>@EstimateLabels.SendToAi</span>
                     </button>
                 </div>

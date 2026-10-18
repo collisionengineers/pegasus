@@ -94,6 +94,63 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     [Fact]
+    public async Task EveryFrameDrawsItsIconsFromTheOneFingerprintedSpriteFile()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        // The static-asset map names the file by its content (lucide-sprite.<hash>.svg); where it does
+        // not, the content hash rides as ?v=. Either way the address is fingerprinted.
+        var fingerprinted = new Regex(
+            "^/images/lucide-sprite(?:\\.[A-Za-z0-9]+\\.svg(?:\\?v=[A-Za-z0-9_-]+)?|\\.svg\\?v=[A-Za-z0-9_-]+)$",
+            RegexOptions.CultureInvariant);
+
+        // The rail frame (the Work Centre, and the Cases rail whose tabs name their glyph from C#) and the
+        // external frame, whose access-denied page draws no glyph of its own.
+        var frames = new[]
+        {
+            (Route: "/", DrawsGlyphs: true),
+            (Route: "/Cases", DrawsGlyphs: true),
+            (Route: "/Account/AccessDenied", DrawsGlyphs: false)
+        };
+        foreach (var (route, drawsGlyphs) in frames)
+        {
+            using var page = await client.GetAsync(route);
+            Assert.True(page.IsSuccessStatusCode, $"{route} answered {(int)page.StatusCode}.");
+            var html = await page.Content.ReadAsStringAsync();
+
+            var published = Regex.Match(html, "<html [^>]*data-icon-sprite=\"(?<url>[^\"]+)\"", RegexOptions.CultureInvariant);
+            Assert.True(published.Success, $"{route} did not publish data-icon-sprite on <html>.");
+            var sprite = WebUtility.HtmlDecode(published.Groups["url"].Value);
+            Assert.Matches(fingerprinted, sprite);
+
+            // Every glyph is the sprite file's address and its symbol id; none is a bare in-page fragment.
+            var uses = Regex.Matches(html, "<use href=\"(?<href>[^\"]*)\"", RegexOptions.CultureInvariant)
+                .Select(match => WebUtility.HtmlDecode(match.Groups["href"].Value))
+                .ToList();
+            if (drawsGlyphs)
+            {
+                Assert.NotEmpty(uses);
+            }
+
+            Assert.All(uses, href => Assert.StartsWith(sprite + "#icon-", href, StringComparison.Ordinal));
+
+            using var file = await client.GetAsync(sprite);
+            Assert.Equal(HttpStatusCode.OK, file.StatusCode);
+            Assert.Equal("image/svg+xml", file.Content.Headers.ContentType?.MediaType);
+            var symbols = Regex.Matches(await file.Content.ReadAsStringAsync(), "<symbol id=\"(?<id>icon-[^\"]+)\"")
+                .Select(match => match.Groups["id"].Value)
+                .ToHashSet(StringComparer.Ordinal);
+            var drawn = uses
+                .Select(href => href[(href.IndexOf('#', StringComparison.Ordinal) + 1)..])
+                .ToHashSet(StringComparer.Ordinal);
+            Assert.True(
+                symbols.IsSupersetOf(drawn),
+                $"{route} draws {string.Join(", ", drawn.Except(symbols))}, which the sprite file does not define.");
+        }
+    }
+
+    [Fact]
     public async Task UnknownRecordUrlRendersTheDesignedNotFoundPageRatherThanARawBrowserError()
     {
         using var factory = new IntakeWebApplicationFactory();

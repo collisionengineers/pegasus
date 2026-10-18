@@ -17,7 +17,7 @@
         @if (TempData["AdministrationStatus"] is string status)
         {
             <div class="notice notice--success" role="status">
-                <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
                 <span>@status</span>
             </div>
         }
@@ -27,7 +27,7 @@
             <div class="panel-head">
                 <h2 id="approved-mailboxes-title">@OperatorLabels.MailSettings.ApprovedMailboxes</h2>
                 <button type="button" class="btn btn--small btn--dark" data-dialog-open="new-mailbox-dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                     <span>@OperatorLabels.MailSettings.AddMailbox</span>
                 </button>
             </div>

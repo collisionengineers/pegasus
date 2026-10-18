@@ -11,12 +11,19 @@
 (function () {
     'use strict';
 
+    // The icon sprite is one static file; each page names its fingerprinted
+    // address on <html> (data-icon-sprite), so a glyph drawn here points where
+    // the server's own do.
+    function iconHref(name) {
+        return (document.documentElement.getAttribute('data-icon-sprite') || '') + '#' + name;
+    }
+
     function glyph(name, className) {
         var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('class', className);
         svg.setAttribute('aria-hidden', 'true');
         var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-        use.setAttribute('href', '#' + name);
+        use.setAttribute('href', iconHref(name));
         svg.appendChild(use);
         return svg;
     }
@@ -57,7 +64,7 @@
         return type === 'video/mp4' || type === 'video/quicktime' ? 'video' : '';
     }
 
-    window.pegasusUi = { glyph: glyph, inertOutside: inertOutside, previewKind: previewKind };
+    window.pegasusUi = { glyph: glyph, iconHref: iconHref, inertOutside: inertOutside, previewKind: previewKind };
 })();
 
 (function () {
@@ -966,7 +973,8 @@
                 link = document.createElement('a');
                 link.className = 'btn';
                 link.setAttribute('data-mail-preview-case', '');
-                link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg><span></span>';
+                link.appendChild(window.pegasusUi.glyph('icon-folder', 'icon'));
+                link.appendChild(document.createElement('span'));
                 actions.appendChild(link);
             }
             link.setAttribute('href', data.caseUrl);

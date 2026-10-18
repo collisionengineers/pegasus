@@ -25,63 +25,63 @@
     <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-people">
         <span class="admin-nav__label" id="admin-nav-people">People and access</span>
         <a asp-page="/Administration/Accounts/Index" aria-current="@Current("accounts")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-user")" /></svg>
             <span>@OperatorLabels.Admin.Accounts</span>
         </a>
         <a asp-page="/Administration/Contacts/Index" aria-current="@Current("contacts")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-shield")" /></svg>
             <span>Contacts</span>
         </a>
     </div>
     <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-configuration">
         <span class="admin-nav__label" id="admin-nav-configuration">Configuration</span>
         <a asp-page="/Administration/Configuration" aria-current="@Current("configuration")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
             <span>@OperatorLabels.Admin.Configuration</span>
         </a>
         <a asp-page="/Administration/Mailboxes" aria-current="@Current("mail")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail")" /></svg>
             <span>@OperatorLabels.Admin.Mail</span>
         </a>
         <a asp-page="/Administration/EmailTemplates/Index" aria-current="@Current("email-templates")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-mail-open" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail-open")" /></svg>
             <span>@OperatorLabels.EmailTemplates.Area</span>
         </a>
         <a asp-page="/Administration/ValuationPresets/Index" aria-current="@Current("valuation-presets")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-pound-sterling" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pound-sterling")" /></svg>
             <span>@OperatorLabels.Admin.ValuationPresets</span>
         </a>
     </div>
     <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-oversight">
         <span class="admin-nav__label" id="admin-nav-oversight">Operations and oversight</span>
         <a asp-page="/Administration/Health" aria-current="@Current("health")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-heart-pulse" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-heart-pulse")" /></svg>
             <span>@OperatorLabels.Admin.Health</span>
         </a>
         <a asp-page="/Administration/Logs" aria-current="@Current("logs")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-scroll-text" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-scroll-text")" /></svg>
             <span>@OperatorLabels.IntakeLog.Logs</span>
         </a>
         <a asp-page="/Administration/Reports" aria-current="@Current("reports")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-bar-chart" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-bar-chart")" /></svg>
             <span>@OperatorLabels.Admin.Reports</span>
         </a>
         <a asp-page="/Administration/ReleaseNotes/Index" aria-current="@Current("release-notes")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-flag" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-flag")" /></svg>
             <span>@OperatorLabels.Admin.ReleaseNotes</span>
         </a>
         <a asp-page="/Administration/ProblemReports" aria-current="@Current("problem-reports")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
             <span>@OperatorLabels.Admin.ProblemReports</span>
         </a>
         <a asp-page="/Administration/AiJobs" aria-current="@Current("ai-jobs")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
             <span>@OperatorLabels.Admin.AiJobs</span>
         </a>
         @if (automationComposed)
         {
             <a asp-page="/Administration/Automation/Index" aria-current="@Current("automation")">
-                <svg class="icon" aria-hidden="true"><use href="#icon-bot" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-bot")" /></svg>
                 <span>@OperatorLabels.Admin.Automation</span>
             </a>
         }

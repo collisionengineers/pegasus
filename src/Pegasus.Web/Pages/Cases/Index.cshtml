@@ -42,7 +42,7 @@
 @if (Model.IsUnavailable)
 {
     <div class="notice notice--warning" role="status" data-cases-unavailable>
-        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
         <span>Cases are unavailable. Refresh to run the live queues again.</span>
     </div>
 }
@@ -64,7 +64,7 @@ else
                 <button type="submit" name="tab" value="@tab.Key" class="scope-button"
                         aria-pressed="@(Model.Queue == tab.Key ? "true" : "false")">
                     <span class="scope-visual-icon">
-                        <svg class="icon" aria-hidden="true"><use href="#@tab.Icon" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(tab.Icon)" /></svg>
                     </span>
                     <span>@tab.Label</span>
                     <span>@Model.Count(tab)</span>
@@ -193,7 +193,7 @@ else
             @if (Model.Selected is { } head)
             {
                 <a class="btn btn--small btn--dark" href="@head.DetailHref">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
                     <span>@head.OpenLabel</span>
                 </a>
             }
@@ -209,7 +209,7 @@ else
                     @if (detail.Notice is { } notice)
                     {
                         <div class="notice notice--@(detail.NoticeTone ?? "info")" data-cases-notice>
-                            <svg class="icon" aria-hidden="true"><use href="#@(detail.NoticeTone == "success" ? "icon-check-circle" : "icon-alert-triangle")" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(detail.NoticeTone == "success" ? "icon-check-circle" : "icon-alert-triangle")" /></svg>
                             <span>@notice</span>
                         </div>
                     }

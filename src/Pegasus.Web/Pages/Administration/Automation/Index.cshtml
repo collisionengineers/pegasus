@@ -24,7 +24,7 @@
 @if (TempData["AdministrationStatus"] is string statusMessage)
 {
     <div class="notice mb-2" role="status">
-        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
         <span>@statusMessage</span>
     </div>
 }
@@ -92,7 +92,7 @@
                             <span class="muted">@OperatorLabels.AutomationAdmin.StopConsequence</span>
                         }
                         <button type="submit" class="btn @(registration.IsEnabled ? "btn--danger" : "btn--primary")" data-busy-label="@(registration.IsEnabled ? OperatorLabels.Busy.Stopping : OperatorLabels.Busy.Starting)">
-                            <svg class="icon" aria-hidden="true"><use href="@(registration.IsEnabled ? "#icon-pause" : "#icon-play")" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(registration.IsEnabled ? "icon-pause" : "icon-play")" /></svg>
                             <span>@killSwitchLabel</span>
                         </button>
                     </form>
@@ -118,7 +118,7 @@
                         </label>
                         <div class="cluster admin-actions-end">
                             <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>
                                 <span>@OperatorLabels.AutomationAdmin.Save</span>
                             </button>
                         </div>

@@ -78,7 +78,7 @@
                 <div class="dialog-head">
                     <h2 id="case-hold-dialog-title" tabindex="-1">@Frame.PlaceOnHold</h2>
                     <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                     </button>
                 </div>
                 <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="Hold">
@@ -116,7 +116,7 @@
                 <div class="dialog-head">
                     <h2 id="case-log-query-dialog-title" tabindex="-1">@Frame.LogQuery</h2>
                     <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                     </button>
                 </div>
                 <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="LogQuery" data-log-query-form>
@@ -180,7 +180,7 @@
             <div class="dialog-head">
                 <h2 id="case-correct-principal-dialog-title" tabindex="-1">@Frame.CorrectPrincipal</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
@@ -193,7 +193,7 @@
                 <input type="hidden" name="section" value="@Model.Section" />
                 <div class="dialog-body stack">
                     <div class="notice notice--warning">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                         <span>Record Created in error and create the linked replacement case.</span>
                     </div>
                     <div class="field">
@@ -235,7 +235,7 @@
             <div class="dialog-head">
                 <h2 id="case-close-dialog-title" tabindex="-1">@OperatorLabels.CaseWorkspace.CloseCase</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Close">
@@ -288,7 +288,7 @@
             <div class="dialog-head">
                 <h2 id="case-handoff-dialog-title" tabindex="-1">@CaseWorkspaceLabels.AssignEngineer</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <div class="dialog-body stack">
@@ -331,7 +331,7 @@
             <div class="dialog-head">
                 <h2 id="case-report-sent-dialog-title" tabindex="-1">@Frame.MarkReportSent</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <div class="dialog-body stack">
@@ -378,7 +378,7 @@
             <div class="dialog-head">
                 <h2 id="case-create-audit-dialog-title" tabindex="-1">@Frame.CreateAudit</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <form method="post" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-page-handler="CreateAudit">
@@ -396,7 +396,7 @@
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--primary" data-dialog-initial-focus>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                         <span>@Frame.CreateAudit</span>
                     </button>
                 </div>

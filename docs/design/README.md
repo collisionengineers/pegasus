@@ -548,14 +548,14 @@ symbols. The prototype's hand-drawn `iconPaths` are not adopted; every glyph
 it names maps to the Lucide id below, and the prototype's inline sparkle is
 not adopted. Use the provider-neutral label `Send to AI`.
 
-`src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml` is the governed glyph
-record. It inlines the glyphs once per page as `<symbol viewBox="0 0 24 24">`
+`src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` is the governed glyph
+record. It is one fingerprinted static file of `<symbol viewBox="0 0 24 24">`
 elements; pages reference glyphs as
-`<svg class="icon"><use href="#icon-…"/></svg>`. The `.icon` rule applies the
-stroke and caps because a `<use>` clone does not inherit them. The partial
-holds the seventy-five glyphs in the two tables below; each glyph checksum is
-the SHA-256 of the glyph's UTF-8 `<symbol id="icon-…">…</symbol>` element in
-that partial.
+`<svg class="icon"><use href="<file>#icon-…"/></svg>`. The `.icon` rule
+applies the stroke and caps because a `<use>` clone does not inherit them. The
+file holds the seventy-five glyphs in the two tables below; each glyph
+checksum is the SHA-256 of the glyph's UTF-8 `<symbol id="icon-…">…</symbol>`
+element in that file.
 
 An icon paired with a visible text label is decorative and carries
 `aria-hidden="true"`. An icon that is the whole control carries
@@ -566,7 +566,7 @@ icon-system authority.
 #### Lucide icons source-to-runtime mapping
 
 Upstream source: Lucide official SVG vectors release (v0.344.0). Runtime
-sprite: `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml`.
+sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
 | --- | --- | --- | --- |
@@ -625,7 +625,7 @@ sprite: `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml`.
 | `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
-The v26 shell and Case record glyphs below complete the partial's seventy-five
+The v26 shell and Case record glyphs below complete the file's seventy-five
 symbols: the fifty-three above plus these twenty-two.
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
@@ -967,7 +967,7 @@ second caller and a recorded reason.
 | Partial | Role |
 | --- | --- |
 | `_Layout`, `_LayoutAuth` | Frames |
-| `_LucideSprite` | The inlined sprite |
+| `wwwroot/images/lucide-sprite.svg` | The sprite, one fingerprinted static file |
 | `_ShellDialogs` | Account, Notifications, command palette, What's new, Report a problem |
 | `_AdminNav` | Administration panel nav |
 | `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadReview` | Retained, restyled to the vocabulary |

@@ -3766,7 +3766,7 @@
             button.setAttribute('aria-label', label || '');
             button.setAttribute('aria-pressed', on ? 'true' : 'false');
             if (use) {
-                use.setAttribute('href', on ? '#icon-x' : '#icon-external-link');
+                use.setAttribute('href', window.pegasusUi.iconHref(on ? 'icon-x' : 'icon-external-link'));
             }
         }
         button.addEventListener('click', function () {

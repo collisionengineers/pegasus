@@ -180,7 +180,7 @@
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" data-busy-done="@OperatorLabels.Busy.Done.Generated" class="btn btn--small btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
                         <span>@ReportLabels.GenerateReport</span>
                     </button>
                 </form>
@@ -188,7 +188,7 @@
             else if (offersHead && draftCondition is not null)
             {
                 <span class="gated" data-report-gate>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-lock")" /></svg>
                     @* One availability label in the head; the aside's Next action names every missing item and links each to its section. *@
                     <span>@Words.NotReady</span>
                 </span>
@@ -196,7 +196,7 @@
             @if (offersHead && (canPreview || leaseForReport || canGenerateRepairSpec || canGenerateImagePack))
             {
                 <details class="menu" data-menu data-report-menu>
-                    <summary class="btn btn--small"><span>@Words.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                    <summary class="btn btn--small"><span>@Words.More</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg></summary>
                     <div class="menu-body">
                         @if (canPreview)
                         {
@@ -205,7 +205,7 @@
                                without script. *@
                             <a class="btn" href="@previewHref" target="_blank" rel="noopener"
                            data-report-preview data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@draftFileName" data-no-inplace>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
                                 <span>@Words.PreviewDraft</span>
                             </a>
                         }
@@ -217,7 +217,7 @@
                                asp-route-id="@caseId" asp-route-estimateId="@currentSpecification"
                                target="_blank" rel="noopener" data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace
                                data-report-preview-spec>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
                                 <span>@ReportLabels.PreviewRepairSpec</span>
                             </a>
                         }
@@ -225,7 +225,7 @@
                         {
                             <a class="btn" href="@imagePackHref" target="_blank" rel="noopener"
                                data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace data-report-preview-images>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-images")" /></svg>
                                 <span>@ReportLabels.PreviewImages</span>
                             </a>
                         }
@@ -242,7 +242,7 @@
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
                                 <input type="hidden" name="view" value="@Model.ViewRoute" />
                                 <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" data-busy-done="@OperatorLabels.Busy.Done.Generated" class="btn" data-generate-repair-spec>
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
                                     <span>@ReportLabels.GenerateRepairSpec</span>
                                 </button>
                             </form>
@@ -260,7 +260,7 @@
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
                                 <input type="hidden" name="view" value="@Model.ViewRoute" />
                                 <button type="submit" data-busy-label="@OperatorLabels.Busy.Generating" class="btn" data-generate-image-pack>
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-images")" /></svg>
                                     <span>@ReportLabels.GenerateImages</span>
                                 </button>
                             </form>
@@ -325,7 +325,7 @@
                            target="_blank" rel="noopener" data-report-artifact="@storedReport.Kind"
                            data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@storedReport.FileName" data-no-inplace
                            data-open-on-arrival="@(Model.OpenReportArtifactId == storedReport.Id ? "true" : "false")">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
                             <span>@ReportLabels.OpenReport</span>
                         </a>
                     }
@@ -338,7 +338,7 @@
                            asp-route-artifactId="@separateFeeNote.Id" asp-route-view="@Model.ViewRoute"
                            target="_blank" rel="noopener" data-report-fee-card
                            data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-file-name="@separateFeeNote.FileName" data-no-inplace>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
                             <span>@ReportLabels.OpenFeeNote</span>
                         </a>
                     }
@@ -478,7 +478,7 @@
                                 {
                                     @* The report, and a companion the Principal requires, is
                                        always attached: a value, not a disabled control (v36 item Z). *@
-                                    <span class="choice is-static" data-report-attach-choice="@attachKind" data-on="true"><span class="tick"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg></span><span>@(attachLabel + (companionRequired ? " " + ReportLabels.RequiredForPrincipal : string.Empty))</span></span>
+                                    <span class="choice is-static" data-report-attach-choice="@attachKind" data-on="true"><span class="tick"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg></span><span>@(attachLabel + (companionRequired ? " " + ReportLabels.RequiredForPrincipal : string.Empty))</span></span>
                                     <input type="hidden" name="attach" value="@attachKind" />
                                 }
                                 else
@@ -574,7 +574,7 @@
                            Send: the notice above says which, and its Generate
                            offer is in the menu. *@
                         <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--small btn--primary">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
                             <span>@ReportLabels.SendReport</span>
                         </button>
                     }
@@ -595,7 +595,7 @@
                             @foreach (var (attachKind, attachLabel) in attachable)
                             {
                                 var on = attachKind is CaseReportArtifactKind.AssessmentReport or CaseReportArtifactKind.FeeNote;
-                                <span class="choice is-static" data-on="@(on ? "true" : "false")"><span class="tick">@if (on) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>}</span><span>@attachLabel</span></span>
+                                <span class="choice is-static" data-on="@(on ? "true" : "false")"><span class="tick">@if (on) {<svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>}</span><span>@attachLabel</span></span>
                             }
                         </div>
                         @if (otherReport is not null)
@@ -676,7 +676,7 @@
                     </template>
                     <div class="button-row">
                         <button type="button" class="btn btn--small" data-wording-new>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                             <span>@WordingLabels.NewParagraph</span>
                         </button>
                     </div>
@@ -695,7 +695,7 @@
                                     <span class="src-tag @(block.HandEdited ? "src-tag--warn" : null)">@WordingChip(block)</span>
                                     @if (block.Included)
                                     {
-                                        <span class="wb-tools"><span class="choice"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>@WordingLabels.OnReport</span></span></span>
+                                        <span class="wb-tools"><span class="choice"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg><span>@WordingLabels.OnReport</span></span></span>
                                     }
                                 </div>
                                 <div class="fc ro"><div class="fv multi">@block.Text</div></div>
@@ -734,7 +734,7 @@
                        asp-route-id="@caseId" asp-route-generationId="@generation.Id"
                        asp-route-artifactId="@confirmedFeeNote.Id" asp-route-view="@Model.ViewRoute"
                        target="_blank" rel="noopener" data-report-fee-artifact>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
                         <span>@ReportLabels.DownloadFeeNote</span>
                     </a>
                 </div>
@@ -787,15 +787,15 @@
                 @if (!block.Manual)
                 {
                     <button type="button" class="icon-button" data-wording-recompose aria-label="@WordingLabels.Recompose" title="@WordingLabels.Recompose">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-undo")" /></svg>
                     </button>
                 }
                 <span class="wb-tools">
                     <button type="button" class="icon-button" data-wording-up aria-label="@WordingLabels.MoveUp" title="@WordingLabels.MoveUp">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-up" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-up")" /></svg>
                     </button>
                     <button type="button" class="icon-button" data-wording-down aria-label="@WordingLabels.MoveDown" title="@WordingLabels.MoveDown">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-down" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-down")" /></svg>
                     </button>
                     <label class="choice">
                         <input type="checkbox" name="@(name).Included" value="true" checked="@block.Included" form="case-edit-form" data-wording-included />

@@ -165,7 +165,7 @@ public sealed partial class BusyButtonContractTests
             var source = File.ReadAllText(path);
             Assert.False(
                 BusyGlyphClass().IsMatch(source)
-                    || source.Contains("href=\"#icon-loader\"", StringComparison.Ordinal),
+                    || source.Contains("icon-loader", StringComparison.Ordinal),
                 $"{Relative(path)} draws its own busy glyph; site.js pegasusBusy draws the one loader and tick.");
         }
     }

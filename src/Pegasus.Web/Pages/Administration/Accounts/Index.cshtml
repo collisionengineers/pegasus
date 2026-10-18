@@ -24,7 +24,7 @@
                     <p class="panel-title-meta">@Model.Rows.Count@(Model.HasMoreAccounts ? "+" : string.Empty) accounts</p>
                 </div>
                 <button type="button" class="btn btn--primary" data-dialog-open="create-account-dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Create staff account</span>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>Create staff account</span>
                 </button>
             </div>
             @if (Model.Rows.Count == 0)
@@ -78,7 +78,7 @@
 
 <div class="dialog-backdrop" data-dialog="create-account-dialog" data-dialog-open-on-load="@(Model.CreatePostSubmitted ? "true" : "false")" hidden="@(!Model.CreatePostSubmitted)">
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="create-account-title">
-        <div class="dialog-head"><h2 id="create-account-title" tabindex="-1" data-dialog-initial-focus>Create staff account</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+        <div class="dialog-head"><h2 id="create-account-title" tabindex="-1" data-dialog-initial-focus>Create staff account</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
         <form method="post" asp-page-handler="Create">
             <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
             <div class="dialog-body stack">
@@ -99,7 +99,7 @@
     var settingsId = "settings-" + staffId;
     <div class="dialog-backdrop" data-dialog="@settingsId" data-dialog-open-on-load="true">
         <section class="dialog dialog--wide account-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="@settingsId-title">
-            <div class="dialog-head"><h2 id="@settingsId-title" tabindex="-1" data-dialog-initial-focus>@account.UserName</h2><button type="button" class="dialog-close" data-dialog-close data-account-settings-cancel aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+            <div class="dialog-head"><h2 id="@settingsId-title" tabindex="-1" data-dialog-initial-focus>@account.UserName</h2><button type="button" class="dialog-close" data-dialog-close data-account-settings-cancel aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
             <form method="post" asp-page-handler="Settings" enctype="multipart/form-data" data-account-settings>
                 <input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                 <div class="dialog-body stack">
@@ -160,7 +160,7 @@
                 <h2 id="glass-credential-title">Glass's login</h2>
                 <partial name="Shared/_StatusChip" model="@Model.GlassStateName" />
                 <form id="glass-close-form" method="get" asp-page="Index"><input type="hidden" name="editStaffId" value="@glassAccount.Id" /><input type="hidden" name="expectedVersion" value="@glassAccount.Version" /></form>
-                <button type="submit" form="glass-close-form" class="dialog-close" aria-label="Back to account"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+                <button type="submit" form="glass-close-form" class="dialog-close" aria-label="Back to account"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
             </div>
             <div class="dialog-body stack">
                 <partial name="Shared/_ErrorSummary" />
@@ -223,7 +223,7 @@
                     <div class="left"><form method="post" asp-page-handler="ClearGlass"><input type="hidden" name="staffId" value="@glassAccount.Id" /><input type="hidden" name="ExpectedVersion" value="@Model.GlassExpectedVersion" /><input type="hidden" name="ExpectedStaffAccountVersion" value="@Model.GlassExpectedStaffAccountVersion" /><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Clearing">@CaseWorkspaceLabels.GlassCredential.Clear</button></form></div>
                 }
                 <button type="submit" form="glass-close-form" class="btn">Back to account</button>
-                <button type="submit" form="glass-save-form" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>@CaseWorkspaceLabels.GlassCredential.Save</span></button>
+                <button type="submit" form="glass-save-form" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg><span>@CaseWorkspaceLabels.GlassCredential.Save</span></button>
             </div>
         </section>
     </div>
