@@ -431,6 +431,80 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task ADominantPlateBeatsAMoreConfidentThirdPartyPlateInTheSameImage()
+    {
+        // A third-party plate in the photograph out-scores the subject
+        // vehicle's larger plate (operator, 15 October 2026).
+        var harness = new Harness();
+        harness.Engine.Enqueue(ThirdPartyBesideTheSubject());
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Null(outcome.UnidentifiedGroup);
+        var suggestion = Assert.Single(harness.SuggestionStore.Records);
+        Assert.Equal(VrmRecognitionOutcomeKind.Suggested, suggestion.Outcome);
+        Assert.Equal("AB12CDE", suggestion.SuggestedRegistration);
+        Assert.Equal(0.88, suggestion.Confidence);
+        Assert.Equal("AB12CDE", Assert.Single(harness.Register.Requests).NormalizedVehicleRegistration);
+    }
+
+    [Fact]
+    public async Task APdfWhoseOtherPhotographAgreesOnTheDominantPlateRegistersInsteadOfConflicting()
+    {
+        var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var firstPhoto = Asset(
+            "page-1-image-1.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 547, height: 650);
+        var secondPhoto = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 552, height: 650);
+        var harness = new Harness(retainedAssets: [pdf, firstPhoto, secondPhoto]);
+        harness.Engine.Enqueue(ThirdPartyBesideTheSubject());
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Equal(2, harness.Engine.Calls);
+        Assert.Null(outcome.UnidentifiedGroup);
+        Assert.Equal(
+            ["AB12CDE", "AB12CDE"],
+            harness.SuggestionStore.Records.Select(suggestion => suggestion.SuggestedRegistration));
+        Assert.Equal("AB12CDE", Assert.Single(harness.Register.Requests).NormalizedVehicleRegistration);
+    }
+
+    [Fact]
+    public async Task AGroupWhoseOtherMemberAgreesOnTheDominantPlateRegistersTheGroup()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(ThirdPartyBesideTheSubject());
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.Null(outcome.UnidentifiedGroup);
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("AB12CDE", registration.NormalizedVehicleRegistration);
+        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
+    }
+
+    [Fact]
+    public async Task ALargePlateBelowTheBarNeverOutranksAnAcceptedSmallPlate()
+    {
+        var harness = new Harness();
+        harness.Engine.Enqueue(Plates(
+            Plate("ZZ99ZZZ", 0.60, width: 240, height: 52),
+            Plate("AB12CDE", 0.95, width: 60, height: 14)));
+
+        await harness.ApplyAsync();
+
+        var suggestion = Assert.Single(harness.SuggestionStore.Records);
+        Assert.Equal(VrmRecognitionOutcomeKind.Suggested, suggestion.Outcome);
+        Assert.Equal("AB12CDE", suggestion.SuggestedRegistration);
+        Assert.Equal(0.95, suggestion.Confidence);
+        Assert.Equal("AB12CDE", Assert.Single(harness.Register.Requests).NormalizedVehicleRegistration);
+    }
+
+    [Fact]
     public async Task PdfSuggestionPersistenceFailureOnSecondPhotoPropagatesWithoutRegistration()
     {
         var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
@@ -798,12 +872,23 @@ public sealed class AutomaticImageIntakeTests
         Assert.Single(harness.MutationStore.AutoLinks);
     }
 
-    private static VrmRecognitionResult Suggested(string registration, double confidence) => new(
+    private static VrmRecognitionResult Suggested(string registration, double confidence) =>
+        Plates(new VrmPlateCandidate(registration, registration, confidence, null));
+
+    private static VrmRecognitionResult Plates(params VrmPlateCandidate[] plates) => new(
         VrmRecognitionOutcomeKind.Suggested,
-        [new(registration, registration, confidence, null)],
+        plates,
         "fast-alpr-onnx",
         "1",
         "plate-detection=abc;plate-recognition=def");
+
+    private static VrmPlateCandidate Plate(string registration, double confidence, double width, double height) =>
+        new(registration, registration, confidence, new VrmPlateBounds(10, 20, 10 + width, 20 + height));
+
+    /// <summary>A small, more confident third-party plate beside the subject vehicle's larger plate.</summary>
+    private static VrmRecognitionResult ThirdPartyBesideTheSubject() => Plates(
+        Plate("ZZ99ZZZ", 0.97, width: 60, height: 14),
+        Plate("AB12CDE", 0.88, width: 240, height: 52));
 
     private static byte[] ContentFor(string identity, long contentLength)
     {

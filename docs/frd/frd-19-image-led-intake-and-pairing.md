@@ -304,7 +304,9 @@ complete membership, and fail-closed source-identity rules apply to both.
   one member in isolation. A confident read contained in a longer
   confident read of the same receipt or group is not a distinct
   registration: `AK24` beside `AK24UYD` is `AK24UYD` (operator,
-  12 October 2026).
+  12 October 2026). Where accepted reads from a group's images disagree, the
+  read from the largest plate area wins and confidence breaks a tie
+  (operator, 15 October 2026).
 - **Associate-or-hand-off precedence, in this order:**
   1. Any image member's recognition ended in a technical failure or an
      unavailable dependency: the group fails closed to a named technical

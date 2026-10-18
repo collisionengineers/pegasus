@@ -567,10 +567,9 @@ public sealed class ImageIntakeAutomation(
             }
 
             var result = await RecognizeAsync(asset, cancellationToken);
-            var best = result.Candidates
+            var best = VrmRecognitionProvisionalBar.OfferedCandidate(result.Candidates
                 .Where(candidate => IsUsableRegistration(candidate.NormalizedRegistration))
-                .OrderByDescending(candidate => candidate.Confidence)
-                .FirstOrDefault();
+                .ToArray());
             var draft = new ImageVrmSuggestionDraft(
                 receipt.Id,
                 asset.Id,
