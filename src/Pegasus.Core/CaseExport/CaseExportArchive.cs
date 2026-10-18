@@ -33,13 +33,23 @@ public sealed record CaseExportImage(
     DocumentSemanticRole SemanticRole,
     DocumentSource Source,
     string SourceOccurrenceIdentity,
-    ReadOnlyMemory<byte> Content,
+    long ContentLength,
     string Sha256,
     bool CustodyConfirmed,
     bool IsCurrent,
     int Ordinal = 0);
 
 public sealed record CaseExportImages(IReadOnlyList<CaseExportImage> RetainedImages);
+
+/// <summary>
+/// One retained image's bytes, asked for when the archive reaches it. The
+/// archive checks the bytes against the image's <c>Sha256</c> and lets go of
+/// them before it asks for the next, so a caller supplies one image at a
+/// time and never holds the set.
+/// </summary>
+public delegate ValueTask<ReadOnlyMemory<byte>> CaseExportImageContentReader(
+    CaseExportImage image,
+    CancellationToken cancellationToken);
 
 public sealed record CaseExportBundle(
     ReadOnlyMemory<byte> Content,
@@ -113,7 +123,8 @@ public static class CaseExportPolicy
 }
 
 /// <summary>
-/// Produces replay-identical case export archives without making a network call.
+/// Produces replay-identical case export archives. It makes no call of its own:
+/// each image's bytes come from the reader the caller supplies, one image at a time.
 /// The archive is the ordered thirteen-key JSON and Images/, and nothing else.
 /// JSON keys, archive entries, image order, timestamps, and hashes are explicit.
 /// </summary>
@@ -121,6 +132,9 @@ public static class CaseExportArchive
 {
     private static readonly DateTimeOffset DeterministicTimestamp =
         new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    private const string MissingContentOrProvenance =
+        "A retained export image is missing content or source provenance.";
+
     private static readonly string[] FieldOrder =
     [
         "Work Provider",
@@ -147,15 +161,24 @@ public static class CaseExportArchive
     /// <see cref="SafeFileComponent"/> would reduce to "1". Omitted, the
     /// reference field still names the bundle, which is what an offline replay
     /// with no case in hand wants.
+    ///
+    /// <paramref name="images"/> is metadata only. Every check that needs no
+    /// bytes runs before <paramref name="readContent"/> is called once; the
+    /// archive then asks for one image at a time, in ascending ordinal,
+    /// checks its bytes, writes its entry and drops the bytes before it asks
+    /// for the next.
     /// </summary>
-    public static CaseExportBundle Create(
+    public static async Task<CaseExportBundle> CreateAsync(
         CaseExportSource source,
         CaseExportImages images,
-        string? fileNameReference = null)
+        CaseExportImageContentReader readContent,
+        string? fileNameReference = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(images.RetainedImages);
+        ArgumentNullException.ThrowIfNull(readContent);
 
         var fields = ValidateSource(source);
         var reference = SafeFileComponent(
@@ -166,7 +189,8 @@ public static class CaseExportArchive
         var json = WriteOrderedJson(fields);
         var jsonHash = Hash(json);
         var imageEntries = ValidateAndNameImages(images);
-        var archive = WriteArchive(jsonName, json, imageEntries);
+        var archive = await WriteArchiveAsync(
+            jsonName, json, imageEntries, readContent, cancellationToken);
 
         return new(
             archive,
@@ -230,32 +254,32 @@ public static class CaseExportArchive
     private static List<ImageEntry> ValidateAndNameImages(CaseExportImages images)
     {
         var ids = new HashSet<Guid>();
-        var retained = new List<ValidatedImage>(images.RetainedImages.Count);
+        var retained = new List<CaseExportImage>(images.RetainedImages.Count);
         foreach (var image in images.RetainedImages)
         {
-            var validated = ValidateImage(image);
-            if (!ids.Add(validated.Image.OccurrenceId))
+            ValidateImage(image);
+            if (!ids.Add(image.OccurrenceId))
             {
                 throw new InvalidDataException(
                     "Retained export image occurrence identities must be unique.");
             }
 
-            retained.Add(validated);
+            retained.Add(image);
         }
 
-        if (retained.Select(item => item.Image.Ordinal).Any(value => value <= 0)
-            || retained.Select(item => item.Image.Ordinal).Distinct().Count() != retained.Count)
+        if (retained.Select(item => item.Ordinal).Any(value => value <= 0)
+            || retained.Select(item => item.Ordinal).Distinct().Count() != retained.Count)
         {
             throw new InvalidDataException("Retained export images require distinct persisted evidence ordinals.");
         }
 
         return retained
-            .OrderBy(item => item.Image.Ordinal)
+            .OrderBy(item => item.Ordinal)
             .Select(CreateImageEntry)
             .ToList();
     }
 
-    private static ValidatedImage ValidateImage(CaseExportImage? image)
+    private static void ValidateImage(CaseExportImage? image)
     {
         if (image is null)
         {
@@ -281,25 +305,28 @@ public static class CaseExportArchive
         }
         if (string.IsNullOrWhiteSpace(image.FileName)
             || string.IsNullOrWhiteSpace(image.SourceOccurrenceIdentity)
-            || image.Content.IsEmpty)
+            || image.ContentLength <= 0)
         {
-            throw new InvalidDataException(
-                "A retained export image is missing content or source provenance.");
+            throw new InvalidDataException(MissingContentOrProvenance);
         }
+    }
 
-        var actualHash = Hash(image.Content.Span);
-        if (!string.Equals(actualHash, image.Sha256, StringComparison.OrdinalIgnoreCase))
+    // The checks that need the bytes, made on the one image just read.
+    private static void ValidateContent(CaseExportImage image, ReadOnlyMemory<byte> content)
+    {
+        if (content.IsEmpty)
+        {
+            throw new InvalidDataException(MissingContentOrProvenance);
+        }
+        if (!string.Equals(Hash(content.Span), image.Sha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("A retained export image failed SHA-256 integrity validation.");
         }
-
-        return new(image, actualHash);
     }
 
-    private static ImageEntry CreateImageEntry(ValidatedImage image) => new(
-        $"Images/{image.Image.Ordinal:000} {SafeFileComponent(image.Image.FileName)}",
-        image.Image,
-        image.Sha256);
+    private static ImageEntry CreateImageEntry(CaseExportImage image) => new(
+        $"Images/{image.Ordinal:000} {SafeFileComponent(image.FileName)}",
+        image);
 
     private static byte[] WriteOrderedJson(CaseExportFields fields)
     {
@@ -347,10 +374,12 @@ public static class CaseExportArchive
         return stream.ToArray();
     }
 
-    private static ReadOnlyMemory<byte> WriteArchive(
+    private static async Task<ReadOnlyMemory<byte>> WriteArchiveAsync(
         string jsonName,
         byte[] json,
-        IReadOnlyList<ImageEntry> images)
+        IReadOnlyList<ImageEntry> images,
+        CaseExportImageContentReader readContent,
+        CancellationToken cancellationToken)
     {
         // Sized up front so the stream does not grow by doubling and copy the archive each
         // time. Only the capacity is chosen here; the bytes written do not depend on it.
@@ -360,12 +389,27 @@ public static class CaseExportArchive
             WriteEntry(archive, jsonName, json);
             foreach (var image in images)
             {
-                WriteEntry(archive, image.Name, image.Image.Content.Span);
+                // One read at a time: the next image is not asked for until this
+                // one's entry is written.
+                await WriteImageEntryAsync(archive, image, readContent, cancellationToken);
             }
         }
 
         // The buffer is the archive's own; the stream is not used again.
         return stream.GetBuffer().AsMemory(0, (int)stream.Length);
+    }
+
+    // The image's bytes live in this method alone, so they are gone before the
+    // caller asks for the next image.
+    private static async Task WriteImageEntryAsync(
+        ZipArchive archive,
+        ImageEntry image,
+        CaseExportImageContentReader readContent,
+        CancellationToken cancellationToken)
+    {
+        var content = await readContent(image.Image, cancellationToken);
+        ValidateContent(image.Image, content);
+        WriteEntry(archive, image.Name, content.Span);
     }
 
     // The archive stores every entry uncompressed, so its size is the entries' content plus
@@ -379,7 +423,7 @@ public static class CaseExportArchive
         var total = EndRecord + PerEntry + json.Length + 2L * Encoding.UTF8.GetByteCount(jsonName);
         foreach (var image in images)
         {
-            total += PerEntry + image.Image.Content.Length + 2L * Encoding.UTF8.GetByteCount(image.Name);
+            total += PerEntry + image.Image.ContentLength + 2L * Encoding.UTF8.GetByteCount(image.Name);
         }
 
         return (int)Math.Min(total, Array.MaxLength);
@@ -472,10 +516,5 @@ public static class CaseExportArchive
     private static string Hash(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
 
-    private sealed record ValidatedImage(CaseExportImage Image, string Sha256);
-
-    private sealed record ImageEntry(
-        string Name,
-        CaseExportImage Image,
-        string Sha256);
+    private sealed record ImageEntry(string Name, CaseExportImage Image);
 }

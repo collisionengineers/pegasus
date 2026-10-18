@@ -488,45 +488,11 @@ public interface IDocumentContentStore
             expectedLength,
             cancellationToken);
     }
-
-    /// <summary>
-    /// The contents of several versions of one case, in the order asked for.
-    ///
-    /// A remote store resolves a case's folder and re-proves each
-    /// file's ancestry on every single read, so N files cost N times the whole
-    /// resolution. Asking for the set lets it resolve once and fetch the
-    /// contents together. The default is the per-version read, so a store with
-    /// no cheaper route needs nothing; the SHA-256 and length of each version
-    /// are verified exactly as they are on a single read.
-    ///
-    /// Every version is held in memory before any is returned, so this is for
-    /// a caller that wants the bytes — an archive built from them — and not for
-    /// one that streams a version straight to its destination under a size
-    /// bound. That caller keeps <see cref="OpenReadVersionAsync"/>.
-    /// </summary>
-    async Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
-        IReadOnlyList<ManagedDocumentContentRead> reads,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(reads);
-        var contents = new ReadOnlyMemory<byte>[reads.Count];
-        for (var index = 0; index < reads.Count; index++)
-        {
-            var read = reads[index];
-            await using var content = await OpenReadVersionAsync(
-                read.Address, read.ExpectedSha256, read.ExpectedLength, cancellationToken);
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)read.ExpectedLength));
-            await content.ReadExactlyAsync(bytes, cancellationToken);
-            contents[index] = bytes;
-        }
-        return contents;
-    }
 }
 
 /// <summary>
 /// One version to read: the address plus the custody hash and length it must
-/// verify against — the three arguments of a single managed read, so a set of
-/// them can be asked for at once.
+/// verify against — the three arguments of a single managed read.
 /// </summary>
 public sealed record ManagedDocumentContentRead(
     ManagedDocumentContentAddress Address,
@@ -534,20 +500,23 @@ public sealed record ManagedDocumentContentRead(
     long ExpectedLength);
 
 /// <summary>
-/// A Case's managed versions read through the document content cache first:
-/// a warm version costs one cached-object read, and a cold one is read from
-/// Box once and cached for the next time. The export and the report read
-/// their photographs this way when the cache is composed.
+/// A managed version read through the document content cache first: a warm
+/// version costs one cached-object read, and a cold one is read from Box once
+/// and cached for the next time. The export and the report read their
+/// photographs this way when the cache is composed, one image per call.
 /// </summary>
 public interface IReadCachedDocumentVersions
 {
     /// <summary>
-    /// The contents in the order asked for, each verified against its custody
-    /// hash and length, exactly as
-    /// <see cref="IDocumentContentStore.ReadVersionsAsync"/> returns them.
+    /// The version's content, verified against its custody hash and length,
+    /// exactly as <see cref="IDocumentContentStore.OpenReadVersionAsync"/>
+    /// returns it. The bytes are held in memory, so this is for a caller that
+    /// wants them — an archive entry — and not for one that streams a version
+    /// straight to its destination under a size bound. That caller keeps
+    /// <see cref="IDocumentContentStore.OpenReadVersionAsync"/>.
     /// </summary>
-    Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
-        IReadOnlyList<ManagedDocumentContentRead> reads,
+    Task<ReadOnlyMemory<byte>> ReadVersionAsync(
+        ManagedDocumentContentRead read,
         CancellationToken cancellationToken);
 }
 

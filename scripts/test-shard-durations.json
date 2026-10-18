@@ -55,6 +55,7 @@
   "Pegasus.IntegrationTests.CaseEstimateHeaderWebTests": 50.25,
   "Pegasus.IntegrationTests.CaseEstimateScalingWebTests": 84.27,
   "Pegasus.IntegrationTests.CaseExportEvidenceReaderTests": 0.02,
+  "Pegasus.IntegrationTests.CaseExportStorePersistenceTests": 15,
   "Pegasus.IntegrationTests.CaseImagesWindowWebTests": 31.38,
   "Pegasus.IntegrationTests.CaseListDueWebTests": 8.47,
   "Pegasus.IntegrationTests.CaseListEditingColumnWebTests": 15.07,

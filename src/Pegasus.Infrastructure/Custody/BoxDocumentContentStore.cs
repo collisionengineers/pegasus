@@ -15,14 +15,12 @@ namespace Pegasus.Infrastructure.Custody;
 internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocumentContentStore
 {
     /// <summary>
-    /// How many Box downloads this store has in flight at once, whether they
-    /// come from a batch or from separate callers.
+    /// How many Box downloads this store has in flight at once, from
+    /// separate callers.
     ///
     /// Reads are the fan-out this gate bounds, so the number is deliberately
     /// small: a case may hold far more photographs than the handful a typical
-    /// one does, and Box rate limits per application. Four overlaps essentially
-    /// all of a normal export's download time while keeping the burst close to
-    /// what the sequential version already asked of Box.
+    /// one does, and Box rate limits per application.
     ///
     /// A write here is one upload for each call, and this gate does not bound
     /// it. The Worker's custody processor files up to three files of one work
@@ -30,10 +28,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// uploads do not come through this store: <c>BoxCaseCustody</c> sends
     /// them to <see cref="BoxContentClient"/> directly.
     ///
-    /// This was the batch's degree of parallelism only, so sixty
-    /// gallery tiles opened sixty single reads at once and nothing bounded
-    /// them. <see cref="ReadGate"/> is the bound itself, shared by both read
-    /// paths, and it is process-wide because Box's limit is.
+    /// <see cref="ReadGate"/> is the bound itself, shared by every managed
+    /// read, and it is process-wide because Box's limit is.
     /// </summary>
     private const int MaximumConcurrentReads = 4;
 
@@ -410,80 +406,6 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
 
     private static TimeSpan BackoffBeforeAttempt(int attempt) =>
         TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt - 2));
-
-    /// <summary>
-    /// Every eligible photograph of one case, read together rather than one
-    /// after another. Each read checks its own file's parent and trash state;
-    /// the case folder's ancestry comes from the client's read memory, so a
-    /// set costs one ancestry walk rather than one per file.
-    ///
-    /// Every version is materialised in full before any is returned, which is
-    /// what this caller wants — the case export archive holds the bytes — and what a
-    /// streaming caller must not use.
-    /// </summary>
-    public async Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
-        IReadOnlyList<ManagedDocumentContentRead> reads,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(reads);
-        if (reads.Count == 0)
-        {
-            return [];
-        }
-        // Every argument is checked before any I/O starts, so a malformed hash
-        // fails the same way whatever the downloads happen to be doing.
-        var first = reads[0].Address;
-        var hashes = new string[reads.Count];
-        for (var index = 0; index < reads.Count; index++)
-        {
-            var address = reads[index].Address;
-            Validate(address);
-            if (address.CaseId != first.CaseId
-                || !string.Equals(address.CaseReference, first.CaseReference, StringComparison.Ordinal)
-                || !string.Equals(
-                    address.CaseRootRemoteId,
-                    first.CaseRootRemoteId,
-                    StringComparison.Ordinal))
-            {
-                throw new ArgumentException(
-                    "A managed content batch reads one Case only.", nameof(reads));
-            }
-            hashes[index] = NormalizeSha256(reads[index].ExpectedSha256);
-        }
-
-        var contents = new ReadOnlyMemory<byte>[reads.Count];
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, reads.Count),
-            new ParallelOptions
-            {
-                MaxDegreeOfParallelism = MaximumConcurrentReads,
-                CancellationToken = cancellationToken
-            },
-            async (index, token) =>
-            {
-                var read = reads[index];
-                RequirePersistedBoxIdentity(read.Address);
-                // The same gate and the same retry as a single read, so a
-                // batch running beside gallery traffic cannot double the burst
-                // Box sees.
-                var content = await ReadGatedWithRetryAsync(
-                    async attemptToken =>
-                    {
-                        await using var exact = await OpenOwnedExactVersionAsync(
-                            read.Address.BoxFileId!,
-                            read.Address.BoxVersionId!,
-                            read.Address.CaseRootRemoteId!,
-                            read.ExpectedLength,
-                            proveAncestry: false,
-                            attemptToken);
-                        return await ReadExactlyAsync(exact, read.ExpectedLength, attemptToken);
-                    },
-                    token);
-                Verify(content, hashes[index], read.ExpectedLength);
-                contents[index] = content;
-            });
-        return contents;
-    }
 
     public Task StoreAsync(
         Guid caseId,

@@ -98,14 +98,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(2, input.Photos.Count);
         // Nothing is read while the projection loads. Each image is read
         // alone, when the renderer opens it (issue 850).
-        Assert.Equal(0, contentStore.BatchReadCount);
+        Assert.Empty(contentStore.Reads);
         foreach (var photo in input.Photos)
         {
             Assert.NotEmpty(await photo.OpenAsync());
         }
-        Assert.Equal(2, contentStore.BatchReadCount);
-        Assert.Equal(1, contentStore.LargestBatch);
-        Assert.Equal(0, contentStore.SingleReadCount);
+        Assert.Equal(2, contentStore.Reads.Count);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
         // Box reads an exact file and version, so the preview's read names
         // both: without them no image in the report can be read from Box.
@@ -2400,31 +2398,24 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
     private sealed class RecordingDocumentContentStore : IDocumentContentStore
     {
-        public int BatchReadCount { get; private set; }
-        public int SingleReadCount { get; private set; }
-        public int LargestBatch { get; private set; }
         public List<ManagedDocumentContentRead> Reads { get; } = [];
 
-        public Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
-            IReadOnlyList<ManagedDocumentContentRead> reads,
+        public Task<Stream> OpenReadVersionAsync(
+            ManagedDocumentContentAddress address,
+            string expectedSha256,
+            long expectedLength,
             CancellationToken cancellationToken)
         {
-            BatchReadCount++;
-            LargestBatch = Math.Max(LargestBatch, reads.Count);
-            Reads.AddRange(reads);
+            Reads.Add(new(address, expectedSha256, expectedLength));
             // The seeded version of each ordinal is the one byte of its own number.
-            return Task.FromResult<IReadOnlyList<ReadOnlyMemory<byte>>>(
-                reads.Select(read =>
-                    (ReadOnlyMemory<byte>)new byte[] { checked((byte)read.Address.OccurrenceOrdinal) }).ToArray());
+            return Task.FromResult<Stream>(
+                new MemoryStream([checked((byte)address.OccurrenceOrdinal)], writable: false));
         }
 
         public Task<Stream> OpenReadAsync(
             Guid caseId, string caseReference, Guid versionId, string expectedSha256,
-            long expectedLength, CancellationToken cancellationToken)
-        {
-            SingleReadCount++;
-            throw new InvalidOperationException("The projection must use the batch read path.");
-        }
+            long expectedLength, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The projection must read a managed version by its address.");
 
         public Task StoreAsync(
             Guid caseId, string caseReference, Guid versionId, ReadOnlyMemory<byte> content,

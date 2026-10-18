@@ -14,12 +14,12 @@ public sealed class CaseExportArchiveTests
     private static readonly Guid OtherOccurrenceId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     [Fact]
-    public void SameAcceptedInputsProduceIdenticalBundleBytesAndExactOrder()
+    public async Task SameAcceptedInputsProduceIdenticalBundleBytesAndExactOrder()
     {
         var order = Images();
 
-        var first = CaseExportArchive.Create(Source(), order);
-        var replay = CaseExportArchive.Create(Source(), order);
+        var first = await CreateAsync(Source(), order);
+        var replay = await CreateAsync(Source(), order);
 
         Assert.Equal(first.Content.ToArray(), replay.Content.ToArray());
         Assert.Equal(first.Sha256, replay.Sha256);
@@ -39,10 +39,10 @@ public sealed class CaseExportArchiveTests
     }
 
     [Fact]
-    public void RetainedInputSequenceDoesNotChangePersistedEvidenceOrder()
+    public async Task RetainedInputSequenceDoesNotChangePersistedEvidenceOrder()
     {
-        var first = CaseExportArchive.Create(Source(), Images());
-        var changed = CaseExportArchive.Create(
+        var first = await CreateAsync(Source(), Images());
+        var changed = await CreateAsync(
             Source(),
             Images([OtherOccurrenceId, OverviewOccurrenceId, DamageOccurrenceId]));
 
@@ -53,12 +53,25 @@ public sealed class CaseExportArchiveTests
         Assert.Equal("Images/004 other.jpg", archive.Entries[3].FullName);
     }
 
+    // Whatever order the metadata arrives in, the reader is asked for each
+    // image once, in ascending ordinal, and never for two at the same time.
     [Fact]
-    public void OneRetainedImageIsExportedExactlyOnceWithoutPreviewSelection()
+    public async Task EachImageIsReadOnceInOrdinalOrderAndNeverAlongsideAnother()
     {
-        var bundle = CaseExportArchive.Create(
-            Source(),
-            new([Images().RetainedImages[0]]));
+        var photographs = Images([OtherOccurrenceId, OverviewOccurrenceId, DamageOccurrenceId]);
+
+        await CreateAsync(Source(), photographs);
+
+        Assert.Equal<int>([2, 3, 4], photographs.ReadOrdinals);
+        Assert.Equal(1, photographs.MostInFlight);
+    }
+
+    [Fact]
+    public async Task OneRetainedImageIsExportedExactlyOnceWithoutPreviewSelection()
+    {
+        var photographs = new Photographs([DefaultPhotographs()[0]]);
+
+        var bundle = await CreateAsync(Source(), photographs);
 
         using var archive = new ZipArchive(new MemoryStream(bundle.Content.ToArray()), ZipArchiveMode.Read);
         Assert.Equal(
@@ -67,20 +80,24 @@ public sealed class CaseExportArchiveTests
                 "Images/002 overview.jpg"
             ],
             archive.Entries.Select(entry => entry.FullName));
+        Assert.Equal<int>([2], photographs.ReadOrdinals);
     }
 
     [Fact]
-    public void ACaseWithNoPhotographExportsTheDataFileAlone()
+    public async Task ACaseWithNoPhotographExportsTheDataFileAlone()
     {
-        var bundle = CaseExportArchive.Create(Source(), new([]));
+        var photographs = new Photographs([]);
+
+        var bundle = await CreateAsync(Source(), photographs);
 
         Assert.Equal("QDOS001.zip", bundle.FileName);
         using var archive = new ZipArchive(new MemoryStream(bundle.Content.ToArray()), ZipArchiveMode.Read);
         Assert.Equal(["QDOS001.json"], archive.Entries.Select(entry => entry.FullName));
+        Assert.Empty(photographs.ReadOrdinals);
     }
 
     [Fact]
-    public void ChangedAcceptedFieldAndProvenanceCreateDifferentDeterministicBundle()
+    public async Task ChangedAcceptedFieldAndProvenanceCreateDifferentDeterministicBundle()
     {
         var source = Source();
         var changedSource = source with
@@ -93,9 +110,9 @@ public sealed class CaseExportArchiveTests
                 .ToArray()
         };
 
-        var first = CaseExportArchive.Create(source, Images());
-        var changed = CaseExportArchive.Create(changedSource, Images());
-        var replay = CaseExportArchive.Create(changedSource, Images());
+        var first = await CreateAsync(source, Images());
+        var changed = await CreateAsync(changedSource, Images());
+        var replay = await CreateAsync(changedSource, Images());
 
         Assert.NotEqual(first.Sha256, changed.Sha256);
         Assert.Equal(changed.Content.ToArray(), replay.Content.ToArray());
@@ -103,12 +120,12 @@ public sealed class CaseExportArchiveTests
     }
 
     [Fact]
-    public void AStaleMappingVersionIsRejected()
+    public async Task AStaleMappingVersionIsRejected()
     {
         var source = Source() with { MappingVersion = CaseExportMapping.MappingVersion - 1 };
 
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => CaseExportArchive.Create(source, Images()));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CreateAsync(source, Images()));
 
         Assert.Contains("current mapping version", exception.Message, StringComparison.Ordinal);
     }
@@ -118,9 +135,9 @@ public sealed class CaseExportArchiveTests
     // holds just as well when both are wrong. The archive shape and the JSON
     // bytes are now asserted directly, because both are what the importer reads.
     [Fact]
-    public void TheArchiveIsTheIndentedJsonAndImagesAndNothingElse()
+    public async Task TheArchiveIsTheIndentedJsonAndImagesAndNothingElse()
     {
-        var bundle = CaseExportArchive.Create(Source(), Images());
+        var bundle = await CreateAsync(Source(), Images());
 
         using var archive = new ZipArchive(new MemoryStream(bundle.Content.ToArray()), ZipArchiveMode.Read);
         var names = archive.Entries.Select(entry => entry.FullName).ToArray();
@@ -218,11 +235,11 @@ public sealed class CaseExportArchiveTests
     // silently reverts the moment a real claimant name carries an accent or
     // circumstances text carries the en-dash QDOS letters use.
     [Fact]
-    public void NonAsciiTravelsAsLiteralUtf8RatherThanEscapes()
+    public async Task NonAsciiTravelsAsLiteralUtf8RatherThanEscapes()
     {
         var source = Source();
         const string awkward = "Mr André O’Sullivan-–Björk & Co <Ltd> + 'x'";
-        var bundle = CaseExportArchive.Create(
+        var bundle = await CreateAsync(
             source with
             {
                 Fields = source.Fields with { ClaimantName = awkward },
@@ -250,25 +267,88 @@ public sealed class CaseExportArchiveTests
     }
 
     [Fact]
-    public void NonCurrentOrUnconfirmedImageVersionIsRejected()
+    public async Task NonCurrentOrUnconfirmedImageVersionIsRejected()
     {
-        var images = Images();
-        var unconfirmed = images.RetainedImages
+        var photographs = Images();
+        var unconfirmed = photographs.Images.RetainedImages
             .Select(image => image.OccurrenceId == DamageOccurrenceId
                 ? image with { CustodyConfirmed = false }
                 : image)
             .ToArray();
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            CaseExportArchive.Create(
-                Source(),
-                images with { RetainedImages = unconfirmed }));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateAsync(Source(), photographs, new(unconfirmed)));
 
         Assert.Contains("custody-confirmed current", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(photographs.ReadOrdinals);
     }
 
     [Fact]
-    public void TheArchiveIsNamedByTheCaseNotByThePrincipalsOwnReference()
+    public async Task ARepeatedOrdinalIsRejectedBeforeAnyImageIsRead()
+    {
+        var photographs = Images();
+        var repeated = photographs.Images.RetainedImages
+            .Select(image => image.OccurrenceId == DamageOccurrenceId
+                ? image with { Ordinal = 2 }
+                : image)
+            .ToArray();
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            CreateAsync(Source(), photographs, new(repeated)));
+
+        Assert.Contains("distinct persisted evidence ordinals", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(photographs.ReadOrdinals);
+    }
+
+    [Fact]
+    public async Task AnImageRecordedWithNoContentIsRejectedBeforeAnyImageIsRead()
+    {
+        var photographs = Images();
+        var empty = photographs.Images.RetainedImages
+            .Select(image => image.OccurrenceId == DamageOccurrenceId
+                ? image with { ContentLength = 0 }
+                : image)
+            .ToArray();
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            CreateAsync(Source(), photographs, new(empty)));
+
+        Assert.Contains("missing content or source provenance", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(photographs.ReadOrdinals);
+    }
+
+    [Fact]
+    public async Task BytesThatDoNotHashToTheRecordedSha256AreRejected()
+    {
+        var photographs = new Photographs(
+        [
+            (Image(OverviewOccurrenceId, "overview.jpg", "image/jpeg", "overview image"u8.ToArray(), 1),
+                "tampered image"u8.ToArray())
+        ]);
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            CreateAsync(Source(), photographs));
+
+        Assert.Contains("failed SHA-256 integrity validation", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnImageThatIsReadBackEmptyIsRejected()
+    {
+        var photographs = new Photographs(
+        [
+            (Image(OverviewOccurrenceId, "overview.jpg", "image/jpeg", "overview image"u8.ToArray(), 1),
+                Array.Empty<byte>())
+        ]);
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            CreateAsync(Source(), photographs));
+
+        Assert.Contains("missing content or source provenance", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheArchiveIsNamedByTheCaseNotByThePrincipalsOwnReference()
     {
         // The Reference field now carries the work provider's own
         // reference, which repeats across cases and can contain path
@@ -276,7 +356,7 @@ public sealed class CaseExportArchiveTests
         // archive is named by the Pegasus case reference instead.
         const string principalReference = "AKH//47743/1";
         var source = Source();
-        var bundle = CaseExportArchive.Create(
+        var bundle = await CreateAsync(
             source with
             {
                 Fields = source.Fields with { Reference = principalReference },
@@ -285,7 +365,7 @@ public sealed class CaseExportArchiveTests
                     : field)]
             },
             Images(),
-            "QDOS26015");
+            fileNameReference: "QDOS26015");
 
         Assert.Equal("QDOS26015.zip", bundle.FileName);
         using var parsed = JsonDocument.Parse(bundle.JsonContent);
@@ -297,17 +377,17 @@ public sealed class CaseExportArchiveTests
     // written, into a stream that grows by doubling, and requires the same bytes and the
     // same fingerprint. The large image is bigger than any margin the estimate carries.
     [Fact]
-    public void ThePreSizedArchiveHasTheSameBytesAndFingerprintAsAnUnsizedOne()
+    public async Task ThePreSizedArchiveHasTheSameBytesAndFingerprintAsAnUnsizedOne()
     {
         var large = new byte[300_000];
         new Random(20260930).NextBytes(large);
         var small = "damage image"u8.ToArray();
-        var bundle = CaseExportArchive.Create(
+        var bundle = await CreateAsync(
             Source(),
-            new(
+            new Photographs(
             [
-                Image(OverviewOccurrenceId, "overview.jpg", "image/jpeg", large, 1),
-                Image(DamageOccurrenceId, "damage.png", "image/png", small, 2)
+                Photograph(OverviewOccurrenceId, "overview.jpg", "image/jpeg", large, 1),
+                Photograph(DamageOccurrenceId, "damage.png", "image/png", small, 2)
             ]));
 
         using var unsized = new MemoryStream();
@@ -380,19 +460,37 @@ public sealed class CaseExportArchiveTests
             CaseExportMapping.MappingVersion);
     }
 
-    private static CaseExportImages Images(IReadOnlyList<Guid>? order = null)
+    private static Task<CaseExportBundle> CreateAsync(
+        CaseExportSource source,
+        Photographs photographs,
+        CaseExportImages? images = null,
+        string? fileNameReference = null) => CaseExportArchive.CreateAsync(
+        source,
+        images ?? photographs.Images,
+        photographs.ReadAsync,
+        fileNameReference);
+
+    private static Photographs Images(IReadOnlyList<Guid>? order = null)
     {
-        var images = new[]
-        {
-            Image(OverviewOccurrenceId, "overview.jpg", "image/jpeg", "overview image"u8.ToArray(), 1),
-            Image(DamageOccurrenceId, "damage.png", "image/png", "damage image"u8.ToArray(), 2),
-            Image(OtherOccurrenceId, "other.jpg", "image/jpeg", "other image"u8.ToArray(), 3)
-        };
-        var ordered = order is null
-            ? images
-            : order.Select(id => images.Single(image => image.OccurrenceId == id)).ToArray();
-        return new(ordered);
+        var photographs = DefaultPhotographs();
+        return new(order is null
+            ? photographs
+            : order.Select(id => photographs.Single(item => item.Image.OccurrenceId == id)).ToArray());
     }
+
+    private static (CaseExportImage Image, byte[] Content)[] DefaultPhotographs() =>
+    [
+        Photograph(OverviewOccurrenceId, "overview.jpg", "image/jpeg", "overview image"u8.ToArray(), 1),
+        Photograph(DamageOccurrenceId, "damage.png", "image/png", "damage image"u8.ToArray(), 2),
+        Photograph(OtherOccurrenceId, "other.jpg", "image/jpeg", "other image"u8.ToArray(), 3)
+    ];
+
+    private static (CaseExportImage Image, byte[] Content) Photograph(
+        Guid occurrenceId,
+        string fileName,
+        string mediaType,
+        byte[] content,
+        int sequence) => (Image(occurrenceId, fileName, mediaType, content, sequence), content);
 
     private static CaseExportImage Image(
         Guid occurrenceId,
@@ -409,11 +507,55 @@ public sealed class CaseExportArchiveTests
         DocumentSemanticRole.Image,
         DocumentSource.StaffUpload,
         $"staff-upload:{occurrenceId:N}",
-        content,
+        content.Length,
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(),
         CustodyConfirmed: true,
         IsCurrent: true,
         Ordinal: sequence + 1);
+
+    /// <summary>
+    /// The photographs a case holds, standing in for the custody read: the
+    /// metadata the archive is given, and a reader that answers for one image
+    /// at a time and notes how it was asked.
+    /// </summary>
+    private sealed class Photographs
+    {
+        private readonly Dictionary<Guid, byte[]> contents;
+        private int inFlight;
+
+        public Photographs(IReadOnlyList<(CaseExportImage Image, byte[] Content)> photographs)
+        {
+            Images = new([.. photographs.Select(item => item.Image)]);
+            contents = photographs.ToDictionary(item => item.Image.OccurrenceId, item => item.Content);
+        }
+
+        public CaseExportImages Images { get; }
+
+        /// <summary>The ordinal of each image asked for, in the order asked.</summary>
+        public List<int> ReadOrdinals { get; } = [];
+
+        /// <summary>The most reads that were open at the same moment.</summary>
+        public int MostInFlight { get; private set; }
+
+        public async ValueTask<ReadOnlyMemory<byte>> ReadAsync(
+            CaseExportImage image,
+            CancellationToken cancellationToken)
+        {
+            ReadOrdinals.Add(image.Ordinal);
+            MostInFlight = Math.Max(MostInFlight, ++inFlight);
+            try
+            {
+                // A read that yields would be overlapped by an archive that
+                // asked for the next image before this one was answered.
+                await Task.Yield();
+                return contents[image.OccurrenceId];
+            }
+            finally
+            {
+                inFlight--;
+            }
+        }
+    }
 
     private static readonly string[] FieldNames =
     [

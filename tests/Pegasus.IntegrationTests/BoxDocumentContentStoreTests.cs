@@ -442,8 +442,6 @@ public sealed class BoxDocumentContentStoreTests
             store.OpenReadVersionAsync(wrongCaseRoot, hash, content.Length, default));
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             store.StoreVersionAsync(wrongCaseRoot, content, hash, default));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            store.ReadVersionsAsync([new(wrongCaseRoot, hash, content.Length)], default));
     }
 
     [Fact]
@@ -622,69 +620,6 @@ public sealed class BoxDocumentContentStoreTests
 
         Assert.Equal(content, buffer.ToArray());
         Assert.Equal(3, box.RequestCount - before);
-    }
-
-    [Fact]
-    public async Task ABatchReadResolvesTheCaseFolderOnceForEveryImage()
-    {
-        // Five photographs cost forty-five Box round trips, which is
-        // the eighteen seconds the operator measured. Each read is now its
-        // file and its content; the case folder's ancestry is walked by the
-        // reads that start before the first proof is remembered.
-        var box = new InMemoryBox();
-        box.BindCaseRoot();
-        var store = CreateStore(box);
-        var reads = new List<ManagedDocumentContentRead>();
-        var expected = new List<byte[]>();
-        for (var ordinal = 1; ordinal <= 5; ordinal++)
-        {
-            var content = Encoding.UTF8.GetBytes($"photograph {ordinal}");
-            var address = Address(ordinal, $"photo-{ordinal}.jpg");
-            var written = await store.StoreVersionAsync(address, content, Sha256(content), CancellationToken.None);
-            reads.Add(new(Persisted(address, written), Sha256(content), content.Length));
-            expected.Add(content);
-        }
-        var before = box.RequestCount;
-
-        var contents = await store.ReadVersionsAsync(reads, CancellationToken.None);
-
-        Assert.Equal(expected, contents.Select(item => item.ToArray()));
-        Assert.InRange(box.RequestCount - before, 11, 14);
-
-        // The archive is built from exactly these bytes in exactly this order,
-        // so a batch that disagreed with the one-at-a-time reads would change
-        // the export's contents. It must not: this is a latency fix.
-        var oneAtATime = new List<byte[]>();
-        foreach (var read in reads)
-        {
-            await using var single = await store.OpenReadVersionAsync(
-                read.Address, read.ExpectedSha256, read.ExpectedLength, CancellationToken.None);
-            using var buffer = new MemoryStream();
-            await single.CopyToAsync(buffer);
-            oneAtATime.Add(buffer.ToArray());
-        }
-        Assert.Equal(oneAtATime, contents.Select(item => item.ToArray()));
-    }
-
-    [Fact]
-    public async Task ABatchReadStillFailsClosedOnContentThatDoesNotVerify()
-    {
-        var box = new InMemoryBox();
-        box.BindCaseRoot();
-        var store = CreateStore(box);
-        var content = Encoding.UTF8.GetBytes("batched content");
-        var hash = Sha256(content);
-        var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
-        box.CorruptFile($"{CaseReference}/002 evidence.jpg");
-
-        await Assert.ThrowsAsync<InvalidDataException>(() => store.ReadVersionsAsync(
-            [new(Persisted(Address(), written), hash, content.Length)], CancellationToken.None));
-
-        var missing = new InMemoryBox();
-        missing.BindCaseRoot();
-        var missingStore = CreateStore(missing);
-        await Assert.ThrowsAsync<FileNotFoundException>(() => missingStore.ReadVersionsAsync(
-            [new(Address() with { BoxFileId = "missing", BoxVersionId = "missing-version" }, hash, content.Length)], CancellationToken.None));
     }
 
     /// <summary>

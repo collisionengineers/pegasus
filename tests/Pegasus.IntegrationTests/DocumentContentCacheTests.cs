@@ -1067,54 +1067,51 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The export and the report read a Case's photographs cache first: a
-    /// cold set is read from Box once and cached, and the same set again is
-    /// served from the cache without asking Box.
+    /// The export and the report read a Case's photographs cache first, one
+    /// photograph per read: a cold one is read from Box once and cached, and
+    /// the same one again is served from the cache without asking Box.
     /// </summary>
     [Fact]
-    public async Task ABatchReadIsServedFromTheCacheAfterItsFirstRead()
+    public async Task AManagedReadIsServedFromTheCacheAfterItsFirstRead()
     {
-        var bytes = "batched photograph"u8.ToArray();
+        var bytes = "cached photograph"u8.ToArray();
         var estate = await Estate.CreateDocumentAsync(bytes);
         await using (estate)
         {
             var request = estate.Request;
-            ManagedDocumentContentRead[] reads =
-            [
-                new(
-                    new ManagedDocumentContentAddress(
-                        request.CaseId!.Value,
-                        "QDOS091",
-                        "holding",
-                        Guid.NewGuid(),
-                        1,
-                        request.DocumentId!.Value,
-                        request.VersionId!.Value,
-                        1,
-                        DocumentSemanticRole.Image,
-                        "source.bin",
-                        "application/octet-stream",
-                        "box-file-1",
-                        "box-version-1"),
-                    request.ExpectedSha256,
-                    request.ExpectedContentLength)
-            ];
+            var read = new ManagedDocumentContentRead(
+                new ManagedDocumentContentAddress(
+                    request.CaseId!.Value,
+                    "QDOS091",
+                    "holding",
+                    Guid.NewGuid(),
+                    1,
+                    request.DocumentId!.Value,
+                    request.VersionId!.Value,
+                    1,
+                    DocumentSemanticRole.Image,
+                    "source.bin",
+                    "application/octet-stream",
+                    "box-file-1",
+                    "box-version-1"),
+                request.ExpectedSha256,
+                request.ExpectedContentLength);
 
-            var cold = await estate.Reader.ReadVersionsAsync(reads, default);
-            Assert.Equal(bytes, Assert.Single(cold).ToArray());
+            var cold = await estate.Reader.ReadVersionAsync(read, default);
+            Assert.Equal(bytes, cold.ToArray());
             Assert.Equal(1, estate.Box.Downloads);
 
             estate.Box.Unavailable = true;
-            var warm = await estate.Reader.ReadVersionsAsync(reads, default);
-            Assert.Equal(bytes, Assert.Single(warm).ToArray());
+            var warm = await estate.Reader.ReadVersionAsync(read, default);
+            Assert.Equal(bytes, warm.ToArray());
             Assert.Equal(1, estate.Box.Downloads);
 
             // A cached copy that fails verification is a miss, not a failed
             // export: that version is read from Box instead.
             estate.Box.Unavailable = false;
             estate.Blob.Content = "corrupt"u8.ToArray();
-            var recovered = await estate.Reader.ReadVersionsAsync(reads, default);
-            Assert.Equal(bytes, Assert.Single(recovered).ToArray());
+            var recovered = await estate.Reader.ReadVersionAsync(read, default);
+            Assert.Equal(bytes, recovered.ToArray());
             Assert.Equal(2, estate.Box.Downloads);
         }
     }

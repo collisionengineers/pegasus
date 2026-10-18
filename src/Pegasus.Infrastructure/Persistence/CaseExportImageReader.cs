@@ -5,19 +5,30 @@ using Pegasus.Core.CaseExport;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Every eligible retained photograph of a case, with its bytes, for
-/// <see cref="EfCaseExportStore"/>.
+/// A case's eligible photographs as metadata, in ordinal order, and the read
+/// that returns one photograph's bytes by itself.
+/// </summary>
+public sealed record CaseExportImageSet(
+    IReadOnlyList<CaseExportImage> Images,
+    CaseExportImageContentReader ReadContentAsync);
+
+/// <summary>
+/// Every eligible retained photograph of a case, for
+/// <see cref="EfCaseExportStore"/>: the metadata of the set, and a read that
+/// returns one photograph's bytes.
 ///
 /// Eligibility itself stays in Core with
 /// <see cref="CaseExportPolicy.SelectEligibleImages"/>; this reads what that
-/// policy chose. Where the document content cache is composed the bytes are
-/// read through it first, so a repeat export does not ask Box again.
+/// policy chose. No byte is read here: the archive asks for the photographs
+/// one at a time as it writes them, so the set is never held in memory. Where
+/// the document content cache is composed each photograph is read through it
+/// first, so a repeat export does not ask Box again.
 /// </summary>
 public sealed class CaseExportImageReader(
     IDocumentContentStore contentStore,
     IReadCachedDocumentVersions? cachedVersions = null)
 {
-    public async Task<List<CaseExportImage>> LoadEligibleImagesAsync(
+    public async Task<CaseExportImageSet> LoadEligibleImagesAsync(
         PegasusDbContext context,
         Guid caseId,
         string caseReference,
@@ -94,7 +105,9 @@ public sealed class CaseExportImageReader(
             selected => eligibleVersionIds.Contains(selected.VersionId)
                         && selected.ContentLength <= int.MaxValue)
             .ToArray();
-        var reads = selectedImages.Select(selected => new ManagedDocumentContentRead(
+        var reads = selectedImages.ToDictionary(
+            selected => selected.OccurrenceId,
+            selected => new ManagedDocumentContentRead(
                 new ManagedDocumentContentAddress(
                     caseId,
                     caseReference,
@@ -110,17 +123,8 @@ public sealed class CaseExportImageReader(
                     selected.BoxFileId,
                     selected.BoxVersionId),
                 selected.Sha256,
-                selected.ContentLength))
-            .ToArray();
-        var contents = cachedVersions is null
-            ? await contentStore.ReadVersionsAsync(reads, cancellationToken)
-            : await cachedVersions.ReadVersionsAsync(reads, cancellationToken);
-
-        var images = new List<CaseExportImage>(selectedImages.Length);
-        for (var index = 0; index < selectedImages.Length; index++)
-        {
-            var selected = selectedImages[index];
-            images.Add(new(
+                selected.ContentLength));
+        var images = selectedImages.Select(selected => new CaseExportImage(
                 selected.OccurrenceId,
                 selected.DocumentId,
                 selected.VersionId,
@@ -130,14 +134,19 @@ public sealed class CaseExportImageReader(
                 selected.SemanticRole,
                 selected.Source,
                 selected.SourceOccurrenceIdentity,
-                contents[index],
+                selected.ContentLength,
                 selected.Sha256,
                 CustodyConfirmed: true,
                 IsCurrent: true,
-                selected.Ordinal));
-        }
+                selected.Ordinal))
+            .ToArray();
 
-        return images;
+        // One single-version read per photograph, issued when the archive
+        // reaches it. Hash and length are verified by the store that reads it.
+        return new(
+            images,
+            (image, token) => ManagedVersionBytes.ReadAsync(
+                contentStore, cachedVersions, reads[image.OccurrenceId], token));
     }
 
     private sealed record SelectedDocument(
