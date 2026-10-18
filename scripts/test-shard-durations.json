@@ -161,7 +161,6 @@
   "Pegasus.IntegrationTests.OrganizationAdministrationWebTests": 91.74,
   "Pegasus.IntegrationTests.OrganizationDirectoryWebTests": 54.79,
   "Pegasus.IntegrationTests.OriginalReportPrefillAcceptanceTests": 26.26,
-  "Pegasus.IntegrationTests.PegasusDbContextSaveChangesTests": 0.1,
   "Pegasus.IntegrationTests.PreCaseImagePreparationWebTests": 26.5,
   "Pegasus.IntegrationTests.PrincipalApiCaseDataSnapshotPersistenceTests": 13.34,
   "Pegasus.IntegrationTests.PrincipalApiSubmissionTests": 177.52,
