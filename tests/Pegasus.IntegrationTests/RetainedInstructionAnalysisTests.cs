@@ -490,7 +490,7 @@ public sealed class RetainedInstructionAnalysisTests
         Assert.Empty(failures);
         Assert.Empty(inconclusive);
         Assert.Equal(Top15InstructionCorpusTests.Expectations.Length, analysed);
-        Assert.Equal(20, profilesRepresented.Count);
+        Assert.Equal(21, profilesRepresented.Count);
     }
 
     /// <summary>
@@ -523,7 +523,7 @@ public sealed class RetainedInstructionAnalysisTests
             .GroupBy(expectation => expectation.Profile, StringComparer.Ordinal)
             .Select(group => group.First())
             .ToArray();
-        Assert.Equal(19, samples.Length);
+        Assert.Equal(20, samples.Length);
 
         var failures = new List<string>();
         foreach (var expectation in samples)

@@ -32,6 +32,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
             ["FW"] = ["fairwaylegal.co.uk"],
             ["KBS"] = ["knightsbridgesolicitors.co.uk"],
             ["KERR"] = ["kerrbrown.co.uk"],
+            ["KMR"] = ["kmrlaw.co.uk"],
             ["MP"] = ["montrealprestige.co.uk"],
             ["OAK"] = ["oakwoodscotland.co.uk", "oakwoodsolicitors.co.uk"],
             ["PCH"] = ["pch-ltd.com"],

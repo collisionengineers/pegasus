@@ -15,6 +15,7 @@ public sealed class PrincipalMailRoutePolicyTests
     [InlineData("FW", "instructions@fairwaylegal.co.uk")]
     [InlineData("KBS", "instructions@knightsbridgesolicitors.co.uk")]
     [InlineData("KERR", "instructions@kerrbrown.co.uk")]
+    [InlineData("KMR", "info@kmrlaw.co.uk")]
     [InlineData("MP", "instructions@montrealprestige.co.uk")]
     [InlineData("OAK", "instructions@oakwoodscotland.co.uk")]
     [InlineData("OAK", "instructions@oakwoodsolicitors.co.uk")]

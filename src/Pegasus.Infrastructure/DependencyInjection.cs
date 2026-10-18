@@ -233,6 +233,7 @@ public static class DependencyInjection
         services.AddSingleton<IInstructionExtractionPolicy, FwInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, KbsInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, KerrInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, KmrInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, MpInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, OakInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, PchInstructionExtractionPolicy>();

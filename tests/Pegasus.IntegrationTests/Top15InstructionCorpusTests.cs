@@ -532,6 +532,15 @@ public sealed class Top15InstructionCorpusTests
         ,new("ALISON", $"{CorpusRoot}/ALISON WORD 03.docx", "ceb3b496e36c9d4ca749982fc008df4a49f500b15b5c7c4f8636deb200e64bf8", new("Uzmaa Patel", "MS:MA:BFD/25/42474.001", "P8UHX", new(2025, 8, 8)), [new("Incident date", "12 August 2025", "The letter's own date."), new("Claimant name", "Whytecroft", "The claimant's address on the Our Client line."), new("Claim reference", "180223", "The number in the letter's footer.")])
         ,new("ALISON", $"{CorpusRoot}/ALISON WORD 04.docx", "1ca54f46c1d2c46f09d47343dc86f28b9fdbbd048b21812e450002e973183c2c", new("Asifah Nasur", "HA:HH:BFD/25/42486.001", "NJ10OXC", new(2025, 7, 28)), [new("Incident date", "1 August 2025", "The letter's own date."), new("Claimant name", "Lees Hall Road", "The claimant's address on the Our Client line."), new("Claim reference", "179685", "The number in the letter's footer.")])
         ,new("ALISON", $"{CorpusRoot}/ALISON WORD 05.docx", "05415183569f8b71fcd899e5385b6be6e24fb5f5ad90d43daee107b684d3f7fd", new("Raja Khan", "MS:HH:BFD/25/42426.001", null, new(2025, 6, 20)), [new("Incident date", "26 June 2025", "The letter's own date."), new("Claimant name", "Calder Road", "The claimant's address on the Our Client line."), new("Claim reference", "175105", "The number in the letter's footer.")])
+        // KMR dates the letter above Our Reference, names the registration in
+        // its prose, and on four letters follows the client's name with a dash
+        // and the registration. The director and company number are in the
+        // footer.
+        ,new("KMR", $"{CorpusRoot}/KMR 01.pdf", "d7dd8d77204b224f7f5a212b5dc64ad868bd040da71de87d93a0d8947480011a", new("Aqeel Arshad", "01071-Arshad", "MJ25TPU", new(2026, 4, 17)), [new("Incident date", "27 April, 2026", "The letter's own date."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
+        ,new("KMR", $"{CorpusRoot}/KMR 02.pdf", "57d9ce853f2559f641a2da5ababe19288f00b68b47931556369a4d94dd3e7f9f", new("Streetrax Ltd", "01068-Streetrax Ltd – PN22 THG", "PN22THG", new(2026, 4, 24)), [new("Incident date", "27 April, 2026", "The letter's own date."), new("Claimant name", "PN22 THG", "The registration after the client's name."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
+        ,new("KMR", $"{CorpusRoot}/KMR 03.pdf", "75eae4d900a747e6cac9cccfaa976b1cf010f79d15eb2bc4b82aab6ae622eac1", new("Streetrax Ltd", "01066-Streetrax Ltd – EX23 LKD", "EX23LKD", new(2026, 4, 21)), [new("Incident date", "23 April, 2026", "The letter's own date."), new("Claimant name", "EX23 LKD", "The registration after the client's name."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
+        ,new("KMR", $"{CorpusRoot}/KMR 04.pdf", "900ca6d59ba3902aee61527aa84953d0c52842da487cd71a08057703fb5954cb", new("Streetrax Ltd", "00987-Streetrax Ltd – ET23 XJM", "ET23XJM", new(2025, 10, 17)), [new("Incident date", "9 March, 2026", "The letter's own date."), new("Claimant name", "ET23 XJM", "The registration after the client's name."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
+        ,new("KMR", $"{CorpusRoot}/KMR 05.pdf", "c62f1592bd495c43495074d5307ee0502efc949bdf68c9da0ed94e421de7a3d3", new("Streetrax Ltd", "01058-Streetrax Ltd – MT69 UBW", "MT69UBW", new(2026, 3, 31)), [new("Incident date", "9 April, 2026", "The letter's own date."), new("Claimant name", "MT69 UBW", "The registration after the client's name."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -635,7 +644,8 @@ public sealed class Top15InstructionCorpusTests
             new SwanInstructionExtractionPolicy(),
             new TenInstructionExtractionPolicy(),
             new AmsInstructionExtractionPolicy(),
-            new AlisonInstructionExtractionPolicy()
+            new AlisonInstructionExtractionPolicy(),
+            new KmrInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
@@ -644,7 +654,7 @@ public sealed class Top15InstructionCorpusTests
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var selector = new InstructionExtractionPolicySelector(Policies());
         var representatives = Expectations.GroupBy(sample => sample.Profile).Select(group => group.First()).ToArray();
-        Assert.Equal(20, representatives.Length);
+        Assert.Equal(21, representatives.Length);
         foreach (var sample in representatives)
         {
             var bytes = await File.ReadAllBytesAsync(Path.Combine(PackRoot(), sample.PackRelativePath));
@@ -742,7 +752,7 @@ public sealed class Top15InstructionCorpusTests
         var failures = new List<string>();
         var counts = new Dictionary<(string Profile, string Field, string Disposition), int>();
 
-        Assert.Equal(111, Expectations.Length);
+        Assert.Equal(116, Expectations.Length);
 
         foreach (var expectation in Expectations)
         {
