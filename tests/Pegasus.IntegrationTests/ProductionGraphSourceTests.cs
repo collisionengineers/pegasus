@@ -1634,6 +1634,153 @@ public sealed class ProductionGraphSourceTests
     }
 
     /// <summary>
+    /// The recovery poll reads a page's messages two at a time, the figure the
+    /// Deleted Items search holds, and still returns them in delta order. The
+    /// retained-message check stays serial and in page order, and each message
+    /// carries the cursor for its own place in the page. The page is cut short of
+    /// Graph's, and the item in the middle is already retained.
+    /// </summary>
+    [Fact]
+    public async Task InboxReadsAtMostTwoMessagesAtOnceAndKeepsDeltaOrderAndCursors()
+    {
+        static string Mime(string id) =>
+            $"From: sender@example.test\r\nSubject: Message {id}\r\nMessage-Id: <{id}@example.test>\r\n\r\nBody {id}";
+
+        var inFlight = 0;
+        var peak = 0;
+        var secondRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new AsyncHandler(async request =>
+        {
+            if (!request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z","internetMessageId":"<immutable-1@example.test>"},{"id":"immutable-2","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z","internetMessageId":"<immutable-2@example.test>"},{"id":"immutable-3","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:02:00Z","internetMessageId":"<immutable-3@example.test>"},{"id":"immutable-4","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:03:00Z","internetMessageId":"<immutable-4@example.test>"},{"id":"immutable-5","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:04:00Z","internetMessageId":"<immutable-5@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+            }
+
+            var id = request.RequestUri.Segments[^2].TrimEnd('/');
+            var now = Interlocked.Increment(ref inFlight);
+            int seen;
+            while ((seen = Volatile.Read(ref peak)) < now
+                && Interlocked.CompareExchange(ref peak, now, seen) != seen)
+            {
+            }
+            if (now >= 2)
+            {
+                secondRead.TrySetResult();
+            }
+            // Held until a second read is on the wire. A serial build never has one, so
+            // it waits out the timeout and the peak assertion fails rather than hangs.
+            await Task.WhenAny(secondRead.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+            secondRead.TrySetResult();
+            await Task.Delay(50);
+            Interlocked.Decrement(ref inFlight);
+            return Response(HttpStatusCode.OK, Mime(id), "message/rfc822");
+        });
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
+        var asked = new List<string>();
+
+        var page = await source.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            4,
+            (immutableMessageId, _, _) =>
+            {
+                asked.Add(immutableMessageId);
+                return Task.FromResult(immutableMessageId == "immutable-3");
+            },
+            CancellationToken.None);
+
+        var expected = new[] { "immutable-1", "immutable-2", "immutable-4" };
+        Assert.Equal(2, peak);
+        Assert.Equal(["immutable-1", "immutable-2", "immutable-3", "immutable-4"], asked);
+        Assert.Equal(expected, page.Messages.Select(message => message.ImmutableMessageId));
+        Assert.Equal(
+            expected.Select(id => $"Message {id}.eml"),
+            page.Messages.Select(message => message.FileName));
+        Assert.Equal(
+            expected.Select(Mime),
+            page.Messages.Select(message => Encoding.ASCII.GetString(message.MimeContent.Span)));
+        Assert.Equal(
+            [new DateTimeOffset(2026, 7, 31, 10, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 7, 31, 10, 1, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 7, 31, 10, 3, 0, TimeSpan.Zero)],
+            page.Messages.Select(message => message.ReceivedAtUtc));
+        Assert.Equal(
+            [1, 2, 4],
+            page.Messages.Select(message =>
+                GraphCursor.Parse(message.NextCursor, new Uri("https://example.test")).SkipCount));
+        Assert.Equal(page.NextCursor, page.Messages[^1].NextCursor);
+    }
+
+    /// <summary>
+    /// One throttled read fails the whole page, as a serial read did, with the
+    /// throttle itself rather than an aggregate, and no page is returned.
+    /// </summary>
+    [Fact]
+    public async Task InboxPageFailsWholeWhenOneOfTheParallelReadsIsThrottled()
+    {
+        var handler = new AsyncHandler(async request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (!path.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"},{"id":"immutable-2","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z"},{"id":"immutable-3","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:02:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+            }
+
+            await Task.Delay(10);
+            return path.Contains("/immutable-2/", StringComparison.Ordinal)
+                ? Response(HttpStatusCode.TooManyRequests, "{}")
+                : Response(HttpStatusCode.OK, "From: sender@example.test\r\n\r\nBody", "message/rfc822");
+        });
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
+
+        await Assert.ThrowsAsync<ApprovedSentSourceThrottledException>(() => source.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            10,
+            CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The recovery poll runs under the Worker's folded-job budget, which cancels
+    /// it with the caller's token. A read in progress ends as a cancellation, so
+    /// the Worker records the budget and not a Graph fault.
+    /// </summary>
+    [Fact]
+    public async Task InboxReadStopsWhenTheCallerCancels()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new CancellableAsyncHandler(async (request, token) =>
+        {
+            if (!request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"immutable-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"},{"id":"immutable-2","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""");
+            }
+
+            started.TrySetResult();
+            await Task.Delay(TimeSpan.FromSeconds(30), token);
+            return Response(HttpStatusCode.OK, "From: sender@example.test\r\n\r\nBody", "message/rfc822");
+        });
+        var source = new GraphApprovedInboxSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new NoQuarantineStore());
+        using var cancellation = new CancellationTokenSource();
+
+        var read = source.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            10,
+            cancellation.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => read);
+    }
+
+    /// <summary>
     /// Graph is not always able to give an Internet message id, and then there is
     /// nothing to ask: the item is downloaded as it always was, and the check is
     /// never called for it.
@@ -1865,6 +2012,16 @@ public sealed class ProductionGraphSourceTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             handler(request);
+    }
+
+    /// <summary>
+    /// A handler that is handed the request's token, so a stub can wait on it.
+    /// </summary>
+    private sealed class CancellableAsyncHandler(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            handler(request, cancellationToken);
     }
 
     /// <summary>

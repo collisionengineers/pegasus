@@ -191,6 +191,9 @@ internal sealed class GraphMailClient(
     Uri baseUri,
     HttpClient httpClient)
 {
+    // Outlook allows four concurrent requests per mailbox; two leaves the Worker headroom.
+    internal const int MaximumConcurrentMimeReads = 2;
+
     private static readonly TokenRequestContext TokenContext =
         new(["https://graph.microsoft.com/.default"]);
 
@@ -669,7 +672,11 @@ internal sealed class GraphApprovedInboxSource(
             page = await client.ReadDeltaAsync(cursor.PageUri, mailboxId, inboxFolderId, cancellationToken);
         }
         var available = page.Items.Skip(cursor.SkipCount).Take(maximumMessages).ToArray();
-        var messages = new List<ApprovedInboxMessage>(available.Length);
+        // Every check that needs no download runs first, in page order, so the
+        // retained-message check stays serial on the shared store and each survivor
+        // carries the cursor for its own place. Only the downloads overlap.
+        var survivors = new List<(GraphDeltaItem Item, DateTimeOffset ReceivedAtUtc, string NextCursor)>(
+            available.Length);
         var processed = cursor.SkipCount;
         foreach (var item in available)
         {
@@ -707,34 +714,49 @@ internal sealed class GraphApprovedInboxSource(
                 // place, so they move past it.
                 continue;
             }
-            var mime = await ReadMimeAsync(mailboxId, item.Id, cancellationToken);
-            var next = GraphCursor.Serialize(
-                processed >= page.Items.Count ? page.NextUri : cursor.PageUri,
-                processed >= page.Items.Count ? 0 : processed);
-            // A message refused before it was read has no subject to name it by.
-            var metadata = mime.Rejection is not null
-                ? null
-                : await ReadRetainedMetadataAsync(
-                    mime.Content,
-                    item,
-                    inboxFolderId,
-                    cancellationToken);
-            messages.Add(new(
-                item.Id,
-                EmailSourceFormat.RetainedMessageFileName(metadata?.Subject),
-                mime.Content,
+            survivors.Add((
+                item,
                 item.ReceivedAtUtc.Value,
-                next)
-            {
-                SourceRejection = mime.Rejection,
-                RetainedMetadata = metadata
-            });
+                GraphCursor.Serialize(
+                    processed >= page.Items.Count ? page.NextUri : cursor.PageUri,
+                    processed >= page.Items.Count ? 0 : processed)));
         }
+        var messages = new ApprovedInboxMessage[survivors.Count];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, survivors.Count),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = GraphMailClient.MaximumConcurrentMimeReads,
+                CancellationToken = cancellationToken,
+            },
+            async (index, token) =>
+            {
+                var (item, receivedAtUtc, next) = survivors[index];
+                var mime = await ReadMimeAsync(mailboxId, item.Id, token);
+                // A message refused before it was read has no subject to name it by.
+                var metadata = mime.Rejection is not null
+                    ? null
+                    : await ReadRetainedMetadataAsync(
+                        mime.Content,
+                        item,
+                        inboxFolderId,
+                        token);
+                messages[index] = new(
+                    item.Id,
+                    EmailSourceFormat.RetainedMessageFileName(metadata?.Subject),
+                    mime.Content,
+                    receivedAtUtc,
+                    next)
+                {
+                    SourceRejection = mime.Rejection,
+                    RetainedMetadata = metadata
+                };
+            });
         var consumed = cursor.SkipCount + available.Length;
         var pageCursor = GraphCursor.Serialize(
             consumed >= page.Items.Count ? page.NextUri : cursor.PageUri,
             consumed >= page.Items.Count ? 0 : consumed);
-        if (messages.Count > 0)
+        if (messages.Length > 0)
         {
             messages[^1] = messages[^1] with { NextCursor = pageCursor };
         }
@@ -1027,9 +1049,6 @@ internal sealed class GraphDeletedMailSearchSource(
     IApprovedIntakeMailboxes approvedMailboxes,
     IIntakeSourceReader sourceReader) : IDeletedMailSearchSource
 {
-    // Outlook allows four concurrent requests per mailbox; two leaves the Worker headroom.
-    private const int MaximumConcurrentMimeReads = 2;
-
     public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken) =>
         (await approvedMailboxes.ListPollableAsync(cancellationToken))
@@ -1102,7 +1121,7 @@ internal sealed class GraphDeletedMailSearchSource(
                 Enumerable.Range(0, selectedCandidates.Length),
                 new ParallelOptions
                 {
-                    MaxDegreeOfParallelism = MaximumConcurrentMimeReads,
+                    MaxDegreeOfParallelism = GraphMailClient.MaximumConcurrentMimeReads,
                     CancellationToken = cancellationToken,
                 },
                 async (index, token) =>
