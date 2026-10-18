@@ -4,6 +4,39 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 113 - 18 October 2026 (deployment live)
+
+Release 113 deployed [PR 1410](https://github.com/collisionengineers/pegasus/pull/1410), the
+combine of the #1059 Principal route-and-profile chain of wave 3 of the release-readiness
+programme: [PR 1403](https://github.com/collisionengineers/pegasus/pull/1403) (the corpus generator
+reads the `<CODE>/<type>/<category>` layout, R130), then one route and instruction profile each for
+KERR ([PR 1404](https://github.com/collisionengineers/pegasus/pull/1404), kerrbrown.co.uk only,
+R131), SWAN ([PR 1405](https://github.com/collisionengineers/pegasus/pull/1405)), TEN
+([PR 1406](https://github.com/collisionengineers/pegasus/pull/1406)), AMS
+([PR 1407](https://github.com/collisionengineers/pegasus/pull/1407)), ALISON
+([PR 1408](https://github.com/collisionengineers/pegasus/pull/1408)) and KMR
+([PR 1409](https://github.com/collisionengineers/pegasus/pull/1409)); twenty-one routes and 21
+profiles are live. The candidate also carried the reference-data load record
+([PR 1402](https://github.com/collisionengineers/pegasus/pull/1402), docs only). ACSP has no
+route: its one real instruction mail carries no inspection tell, so it waits for the operator.
+
+The route was the normal App Service route with the migration identity unchanged: no bundle, grant
+or bootstrap ran. Web and Worker are Running on the approved release and full production smoke
+passed first time. The first build was stopped by the workstation for memory and rebuilt; the
+promotion had already been read back and production kept serving Release 112 meanwhile.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `2f07418e101ad80a60e47f5b86754a62e1c4a4de`, the merge of PR 1410 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `A298176D8409F4624C488A452F1FA69A50BFFE285AB31BA4BFC9C5DBF788EC92` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `9EAC013016AC4B9E9EE8D789F47E5001876BF92380FE09D25A6634F9CD4C834B`; `worker.zip` `A2369B99945363FB40F592E7F8D56825C6074A1BC44CE12C301CF13B74E12750`; `classifier.zip` `ACF9C211094A4D8E5D6F8CF2E23D85F6EFEEE849EEBA913DC613EBD98BF318DF` (built, not deployed: no classifier Function App exists); `efbundle.exe` `FF055BB70C776E69C854A1C2EBF18132EA99CC23384FCF0DFC043A21081E048B` (built, not run). Built 03:09-03:17Z in a detached worktree at the release SHA after a first build, started 03:06Z, was stopped at 03:07Z by the workstation's low-memory guard before producing anything; Local and Artifact plan validations passed 03:17Z. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | Every constituent PR was CI-green at its head and independently reviewed; PR 1410's head tree equals PR 1409's, its lost-work audit had no FAIL line and its REVIEW lines were the stack's own count replacements (the FRD-09 and FRD-22 count words from sixteen to twenty-one and the count asserts in `Top15InstructionCorpusTests` and `RetainedInstructionAnalysisTests`), one focused local run chosen by `Invoke-Verification.ps1` passed (Architecture 40, Core 49, Integration 39) and its checks passed first time (run 39090762099: changes, invariants, unit, six `sql-integration` shards and coverage; infrastructure and classifier skipped by path). PR 1402 landed alone on the invariants lane. One promotion from `main` `f56354740` at 03:06:46Z, under the operator's authorisation of 16 October for the programme's landings, promotions and deployments. |
+| Schema and grants | Unchanged. Live head `20261017120000_ReportSendingSopV8` (226 applied) read at 03:18:37Z and equal to the manifest identity; no bundle, grant or bootstrap run. |
+| Deployment | PreDeploy 03:18:56Z; PreProvision passed 03:19:13Z (B1 quota in `uksouth` 3); provision 03:19:23Z found no changes; `web.zip` deployed with `--clean true --restart true` 03:23:07Z, exact release read back 03:23:16Z; `worker.zip` deployed 03:24:57Z. |
+| Production smoke | Passed 03:25:45Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; deployment record `5a710d64-d8cf-446d-b665-a4561a94ca2a` (OneDeploy, 03:19:49Z); active package `20261018031931.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 03:20:00Z; Graph subscription expires 2026-10-18 17:10:00Z, a Disabled mailbox's row as the Release 110 record explains); all five Disabled settings `false`. |
+| Query Store | State `READ_WRITE`. The after snapshot owed by Releases 107 to 112 was taken at 02:29Z (24 h, 226 statements) at ignored `artifacts/performance/query-store-release-112-after-20261018T0229Z.csv`, a day after Release 107 went live; those owed items are discharged, and the comparison with their before snapshots is the proof round's. Before snapshot for this release (24 h to 03:06Z, 226 statements) at ignored `artifacts/performance/query-store-release-113-before-20261018T0306Z.csv`. |
+| Still owed | The operator's acceptance of each Principal's development and holdout outcomes (the PR bodies quote them); live evidence of a real instruction mail from each new route's domain landing on a Case; the operator-run regeneration of `reference/workproviders-and-repairers/principal-identification-corpus.v1.json`, which PR 1403 leaves as is so the generator's `-Verify` reports drift until then; a ruling on KMR's empty holdout; ACSP's route decision and more instruction-stage samples under `corpus/holding/`. Release 108 to 112 owed items otherwise stand. |
+| PR states | PRs 1402 to 1410 read Merged with their heads in `main` and `dev`. No issue was closed: every chain PR says "Part of #1059", which stays open by ruling. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-113-2f07418e`; the stage driver and its logs at `artifacts/releases/release-113-driver`. |
+
 ## Reference-data load (REF-04) - 17 October 2026 (production applied)
 
 The reference-data load (REF-04; R16, R17, R18, R21 and R23) was applied to production on 17 October
