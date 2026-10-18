@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -345,23 +346,31 @@ internal sealed class GraphStaffMailSender(
         {
             throw new InvalidOperationException("The attachment stream cannot resume at the recorded upload offset.");
         }
-        var buffer = new byte[UploadChunkSize];
         var offset = activeProgress.NextOffset;
-        while (offset < attachment.ContentLength)
+        var buffer = ArrayPool<byte>.Shared.Rent(UploadChunkSize);
+        try
         {
-            var count = await content.ReadAtLeastAsync(
-                buffer, (int)Math.Min(buffer.Length, attachment.ContentLength - offset), false, cancellationToken);
-            using var chunk = new HttpRequestMessage(HttpMethod.Put, uploadUrl)
+            while (offset < attachment.ContentLength)
             {
-                Content = new ByteArrayContent(buffer, 0, count)
-            };
-            chunk.Content.Headers.ContentRange = new ContentRangeHeaderValue(
-                offset, offset + count - 1, attachment.ContentLength);
-            using var response = await httpClient.SendAsync(chunk, cancellationToken);
-            RequireSuccess(response);
-            offset += count;
-            await uploadProgress.SaveAsync(
-                operationId, attachmentIdentity, activeProgress with { NextOffset = offset }, cancellationToken);
+                var wanted = (int)Math.Min(UploadChunkSize, attachment.ContentLength - offset);
+                var count = await content.ReadAtLeastAsync(
+                    buffer.AsMemory(0, wanted), wanted, false, cancellationToken);
+                using var chunk = new HttpRequestMessage(HttpMethod.Put, uploadUrl)
+                {
+                    Content = new ByteArrayContent(buffer, 0, count)
+                };
+                chunk.Content.Headers.ContentRange = new ContentRangeHeaderValue(
+                    offset, offset + count - 1, attachment.ContentLength);
+                using var response = await httpClient.SendAsync(chunk, cancellationToken);
+                RequireSuccess(response);
+                offset += count;
+                await uploadProgress.SaveAsync(
+                    operationId, attachmentIdentity, activeProgress with { NextOffset = offset }, cancellationToken);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
         }
         await uploadProgress.CompleteAsync(operationId, attachmentIdentity, cancellationToken);
     }

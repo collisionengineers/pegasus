@@ -239,6 +239,56 @@ public sealed class ProductionGraphSourceTests
     }
 
     [Fact]
+    public async Task LargeAttachmentUploadsEveryNonFinalChunkAtTheFullChunkSize()
+    {
+        const int chunkSize = 10 * 320 * 1024;
+        var length = 2 * chunkSize + 1;
+        var bytes = new byte[length];
+        for (var i = 0; i < bytes.Length; i++)
+            bytes[i] = (byte)(i % 251);
+        var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(SHA256.HashData(bytes)),
+            bytes.Length, "large.pdf", "application/pdf");
+        var puts = new List<(long From, long To, long Length, int BodyLength, string BodyHash)>();
+        var graph = new DelegateHandler(_ => Response(HttpStatusCode.OK, "{\"value\":[]}"));
+        var upload = new DelegateHandler(request =>
+        {
+            var range = request.Content!.Headers.ContentRange!;
+            var body = request.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+            puts.Add((range.From!.Value, range.To!.Value, range.Length!.Value, body.Length,
+                Convert.ToHexString(SHA256.HashData(body))));
+            return Response(HttpStatusCode.Created, "{}");
+        });
+        var progress = new UploadProgressFake
+        {
+            Current = new(new Uri("https://graph.microsoft.com/upload/session"),
+                DateTimeOffset.UtcNow.AddMinutes(10), 0)
+        };
+        var options = Options();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(graph)),
+            new HttpClient(upload), progress);
+
+        await sender.AttachAsync(new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+            Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None);
+
+        Assert.Equal(new long[] { 0, chunkSize, 2L * chunkSize }, puts.Select(put => put.From));
+        Assert.Equal(new long[] { chunkSize - 1, 2L * chunkSize - 1, 2L * chunkSize },
+            puts.Select(put => put.To));
+        Assert.All(puts, put => Assert.Equal(length, put.Length));
+        Assert.Equal(new[] { chunkSize, chunkSize, 1 }, puts.Select(put => put.BodyLength));
+        Assert.Equal(
+            new[]
+            {
+                Convert.ToHexString(SHA256.HashData(bytes.AsSpan(0, chunkSize))),
+                Convert.ToHexString(SHA256.HashData(bytes.AsSpan(chunkSize, chunkSize))),
+                Convert.ToHexString(SHA256.HashData(bytes.AsSpan(2 * chunkSize)))
+            },
+            puts.Select(put => put.BodyHash));
+        Assert.True(progress.Completed);
+    }
+
+    [Fact]
     public async Task ExactMimeSizeValidationRejectsBeforeAnyGraphWrite()
     {
         var graphWrites = 0;
