@@ -140,6 +140,7 @@ public sealed class EfImageIntakeStore(
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
             .Include(item => item.ManualAssociation)
+            .AsSplitQuery()
             .SingleOrDefaultAsync(
                 item => item.Id == request.Origin.ReceiptId,
                 cancellationToken)
@@ -334,6 +335,7 @@ public sealed class EfImageIntakeStore(
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
             .Include(item => item.ManualAssociation)
+            .AsSplitQuery()
             .Where(item => memberReceiptIds.Contains(item.Id))
             .ToArrayAsync(cancellationToken);
         var acceptedCaseIds = await context.CaseIntakeLinks.AsNoTracking()

@@ -493,6 +493,44 @@ public sealed class AssociatedMailEvidenceIntegrationTests
     }
 
     /// <summary>
+    /// A matched follow-up is read back once when it is processed, after its
+    /// association is written. The allocator is handed the receipt the processor
+    /// holds, and declines a receipt that has its Case without a read of its own.
+    /// </summary>
+    [Fact]
+    public async Task AMatchedFollowUpIsReadBackAtMostOnceWhenItIsProcessed()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var email = FollowUp(includePhotos: false);
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            new(email.FileName, email.MediaType, email.Content,
+                services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
+            $"receipt-reads:{Guid.NewGuid():N}", default);
+        await DispatchAsync(services, received.StagedReceiptId);
+        var receipts = new CountingReceiptQueries(services.GetRequiredService<IIntakeReceiptQueries>());
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
+            await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(
+                    services,
+                    receipts,
+                    ActivatorUtilities.CreateInstance<AllocateIntake>(services, receipts))
+                .ExecuteAsync(received.StagedReceiptId, default));
+
+        Assert.True(
+            receipts.GetCount <= 1,
+            $"A matched follow-up was read back {receipts.GetCount} times; at most 1 is allowed.");
+        var evaluation = Assert.IsType<IntakeEvaluationRevision>(await services.GetRequiredService<IIntakeWorkStore>()
+            .GetCompletedEvaluationAsync(received.StagedReceiptId, default));
+        Assert.Equal(caseId, Assert.IsType<IntakeReceipt>(await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(evaluation.ProcessedReceiptId, default)).CurrentCaseId);
+    }
+
+    /// <summary>
     /// An original report e-mailed separately to an Audit created without it
     /// (#901): the matched follow-up files the report and Pegasus recognises
     /// it, so the Audit has its original report and its cells, in the

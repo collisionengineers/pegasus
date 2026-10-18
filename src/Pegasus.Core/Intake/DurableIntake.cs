@@ -812,28 +812,20 @@ public sealed class ProcessQueuedIntake(
                 // association, image automation, or Unidentified work.
                 return QueuedIntakeProcessingOutcome.NoOp;
             }
-            var replayAssociated = await AssociateCaseIfUnambiguousAsync(
-                completedReceipt,
-                completedEvaluation,
-                cancellationToken);
-            if (replayAssociated)
+            if (await AssociateCaseIfUnambiguousAsync(
+                    completedReceipt,
+                    completedEvaluation,
+                    cancellationToken)
+                || await AssociateRetainedMailAsync(completedReceipt, cancellationToken))
             {
-                completedReceipt = await receiptQueries.GetAsync(
-                    completedEvaluation.ProcessedReceiptId,
-                    cancellationToken) ?? completedReceipt;
-            }
-            if (await AssociateRetainedMailAsync(completedReceipt, cancellationToken))
-            {
-                completedReceipt = await receiptQueries.GetAsync(
-                    completedEvaluation.ProcessedReceiptId,
-                    cancellationToken) ?? completedReceipt;
+                completedReceipt = await ReloadAsync(completedReceipt, cancellationToken);
             }
             var replayPromotion = await PromoteAssociatedCaseEvidenceAsync(
                 completedReceipt, cancellationToken);
 
             // Completed redelivery replays destination operation identities.
             var replayAllocation = await allocateIntake.AttemptAutomaticAsync(
-                completedReceipt.Id,
+                completedReceipt,
                 completedEvaluation.Id,
                 cancellationToken);
             var replayAllocated =
@@ -844,9 +836,7 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken);
             if (replayAllocated)
             {
-                completedReceipt = await receiptQueries.GetAsync(
-                    completedEvaluation.ProcessedReceiptId,
-                    cancellationToken) ?? completedReceipt;
+                completedReceipt = await ReloadAsync(completedReceipt, cancellationToken);
             }
 
             var replayImageOutcome = await ApplyImageIntakeAutomationAsync(
@@ -960,24 +950,19 @@ public sealed class ProcessQueuedIntake(
                 // A destination the uploading member of staff declared is
                 // their decision, made before the upload: it is recorded
                 // first, so nothing below identifies, registers or holds
-                // material that already has its Case.
-                if (await AssociateDeclaredDestinationAsync(processed, stagedReceipt, cancellationToken))
+                // material that already has its Case. The first route that
+                // links the receipt ends the search, since a linked receipt
+                // has its Case and every route after it declines it.
+                if (await AssociateDeclaredDestinationAsync(processed, stagedReceipt, cancellationToken)
+                    || await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken)
+                    || await AssociateRetainedMailAsync(processed, cancellationToken))
                 {
-                    processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
-                }
-                var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
-                if (associated)
-                {
-                    processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
-                }
-                if (await AssociateRetainedMailAsync(processed, cancellationToken))
-                {
-                    processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+                    processed = await ReloadAsync(processed, cancellationToken);
                 }
                 promotion = await PromoteAssociatedCaseEvidenceAsync(processed, cancellationToken);
 
                 var allocation = await allocateIntake.AttemptAutomaticAsync(
-                    processed.Id,
+                    processed,
                     evaluation.Id,
                     cancellationToken);
                 var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
@@ -986,7 +971,7 @@ public sealed class ProcessQueuedIntake(
                 {
                     // Allocation wrote CurrentCaseId durably; image automation must
                     // see the associated state rather than attempt a conflicting link.
-                    processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+                    processed = await ReloadAsync(processed, cancellationToken);
                 }
             }
 
@@ -1154,6 +1139,17 @@ public sealed class ProcessQueuedIntake(
 
         return await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
     }
+
+    /// <summary>
+    /// The receipt as it is persisted now, after a step wrote to it. A link or
+    /// an allocation moves the receipt's version, association and Case
+    /// references, and no step returns them, so the row is read again rather
+    /// than any of them being assumed.
+    /// </summary>
+    private async Task<IntakeReceipt> ReloadAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken) =>
+        await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
 
     private async Task<bool> IsDiscardedSubmissionMemberAsync(
         IntakeReceipt receipt,

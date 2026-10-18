@@ -1916,6 +1916,75 @@ public sealed class CustodyOutboxIntegrationTests
         var services = scope.ServiceProvider;
         await SeedPrincipalAsync(services, QdosPrincipal.Code);
 
+        var (sourceIdentity, stagedReceiptId) = await ReceiveReportlessMailboxAuditAsync(services);
+        await ProcessQueued(
+                services,
+                services.GetRequiredService<IIntakeReceiptQueries>(),
+                services.GetRequiredService<IAllocateIntake>())
+            .ExecuteAsync(stagedReceiptId, CancellationToken.None);
+
+        var receipt = Assert.IsType<IntakeReceipt>(
+            await services.GetRequiredService<IIntakeReceiptStore>()
+                .FindBySourceIdentityAsync(sourceIdentity, CancellationToken.None));
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.NotNull(receipt.CurrentCaseId);
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var cases = await context.Set<CaseEntity>()
+            .AsNoTracking()
+            .Where(item => item.OriginIntakeReceiptId == receipt.Id)
+            .Select(item => new
+            {
+                item.Reference,
+                item.StandaloneAuditAssessment,
+                item.StandaloneAuditEvidenceId
+            })
+            .ToArrayAsync();
+        var allocated = Assert.Single(cases);
+        Assert.StartsWith("a.", allocated.Reference, StringComparison.Ordinal);
+        Assert.Null(allocated.StandaloneAuditAssessment);
+        Assert.Null(allocated.StandaloneAuditEvidenceId);
+        Assert.Empty(await context.UnidentifiedItems.AsNoTracking().ToArrayAsync());
+    }
+
+    /// <summary>
+    /// An automatic allocation reads the receipt back once when the item is
+    /// processed, after the Case is created. The allocator is handed the
+    /// receipt the processor holds, so the read it once made for itself is gone.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomaticAllocationReadsTheReceiptBackAtMostOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await SeedPrincipalAsync(services, QdosPrincipal.Code);
+        var (sourceIdentity, stagedReceiptId) = await ReceiveReportlessMailboxAuditAsync(services);
+        var receipts = new CountingReceiptQueries(services.GetRequiredService<IIntakeReceiptQueries>());
+
+        await ProcessQueued(
+                services,
+                receipts,
+                ActivatorUtilities.CreateInstance<AllocateIntake>(services, receipts))
+            .ExecuteAsync(stagedReceiptId, CancellationToken.None);
+
+        Assert.True(
+            receipts.GetCount <= 1,
+            $"An automatic allocation read the receipt back {receipts.GetCount} times; at most 1 is allowed.");
+        var receipt = Assert.IsType<IntakeReceipt>(
+            await services.GetRequiredService<IIntakeReceiptStore>()
+                .FindBySourceIdentityAsync(sourceIdentity, CancellationToken.None));
+        Assert.NotNull(receipt.CurrentCaseId);
+    }
+
+    /// <summary>
+    /// Receives a mailbox Audit instruction with no original report and
+    /// dispatches its work.
+    /// </summary>
+    private static async Task<(IntakeSourceIdentity SourceIdentity, Guid StagedReceiptId)>
+        ReceiveReportlessMailboxAuditAsync(IServiceProvider services)
+    {
         var fixtureId = Guid.NewGuid().ToString("N");
         var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
             claimantName: $"Reportless Audit {fixtureId}",
@@ -1964,43 +2033,24 @@ public sealed class CustodyOutboxIntegrationTests
             Assert.IsType<string>(claim.LeaseToken),
             FixedUtcNow,
             CancellationToken.None);
-        await new ProcessQueuedIntake(
-                workStore,
-                services.GetRequiredService<IIntakeArtifactStore>(),
-                services.GetRequiredService<ProcessIntake>(),
-                services.GetRequiredService<IIntakeReceiptQueries>(),
-                services.GetRequiredService<ICreateTriageFromIntake>(),
-                services.GetRequiredService<ITriagePrincipalGate>(),
-                services.GetRequiredService<IAutomaticCaseAssociationStore>(),
-                services.GetRequiredService<IAllocateIntake>(),
-                services.GetRequiredService<TimeProvider>(),
-                services.GetRequiredService<IIntakeOcrOperationStore>())
-            .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
-
-        var receipt = Assert.IsType<IntakeReceipt>(
-            await services.GetRequiredService<IIntakeReceiptStore>()
-                .FindBySourceIdentityAsync(sourceIdentity, CancellationToken.None));
-        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
-        Assert.NotNull(receipt.CurrentCaseId);
-        await using var context = await services
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
-            .CreateDbContextAsync();
-        var cases = await context.Set<CaseEntity>()
-            .AsNoTracking()
-            .Where(item => item.OriginIntakeReceiptId == receipt.Id)
-            .Select(item => new
-            {
-                item.Reference,
-                item.StandaloneAuditAssessment,
-                item.StandaloneAuditEvidenceId
-            })
-            .ToArrayAsync();
-        var allocated = Assert.Single(cases);
-        Assert.StartsWith("a.", allocated.Reference, StringComparison.Ordinal);
-        Assert.Null(allocated.StandaloneAuditAssessment);
-        Assert.Null(allocated.StandaloneAuditEvidenceId);
-        Assert.Empty(await context.UnidentifiedItems.AsNoTracking().ToArrayAsync());
+        return (sourceIdentity, received.StagedReceiptId);
     }
+
+    private static ProcessQueuedIntake ProcessQueued(
+        IServiceProvider services,
+        IIntakeReceiptQueries receipts,
+        IAllocateIntake allocate) =>
+        new(
+            services.GetRequiredService<IIntakeWorkStore>(),
+            services.GetRequiredService<IIntakeArtifactStore>(),
+            services.GetRequiredService<ProcessIntake>(),
+            receipts,
+            services.GetRequiredService<ICreateTriageFromIntake>(),
+            services.GetRequiredService<ITriagePrincipalGate>(),
+            services.GetRequiredService<IAutomaticCaseAssociationStore>(),
+            allocate,
+            services.GetRequiredService<TimeProvider>(),
+            services.GetRequiredService<IIntakeOcrOperationStore>());
 
     /// <summary>
     /// The three things an operator reported about QDOS26009 that only appear

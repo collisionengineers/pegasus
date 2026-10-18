@@ -21,9 +21,13 @@ internal sealed class CommandCountingInterceptor : DbCommandInterceptor
 
     public void Reset() => texts.Clear();
 
-    /// <summary>How many commands mention <paramref name="fragment"/>, such as a bracketed table name.</summary>
-    public int CountMentioning(string fragment) =>
-        texts.Count(text => text.Contains(fragment, StringComparison.Ordinal));
+    /// <summary>
+    /// How many commands mention <paramref name="fragment"/>, such as a bracketed table name, and
+    /// do not mention <paramref name="without"/>.
+    /// </summary>
+    public int CountMentioning(string fragment, string? without = null) =>
+        texts.Count(text => text.Contains(fragment, StringComparison.Ordinal)
+            && (without is null || !text.Contains(without, StringComparison.Ordinal)));
 
     /// <summary>Every command's text, for a failure message.</summary>
     public string Describe() => string.Join(

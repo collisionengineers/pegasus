@@ -170,8 +170,13 @@ public sealed record IntakeAllocationResult(
 
 public interface IAllocateIntake
 {
+    /// <summary>
+    /// The automatic route for <paramref name="receipt"/>, which the caller
+    /// holds at its stored version: allocation expects that version and does
+    /// not read the receipt again.
+    /// </summary>
     Task<IntakeAllocationResult?> AttemptAutomaticAsync(
-        Guid receiptId,
+        IntakeReceipt receipt,
         Guid evaluationId,
         CancellationToken cancellationToken = default);
 
@@ -230,12 +235,11 @@ public sealed class AllocateIntake(
             ImagesComplete: InstructionEvidenceImages.Select(receipt.AssetRecords).Count > 0);
 
     public async Task<IntakeAllocationResult?> AttemptAutomaticAsync(
-        Guid receiptId,
+        IntakeReceipt receipt,
         Guid evaluationId,
         CancellationToken cancellationToken = default)
     {
-        var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken)
-            ?? throw new KeyNotFoundException("The intake receipt was not found.");
+        ArgumentNullException.ThrowIfNull(receipt);
         // Manual upload is a proposal. No Case, PO or allocation attempt is
         // created until a staff member explicitly accepts the extracted draft.
         if (receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload

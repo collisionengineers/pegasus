@@ -302,7 +302,7 @@ public sealed class LogsWebTests
             return Task.FromResult(Receipt);
         }
 
-        public Task<IntakeAllocationResult?> AttemptAutomaticAsync(Guid receiptId, Guid evaluationId, CancellationToken cancellationToken = default) =>
+        public Task<IntakeAllocationResult?> AttemptAutomaticAsync(IntakeReceipt receipt, Guid evaluationId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<IntakeAllocationResult> AttemptStaffCreateAsync(AcceptIntakeRequest request, CancellationToken cancellationToken = default) =>

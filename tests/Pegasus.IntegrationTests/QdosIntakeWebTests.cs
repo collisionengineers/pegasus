@@ -195,7 +195,7 @@ public sealed class QdosIntakeWebTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var allocation = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(allocatedReceipt.Id, Guid.NewGuid());
+                .AttemptAutomaticAsync(scope.ServiceProvider, allocatedReceipt.Id, Guid.NewGuid());
             Assert.NotNull(allocation?.State.CaseId);
         }
         await AllocationTestData.PointCompletedWorkAtReceiptAsync(

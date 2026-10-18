@@ -647,10 +647,10 @@ public sealed class IntakePersistenceIntegrationTests
     }
 
     /// <summary>
-    /// Several receipts are three statements, not three each: the receipts
-    /// with their parts, their accepted Cases and their latest allocation
-    /// attempts. The result follows the order asked, holds each receipt once
-    /// and leaves out an id that has no receipt.
+    /// Several receipts are four statements, not four each: the receipts
+    /// with their one-to-one parts, their Assets, their accepted Cases and
+    /// their latest allocation attempts. The result follows the order asked,
+    /// holds each receipt once and leaves out an id that has no receipt.
     /// </summary>
     [Fact]
     public async Task GetManyReadsReceiptsTogetherInTheOrderAskedAndSkipsWhatIsMissing()
@@ -669,7 +669,7 @@ public sealed class IntakePersistenceIntegrationTests
             [third.Id, first.Id, Guid.NewGuid(), third.Id, second.Id],
             CancellationToken.None);
 
-        Assert.Equal(3, counter.Count);
+        Assert.Equal(4, counter.Count);
         Assert.Equal(new[] { third.Id, first.Id, second.Id }, receipts.Select(receipt => receipt.Id));
         foreach (var receipt in receipts)
         {
