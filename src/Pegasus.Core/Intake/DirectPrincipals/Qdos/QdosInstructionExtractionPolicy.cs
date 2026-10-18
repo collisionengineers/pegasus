@@ -34,7 +34,10 @@ public sealed partial class QdosInstructionExtractionPolicy
     // date (operator, 24 September 2026).
     // v12 reads a claimant only where the value starts as a name: prose and
     // the synthesized address row no longer compete with it (7 October 2026).
-    public const int Version = 12;
+    // v13 reads a `PL on` subject date as it reads an `RTA on` one, and a
+    // plate-shaped subject `Vehicle:` value is the registration, not the
+    // vehicle description (operator, 15 October 2026).
+    public const int Version = 13;
     public const string SupportedPrincipalCode = "QDOS";
 
     public string PrincipalCode => SupportedPrincipalCode;
@@ -549,9 +552,9 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// <summary>
     /// The message subject carries settled facts in the principal's own
     /// grammar ("Client Mr X", "Vehicle ... AB12CDE", "Our Ref 46805_1",
-    /// "RTA on 03_07_2026"). They are rewritten as labelled lines and
-    /// appended as the LAST fragment, so anything the document body states
-    /// wins rank-aware conflict resolution.
+    /// "RTA on 03_07_2026", "PL on 03_07_2026"). They are rewritten as
+    /// labelled lines and appended as the LAST fragment, so anything the
+    /// document body states wins rank-aware conflict resolution.
     /// </summary>
     private static IReadOnlyList<IntakeContentFragment> WithSubjectFacts(
         IntakeSourceReadResult readResult,
@@ -625,11 +628,17 @@ public sealed partial class QdosInstructionExtractionPolicy
 
         // The lookahead keeps this rule off the registration label above.
         // Without it "Vehicle Registration : VO75DFJ" read as the vehicle
-        // description "Registration : VO75DFJ".
+        // description "Registration : VO75DFJ". A value shaped like a
+        // registration is the registration; any other value is the vehicle
+        // description.
         var vehicle = SubjectVehicleRegex().Match(subject);
         if (vehicle.Success)
         {
-            lines.Add($"Our Client's Vehicle: {vehicle.Groups[1].Value.Trim().TrimEnd(',', '.')}");
+            var value = vehicle.Groups[1].Value.Trim().TrimEnd(',', '.');
+            lines.Add(
+                InstructionFieldEngine.IsUkRegistration(value)
+                    ? $"Vehicle Registration: {value}"
+                    : $"Our Client's Vehicle: {value}");
         }
 
         return [.. lines];
@@ -818,7 +827,7 @@ public sealed partial class QdosInstructionExtractionPolicy
     [GeneratedRegex(@"\bOur Ref[:.]?\s+([A-Za-z0-9_/-]+)", RegexOptions.IgnoreCase, 100)]
     private static partial Regex SubjectReferenceRegex();
 
-    [GeneratedRegex(@"\bRTA on\s+(\d{1,2})[_/.-](\d{1,2})[_/.-](\d{4})", RegexOptions.IgnoreCase, 100)]
+    [GeneratedRegex(@"\b(?:RTA|PL) on\s+(\d{1,2})[_/.-](\d{1,2})[_/.-](\d{4})", RegexOptions.IgnoreCase, 100)]
     private static partial Regex SubjectIncidentRegex();
 
     [GeneratedRegex(@"\b(?:Client[:.]?\s+)?((?:Mr|Mrs|Ms|Miss|Dr|Mx)\.?\s+[A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,3})", RegexOptions.None, 100)]

@@ -643,6 +643,30 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     [Fact]
+    public void APlOnSubjectGivesTheIncidentDate()
+    {
+        InstructionExtractionResult Extract(string kind) =>
+            new QdosInstructionExtractionPolicy().Extract(
+                ReadableWithSubject(
+                    $"{kind} on 05/10/2026 : Ms Jane Example (Our Ref: ABC/12345/1)",
+                    new IntakeContentFragment(
+                        IntakeEvidenceSource.EmailBody,
+                        "message body",
+                        "Please see the attached instruction.")),
+                ProcessedAtUtc,
+                QdosContext);
+
+        var plResult = Extract("PL");
+
+        Assert.Equal(
+            new DateOnly(2026, 10, 5),
+            Assert.IsType<InstructionDraft>(plResult.InstructionDraft).DateOfIncident);
+        Assert.Equal(
+            Extract("RTA").Fields.Select(field => (field.Name, field.SuggestedValue)),
+            plResult.Fields.Select(field => (field.Name, field.SuggestedValue)));
+    }
+
+    [Fact]
     public void BodyStatementsBeatSubjectFacts()
     {
         var result = new QdosInstructionExtractionPolicy().Extract(
@@ -1214,6 +1238,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     [InlineData("JIZ4821")]
     [InlineData("1234AB")]
     [InlineData("BIG444")]
+    [InlineData("AB12 CDE")]
     public void ASubjectVehiclePlateOfAnyUkShapeIsTheRegistration(string plate)
     {
         var result = new QdosInstructionExtractionPolicy().Extract(
@@ -1228,8 +1253,9 @@ public sealed class QdosInstructionExtractionPolicyTests
 
         Assert.Equal(plate, Field(result, "Vehicle registration").SuggestedValue);
         Assert.Equal(
-            plate,
+            plate.Replace(" ", string.Empty, StringComparison.Ordinal),
             Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
+        Assert.Null(Field(result, "Vehicle description").SuggestedValue);
     }
 
     [Fact]
