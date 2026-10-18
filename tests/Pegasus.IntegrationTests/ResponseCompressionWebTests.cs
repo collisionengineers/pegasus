@@ -125,7 +125,10 @@ public sealed class ResponseCompressionWebTests : IClassFixture<IntakeWebApplica
         var streamed = response.Content.Headers.ContentType?.MediaType == "text/event-stream";
         if (streamed)
         {
-            Assert.Empty(response.Content.Headers.ContentEncoding);
+            // The SDK marks a stream "identity", which is no encoding.
+            Assert.All(
+                response.Content.Headers.ContentEncoding,
+                encoding => Assert.Equal("identity", encoding));
         }
 
         var body = await DecodedBodyAsync(response);
@@ -151,14 +154,14 @@ public sealed class ResponseCompressionWebTests : IClassFixture<IntakeWebApplica
 
     /// <summary>
     /// The body as the client would read it: decoded from the one encoding the
-    /// response names, or as sent when it names none.
+    /// response names, or as sent when it names none or "identity".
     /// </summary>
     private static async Task<string> DecodedBodyAsync(HttpResponseMessage response)
     {
         await using var body = await response.Content.ReadAsStreamAsync();
         await using Stream decoded = response.Content.Headers.ContentEncoding.SingleOrDefault() switch
         {
-            null => body,
+            null or "identity" => body,
             "br" => new BrotliStream(body, CompressionMode.Decompress),
             "gzip" => new GZipStream(body, CompressionMode.Decompress),
             var other => throw new InvalidOperationException($"Unexpected Content-Encoding {other}.")
