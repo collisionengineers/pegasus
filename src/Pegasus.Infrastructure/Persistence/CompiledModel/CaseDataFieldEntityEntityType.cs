@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.CaseDataFieldEntity",
                 typeof(CaseDataFieldEntity),
                 baseEntityType,
-                propertyCount: 12,
+                propertyCount: 13,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 1,
@@ -69,6 +69,20 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 nullable: true,
                 maxLength: 200);
             confirmedByActor.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var normalizedRegistration = runtimeEntityType.AddProperty(
+                "NormalizedRegistration",
+                typeof(string),
+                propertyInfo: typeof(CaseDataFieldEntity).GetProperty("NormalizedRegistration", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(CaseDataFieldEntity).GetField("<NormalizedRegistration>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true,
+                valueGenerated: ValueGenerated.OnAddOrUpdate,
+                beforeSaveBehavior: PropertySaveBehavior.Ignore,
+                afterSaveBehavior: PropertySaveBehavior.Ignore,
+                maxLength: 20);
+            normalizedRegistration.AddAnnotation("Relational:ComputedColumnSql", "CONVERT(nvarchar(20), CASE WHEN [FieldName] = N'vehicle_registration' AND LEN(REPLACE(REPLACE([Value], N' ', N''), N'-', N'')) <= 20 THEN REPLACE(REPLACE([Value], N' ', N''), N'-', N'') END)");
+            normalizedRegistration.AddAnnotation("Relational:IsStored", true);
+            normalizedRegistration.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var policyKey = runtimeEntityType.AddProperty(
                 "PolicyKey",

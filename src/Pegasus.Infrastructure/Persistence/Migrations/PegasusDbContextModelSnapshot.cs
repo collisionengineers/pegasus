@@ -1161,6 +1161,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("NormalizedRegistration")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasComputedColumnSql("CONVERT(nvarchar(20), CASE WHEN [FieldName] = N'vehicle_registration' AND LEN(REPLACE(REPLACE([Value], N' ', N''), N'-', N'')) <= 20 THEN REPLACE(REPLACE([Value], N' ', N''), N'-', N'') END)", true);
+
                     b.Property<string>("PolicyKey")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1197,6 +1203,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("WorkId", "FieldName", "ValueKind");
 
                     b.HasIndex("FieldName", "ValueKind");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("FieldName", "ValueKind"), new[] { "NormalizedRegistration" });
 
                     b.ToTable("CaseDataFields", null, t =>
                         {
@@ -7717,6 +7725,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
+
+                    b.HasIndex("CaseId", "Registration");
 
                     b.HasIndex("CaseId", "RequestedAtUtc");
 

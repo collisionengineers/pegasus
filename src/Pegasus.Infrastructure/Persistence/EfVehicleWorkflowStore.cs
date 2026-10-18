@@ -372,9 +372,10 @@ internal sealed class EfVehicleWorkflowStore(
                 .Select(request => (request.CaseId, request.Registration))
                 .ToHashSet();
 
+            var due = new List<DueLookup>();
             foreach (var group in page.GroupBy(candidate => candidate.CaseId))
             {
-                if (enqueued >= maximumItems)
+                if (enqueued + due.Count >= maximumItems)
                 {
                     break;
                 }
@@ -386,24 +387,10 @@ internal sealed class EfVehicleWorkflowStore(
                     continue;
                 }
 
-                try
-                {
-                    await EnqueueAutomaticAsync(
-                        group.Key,
-                        registration,
-                        group.First().Version,
-                        cancellationToken);
-                    enqueued++;
-                }
-                catch (DbUpdateException exception) when (IsDuplicateKeyFailure(exception))
-                {
-                    // A concurrent sweep or staff request already recorded this
-                    // pair; the durable marker exists, so this case is done. Any
-                    // other database failure (a denied permission above all)
-                    // propagates and fails the sweep visibly instead of counting
-                    // the case as already done.
-                }
+                due.Add(new(group.Key, registration, group.First().Version));
             }
+
+            enqueued += await EnqueueDuePageAsync(due, cancellationToken);
 
             if (caseIds.Length < maximumItems)
             {
@@ -425,12 +412,13 @@ internal sealed class EfVehicleWorkflowStore(
     /// <remarks>
     /// A candidate is an active Case with a registration field that no lookup
     /// request accounts for, so the read leaves out every Case already looked up.
-    /// The comparison is a coarse form of the normalisation in
-    /// <see cref="CurrentRegistration"/>: no spaces or hyphens, and the
-    /// database's collation ignores case. It can keep a Case that is not due,
-    /// which the exact decision still rejects. It cannot drop a Case that is due:
-    /// a request row holds only the fully normalised registration, so a raw value
-    /// that matches one in this form is already that registration.
+    /// The comparison is against the stored coarse form of the normalisation in
+    /// <see cref="CurrentRegistration"/> (<c>CaseDataFields.NormalizedRegistration</c>):
+    /// no spaces or hyphens, and the database's collation ignores case. It can
+    /// keep a Case that is not due, which the exact decision still rejects. It
+    /// cannot drop a Case that is due: a request row holds only the fully
+    /// normalised registration, so a raw value that matches one in this form is
+    /// already that registration.
     /// </remarks>
     private static async Task<List<AutomaticLookupCandidate>> ReadCandidatePageAsync(
         PegasusDbContext context,
@@ -447,7 +435,7 @@ internal sealed class EfVehicleWorkflowStore(
         var candidateCaseIds = registrationFields
             .Where(field => !context.Set<VehicleLookupRequestEntity>().Any(request =>
                 request.CaseId == field.WorkId
-                && request.Registration == field.Value.Replace(" ", "").Replace("-", "")))
+                && request.Registration == field.NormalizedRegistration))
             .Join(activeWorkflows, field => field.WorkId, workflow => workflow.CaseId, (field, _) => field.WorkId)
             .Distinct();
         if (after is { } afterCaseId)
@@ -469,6 +457,60 @@ internal sealed class EfVehicleWorkflowStore(
     }
 
     private sealed record AutomaticLookupCandidate(Guid CaseId, string ValueKind, string Value, long Version);
+
+    private sealed record DueLookup(Guid CaseId, string Registration, long Version);
+
+    /// <summary>
+    /// Saves the lookups of one page's due Cases together and returns how many
+    /// were saved. A duplicate key rolls the whole save back, so each Case then
+    /// goes through its own save, which skips the one that is already recorded.
+    /// </summary>
+    private async Task<int> EnqueueDuePageAsync(
+        IReadOnlyList<DueLookup> due,
+        CancellationToken cancellationToken)
+    {
+        if (due.Count == 0)
+        {
+            return 0;
+        }
+
+        try
+        {
+            await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+            var nowUtc = UtcNow();
+            foreach (var lookup in due)
+            {
+                EnqueueForCase(context, lookup.CaseId, caseEntity: null, lookup.Registration, lookup.Version, nowUtc);
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+            return due.Count;
+        }
+        catch (DbUpdateException exception) when (IsDuplicateKeyFailure(exception))
+        {
+            // Nothing was saved; the per-Case saves below find the duplicate.
+        }
+
+        var saved = 0;
+        foreach (var lookup in due)
+        {
+            try
+            {
+                await EnqueueAutomaticAsync(lookup.CaseId, lookup.Registration, lookup.Version, cancellationToken);
+                saved++;
+            }
+            catch (DbUpdateException exception) when (IsDuplicateKeyFailure(exception))
+            {
+                // A concurrent sweep or staff request already recorded this
+                // pair; the durable marker exists, so this case is done. Any
+                // other database failure (a denied permission above all)
+                // propagates and fails the sweep visibly instead of counting
+                // the case as already done.
+            }
+        }
+
+        return saved;
+    }
 
     private async Task EnqueueAutomaticAsync(
         Guid caseId,

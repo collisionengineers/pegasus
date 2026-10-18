@@ -254,7 +254,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261017100000_VehicleLookupMileageEstimate",
                 "20261017110000_InspectionLocations",
                 "20261017120000_ReportSendingSopV8",
-                "20261018033213_KeysetPagingAndCustodySweepIndexes"
+                "20261018033213_KeysetPagingAndCustodySweepIndexes",
+                "20261018060000_PersistNormalizedVehicleRegistration"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -344,10 +345,13 @@ public sealed class IntakePersistenceIntegrationTests
         // The Work Centre's feed and queue reads are answered by their own
         // indexes: the included columns spare a lookup into each table. New
         // cases no longer reads the Automation actor's events, so their
-        // index is gone.
+        // index is gone. The vehicle lookup sweep reads the stored registration
+        // from the field index and probes the requests by Case and registration.
         Assert.Equal(
-            "CaseWorkflows.IX_CaseWorkflows_State:State|;"
-            + "Cases.IX_Cases_CreatedAtUtc:CreatedAtUtc|Type",
+            "CaseDataFields.IX_CaseDataFields_FieldName_ValueKind:FieldName,ValueKind|NormalizedRegistration;"
+            + "CaseWorkflows.IX_CaseWorkflows_State:State|;"
+            + "Cases.IX_Cases_CreatedAtUtc:CreatedAtUtc|Type;"
+            + "VehicleLookupRequests.IX_VehicleLookupRequests_CaseId_Registration:CaseId,Registration|",
             await database.ScalarAsync<string>(
                 """
                 SELECT STRING_AGG(entry, N';') WITHIN GROUP (ORDER BY entry COLLATE Latin1_General_BIN2)
@@ -364,11 +368,21 @@ public sealed class IntakePersistenceIntegrationTests
                            WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 1), N'') AS entry
                     FROM sys.indexes AS i
                     WHERE i.name IN (
+                        N'IX_CaseDataFields_FieldName_ValueKind',
                         N'IX_CaseWorkflowEvents_ActorKind_OccurredAtUtc',
                         N'IX_CaseWorkflows_State',
-                        N'IX_Cases_CreatedAtUtc')
+                        N'IX_Cases_CreatedAtUtc',
+                        N'IX_VehicleLookupRequests_CaseId_Registration')
                 ) AS indexes
                 """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.computed_columns
+            WHERE object_id = OBJECT_ID(N'CaseDataFields')
+              AND name = N'NormalizedRegistration'
+              AND is_persisted = 1
+            """));
         // The keyset pagers, the Open-task read and the pending-custody sweep
         // are answered by their own indexes. The check above reads keys and
         // includes only, so this one also reads each key's direction and the
