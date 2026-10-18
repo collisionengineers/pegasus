@@ -223,6 +223,7 @@ public static class DependencyInjection
         services.AddSingleton<QdosInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy>(provider =>
             provider.GetRequiredService<QdosInstructionExtractionPolicy>());
+        services.AddSingleton<IInstructionExtractionPolicy, AlisonInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, AlsInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, AmsInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, AxInstructionExtractionPolicy>();
