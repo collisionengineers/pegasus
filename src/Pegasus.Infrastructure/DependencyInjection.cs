@@ -237,6 +237,7 @@ public static class DependencyInjection
         services.AddSingleton<IInstructionExtractionPolicy, QclInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, RjsInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, SblInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, SwanInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, YmlInstructionExtractionPolicy>();
         services.AddScoped<InstructionExtractionPolicySelector>();
         services.AddScoped<EfRetainedInstructionAnalysisStore>();
