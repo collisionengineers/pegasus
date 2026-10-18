@@ -505,9 +505,38 @@ public sealed class BoxDocumentContentStoreTests
         var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
         box.CorruptFile($"{CaseReference}/002 evidence.jpg");
+        var filesBefore = TemporaryDownloadFiles();
 
         await Assert.ThrowsAsync<InvalidDataException>(() => store.OpenReadVersionAsync(
             Persisted(Address(), written), hash, content.Length, CancellationToken.None));
+
+        Assert.Empty(TemporaryDownloadFiles().Except(filesBefore));
+    }
+
+    /// <summary>
+    /// The length matches, so only the digest can refuse the content. The
+    /// download is already on disk when the comparison runs, and the refusal
+    /// deletes it and is not retried: those bytes are wrong, not late.
+    /// </summary>
+    [Fact]
+    public async Task OpenReadFailsClosedWhenSameLengthContentHasADifferentHash()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("different");
+        var hash = Sha256(content);
+        var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        box.CorruptFile($"{CaseReference}/002 evidence.jpg");
+        var filesBefore = TemporaryDownloadFiles();
+        var contentBefore = box.ContentRequestCount;
+
+        var failure = await Assert.ThrowsAsync<InvalidDataException>(() => store.OpenReadVersionAsync(
+            Persisted(Address(), written), hash, content.Length, CancellationToken.None));
+
+        Assert.Equal("Document custody hash verification failed.", failure.Message);
+        Assert.Equal(1, box.ContentRequestCount - contentBefore);
+        Assert.Empty(TemporaryDownloadFiles().Except(filesBefore));
     }
 
     [Fact]
@@ -1058,6 +1087,37 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Equal(1, box.ThrottledDownloadCount);
         Assert.Equal(2, box.FileMetadataRequestCount - metadataBefore);
         Assert.Equal(2, box.ContentRequestCount - contentBefore);
+    }
+
+    /// <summary>
+    /// The read hashes the download as it is written, so the verified copy is
+    /// the temporary file itself, handed over with no second copy of the
+    /// content: it is there while the caller holds the stream and gone when the
+    /// caller disposes it.
+    /// </summary>
+    [Fact]
+    public async Task AVerifiedReadIsTheDownloadedTemporaryFileAndDisposingItDeletesIt()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("verified download");
+        var hash = Sha256(content);
+        var address = Persisted(Address(), await store.StoreVersionAsync(Address(), content, hash, default));
+        var filesBefore = TemporaryDownloadFiles();
+
+        var stream = await store.OpenReadVersionAsync(address, hash, content.Length, default);
+        try
+        {
+            Assert.NotEmpty(TemporaryDownloadFiles().Except(filesBefore));
+            Assert.Equal(content, await ReadAllAsync(stream));
+        }
+        finally
+        {
+            await stream.DisposeAsync();
+        }
+
+        Assert.Empty(TemporaryDownloadFiles().Except(filesBefore));
     }
 
     private static HashSet<string> TemporaryDownloadFiles() =>

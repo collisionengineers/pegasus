@@ -233,6 +233,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 caseFolder,
                 contentLength,
                 proveAncestry: true,
+                contentHash: null,
                 cancellationToken);
             await VerifyStreamAsync(persisted, normalizedHash, contentLength, cancellationToken);
             return new(
@@ -290,6 +291,12 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// throttled or unavailable response is retried within
     /// <see cref="MaximumAttempts"/> attempts before it becomes the
     /// caller's failure.
+    ///
+    /// The download hashes the content as it writes it, so the temporary file
+    /// is the verified copy: it is compared with the recorded length and
+    /// SHA-256 before any caller receives it, and it is returned as it is,
+    /// deleted when the caller disposes it. Each attempt hashes afresh, so a
+    /// retry never continues a discarded attempt's hash.
     /// </remarks>
     public async Task<Stream> OpenReadVersionAsync(
         ManagedDocumentContentAddress address,
@@ -300,21 +307,30 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         Validate(address);
         RequirePersistedBoxIdentity(address);
         var normalizedHash = NormalizeSha256(expectedSha256);
-        var content = await ReadGatedWithRetryAsync(
+        return await ReadGatedWithRetryAsync(
             async token =>
             {
-                await using var exact = await OpenOwnedExactVersionAsync(
+                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                var downloaded = await OpenOwnedExactVersionAsync(
                     address.BoxFileId!,
                     address.BoxVersionId!,
                     address.CaseRootRemoteId!,
                     expectedLength,
                     proveAncestry: false,
+                    hash,
                     token);
-                return await ReadExactlyAsync(exact, expectedLength, token);
+                try
+                {
+                    RequireVerified(downloaded.Length, hash, expectedLength, normalizedHash);
+                    return downloaded;
+                }
+                catch
+                {
+                    await downloaded.DisposeAsync();
+                    throw;
+                }
             },
             cancellationToken);
-        Verify(content, normalizedHash, expectedLength);
-        return new MemoryStream(content, writable: false);
     }
 
     /// <summary>
@@ -475,6 +491,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                             read.Address.CaseRootRemoteId!,
                             read.ExpectedLength,
                             proveAncestry: false,
+                            contentHash: null,
                             attemptToken);
                         return await ReadExactlyAsync(exact, read.ExpectedLength, attemptToken);
                     },
@@ -671,21 +688,32 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         }
     }
 
+    /// <summary>
+    /// The exact version, once the client has checked its file. A read that is
+    /// not proved hashes the download into <paramref name="contentHash"/> when
+    /// one is given; a proved read, the write path's replay check, takes none.
+    /// </summary>
     private async Task<Stream> OpenOwnedExactVersionAsync(
         string fileId,
         string versionId,
         string caseRootRemoteId,
         long expectedLength,
         bool proveAncestry,
+        IncrementalHash? contentHash,
         CancellationToken cancellationToken)
     {
         try
         {
-            return proveAncestry
-                ? await client.OpenOwnedVersionProvedAsync(
+            if (proveAncestry)
+            {
+                return await client.OpenOwnedVersionProvedAsync(
+                    fileId, versionId, caseRootRemoteId, expectedLength, cancellationToken);
+            }
+            return contentHash is null
+                ? await client.OpenOwnedVersionReadAsync(
                     fileId, versionId, caseRootRemoteId, expectedLength, cancellationToken)
                 : await client.OpenOwnedVersionReadAsync(
-                    fileId, versionId, caseRootRemoteId, expectedLength, cancellationToken);
+                    fileId, versionId, caseRootRemoteId, expectedLength, contentHash, cancellationToken);
         }
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -693,16 +721,40 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         }
     }
 
+    private const string LengthVerificationFailed = "Document custody length verification failed.";
+    private const string HashVerificationFailed = "Document custody hash verification failed.";
+
     private static void Verify(ReadOnlySpan<byte> content, string expectedSha256, long expectedLength)
     {
         if (content.Length != expectedLength)
         {
-            throw new InvalidDataException("Document custody length verification failed.");
+            throw new InvalidDataException(LengthVerificationFailed);
         }
         var actualHash = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
         if (!string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
         {
-            throw new InvalidDataException("Document custody hash verification failed.");
+            throw new InvalidDataException(HashVerificationFailed);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="Verify"/> for content that was hashed as it was written:
+    /// the length is compared first, then the digest, which this finishes.
+    /// </summary>
+    private static void RequireVerified(
+        long length,
+        IncrementalHash hash,
+        long expectedLength,
+        string expectedSha256)
+    {
+        if (length != expectedLength)
+        {
+            throw new InvalidDataException(LengthVerificationFailed);
+        }
+        var actualHash = Convert.ToHexStringLower(hash.GetHashAndReset());
+        if (!string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(HashVerificationFailed);
         }
     }
 
