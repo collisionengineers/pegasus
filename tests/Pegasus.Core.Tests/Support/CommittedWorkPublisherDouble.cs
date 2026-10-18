@@ -7,6 +7,8 @@ internal sealed class CommittedWorkPublisherDouble :
     ICommittedIntakeWorkPublisher,
     ICommittedExternalWorkPublisher
 {
+    private readonly Lock sync = new();
+
     public List<Guid> IntakeWorkIds { get; } = [];
 
     public List<Guid> ExternalWorkIds { get; } = [];
@@ -15,7 +17,11 @@ internal sealed class CommittedWorkPublisherDouble :
         Guid stagedReceiptId,
         CancellationToken cancellationToken)
     {
-        IntakeWorkIds.Add(stagedReceiptId);
+        lock (sync)
+        {
+            IntakeWorkIds.Add(stagedReceiptId);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -23,7 +29,11 @@ internal sealed class CommittedWorkPublisherDouble :
         Guid workItemId,
         CancellationToken cancellationToken)
     {
-        ExternalWorkIds.Add(workItemId);
+        lock (sync)
+        {
+            ExternalWorkIds.Add(workItemId);
+        }
+
         return Task.CompletedTask;
     }
 }

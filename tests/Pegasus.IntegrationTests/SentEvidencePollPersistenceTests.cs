@@ -147,30 +147,7 @@ public sealed class SentEvidencePollPersistenceTests
     public async Task TwoApprovedMailboxesReceiveIndependentGenerationFolderCursorsFairly()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
-        var secondId = Guid.NewGuid();
-        await using (var db = await database.CreateContextAsync())
-        {
-            var first = await db.ApprovedMailboxes.SingleAsync(
-                value => value.Address == "instructions@collisionengineers.co.uk");
-            first.AllowOutgoing = true;
-            first.MailboxIdentity = "instructions";
-            first.SentFolderIdentity = "sent-one";
-            first.ActivatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
-            db.ApprovedMailboxes.Add(new ApprovedMailboxEntity
-            {
-                Id = secondId,
-                Address = "reports@collisionengineers.co.uk",
-                AllowOutgoing = true,
-                State = ApprovedMailboxState.Approved.ToString(),
-                MailboxIdentity = "mailbox-two",
-                InboxFolderIdentity = "inbox-two",
-                SentFolderIdentity = "sent-two",
-                MailboxGeneration = 7,
-                ActivatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
-                Version = 1
-            });
-            await db.SaveChangesAsync();
-        }
+        await AddTwoDueOutgoingMailboxesAsync(database);
         var services = new ServiceCollection();
         services.AddPegasusInfrastructure((_, options) => options.UseSqlServer(database.ConnectionString));
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
@@ -194,6 +171,77 @@ public sealed class SentEvidencePollPersistenceTests
         Assert.Contains(leases, value => value.MailboxId == "mailbox-two"
             && value.SentFolderIdentity == "sent-two" && value.Generation == 7);
     }
+
+    /// <summary>
+    /// What a batch of concurrent polls makes the store do: claim again while the
+    /// first lease is held, then complete both polls at once. It does not race two
+    /// claims, which the batch's gate prevents.
+    /// </summary>
+    [Fact]
+    public async Task ASecondClaimWhileTheFirstLeaseIsHeldGetsTheOtherMailboxThenNothing()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await AddTwoDueOutgoingMailboxesAsync(database);
+        var services = new ServiceCollection();
+        services.AddPegasusInfrastructure((_, options) => options.UseSqlServer(database.ConnectionString));
+        services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
+        using var provider = services.BuildServiceProvider(validateScopes: true);
+        using var scope = provider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<ISentEvidencePollStore>();
+        var now = DateTimeOffset.UtcNow;
+
+        var firstLease = Assert.IsType<ApprovedSentPollLease>(
+            await store.ClaimAsync(now, TimeSpan.FromMinutes(1), default));
+        var secondLease = Assert.IsType<ApprovedSentPollLease>(
+            await store.ClaimAsync(now, TimeSpan.FromMinutes(1), default));
+
+        Assert.NotEqual(firstLease.MailboxId, secondLease.MailboxId);
+        Assert.Null(await store.ClaimAsync(now, TimeSpan.FromMinutes(1), default));
+
+        await Task.WhenAll(
+            store.CompleteAsync(
+                firstLease.MailboxId, firstLease.LeaseToken, "cursor-one", now,
+                hasRemainingItems: false, default),
+            store.CompleteAsync(
+                secondLease.MailboxId, secondLease.LeaseToken, "cursor-two", now,
+                hasRemainingItems: false, default));
+
+        Assert.Equal(
+            0L,
+            await database.ScalarAsync<long>(
+                "SELECT COUNT_BIG(*) FROM ApprovedSentPollStates WHERE LeaseToken IS NOT NULL"));
+        Assert.Equal(
+            2L,
+            await database.ScalarAsync<long>(
+                "SELECT COUNT_BIG(*) FROM ApprovedSentPollStates WHERE LastCompletedAtUtc IS NOT NULL"));
+    }
+
+    /// <summary>The seeded mailbox and a second one, both Outgoing, approved and due.</summary>
+    private static async Task AddTwoDueOutgoingMailboxesAsync(LocalDbTestDatabase database)
+    {
+        await using var db = await database.CreateContextAsync();
+        var first = await db.ApprovedMailboxes.SingleAsync(
+            value => value.Address == "instructions@collisionengineers.co.uk");
+        first.AllowOutgoing = true;
+        first.MailboxIdentity = "instructions";
+        first.SentFolderIdentity = "sent-one";
+        first.ActivatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
+        db.ApprovedMailboxes.Add(new ApprovedMailboxEntity
+        {
+            Id = Guid.NewGuid(),
+            Address = "reports@collisionengineers.co.uk",
+            AllowOutgoing = true,
+            State = ApprovedMailboxState.Approved.ToString(),
+            MailboxIdentity = "mailbox-two",
+            InboxFolderIdentity = "inbox-two",
+            SentFolderIdentity = "sent-two",
+            MailboxGeneration = 7,
+            ActivatedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
+            Version = 1
+        });
+        await db.SaveChangesAsync();
+    }
+
     [Fact]
     public async Task ExactReplyPollAtomicallyLinksTriageAndReplayAllowsStaffCompletion()
     {
