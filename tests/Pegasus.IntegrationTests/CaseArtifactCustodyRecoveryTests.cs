@@ -148,10 +148,11 @@ public sealed class CaseArtifactCustodyRecoveryTests
     /// <summary>
     /// One receipt's holding retention is one batch: the holding folder is
     /// proved once, nothing lists the holding folder, and each created file is
-    /// read back as exactly the version Box created, with no ancestry walk.
+    /// confirmed from the SHA-1 in Box's answer to its upload, so nothing is
+    /// downloaded.
     /// </summary>
     [Fact]
-    public async Task HoldingCustodyInABatchProvesTheFolderOnceAndReadsBackOnlyTheCreatedVersion()
+    public async Task HoldingCustodyInABatchProvesTheFolderOnceAndDownloadsNothing()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var receiptId = Guid.NewGuid();
@@ -176,9 +177,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             [
                 $"GET /2.0/folders/{HoldingBox.HoldingFolderId}",
                 "POST /api/2.0/files/content",
-                "GET /2.0/files/holding-file/content",
-                "POST /api/2.0/files/content",
-                "GET /2.0/files/holding-file-2/content"
+                "POST /api/2.0/files/content"
             ],
             box.Requests);
     }
@@ -217,11 +216,49 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal(
             answer == "conflict",
             box.Requests.Contains($"GET /2.0/folders/{HoldingBox.HoldingFolderId}/items"));
-        Assert.Contains("GET /2.0/files/holding-file/content", box.Requests);
+        // Only the conflict downloads: it reads the file Box says holds the name.
+        Assert.Equal(answer == "conflict", box.Requests.Contains("GET /2.0/files/holding-file/content"));
         await using var verify = await database.CreateContextAsync();
         var stored = await verify.Set<IntakeAssetEntity>().SingleAsync(item => item.Id == asset.Id);
         Assert.Equal("confirmed", stored.CustodyStatus);
         Assert.Equal("holding-file", stored.BoxFileId);
+    }
+
+    /// <summary>
+    /// A created holding file is confirmed only on Box's own SHA-1 of the
+    /// bytes: one that differs from the staged bytes' (<c>differs</c>), or none
+    /// at all (<c>omitted</c>), fails custody. The asset stays unconfirmed,
+    /// nothing is published to the read cache, and Box is asked for no
+    /// download to settle it.
+    /// </summary>
+    [Theory]
+    [InlineData("differs")]
+    [InlineData("omitted")]
+    public async Task HoldingCustodyIsNotConfirmedWithoutBoxsMatchingSha1(string answer)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var receiptId = Guid.NewGuid();
+        var asset = (Id: Guid.NewGuid(), Bytes: "holding photo Box summed wrongly"u8.ToArray());
+        await SeedHoldingReceiptAsync(database, receiptId, asset);
+        await using var scope = database.CreateAsyncScope();
+        var box = new HoldingBox
+        {
+            ReportsAWrongSha1 = answer == "differs",
+            OmitsSha1 = answer == "omitted"
+        };
+        var publisher = new RecordingCachePublisher();
+        var custody = HoldingCustody(scope.ServiceProvider, box, publisher);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => custody.RetainAsync(
+            HoldingRequest(receiptId, asset.Id, asset.Bytes, "page-1-image-1.jpg"), CancellationToken.None));
+
+        Assert.Equal(
+            [$"GET /2.0/folders/{HoldingBox.HoldingFolderId}", "POST /api/2.0/files/content"],
+            box.Requests);
+        Assert.Empty(publisher.Published);
+        await using var verify = await database.CreateContextAsync();
+        var stored = await verify.Set<IntakeAssetEntity>().SingleAsync(item => item.Id == asset.Id);
+        Assert.NotEqual("confirmed", stored.CustodyStatus);
     }
 
     /// <summary>
@@ -298,7 +335,10 @@ public sealed class CaseArtifactCustodyRecoveryTests
         await db.SaveChangesAsync();
     }
 
-    private static EfCaseArtifactCustody HoldingCustody(IServiceProvider services, HoldingBox box)
+    private static EfCaseArtifactCustody HoldingCustody(
+        IServiceProvider services,
+        HoldingBox box,
+        IDocumentContentCachePublisher? publisher = null)
     {
         var client = new BoxContentClient(
             new(
@@ -315,7 +355,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
             new MemoryArtifactStore(),
             TimeProvider.System,
             client,
-            HoldingBox.HoldingFolderId);
+            HoldingBox.HoldingFolderId,
+            publisher);
     }
 
     private static CaseArtifactCustodyRequest HoldingRequest(
@@ -1741,8 +1782,9 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
     /// <summary>
     /// The minimum Box surface holding custody uses: the holding folder's
-    /// proof, upload and a version read-back, and for a name already in use
-    /// the folder listing and the occupying file. Keeping it local to this
+    /// proof and upload, which answers with the file's SHA-1 when the upload
+    /// asks for it as Box does, and for a name already in use the folder
+    /// listing and the occupying file. Keeping it local to this
     /// regression makes the test exercise the real Box adapter rather than a
     /// replacement custody implementation. Every request is recorded, so a
     /// test can state exactly what custody asked Box for.
@@ -1760,6 +1802,12 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
         /// <summary>Every upload finds its name already holding these same bytes: Box's 409.</summary>
         public bool NameAlreadyInUse { get; set; }
+
+        /// <summary>The SHA-1 Box answers a created upload with is not that of the uploaded bytes.</summary>
+        public bool ReportsAWrongSha1 { get; set; }
+
+        /// <summary>Box answers a created upload without a SHA-1, whatever the upload asked for.</summary>
+        public bool OmitsSha1 { get; set; }
 
         public async Task<HttpResponseMessage> HandleAsync(HttpRequestMessage request)
         {
@@ -1808,9 +1856,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
                     string.Equals(part.Headers.ContentDisposition?.Name?.Trim('\"'), "file", StringComparison.Ordinal));
                 UploadCount++;
                 var id = UploadCount == 1 ? "holding-file" : $"holding-file-{UploadCount}";
-                files[id] = (
-                    attributesJson.RootElement.GetProperty("name").GetString()!,
-                    await file.ReadAsByteArrayAsync());
+                var uploaded = await file.ReadAsByteArrayAsync();
+                files[id] = (attributesJson.RootElement.GetProperty("name").GetString()!, uploaded);
                 if (NameAlreadyInUse)
                 {
                     return new(HttpStatusCode.Conflict)
@@ -1821,19 +1868,19 @@ public sealed class CaseArtifactCustodyRecoveryTests
                             "application/json")
                     };
                 }
-                return Json(new
+                var created = new Dictionary<string, object>
                 {
-                    entries = new[]
-                    {
-                        new
-                        {
-                            id,
-                            type = "file",
-                            file_version = new { id = VersionOf(id) },
-                            parent = new { id = HoldingFolderId }
-                        }
-                    }
-                });
+                    ["id"] = id,
+                    ["type"] = "file",
+                    ["file_version"] = new { id = VersionOf(id) },
+                    ["parent"] = new { id = HoldingFolderId }
+                };
+                // Box answers with the fields the upload names, and no others.
+                if (AsksFor(request, "sha1") && !OmitsSha1)
+                {
+                    created["sha1"] = ReportsAWrongSha1 ? new string('0', 40) : Sha1Of(uploaded);
+                }
+                return Json(new { entries = new[] { created } });
             }
 
             foreach (var (id, stored) in files)
@@ -1859,6 +1906,19 @@ public sealed class CaseArtifactCustodyRecoveryTests
         }
 
         private static string VersionOf(string fileId) => fileId.Replace("file", "version", StringComparison.Ordinal);
+
+        /// <summary>Whether the request's <c>fields</c> query names <paramref name="field"/>.</summary>
+        private static bool AsksFor(HttpRequestMessage request, string field) =>
+            request.RequestUri!.Query.TrimStart('?').Split('&')
+                .Select(pair => pair.Split('=', 2))
+                .Any(pair => pair is ["fields", var list]
+                    && list.Split(',').Contains(field, StringComparer.Ordinal));
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage(
+            "Security",
+            "CA5350:Do Not Use Weak Cryptographic Algorithms",
+            Justification = "Box's file sha1 is SHA-1; the double computes what Box does.")]
+        private static string Sha1Of(byte[] bytes) => Convert.ToHexStringLower(SHA1.HashData(bytes));
 
         private static HttpResponseMessage Json<T>(T value) => new(HttpStatusCode.OK)
         {

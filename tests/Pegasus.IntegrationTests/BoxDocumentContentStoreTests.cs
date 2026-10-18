@@ -221,8 +221,8 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     /// <summary>
-    /// The retry reads use is the one holding custody's upload and read-back
-    /// use: an unavailable Box is asked again, a refusal is the answer at once.
+    /// The retry reads use is the one holding custody's upload
+    /// uses: an unavailable Box is asked again, a refusal is the answer at once.
     /// </summary>
     [Fact]
     public async Task ATransientFailureIsRetriedAndARefusalIsNot()
