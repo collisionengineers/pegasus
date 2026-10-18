@@ -404,7 +404,7 @@ public sealed class TidySentReportInstructionsTests
 
         // Where a message sits until it is moved: its entry in ParentOf (null is gone), else Parent.
         public string? Parent { get; init; }
-        public IReadOnlyDictionary<string, string?> ParentOf { get; init; } = new Dictionary<string, string?>();
+        public Dictionary<string, string?> ParentOf { get; init; } = new();
         public string DeletedItems { get; init; } = "deleted-id";
         public Exception? MoveFailure { get; init; }
         public bool FailOnlyFirstMove { get; init; }
