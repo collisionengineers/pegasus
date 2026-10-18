@@ -9,6 +9,12 @@ param tags object
   'approved'
 ])
 param classifierActivation string
+@allowed([
+  'true'
+  'false'
+])
+@description('CLASSIFIER_DRY_RUN app setting. true makes every tick log its proposals and write nothing.')
+param classifierDryRun string = 'false'
 @description('The Web App public origin, ending in a slash; the MCP endpoint and token endpoint are under it.')
 param webPublicOrigin string
 param applicationInsightsName string
@@ -152,7 +158,7 @@ resource classifierApp 'Microsoft.Web/sites@2024-04-01' = if (classifierActivati
         { name: 'ANTHROPIC_API_KEY', value: '@Microsoft.KeyVault(SecretUri=${anthropicApiKeySecretUri})' }
         { name: 'CLASSIFIER_MODEL', value: 'claude-sonnet-5-5' }
         { name: 'CLASSIFIER_CRON', value: '0 */15 * * * *' }
-        { name: 'CLASSIFIER_DRY_RUN', value: 'false' }
+        { name: 'CLASSIFIER_DRY_RUN', value: classifierDryRun }
       ]
     }
   }
