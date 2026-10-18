@@ -22,6 +22,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
     public static readonly ImmutableDictionary<string, ImmutableArray<string>> AcceptedIdentities =
         new Dictionary<string, ImmutableArray<string>>(StringComparer.Ordinal)
         {
+            ["ALISON"] = ["alison-law.co.uk"],
             ["ALS"] = ["autologistic.co.uk"],
             ["AMS"] = ["amssolicitors.co.uk"],
             ["AX"] = ["ax-uk.com"],

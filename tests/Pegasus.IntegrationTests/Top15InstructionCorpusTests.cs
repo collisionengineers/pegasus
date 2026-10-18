@@ -518,6 +518,20 @@ public sealed class Top15InstructionCorpusTests
         ,new("AMS", $"{CorpusRoot}/AMS 03.DOC", "2f8f667454834c8e296c77e21af27f5eb5ed0978ddd398771dd95090f0434d62", new("Mr Ahmed Mansour A Daleel", "100623.001/AU/SWA", "MX16SYJ", new(2026, 4, 23)), [new("Incident date", "27th April 2026", "Date: the letter's own date."), new("Claimant name", "Adam Urquhart", "The fee earner who signs the letter.")])
         ,new("AMS", $"{CorpusRoot}/AMS 04.DOC", "6876f5bf0884c0ae7dc036acf11336091309568aae2ef75166a152a098472d10", new("Mr Ahmed Younis Bashir", "100621.001/RSY/SWA", "MX67RFN", new(2026, 4, 18)), [new("Incident date", "24th April 2026", "Date: the letter's own date."), new("Claimant name", "Raja Yousaf", "The fee earner who signs the letter.")])
         ,new("AMS", $"{CorpusRoot}/AMS 05.DOC", "2766088b7daffbf1e179222df7bbe85634c0eff014a3785b190eac8245b40102", new("Mr Tekleab Angosom Araya", "100615.001/RSY/SWA", "BT69BRF", new(2026, 4, 21)), [new("Incident date", "23rd April 2026", "Date: the letter's own date."), new("Claimant name", "Raja Yousaf", "The fee earner who signs the letter.")])
+        // ALISON dates the letter in words above the salutation, prints the
+        // claimant's address after the name on the Our Client line and a number
+        // in the footer. PDF 02 and WORD 01 print no Our Ref; WORD 02 and
+        // WORD 05 leave Vehicle Reg blank.
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 01.pdf", "d70b613c47138d65af56aeb3313ba86d416742e29d12f5275b9474175fcdf263", new("Nisa Dakhrun", "HA:MA:BFD/25/42518.001", "SJ12MRY", new(2025, 10, 8)), [new("Incident date", "17 October 2025", "The letter's own date."), new("Claimant name", "Worthington Street", "The claimant's address on the Our Client line."), new("Claim reference", "183434", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 02.pdf", "4245ad8fb9d0216bbc3a6e91ac7b79a4729ab5496963fca2e06ba9b597781b72", new("Mohammed Tausif", null, "BD65XRZ", new(2025, 10, 6)), [new("Incident date", "10 October 2025", "The letter's own date."), new("Claimant name", "Lady Royd Gate", "The claimant's address on the Our Client line."), new("Claim reference", "183146", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 03.pdf", "7bb3cace40cd619269c36ac7f2f1777d96a8b32b50fd1b8e6d45167fc0d91201", new("Everett Omar Henry", "HA:HH:BFD/25/42505.001", "LK75FHY", new(2025, 9, 10)), [new("Incident date", "18 September 2025", "The letter's own date."), new("Claimant name", "Bexley Gardens", "The claimant's address on the Our Client line."), new("Claim reference", "182269", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 04.pdf", "c9c48af52fbb4fdd8b5d1583d46113ab40e54e3d79372609b4037bd296bb462e", new("Patrick Doherty", "KM:HH:BFD/25/42502.001", "AF15UHS", new(2025, 9, 2)), [new("Incident date", "12 September 2025", "The letter's own date."), new("Claimant name", "Fryston Road", "The claimant's address on the Our Client line."), new("Claim reference", "182009", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 05.pdf", "e6c1d1888d9b00b708cac9ed61f375dfb4a2809daea6495b2ef7d49c914f710b", new("Mohammed Uzair Azhar", "HA:HH:BFD/25/42498.001", "KE17ZSO", new(2025, 9, 6)), [new("Incident date", "10 September 2025", "The letter's own date."), new("Claimant name", "Card House", "The claimant's address on the Our Client line."), new("Claim reference", "181904", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 01.docx", "0bb5640eadfe71c8fa7bca3cf03fdb123ae1d05dd2c6bac61e2054bdba389367", new("Uzair Khan", null, "YH14AMK", new(2025, 9, 12)), [new("Incident date", "18 September 2025", "The letter's own date."), new("Claimant name", "Blenheim Rd", "The claimant's address on the Our Client line."), new("Claim reference", "181571", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 02.docx", "b3b79b5001145457e06af78998174fa2be4608b474d6c8ede9117c52fd0702b6", new("Hamza Aziz", "MS:MA:BFD/24/42269.001", null, new(2025, 9, 3)), [new("Incident date", "4 September 2025", "The letter's own date."), new("Claimant name", "Whetley Hill", "The claimant's address on the Our Client line."), new("Claim reference", "181571", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 03.docx", "ceb3b496e36c9d4ca749982fc008df4a49f500b15b5c7c4f8636deb200e64bf8", new("Uzmaa Patel", "MS:MA:BFD/25/42474.001", "P8UHX", new(2025, 8, 8)), [new("Incident date", "12 August 2025", "The letter's own date."), new("Claimant name", "Whytecroft", "The claimant's address on the Our Client line."), new("Claim reference", "180223", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 04.docx", "1ca54f46c1d2c46f09d47343dc86f28b9fdbbd048b21812e450002e973183c2c", new("Asifah Nasur", "HA:HH:BFD/25/42486.001", "NJ10OXC", new(2025, 7, 28)), [new("Incident date", "1 August 2025", "The letter's own date."), new("Claimant name", "Lees Hall Road", "The claimant's address on the Our Client line."), new("Claim reference", "179685", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 05.docx", "05415183569f8b71fcd899e5385b6be6e24fb5f5ad90d43daee107b684d3f7fd", new("Raja Khan", "MS:HH:BFD/25/42426.001", null, new(2025, 6, 20)), [new("Incident date", "26 June 2025", "The letter's own date."), new("Claimant name", "Calder Road", "The claimant's address on the Our Client line."), new("Claim reference", "175105", "The number in the letter's footer.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -620,7 +634,8 @@ public sealed class Top15InstructionCorpusTests
             new BcInstructionExtractionPolicy(),
             new SwanInstructionExtractionPolicy(),
             new TenInstructionExtractionPolicy(),
-            new AmsInstructionExtractionPolicy()
+            new AmsInstructionExtractionPolicy(),
+            new AlisonInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
@@ -629,7 +644,7 @@ public sealed class Top15InstructionCorpusTests
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var selector = new InstructionExtractionPolicySelector(Policies());
         var representatives = Expectations.GroupBy(sample => sample.Profile).Select(group => group.First()).ToArray();
-        Assert.Equal(19, representatives.Length);
+        Assert.Equal(20, representatives.Length);
         foreach (var sample in representatives)
         {
             var bytes = await File.ReadAllBytesAsync(Path.Combine(PackRoot(), sample.PackRelativePath));
@@ -727,7 +742,7 @@ public sealed class Top15InstructionCorpusTests
         var failures = new List<string>();
         var counts = new Dictionary<(string Profile, string Field, string Disposition), int>();
 
-        Assert.Equal(101, Expectations.Length);
+        Assert.Equal(111, Expectations.Length);
 
         foreach (var expectation in Expectations)
         {
