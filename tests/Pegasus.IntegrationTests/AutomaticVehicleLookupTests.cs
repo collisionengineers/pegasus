@@ -237,6 +237,122 @@ public sealed class AutomaticVehicleLookupTests
         Assert.Equal([2, 1], statements.Reads.Where(IsCandidatePage).Select(page => page.Rows));
     }
 
+    /// <summary>
+    /// The database keeps the coarse form of a registration beside the value, for
+    /// registration rows only: no spaces or hyphens, case kept, and nothing for a
+    /// value longer than a lookup request can hold.
+    /// </summary>
+    [Fact]
+    public async Task ThePersistedRegistrationIsTheCoarseFormForRegistrationRowsOnly()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var typedCase = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, typedCase, "ab12 cde", "fact");
+        await SeedRegistrationFieldAsync(database, typedCase, "AB12-CDE", "confirmed");
+        await SeedRegistrationFieldAsync(database, typedCase, "AB12.CDE", "suggestion");
+        var otherCase = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, otherCase, "A1B2C3D4E5F6G7H8I9J0K1L2M", "fact");
+        await SeedRegistrationFieldAsync(
+            database, otherCase, "AB12 CDE", "fact", fieldName: "vehicle_make");
+
+        Assert.Equal("ab12cde", await StoredRegistrationAsync(database, typedCase, "vehicle_registration", "fact"));
+        Assert.Equal("AB12CDE", await StoredRegistrationAsync(database, typedCase, "vehicle_registration", "confirmed"));
+        Assert.Equal("AB12.CDE", await StoredRegistrationAsync(database, typedCase, "vehicle_registration", "suggestion"));
+        Assert.Equal("<null>", await StoredRegistrationAsync(database, otherCase, "vehicle_registration", "fact"));
+        Assert.Equal("<null>", await StoredRegistrationAsync(database, otherCase, "vehicle_make", "fact"));
+    }
+
+    /// <summary>
+    /// One page's due Cases are saved together, so the sweep sends fewer write
+    /// statements than it enqueues Cases, and every Case still gets its lookup.
+    /// </summary>
+    [Fact]
+    public async Task ADueBatchIsSavedTogetherAndEveryCaseGetsItsLookup()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await CreateDatabaseAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        var caseIds = await SeedDueCasesAsync(database, 5, "AB12CDE");
+
+        statements.Reset();
+        Assert.Equal(5, await SweepAsync(database));
+
+        Assert.True(statements.CountContaining("[ExternalWorkItems]") < caseIds.Length);
+        foreach (var caseId in caseIds)
+        {
+            Assert.Equal(1, await database.ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}' AND Registration = 'AB12CDE'"));
+            Assert.Equal(1, await database.ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM ExternalWorkItems WHERE CaseId = '{caseId:D}' AND Kind = 'vehicle_lookup' AND State = 'pending'"));
+        }
+    }
+
+    /// <summary>
+    /// A duplicate key in the batch rolls the whole save back. Each Case is then
+    /// saved on its own, the one whose work item already exists stays unenqueued
+    /// without failing the sweep, and the next sweep finds the same.
+    /// </summary>
+    [Fact]
+    public async Task ADuplicateInTheBatchFallsBackToOneSavePerCase()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseIds = await SeedDueCasesAsync(database, 3, "AB12CDE");
+        var duplicated = caseIds[1];
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO ExternalWorkItems (Id, CaseId, Kind, OperationKey, State, AttemptCount, DueAtUtc) VALUES ({Guid.NewGuid()}, {duplicated}, {"vehicle_lookup"}, {$"vehicle-lookup:auto:{duplicated:N}:AB12CDE"}, {"completed"}, {1}, {FixedUtcNow})");
+        }
+
+        Assert.Equal(2, await SweepAsync(database));
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseIds[0]:D}'"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{duplicated:D}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseIds[2]:D}'"));
+        Assert.Equal(0, await SweepAsync(database));
+    }
+
+    /// <summary>
+    /// A page never saves more lookups than the sweep may still enqueue; the Case
+    /// left over is the next sweep's.
+    /// </summary>
+    [Fact]
+    public async Task TheBatchStopsAtTheLimit()
+    {
+        await using var database = await CreateDatabaseAsync();
+        await SeedDueCasesAsync(database, 3, "AB12CDE");
+
+        Assert.Equal(2, await SweepAsync(database, maximumItems: 2));
+        Assert.Equal(1, await SweepAsync(database, maximumItems: 2));
+        Assert.Equal(3, await database.ScalarAsync<int>("SELECT COUNT(*) FROM VehicleLookupRequests"));
+    }
+
+    private static async Task<Guid[]> SeedDueCasesAsync(
+        LocalDbTestDatabase database,
+        int count,
+        string registration)
+    {
+        var caseIds = new Guid[count];
+        for (var position = 1; position <= count; position++)
+        {
+            caseIds[position - 1] = await SeedCaseAsync(database, CaseLifecycleState.Review, OrderedCaseId(position));
+            await SeedRegistrationFieldAsync(database, caseIds[position - 1], registration, "fact");
+        }
+
+        return caseIds;
+    }
+
+    private static Task<string> StoredRegistrationAsync(
+        LocalDbTestDatabase database,
+        Guid caseId,
+        string fieldName,
+        string valueKind) =>
+        database.ScalarAsync<string>(
+            $"SELECT ISNULL(NormalizedRegistration, N'<null>') FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = N'{fieldName}' AND ValueKind = N'{valueKind}'");
+
     private static bool IsCandidatePage(SqlRead read) =>
         read.CommandText.Contains("[CaseDataFields]", StringComparison.Ordinal);
 
@@ -424,7 +540,8 @@ public sealed class AutomaticVehicleLookupTests
         Guid caseId,
         string registration,
         string valueKind,
-        string sourceIdentity = "auto-lookup-source")
+        string sourceIdentity = "auto-lookup-source",
+        string fieldName = "vehicle_registration")
     {
         await using var context = await database.CreateContextAsync();
         if (sourceIdentity != "auto-lookup-source")
@@ -436,7 +553,7 @@ public sealed class AutomaticVehicleLookupTests
         }
 
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {valueKind}, {"text"}, {registration}, {"intake_evidence"}, {sourceIdentity}, {"Automatic lookup fixture"}, {"auto-lookup-test"}, {1}, {(valueKind == "confirmed" ? "staff" : null)}, {(valueKind == "confirmed" ? FixedUtcNow : (DateTimeOffset?)null)})");
+            $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {fieldName}, {valueKind}, {"text"}, {registration}, {"intake_evidence"}, {sourceIdentity}, {"Automatic lookup fixture"}, {"auto-lookup-test"}, {1}, {(valueKind == "confirmed" ? "staff" : null)}, {(valueKind == "confirmed" ? FixedUtcNow : (DateTimeOffset?)null)})");
     }
 
     /// <summary>

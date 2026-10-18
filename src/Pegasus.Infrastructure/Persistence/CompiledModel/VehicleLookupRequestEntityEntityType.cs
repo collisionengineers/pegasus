@@ -22,7 +22,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 propertyCount: 10,
                 navigationCount: 2,
                 foreignKeyCount: 2,
-                unnamedIndexCount: 2,
+                unnamedIndexCount: 3,
                 keyCount: 1);
 
             var workItemId = runtimeEntityType.AddProperty(
@@ -116,6 +116,9 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 unique: true);
 
             var index0 = runtimeEntityType.AddIndex(
+                new[] { caseId, registration });
+
+            var index1 = runtimeEntityType.AddIndex(
                 new[] { caseId, requestedAtUtc });
 
             return runtimeEntityType;
