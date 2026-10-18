@@ -84,6 +84,76 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal("Door skin", read.Lines[0].Description);
     }
 
+    /// <summary>
+    /// The Case page lists every specification's versions in one read: one
+    /// command for any number of specifications, none for none, and for each
+    /// specification the rows <c>ListAsync</c> returns.
+    /// </summary>
+    [Fact]
+    public async Task ListingSeveralSpecificationsReadsTheirVersionsInOneCommand()
+    {
+        var counter = new ReaderCommandCounter();
+        await using var harness = await Harness.CreateAsync(counter);
+        var caseId = (await harness.AcceptAsync("spec-snapshot-batch-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var workspace = new EfCaseWorkspaceStore(harness.Factory, harness.Clock);
+        var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
+        var caseVersion = 0L;
+
+        // Each Case Save of a new typed spec adds one more to the Case.
+        async Task<Guid> AddSpecificationAsync(string name)
+        {
+            var lease = await harness.AcquireLeaseAsync(caseId, caseVersion, engineer, $"{name}-lease");
+            var saved = await workspace.SaveAsync(
+                new SaveCaseWorkspaceRequest(caseId, lease.Version, engineer, $"{name}-save", null, lease.Token)
+                {
+                    Estimate = new(null, new(name, 40m, 0m, 20m),
+                        [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)]),
+                },
+                CancellationToken.None);
+            caseVersion = saved.Version;
+            return Assert.IsType<RepairSpecificationVersion>(saved.Estimate).SpecificationId;
+        }
+
+        Task<RepairSpecificationSnapshot> FreezeAsync(Guid specificationId, RepairSpecificationSnapshotKind kind) =>
+            snapshots.FreezeAsync(new(caseId, specificationId, engineer, kind, kind.ToString()), CancellationToken.None);
+
+        var first = await AddSpecificationAsync("Repairer");
+        var second = await AddSpecificationAsync("Engineer");
+        var unlisted = await AddSpecificationAsync("Unlisted");
+        await FreezeAsync(first, RepairSpecificationSnapshotKind.BeforeScaling);
+        await FreezeAsync(first, RepairSpecificationSnapshotKind.BeforeRestore);
+        await FreezeAsync(second, RepairSpecificationSnapshotKind.BeforeScaling);
+        await FreezeAsync(unlisted, RepairSpecificationSnapshotKind.BeforeScaling);
+
+        counter.Reset();
+        var listed = await snapshots.ListForSpecificationsAsync(caseId, [first, second], CancellationToken.None);
+
+        Assert.Equal(1, counter.ExecutedReaderCommands);
+        Assert.Equal([1, 2], listed.Where(item => item.SpecificationId == first).Select(item => item.Number));
+        Assert.Equal([1], listed.Where(item => item.SpecificationId == second).Select(item => item.Number));
+        Assert.Equal(3, listed.Count);
+        // By specification, then number.
+        Assert.Equal(
+            listed.GroupBy(item => item.SpecificationId).SelectMany(group => group.OrderBy(item => item.Number)).Select(item => item.Id),
+            listed.Select(item => item.Id));
+        foreach (var specificationId in new[] { first, second })
+        {
+            var single = await snapshots.ListAsync(caseId, specificationId, CancellationToken.None);
+            Assert.Equal(
+                single.Select(item => (item.Id, item.Number, item.Kind, item.Origin, item.Gross, item.Details.Name, item.Lines.Count)),
+                listed.Where(item => item.SpecificationId == specificationId)
+                    .Select(item => (item.Id, item.Number, item.Kind, item.Origin, item.Gross, item.Details.Name, item.Lines.Count)));
+        }
+
+        // A specification of another Case, or none at all, yields nothing.
+        Assert.Empty(await snapshots.ListForSpecificationsAsync(Guid.NewGuid(), [first, second], CancellationToken.None));
+        Assert.Empty(await snapshots.ListForSpecificationsAsync(caseId, [Guid.NewGuid()], CancellationToken.None));
+        counter.Reset();
+        Assert.Empty(await snapshots.ListForSpecificationsAsync(caseId, [], CancellationToken.None));
+        Assert.Equal(0, counter.ExecutedReaderCommands);
+    }
+
     [Fact]
     public async Task RestoreIsAtomicAndRecordsTheBeforeAndRestoredVersions()
     {

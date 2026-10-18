@@ -1978,6 +1978,10 @@ public sealed partial class AssessmentReportDraftWebTests
         public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListAsync(
             Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>([]);
+
+        public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListForSpecificationsAsync(
+            Guid caseId, IReadOnlyCollection<Guid> specificationIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>([]);
     }
 
     private static FormUrlEncodedContent Form(

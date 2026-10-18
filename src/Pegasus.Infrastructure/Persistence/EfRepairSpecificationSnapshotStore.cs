@@ -109,6 +109,23 @@ public sealed class EfRepairSpecificationSnapshotStore(
         return rows.Select(Map).ToArray();
     }
 
+    public async Task<IReadOnlyList<RepairSpecificationSnapshot>> ListForSpecificationsAsync(
+        Guid caseId, IReadOnlyCollection<Guid> specificationIds, CancellationToken cancellationToken)
+    {
+        if (specificationIds.Count == 0)
+        {
+            return [];
+        }
+        var ids = specificationIds.ToArray();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await context.CaseRepairSpecificationSnapshots.AsNoTracking()
+            .Where(item => item.Work.CaseId == caseId && ids.Contains(item.SpecificationId))
+            .OrderBy(item => item.SpecificationId)
+            .ThenBy(item => item.Number)
+            .ToListAsync(cancellationToken);
+        return rows.Select(Map).ToArray();
+    }
+
     internal static RepairSpecificationSnapshot Map(CaseRepairSpecificationSnapshotEntity entity) => new(
         entity.Id, entity.Work.CaseId, entity.SpecificationId, entity.Number,
         Enum.Parse<RepairSpecificationSnapshotKind>(entity.Kind), entity.Origin,
