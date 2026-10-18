@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -117,6 +118,9 @@ public sealed class TidySentReportInstructions(
     public const string MailboxNotPermittedFailureCode = "mailbox_not_permitted";
     public const string MoveFailedFailureCode = "move_failed";
 
+    // Outlook allows four concurrent requests per mailbox; two leaves the Worker headroom.
+    private const int MaximumConcurrentMoves = 2;
+
     public async Task<SentReportInstructionTidyResult> ExecuteAsync(
         int maximumItems,
         ActionActor systemActor,
@@ -137,58 +141,79 @@ public sealed class TidySentReportInstructions(
         }
 
         var candidates = await store.ListDueAsync(maximumItems, cancellationToken);
-        var deletedItemsByMailbox = new Dictionary<string, string>(StringComparer.Ordinal);
+        var deletedItemsByMailbox = new ConcurrentDictionary<string, Lazy<Task<string>>>(StringComparer.Ordinal);
         var moved = 0;
         var alreadyMoved = 0;
         var missing = 0;
         var failed = 0;
         var examined = 0;
-        foreach (var candidate in candidates)
-        {
-            SentReportInstructionTidyOutcome outcome;
-            string? failureCode;
-            try
+        var throttled = 0;
+        // Sends that answered one retained instruction run one after another, so the
+        // later send finds the instruction already moved.
+        await Parallel.ForEachAsync(
+            candidates.GroupBy(candidate => candidate.RetainedMessageId),
+            new ParallelOptions
             {
-                (outcome, failureCode) = await TidyOneAsync(
-                    candidate, deletedItemsByMailbox, cancellationToken);
-            }
-            catch (ApprovedSentSourceThrottledException)
+                MaxDegreeOfParallelism = MaximumConcurrentMoves,
+                CancellationToken = cancellationToken,
+            },
+            async (sends, token) =>
             {
-                // The mailbox asked us to wait: nothing was tried, so nothing is
-                // recorded as an attempt and the rest of this run is left for the next.
-                break;
-            }
-            examined++;
-            await store.RecordAsync(
-                candidate.OperationId,
-                candidate.OperationVersion,
-                outcome,
-                failureCode,
-                timeProvider.GetUtcNow(),
-                cancellationToken);
-            switch (outcome)
-            {
-                case SentReportInstructionTidyOutcome.Moved:
-                    moved++;
-                    break;
-                case SentReportInstructionTidyOutcome.AlreadyMoved:
-                    alreadyMoved++;
-                    break;
-                case SentReportInstructionTidyOutcome.MessageMissing:
-                    missing++;
-                    break;
-                default:
-                    failed++;
-                    break;
-            }
-        }
+                foreach (var candidate in sends)
+                {
+                    // A flag, not a cancellation, so moves already under way finish and record.
+                    if (Volatile.Read(ref throttled) != 0)
+                    {
+                        return;
+                    }
+
+                    SentReportInstructionTidyOutcome outcome;
+                    string? failureCode;
+                    try
+                    {
+                        (outcome, failureCode) = await TidyOneAsync(
+                            candidate, deletedItemsByMailbox, token);
+                    }
+                    catch (ApprovedSentSourceThrottledException)
+                    {
+                        // The mailbox asked us to wait: nothing was tried, so nothing is
+                        // recorded as an attempt and no further candidate is started.
+                        Volatile.Write(ref throttled, 1);
+                        return;
+                    }
+
+                    Interlocked.Increment(ref examined);
+                    await store.RecordAsync(
+                        candidate.OperationId,
+                        candidate.OperationVersion,
+                        outcome,
+                        failureCode,
+                        timeProvider.GetUtcNow(),
+                        token);
+                    switch (outcome)
+                    {
+                        case SentReportInstructionTidyOutcome.Moved:
+                            Interlocked.Increment(ref moved);
+                            break;
+                        case SentReportInstructionTidyOutcome.AlreadyMoved:
+                            Interlocked.Increment(ref alreadyMoved);
+                            break;
+                        case SentReportInstructionTidyOutcome.MessageMissing:
+                            Interlocked.Increment(ref missing);
+                            break;
+                        default:
+                            Interlocked.Increment(ref failed);
+                            break;
+                    }
+                }
+            });
 
         return new(examined, moved, alreadyMoved, missing, failed);
     }
 
     private async Task<(SentReportInstructionTidyOutcome Outcome, string? FailureCode)> TidyOneAsync(
         SentReportInstructionCandidate candidate,
-        Dictionary<string, string> deletedItemsByMailbox,
+        ConcurrentDictionary<string, Lazy<Task<string>>> deletedItemsByMailbox,
         CancellationToken cancellationToken)
     {
         try
@@ -202,13 +227,12 @@ public sealed class TidySentReportInstructions(
                 return (SentReportInstructionTidyOutcome.MessageMissing, null);
             }
 
-            if (!deletedItemsByMailbox.TryGetValue(candidate.MailboxIdentity, out var deleted))
-            {
-                deleted = await mover.ResolveDeletedItemsFolderIdAsync(
-                    candidate.MailboxIdentity,
-                    cancellationToken);
-                deletedItemsByMailbox[candidate.MailboxIdentity] = deleted;
-            }
+            // One lookup per mailbox per run, shared by candidates in flight together; a
+            // failed lookup is shared too, and each candidate records its own failure.
+            var deleted = await deletedItemsByMailbox.GetOrAdd(
+                candidate.MailboxIdentity,
+                mailbox => new Lazy<Task<string>>(
+                    () => mover.ResolveDeletedItemsFolderIdAsync(mailbox, cancellationToken))).Value;
 
             if (string.Equals(parent, deleted, StringComparison.Ordinal))
             {
