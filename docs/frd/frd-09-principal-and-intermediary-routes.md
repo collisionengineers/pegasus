@@ -9,8 +9,8 @@
 - The Principal API is create-only. A Principal states its instruction in JSON
   with its files attached; Pegasus does not read the values back out of a
   document.
-- Twenty Principal email routes are accepted, each tied to exact domains or
-  mailboxes. No wider domain matching is allowed.
+- Twenty-one Principal email routes are accepted, each tied to exact domains
+  or mailboxes. No wider domain matching is allowed.
 - A message links to an existing Case automatically only when exactly one
   Case matches and nothing contradicts it. Several matches fail closed.
 - Route rules never overlap. An overlap is a defect, not a tie-break.
@@ -181,14 +181,14 @@ already holds the fields, so it states them.
 
 ### Accepted principal email routes and automatic association
 
-**Twenty routes.** The twenty existing instruction profiles are active
-through the ordinary email path. Principal API credentials and mailbox
+**Twenty-one routes.** The twenty-one existing instruction profiles are
+active through the ordinary email path. Principal API credentials and mailbox
 onboarding are separate capabilities.
 
 `PrincipalMailRoutePolicy.AcceptedIdentities` is the single runtime catalogue
 of evidenced exact domains and mailboxes. Principal Settings displays it. It
-covers ALISON, ALS, AMS, AX, BC, BLACK, DFD, FW, KBS, KERR, MP, OAK, PCH,
-QCL, QDOS, RJS, SBL, SWAN, TEN and YML. YML accepts only its evidenced
+covers ALISON, ALS, AMS, AX, BC, BLACK, DFD, FW, KBS, KERR, KMR, MP, OAK,
+PCH, QCL, QDOS, RJS, SBL, SWAN, TEN and YML. YML accepts only its evidenced
 mailbox, never the shared Gmail domain. HDUK-branded instructions in the
 supplied YML samples belong to the confirmed YML route; HDUK is recorded as
 document issuer, separately from the instructing Principal. Branding never
@@ -337,7 +337,7 @@ permission to guess.
 ## Acceptance evidence
 
 Core tests cover the submission contract (credential, replay, validation,
-existing-Case rejection), the twenty-route catalogue, the QDOS match keys
+existing-Case rejection), the twenty-one-route catalogue, the QDOS match keys
 and eliminator, and the two Triage tells. Integration tests cover the
 Principal API over real HTTP with the feature gate on and off. Live activation
 for a named Principal needs exact-target approval and its own evidence tier
