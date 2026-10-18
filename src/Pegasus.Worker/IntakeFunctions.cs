@@ -485,39 +485,54 @@ public sealed partial class StagedArtifactReconciliationFunction(
         [TimerTrigger("%IntakeStagedArtifactReconciliationSchedule%", RunOnStartup = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
-        var result = await reconcileStagedArtifacts.ExecuteAsync(50, cancellationToken);
-        var stagedLevel = FailureLevel(result.Failures);
-        LogStagedArtifactReconciliation(
-            logger,
-            stagedLevel,
-            result.RecoveredWorkItems,
-            result.Completed,
-            result.Expired,
-            result.Retained,
-            result.Orphans,
-            result.Unmatched,
-            result.UnmatchedKept,
-            result.Failures);
+        // Steps 1 to 3 and 5 to 11 each run under RunStepAsync: a step that throws
+        // is logged and the steps after it still run, then the tick fails after
+        // the last step so the failed request reaches the exception alert.
+        var failures = new List<ExceptionDispatchInfo>();
 
-        var cache = await documentContentCacheCleanup.ExecuteAsync(50, cancellationToken);
-        if (cache.Failures > 0)
+        await RunStepAsync("staged artifacts", async () =>
         {
-            LogDocumentContentCacheCleanupFailure(
+            var result = await reconcileStagedArtifacts.ExecuteAsync(50, cancellationToken);
+            var stagedLevel = FailureLevel(result.Failures);
+            LogStagedArtifactReconciliation(
                 logger,
-                cache.Failures,
-                cache.Candidates);
-        }
-        var pendingArtifacts = await reconcilePendingArtifactCustody.ExecuteAsync(
-            50,
-            cancellationToken);
-        if (pendingArtifacts.Failures > 0)
+                stagedLevel,
+                result.RecoveredWorkItems,
+                result.Completed,
+                result.Expired,
+                result.Retained,
+                result.Orphans,
+                result.Unmatched,
+                result.UnmatchedKept,
+                result.Failures);
+        }, failures, cancellationToken);
+
+        await RunStepAsync("document cache cleanup", async () =>
         {
-            LogPendingArtifactCustodyFailure(
-                logger,
-                pendingArtifacts.Failures,
-                pendingArtifacts.Candidates,
-                pendingArtifacts.FirstFailure);
-        }
+            var cache = await documentContentCacheCleanup.ExecuteAsync(50, cancellationToken);
+            if (cache.Failures > 0)
+            {
+                LogDocumentContentCacheCleanupFailure(
+                    logger,
+                    cache.Failures,
+                    cache.Candidates);
+            }
+        }, failures, cancellationToken);
+
+        await RunStepAsync("pending custody", async () =>
+        {
+            var pendingArtifacts = await reconcilePendingArtifactCustody.ExecuteAsync(
+                50,
+                cancellationToken);
+            if (pendingArtifacts.Failures > 0)
+            {
+                LogPendingArtifactCustodyFailure(
+                    logger,
+                    pendingArtifacts.Failures,
+                    pendingArtifacts.Candidates,
+                    pendingArtifacts.FirstFailure);
+            }
+        }, failures, cancellationToken);
 
         // A generated report whose file was filed after its request ended
         // is recorded as stored, so nobody has to press Generate report
@@ -540,69 +555,91 @@ public sealed partial class StagedArtifactReconciliationFunction(
         // registers Unidentified directly once it has been pending long
         // enough (the poison-path escape). No manual SQL. Runs on the same
         // existing timer trigger deliberately; this is not a new schedule.
-        var groupedImageResult = await reconcileGroupedImageIntake.ExecuteAsync(50, cancellationToken);
-        var groupedLevel = FailureLevel(groupedImageResult.Failures);
-        LogGroupedImageIntakeReconciliation(
-            logger,
-            groupedLevel,
-            groupedImageResult.Candidates,
-            groupedImageResult.Retried,
-            groupedImageResult.Escaped,
-            groupedImageResult.Failures);
+        await RunStepAsync("grouped images", async () =>
+        {
+            var groupedImageResult = await reconcileGroupedImageIntake.ExecuteAsync(50, cancellationToken);
+            var groupedLevel = FailureLevel(groupedImageResult.Failures);
+            LogGroupedImageIntakeReconciliation(
+                logger,
+                groupedLevel,
+                groupedImageResult.Candidates,
+                groupedImageResult.Retried,
+                groupedImageResult.Escaped,
+                groupedImageResult.Failures);
+        }, failures, cancellationToken);
 
-        var pairing = await imageIntakeCasePairing.ReconcileAsync(50, cancellationToken);
-        var pairingLevel = FailureLevel(pairing.Failures);
-        LogImageIntakePairing(logger, pairingLevel, pairing.Candidates, pairing.Merged, pairing.Failures, pairing.FirstFailure);
-        var triagePairing = await triageCasePairing.ReconcileAsync(50, cancellationToken);
-        var triageLevel = FailureLevel(triagePairing.Failures);
-        LogTriageCasePairing(logger, triageLevel, triagePairing.Candidates, triagePairing.Linked,
-            triagePairing.Failures, triagePairing.FirstFailure);
+        await RunStepAsync("image pairing", async () =>
+        {
+            var pairing = await imageIntakeCasePairing.ReconcileAsync(50, cancellationToken);
+            var pairingLevel = FailureLevel(pairing.Failures);
+            LogImageIntakePairing(logger, pairingLevel, pairing.Candidates, pairing.Merged, pairing.Failures, pairing.FirstFailure);
+        }, failures, cancellationToken);
+
+        await RunStepAsync("Triage pairing", async () =>
+        {
+            var triagePairing = await triageCasePairing.ReconcileAsync(50, cancellationToken);
+            var triageLevel = FailureLevel(triagePairing.Failures);
+            LogTriageCasePairing(logger, triageLevel, triagePairing.Candidates, triagePairing.Linked,
+                triagePairing.Failures, triagePairing.FirstFailure);
+        }, failures, cancellationToken);
 
         // Resolves an open Unidentified item whose origin receipt
         // was promoted outside its own processing pass (a sibling group
         // member's registration, a staff action, or a historic stale row) —
         // the product's own reconciliation, never manual SQL. Same existing
         // timer trigger deliberately; this is not a new schedule.
-        var unidentifiedResult = await reconcileUnidentifiedDestinations.ExecuteAsync(50, cancellationToken);
-        var unidentifiedLevel = FailureLevel(unidentifiedResult.Failures);
-        LogUnidentifiedDestinationReconciliation(
-            logger,
-            unidentifiedLevel,
-            unidentifiedResult.Candidates,
-            unidentifiedResult.Resolved,
-            unidentifiedResult.Failures);
+        await RunStepAsync("Unidentified items", async () =>
+        {
+            var unidentifiedResult = await reconcileUnidentifiedDestinations.ExecuteAsync(50, cancellationToken);
+            var unidentifiedLevel = FailureLevel(unidentifiedResult.Failures);
+            LogUnidentifiedDestinationReconciliation(
+                logger,
+                unidentifiedLevel,
+                unidentifiedResult.Candidates,
+                unidentifiedResult.Resolved,
+                unidentifiedResult.Failures);
+        }, failures, cancellationToken);
 
         // Any active case whose current registration has never been
         // looked up gets one automatic vehicle lookup enqueued; the existing
         // dispatch timer and unified work queue carry it from there. Same
         // existing timer trigger deliberately; this is not a new schedule.
-        var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
-        LogAutomaticVehicleLookups(logger, vehicleLookups);
+        await RunStepAsync("vehicle lookups", async () =>
+        {
+            var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
+            LogAutomaticVehicleLookups(logger, vehicleLookups);
+        }, failures, cancellationToken);
 
         // Repairs the staged-receipt back-reference and the missing
         // first Accepted history row after a process loss between the
         // Principal API's separate writes. Same existing timer trigger
         // deliberately; this is not a new schedule.
-        var principalSubmissions = await reconcilePrincipalSubmissions.ExecuteAsync(
-            50,
-            cancellationToken);
-        var principalLevel = FailureLevel(principalSubmissions.Failures);
-        LogPrincipalSubmissionReconciliation(
-            logger,
-            principalLevel,
-            principalSubmissions.Candidates,
-            principalSubmissions.Repaired,
-            principalSubmissions.Failures,
-            principalSubmissions.FirstFailure);
+        await RunStepAsync("Principal submissions", async () =>
+        {
+            var principalSubmissions = await reconcilePrincipalSubmissions.ExecuteAsync(
+                50,
+                cancellationToken);
+            var principalLevel = FailureLevel(principalSubmissions.Failures);
+            LogPrincipalSubmissionReconciliation(
+                logger,
+                principalLevel,
+                principalSubmissions.Candidates,
+                principalSubmissions.Repaired,
+                principalSubmissions.Failures,
+                principalSubmissions.FirstFailure);
+        }, failures, cancellationToken);
 
         // Work Centre D10: personal notifications past their 30-day retention drop
         // off. Reads already filter on the window, so this is housekeeping on the
         // existing sweep, not a new schedule, and it runs about hourly.
-        if (staffNotificationPurgeSchedule.TryStart())
+        await RunStepAsync("staff-notification purge", async () =>
         {
-            var purgedNotifications = await purgeStaffNotifications.ExecuteAsync(cancellationToken);
-            LogStaffNotificationPurge(logger, purgedNotifications);
-        }
+            if (staffNotificationPurgeSchedule.TryStart())
+            {
+                var purgedNotifications = await purgeStaffNotifications.ExecuteAsync(cancellationToken);
+                LogStaffNotificationPurge(logger, purgedNotifications);
+            }
+        }, failures, cancellationToken);
 
         // Plain gallery thumbnails of newly filed photographs, made before
         // the first view. Same existing timer trigger deliberately; this is
@@ -659,7 +696,48 @@ public sealed partial class StagedArtifactReconciliationFunction(
         {
             LogEstimateRecognitionFailed(logger, exception);
         }
+
+        if (failures.Count == 1)
+        {
+            failures[0].Throw();
+        }
+
+        if (failures.Count > 1)
+        {
+            throw new AggregateException(
+                "More than one step of the staged-artifact reconciliation failed.",
+                failures.Select(failure => failure.SourceException));
+        }
     }
+
+    /// <summary>
+    /// Runs one step so that its failure is logged and kept, and the steps after
+    /// it still run. Host shutdown is not a step failure: it propagates.
+    /// </summary>
+    private async Task RunStepAsync(
+        string step,
+        Func<Task> work,
+        List<ExceptionDispatchInfo> failures,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await work();
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            LogReconciliationStepFailed(logger, exception, step);
+            failures.Add(ExceptionDispatchInfo.Capture(exception));
+        }
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "The {Step} step failed; the invocation fails after the other steps have run.")]
+    private static partial void LogReconciliationStepFailed(
+        ILogger logger,
+        Exception exception,
+        string step);
 
     [LoggerMessage(
         Message = "Recognised filed estimates: {Candidates} candidates, {Estimates} estimates, {NotEstimates} not estimates, {Failures} failures. First failure: {FirstFailure}")]

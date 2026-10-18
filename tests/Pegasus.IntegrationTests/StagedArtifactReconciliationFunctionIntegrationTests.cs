@@ -201,6 +201,108 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(2, store.Purges);
     }
 
+    /// <summary>
+    /// A step that throws is logged by name and the later steps still run; the
+    /// tick then fails with the original exception so the failed request reaches
+    /// the exception alert.
+    /// </summary>
+    [Fact]
+    public async Task AFailingFirstStepStillRunsEveryLaterStepAndThenFailsTheTick()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var failure = new InvalidOperationException("The work store is unavailable.");
+        var pairing = new RecordingPairing();
+        var thumbnailCandidates = new RecordingThumbnailCandidates();
+        var estimateCandidates = new RecordingEstimateCandidates();
+        var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => RunPairingTimerAsync(
+            pairing,
+            contextFactory,
+            logger: logger,
+            workStore: new ReconciliationWorkStore(0, failure),
+            thumbnailCandidates: thumbnailCandidates,
+            estimateCandidates: estimateCandidates));
+
+        Assert.Same(failure, thrown);
+        Assert.Equal(50, pairing.MaximumItems);
+        Assert.Contains(logger.States, state => state.ContainsKey("Purged"));
+        Assert.Equal(2, thumbnailCandidates.MaximumItems);
+        Assert.Equal(10, estimateCandidates.MaximumItems);
+        var logged = Assert.Single(FailedSteps(logger));
+        Assert.Equal("staged artifacts", logged.Step);
+        Assert.Same(failure, logged.Exception);
+    }
+
+    [Fact]
+    public async Task FailuresInTwoStepsAreRethrownTogetherInStepOrder()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var cacheFailure = new InvalidOperationException("The cache is unavailable.");
+        var pairingFailure = new TimeoutException("Image pairing timed out.");
+        var thumbnailCandidates = new RecordingThumbnailCandidates();
+        var estimateCandidates = new RecordingEstimateCandidates();
+        var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+
+        var thrown = await Assert.ThrowsAsync<AggregateException>(() => RunPairingTimerAsync(
+            new RecordingPairing(pairingFailure),
+            contextFactory,
+            logger: logger,
+            cacheCleanup: new FailingCacheCleanup(cacheFailure),
+            thumbnailCandidates: thumbnailCandidates,
+            estimateCandidates: estimateCandidates));
+
+        Assert.Collection(
+            thrown.InnerExceptions,
+            first => Assert.Same(cacheFailure, first),
+            second => Assert.Same(pairingFailure, second));
+        Assert.Equal(
+            ["document cache cleanup", "image pairing"],
+            FailedSteps(logger).Select(logged => logged.Step));
+        Assert.Contains(logger.States, state => state.ContainsKey("Linked"));
+        Assert.Contains(logger.States, state => state.ContainsKey("Resolved"));
+        Assert.Contains(logger.States, state => state.ContainsKey("Enqueued"));
+        Assert.Contains(logger.States, state => state.ContainsKey("Repaired"));
+        Assert.Contains(logger.States, state => state.ContainsKey("Purged"));
+        Assert.Equal(2, thumbnailCandidates.MaximumItems);
+        Assert.Equal(10, estimateCandidates.MaximumItems);
+    }
+
+    [Fact]
+    public async Task HostShutdownDuringAStepStopsTheTickWithoutLoggingAFailure()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var laterSteps = new CountingContextFactory(contextFactory);
+        var pairing = new RecordingPairing();
+        var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+        using var shutdown = new CancellationTokenSource();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => RunPairingTimerAsync(
+            pairing,
+            laterSteps,
+            logger: logger,
+            cacheCleanup: new ShutdownCacheCleanup(shutdown),
+            cancellationToken: shutdown.Token));
+
+        Assert.Equal(0, laterSteps.CreateCount);
+        Assert.Equal(0, pairing.MaximumItems);
+        Assert.DoesNotContain(logger.Entries, entry => entry.Level >= LogLevel.Warning);
+    }
+
+    private static (string Step, Exception? Exception)[] FailedSteps(
+        RecordingLogger<StagedArtifactReconciliationFunction> logger) =>
+        logger.Entries
+            .Select((entry, index) => (entry, index))
+            .Where(logged => logged.entry.Level == LogLevel.Error)
+            .Select(logged => ((string)logger.States[logged.index]["Step"]!, logged.entry.Exception))
+            .ToArray();
+
     private sealed class SteppedClock(DateTimeOffset start) : TimeProvider
     {
         private DateTimeOffset _now = start;
@@ -214,14 +316,19 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         ISettleFiledCaseReportArtifacts? settlement = null,
         ILogger<StagedArtifactReconciliationFunction>? logger = null,
         StaffNotificationPurgeSchedule? purgeSchedule = null,
-        IStaffNotificationStore? notifications = null)
+        IStaffNotificationStore? notifications = null,
+        IIntakeWorkStore? workStore = null,
+        IDocumentContentCacheCleanup? cacheCleanup = null,
+        IListDocumentThumbnailCandidates? thumbnailCandidates = null,
+        IEstimateRecognitionCandidates? estimateCandidates = null,
+        CancellationToken cancellationToken = default)
     {
-        var workStore = new ReconciliationWorkStore(0);
+        workStore ??= new ReconciliationWorkStore(0);
         var receipts = new EmptyIntakeReceiptQueries();
         var function = new StagedArtifactReconciliationFunction(
             new ReconcileStagedArtifacts(workStore, new RejectingStagedArtifactAuthority(),
                 new EmptyStagedArtifactStore(), new StagedArtifactSweepCursor(), TimeProvider.System),
-            new EmptyCacheCleanup(),
+            cacheCleanup ?? new EmptyCacheCleanup(),
             new ReconcilePendingArtifactCustody(contextFactory, new EmptyDocumentContentStore(), new EmptyStagedArtifactStore()),
             settlement ?? new EfSettleFiledCaseReportArtifacts(contextFactory, TimeProvider.System),
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
@@ -236,10 +343,12 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcilePrincipalSubmissions(new EmptyPrincipalSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             new PurgeStaffNotifications(notifications ?? new EmptyStaffNotificationStore(), TimeProvider.System),
             purgeSchedule ?? new StaffNotificationPurgeSchedule(TimeProvider.System),
-            new PrepareDocumentThumbnails(new NoDocumentThumbnailCandidates(), new UnreachableDocumentThumbnails()),
-            new RecogniseFiledEstimates(new RecordingEstimateCandidates(), new UnreachableDocumentReads(), []),
+            new PrepareDocumentThumbnails(
+                thumbnailCandidates ?? new NoDocumentThumbnailCandidates(), new UnreachableDocumentThumbnails()),
+            new RecogniseFiledEstimates(
+                estimateCandidates ?? new RecordingEstimateCandidates(), new UnreachableDocumentReads(), []),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
-        return function.RunAsync(null!, CancellationToken.None);
+        return function.RunAsync(null!, cancellationToken);
     }
 
     private sealed class RecordingTriagePairing : ITriageCasePairing
@@ -272,13 +381,15 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             Task.FromException<int>(new InvalidOperationException("The report could not be settled."));
     }
 
-    private sealed class RecordingPairing : IImageIntakeCasePairing
+    private sealed class RecordingPairing(Exception? failure = null) : IImageIntakeCasePairing
     {
         public int MaximumItems { get; private set; }
         public Task<ImageIntakePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken)
         {
             MaximumItems = maximumItems;
-            return Task.FromResult(new ImageIntakePairingResult(7, 3, 2, nameof(IntakeAssociationConflictException)));
+            return failure is null
+                ? Task.FromResult(new ImageIntakePairingResult(7, 3, 2, nameof(IntakeAssociationConflictException)))
+                : Task.FromException<ImageIntakePairingResult>(failure);
         }
         public Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken, ImageIntakeDetail? registered = null) => throw new NotSupportedException();
@@ -404,6 +515,25 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             Task.FromResult(new DocumentContentCacheCleanupResult(0, 0, 0, 0));
     }
 
+    private sealed class FailingCacheCleanup(Exception failure) : IDocumentContentCacheCleanup
+    {
+        public Task<DocumentContentCacheCleanupResult> ExecuteAsync(
+            int maximumItems,
+            CancellationToken cancellationToken) =>
+            Task.FromException<DocumentContentCacheCleanupResult>(failure);
+    }
+
+    private sealed class ShutdownCacheCleanup(CancellationTokenSource shutdown) : IDocumentContentCacheCleanup
+    {
+        public Task<DocumentContentCacheCleanupResult> ExecuteAsync(
+            int maximumItems,
+            CancellationToken cancellationToken)
+        {
+            shutdown.Cancel();
+            return Task.FromCanceled<DocumentContentCacheCleanupResult>(shutdown.Token);
+        }
+    }
+
     private sealed class UnreachableAutomaticVehicleLookupStore : IAutomaticVehicleLookupStore
     {
         public Task<int> EnqueueDueAsync(int maximumItems, CancellationToken cancellationToken) =>
@@ -449,7 +579,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new("An empty principal-submission reconciliation batch must not append history.");
     }
 
-    private sealed class ReconciliationWorkStore(int recoveredLeases) : IIntakeWorkStore
+    private sealed class ReconciliationWorkStore(int recoveredLeases, Exception? failure = null) : IIntakeWorkStore
     {
         internal int MaximumItems { get; private set; }
 
@@ -460,7 +590,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken)
         {
             MaximumItems = maximumItems;
-            return Task.FromResult(recoveredLeases);
+            return failure is null
+                ? Task.FromResult(recoveredLeases)
+                : Task.FromException<int>(failure);
         }
 
         public Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(
