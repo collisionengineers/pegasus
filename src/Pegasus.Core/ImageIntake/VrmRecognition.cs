@@ -278,6 +278,15 @@ public interface IVrmSuggestionStore
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// <see cref="ListForReceiptAsync"/> for several receipts in one read: one
+    /// entry for every distinct requested id, an empty list when that receipt
+    /// has no suggestions.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>> ListForReceiptsAsync(
+        IReadOnlyCollection<Guid> intakeReceiptIds,
+        CancellationToken cancellationToken);
+
     Task<ImageVrmSuggestion> SetDispositionAsync(
         ImageVrmSuggestionDispositionRequest request,
         CancellationToken cancellationToken);

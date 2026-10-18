@@ -787,6 +787,14 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageVrmSuggestion>>([]);
 
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>> ListForReceiptsAsync(
+            IReadOnlyCollection<Guid> intakeReceiptIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>>(
+                intakeReceiptIds.Distinct().ToDictionary(
+                    id => id,
+                    id => (IReadOnlyList<ImageVrmSuggestion>)[]));
+
         public Task<ImageVrmSuggestion> SetDispositionAsync(
             ImageVrmSuggestionDispositionRequest request,
             CancellationToken cancellationToken) =>

@@ -1121,6 +1121,16 @@ public sealed class AutomaticImageIntakeTests
             Task.FromResult<IReadOnlyList<ImageVrmSuggestion>>(
                 Records.Where(record => record.IntakeReceiptId == intakeReceiptId).ToArray());
 
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>> ListForReceiptsAsync(
+            IReadOnlyCollection<Guid> intakeReceiptIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>>(
+                intakeReceiptIds.Distinct().ToDictionary(
+                    id => id,
+                    id => (IReadOnlyList<ImageVrmSuggestion>)Records
+                        .Where(record => record.IntakeReceiptId == id)
+                        .ToArray()));
+
         public Task<ImageVrmSuggestion> SetDispositionAsync(
             ImageVrmSuggestionDispositionRequest request,
             CancellationToken cancellationToken)

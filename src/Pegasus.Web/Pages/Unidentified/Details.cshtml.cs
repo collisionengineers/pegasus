@@ -501,14 +501,12 @@ public sealed partial class DetailsModel(
                     .Distinct()
                     .ToArray();
                 var receipts = await getIntake.ExecuteManyAsync(receiptIds, actor, cancellationToken);
-                var readings = new List<ImageVrmSuggestion>();
-                foreach (var memberReceipt in receipts)
-                {
-                    readings.AddRange(await vrmSuggestions.ListForReceiptAsync(memberReceipt.Id, cancellationToken));
-                }
+                var suggestions = await vrmSuggestions.ListForReceiptsAsync(
+                    receipts.Select(receipt => receipt.Id).ToArray(),
+                    cancellationToken);
 
                 MaterialReceipts = receipts;
-                RegistrationReadings = readings;
+                RegistrationReadings = receipts.SelectMany(receipt => suggestions[receipt.Id]).ToArray();
             }
         }
 
