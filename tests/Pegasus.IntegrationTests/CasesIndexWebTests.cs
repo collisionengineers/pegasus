@@ -426,10 +426,12 @@ public sealed class CasesIndexWebTests
             html,
             "<tr[^>]*data-select-id=\"" + search.ClosedCaseId.ToString("D") + "\".*?</tr>",
             RegexOptions.Singleline | RegexOptions.CultureInvariant).Value;
-        Assert.Contains(
-            $"data-circumstances-url=\"/Search?handler=Circumstances&amp;id={search.ClosedCaseId:D}\"",
-            otherRow,
-            StringComparison.Ordinal);
+        // Link generation orders the query itself, so the address is read back and its parts checked.
+        var address = WebUtility.HtmlDecode(
+            Regex.Match(otherRow, "data-circumstances-url=\"(?<url>[^\"]+)\"", RegexOptions.CultureInvariant).Groups["url"].Value);
+        Assert.StartsWith("/Search?", address, StringComparison.Ordinal);
+        Assert.Contains("handler=Circumstances", address, StringComparison.Ordinal);
+        Assert.Contains($"id={search.ClosedCaseId:D}", address, StringComparison.Ordinal);
         Assert.Contains(
             Pegasus.Web.Presentation.OperatorLabels.Busy.Loading,
             WebUtility.HtmlDecode(otherRow),
