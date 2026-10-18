@@ -1,8 +1,10 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Web;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
@@ -502,6 +504,251 @@ public sealed class ProductionBoxCustodyTests
             uri.AbsolutePath.StartsWith("/2.0/files/", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Over Box's 50 MB direct-upload limit a file goes up in parts through an
+    /// upload session: one create, each part with its own range and SHA-1
+    /// digest, one commit carrying the whole file's, and no direct upload.
+    /// Every path that files bytes takes it.
+    /// </summary>
+    [Theory]
+    [InlineData("custody-memory")]
+    [InlineData("store-memory")]
+    [InlineData("store-verified-stream")]
+    public async Task AFileOverFiftyMegabytesIsFiledInParts(string route)
+    {
+        var bytes = OverTheSinglePartLimit();
+        var box = new StatefulBox();
+        var caseId = Guid.NewGuid();
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "QDOS31001", "0123456789ABCDEFGHJKMNPQRS", "case-root", default);
+        var documents = new BoxDocumentContentStore(CreateClient(box));
+        var address = Address(caseId, root.RemoteId, 2, 1, "large.pdf");
+        using var stream = new MemoryStream(bytes, writable: false);
+        var mutations = box.MutationCount;
+        var before = box.Requests.Count;
+
+        var path = "QDOS31001/002 large.pdf";
+        switch (route)
+        {
+            case "custody-memory":
+                await custody.RetainAcceptedIntakeAttachmentAsync(
+                    root,
+                    new IntakeSourceCustodyReference(
+                        Guid.NewGuid(), "large.pdf", "application/pdf", Sha256(bytes), "source", bytes.Length),
+                    3,
+                    "attachment-retain",
+                    default);
+                path = "QDOS31001/003 large.pdf";
+                break;
+            case "store-memory":
+                Assert.Equal(
+                    DocumentContentWriteDisposition.Created,
+                    (await documents.StoreVersionAsync(address, bytes, Sha256(bytes), default)).Disposition);
+                break;
+            default:
+                Assert.Equal(
+                    DocumentContentWriteDisposition.Created,
+                    (await documents.StoreVerifiedStreamAsync(
+                        address, stream, bytes.Length, Sha256(bytes), default)).Disposition);
+                Assert.Equal(0L, stream.Position);
+                break;
+        }
+
+        var requests = box.Requests.Skip(before).ToArray();
+        var partCount = (int)((bytes.Length + box.PartSize - 1) / box.PartSize);
+        Assert.DoesNotContain(requests, IsUpload);
+        Assert.Equal(1, requests.Count(request => request == "POST /api/2.0/files/upload_sessions"));
+        Assert.Equal(partCount, requests.Count(IsPartUpload));
+        Assert.Equal(1, requests.Count(IsCommit));
+        Assert.DoesNotContain(requests, IsSessionAbort);
+        Assert.Equal(partCount, box.Parts.Count);
+        for (var index = 0; index < partCount; index++)
+        {
+            var offset = index * box.PartSize;
+            var length = (int)Math.Min(box.PartSize, bytes.Length - offset);
+            Assert.Equal($"bytes {offset}-{offset + length - 1}/{bytes.Length}", box.Parts[index].ContentRange);
+            Assert.Equal(Sha1Digest(bytes.AsSpan((int)offset, length)), box.Parts[index].Digest);
+        }
+        Assert.True(box.Parts[^1].Length < box.PartSize);
+        Assert.Equal(Sha1Digest(bytes), Assert.Single(box.CommitDigests));
+        Assert.Equal(Sha256(bytes), Sha256(box.ContentAt(path)));
+        Assert.Equal(mutations + 1, box.MutationCount);
+    }
+
+    /// <summary>
+    /// Up to and including the limit, a file is still one direct upload, from
+    /// memory or from a stream.
+    /// </summary>
+    [Theory]
+    [InlineData("ten-megabytes", 10_000_000)]
+    [InlineData("at-limit", 50_000_000)]
+    public async Task AFileAtTheSinglePartLimitStillUsesOneRequest(string size, int length)
+    {
+        var (box, client, folder) = await PartsEstateAsync();
+        var bytes = new byte[length];
+        using var stream = new MemoryStream(bytes, writable: false);
+        var before = box.Requests.Count;
+
+        var fromMemory = await client.UploadAsync(
+            folder, $"{size} memory.pdf", bytes, "application/pdf", default);
+        var fromStream = await client.UploadVerifiedAsync(
+            folder, $"{size} stream.pdf", stream, bytes.Length, "application/pdf", Sha256(bytes), default);
+
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.Equal(2, requests.Length);
+        Assert.All(requests, request => Assert.True(IsUpload(request), request));
+        Assert.True(fromMemory.Created);
+        Assert.True(fromStream.Created);
+    }
+
+    /// <summary>
+    /// A name Box already holds can meet an upload in parts at the session's
+    /// create or at its commit. Either way it is resolved as for a direct
+    /// upload: the same bytes are the file already filed, and different bytes
+    /// are refused. A session that was opened is aborted.
+    /// </summary>
+    [Theory]
+    [InlineData("at-create")]
+    [InlineData("at-commit")]
+    public async Task ANameBoxAlreadyHoldsIsResolvedFromAPartsUpload(string stage)
+    {
+        var bytes = OverTheSinglePartLimit();
+        var different = bytes.ToArray();
+        different[^1] ^= 0xFF;
+        var (box, client, folder) = await PartsEstateAsync();
+        using var stream = new MemoryStream(bytes, writable: false);
+        var mutations = box.MutationCount;
+        var before = box.Requests.Count;
+
+        box.OccupyNameBefore = (stage, bytes);
+        var fromMemory = await client.UploadAsync(folder, "memory.pdf", bytes, "application/pdf", default);
+        box.OccupyNameBefore = (stage, bytes);
+        var fromStream = await client.UploadVerifiedAsync(
+            folder, "stream.pdf", stream, bytes.Length, "application/pdf", Sha256(bytes), default);
+        box.OccupyNameBefore = (stage, different);
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.UploadAsync(
+            folder, "different memory.pdf", bytes, "application/pdf", default));
+        box.OccupyNameBefore = (stage, different);
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.UploadVerifiedAsync(
+            folder, "different stream.pdf", stream, bytes.Length, "application/pdf", Sha256(bytes), default));
+
+        Assert.False(fromMemory.Created);
+        Assert.False(fromStream.Created);
+        Assert.Equal(mutations, box.MutationCount);
+        Assert.Equal(
+            stage == "at-commit" ? 4 : 0,
+            box.Requests.Skip(before).Count(IsSessionAbort));
+    }
+
+    /// <summary>
+    /// Box answers 202 to a commit while it is still processing the parts. The
+    /// commit is sent again after Box's <c>Retry-After</c>, and a commit Box
+    /// has still not finished after the attempts allowed is a failure.
+    /// </summary>
+    [Fact]
+    public async Task ACommitBoxHasNotFinishedIsSentAgain()
+    {
+        var bytes = OverTheSinglePartLimit();
+        var (box, client, folder) = await PartsEstateAsync();
+
+        box.CommitStillProcessingAnswers = 1;
+        var before = box.Requests.Count;
+        var upload = await client.UploadAsync(folder, "processed.pdf", bytes, "application/pdf", default);
+        Assert.True(upload.Created);
+        Assert.Equal(2, box.Requests.Skip(before).Count(IsCommit));
+
+        box.CommitStillProcessingAnswers = int.MaxValue;
+        var mutations = box.MutationCount;
+        before = box.Requests.Count;
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() => client.UploadAsync(
+            folder, "unprocessed.pdf", bytes, "application/pdf", default));
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.Equal(HttpStatusCode.Accepted, failure.StatusCode);
+        Assert.Equal(BoxDocumentContentStore.MaximumAttempts, requests.Count(IsCommit));
+        Assert.Equal(1, requests.Count(IsSessionAbort));
+        Assert.Equal(mutations, box.MutationCount);
+    }
+
+    /// <summary>
+    /// A part Box refuses ends the upload with Box's own failure, the one a
+    /// direct upload would raise: nothing is committed and the session is
+    /// aborted. An abort that itself fails is logged and changes nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("unavailable", HttpStatusCode.ServiceUnavailable, false, typeof(HttpRequestException))]
+    [InlineData("throttled", HttpStatusCode.TooManyRequests, false, typeof(BoxThrottledException))]
+    [InlineData("abort-refused", HttpStatusCode.ServiceUnavailable, true, typeof(HttpRequestException))]
+    public async Task AFailedPartFilesNothingAndRaisesBoxsFailure(
+        string failure,
+        HttpStatusCode status,
+        bool abortFails,
+        Type raised)
+    {
+        var bytes = OverTheSinglePartLimit();
+        var logger = new RecordingLogger();
+        var (box, client, folder) = await PartsEstateAsync(logger);
+        box.FailPart = (4, status);
+        box.FailSessionAbort = abortFails;
+        var mutations = box.MutationCount;
+        var before = box.Requests.Count;
+
+        var exception = await Assert.ThrowsAsync(raised, () => client.UploadAsync(
+            folder, $"{failure}.pdf", bytes, "application/pdf", default));
+
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.Equal(status, Assert.IsAssignableFrom<HttpRequestException>(exception).StatusCode);
+        Assert.Equal(4, requests.Count(IsPartUpload));
+        Assert.DoesNotContain(requests, IsCommit);
+        Assert.Equal(1, requests.Count(IsSessionAbort));
+        Assert.Equal(mutations, box.MutationCount);
+        Assert.Equal(abortFails ? 1 : 0, logger.Levels.Count(level => level == LogLevel.Warning));
+    }
+
+    /// <summary>
+    /// A committed file is held to the same fence as a direct upload's: Box's
+    /// answer must name the proved folder as its parent. The session was
+    /// committed, so it is not aborted.
+    /// </summary>
+    [Fact]
+    public async Task ACommitAnswerOutsideTheProvedFolderIsRefused()
+    {
+        var bytes = OverTheSinglePartLimit();
+        var (box, client, folder) = await PartsEstateAsync();
+        box.CommitAnswerParent = "another-folder";
+        var before = box.Requests.Count;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => client.UploadAsync(
+            folder, "outside.pdf", bytes, "application/pdf", default));
+
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.Equal(1, requests.Count(IsCommit));
+        Assert.DoesNotContain(requests, IsSessionAbort);
+    }
+
+    /// <summary>
+    /// A stream that ends before its declared length fails as the direct
+    /// upload's bounded read does: no commit, the session aborted, and the
+    /// stream left where it started.
+    /// </summary>
+    [Fact]
+    public async Task ASourceThatEndsBeforeItsDeclaredLengthSendsNoCommit()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(20_000_000);
+        var (box, client, folder) = await PartsEstateAsync();
+        using var stream = new MemoryStream(bytes, writable: false);
+        var before = box.Requests.Count;
+
+        await Assert.ThrowsAsync<EndOfStreamException>(() => client.UploadVerifiedAsync(
+            folder, "short.pdf", stream, 60_000_000, "application/pdf", Sha256(bytes), default));
+
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.Equal(2, requests.Count(IsPartUpload));
+        Assert.DoesNotContain(requests, IsCommit);
+        Assert.Equal(1, requests.Count(IsSessionAbort));
+        Assert.Equal(0L, stream.Position);
+    }
+
     [Fact]
     public async Task BoxFailureRemainsVisibleToTheCallerWithoutBackgroundRetry()
     {
@@ -932,7 +1179,7 @@ public sealed class ProductionBoxCustodyTests
         new RecordingAuthorizationHeaderProvider(),
         TimeProvider.System);
 
-    private static BoxContentClient CreateClient(StatefulBox box) => new(
+    private static BoxContentClient CreateClient(StatefulBox box, ILogger<BoxContentClient>? logger = null) => new(
         BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
             "https://upload.box.com/api/2.0/",
@@ -942,7 +1189,42 @@ public sealed class ProductionBoxCustodyTests
             "test-holding-folder"),
         new HttpClient(new StatefulBoxHandler(box)),
         new RecordingAuthorizationHeaderProvider(),
-        TimeProvider.System);
+        TimeProvider.System,
+        logger);
+
+    /// <summary>A Case folder in a fresh Box, proved for uploads made straight through the client.</summary>
+    private static async Task<(StatefulBox Box, BoxContentClient Client, BoxContentClient.ProvedFolder Folder)>
+        PartsEstateAsync(ILogger<BoxContentClient>? logger = null)
+    {
+        var box = new StatefulBox();
+        var client = CreateClient(box, logger);
+        var root = await new BoxCaseCustody(new EmptyArtifactStore(), client).CreateCaseRootAsync(
+            Guid.NewGuid(), "QDOS31001", "0123456789ABCDEFGHJKMNPQRS", "case-root", default);
+        return (box, client, await client.ProveFolderAsync(root.RemoteId, default));
+    }
+
+    /// <summary>Synthetic content over Box's 50 MB direct-upload limit.</summary>
+    private static byte[] OverTheSinglePartLimit() => RandomNumberGenerator.GetBytes(60_000_000);
+
+    /// <summary>What Box's <c>Digest</c> header carries: <c>sha=</c> and the base64 SHA-1.</summary>
+    private static string Sha1Digest(ReadOnlySpan<byte> content) =>
+        $"sha={Convert.ToBase64String(Sha1(content))}";
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA5350:Do Not Use Weak Cryptographic Algorithms",
+        Justification = "Box's upload Digest header and file sha1 are SHA-1; the test computes what Box does.")]
+    private static byte[] Sha1(ReadOnlySpan<byte> content) => SHA1.HashData(content);
+
+    private static bool IsPartUpload(string request) =>
+        request.StartsWith("PUT /api/2.0/files/upload_sessions/", StringComparison.Ordinal);
+
+    private static bool IsCommit(string request) =>
+        request.StartsWith("POST /api/2.0/files/upload_sessions/", StringComparison.Ordinal)
+        && request.EndsWith("/commit", StringComparison.Ordinal);
+
+    private static bool IsSessionAbort(string request) =>
+        request.StartsWith("DELETE /api/2.0/files/upload_sessions/", StringComparison.Ordinal);
 
     private static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
@@ -1027,6 +1309,25 @@ public sealed class ProductionBoxCustodyTests
             Task.FromResult(false);
     }
 
+    /// <summary>The level of every entry the client logs.</summary>
+    private sealed class RecordingLogger : ILogger<BoxContentClient>
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<LogLevel> Levels { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Levels.Enqueue(logLevel);
+    }
+
     private sealed class StatefulBox
     {
         private sealed class Node(
@@ -1057,6 +1358,42 @@ public sealed class ProductionBoxCustodyTests
 
         /// <summary>When set, the next upload is refused with a 409 carrying this Box error code.</summary>
         public string? NextUploadConflictCode { get; set; }
+
+        /// <summary>The part size Box names when it opens an upload session (8 MiB, as Box does for these sizes).</summary>
+        public long PartSize { get; } = 8 * 1024 * 1024;
+
+        /// <summary>When set, the part with this number (from 1) is answered with this status and not taken.</summary>
+        public (int Number, HttpStatusCode Status)? FailPart { get; set; }
+
+        /// <summary>How many commits are answered 202 with <c>Retry-After: 0</c> before Box commits.</summary>
+        public int CommitStillProcessingAnswers { get; set; }
+
+        /// <summary>
+        /// When set, another writer files these bytes under the session's name
+        /// just before that stage ("at-create" or "at-commit") is answered.
+        /// </summary>
+        public (string Stage, byte[] Bytes)? OccupyNameBefore { get; set; }
+
+        /// <summary>When set, a commit's answer names this folder as the file's parent.</summary>
+        public string? CommitAnswerParent { get; set; }
+
+        /// <summary>When set, aborting an upload session is answered 500.</summary>
+        public bool FailSessionAbort { get; set; }
+
+        /// <summary>Each part Box has taken, in order: its <c>Content-Range</c>, its <c>Digest</c> and its length.</summary>
+        public List<(string ContentRange, string Digest, int Length)> Parts { get; } = [];
+
+        /// <summary>The <c>Digest</c> each commit carried, in order.</summary>
+        public List<string> CommitDigests { get; } = [];
+
+        private readonly Dictionary<string, UploadSession> sessions = new(StringComparer.Ordinal);
+
+        private sealed record UploadSession(
+            string ParentId,
+            string Name,
+            byte[] Content,
+            List<(string PartId, long Offset, int Size, string Sha1)> Parts);
+
         public bool AllowDeletes { get; set; }
         public int RenameCount { get; private set; }
         public int MoveCount { get; private set; }
@@ -1092,6 +1429,8 @@ public sealed class ProductionBoxCustodyTests
 
         public void CorruptFile(string path) => RequirePath(path).Content = "wrong binding"u8.ToArray();
 
+        public byte[] ContentAt(string path) => RequirePath(path).Content!;
+
         public void SetMediaType(string path, string mediaType) => RequirePath(path).MediaType = mediaType;
 
         /// <summary>Every request Box has received, as "METHOD /path?query", in order.</summary>
@@ -1112,6 +1451,10 @@ public sealed class ProductionBoxCustodyTests
         private HttpResponseMessage HandleCore(HttpRequestMessage request)
         {
             var path = request.RequestUri!.AbsolutePath;
+            if (path.StartsWith(UploadSessions, StringComparison.Ordinal))
+            {
+                return HandleUploadSession(request, path);
+            }
             if (request.Method == HttpMethod.Get && path.StartsWith("/2.0/folders/", StringComparison.Ordinal)
                 && path.EndsWith("/items", StringComparison.Ordinal))
             {
@@ -1264,6 +1607,156 @@ public sealed class ProductionBoxCustodyTests
             }
             throw new InvalidOperationException($"Unexpected Box request: {request.Method} {request.RequestUri}");
         }
+
+        private const string UploadSessions = "/api/2.0/files/upload_sessions";
+
+        /// <summary>
+        /// Box's upload session: create, one part per PUT, commit and abort,
+        /// checked as Box checks them. The session's own endpoints name another
+        /// host, and every request must reach the configured upload host, so a
+        /// client that followed them would fail here.
+        /// </summary>
+        private HttpResponseMessage HandleUploadSession(HttpRequestMessage request, string path)
+        {
+            Assert.Equal("upload.box.com", request.RequestUri!.Host);
+            if (request.Method == HttpMethod.Post && path == UploadSessions)
+            {
+                using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                var parent = body.RootElement.GetProperty("folder_id").GetString()!;
+                var name = body.RootElement.GetProperty("file_name").GetString()!;
+                var size = body.RootElement.GetProperty("file_size").GetInt64();
+                Occupy("at-create", parent, name);
+                if (Find(parent, name) is not null)
+                {
+                    return Conflict("item_name_in_use");
+                }
+                var id = $"session-{++sequence}";
+                sessions[id] = new(parent, name, new byte[size], []);
+                var elsewhere = $"https://elsewhere.example/api/2.0/files/upload_sessions/{id}";
+                return Answer(HttpStatusCode.Created, new
+                {
+                    id,
+                    type = "upload_session",
+                    part_size = PartSize,
+                    total_parts = (size + PartSize - 1) / PartSize,
+                    session_endpoints = new { upload_part = elsewhere, commit = $"{elsewhere}/commit", abort = elsewhere }
+                });
+            }
+            var rest = path[(UploadSessions.Length + 1)..];
+            var committing = rest.EndsWith("/commit", StringComparison.Ordinal);
+            var sessionId = committing ? rest[..^"/commit".Length] : rest;
+            if (request.Method == HttpMethod.Delete)
+            {
+                if (FailSessionAbort)
+                {
+                    return new(HttpStatusCode.InternalServerError) { Content = new StringContent("abort failed") };
+                }
+                return new(sessions.Remove(sessionId) ? HttpStatusCode.NoContent : HttpStatusCode.NotFound);
+            }
+            var session = sessions[sessionId];
+            if (request.Method == HttpMethod.Put)
+            {
+                var number = session.Parts.Count + 1;
+                if (FailPart is { } failure && failure.Number == number)
+                {
+                    FailPart = null;
+                    return new(failure.Status) { Content = new StringContent("part refused") };
+                }
+                var content = request.Content!;
+                var range = content.Headers.ContentRange!;
+                var first = range.From!.Value;
+                var last = range.To!.Value;
+                var digest = string.Join(",", request.Headers.GetValues("Digest"));
+                var bytes = content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+                Assert.Equal("application/octet-stream", content.Headers.ContentType?.MediaType);
+                Assert.Equal(session.Content.LongLength, range.Length);
+                Assert.Equal(0L, first % PartSize);
+                Assert.Equal(last - first + 1, bytes.LongLength);
+                Assert.True(bytes.Length == PartSize || last == session.Content.LongLength - 1);
+                if (digest != Sha1Digest(bytes))
+                {
+                    return new(HttpStatusCode.PreconditionFailed) { Content = new StringContent("digest mismatch") };
+                }
+                bytes.CopyTo(session.Content, first);
+                Parts.Add((string.Join(",", content.Headers.GetValues("Content-Range")), digest, bytes.Length));
+                var part = (
+                    PartId: $"part-{number}",
+                    Offset: first,
+                    Size: bytes.Length,
+                    Sha1: Convert.ToHexStringLower(Sha1(bytes)));
+                session.Parts.Add(part);
+                return Answer(HttpStatusCode.OK, new
+                {
+                    part = new { part_id = part.PartId, offset = part.Offset, size = part.Size, sha1 = part.Sha1 }
+                });
+            }
+            if (request.Method == HttpMethod.Post && committing)
+            {
+                var digest = string.Join(",", request.Headers.GetValues("Digest"));
+                CommitDigests.Add(digest);
+                if (CommitStillProcessingAnswers > 0)
+                {
+                    CommitStillProcessingAnswers--;
+                    return new(HttpStatusCode.Accepted)
+                    {
+                        Headers = { RetryAfter = new RetryConditionHeaderValue(TimeSpan.Zero) }
+                    };
+                }
+                Occupy("at-commit", session.ParentId, session.Name);
+                if (Find(session.ParentId, session.Name) is not null)
+                {
+                    return Conflict("item_name_in_use");
+                }
+                using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                var listed = body.RootElement.GetProperty("parts").EnumerateArray()
+                    .Select(part => (
+                        part.GetProperty("part_id").GetString()!,
+                        part.GetProperty("offset").GetInt64(),
+                        part.GetProperty("size").GetInt32(),
+                        part.GetProperty("sha1").GetString()!))
+                    .ToList();
+                if (!listed.SequenceEqual(session.Parts) || digest != Sha1Digest(session.Content))
+                {
+                    return new(HttpStatusCode.BadRequest) { Content = new StringContent("parts or digest differ") };
+                }
+                var created = Add("file", session.ParentId, session.Name, session.Content);
+                sessions.Remove(sessionId);
+                return Answer(HttpStatusCode.Created, new
+                {
+                    total_count = 1,
+                    entries = new[]
+                    {
+                        new
+                        {
+                            id = created.Id,
+                            name = created.Name,
+                            type = "file",
+                            etag = "1",
+                            size = session.Content.LongLength,
+                            sha1 = Convert.ToHexStringLower(Sha1(session.Content)),
+                            file_version = new { id = $"{created.Id}-version-1" },
+                            parent = new { id = CommitAnswerParent ?? created.ParentId }
+                        }
+                    }
+                });
+            }
+            throw new InvalidOperationException($"Unexpected Box upload session request: {request.Method} {request.RequestUri}");
+        }
+
+        /// <summary>Files the occupant <see cref="OccupyNameBefore"/> names once its stage is reached.</summary>
+        private void Occupy(string stage, string parentId, string name)
+        {
+            if (OccupyNameBefore is { } occupant && occupant.Stage == stage)
+            {
+                OccupyNameBefore = null;
+                Add("file", parentId, name, occupant.Bytes, countMutation: false);
+            }
+        }
+
+        private static HttpResponseMessage Answer(HttpStatusCode status, object value) => new(status)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json")
+        };
 
         private Node Add(
             string type,

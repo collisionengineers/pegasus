@@ -316,6 +316,8 @@ accepts the file that holds it only when it is a file of the same length, in
 that folder, with the same bytes. The verify read after a created upload into
 holding downloads that exact version without walking its ancestry again
 (12 October 2026).
+A file over 50 MB is uploaded to Box in parts (operator ruling of 15 October
+2026).
 Box does not report a file's type, so the type is not compared. A not-found,
 trashed or outside-root answer to any of these reads drops what was
 remembered. Folder create, rename and delete, and file move and delete, still
