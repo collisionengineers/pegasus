@@ -316,9 +316,7 @@ folders for the fold only, never for the 10-minute memory (operator ruling of
 does not look for its name first. Box's answer to the upload must name the
 folder that was read as the file's parent. A name Box already holds comes back as Box's own refusal. Pegasus then
 accepts the file that holds it only when it is a file of the same length, in
-that folder, with the same bytes. The verify read after a created upload into
-holding downloads that exact version without walking its ancestry again
-(12 October 2026).
+that folder, with the same bytes.
 A file over 50 MB is uploaded to Box in parts (operator ruling of 15 October
 2026).
 Box does not report a file's type, so the type is not compared. A not-found,

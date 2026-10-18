@@ -747,17 +747,11 @@ internal sealed class EfCaseArtifactCustody(
             ?? throw new InvalidDataException("Box omitted the holding file version identity.");
         if (upload.Created)
         {
-            // The version Box has just created in the proved folder is read back
-            // exactly, without walking its ancestry again.
-            await BoxDocumentContentStore.RetryTransientAsync(
-                async token =>
-                {
-                    await using var retained = await client.OpenCreatedVersionReadAsync(
-                        file.Id, versionId, request.ContentLength, token);
-                    await VerifyStreamAsync(retained, request.ContentLength, normalizedHash, token);
-                    return true;
-                },
-                cancellationToken);
+            // Box's answer to the upload carries the SHA-1 of the file it has
+            // just made, so the staged bytes are compared with that and the new
+            // version is not downloaded again. A name Box already held was
+            // verified by download inside the upload (the 409).
+            await VerifyCreatedUploadAsync(file, content, cancellationToken);
         }
         asset.ConfirmCustody(file.Id, versionId, holdingFolderId);
         await db.SaveChangesAsync(cancellationToken);
@@ -887,32 +881,38 @@ internal sealed class EfCaseArtifactCustody(
         }
     }
 
-    private static async Task VerifyStreamAsync(
-        Stream content,
-        long expectedLength,
-        string expectedSha256,
+    /// <summary>
+    /// Checks a file Box has just created against the staged bytes it was made
+    /// from: Box's answer must carry the file's SHA-1, and it must be the SHA-1
+    /// of those bytes. The staged stream is left at its start, where the cache
+    /// publish reads it.
+    /// </summary>
+    private static async Task VerifyCreatedUploadAsync(
+        BoxContentClient.BoxItem file,
+        Stream staged,
         CancellationToken cancellationToken)
     {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        if (string.IsNullOrWhiteSpace(file.Sha1))
+        {
+            throw new InvalidDataException("Box omitted the holding file SHA-1.");
+        }
+        using var hash = BoxContentClient.CreateSha1();
         var buffer = new byte[64 * 1024];
-        long copied = 0;
+        staged.Position = 0;
         while (true)
         {
-            var read = await content.ReadAsync(buffer.AsMemory(), cancellationToken);
+            var read = await staged.ReadAsync(buffer.AsMemory(), cancellationToken);
             if (read == 0)
             {
                 break;
             }
-            copied = checked(copied + read);
-            if (copied > expectedLength)
-            {
-                throw new InvalidDataException("Artifact length verification failed.");
-            }
             hash.AppendData(buffer, 0, read);
         }
-        var actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
-        if (copied != expectedLength
-            || !string.Equals(actual, expectedSha256, StringComparison.Ordinal))
+        staged.Position = 0;
+        if (!string.Equals(
+                Convert.ToHexStringLower(hash.GetHashAndReset()),
+                file.Sha1,
+                StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("Artifact content verification failed.");
         }

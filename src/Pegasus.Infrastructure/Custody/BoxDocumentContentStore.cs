@@ -361,7 +361,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// Runs one Box call, retrying a throttled (429) or unavailable (5xx)
     /// response within <see cref="MaximumAttempts"/> attempts, after
     /// <see cref="WaitBeforeRetry"/>. Any other failure is the answer at once.
-    /// Holding custody's upload and read-back use it ungated; reads use it
+    /// Holding custody's upload uses it ungated; reads use it
     /// through <see cref="ReadGatedWithRetryAsync"/>.
     /// </summary>
     internal static async Task<T> RetryTransientAsync<T>(

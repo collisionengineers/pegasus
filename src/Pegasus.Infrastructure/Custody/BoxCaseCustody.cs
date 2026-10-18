@@ -402,7 +402,8 @@ internal sealed partial class BoxContentClient(
         string? VersionId,
         long? Size,
         string? MediaType,
-        string? ParentId);
+        string? ParentId,
+        string? Sha1);
 
     /// <summary>
     /// A folder that fresh reads have proved fit to be written into. Only the
@@ -858,10 +859,11 @@ internal sealed partial class BoxContentClient(
     /// <summary>
     /// Where Box takes an upload. The fields are asked for by name, so the
     /// answer always carries the file's parent, which is what proves where the
-    /// file landed.
+    /// file landed, and the file's SHA-1, which holding custody compares with
+    /// its own bytes.
     /// </summary>
     private Uri UploadUri =>
-        new(options.UploadUri, "files/content?fields=id,name,type,etag,file_version,parent");
+        new(options.UploadUri, "files/content?fields=id,name,type,etag,file_version,parent,sha1");
 
     /// <summary>
     /// The direct upload: one multipart request carrying the file's name, its
@@ -1056,12 +1058,13 @@ internal sealed partial class BoxContentClient(
 
     /// <summary>
     /// A SHA-1 hash, the one digest Box takes for an upload's parts and its
-    /// commit. It checks the transfer only; a file's identity is its SHA-256.
+    /// commit and the one it reports for a file. It checks the transfer only;
+    /// a file's identity is its SHA-256.
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Security",
         "CA5350:Do Not Use Weak Cryptographic Algorithms",
-        Justification = "Box's upload Digest header takes SHA-1 only; SHA-256 stays the content check.")]
+        Justification = "Box's upload Digest header and file sha1 are SHA-1 only; SHA-256 stays the content check.")]
     internal static IncrementalHash CreateSha1() => IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
 
     /// <summary>The <c>Digest</c> header value of the bytes hashed so far, which resets the hash.</summary>
@@ -1110,19 +1113,6 @@ internal sealed partial class BoxContentClient(
         await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
         return await DownloadVersionAsync(fileId, versionId, maximumLength, cancellationToken);
     }
-
-    /// <summary>
-    /// The exact version an upload has just created, read back without walking
-    /// its ancestry again: the folder was proved before the upload, and Box's
-    /// answer to the upload named that folder as the file's parent.
-    /// </summary>
-    public Task<Stream> OpenCreatedVersionReadAsync(
-        string fileId,
-        string versionId,
-        long maximumLength,
-        CancellationToken cancellationToken) =>
-        DownloadVersionWithoutAncestryAsync(
-            fileId, versionId, maximumLength, contentHash: null, cancellationToken);
 
     /// <summary>
     /// The managed read: the exact version of a file that sits directly in
@@ -1749,7 +1739,8 @@ internal sealed partial class BoxContentClient(
         ReadString(value, "content_type"),
         value.TryGetProperty("parent", out var parent) && parent.ValueKind == JsonValueKind.Object
             ? ReadString(parent, "id")
-            : null);
+            : null,
+        ReadString(value, "sha1"));
 
     private static string? ReadString(JsonElement value, string property) =>
         value.TryGetProperty(property, out var result) && result.ValueKind == JsonValueKind.String
