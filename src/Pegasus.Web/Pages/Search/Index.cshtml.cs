@@ -119,7 +119,7 @@ public sealed partial class IndexModel(
     /// One results-table row and the same row's preview facts, composed
     /// here where the search item is in hand: the vehicle column, the
     /// preview's fact grid and its outstanding requirements all read the
-    /// one search projection, so selecting a row needs no second query.
+    /// one search projection, with no per-row Case read.
     /// An Inspection + Audit Case with its Audit is two entries of the same
     /// Case: <c>Reference</c> is the entry's own reference (the Case/PO or
     /// <c>a.{Case/PO}</c>) and <c>View</c> the Case page view it opens
