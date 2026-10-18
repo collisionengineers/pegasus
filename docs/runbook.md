@@ -400,6 +400,8 @@ dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj -
 dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus"
 ```
 
+Synthetic fixtures built in code are ordinary tests that run in ordinary CI;
+`corpus/` itself stays excluded and immutable.
 Three categories exist. `SqlServer` marks the integration tests that need a
 reachable server; `Corpus` marks the tests that read local corpus or the private
 reference pack, which ordinary CI excludes; `QdosAlphaAcceptance` labels a QDOS
@@ -552,7 +554,9 @@ this collection. Do not commit or upload its genuine source material.
 
 Run these tests explicitly with the collection configured; report unavailable
 source evidence as unavailable. Ordinary CI excludes the Corpus category and
-is not evidence that the private collection passed. Keep `corpus/` immutable;
+is not evidence that the private collection passed.
+Synthetic fixtures built in code are ordinary tests that run in ordinary CI.
+Keep `corpus/` immutable;
 the private collection is separate and does not replace it.
 
 ## Principal-identification corpus authoring

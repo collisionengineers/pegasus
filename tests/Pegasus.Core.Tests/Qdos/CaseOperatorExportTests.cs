@@ -66,13 +66,15 @@ public sealed class CaseOperatorExportTests
     }
 
     [Fact]
-    public void TheArchiveCarriesAllThirteenKeysEvenWhenOneIsBlank()
+    public async Task TheArchiveCarriesAllThirteenKeysEvenWhenOneIsBlank()
     {
         var export = CaseExportMapping.MapForOperatorExport(Evidence(vatStatus: null), Today);
+        var (image, content) = Photograph();
 
-        var bundle = CaseExportArchive.Create(
+        var bundle = await CaseExportArchive.CreateAsync(
             export.Source,
-            new([Photograph()]));
+            new([image]),
+            (_, _) => new ValueTask<ReadOnlyMemory<byte>>(content));
 
         using var json = JsonDocument.Parse(bundle.JsonContent);
         var properties = json.RootElement.EnumerateObject().ToArray();
@@ -118,23 +120,25 @@ public sealed class CaseOperatorExportTests
     private static CaseExportEvidenceValue Missing() =>
         new(null, CaseExportEvidenceStatus.Unrecorded, "unrecorded", "unrecorded");
 
-    private static CaseExportImage Photograph()
+    private static (CaseExportImage Image, byte[] Content) Photograph()
     {
         var content = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x01, 0x02, 0x03 };
-        return new(
-            Guid.Parse("44444444-4444-4444-4444-444444444444"),
-            Guid.Parse("55555555-5555-5555-5555-555555555555"),
-            Guid.Parse("66666666-6666-6666-6666-666666666666"),
-            1,
-            "1_CLVoffside-V1.jpg",
-            "image/jpeg",
-            DocumentSemanticRole.Image,
-            DocumentSource.Intake,
-            "case-custody:266e5afa:attachment:1",
-            content,
-            Convert.ToHexString(SHA256.HashData(content)),
-            CustodyConfirmed: true,
-            IsCurrent: true,
-            2);
+        return (
+            new(
+                Guid.Parse("44444444-4444-4444-4444-444444444444"),
+                Guid.Parse("55555555-5555-5555-5555-555555555555"),
+                Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                1,
+                "1_CLVoffside-V1.jpg",
+                "image/jpeg",
+                DocumentSemanticRole.Image,
+                DocumentSource.Intake,
+                "case-custody:266e5afa:attachment:1",
+                content.Length,
+                Convert.ToHexString(SHA256.HashData(content)),
+                CustodyConfirmed: true,
+                IsCurrent: true,
+                2),
+            content);
     }
 }

@@ -140,6 +140,7 @@ public sealed class EfImageIntakeStore(
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
             .Include(item => item.ManualAssociation)
+            .AsSplitQuery()
             .SingleOrDefaultAsync(
                 item => item.Id == request.Origin.ReceiptId,
                 cancellationToken)
@@ -334,6 +335,7 @@ public sealed class EfImageIntakeStore(
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
             .Include(item => item.ManualAssociation)
+            .AsSplitQuery()
             .Where(item => memberReceiptIds.Contains(item.Id))
             .ToArrayAsync(cancellationToken);
         var acceptedCaseIds = await context.CaseIntakeLinks.AsNoTracking()
@@ -2025,6 +2027,30 @@ public sealed class EfImageVrmSuggestionStore(
             .ThenBy(item => item.Id)
             .ToArrayAsync(cancellationToken);
         return rows.Select(Map).ToArray();
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>> ListForReceiptsAsync(
+        IReadOnlyCollection<Guid> intakeReceiptIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(intakeReceiptIds);
+        var ids = intakeReceiptIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>();
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await context.ImageVrmSuggestions
+            .AsNoTracking()
+            .Where(item => ids.Contains(item.IntakeReceiptId))
+            .OrderBy(item => item.OccurredAtUtc)
+            .ThenBy(item => item.Id)
+            .ToArrayAsync(cancellationToken);
+        var byReceipt = rows.ToLookup(item => item.IntakeReceiptId);
+        return ids.ToDictionary(
+            id => id,
+            id => (IReadOnlyList<ImageVrmSuggestion>)byReceipt[id].Select(Map).ToArray());
     }
 
     public async Task<ImageVrmSuggestion> SetDispositionAsync(

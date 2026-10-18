@@ -114,6 +114,7 @@ public static class WorkerDependencyInjection
         azureClientRegistration.AddTo(services);
         services.AddSingleton<StaffNotificationPurgeSchedule>();
         services.AddSingleton<StagedArtifactSweepCursor>();
+        services.AddSingleton<Pegasus.Core.Triage.TriagePairingSweepCursor>();
 
         if (developmentOffline)
         {

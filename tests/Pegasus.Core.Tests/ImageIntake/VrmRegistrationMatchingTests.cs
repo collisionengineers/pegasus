@@ -88,8 +88,70 @@ public sealed class VrmRegistrationMatchingTests
                 new[] { Read("AK24UYD", 0.89), Read("BX69YLM", 0.9) }));
     }
 
+    [Fact]
+    public void TheLargestAcceptedPlateIsPreferredWhenTwoRegistrationsAreRead()
+    {
+        // A third-party plate out-scores the subject vehicle's larger plate
+        // (operator, 15 October 2026); a larger plate below the bar is never
+        // chosen by its area.
+        var thirdParty = Plate("ZZ99ZZZ", 0.97, width: 60, height: 14);
+        var subject = Plate("AB12CDE", 0.86, width: 240, height: 52);
+        var belowBar = Plate("XY34ZZZ", 0.6, width: 400, height: 90);
+        Assert.Same(
+            subject,
+            VrmRecognitionProvisionalBar.OfferedCandidate([thirdParty, belowBar, subject]));
+        // A plate without bounds has no area.
+        var unbounded = new VrmPlateCandidate("ZZ99ZZZ", "ZZ99ZZZ", 0.97, null);
+        var small = Plate("AB12CDE", 0.81, width: 20, height: 4);
+        Assert.Same(small, VrmRecognitionProvisionalBar.OfferedCandidate([unbounded, small]));
+    }
+
+    [Fact]
+    public void EqualAreasMissingBoundsAndReadsBelowTheBarFallToTheHighestConfidence()
+    {
+        var lessConfident = Plate("ZZ99ZZZ", 0.85, width: 120, height: 26);
+        var moreConfident = Plate("AB12CDE", 0.9, width: 120, height: 26);
+        Assert.Same(
+            moreConfident,
+            VrmRecognitionProvisionalBar.OfferedCandidate([lessConfident, moreConfident]));
+        var unbounded = new VrmPlateCandidate("ZZ99ZZZ", "ZZ99ZZZ", 0.85, null);
+        var unboundedMoreConfident = new VrmPlateCandidate("AB12CDE", "AB12CDE", 0.9, null);
+        Assert.Same(
+            unboundedMoreConfident,
+            VrmRecognitionProvisionalBar.OfferedCandidate([unbounded, unboundedMoreConfident]));
+        var largeBelowBar = Plate("ZZ99ZZZ", 0.6, width: 240, height: 52);
+        var smallBelowBar = Plate("AB12CDE", 0.7, width: 60, height: 14);
+        Assert.Same(
+            smallBelowBar,
+            VrmRecognitionProvisionalBar.OfferedCandidate([largeBelowBar, smallBelowBar]));
+    }
+
+    [Fact]
+    public void PlatesOfOneRegistrationKeepTheHighestConfidenceRead()
+    {
+        var lone = Plate("AB12CDE", 0.9, width: 60, height: 14);
+        Assert.Same(lone, VrmRecognitionProvisionalBar.OfferedCandidate([lone]));
+        var largerRead = Plate("AB12CDE", 0.85, width: 240, height: 52);
+        var moreConfidentRead = Plate("AB12CDE", 0.95, width: 60, height: 14);
+        Assert.Same(
+            moreConfidentRead,
+            VrmRecognitionProvisionalBar.OfferedCandidate([largerRead, moreConfidentRead]));
+        Assert.Null(VrmRecognitionProvisionalBar.OfferedCandidate([]));
+    }
+
+    [Fact]
+    public void ATruncatedReadBesideItsFullReadIsNotAConflictSoConfidenceDecides()
+    {
+        var truncated = Plate("AK24", 0.9, width: 60, height: 14);
+        var full = Plate("AK24UYD", 0.85, width: 240, height: 52);
+        Assert.Same(truncated, VrmRecognitionProvisionalBar.OfferedCandidate([truncated, full]));
+    }
+
     private static ImageIntakeGroupMemberRecognition Read(string registration, double confidence) =>
         new(Guid.NewGuid(), IsTerminal: true, VrmRecognitionOutcomeKind.Suggested, registration, confidence);
+
+    private static VrmPlateCandidate Plate(string registration, double confidence, double width, double height) =>
+        new(registration, registration, confidence, new VrmPlateBounds(10, 20, 10 + width, 20 + height));
 
     private static IEnumerable<string> OneEditAway(string value)
     {

@@ -40,7 +40,7 @@
     // script under the CSP): site.js mirrors the choice into this cookie.
     var railCollapsed = ShellPreferences.RailCollapsed(Context.Request);
 }
-<html lang="en" data-busy-label="@OperatorLabels.Busy.Working" data-busy-still="@OperatorLabels.Busy.Still">
+<html lang="en" data-busy-label="@OperatorLabels.Busy.Working" data-busy-still="@OperatorLabels.Busy.Still" data-icon-sprite="@IconSprite.Url">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -50,7 +50,6 @@
     @await RenderSectionAsync("Styles", required: false)
 </head>
 <body>
-    <partial name="Shared/_LucideSprite" />
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="app-shell @(railCollapsed ? "rail-collapsed" : null)" data-app-shell>
         <header class="app-rail">
@@ -61,33 +60,33 @@
             <nav class="primary-nav" aria-label="Primary">
                 <div class="nav-label">@OperatorLabels.Nav.Work</div>
                 <a class="nav-link" asp-page="/Index" aria-current="@CurrentWhen("/Index")">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-layout-dashboard")" /></svg>
                     <span>@OperatorLabels.Nav.WorkCentre</span>
                 </a>
                 @if (inboxEnabled)
                 {
                     <a class="nav-link" asp-page="/Mail/Index" aria-current="@CurrentWhen("/Mail")">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-inbox")" /></svg>
                         <span>@OperatorLabels.Nav.Inbox</span>
                     </a>
                     <a class="nav-link" asp-page="/Upload" aria-current="@CurrentWhen("/Upload")">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-upload")" /></svg>
                         <span>@OperatorLabels.Nav.Upload</span>
                     </a>
                 }
                 <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Unidentified", "/ImageIntake", "/Intake")">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-list-checks" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-list-checks")" /></svg>
                     <span>@OperatorLabels.Nav.Cases</span>
                 </a>
                 <a class="nav-link" asp-page="/Search/Index" aria-current="@CurrentWhen("/Search")">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-search")" /></svg>
                     <span>@OperatorLabels.Nav.Search</span>
                 </a>
                 @if (isAdministrator)
                 {
                     <div class="nav-label">@OperatorLabels.Nav.Manage</div>
                     <a class="nav-link" asp-page="/Administration/Index" aria-current="@CurrentWhen("/Administration")">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
                         <span>@OperatorLabels.Nav.Administration</span>
                     </a>
                 }
@@ -99,7 +98,7 @@
                collapsed links their label as a tooltip. *@
             <button type="button" class="rail-collapse" data-rail-toggle aria-expanded="@(railCollapsed ? "false" : "true")" aria-label="@(railCollapsed ? OperatorLabels.Shell.ExpandNavigation : OperatorLabels.Shell.CollapseNavigation)"
                     data-label-collapse="@OperatorLabels.Shell.CollapseNavigation" data-label-expand="@OperatorLabels.Shell.ExpandNavigation">
-                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
                 <span>@OperatorLabels.Shell.Collapse</span>
             </button>
             <div class="rail-health">
@@ -111,7 +110,7 @@
                     <span class="avatar" aria-hidden="true">@OperatorLabels.Initials(userName)</span>
                     <div><strong>@userName</strong><small>@role</small></div>
                     <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-more-horizontal")" /></svg>
                     </button>
                 </div>
             }
@@ -121,18 +120,18 @@
                 <div class="utility-freshness"><span class="health-dot"></span><span>@OperatorLabels.Freshness.Current · @clock</span></div>
                 <form class="utility-search" role="search" method="get" action="/Search">
                     <label class="sr-only" for="global-search">Search Pegasus</label>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-search")" /></svg>
                     <input id="global-search" type="search" name="query" data-command-input aria-label="Search Pegasus" placeholder="Search cases, references or people" autocomplete="off" />
                     <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
                 </form>
                 <div class="utility-actions">
                     <a class="btn btn--primary" asp-page="/Cases/Create">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                         <span>@OperatorLabels.Shell.NewCase</span>
                     </a>
                     <span class="bell-wrap">
                         <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="@OperatorLabels.Shell.BellLabel(unread)">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-bell")" /></svg>
                         </button>
                         @if (unread > 0)
                         {
@@ -142,7 +141,7 @@
                     @if (User.Identity?.IsAuthenticated == true)
                     {
                         <button type="button" class="icon-button utility-account" data-dialog-open="account-dialog" aria-label="Account menu">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-more-horizontal")" /></svg>
                         </button>
                     }
                 </div>
@@ -155,20 +154,20 @@
                            page. Green is the confirmed-completion role and is
                            earned here; site.js also raises it as a toast. *@
                         <div class="notice notice--success mb-2" role="status" data-confirmation>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
                             <span>@confirmation</span>
                             <button type="button" class="dismiss" data-dismiss aria-label="Dismiss">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                             </button>
                         </div>
                     }
                     @if (TempData["ProblemReportError"] is string problemReportError)
                     {
                         <div class="notice notice--warning mb-2" role="alert" data-problem-notice>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                             <span>@problemReportError</span>
                             <button type="button" class="dismiss" data-dismiss aria-label="Dismiss">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                             </button>
                         </div>
                     }

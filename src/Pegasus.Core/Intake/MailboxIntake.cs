@@ -306,9 +306,16 @@ public sealed class PollApprovedInbox(
     private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// How many approved mailboxes are polled at once, by the Inbox poll here and
+    /// by the Sent poll alike. Each is still polled under its own lease and cursor.
+    /// </summary>
+    internal const int MaximumConcurrentMailboxPolls = 3;
+
+    /// <summary>
     /// Polls every mailbox the approved estate currently offers for inbound intake,
-    /// each under its own lease and cursor. <paramref name="maximumMessages"/> bounds
-    /// one mailbox, not the tick, so a busy mailbox cannot starve the others.
+    /// each under its own lease and cursor, up to three at once.
+    /// <paramref name="maximumMessages"/> bounds one mailbox, not the tick, so a
+    /// busy mailbox cannot starve the others.
     /// </summary>
     public async Task<int> ExecuteAsync(
         int maximumMessages,
@@ -382,17 +389,30 @@ public sealed class PollApprovedInbox(
         CancellationToken cancellationToken)
     {
         var handledMessages = 0;
-        var failures = new List<Exception>();
-        foreach (var mailbox in mailboxes)
-        {
-            handledMessages += await PollMailboxAsync(
-                mailbox,
-                kind,
-                maximumMessages,
-                actorCode,
-                failures,
-                cancellationToken);
-        }
+        // Each mailbox writes only its own failure slot, so no list is shared
+        // between the polls, and the failures are read back in estate order, not
+        // in the order the polls happened to finish.
+        var failureSlots = mailboxes.Select(_ => new List<Exception>()).ToArray();
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, mailboxes.Count),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = MaximumConcurrentMailboxPolls,
+                CancellationToken = cancellationToken,
+            },
+            async (index, token) =>
+            {
+                var handled = await PollMailboxAsync(
+                    mailboxes[index],
+                    kind,
+                    maximumMessages,
+                    actorCode,
+                    failureSlots[index],
+                    token);
+                Interlocked.Add(ref handledMessages, handled);
+            });
+
+        var failures = failureSlots.SelectMany(slot => slot).ToList();
 
         // One failure keeps its exact type and stack so existing callers and tests
         // that assert on a specific intake exception still see it unchanged.

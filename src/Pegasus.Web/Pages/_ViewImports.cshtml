@@ -2,5 +2,7 @@
 @* Every operator date, size and code label goes through one place, so it is
    imported everywhere rather than qualified per use. *@
 @using Pegasus.Web.Presentation
+@* Every glyph is drawn from the one sprite file; its address has one owner. *@
+@inject IconSprite IconSprite
 @namespace Pegasus.Web.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers

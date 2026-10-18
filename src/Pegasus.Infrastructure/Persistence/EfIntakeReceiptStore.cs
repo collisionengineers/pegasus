@@ -55,6 +55,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.MailClassificationDecision)
             .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
+            .AsSplitQuery()
             .SingleOrDefaultAsync(
                 item => item.SourceChannel == channelCode
                     && item.ExternalReceiptToken == draft.SourceIdentity.ExternalReceiptToken,
@@ -278,8 +279,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         (await GetManyAsync([id], cancellationToken)).SingleOrDefault();
 
     /// <summary>
-    /// Three queries whatever the number of receipts: the receipts with their
-    /// parts, their accepted Cases and their latest allocation attempts.
+    /// Four queries whatever the number of receipts: the receipts with their
+    /// one-to-one parts, their Assets, their accepted Cases and their latest
+    /// allocation attempts.
     /// </summary>
     public async Task<IReadOnlyList<IntakeReceipt>> GetManyAsync(
         IReadOnlyCollection<Guid> ids,
@@ -301,6 +303,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
             .ThenInclude(item => item!.Case)
+            .AsSplitQuery()
             .Where(item => receiptIds.Contains(item.Id))
             .ToListAsync(cancellationToken);
         if (entities.Count == 0)
@@ -350,6 +353,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
             .ThenInclude(item => item!.Case)
+            .AsSplitQuery()
             .SingleOrDefaultAsync(
                 item => item.SourceChannel == channelCode
                     && item.ExternalReceiptToken == sourceIdentity.ExternalReceiptToken,

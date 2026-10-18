@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Operations;
@@ -75,7 +74,7 @@ internal sealed class EfMonthlyReportActivityQueries(
         var workIds = artifacts.Select(x => x.WorkId).Distinct().ToArray();
         var firstReports = workIds.Length == 0
             ? []
-            : await (
+            : await FrozenReportSnapshot.ReadAsync(
                 from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
                 join artifact in db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
                     on generation.Id equals artifact.GenerationId
@@ -90,8 +89,8 @@ internal sealed class EfMonthlyReportActivityQueries(
                     generation.WorkId,
                     generation.Id,
                     generation.GeneratedAtUtc,
-                    generation.SnapshotJson))
-                .ToListAsync(cancellationToken);
+                    SqlJson.Value(generation.SnapshotJson, FrozenReportSnapshot.AgreedFeePath)),
+                cancellationToken);
 
         var firstReportByWork = firstReports
             .GroupBy(x => x.WorkId)
@@ -103,7 +102,7 @@ internal sealed class EfMonthlyReportActivityQueries(
             .ToDictionary(first => first.WorkId);
         var fees = firstReportByWork.ToDictionary(
             pair => pair.Key,
-            pair => FrozenFeeOf(pair.Value));
+            pair => FrozenReportSnapshot.AgreedFee(pair.Value.GenerationId, pair.Value.AgreedFee));
         var feeMonthByWork = firstReportByWork.ToDictionary(
             pair => pair.Key,
             pair => MonthOf(pair.Value.GeneratedAtUtc));
@@ -158,36 +157,6 @@ internal sealed class EfMonthlyReportActivityQueries(
         return (local.Year, local.Month);
     }
 
-    private static decimal FrozenFeeOf(FrozenReportRow report)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(report.SnapshotJson);
-            if (document.RootElement.ValueKind != JsonValueKind.Object
-                || !document.RootElement.TryGetProperty("agreedFee", out var fee)
-                || fee.ValueKind != JsonValueKind.Number
-                || !fee.TryGetDecimal(out _))
-            {
-                throw new InvalidDataException(
-                    $"The frozen snapshot of report generation '{report.GenerationId}' has no valid agreed fee.");
-            }
-
-            return fee.GetDecimal();
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidDataException(
-                $"The frozen snapshot of report generation '{report.GenerationId}' is unreadable.",
-                exception);
-        }
-        catch (InvalidOperationException exception)
-        {
-            throw new InvalidDataException(
-                $"The frozen snapshot of report generation '{report.GenerationId}' is unreadable.",
-                exception);
-        }
-    }
-
     private sealed record ArtifactRow(
         Guid PrincipalId,
         string Code,
@@ -205,7 +174,7 @@ internal sealed class EfMonthlyReportActivityQueries(
         Guid WorkId,
         Guid GenerationId,
         DateTimeOffset GeneratedAtUtc,
-        string SnapshotJson);
+        string? AgreedFee);
 
     private sealed record SentRow(
         Guid PrincipalId,

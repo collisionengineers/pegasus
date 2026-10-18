@@ -107,10 +107,9 @@ internal sealed partial class CachedDocumentContentStore(
     internal static readonly TimeSpan TouchInterval = TimeSpan.FromHours(1);
 
     /// <summary>
-    /// How many versions of one batch are read at once. A cold read also
-    /// takes the process-wide Box gate, so this bounds the cached reads.
+    /// How many claimed objects one cleanup pass deletes at once.
     /// </summary>
-    private const int MaximumConcurrentBatchReads = 4;
+    private const int MaximumConcurrentCleanups = 4;
     internal const string CachePrefix = "cache/";
     internal const string HashMetadata = "sha256";
 
@@ -305,48 +304,55 @@ internal sealed partial class CachedDocumentContentStore(
             .Take(maximumItems)
             .AsNoTracking()
             .ToArrayAsync(cancellationToken);
-        var deleted = 0;
-        var retained = 0;
-        var failures = 0;
-        foreach (var candidate in candidates)
+        if (candidates.Length == 0)
         {
-            var cleanupToken = Guid.NewGuid();
+            return new(0, 0, 0, 0);
+        }
+
+        // One statement claims the batch under one token. A row changed since
+        // the select no longer matches its candidate's token, so the claim
+        // skips it and it is retained for the next pass, never deleted.
+        var cleanupToken = Guid.NewGuid();
+        var candidateIds = candidates.Select(value => value.Id).ToArray();
+        var candidateTokens = candidates.Select(value => value.ConcurrencyToken).ToArray();
+        await db.Set<DocumentContentCacheEntryEntity>()
+            .Where(value => candidateIds.Contains(value.Id)
+                && candidateTokens.Contains(value.ConcurrencyToken)
+                && value.ExpiresAtUtc <= now
+                && (value.ReadLeaseExpiresAtUtc == null || value.ReadLeaseExpiresAtUtc <= now))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(value => value.ReadLeaseExpiresAtUtc, now.Add(ReadLeaseLifetime))
+                .SetProperty(value => value.ConcurrencyToken, cleanupToken),
+                cancellationToken);
+        var claimedIds = (await db.Set<DocumentContentCacheEntryEntity>()
+            .Where(value => value.ConcurrencyToken == cleanupToken)
+            .Select(value => value.Id)
+            .ToArrayAsync(cancellationToken)).ToHashSet();
+        var claimed = candidates.Where(value => claimedIds.Contains(value.Id)).ToArray();
+        var deleted = 0;
+        var retained = candidates.Length - claimed.Length;
+        var failures = 0;
+        var objectGone = new ConcurrentBag<Guid>();
+        var options = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = MaximumConcurrentCleanups,
+            CancellationToken = cancellationToken
+        };
+        // A body awaits the caller's token, never the loop's: when one row's
+        // failure escapes, the loop cancels its own token, and a sibling
+        // must not record that cancellation as a failure on its own row.
+        await Parallel.ForEachAsync(claimed, options, async (candidate, _) =>
+        {
             try
             {
-                await using var itemDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                var claimed = await itemDb.Set<DocumentContentCacheEntryEntity>()
-                    .Where(value => value.Id == candidate.Id
-                        && value.ConcurrencyToken == candidate.ConcurrencyToken
-                        && value.ExpiresAtUtc <= now
-                        && (value.ReadLeaseExpiresAtUtc == null || value.ReadLeaseExpiresAtUtc <= now))
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(value => value.ReadLeaseExpiresAtUtc, now.Add(ReadLeaseLifetime))
-                        .SetProperty(value => value.ConcurrencyToken, cleanupToken),
-                        cancellationToken);
-                if (claimed == 0)
-                {
-                    retained++;
-                    continue;
-                }
-                var response = await container.GetBlobClient(candidate.BlobIdentity)
+                await container.GetBlobClient(candidate.BlobIdentity)
                     .DeleteIfExistsAsync(
                         DeleteSnapshotsOption.IncludeSnapshots,
                         conditions: candidate.ETag is { Length: > 0 }
                             ? new BlobRequestConditions { IfMatch = new ETag(candidate.ETag) }
                             : null,
                         cancellationToken);
-                var removed = await itemDb.Set<DocumentContentCacheEntryEntity>()
-                    .Where(value => value.Id == candidate.Id
-                        && value.ConcurrencyToken == cleanupToken)
-                    .ExecuteDeleteAsync(cancellationToken);
-                if (removed == 1)
-                {
-                    deleted++;
-                }
-                else
-                {
-                    retained++;
-                }
+                objectGone.Add(candidate.Id);
             }
             catch (RequestFailedException exception) when (exception.Status == 404)
             {
@@ -356,7 +362,7 @@ internal sealed partial class CachedDocumentContentStore(
                     .Where(value => value.Id == candidate.Id
                         && value.ConcurrencyToken == cleanupToken)
                     .ExecuteDeleteAsync(CancellationToken.None);
-                if (removed == 1) deleted++; else retained++;
+                if (removed == 1) Interlocked.Increment(ref deleted); else Interlocked.Increment(ref retained);
             }
             catch (RequestFailedException exception) when (exception.Status == 412)
             {
@@ -390,11 +396,11 @@ internal sealed partial class CachedDocumentContentStore(
                         CancellationToken.None);
                 if (released == 0)
                 {
-                    retained++;
+                    Interlocked.Increment(ref retained);
                 }
                 else
                 {
-                    failures++;
+                    Interlocked.Increment(ref failures);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -422,10 +428,21 @@ internal sealed partial class CachedDocumentContentStore(
                         "The cache cleanup failure could not be recorded because its lease was lost.",
                         exception);
                 }
-                failures++;
+                Interlocked.Increment(ref failures);
             }
-        }
-        return new(candidates.Length, deleted, retained, failures);
+        });
+        // Every row whose object is gone leaves under the batch's own token; a
+        // row a publisher changed in the meantime has a new token and stays.
+        var removableIds = objectGone.ToArray();
+        var rowsRemoved = await db.Set<DocumentContentCacheEntryEntity>()
+            .Where(value => removableIds.Contains(value.Id)
+                && value.ConcurrencyToken == cleanupToken)
+            .ExecuteDeleteAsync(cancellationToken);
+        return new(
+            candidates.Length,
+            deleted + rowsRemoved,
+            retained + removableIds.Length - rowsRemoved,
+            failures);
     }
 
     /// <summary>
@@ -607,127 +624,93 @@ internal sealed partial class CachedDocumentContentStore(
     }
 
     /// <summary>
-    /// Every managed version of one Case in <paramref name="reads"/>, cache
-    /// first: a warm version is read from its cached object, a cold one from
-    /// Box through the same gate, retry and fence as a single read, and then
-    /// cached for the next time. Each version is verified against its custody
-    /// hash and length either way.
+    /// One managed version, cache first: a warm version is read from its
+    /// cached object, a cold one from Box through the same gate, retry and
+    /// fence as a single read, and then cached for the next time. The
+    /// version is verified against its custody hash and length either way.
     /// </summary>
     /// <remarks>
     /// The caller has already authorised the Case, as it has for
-    /// <see cref="IDocumentContentStore"/>. Every version is held in memory
-    /// before any is returned.
+    /// <see cref="IDocumentContentStore"/>. The version is held in memory.
     /// </remarks>
-    public async Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
-        IReadOnlyList<ManagedDocumentContentRead> reads,
+    public async Task<ReadOnlyMemory<byte>> ReadVersionAsync(
+        ManagedDocumentContentRead read,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(reads);
-        if (reads.Count == 0)
+        ArgumentNullException.ThrowIfNull(read);
+        var address = read.Address;
+        if (address.VersionId == Guid.Empty)
         {
-            return [];
+            throw new ArgumentException("A complete managed document address is required.", nameof(read));
         }
-        // Every argument is checked before any I/O starts.
-        var first = reads[0].Address;
-        var sources = new ResolvedSource[reads.Count];
-        for (var index = 0; index < reads.Count; index++)
+        var source = ResolvedSource.Create(
+            address.VersionId,
+            intakeAssetId: null,
+            address.BoxFileId,
+            address.BoxVersionId,
+            read.ExpectedSha256,
+            read.ExpectedLength,
+            address.FileName,
+            address.MediaType,
+            address.CaseRootRemoteId);
+
+        var entries = await LoadOriginalEntriesAsync([address.VersionId], cancellationToken);
+        if (entries.TryGetValue(address.VersionId, out var entry)
+            && await TryReadCachedBytesAsync(entry, source, cancellationToken) is { } cached)
         {
-            var read = reads[index];
-            var address = read.Address;
-            if (address.CaseId != first.CaseId
-                || !string.Equals(address.CaseReference, first.CaseReference, StringComparison.Ordinal)
-                || !string.Equals(address.CaseRootRemoteId, first.CaseRootRemoteId, StringComparison.Ordinal)
-                || address.VersionId == Guid.Empty)
-            {
-                throw new ArgumentException("A managed content batch reads one Case only.", nameof(reads));
-            }
-            sources[index] = ResolvedSource.Create(
-                address.VersionId,
-                intakeAssetId: null,
-                address.BoxFileId,
-                address.BoxVersionId,
-                read.ExpectedSha256,
-                read.ExpectedLength,
-                address.FileName,
-                address.MediaType,
-                address.CaseRootRemoteId);
+            metrics?.RecordHit();
+            return cached;
         }
-
-        var entries = await LoadOriginalEntriesAsync(
-            sources.Select(source => source.DocumentVersionId!.Value).Distinct().ToArray(),
-            cancellationToken);
-
-        var contents = new ReadOnlyMemory<byte>[reads.Count];
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, reads.Count),
-            new ParallelOptions
-            {
-                MaxDegreeOfParallelism = MaximumConcurrentBatchReads,
-                CancellationToken = cancellationToken
-            },
-            async (index, token) =>
-            {
-                var source = sources[index];
-                if (entries.TryGetValue(source.DocumentVersionId!.Value, out var entry)
-                    && await TryReadCachedBytesAsync(entry, source, token) is { } cached)
+        metrics?.RecordMiss();
+        byte[] downloaded;
+        try
+        {
+            downloaded = await BoxDocumentContentStore.ReadGatedWithRetryAsync(
+                async attemptToken =>
                 {
-                    metrics?.RecordHit();
-                    contents[index] = cached;
-                    return;
-                }
-                metrics?.RecordMiss();
-                byte[] downloaded;
-                try
-                {
-                    downloaded = await BoxDocumentContentStore.ReadGatedWithRetryAsync(
-                        async attemptToken =>
-                        {
-                            await using var remote = await box.OpenOwnedVersionReadAsync(
-                                source.BoxFileId,
-                                source.BoxVersionId,
-                                source.ExpectedParentId,
-                                source.Length,
-                                attemptToken);
-                            return await ReadVerifiedBytesAsync(
-                                remote, source.Length, source.Sha256, attemptToken);
-                        },
-                        token);
-                }
-                catch (HttpRequestException exception)
-                    when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
-                {
-                    // The same answer the uncached batch gives for a missing version.
-                    throw new FileNotFoundException("The exact managed Box version is unavailable.", exception);
-                }
-                contents[index] = downloaded;
-                try
-                {
-                    using var published = new MemoryStream(downloaded, writable: false);
-                    await PublishAsync(source, published, token);
-                }
-                catch (Exception exception) when (exception is IOException
-                    or InvalidDataException
-                    or DbUpdateException
-                    or RequestFailedException)
-                {
-                    // The verified bytes are the answer either way; a later
-                    // read caches them.
-                }
-            });
-        return contents;
+                    await using var remote = await box.OpenOwnedVersionReadAsync(
+                        source.BoxFileId,
+                        source.BoxVersionId,
+                        source.ExpectedParentId,
+                        source.Length,
+                        attemptToken);
+                    return await ReadVerifiedBytesAsync(
+                        remote, source.Length, source.Sha256, attemptToken);
+                },
+                cancellationToken);
+        }
+        catch (HttpRequestException exception)
+            when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // The same answer the uncached read gives for a missing version.
+            throw new FileNotFoundException("The exact managed Box version is unavailable.", exception);
+        }
+        try
+        {
+            using var published = new MemoryStream(downloaded, writable: false);
+            await PublishAsync(source, published, cancellationToken);
+        }
+        catch (Exception exception) when (exception is IOException
+            or InvalidDataException
+            or DbUpdateException
+            or RequestFailedException)
+        {
+            // The verified bytes are the answer either way; a later
+            // read caches them.
+        }
+        return downloaded;
     }
 
     /// <summary>
-    /// One batch version from its cached object, or <c>null</c> for a miss.
+    /// One version from its cached object, or <c>null</c> for a miss.
     /// </summary>
     /// <remarks>
-    /// The time is taken when this version is read, not when the batch
-    /// started. The entry was read with the batch, but its expiry only ever
-    /// moves later and the touch is decided by the row itself, so an entry
-    /// that has since expired or been claimed by cleanup is a miss. Any
-    /// failure of the cached copy is a miss too: a lost or changed object, a
-    /// broken stream, or bytes that fail verification. That version is then
-    /// read from Box.
+    /// The time is taken when this version is read, not when its entry was
+    /// loaded. The entry's expiry only ever moves later and the touch is
+    /// decided by the row itself, so an entry that has since expired or been
+    /// claimed by cleanup is a miss. Any failure of the cached copy is a miss
+    /// too: a lost or changed object, a broken stream, or bytes that fail
+    /// verification. The version is then read from Box.
     /// </remarks>
     private async Task<byte[]?> TryReadCachedBytesAsync(
         DocumentContentCacheEntryEntity entry,

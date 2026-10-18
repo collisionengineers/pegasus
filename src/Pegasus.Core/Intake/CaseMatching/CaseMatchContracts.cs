@@ -4,9 +4,10 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// Normalized match keys extracted from an inbound message by a Principal's case-match
-/// policy. The incident date is never a positive key: it participates only as an
-/// eliminator (requirements: a mismatch between accepted incident dates may eliminate a
-/// candidate; a matching incident date proves nothing alone).
+/// policy. The incident date is never a positive key: it is an excluding rule, not a
+/// matching rule (operator, 15 October 2026). A vehicle could have two accidents on the
+/// same date, so a matching incident date is not a reliable matcher; two different
+/// incident dates mean it is not the same Case.
 /// </summary>
 public sealed record CaseMatchKeys(
     string? DurableClaimToken,

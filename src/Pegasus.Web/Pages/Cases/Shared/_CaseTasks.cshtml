@@ -41,7 +41,7 @@
     <div class="dialog-head">
         <h2 id="case-tasks-dialog-title" tabindex="-1">@TaskLabels.Title</h2>
         <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
         </button>
     </div>
     @* Without the tasks read, the body is fetched as the dialog opens. *@
@@ -63,7 +63,7 @@
                 <input id="case-task-description" name="description" required />
                 <div class="button-row">
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                         <span>@TaskLabels.AddTask</span>
                     </button>
                 </div>
@@ -73,7 +73,7 @@
         if (tasks.Count == 0)
         {
             <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="#icon-check-square" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-square")" /></svg>
                 <h3>@TaskLabels.None</h3>
             </div>
         }
@@ -145,7 +145,7 @@
                                                         <input type="hidden" name="view" value="@Model.ViewRoute" />
                                                         <input type="hidden" name="section" value="@Model.Section" />
                                                         <button type="submit" data-busy-label="@(completing ? OperatorLabels.Busy.Completing : OperatorLabels.Busy.Working)" class="btn btn--small @(completing ? null : "btn--danger")">
-                                                            <svg class="icon" aria-hidden="true"><use href="#@(completing ? "icon-check" : "icon-x")" /></svg>
+                                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(completing ? "icon-check" : "icon-x")" /></svg>
                                                             <span>@(completing ? TaskLabels.Complete : TaskLabels.Cancel)</span>
                                                         </button>
                                                     </form>

@@ -59,5 +59,6 @@ public sealed class BoxManagedRevisionTests
         "2419892871001",
         Length,
         mediaType,
-        CaseFolder);
+        CaseFolder,
+        Sha1: null);
 }

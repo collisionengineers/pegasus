@@ -162,9 +162,9 @@
             @if (staleGeneration)
             {
                 <div class="notice notice--warning" role="status" data-dismissable data-report-stale>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                     <span>@CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice</span>
-                    <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+                    <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
                 </div>
             }
             @* The one step (v35 design 8, operator, 8 October 2026). A Case
@@ -329,7 +329,7 @@
         var both = requirements.Count > 0 && reportBlockers.Count > 0;
         <section class="panel context-card report-not-ready @(fold.Collapsed ? "is-collapsed" : null)" data-collapse="@fold.Key" data-collapse-folded data-report-not-ready>
             <div class="panel-head">
-                <h2><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>@(reportBlockers.Count > 0 ? CaseWorkspaceLabels.Report.NotReady : Frame.OutstandingRequirements)</h2>
+                <h2><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>@(reportBlockers.Count > 0 ? CaseWorkspaceLabels.Report.NotReady : Frame.OutstandingRequirements)</h2>
                 <partial name="Cases/Shared/_SubPanelToggle" model="fold" />
             </div>
             <div class="panel-body">
@@ -338,7 +338,7 @@
                     <div class="outstanding-block" data-case-requirements>
                         @if (both)
                         {
-                            <h3><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>@Frame.OutstandingRequirements</h3>
+                            <h3><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>@Frame.OutstandingRequirements</h3>
                         }
                         <ul class="blocker-list">
                             @foreach (var requirement in requirements)
@@ -356,7 +356,7 @@
                     <div class="outstanding-block" data-report-blockers>
                         @if (both)
                         {
-                            <h3><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>@CaseWorkspaceLabels.Report.NotReady</h3>
+                            <h3><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>@CaseWorkspaceLabels.Report.NotReady</h3>
                         }
                         @foreach (var group in BlockerGroups())
                         {

@@ -25,7 +25,7 @@
         <input type="hidden" name="section" value="@key" />
         <input type="hidden" name="view" value="@owner.ViewRoute" />
         <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--small" data-section-edit="@key">
-            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pencil")" /></svg>
             <span>@CaseWorkspaceLabels.Frame.Edit</span>
         </button>
     </form>
@@ -33,7 +33,7 @@
 @if (availability is not null)
 {
     <span class="gated avail" data-section-availability="@key">
-        <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-lock")" /></svg>
         <span>@availability</span>
     </span>
 }
@@ -43,5 +43,5 @@
         data-label-collapse="@CaseWorkspaceLabels.Frame.CollapseSection"
         data-label-expand="@CaseWorkspaceLabels.Frame.ExpandSection"
         title="@CaseWorkspaceLabels.Frame.CollapseSection">
-    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg>
 </button>

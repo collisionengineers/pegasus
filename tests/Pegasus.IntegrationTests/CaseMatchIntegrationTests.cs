@@ -93,6 +93,46 @@ public sealed class CaseMatchIntegrationTests
             CancellationToken.None));
     }
 
+    /// <summary>
+    /// The incident date is an excluding rule, not a matching rule (operator,
+    /// 15 October 2026): the Case's stored date reaches the eliminator through
+    /// the real index query, a different date excludes the Case its claim
+    /// found, and the query never selects a Case on its date.
+    /// </summary>
+    [Fact]
+    public async Task IncidentDateExcludesAgainstTheSqlIndexButNeverMatches()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("case-match-accept-incident-date")).Identity.CaseId;
+        var sut = new EvaluateIntakeCaseMatch(
+            [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())],
+            new EfCaseMatchIndex(harness.Factory));
+        async Task<CaseMatchEvaluationResult> EvaluateAsync(string claim, DateOnly? incidentDate) =>
+            (await sut.ExecuteDeclaredAsync(
+                "QDOS",
+                new(claim, null, null, incidentDate),
+                CancellationToken.None))!;
+
+        var sameDate = await EvaluateAsync("12345/1", new DateOnly(2031, 4, 1));
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, sameDate.Outcome);
+        Assert.Equal(caseId, sameDate.MatchedCaseId);
+
+        var otherDate = await EvaluateAsync("12345/1", new DateOnly(2031, 4, 2));
+        Assert.Equal(CaseMatchOutcome.NoMatch, otherDate.Outcome);
+        var excluded = Assert.Single(otherDate.Candidates);
+        Assert.Equal(caseId, excluded.CaseId);
+        Assert.Equal([EvaluateIntakeCaseMatch.ClaimReferenceKey], excluded.HitKeys);
+        Assert.Single(excluded.Eliminations);
+
+        var noDate = await EvaluateAsync("12345/1", null);
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, noDate.Outcome);
+        Assert.Equal(caseId, noDate.MatchedCaseId);
+
+        var dateOnlyAgreement = await EvaluateAsync("99999/9", new DateOnly(2031, 4, 1));
+        Assert.Equal(CaseMatchOutcome.NoMatch, dateOnlyAgreement.Outcome);
+        Assert.Empty(dateOnlyAgreement.Candidates);
+    }
+
     [Fact]
     public async Task StaffSaveUpdatesTheCaseMatchIndexThroughTheSameGrammar()
     {

@@ -13,10 +13,13 @@ namespace Pegasus.Web.Pages.Mail;
 /// </summary>
 /// <remarks>
 /// Reading never mutates anything: the read state it shows is the retained one,
-/// and opening a message here does not mark it read in the mailbox. The one
-/// write on the list is Dismiss (and Restore under the Dismissed scope), which
-/// moves the retained message to the Dismissed logical folder without
-/// classifying or linking it and never reaches Outlook (Inbox, 13 September).
+/// and opening a message here does not mark it read in the mailbox. The writes
+/// on the list are Dismiss (and Restore under the Dismissed scope), from a row
+/// or for ticked rows, which moves the retained message to the Dismissed
+/// logical folder without classifying or linking it (Inbox, 13 September), and
+/// a classification correction for ticked rows (operator, 15 October 2026).
+/// Each applies the single-message command to one message at a time; none
+/// changes read state or reaches Outlook.
 /// </remarks>
 public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
@@ -25,6 +28,7 @@ public sealed class IndexModel(
     SearchDeletedMail searchDeletedMail,
     IDismissRetainedMail dismissRetainedMail,
     IRestoreRetainedMail restoreRetainedMail,
+    CorrectRetainedMailClassification correctClassification,
     IApprovedMailboxStore approvedMailboxes,
     IStaffMailSend? staffMailSend = null) : StaffPageModel
 {
@@ -73,6 +77,25 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "selected")]
     public string? SelectedMessage { get; set; }
 
+    // The ticked rows' correction: one category, case type and reason for
+    // every ticked message, under the message record's own field names.
+    [BindProperty]
+    public string? ClassificationKey { get; set; }
+
+    [BindProperty]
+    public string? WorkType { get; set; }
+
+    [BindProperty]
+    public string? CorrectionReason { get; set; }
+
+    /// <summary>The ticked messages the last bulk post applied to, carried to the list it redirects to.</summary>
+    [TempData]
+    public string[]? BulkSucceeded { get; set; }
+
+    /// <summary>The ticked messages the last bulk post could not apply to; the others still applied.</summary>
+    [TempData]
+    public string[]? BulkFailed { get; set; }
+
     /// <summary>The one mail category the list narrows to, from <c>queue</c>.</summary>
     public MailCategory? CategoryFilter { get; private set; }
 
@@ -120,6 +143,12 @@ public sealed class IndexModel(
             return NotFound();
         }
 
+        return await LoadAsync(actor, cancellationToken);
+    }
+
+    /// <summary>The list as its query string scopes it: the GET, and a refused ticked-row correction.</summary>
+    private async Task<IActionResult> LoadAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
         var mailbox = Guid.TryParse(MailboxFilter, out var mailboxId) && mailboxId != Guid.Empty
             ? mailboxId
             : (Guid?)null;
@@ -309,6 +338,151 @@ public sealed class IndexModel(
         }
 
         TempData["Confirmation"] = OperatorLabels.Inbox.RestoredNotice;
+        return RedirectToList();
+    }
+
+    /// <summary>Dismiss for the ticked rows of an incoming scope: the row's Dismiss, once per message.</summary>
+    public Task<IActionResult> OnPostBulkDismissAsync(
+        Guid[]? ids,
+        string? operationKey,
+        CancellationToken cancellationToken) =>
+        BulkDismissalAsync(
+            ids,
+            operationKey,
+            dismissedScope: false,
+            (actor, id, key) => dismissRetainedMail.ExecuteAsync(new(id, actor, key), cancellationToken),
+            OperatorLabels.Inbox.DismissedNotice);
+
+    /// <summary>Restore for the ticked rows of the Dismissed scope: the row's Restore, once per message.</summary>
+    public Task<IActionResult> OnPostBulkRestoreAsync(
+        Guid[]? ids,
+        string? operationKey,
+        CancellationToken cancellationToken) =>
+        BulkDismissalAsync(
+            ids,
+            operationKey,
+            dismissedScope: true,
+            (actor, id, key) => restoreRetainedMail.ExecuteAsync(new(id, actor, key), cancellationToken),
+            OperatorLabels.Inbox.RestoredNotice);
+
+    private async Task<IActionResult> BulkDismissalAsync(
+        Guid[]? ids,
+        string? operationKey,
+        bool dismissedScope,
+        Func<ActionActor, Guid, string, Task<RetainedMailDismissal?>> act,
+        string notice)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext() || !OffersBulk(dismissedScope))
+        {
+            return NotFound();
+        }
+
+        // One key renders with the bulk form; each message's act is keyed by
+        // it and the message, so a repeated post replays rather than repeats.
+        var formKey = string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey;
+        return await ApplyToEachAsync(
+            ids,
+            async id => await act(actor, id, $"{formKey}:{id:N}") is not null,
+            notice);
+    }
+
+    /// <summary>
+    /// The ticked rows' classification correction: the message record's
+    /// command once per message, each against the classification version its
+    /// row showed, with the one category, case type and reason entered for all.
+    /// </summary>
+    public async Task<IActionResult> OnPostBulkClassifyAsync(
+        Guid[]? ids,
+        Dictionary<Guid, int>? versions,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext() || !OffersBulk(dismissedScope: false))
+        {
+            return NotFound();
+        }
+        if (ids is not { Length: > 0 })
+        {
+            return RedirectToList();
+        }
+
+        MessageModel.RefuseInvalidCorrection(
+            ModelState, ClassificationKey, WorkType, CorrectionReason, out var category, out var workType);
+        if (!ModelState.IsValid)
+        {
+            return await LoadAsync(actor, cancellationToken);
+        }
+
+        // A message posted without its row's classification version has no
+        // decision to correct, and is named among the failures.
+        return await ApplyToEachAsync(
+            ids,
+            async id => versions is not null
+                && versions.TryGetValue(id, out var version)
+                && await correctClassification.ExecuteAsync(
+                    actor,
+                    new(id, version, category, CorrectionReason!, workType),
+                    cancellationToken) is not null,
+            confirmation: null);
+    }
+
+    /// <summary>
+    /// Where the ticked-row acts are offered, as the row's own Dismiss and
+    /// Restore are: the incoming scopes, or the Dismissed scope; never Sent
+    /// Items or Deleted Items.
+    /// </summary>
+    private bool OffersBulk(bool dismissedScope) =>
+        Folder == MailFolderScope.Inbox && Dismissed == dismissedScope;
+
+    /// <summary>
+    /// Applies a single-message command to each ticked message in turn, each
+    /// in its own transaction. A message the command refuses, cannot find or
+    /// finds changed is named among the failures and the others still apply;
+    /// an actor without casework is refused the whole post. An empty selection
+    /// writes nothing.
+    /// </summary>
+    private async Task<IActionResult> ApplyToEachAsync(
+        Guid[]? ids,
+        Func<Guid, Task<bool>> apply,
+        string? confirmation)
+    {
+        var succeeded = new List<string>();
+        var failed = new List<string>();
+        try
+        {
+            foreach (var id in (ids ?? []).Distinct())
+            {
+                bool applied;
+                try
+                {
+                    applied = await apply(id);
+                }
+                catch (Exception exception)
+                    when (exception is ArgumentException or MailClassificationConcurrencyException)
+                {
+                    applied = false;
+                }
+                (applied ? succeeded : failed).Add(id.ToString("D"));
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
+        BulkSucceeded = succeeded.Count == 0 ? null : [.. succeeded];
+        BulkFailed = failed.Count == 0 ? null : [.. failed];
+        if (confirmation is not null && succeeded.Count > 0 && failed.Count == 0)
+        {
+            TempData["Confirmation"] = confirmation;
+        }
         return RedirectToList();
     }
 

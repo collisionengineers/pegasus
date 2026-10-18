@@ -16,7 +16,7 @@
        Rendered as a one-time state rather than a bookmarkable page, so an
        old bookmark can never assert something that did not just happen. *@
     <h1 class="cluster success-text">
-        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
         <span>You are signed out</span>
     </h1>
 }
@@ -28,7 +28,7 @@ else
 @if (refusal is not null)
 {
     <div class="notice notice--danger auth-notice" role="alert" tabindex="-1">
-        <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
         <span>@refusal</span>
     </div>
 }

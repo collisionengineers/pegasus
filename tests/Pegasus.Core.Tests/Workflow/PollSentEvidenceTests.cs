@@ -850,6 +850,146 @@ public sealed class PollSentEvidenceTests
         Assert.Single(store.Completions);
     }
 
+    [Fact]
+    public async Task BatchPollsUpToThreeMailboxesAtOnce()
+    {
+        var store = new RecordingPollStore(Enumerable.Range(1, 5).Select(MailboxLease).ToArray());
+        var source = new SequencedSource(EmptyPages(5))
+        {
+            ReadProbe = { HoldUntil = PollApprovedInbox.MaximumConcurrentMailboxPolls }
+        };
+        var poll = CreateUseCase(
+            store, source, new ResponsePort(), new ReportPort(), policy: new MultiMailboxPolicy());
+
+        var result = await poll.ExecuteBatchAsync(5, 1, 10, WorkerActor)
+            .WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(PollApprovedInbox.MaximumConcurrentMailboxPolls, source.ReadProbe.Peak);
+        Assert.Equal(5, result.MailboxesAttempted);
+        Assert.Equal(0, result.MailboxesFailed);
+        Assert.Equal(5, store.Completions.Count);
+
+        var limitedStore = new RecordingPollStore(Enumerable.Range(1, 5).Select(MailboxLease).ToArray());
+        var limited = CreateUseCase(
+            limitedStore,
+            new SequencedSource(EmptyPages(5)),
+            new ResponsePort(),
+            new ReportPort(),
+            policy: new MultiMailboxPolicy());
+
+        var limitedResult = await limited.ExecuteBatchAsync(2, 1, 10, WorkerActor)
+            .WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(2, limitedStore.ClaimCalls);
+        Assert.Equal(2, limitedResult.MailboxesAttempted);
+        Assert.Equal(2, limitedStore.Completions.Count);
+    }
+
+    [Fact]
+    public async Task ANotApprovedMailboxEndsOneClaimLoopNotTheBatch()
+    {
+        var rejected = MailboxLease(1);
+        var store = new RecordingPollStore(rejected, MailboxLease(2), MailboxLease(3));
+        var poll = CreateUseCase(
+            store,
+            new SequencedSource(EmptyPages(2)),
+            new ResponsePort(),
+            new ReportPort(),
+            policy: new AddressRejectingPolicy(rejected.MailboxAddress));
+
+        var result = await poll.ExecuteBatchAsync(5, 1, 10, WorkerActor)
+            .WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(2, result.MailboxesAttempted);
+        Assert.Equal(0, result.MailboxesFailed);
+        Assert.Equal("sent_mailbox_not_approved", Assert.Single(store.Releases).FailureCode);
+        Assert.Equal(2, store.Completions.Count);
+    }
+
+    [Fact]
+    public async Task AClaimIsNeverRunTwiceAtOnce()
+    {
+        var store = new RecordingPollStore(Enumerable.Range(1, 5).Select(MailboxLease).ToArray())
+        {
+            YieldsInClaim = true
+        };
+        var poll = CreateUseCase(
+            store,
+            new SequencedSource(EmptyPages(5)),
+            new ResponsePort(),
+            new ReportPort(),
+            policy: new MultiMailboxPolicy());
+
+        var result = await poll.ExecuteBatchAsync(5, 1, 10, WorkerActor)
+            .WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(1, store.PeakConcurrentClaims);
+        Assert.Equal(5, store.ClaimCalls);
+        Assert.Equal(5, result.MailboxesAttempted);
+    }
+
+    [Fact]
+    public async Task ABatchWithSeveralFailuresCountsEachOnceAndKeepsAFirstFailure()
+    {
+        var store = new RecordingPollStore(MailboxLease(1), MailboxLease(2), MailboxLease(3));
+        var source = new SequencedSource(
+            new IOException("first mailbox unavailable"),
+            new InvalidDataException("second mailbox unreadable"),
+            new ApprovedSentPage([], "third-cursor", HasMore: false));
+        var poll = CreateUseCase(
+            store, source, new ResponsePort(), new ReportPort(), policy: new MultiMailboxPolicy());
+
+        var result = await poll.ExecuteBatchAsync(3, 1, 10, WorkerActor)
+            .WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(3, result.MailboxesAttempted);
+        Assert.Equal(2, result.MailboxesFailed);
+        Assert.Equal(2, store.Releases.Count);
+        Assert.Single(store.Completions);
+        string[] failures =
+        [
+            "IOException: first mailbox unavailable",
+            "InvalidDataException: second mailbox unreadable"
+        ];
+        Assert.Contains(result.FirstFailure, failures);
+    }
+
+    [Fact]
+    public async Task CancellingTheBatchThrowsCancellationAndCountsNoFailure()
+    {
+        var store = new RecordingPollStore(MailboxLease(1), MailboxLease(2), MailboxLease(3));
+        var source = new SequencedSource(EmptyPages(3))
+        {
+            ReadProbe = { HoldUntil = 3, HoldUntilCancelled = true }
+        };
+        var poll = CreateUseCase(
+            store, source, new ResponsePort(), new ReportPort(), policy: new MultiMailboxPolicy());
+        using var cancellation = new CancellationTokenSource();
+
+        var batch = poll.ExecuteBatchAsync(3, 1, 10, WorkerActor, cancellation.Token);
+        await source.ReadProbe.AllHeld.WaitAsync(TimeSpan.FromSeconds(30));
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => batch.WaitAsync(TimeSpan.FromSeconds(30)));
+        Assert.Empty(store.Releases);
+        Assert.Empty(store.Completions);
+    }
+
+    private static ApprovedSentPollLease MailboxLease(int number) => Lease() with
+    {
+        ApprovedMailboxId = Guid.NewGuid(),
+        MailboxId = $"mailbox-{number}",
+        MailboxAddress = $"mailbox-{number}@example.test",
+        LeaseToken = $"lease-{number}"
+    };
+
+    private static object[] EmptyPages(int count) =>
+    [
+        .. Enumerable.Range(1, count)
+            .Select(number => (object)new ApprovedSentPage([], $"cursor-{number}", HasMore: false))
+    ];
+
     private static PollSentEvidence CreateUseCase(
         RecordingPollStore pollStore,
         SequencedSource source,
@@ -946,22 +1086,70 @@ public sealed class PollSentEvidenceTests
             CancellationToken cancellationToken) => Task.FromResult(false);
     }
 
+    private sealed class AddressRejectingPolicy(string rejectedAddress) : IApprovedMailboxPolicy
+    {
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress,
+            ApprovedMailboxRouteScope routeScope,
+            CancellationToken cancellationToken) => Task.FromResult(
+            routeScope == ApprovedMailboxRouteScope.Outgoing
+                && mailboxAddress != rejectedAddress);
+    }
+
+    /// <summary>
+    /// Safe to call from several polls at once: every member that touches the
+    /// recorded state takes <c>_sync</c>.
+    /// </summary>
     private sealed class RecordingPollStore(params ApprovedSentPollLease?[] claims)
         : ISentEvidencePollStore
     {
+        private readonly Lock _sync = new();
         private readonly Queue<ApprovedSentPollLease?> _claims = new(claims);
+        private int _claimsInFlight;
 
         public List<SentEvidencePollOutcome> OutcomeAttempts { get; } = [];
         public Dictionary<string, SentEvidencePollOutcome> UniqueOutcomes { get; } =
             new(StringComparer.Ordinal);
         public List<(string Cursor, bool HasRemainingItems)> Completions { get; } = [];
         public List<(DateTimeOffset DueAtUtc, string FailureCode)> Releases { get; } = [];
+        public int ClaimCalls { get; private set; }
+        public int PeakConcurrentClaims { get; private set; }
 
-        public Task<ApprovedSentPollLease?> ClaimAsync(
+        /// <summary>A claim yields before it answers, so a claim run beside another is seen.</summary>
+        public bool YieldsInClaim { get; init; }
+
+        public async Task<ApprovedSentPollLease?> ClaimAsync(
             DateTimeOffset nowUtc,
             TimeSpan leaseDuration,
-            CancellationToken cancellationToken) => Task.FromResult(
-            _claims.Count == 0 ? null : _claims.Dequeue());
+            CancellationToken cancellationToken)
+        {
+            lock (_sync)
+            {
+                ClaimCalls++;
+                _claimsInFlight++;
+                PeakConcurrentClaims = Math.Max(PeakConcurrentClaims, _claimsInFlight);
+            }
+
+            try
+            {
+                if (YieldsInClaim)
+                {
+                    await Task.Yield();
+                }
+
+                lock (_sync)
+                {
+                    return _claims.Count == 0 ? null : _claims.Dequeue();
+                }
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    _claimsInFlight--;
+                }
+            }
+        }
 
         public Task RecordOutcomeAsync(
             string mailboxId,
@@ -969,8 +1157,12 @@ public sealed class PollSentEvidenceTests
             SentEvidencePollOutcome outcome,
             CancellationToken cancellationToken)
         {
-            OutcomeAttempts.Add(outcome);
-            UniqueOutcomes.TryAdd(outcome.OperationKey, outcome);
+            lock (_sync)
+            {
+                OutcomeAttempts.Add(outcome);
+                UniqueOutcomes.TryAdd(outcome.OperationKey, outcome);
+            }
+
             return Task.CompletedTask;
         }
 
@@ -982,7 +1174,11 @@ public sealed class PollSentEvidenceTests
             bool hasRemainingItems,
             CancellationToken cancellationToken)
         {
-            Completions.Add((nextCursor, hasRemainingItems));
+            lock (_sync)
+            {
+                Completions.Add((nextCursor, hasRemainingItems));
+            }
+
             return Task.CompletedTask;
         }
 
@@ -993,28 +1189,46 @@ public sealed class PollSentEvidenceTests
             string failureCode,
             CancellationToken cancellationToken)
         {
-            Releases.Add((dueAtUtc, failureCode));
+            lock (_sync)
+            {
+                Releases.Add((dueAtUtc, failureCode));
+            }
+
             return Task.CompletedTask;
         }
     }
 
+    /// <summary>
+    /// Safe to call from several polls at once. <see cref="ReadProbe"/> counts the
+    /// reads in flight and can hold them until they overlap.
+    /// </summary>
     private sealed class SequencedSource(params object[] results) : IApprovedSentSource
     {
+        private readonly Lock _sync = new();
         private readonly Queue<object> _results = new(results);
 
         public int CallCount { get; private set; }
 
+        public ConcurrentCallProbe ReadProbe { get; } = new();
+
         public Task<ApprovedSentPage> ReadAsync(
             ApprovedSentPollLease lease,
             int maximumItems,
-            CancellationToken cancellationToken)
-        {
-            CallCount++;
-            var result = _results.Dequeue();
-            return result is Exception exception
-                ? Task.FromException<ApprovedSentPage>(exception)
-                : Task.FromResult((ApprovedSentPage)result);
-        }
+            CancellationToken cancellationToken) => ReadProbe.RunAsync(
+            () =>
+            {
+                object result;
+                lock (_sync)
+                {
+                    CallCount++;
+                    result = _results.Dequeue();
+                }
+
+                return result is Exception exception
+                    ? Task.FromException<ApprovedSentPage>(exception)
+                    : Task.FromResult((ApprovedSentPage)result);
+            },
+            cancellationToken);
     }
 
     private sealed class ResponsePort(params ExactEmailResponseEvidenceCandidate[] candidates)

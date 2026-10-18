@@ -22,7 +22,7 @@
     <input type="hidden" name="view" value="@Model.ViewRoute" />
     <input type="hidden" name="section" value="@Model.Section" />
     <button type="submit" class="@buttonClass" data-busy-label="@OperatorLabels.Busy.Resolving" data-resolve-query>
-        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
         <span>@Frame.ResolveQuery</span>
     </button>
 </form>

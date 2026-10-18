@@ -39,6 +39,23 @@ public sealed class VehicleRegistrationCandidateLookupTests
         Assert.Contains(raw, VehicleRegistrationCandidateLookup.GenerateCandidates(raw));
 
     [Theory]
+    [InlineData("AB12CDE", true, true)]
+    [InlineData("A123BCD", true, true)]
+    [InlineData("ABC123D", true, true)]
+    [InlineData("1234ABC", true, false)]
+    [InlineData("ABC1234", true, false)]
+    [InlineData("AB12CDE9", false, false)]
+    [InlineData("ABCD123", false, false)]
+    [InlineData("12345", false, false)]
+    [InlineData("ABC", false, false)]
+    [InlineData("", false, false)]
+    public void TheShapeOwnerSeparatesDatedFromDatelessShapes(string value, bool anyShape, bool datedShape)
+    {
+        Assert.Equal(anyShape, UkRegistrationShapes.IsAnyShape(value));
+        Assert.Equal(datedShape, UkRegistrationShapes.IsDatedShape(value));
+    }
+
+    [Theory]
     [InlineData("AB-12CDE")]
     [InlineData("AB12/CDE")]
     [InlineData("AB12CDÉ")]

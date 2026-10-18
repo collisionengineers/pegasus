@@ -1096,6 +1096,8 @@ public sealed class ProcessIntakeTests
         var recorded = Assert.Single(automaticEvidence.Requests);
         Assert.Equal(AuditAssessment.Repairable, recorded.Assessment);
         Assert.Equal(Assert.Single(Assert.Single(store.Drafts).Assets!, asset => asset.SourceLabel == reportLabel).Id, recorded.OriginalReportAssetId);
+        // Recording the evidence moved the stored receipt on a version; the receipt returned is at it.
+        Assert.Equal(recorded.ExpectedIntakeVersion + 1, result.Version);
 
         // A transient evidence-store failure after receipt persistence is
         // retried from the existing durable receipt, without rereading email.

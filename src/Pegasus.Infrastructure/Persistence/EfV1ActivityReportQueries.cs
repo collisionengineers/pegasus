@@ -40,7 +40,6 @@ internal sealed class EfV1ActivityReportQueries(
                 generation.Id,
                 generation.GeneratedAtUtc,
                 artifact.Kind,
-                generation.SnapshotJson,
                 artifact.VersionId,
                 artifact.Sha256,
                 documentVersion == null ? null : documentVersion.Sha256,
@@ -133,36 +132,23 @@ internal sealed class EfV1ActivityReportQueries(
             .ToArray();
         var firstReports = confirmedWorkIds.Length == 0
             ? []
-            : await (
+            : await FrozenReportSnapshot.ReadAsync(
                 from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
                 join artifact in db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
                     on generation.Id equals artifact.GenerationId
                 join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
                     on artifact.VersionId equals (Guid?)documentVersion.Id
-                join @case in db.Cases.AsNoTracking() on generation.CaseId equals @case.Id
-                join work in db.CaseWorks.AsNoTracking() on generation.WorkId equals work.Id
                 where confirmedWorkIds.Contains(generation.WorkId)
                     && artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
                     && artifact.Sha256 != null
                     && artifact.Sha256 == documentVersion.Sha256
                     && documentVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
-                select new ArtifactRow(
-                    @case.PrincipalId,
-                    @case.Principal.Code,
-                    @case.Id,
-                    @case.OriginIntakeReceiptId,
+                select new FirstReportRow(
+                    generation.WorkId,
                     generation.Id,
                     generation.GeneratedAtUtc,
-                    artifact.Kind,
-                    generation.SnapshotJson,
-                    artifact.VersionId,
-                    artifact.Sha256,
-                    documentVersion.Sha256,
-                    documentVersion.CustodyStatus,
-                    generation.WorkId,
-                    @case.Type,
-                    work.Kind))
-            .ToListAsync(cancellationToken);
+                    SqlJson.Value(generation.SnapshotJson, FrozenReportSnapshot.AgreedFeePath)),
+                cancellationToken);
         var agreedFees = firstReports
             .GroupBy(x => x.WorkId)
             .Select(group => group
@@ -170,7 +156,7 @@ internal sealed class EfV1ActivityReportQueries(
                 .ThenBy(x => x.GenerationId)
                 .First())
             .Where(first => FirstReportFeeAttribution.InPeriod(first.GeneratedAtUtc, fromUtc, toUtc))
-            .ToDictionary(first => first.WorkId, first => FrozenFeeOf(first));
+            .ToDictionary(first => first.WorkId, first => FrozenReportSnapshot.AgreedFee(first.GenerationId, first.AgreedFee));
 
         var receiptIds = artifacts.Select(x => x.OriginIntakeReceiptId)
             .Concat(readyTransitions.Select(x => x.OriginIntakeReceiptId))
@@ -306,36 +292,6 @@ internal sealed class EfV1ActivityReportQueries(
             feeWorks.Where(x => x.IsAudit).Sum(x => agreedFees[x.WorkId]));
     }
 
-    private static decimal FrozenFeeOf(ArtifactRow report)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(report.SnapshotJson);
-            if (document.RootElement.ValueKind != JsonValueKind.Object
-                || !document.RootElement.TryGetProperty("agreedFee", out var fee)
-                || fee.ValueKind != JsonValueKind.Number
-                || !fee.TryGetDecimal(out _))
-            {
-                throw new InvalidDataException(
-                    $"The frozen snapshot of report generation '{report.GenerationId}' has no valid agreed fee.");
-            }
-
-            return fee.GetDecimal();
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidDataException(
-                $"The frozen snapshot of report generation '{report.GenerationId}' is unreadable.",
-                exception);
-        }
-        catch (InvalidOperationException exception)
-        {
-            throw new InvalidDataException(
-                $"The frozen snapshot of report generation '{report.GenerationId}' is unreadable.",
-                exception);
-        }
-    }
-
     private static bool IsConfirmed(ArtifactRow artifact) =>
         artifact.VersionId is not null
         && artifact.ArtifactSha256 is not null
@@ -380,7 +336,6 @@ internal sealed class EfV1ActivityReportQueries(
         Guid GenerationId,
         DateTimeOffset GeneratedAtUtc,
         string Kind,
-        string SnapshotJson,
         Guid? VersionId,
         string? ArtifactSha256,
         string? VersionSha256,
@@ -392,6 +347,11 @@ internal sealed class EfV1ActivityReportQueries(
         /// <summary>MI-02's split: an Audit report (<see cref="CaseWorkKinds.IsAuditReport"/>) or an Inspection report.</summary>
         public bool IsAudit => CaseWorkKinds.IsAuditReport(CaseType, WorkKind);
     }
+    private sealed record FirstReportRow(
+        Guid WorkId,
+        Guid GenerationId,
+        DateTimeOffset GeneratedAtUtc,
+        string? AgreedFee);
     private sealed record ReadyEventRow(
         string AggregateId,
         DateTimeOffset OccurredAtUtc,

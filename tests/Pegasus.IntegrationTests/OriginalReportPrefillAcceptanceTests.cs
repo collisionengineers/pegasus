@@ -97,7 +97,7 @@ public sealed class OriginalReportPrefillAcceptanceTests
                     acceptance,
                     services.GetRequiredService<TimeProvider>(),
                     services.GetRequiredService<IStandaloneAuditEvidenceQueries>())
-                .AttemptAutomaticAsync(receiptId, Guid.NewGuid());
+                .AttemptAutomaticAsync(services, receiptId, Guid.NewGuid());
             Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
         }
 

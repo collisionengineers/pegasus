@@ -107,14 +107,14 @@ public sealed class ProcessIntake(
 
             if (!replaceExisting)
             {
-                await RecordAutomaticAuditEvidenceAsync(
+                var recordedExisting = await RecordAutomaticAuditEvidenceAsync(
                     existing,
                     existing.MailClassificationDecision,
                     cancellationToken);
                 activity?.SetTag("intake.reader_result", "not_read_replay");
                 activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
                 RecordTelemetry(activity, existing, "replay", started);
-                return existing with { IsDuplicate = true };
+                return recordedExisting with { IsDuplicate = true };
             }
         }
 
@@ -300,14 +300,14 @@ public sealed class ProcessIntake(
         await RetainUploadedCorrespondenceAsync(safeSource, sourceHash, readResult, cancellationToken);
         // Holding custody waits for the destination: only a receipt that no
         // automatic destination files is held (RequiresHolding).
-        await RecordAutomaticAuditEvidenceAsync(
+        var recorded = await RecordAutomaticAuditEvidenceAsync(
             receipt,
             assessment.MailClassificationDecision,
             cancellationToken);
         await RecordThirdPartyReportSourceAsync(receipt, readResult, activity, cancellationToken);
         await RegisterUnidentifiedIfTerminalAsync(receipt, cancellationToken);
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
-        return receipt;
+        return recorded;
     }
 
     /// <summary>
@@ -668,7 +668,12 @@ public sealed class ProcessIntake(
         _ => UnidentifiedReasonCode.NoUsableIdentification
     };
 
-    private async Task RecordAutomaticAuditEvidenceAsync(
+    /// <summary>
+    /// Records the automatic Audit evidence a receipt calls for, and returns
+    /// the receipt at the version recording left it: recording moves the
+    /// stored receipt on a version, and the evidence carries the one it made.
+    /// </summary>
+    private async Task<IntakeReceipt> RecordAutomaticAuditEvidenceAsync(
         IntakeReceipt receipt,
         MailClassificationResult? classification,
         CancellationToken cancellationToken)
@@ -683,7 +688,7 @@ public sealed class ProcessIntake(
             ?? await DeclaredAuditReportAsync(receipt, cancellationToken);
         if (report is null)
         {
-            return;
+            return receipt;
         }
 
         var reportAsset = receipt.AssetRecords.SingleOrDefault(asset =>
@@ -699,9 +704,10 @@ public sealed class ProcessIntake(
                 "Automatic Audit evidence recording is not configured.");
         }
 
-        await automaticStandaloneAuditEvidence.ExecuteAsync(
+        var evidence = await automaticStandaloneAuditEvidence.ExecuteAsync(
             new(receipt.Id, receipt.Version, reportAsset.Id, report.Assessment),
             cancellationToken);
+        return evidence.IsDuplicate ? receipt : receipt with { Version = evidence.ReceiptVersion };
     }
 
     /// <summary>

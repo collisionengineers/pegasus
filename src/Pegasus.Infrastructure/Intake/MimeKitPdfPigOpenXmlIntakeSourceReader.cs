@@ -316,7 +316,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     {
         limits.ThrowIfProcessingDeadlineExceeded();
         cancellationToken.ThrowIfCancellationRequested();
-        using var document = PdfDocument.Open(DocumentContentCachePublisherExtensions.ArrayOf(bytes));
+        using var document = PdfDocument.Open(bytes);
         var pages = new List<PdfPageResult>();
         var chargedImageObjects = new HashSet<string>(StringComparer.Ordinal);
         for (var pageNumber = 1; pageNumber <= document.NumberOfPages; pageNumber++)
@@ -707,7 +707,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             AddDocxTableCells(contentRoots, sourceLabel, result);
 
             long totalImageBytes = 0;
-            var imageContentByPart = new Dictionary<Uri, byte[]>();
+            var imageContentByPart = new Dictionary<Uri, ReadOnlyMemory<byte>>();
             foreach (var placement in EnumerateImagePlacements(contentRoots))
             {
                 var imagePart = placement.Part;
@@ -720,7 +720,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                         throw new DocxLimitExceededException();
                     }
 
-                    using var imageBytes = new MemoryStream();
+                    int? imageCapacity = imageStream.CanSeek ? (int)imageStream.Length : null;
+                    using var imageBytes = new MemoryStream(imageCapacity ?? 0);
                     imageStream.CopyTo(imageBytes);
                     totalImageBytes += imageBytes.Length;
                     if (totalImageBytes > MaximumDocxImageBytes)
@@ -728,7 +729,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                         throw new DocxLimitExceededException();
                     }
 
-                    content = imageBytes.ToArray();
+                    content = ContentOf(imageBytes, imageCapacity);
                     imageContentByPart.Add(imagePart.Uri, content);
                 }
 
@@ -1320,7 +1321,16 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 attachmentLabel));
         }
 
-        await using var decoded = new MemoryStream();
+        // Decoding never lengthens content: base64 yields three bytes for every
+        // four it reads, and the other encodings no more than they read. The
+        // size is capped at the decoded-byte limit, which larger content
+        // outgrows and then fails.
+        int? decodedCapacity = part.Content.Stream is { CanSeek: true } encoded
+            ? (int)Math.Min(
+                part.Content.Encoding == ContentEncoding.Base64 ? encoded.Length * 3 / 4 : encoded.Length,
+                MaximumDecodedMimeBytes)
+            : null;
+        await using var decoded = new MemoryStream(decodedCapacity ?? 0);
         try
         {
             await part.Content.DecodeToAsync(decoded, cancellationToken);
@@ -1334,7 +1344,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return;
         }
 
-        var payload = decoded.ToArray();
+        var payload = ContentOf(decoded, decodedCapacity);
         result.DecodedLengths[part] = payload.Length;
         if (!limits.TryAddBytes(payload.Length, result))
         {
@@ -1373,6 +1383,19 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 IntakeEvidenceSource.FileName));
         }
     }
+
+    /// <summary>
+    /// What was written to <paramref name="buffer"/>. A buffer created at
+    /// <paramref name="sizedTo"/> bytes that the content did not outgrow holds
+    /// little beyond the content, so the asset is a slice of it and nothing is
+    /// copied. A buffer that grew while it was written also holds its growth
+    /// slack, which a slice would keep alive with the asset, so it is copied out
+    /// at its exact length instead.
+    /// </summary>
+    private static ReadOnlyMemory<byte> ContentOf(MemoryStream buffer, int? sizedTo) =>
+        buffer.Capacity == sizedTo
+            ? buffer.GetBuffer().AsMemory(0, (int)buffer.Length)
+            : buffer.ToArray();
 
     private static string InferFileName(MimePart part, MimeLimitState limits)
     {

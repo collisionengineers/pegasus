@@ -490,14 +490,10 @@ public sealed class DependencyDirectionTests
             "CaseExportMapping.MapForOperatorExport",
             exportPersistence,
             StringComparison.Ordinal);
-        // A case's photographs are read in one batch, not one call
-        // per image, because a remote store resolves the case folder per call.
+        // A case's photographs are read one image per call, when the archive
+        // reaches each one, so the set is never held in memory at once.
         Assert.Contains(
-            "contentStore.ReadVersionsAsync",
-            exportImageReader,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "contentStore.OpenReadVersionAsync",
+            "ManagedVersionBytes.ReadAsync",
             exportImageReader,
             StringComparison.Ordinal);
         Assert.Contains("policy.Decide", custodyPersistence, StringComparison.Ordinal);

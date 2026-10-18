@@ -722,9 +722,16 @@ public sealed class ImageIntakeWebTests
         var page = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{recordId:D}");
 
         Assert.Contains("overview.png", page, StringComparison.Ordinal);
+        // A whole-receipt read is a receipt statement and an Assets statement:
+        // count the receipt statements.
         Assert.Equal(
             1,
             counter.CountContaining(
+                "[IntakeReceipts]",
+                "[InstructionDrafts]",
+                "[IntakeMailRouteDecisions]",
+                "[IntakeManualAssociations]")
+            - counter.CountContaining(
                 "[IntakeReceipts]",
                 "[IntakeAssets]",
                 "[InstructionDrafts]",

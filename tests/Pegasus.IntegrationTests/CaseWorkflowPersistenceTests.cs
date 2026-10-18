@@ -411,9 +411,7 @@ public sealed class CaseWorkflowPersistenceTests
     public async Task ReviewGatedTransitionsRefuseOnIncompletePersistedFacts()
     {
         // The gate reads the case's own Instruction complete and
-        // Images complete columns inside the transition's transaction. The
-        // request still carries the old readiness envelope claiming both are
-        // true, and it changes nothing.
+        // Images complete columns inside the transition's transaction.
         await using var harness = await WorkflowHarness.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         await using (var context = await harness.Factory.CreateDbContextAsync())
@@ -432,9 +430,8 @@ public sealed class CaseWorkflowPersistenceTests
                     0,
                     actor,
                     "return-to-review-refused",
-                    "Claimed readiness the record does not hold",
-                    lease.Token,
-                    new(true, true, "case-completeness-projection")),
+                    "Return to Review while the record is incomplete",
+                    lease.Token),
                 default));
 
         await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
@@ -444,10 +441,9 @@ public sealed class CaseWorkflowPersistenceTests
                     0,
                     actor,
                     "assign-engineer-refused",
-                    "Claimed readiness the record does not hold",
+                    "Assign Engineer while the record is incomplete",
                     lease.Token,
-                    Guid.NewGuid(),
-                    new(true, true, "case-completeness-projection")),
+                    Guid.NewGuid()),
                 null,
                 CaseLifecycleState.ReportPreparation,
                 default));
@@ -1133,8 +1129,7 @@ public sealed class CaseWorkflowPersistenceTests
                     operationKey,
                     "Attempt to assign ineligible staff",
                     lease.Token,
-                    engineerId,
-                    new(true, true, "accepted-readiness")),
+                    engineerId),
                 default));
 
         Assert.Contains(expectedMessage, exception.Message, StringComparison.Ordinal);
@@ -1167,8 +1162,7 @@ public sealed class CaseWorkflowPersistenceTests
             "assign-eligible-user",
             "Assign enabled User",
             lease.Token,
-            engineerId,
-            new(true, true, "accepted-readiness"));
+            engineerId);
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
@@ -2851,25 +2845,42 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
-    public async Task AccidentCircumstancesAreReadOnlyWhenTheSearchAsksForThem()
+    public async Task AccidentCircumstancesAreReadForTheOneCaseFromItsConfirmedField()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({harness.CaseId}, {"accident_circumstances"}, {"confirmed"}, {"text"}, {"Rear-ended at lights"}, {"intake_evidence"}, {"circumstances"}, {"workflow fixture evidence"}, {"workflow-fixture"}, {1}, {"workflow-staff"}, {DateTimeOffset.UtcNow})");
+            await InsertConfirmedCircumstancesAsync(context, harness.CaseId, "Rear-ended at lights");
         }
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        ICaseCircumstancesQueries circumstances = harness.QueryStore;
 
-        var without = await harness.QueryStore.SearchAsync(new(actor, new CaseSearchFilters()), default);
-        var with = await harness.QueryStore.SearchAsync(
-            new(actor, new CaseSearchFilters(), IncludeAccidentCircumstances: true), default);
-
-        Assert.Null(Assert.Single(without.Items, item => item.CaseId == harness.CaseId).AccidentCircumstances);
-        Assert.Equal(
-            "Rear-ended at lights",
-            Assert.Single(with.Items, item => item.CaseId == harness.CaseId).AccidentCircumstances);
+        Assert.Equal("Rear-ended at lights", await circumstances.GetAsync(harness.CaseId, default));
+        Assert.Null(await circumstances.GetAsync(harness.SecondCaseId, default));
+        Assert.Null(await circumstances.GetAsync(Guid.NewGuid(), default));
     }
+
+    [Fact]
+    public async Task AnInstructionDraftsAccidentCircumstancesWinOverTheConfirmedField()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var receiptId = await context.Cases
+                .Where(item => item.Id == harness.CaseId)
+                .Select(item => item.OriginIntakeReceiptId)
+                .SingleAsync();
+            await InsertConfirmedCircumstancesAsync(context, harness.CaseId, "Rear-ended at lights");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO InstructionDrafts (IntakeReceiptId, AccidentCircumstances) VALUES ({receiptId}, {"Struck on the roundabout"})");
+        }
+        ICaseCircumstancesQueries circumstances = harness.QueryStore;
+
+        Assert.Equal("Struck on the roundabout", await circumstances.GetAsync(harness.CaseId, default));
+    }
+
+    private static Task<int> InsertConfirmedCircumstancesAsync(PegasusDbContext context, Guid caseId, string text) =>
+        context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"accident_circumstances"}, {"confirmed"}, {"text"}, {text}, {"intake_evidence"}, {"circumstances"}, {"workflow fixture evidence"}, {"workflow-fixture"}, {1}, {"workflow-staff"}, {DateTimeOffset.UtcNow})");
 
     [Fact]
     public async Task WrongPrincipalReplacementCancelsTheOriginalsOpenTasksAndReplays()

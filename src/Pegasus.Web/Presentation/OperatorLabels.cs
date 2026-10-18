@@ -147,6 +147,13 @@ public static class OperatorLabels
         "No single Case matched that reference, or this image was already added. Check the reference and the Cases list.";
 
     /// <summary>
+    /// What the Search preview's accident circumstances say when the read
+    /// that fetches them for a selected row fails (operator, 16 October 2026);
+    /// a failed read never reads "Not recorded".
+    /// </summary>
+    public const string CircumstancesUnavailable = "Circumstances unavailable.";
+
+    /// <summary>
     /// The case lifecycle stage as the operator reads it (operator decision D3): a
     /// display mapping only. <see cref="CaseLifecycleState.ReportPreparation"/>
     /// reads "With Engineer" and <see cref="CaseLifecycleState.ReportSent"/>
@@ -2855,6 +2862,11 @@ public static class OperatorLabels
         public const string Restore = "Restore";
         public const string DismissedNotice = "Dismissed";
         public const string RestoredNotice = "Restored";
+
+        // A classification correction's refusals, on the message record and for ticked rows alike.
+        public const string ChooseClassification = "Choose a valid classification.";
+        public const string ChooseCaseType = "Choose a valid case type.";
+        public const string CorrectionReasonRequired = "Explain why this classification is being corrected.";
         public const string OpenFile = "Open file";
         public const string OpenFullMessage = "Open full message";
 

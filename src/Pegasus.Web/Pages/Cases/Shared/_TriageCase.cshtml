@@ -80,19 +80,19 @@
         {
             case "assign":
                 <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-assign-dialog" data-triage-action="assign">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-user")" /></svg>
                     <span>@(record.AssigneeId is null ? Labels.Assign : Labels.Reassign)</span>
                 </button>
                 break;
             case "finding":
                 <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-finding-dialog" data-triage-action="record-finding">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-clipboard-list" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-clipboard-list")" /></svg>
                     <span>@Labels.RecordFinding</span>
                 </button>
                 break;
             case "correction":
                 <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-correction-dialog" data-triage-correction>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>
                     <span>@Labels.RecordCorrection</span>
                 </button>
                 break;
@@ -101,44 +101,44 @@
                     <input type="hidden" name="expectedVersion" value="@record.Version" />
                     <input type="hidden" name="operationKey" value="@view.OperationKey" />
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Completing" name="actionName" value="complete" class="@ControlClass(primary)" data-triage-complete>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
                         <span>@Labels.CompleteTriage</span>
                     </button>
                 </form>
                 break;
             case "compose":
                 <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-compose-dialog" data-triage-action="compose">
-                    <svg class="icon" aria-hidden="true"><use href="#@(view.IsOutcomeReply ? "icon-reply" : "icon-send")" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(view.IsOutcomeReply ? "icon-reply" : "icon-send")" /></svg>
                     <span>@replyLabel</span>
                 </button>
                 break;
             case "open-file":
                 <a class="@ControlClass(primary)" href="@view.OpenFileHref" target="_blank" rel="noopener" data-triage-action="open-file">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
                     <span>@Labels.OpenFile</span>
                 </a>
                 break;
             case "link":
                 <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-link-case-dialog" data-triage-action="link-case">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
                     <span>Link case</span>
                 </button>
                 break;
             case "unlink":
                 <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-unlink-case-dialog" data-triage-action="unlink-case">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-unlink" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-unlink")" /></svg>
                     <span>Unlink case</span>
                 </button>
                 break;
             case "cancel":
                 <button type="button" class="@ControlClass(primary, danger: true)" data-dialog-open="triage-cancel-dialog" data-triage-action="cancel">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                     <span>@Labels.CancelTriage</span>
                 </button>
                 break;
             case "reopen":
                 <button type="button" class="@ControlClass(primary)" data-dialog-open="triage-reopen-dialog" data-triage-action="reopen">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-undo")" /></svg>
                     <span>@Labels.Reopen</span>
                 </button>
                 break;
@@ -153,7 +153,7 @@
     </div>
     <div class="page-actions">
         <a class="btn" asp-page="/Cases/Index" asp-route-tab="triage">
-            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
             <span>Back to Cases</span>
         </a>
         <partial name="Shared/_RefreshButton" />
@@ -168,26 +168,26 @@
 @if (!string.IsNullOrWhiteSpace(view.Message))
 {
     <div class="notice notice--info mb-2" role="status" aria-live="polite">
-        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
         <span>@view.Message</span>
         @if (view.NoticeOffersReply)
         {
             <button type="button" class="link-button" data-dialog-open="triage-compose-dialog" data-triage-reply-link>@Labels.ReplyWithFinding</button>
         }
-        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
     </div>
 }
 @if (view.CaseAssociationUnavailableReason is { } unavailableReason && unavailableReason != view.Message)
 {
     <div class="notice notice--warning mb-2" role="status">
-        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
         <span>@unavailableReason</span>
     </div>
 }
 @if (mutable && !offersFinding)
 {
     <div class="notice notice--warning mb-2" role="alert">
-        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
         <span>Multiple active findings require reconciliation before another finding can be recorded.</span>
     </div>
 }
@@ -197,9 +197,9 @@
 @if (TempData["CaseStatus"] is string caseStatus)
 {
     <div class="notice notice--success mb-2" role="status" data-confirmation>
-        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
         <span>@caseStatus</span>
-        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
     </div>
 }
 </div>
@@ -242,7 +242,7 @@
                     @if (menu.Count > 0 || endInMenu)
                     {
                         <details class="menu" data-menu data-triage-actions>
-                            <summary class="btn"><span>@CaseWorkspaceLabels.Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                            <summary class="btn"><span>@CaseWorkspaceLabels.Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg></summary>
                             <div class="menu-body">
                                 @foreach (var key in menu)
                                 {
@@ -325,16 +325,16 @@
                         }
                         <div class="panel-actions">
                             <a class="btn btn--small btn--primary" asp-page="/Upload" asp-route-caseId="@record.CaseId" data-add-evidence>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-upload")" /></svg>
                                 <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
                             </a>
                             @if (custodyConfirmed)
                             {
                                 <details class="menu" data-menu data-files-menu>
-                                    <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                                    <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg></summary>
                                     <div class="menu-body">
                                         <a class="btn" href="https://app.box.com/folder/@custodyFolderRemoteId" target="_blank" rel="noopener" data-open-in-box>
-                                            <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-external-link")" /></svg>
                                             <span>@FilesLabels.OpenInBox</span>
                                         </a>
                                     </div>
@@ -364,7 +364,7 @@
                                         var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
                                             || occurrence.Source == DocumentSource.ExternalCorrespondence;
                                         <div class="doc-row" data-document-row="@occurrence.Id">
-                                            <svg class="icon" aria-hidden="true"><use href="#@(isMail ? "icon-mail" : "icon-file-text")" /></svg>
+                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(isMail ? "icon-mail" : "icon-file-text")" /></svg>
                                             <div class="doc-row-name">
                                                 <b>@version.FileName</b>
                                                 <small>@OperatorLabels.DocumentOrigin(occurrence.Source) · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc) · @OperatorLabels.FileSize(version.ContentLength)</small>
@@ -380,7 +380,7 @@
                                                 @if (mayRead)
                                                 {
                                                     <a class="btn btn--small btn--icon" href="@view.DownloadUrl(entry)" download title="@OperatorLabels.CaseWorkspace.SaveAs" aria-label="@OperatorLabels.CaseWorkspace.SaveAs @version.FileName">
-                                                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
                                                     </a>
                                                 }
                                             </span>
@@ -394,14 +394,14 @@
                             @if (view.CanSendReply && view.ReplyOperation is { } replyOperation)
                             {
                                 <div class="notice mb-2" role="status" data-triage-send-status>
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail")" /></svg>
                                     <span>@Labels.LatestSendStatus(replyOperation.State)</span>
                                 </div>
                             }
                             @if (view.CanSendReply && view.ReplyPurpose is not null && view.ReplyOperationBlocked)
                             {
                                 <div class="notice notice--warning mb-2" role="alert">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                                     <span>The existing correspondence operation must finish or be resolved before another action.</span>
                                 </div>
                             }
@@ -409,7 +409,7 @@
                             {
                                 <div class="button-row">
                                     <button type="button" class="btn btn--small" data-dialog-open="triage-compose-dialog">
-                                        <svg class="icon" aria-hidden="true"><use href="#@(view.IsOutcomeReply ? "icon-reply" : "icon-send")" /></svg>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(view.IsOutcomeReply ? "icon-reply" : "icon-send")" /></svg>
                                         <span>@replyLabel</span>
                                     </button>
                                 </div>
@@ -448,7 +448,7 @@
                                                     </div>
                                                     <div class="button-row">
                                                         <button type="submit" data-busy-label="@OperatorLabels.Busy.Unlinking" name="actionName" value="unlink_response" class="btn">
-                                                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                                                             <span>Unlink response</span>
                                                         </button>
                                                     </div>
@@ -481,7 +481,7 @@
                                                 </div>
                                                 <div class="button-row">
                                                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Linking" name="actionName" value="link_response" class="btn btn--dark">
-                                                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
                                                         <span>Record and link exact response</span>
                                                     </button>
                                                 </div>
@@ -516,7 +516,7 @@
                                 </div>
                                 <div class="button-row">
                                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn btn--dark">
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                                         <span>Add note</span>
                                     </button>
                                 </div>
@@ -554,7 +554,7 @@
             <div class="dialog-head">
                 <h2 id="triage-assign-dialog-title" tabindex="-1">@Labels.Assign</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId">
@@ -596,7 +596,7 @@
             <div class="dialog-head">
                 <h2 id="triage-finding-dialog-title" tabindex="-1">@Labels.RecordFinding</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" data-triage-determinations>
@@ -620,7 +620,7 @@
                     <button type="button" class="btn" data-dialog-close>@Labels.Cancel</button>
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Saving" name="actionName"
                             value="@(currentFinding is null ? "record_finding" : "supersede_finding")" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>
                         <span>@Labels.RecordFinding</span>
                     </button>
                 </div>
@@ -638,7 +638,7 @@
             <div class="dialog-head">
                 <h2 id="triage-correction-dialog-title" tabindex="-1">@Labels.RecordCorrection</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </div>
             <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId" data-triage-determinations>
@@ -671,7 +671,7 @@
                     <h2 id="triage-compose-title" tabindex="-1">@replyLabel</h2>
                 </div>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                 </button>
             </header>
             <div class="dialog-body mail-compose-body">
@@ -722,7 +722,7 @@
                     </div>
                     <footer class="mail-compose-footer">
                         <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
                             <span>@(view.IsOutcomeReply ? Labels.SendReply : Labels.SendChaser)</span>
                         </button>
                     </footer>
@@ -750,7 +750,7 @@
                 <div class="dialog-head">
                     <h2 id="triage-link-case-dialog-title" tabindex="-1">Link case</h2>
                     <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                     </button>
                 </div>
                 <form method="post" asp-page-handler="TriageAction" asp-route-id="@record.CaseId">

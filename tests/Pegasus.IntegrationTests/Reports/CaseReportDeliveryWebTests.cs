@@ -597,7 +597,7 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Contains("data-document-preview", link, StringComparison.Ordinal);
         Assert.Contains("data-no-inplace", link, StringComparison.Ordinal);
         Assert.Contains("data-file-name=\"CE_100_report.pdf\"", link, StringComparison.Ordinal);
-        Assert.Contains("<use href=\"#icon-eye\" />", link, StringComparison.Ordinal);
+        Assert.Matches("<use href=\"[^\"]*#icon-eye\" />", link);
         Assert.DoesNotContain("#icon-download", link, StringComparison.Ordinal);
         Assert.Contains(
             $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.OpenReport}</span>",
@@ -682,7 +682,7 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var form = FormHtml(await EnterEditModeAsync(client, caseId), "GenerateReport");
 
-        Assert.Contains("<use href=\"#icon-file-text\" />", form, StringComparison.Ordinal);
+        Assert.Matches("<use href=\"[^\"]*#icon-file-text\" />", form);
         Assert.DoesNotContain("#icon-download", form, StringComparison.Ordinal);
     }
 
@@ -1977,6 +1977,10 @@ public sealed partial class AssessmentReportDraftWebTests
 
         public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListAsync(
             Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>([]);
+
+        public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListForSpecificationsAsync(
+            Guid caseId, IReadOnlyCollection<Guid> specificationIds, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>([]);
     }
 

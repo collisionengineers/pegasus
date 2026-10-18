@@ -101,6 +101,38 @@ public static class VrmRecognitionProvisionalBar
             member.Confidence)));
 
     /// <summary>
+    /// The read one image offers from its usable plate candidates, or null
+    /// when there is none. Where the image's accepted reads carry more than
+    /// one distinct registration, the accepted read from the largest plate
+    /// area wins and confidence breaks a tie (operator, 15 October 2026); a
+    /// candidate without bounds has no area. Otherwise the most confident read.
+    /// </summary>
+    public static VrmPlateCandidate? OfferedCandidate(IReadOnlyList<VrmPlateCandidate> candidates)
+    {
+        var accepted = candidates
+            .Where(candidate => AcceptedRegistration(
+                VrmRecognitionOutcomeKind.Suggested,
+                candidate.NormalizedRegistration,
+                candidate.Confidence) is not null)
+            .ToArray();
+        if (DistinctAccepted(accepted.Select(candidate => candidate.NormalizedRegistration)).Length
+            <= RequiredDistinctRegistrations)
+        {
+            return candidates.MaxBy(candidate => candidate.Confidence);
+        }
+
+        return accepted
+            .OrderByDescending(PlateArea)
+            .ThenByDescending(candidate => candidate.Confidence)
+            .First();
+    }
+
+    private static double PlateArea(VrmPlateCandidate candidate) =>
+        candidate.Bounds is { } bounds
+            ? (bounds.Right - bounds.Left) * (bounds.Bottom - bounds.Top)
+            : 0;
+
+    /// <summary>
     /// The accepted reads without exact duplicates, less any read contained in
     /// a longer accepted read: a truncated read (<c>AK24</c> beside
     /// <c>AK24UYD</c>) is not a distinct registration (operator decision,
@@ -276,6 +308,15 @@ public interface IVrmSuggestionStore
 
     Task<IReadOnlyList<ImageVrmSuggestion>> ListForReceiptAsync(
         Guid intakeReceiptId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <see cref="ListForReceiptAsync"/> for several receipts in one read: one
+    /// entry for every distinct requested id, an empty list when that receipt
+    /// has no suggestions.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>> ListForReceiptsAsync(
+        IReadOnlyCollection<Guid> intakeReceiptIds,
         CancellationToken cancellationToken);
 
     Task<ImageVrmSuggestion> SetDispositionAsync(

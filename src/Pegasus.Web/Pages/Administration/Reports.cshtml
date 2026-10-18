@@ -29,7 +29,7 @@
 
     void Download(string handler, string label = "Download CSV", string icon = "icon-download", string css = "btn btn--small")
     {
-        <a class="@css" href="@Url.Page("/Administration/Reports", handler, Model.State())" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#@icon" /></svg><span>@label</span></a>
+        <a class="@css" href="@Url.Page("/Administration/Reports", handler, Model.State())" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(icon)" /></svg><span>@label</span></a>
     }
 
     void Metric(string label, string value, string? previous)
@@ -466,8 +466,8 @@
                         </fieldset>
                     }
                     <div class="button-row">
-                        <button class="btn btn--dark" type="submit" asp-page-handler="CaseListCsv" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></button>
-                        <button class="btn" type="submit" asp-page-handler="CaseListWorkbook" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="#icon-file-spreadsheet" /></svg><span>Download workbook</span></button>
+                        <button class="btn btn--dark" type="submit" asp-page-handler="CaseListCsv" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg><span>Download CSV</span></button>
+                        <button class="btn" type="submit" asp-page-handler="CaseListWorkbook" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-spreadsheet")" /></svg><span>Download workbook</span></button>
                     </div>
                     @if (Model.CaseListPresets is not null)
                     {

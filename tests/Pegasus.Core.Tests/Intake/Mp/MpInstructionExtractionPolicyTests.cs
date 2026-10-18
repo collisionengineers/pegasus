@@ -40,16 +40,106 @@ public sealed class MpInstructionExtractionPolicyTests
         Assert.Null(draft.VatStatus);
     }
 
-    private static InstructionExtractionResult Extract(string text) =>
+    [Fact]
+    public void TheSubjectFillsARegistrationAndDateTheDocumentCouldNotRead()
+    {
+        var result = Extract(UnreadableInstruction, SubjectWith("AB12 CDE", "03/11/26"));
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("AB12CDE", draft.VehicleRegistration);
+        Assert.Equal(new DateOnly(2026, 11, 3), draft.DateOfIncident);
+        foreach (var name in new[] { "Vehicle registration", "Incident date" })
+        {
+            var candidate = Assert.Single(Field(result, name).Candidates);
+            Assert.Equal(IntakeEvidenceSource.Subject, candidate.Source);
+            Assert.Equal("message subject", candidate.SourceLabel);
+        }
+
+        Assert.Empty(result.MissingFields);
+    }
+
+    [Theory]
+    [InlineData("differ", "CD34 EFG", "05/11/2026", "CD34EFG", 5)]
+    [InlineData("spelt", "AB12CDE", "03/11/2026", "AB12CDE", 3)]
+    public void ADocumentValueBeatsTheSubjectValue(
+        string row, string documentRegistration, string documentDate, string expectedRegistration, int expectedDay)
+    {
+        Assert.NotEmpty(row);
+        var result = Extract(
+            Instruction($"Vehicle Reg: {documentRegistration}, Toyota Prius", $"Date of Accident: {documentDate}"),
+            SubjectWith("AB12 CDE", "03/11/26"));
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(expectedRegistration, draft.VehicleRegistration);
+        Assert.Equal(new DateOnly(2026, 11, expectedDay), draft.DateOfIncident);
+        foreach (var (name, documentValue) in new[] { ("Vehicle registration", documentRegistration), ("Incident date", documentDate) })
+        {
+            var field = Field(result, name);
+            Assert.False(field.HasConflict);
+            Assert.Equal(documentValue, field.SuggestedValue);
+            Assert.Equal(2, field.Candidates.Count);
+            Assert.Equal(IntakeEvidenceSource.DocumentContent, field.Candidates[0].Source);
+            Assert.Equal(IntakeEvidenceSource.Subject, field.Candidates[1].Source);
+        }
+    }
+
+    [Theory]
+    [InlineData("blank", "   ")]
+    [InlineData("bare", "New Instruction - Montreal Prestige")]
+    [InlineData("tbc", "New Instruction - Montreal Prestige   VRM: TBC")]
+    [InlineData("feb31", "New Instruction - Montreal Prestige   DOA: 31/02/26")]
+    public void ASubjectWithNoUsableRegistrationOrDateAddsNothing(string row, string subject)
+    {
+        Assert.NotEmpty(row);
+        var result = Extract(UnreadableInstruction, subject);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Null(draft.VehicleRegistration);
+        Assert.Null(draft.DateOfIncident);
+        Assert.Empty(Field(result, "Vehicle registration").Candidates);
+        Assert.Empty(Field(result, "Incident date").Candidates);
+        Assert.Equal("Vehicle registration, Incident date", string.Join(", ", result.MissingFields));
+    }
+
+    [Fact]
+    public void ASubjectRegistrationAndDateReachTheCaseMatchKeys()
+    {
+        var keys = new PrincipalCaseMatchPolicy(new MpInstructionExtractionPolicy())
+            .ExtractMatchKeys(Read(UnreadableInstruction, SubjectWith("AB12 CDE", "03/11/26")));
+
+        Assert.Equal("AB12CDE", keys.NormalizedVrm);
+        Assert.Equal(new DateOnly(2026, 11, 3), keys.IncidentDate);
+    }
+
+    // Carries the three signals; the registration is garbled and the date is empty.
+    private static readonly string UnreadableInstruction =
+        Instruction("Vehicle Reg: A8I2 CDE, Toyota Prius", "Date of Accident:");
+
+    private static string Instruction(string registrationLine, string accidentLine) =>
+        $"Our client: Mr Test Claimant\nOur Ref: RA0000001\n{registrationLine}\n{accidentLine}\n"
+        + "Please arrange to inspect the above vehicle at your earliest convenience.\nKind regards";
+
+    private static string SubjectWith(string registration, string accidentDate) =>
+        $"New Instruction - Montreal Prestige   VRM: {registration}   DOA: {accidentDate}";
+
+    private static InstructionReviewField Field(InstructionExtractionResult result, string name) =>
+        Assert.Single(result.Fields, field => field.Name == name);
+
+    private static InstructionExtractionResult Extract(string text, string? subject = null) =>
         new MpInstructionExtractionPolicy().Extract(
-            new(
-                IntakeSourceReadStatus.Readable,
-                [new(IntakeEvidenceSource.DocumentContent, "MP instruction", text, IntakeSourceLocator.ForPage(1))],
-                [],
-                [],
-                RequiresOcr: false),
+            Read(text, subject),
             new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero),
             new("MP", MpInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
+
+    private static IntakeSourceReadResult Read(string text, string? subject) =>
+        new(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.DocumentContent, "MP instruction", text, IntakeSourceLocator.ForPage(1))],
+            subject is null
+                ? Array.Empty<IntakeTransportEvidence>()
+                : [new IntakeTransportEvidence(IntakeEvidenceSource.Subject, subject)],
+            [],
+            RequiresOcr: false);
 
     private static string? Date(DateOnly? value) => value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 }

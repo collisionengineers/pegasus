@@ -1201,6 +1201,7 @@ internal sealed class EfIntakeMutationStore(
             .Include(item => item.MailClassificationDecision)
             .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
+            .AsSplitQuery()
             .SingleOrDefaultAsync(item => item.Id == receiptId, cancellationToken);
 
     internal static async Task AcquireCaseQueryLockAsync(

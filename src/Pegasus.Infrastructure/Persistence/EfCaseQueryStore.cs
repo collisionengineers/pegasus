@@ -14,7 +14,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseQueryStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseWorkQueries, ICaseDocumentQueries, IAvailableReportSentEvidenceQueries
+    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries, ICaseCircumstancesQueries, ICaseWorkQueries, ICaseDocumentQueries, IAvailableReportSentEvidenceQueries
 {
     /// <inheritdoc />
     async Task<IReadOnlyList<CaseDocument>> ICaseDocumentQueries.ListAsync(Guid caseId, CancellationToken cancellationToken)
@@ -32,6 +32,29 @@ public sealed class EfCaseQueryStore(
             .Select(item => item.Type)
             .SingleOrDefaultAsync(cancellationToken);
         return code is null ? null : CaseTypeCodes.Parse(code);
+    }
+
+    /// <summary>
+    /// One Case's accident circumstances: the draft's when the Case came from
+    /// an instruction draft, else the confirmed field. Only the Search preview
+    /// shows them, so the shared search rows leave them out.
+    /// </summary>
+    async Task<string?> ICaseCircumstancesQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await (
+            from caseEntity in context.Set<CaseEntity>().AsNoTracking()
+            where caseEntity.Id == caseId
+            join draftCandidate in context.Set<InstructionDraftEntity>().AsNoTracking()
+                on caseEntity.OriginIntakeReceiptId equals draftCandidate.IntakeReceiptId into drafts
+            from draft in drafts.DefaultIfEmpty()
+            join confirmedCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
+                        && item.ValueKind == CaseDataCodes.Confirmed)
+                on caseEntity.Id equals confirmedCandidate.WorkId into confirmedRows
+            from confirmed in confirmedRows.DefaultIfEmpty()
+            select draft == null ? confirmed!.Value : draft.AccidentCircumstances)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -64,10 +87,6 @@ public sealed class EfCaseQueryStore(
             .Take(query.PageSize)
             .Select(item => MapSearchItem(item, now))
             .ToArray();
-        if (query.IncludeAccidentCircumstances)
-        {
-            items = await WithAccidentCircumstancesAsync(context, items, cancellationToken);
-        }
 
         return new(
             items,
@@ -1022,40 +1041,6 @@ public sealed class EfCaseQueryStore(
             .ThenBy(message => message.Id)
             .Select(message => (Guid?)message.Id)
             .FirstOrDefaultAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// The page's accident circumstances, read for its Cases alone: the draft's
-    /// when the Case came from an instruction draft, else the confirmed field.
-    /// Only the Search preview shows them, so the shared search rows leave them out.
-    /// </summary>
-    private static async Task<CaseSearchItem[]> WithAccidentCircumstancesAsync(
-        PegasusDbContext context,
-        CaseSearchItem[] items,
-        CancellationToken cancellationToken)
-    {
-        var caseIds = items.Select(item => item.CaseId).ToArray();
-        var circumstances = await (
-            from caseEntity in context.Set<CaseEntity>().AsNoTracking()
-            where caseIds.Contains(caseEntity.Id)
-            join draftCandidate in context.Set<InstructionDraftEntity>().AsNoTracking()
-                on caseEntity.OriginIntakeReceiptId equals draftCandidate.IntakeReceiptId into drafts
-            from draft in drafts.DefaultIfEmpty()
-            join confirmedCandidate in context.CaseDataFields.AsNoTracking()
-                    .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
-                        && item.ValueKind == CaseDataCodes.Confirmed)
-                on caseEntity.Id equals confirmedCandidate.WorkId into confirmedRows
-            from confirmed in confirmedRows.DefaultIfEmpty()
-            select new
-            {
-                caseEntity.Id,
-                Value = draft == null ? confirmed!.Value : draft.AccidentCircumstances
-            }).ToDictionaryAsync(row => row.Id, row => row.Value, cancellationToken);
-        return items
-            .Select(item => circumstances.TryGetValue(item.CaseId, out var value)
-                ? item with { AccidentCircumstances = value }
-                : item)
-            .ToArray();
     }
 
     /// <summary>

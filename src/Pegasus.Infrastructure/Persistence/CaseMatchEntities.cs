@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
@@ -225,12 +226,23 @@ public sealed class EfCaseMatchIndex : ICaseMatchCandidateQueries
         var claim = keys.DurableClaimToken;
         var vrm = keys.NormalizedVrm;
         var surname = keys.NormalizedSurname;
-        var rows = await context.CaseMatchIndex
-            .AsNoTracking()
-            .Where(item => item.PrincipalCode == principalCode
+        return await ReadCandidatesAsync(
+            context,
+            item => item.PrincipalCode == principalCode
                 && ((claim != null && item.DurableClaimToken == claim)
                     || (vrm != null && item.NormalizedVrm == vrm)
-                    || (surname != null && item.NormalizedSurname == surname)))
+                    || (surname != null && item.NormalizedSurname == surname)),
+            cancellationToken);
+    }
+
+    internal static async Task<IReadOnlyList<CaseMatchCandidate>> ReadCandidatesAsync(
+        PegasusDbContext context,
+        Expression<Func<CaseMatchIndexEntity, bool>> predicate,
+        CancellationToken cancellationToken)
+    {
+        var rows = await context.CaseMatchIndex
+            .AsNoTracking()
+            .Where(predicate)
             .Join(
                 context.CaseWorkflows.AsNoTracking(),
                 index => index.CaseId,
@@ -302,4 +314,77 @@ public sealed class EfCaseMatchIndex : ICaseMatchCandidateQueries
                 Enum.Parse<CaseLifecycleState>(row.State),
                 row.ReplacementCaseId);
     }
+}
+
+/// <summary>
+/// The match-index rows that a page of Triage Cases can match, read in one
+/// statement. It answers <see cref="FindByAnyKeyAsync"/> from those rows by
+/// the predicate <see cref="EfCaseMatchIndex"/> sends the database, and leaves
+/// <see cref="FindByCaseIdAsync"/> (a Created in error replacement) to it.
+/// </summary>
+internal sealed class CaseMatchIndexSnapshot : ICaseMatchCandidateQueries
+{
+    private readonly IReadOnlyList<CaseMatchCandidate> _rows;
+    private readonly ICaseMatchCandidateQueries _hops;
+
+    private CaseMatchIndexSnapshot(IReadOnlyList<CaseMatchCandidate> rows, ICaseMatchCandidateQueries hops)
+    {
+        _rows = rows;
+        _hops = hops;
+    }
+
+    /// <summary>
+    /// Reads every row of the wanted Principals matching any wanted key, which
+    /// holds every row each (Principal, keys) pair would find. No statement
+    /// is sent when no pair has a key.
+    /// </summary>
+    public static async Task<CaseMatchIndexSnapshot> ReadAsync(
+        PegasusDbContext context,
+        IReadOnlyList<(string PrincipalCode, CaseMatchIndexKeys Keys)> wanted,
+        CancellationToken cancellationToken)
+    {
+        var hops = new EfCaseMatchIndex(context);
+        var principalCodes = wanted.Select(item => item.PrincipalCode).Distinct().ToList();
+        var claims = wanted.Select(item => item.Keys.DurableClaimToken).Where(key => key is not null).Distinct().ToList();
+        var vrms = wanted.Select(item => item.Keys.NormalizedVrm).Where(key => key is not null).Distinct().ToList();
+        var surnames = wanted.Select(item => item.Keys.NormalizedSurname).Where(key => key is not null).Distinct().ToList();
+        if (claims.Count + vrms.Count + surnames.Count == 0)
+        {
+            return new([], hops);
+        }
+
+        var rows = await EfCaseMatchIndex.ReadCandidatesAsync(
+            context,
+            item => principalCodes.Contains(item.PrincipalCode)
+                && (claims.Contains(item.DurableClaimToken)
+                    || vrms.Contains(item.NormalizedVrm)
+                    || surnames.Contains(item.NormalizedSurname)),
+            cancellationToken);
+        return new(rows, hops);
+    }
+
+    public Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
+        string principalCode,
+        CaseMatchKeys keys,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
+        ArgumentNullException.ThrowIfNull(keys);
+
+        // No CaseMatchIndex column sets its own collation, so the database
+        // compares these without regard to case, and so does this. The
+        // incident date never selects a candidate.
+        IReadOnlyList<CaseMatchCandidate> matches = [.. _rows.Where(row =>
+            Same(row.PrincipalCode, principalCode)
+            && ((keys.DurableClaimToken is not null && Same(row.DurableClaimToken, keys.DurableClaimToken))
+                || (keys.NormalizedVrm is not null && Same(row.NormalizedVrm, keys.NormalizedVrm))
+                || (keys.NormalizedSurname is not null && Same(row.NormalizedSurname, keys.NormalizedSurname))))];
+        return Task.FromResult(matches);
+    }
+
+    public Task<CaseMatchCandidate?> FindByCaseIdAsync(Guid caseId, CancellationToken cancellationToken) =>
+        _hops.FindByCaseIdAsync(caseId, cancellationToken);
+
+    private static bool Same(string? left, string? right) =>
+        string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 }

@@ -5,6 +5,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Box.Sdk.Gen;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Intake;
 
@@ -359,15 +361,26 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 /// The upload does not look for its name first and does not walk the path
 /// afterwards. Box's own answer must name the proved folder as the file's
 /// parent, and a name Box already holds is Box's 409, resolved by comparing
-/// the existing file's content. Folder create, rename, move and delete still
-/// walk the whole path on every call.
+/// the existing file's content. Content over
+/// <see cref="SinglePartUploadLimit"/> goes up in parts through a Box upload
+/// session and is answered the same way. Folder create, rename and delete
+/// still walk the whole path on every call.
 /// </remarks>
-internal sealed class BoxContentClient(
+internal sealed partial class BoxContentClient(
     BoxCustodyOptions options,
     HttpClient httpClient,
     IBoxAuthorizationHeaderProvider authorizationHeaderProvider,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<BoxContentClient>? logger = null)
 {
+    /// <summary>
+    /// The largest content sent to Box as one upload request: Box's own limit
+    /// for a direct upload, 50 MB. Larger content is uploaded in parts.
+    /// </summary>
+    internal const long SinglePartUploadLimit = 50_000_000;
+
+    private readonly ILogger logger = logger ?? NullLogger<BoxContentClient>.Instance;
+
     /// <summary>
     /// How long a read trusts a folder's proved ancestry.
     /// </summary>
@@ -389,12 +402,14 @@ internal sealed class BoxContentClient(
         string? VersionId,
         long? Size,
         string? MediaType,
-        string? ParentId);
+        string? ParentId,
+        string? Sha1);
 
     /// <summary>
     /// A folder that fresh reads have proved fit to be written into. Only the
-    /// client's own prove methods make one, and an upload takes nothing else,
-    /// so no file reaches Box without its folder having been proved first.
+    /// client's own prove methods make one, and an upload or a move takes
+    /// nothing else, so no file reaches Box without its folder having been
+    /// proved first.
     /// </summary>
     internal sealed record ProvedFolder(string Id);
 
@@ -585,7 +600,8 @@ internal sealed class BoxContentClient(
         CancellationToken cancellationToken)
     {
         // The walk's first GET is the file itself, so it carries the metadata.
-        var file = await WalkToRootAsync(fileId, isFile: true, captureItem: true, cancellationToken)
+        var file = await WalkToRootAsync(
+            fileId, isFile: true, captureItem: true, provedAncestor: null, cancellationToken)
             ?? throw new InvalidDataException("Box returned the wrong type for a custody file.");
         if (!string.Equals(file.Type, "file", StringComparison.Ordinal))
         {
@@ -623,7 +639,9 @@ internal sealed class BoxContentClient(
     /// <c>item_name_in_use</c>: the file is then the same file only when it is
     /// a file of this length, in this folder, holding these bytes, and the
     /// result says it was not created. Its type is compared only if Box sends
-    /// one, and Box does not (<see cref="IsExpectedRevision"/>).
+    /// one, and Box does not (<see cref="IsExpectedRevision"/>). Content over
+    /// <see cref="SinglePartUploadLimit"/> is sent in parts, each a slice of
+    /// <paramref name="content"/>.
     /// </summary>
     public async Task<BoxUpload> UploadAsync(
         ProvedFolder folder,
@@ -632,12 +650,15 @@ internal sealed class BoxContentClient(
         string mediaType,
         CancellationToken cancellationToken)
     {
-        using var multipart = new MultipartFormDataContent();
-        multipart.Add(JsonContent.Create(new { name, parent = new { id = folder.Id } }), "attributes");
-        var fileContent = new ReadOnlyMemoryContent(content);
-        fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
-        multipart.Add(fileContent, "file", name);
-        using var response = await SendAsync(HttpMethod.Post, UploadUri, multipart, cancellationToken);
+        using var response = content.Length > SinglePartUploadLimit
+            ? await UploadInPartsAsync(
+                folder,
+                name,
+                content.Length,
+                (offset, length, _) => ValueTask.FromResult(content.Slice((int)offset, length)),
+                cancellationToken)
+            : await UploadInOneRequestAsync(
+                folder, name, new ReadOnlyMemoryContent(content), mediaType, cancellationToken);
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
             var errorCode = await ReadBoxErrorCodeAsync(response, cancellationToken);
@@ -705,6 +726,8 @@ internal sealed class BoxContentClient(
     /// <paramref name="contentLength"/> bytes from its current position have
     /// already been hashed to <paramref name="normalizedHash"/>, so the bytes
     /// are not hashed a further time. Not for content nothing has verified.
+    /// Content over <see cref="SinglePartUploadLimit"/> is read one part at a
+    /// time into a buffer no larger than a part.
     /// </summary>
     internal async Task<BoxUpload> UploadVerifiedAsync(
         ProvedFolder folder,
@@ -718,13 +741,17 @@ internal sealed class BoxContentClient(
         var startPosition = content.Position;
         try
         {
-            using var multipart = new MultipartFormDataContent();
-            multipart.Add(JsonContent.Create(new { name, parent = new { id = folder.Id } }), "attributes");
-            var fileContent = new StreamContent(new BoundedReadStream(content, contentLength));
-            fileContent.Headers.ContentLength = contentLength;
-            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
-            multipart.Add(fileContent, "file", name);
-            using var response = await SendAsync(HttpMethod.Post, UploadUri, multipart, cancellationToken);
+            using var response = contentLength > SinglePartUploadLimit
+                ? await UploadInPartsAsync(folder, name, contentLength, PartsOf(content), cancellationToken)
+                : await UploadInOneRequestAsync(
+                    folder,
+                    name,
+                    new StreamContent(new BoundedReadStream(content, contentLength))
+                    {
+                        Headers = { ContentLength = contentLength }
+                    },
+                    mediaType,
+                    cancellationToken);
             if (response.StatusCode == HttpStatusCode.Conflict)
             {
                 var errorCode = await ReadBoxErrorCodeAsync(response, cancellationToken);
@@ -832,10 +859,217 @@ internal sealed class BoxContentClient(
     /// <summary>
     /// Where Box takes an upload. The fields are asked for by name, so the
     /// answer always carries the file's parent, which is what proves where the
-    /// file landed.
+    /// file landed, and the file's SHA-1, which holding custody compares with
+    /// its own bytes.
     /// </summary>
     private Uri UploadUri =>
-        new(options.UploadUri, "files/content?fields=id,name,type,etag,file_version,parent");
+        new(options.UploadUri, "files/content?fields=id,name,type,etag,file_version,parent,sha1");
+
+    /// <summary>
+    /// The direct upload: one multipart request carrying the file's name, its
+    /// folder and <paramref name="file"/>. Sending the request disposes them.
+    /// </summary>
+    private Task<HttpResponseMessage> UploadInOneRequestAsync(
+        ProvedFolder folder,
+        string name,
+        HttpContent file,
+        string mediaType,
+        CancellationToken cancellationToken)
+    {
+        var multipart = new MultipartFormDataContent();
+        multipart.Add(JsonContent.Create(new { name, parent = new { id = folder.Id } }), "attributes");
+        file.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
+        multipart.Add(file, "file", name);
+        return SendAsync(HttpMethod.Post, UploadUri, multipart, cancellationToken);
+    }
+
+    /// <summary>
+    /// Uploads content over <see cref="SinglePartUploadLimit"/> through a Box
+    /// upload session: the session is created, the parts are sent one after
+    /// another, each exactly the session's part size except the last and each
+    /// with its own SHA-1 digest, and the commit carries the whole content's.
+    /// Every request goes to the configured upload host; the endpoints Box
+    /// names for the session are not followed.
+    /// </summary>
+    /// <remarks>
+    /// The answer is Box's last one, read by the caller exactly as it reads a
+    /// direct upload's: a 409 at create or at commit, the committed file, or
+    /// Box's failure. A session that exists and is not committed is aborted
+    /// before its answer or its failure leaves (operator, 16 October 2026).
+    /// </remarks>
+    private async Task<HttpResponseMessage> UploadInPartsAsync(
+        ProvedFolder folder,
+        string name,
+        long contentLength,
+        Func<long, int, CancellationToken, ValueTask<ReadOnlyMemory<byte>>> readPart,
+        CancellationToken cancellationToken)
+    {
+        using var request = JsonContent.Create(
+            new { folder_id = folder.Id, file_name = name, file_size = contentLength });
+        var created = await SendAsync(
+            HttpMethod.Post, new Uri(options.UploadUri, "files/upload_sessions"), request, cancellationToken);
+        if (!created.IsSuccessStatusCode)
+        {
+            // No session exists: a name Box already holds, or Box's failure.
+            return created;
+        }
+        string session;
+        long partSize;
+        using (created)
+        using (var document = await ReadSuccessJsonAsync(created, cancellationToken))
+        {
+            session = "files/upload_sessions/" + Uri.EscapeDataString(
+                ReadString(document.RootElement, "id")
+                    ?? throw new InvalidDataException("Box omitted the upload session identity."));
+            partSize = document.RootElement.TryGetProperty("part_size", out var size)
+                && size.ValueKind == JsonValueKind.Number
+                && size.TryGetInt64(out var value)
+                    ? value
+                    : 0;
+        }
+        var sessionUri = new Uri(options.UploadUri, session);
+        HttpResponseMessage? commit = null;
+        try
+        {
+            if (partSize is <= 0 or > int.MaxValue)
+            {
+                throw new InvalidDataException("Box returned an unusable upload part size.");
+            }
+            using var whole = CreateSha1();
+            using var partHash = CreateSha1();
+            var parts = new List<JsonElement>();
+            for (long offset = 0; offset < contentLength;)
+            {
+                var length = (int)Math.Min(partSize, contentLength - offset);
+                var part = await readPart(offset, length, cancellationToken);
+                whole.AppendData(part.Span);
+                partHash.AppendData(part.Span);
+                var digest = Digest(partHash);
+                var body = new ReadOnlyMemoryContent(part);
+                body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                body.Headers.ContentRange = new ContentRangeHeaderValue(offset, offset + length - 1, contentLength);
+                using var response = await SendAsync(
+                    HttpMethod.Put,
+                    sessionUri,
+                    body,
+                    cancellationToken,
+                    message => message.Headers.TryAddWithoutValidation("Digest", digest));
+                using var answer = await ReadSuccessJsonAsync(response, cancellationToken);
+                // The commit lists each part as Box recorded it.
+                parts.Add(answer.RootElement.GetProperty("part").Clone());
+                offset += length;
+            }
+            commit = await CommitUploadSessionAsync(
+                new Uri(options.UploadUri, session + "/commit"), parts, Digest(whole), cancellationToken);
+            return commit;
+        }
+        finally
+        {
+            if (commit is not { IsSuccessStatusCode: true })
+            {
+                await AbortUploadSessionAsync(sessionUri, cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Commits an upload session. While Box is still processing the parts it
+    /// answers 202, and the commit is sent again after Box's
+    /// <c>Retry-After</c>, waiting no longer than
+    /// <see cref="BoxDocumentContentStore.MaximumRetryWait"/>, within
+    /// <see cref="BoxDocumentContentStore.MaximumAttempts"/> sends in all.
+    /// </summary>
+    private async Task<HttpResponseMessage> CommitUploadSessionAsync(
+        Uri commitUri,
+        List<JsonElement> parts,
+        string digest,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            using var content = JsonContent.Create(new { parts });
+            var response = await SendAsync(
+                HttpMethod.Post,
+                commitUri,
+                content,
+                cancellationToken,
+                message => message.Headers.TryAddWithoutValidation("Digest", digest));
+            if (response.StatusCode != HttpStatusCode.Accepted)
+            {
+                return response;
+            }
+            var wait = RetryAfterOf(response) ?? TimeSpan.Zero;
+            response.Dispose();
+            if (attempt == BoxDocumentContentStore.MaximumAttempts)
+            {
+                throw new HttpRequestException(
+                    "Box had not finished processing the uploaded parts.", null, HttpStatusCode.Accepted);
+            }
+            await Task.Delay(
+                wait < BoxDocumentContentStore.MaximumRetryWait ? wait : BoxDocumentContentStore.MaximumRetryWait,
+                timeProvider,
+                cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Aborts an upload session that will not be committed. The upload's own
+    /// answer or failure is what the caller gets, so an abort that fails is
+    /// logged and goes no further; Box expires an abandoned session after
+    /// seven days.
+    /// </summary>
+    private async Task AbortUploadSessionAsync(Uri sessionUri, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Delete, sessionUri, null, cancellationToken);
+            response.EnsureSuccessStatusCode();
+        }
+        catch (Exception exception)
+        {
+            LogUploadSessionAbortFailed(logger, exception);
+        }
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "A Box upload session that was not committed could not be aborted; Box expires it after seven days.")]
+    private static partial void LogUploadSessionAbortFailed(ILogger logger, Exception exception);
+
+    /// <summary>
+    /// Reads a stream's parts in order into one buffer, the size of the first
+    /// and largest part. A stream that ends before its declared length fails
+    /// as the direct upload's bounded read does.
+    /// </summary>
+    private static Func<long, int, CancellationToken, ValueTask<ReadOnlyMemory<byte>>> PartsOf(Stream content)
+    {
+        byte[]? buffer = null;
+        return async (_, length, cancellationToken) =>
+        {
+            buffer ??= new byte[length];
+            var part = buffer.AsMemory(0, length);
+            if (await content.ReadAtLeastAsync(part, length, throwOnEndOfStream: false, cancellationToken) < length)
+            {
+                throw new EndOfStreamException("Box upload content ended before its declared length.");
+            }
+            return part;
+        };
+    }
+
+    /// <summary>
+    /// A SHA-1 hash, the one digest Box takes for an upload's parts and its
+    /// commit and the one it reports for a file. It checks the transfer only;
+    /// a file's identity is its SHA-256.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA5350:Do Not Use Weak Cryptographic Algorithms",
+        Justification = "Box's upload Digest header and file sha1 are SHA-1 only; SHA-256 stays the content check.")]
+    internal static IncrementalHash CreateSha1() => IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
+
+    /// <summary>The <c>Digest</c> header value of the bytes hashed so far, which resets the hash.</summary>
+    private static string Digest(IncrementalHash sha1) =>
+        $"sha={Convert.ToBase64String(sha1.GetHashAndReset())}";
 
     /// <summary>
     /// The file a successful upload made. Its parent must be the folder that
@@ -879,19 +1113,6 @@ internal sealed class BoxContentClient(
         await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
         return await DownloadVersionAsync(fileId, versionId, maximumLength, cancellationToken);
     }
-
-    /// <summary>
-    /// The exact version an upload has just created, read back without walking
-    /// its ancestry again: the folder was proved before the upload, and Box's
-    /// answer to the upload named that folder as the file's parent.
-    /// </summary>
-    public Task<Stream> OpenCreatedVersionReadAsync(
-        string fileId,
-        string versionId,
-        long maximumLength,
-        CancellationToken cancellationToken) =>
-        DownloadVersionWithoutAncestryAsync(
-            fileId, versionId, maximumLength, contentHash: null, cancellationToken);
 
     /// <summary>
     /// The managed read: the exact version of a file that sits directly in
@@ -1068,7 +1289,7 @@ internal sealed class BoxContentClient(
     }
 
     /// <summary>Drops a folder from the read memory, so its next read walks the ancestry again.</summary>
-    private void Forget(string? folderId)
+    internal void Forget(string? folderId)
     {
         if (!string.IsNullOrEmpty(folderId))
         {
@@ -1173,16 +1394,23 @@ internal sealed class BoxContentClient(
         }
     }
 
+    /// <summary>
+    /// Moves a file and gives it a name. Both folders were proved by the
+    /// caller, once for its run of moves. The file is read before the move and
+    /// again after it, and a trashed file, or one outside the approved root, is
+    /// refused. Each read stops at the proved folder it reaches, as it stops at
+    /// the approved root, so no folder is read again for the move.
+    /// </summary>
     public async Task<BoxItem> MoveFileAsync(
         string fileId,
-        string newParentId,
+        ProvedFolder source,
+        ProvedFolder destination,
         string name,
         CancellationToken cancellationToken)
     {
-        Forget(newParentId);
-        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
-        await EnsureDescendantAsync(newParentId, cancellationToken);
-        using var content = JsonContent.Create(new { name, parent = new { id = newParentId } });
+        Forget(destination.Id);
+        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true, provedAncestor: source);
+        using var content = JsonContent.Create(new { name, parent = new { id = destination.Id } });
         using var response = await SendAsync(
             HttpMethod.Put,
             new Uri(options.BaseUri, $"files/{Uri.EscapeDataString(fileId)}"),
@@ -1195,7 +1423,7 @@ internal sealed class BoxContentClient(
         }
         using var document = await ReadSuccessJsonAsync(response, cancellationToken);
         var file = ParseItem(document.RootElement);
-        await EnsureDescendantAsync(file.Id, cancellationToken, isFile: true);
+        await EnsureDescendantAsync(file.Id, cancellationToken, isFile: true, provedAncestor: destination);
         return file;
     }
 
@@ -1242,17 +1470,21 @@ internal sealed class BoxContentClient(
     public Task EnsureDescendantAsync(
         string itemId,
         CancellationToken cancellationToken,
-        bool isFile = false) =>
-        WalkToRootAsync(itemId, isFile, captureItem: false, cancellationToken);
+        bool isFile = false,
+        ProvedFolder? provedAncestor = null) =>
+        WalkToRootAsync(itemId, isFile, captureItem: false, provedAncestor, cancellationToken);
 
     /// <summary>
-    /// The ancestry walk. Returns the item's own metadata, read by the walk's
-    /// first GET, or null when the item is the approved root itself.
+    /// The ancestry walk, which ends at the approved root or at
+    /// <paramref name="provedAncestor"/> when it is given and the walk reaches
+    /// it. Returns the item's own metadata, read by the walk's first GET, or
+    /// null when the item is the approved root itself.
     /// </summary>
     private async Task<BoxItem?> WalkToRootAsync(
         string itemId,
         bool isFile,
         bool captureItem,
+        ProvedFolder? provedAncestor,
         CancellationToken cancellationToken)
     {
         if (itemId.Equals(options.RootFolderId, StringComparison.Ordinal))
@@ -1291,7 +1523,9 @@ internal sealed class BoxContentClient(
                 }
                 current = ReadString(parent, "id")
                     ?? throw new InvalidDataException("Box omitted a parent identity.");
-                if (current.Equals(options.RootFolderId, StringComparison.Ordinal))
+                if (current.Equals(options.RootFolderId, StringComparison.Ordinal)
+                    || (provedAncestor is not null
+                        && current.Equals(provedAncestor.Id, StringComparison.Ordinal)))
                 {
                     return first;
                 }
@@ -1505,7 +1739,8 @@ internal sealed class BoxContentClient(
         ReadString(value, "content_type"),
         value.TryGetProperty("parent", out var parent) && parent.ValueKind == JsonValueKind.Object
             ? ReadString(parent, "id")
-            : null);
+            : null,
+        ReadString(value, "sha1"));
 
     private static string? ReadString(JsonElement value, string property) =>
         value.TryGetProperty(property, out var result) && result.ValueKind == JsonValueKind.String
@@ -1761,7 +1996,11 @@ internal sealed class BoxCaseCustody(
         {
             throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
         }
-        await ProveRootAsync(caseRoot, cancellationToken);
+        // The fold proves its image folder once, here, and that proof dies
+        // with the call. The Case folder's proof is the one this adapter
+        // already keeps for the root object. Every move relies on both.
+        var caseProof = await ProveRootAsync(caseRoot, cancellationToken);
+        var imageProof = await client.ProveFolderAsync(imageRoot.RemoteId, cancellationToken);
 
         // Flat, like everything else in the case folder (operator direction,
         // 2026-08-21). The folded images join the instruction's files rather
@@ -1774,32 +2013,44 @@ internal sealed class BoxCaseCustody(
             (await client.ListChildrenAsync(destination, cancellationToken))
                 .Select(item => item.Name),
             StringComparer.Ordinal);
-        foreach (var child in children)
+        try
         {
-            if (!string.Equals(child.Type, "file", StringComparison.Ordinal))
+            foreach (var child in children)
             {
-                throw new InvalidDataException(
-                    "The image-case custody folder holds an unexpected non-file child; the fold fails closed.");
-            }
-            if (string.Equals(child.Name, CaseBindingFileName, StringComparison.Ordinal))
-            {
-                continue;
-            }
+                if (!string.Equals(child.Type, "file", StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "The image-case custody folder holds an unexpected non-file child; the fold fails closed.");
+                }
+                if (string.Equals(child.Name, CaseBindingFileName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            // A same-named file already folded from another Image intake keeps
-            // its name unique by prefixing the source reference.
-            string targetName;
-            if (destinationNames.Add(child.Name))
-            {
-                targetName = child.Name;
+                // A same-named file already folded from another Image intake keeps
+                // its name unique by prefixing the source reference.
+                string targetName;
+                if (destinationNames.Add(child.Name))
+                {
+                    targetName = child.Name;
+                }
+                else
+                {
+                    targetName = $"{CaseFolderName(imageRoot.Reference)} {child.Name}";
+                    destinationNames.Add(targetName);
+                }
+                await RequireLeaseAsync(leaseGuard, cancellationToken);
+                await client.MoveFileAsync(child.Id, imageProof, caseProof, targetName, cancellationToken);
             }
-            else
-            {
-                targetName = $"{CaseFolderName(imageRoot.Reference)} {child.Name}";
-                destinationNames.Add(targetName);
-            }
-            await RequireLeaseAsync(leaseGuard, cancellationToken);
-            await client.MoveFileAsync(child.Id, destination, targetName, cancellationToken);
+        }
+        catch (Exception exception) when (BoxContentClient.IsFenceFailure(exception))
+        {
+            // The proofs end with the fold: both folders leave the read memory,
+            // and the next fold proves the Case folder again.
+            client.Forget(imageRoot.RemoteId);
+            client.Forget(destination);
+            provedRoots.Remove(caseRoot);
+            throw;
         }
 
         var binding = BoxContentClient.SelectChild(children, CaseBindingFileName, "file");

@@ -105,7 +105,9 @@ under the image-origin and matching conditions below. It is not a mailbox
 routing score. [ADR-0019](../adr/0019-in-process-onnx-vrm-recognition.md)
 owns the engine choice. The
 [recorded cohort and holdout evidence](https://github.com/collisionengineers/pegasus/blob/af1625fae8ac8018054c95e988907f6c44fa4639/docs/operations.md)
-keeps its dated results; no fresh evaluation is implied.
+keeps its dated results; no fresh evaluation is implied. Where images
+disagree, the largest accepted plate wins
+([FRD-19](frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing)).
 
 **Suggestion first.** Reading a registration from an ordinary vehicle photo
 produces a suggestion. Each result stays attached to one retained source
