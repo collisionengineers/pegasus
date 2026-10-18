@@ -158,6 +158,9 @@ public sealed record UploadReviewView(
 
     public int? AutoRefreshMilliseconds { get; init; }
 
+    /// <summary>Where the page's script asks whether anything is still moving, instead of reloading blindly.</summary>
+    public string? StatusUrl { get; init; }
+
     public string? Error { get; init; }
 
     public bool IsDuplicate { get; init; }

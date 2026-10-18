@@ -216,6 +216,32 @@ public sealed class UploadGroupStatusModel(
         return Page();
     }
 
+    /// <summary>
+    /// What the page's script asks between reloads: whether anything is still
+    /// moving, how long to wait before asking again, and each member's queue
+    /// state. It reads as the page does, draws nothing and writes nothing.
+    /// </summary>
+    public async Task<IActionResult> OnGetStatusAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (await LoadAsync(id, cancellationToken) is { } notFound)
+        {
+            return notFound;
+        }
+
+        var nextDelayMs = AutomaticRefreshMilliseconds;
+        return new JsonResult(new
+        {
+            moving = nextDelayMs is not null,
+            nextDelayMs,
+            members = Group.Members.Select(member => new
+            {
+                id = member.StagedReceiptId,
+                state = (Statuses.GetValueOrDefault(member.StagedReceiptId)?.Status
+                    ?? QueuedIntakeStatusKind.Received).ToString().ToLowerInvariant()
+            })
+        });
+    }
+
     public async Task<IActionResult> OnPostAttachGroupAsync(
         Guid id,
         Guid? caseId,
@@ -562,6 +588,7 @@ public sealed class UploadGroupStatusModel(
         {
             NowUtc = timeProvider.GetUtcNow(),
             AutoRefreshMilliseconds = AutomaticRefreshMilliseconds,
+            StatusUrl = $"/Upload/Group/{id:D}?handler=Status",
             Error = TempData["UploadConfirmationError"] as string,
             Candidates = GroupSuggestedDestinations.Select(UploadReviewCandidate.From).ToArray(),
             SearchResults = SearchResults.Select(UploadReviewCandidate.From).ToArray(),
