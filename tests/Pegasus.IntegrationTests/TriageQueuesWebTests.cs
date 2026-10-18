@@ -1098,6 +1098,10 @@ public sealed class TriageQueuesWebTests
                 AllowAutoRedirect = false,
                 BaseAddress = new Uri("https://localhost:7139")
             });
+        // The shell keeps the release note and the staff names between requests,
+        // so the first request pays reads the next does not. Load once unmeasured
+        // so both measurements start from the same warm shell.
+        await MeasureAwaitingReadsAsync(countingClient, counter, first.Id);
         var withThreeRows = await MeasureAwaitingReadsAsync(countingClient, counter, first.Id);
 
         // Three more rows, same request.

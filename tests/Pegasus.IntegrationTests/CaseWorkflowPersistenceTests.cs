@@ -1118,7 +1118,7 @@ public sealed class CaseWorkflowPersistenceTests
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
             harness.EngineerEligibility,
-            new EfStaffAccountQueries(harness.Factory));
+            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(
@@ -1167,7 +1167,7 @@ public sealed class CaseWorkflowPersistenceTests
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
             harness.EngineerEligibility,
-            new EfStaffAccountQueries(harness.Factory));
+            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
 
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
             sut.ExecuteAsync(request with { ExpectedVersion = before.Version + 1 }, default));

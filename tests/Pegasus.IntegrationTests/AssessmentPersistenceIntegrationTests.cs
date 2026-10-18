@@ -85,7 +85,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             harness.Factory,
             new GetAssessmentWorkspace(new EfAssessmentWorkspaceSource(harness.Factory)),
             contentStore,
-            new EfStaffAccountQueries(harness.Factory),
+            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)),
             new EfCaseAssetPreparationStore(harness.Factory),
             new ListAppliedValuations(new EfValuationStore(harness.Factory)));
 

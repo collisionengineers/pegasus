@@ -180,6 +180,16 @@ public interface IStaffAccountQueries
         IReadOnlyCollection<Guid> staffIds,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The current username of each id that names an account; an id with no
+    /// account is absent.
+    /// </summary>
+    async Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(
+        IReadOnlyCollection<Guid> staffIds,
+        CancellationToken cancellationToken) =>
+        (await GetManyAsync(staffIds, cancellationToken))
+            .ToDictionary(account => account.Id, account => account.UserName);
+
     Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
         CancellationToken cancellationToken);
 

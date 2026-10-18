@@ -45,8 +45,7 @@ public static class ActorDisplayNames
             return new Dictionary<Guid, string>();
         }
 
-        var accounts = await staffAccounts.GetManyAsync(distinctIds, cancellationToken);
-        return accounts.ToDictionary(account => account.Id, account => account.UserName);
+        return await staffAccounts.GetNamesAsync(distinctIds, cancellationToken);
     }
 
     /// <summary>
