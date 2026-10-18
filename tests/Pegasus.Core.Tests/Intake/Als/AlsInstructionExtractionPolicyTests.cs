@@ -35,10 +35,7 @@ public sealed class AlsInstructionExtractionPolicyTests
             Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(
                 Path.Combine(root, "principal-docs", "original-mapper-instruction-corpus", original)))));
 
-        var result = new AlsInstructionExtractionPolicy().Extract(
-            new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "ALS instruction", text)], [], [], false),
-            new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero),
-            new("ALS", AlsInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
+        var result = Extract(text);
 
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal(claimant, draft.ClaimantName);
@@ -52,6 +49,76 @@ public sealed class AlsInstructionExtractionPolicyTests
         Assert.Null(draft.InspectionDate);
         Assert.DoesNotContain(result.Fields, field => field.Name.Contains("salvage", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void APartyBlockWithoutTheVatRowStillGivesTheClaimant()
+    {
+        var result = Extract(Instruction(clientRows: true, vatRow: false));
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("Mr Example", draft.ClaimantName);
+        Assert.Equal("1 Example Road, Exampletown, AB1 2CD", Field(result, "Claimant address"));
+        Assert.DoesNotContain("Claimant name", result.MissingFields);
+        Assert.Null(Field(result, "VAT status"));
+        Assert.Null(draft.VatStatus);
+        Assert.Equal("Mrs Owner", Field(result, "Vehicle owner"));
+    }
+
+    [Fact]
+    public void APartyBlockWithTheVatRowReadsAsBefore()
+    {
+        var result = Extract(Instruction(clientRows: true, vatRow: true));
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("Mr Example", draft.ClaimantName);
+        Assert.Equal("1 Example Road, Exampletown, AB1 2CD", Field(result, "Claimant address"));
+        Assert.Equal("no", draft.VatStatus);
+        Assert.Equal("Mrs Owner", Field(result, "Vehicle owner"));
+    }
+
+    [Fact]
+    public void AnInstructionWithoutClientRowsStillReportsTheClaimantMissing()
+    {
+        var result = Extract(Instruction(clientRows: false, vatRow: true));
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Null(draft.ClaimantName);
+        Assert.Null(Field(result, "Claimant address"));
+        Assert.Contains("Claimant name", result.MissingFields);
+    }
+
+    // Invented text in the layout the Party regex describes: the tab-separated Client/Owner header, the
+    // Name, Address and Tel rows with the owner's Name across a tab on the client's Tel row, then the vehicle table.
+    private static string Instruction(bool clientRows, bool vatRow)
+    {
+        List<string> lines =
+        [
+            "Our Reference:\tREF-0001", "", "Dear Sirs", "",
+            "Accident Date: 05/05/2026", "Accident Circumstances: Invented circumstances.", "",
+            "Client Details\tVehicle Owner Details (if applicable)\t"
+        ];
+        if (clientRows)
+            lines.AddRange(
+            [
+                "Name: Mr Example ",
+                "Address: 1 Example Road, Exampletown, AB1 2CD ",
+                "Tel: 01234 567890 \tName: Mrs Owner",
+                "Address: 2 Example Road, Exampletown, AB1 2CE",
+                "Tel: 01234 567891 "
+            ]);
+        if (vatRow) lines.Add("VAT Registered: no \t");
+        lines.AddRange(
+        [
+            "Clients Vehicle\tThird Party Vehicle\t", "Vehicle Reg:\tAB12CDE \tVehicle Reg:\tZZ99ZZZ\t", "",
+            "Yours faithfully", "Auto Logistic Solutions Ltd"
+        ]);
+        return string.Join('\n', lines);
+    }
+
+    private static InstructionExtractionResult Extract(string text) => new AlsInstructionExtractionPolicy().Extract(
+        new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "ALS instruction", text)], [], [], false),
+        new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero),
+        new("ALS", AlsInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
 
     private static string? Field(InstructionExtractionResult result, string name) =>
         Assert.Single(result.Fields, field => field.Name == name).SuggestedValue;
