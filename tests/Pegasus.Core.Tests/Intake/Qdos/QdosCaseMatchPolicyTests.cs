@@ -173,6 +173,16 @@ public sealed class PrincipalCaseMatchPolicyTests
     }
 
     [Fact]
+    public void TwoDifferentIncidentDatesInOneMessageWithdrawTheDate()
+    {
+        var keys = Extract(
+            subject: "(EREF8) RTA on 18/06/2026 : Mrs Jane Example",
+            body: "Date of Accident: 20/05/2026");
+
+        Assert.Null(keys.IncidentDate);
+    }
+
+    [Fact]
     public void DeriveIndexKeysUsesTheSameGrammarsAsExtraction()
     {
         var index = new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy()).DeriveIndexKeys(new(

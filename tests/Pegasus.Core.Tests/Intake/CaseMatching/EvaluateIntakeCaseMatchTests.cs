@@ -194,10 +194,66 @@ public sealed class EvaluateIntakeCaseMatchTests
     public async Task MatchingIncidentDateAloneProvesNothing()
     {
         var result = await Execute(
-            Keys(claim: "99999/9", date: new DateOnly(2026, 6, 18)),
-            [Candidate(CaseA, claim: "11111/1", date: new DateOnly(2026, 6, 18))]);
+            Keys(claim: "12345/1", date: new DateOnly(2026, 6, 18)),
+            [Candidate(CaseA, date: new DateOnly(2026, 6, 18))]);
 
         Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
+        Assert.Null(result.MatchedCaseId);
+        Assert.Empty(result.Candidates);
+    }
+
+    [Fact]
+    public async Task IncidentDateMismatchEliminatesAClaimHitCandidate()
+    {
+        var result = await Execute(
+            Keys(claim: "12345/1", date: new DateOnly(2026, 6, 18)),
+            [Candidate(CaseA, claim: "12345/1", date: new DateOnly(2025, 1, 2))]);
+
+        Assert.Equal(CaseMatchOutcome.NoMatch, result!.Outcome);
+        Assert.Null(result.MatchedCaseId);
+        var evaluation = Assert.Single(result.Candidates);
+        Assert.Equal([EvaluateIntakeCaseMatch.ClaimReferenceKey], evaluation.HitKeys);
+        Assert.Single(evaluation.Eliminations);
+    }
+
+    [Fact]
+    public async Task MatchingIncidentDateAddsNoHitKey()
+    {
+        var result = await Execute(
+            Keys(claim: "12345/1", vrm: "AB12CDE", date: new DateOnly(2026, 6, 18)),
+            [Candidate(CaseA, claim: "12345/1", vrm: "AB12CDE", date: new DateOnly(2026, 6, 18))]);
+
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
+        var evaluation = Assert.Single(result.Candidates);
+        Assert.Equal(
+            [EvaluateIntakeCaseMatch.ClaimReferenceKey, EvaluateIntakeCaseMatch.VehicleRegistrationKey],
+            evaluation.HitKeys);
+        Assert.Empty(evaluation.Eliminations);
+    }
+
+    [Theory]
+    [InlineData("message")]
+    [InlineData("case")]
+    public async Task AMissingIncidentDateOnEitherSideNeverEliminates(string missingSide)
+    {
+        var date = new DateOnly(2026, 6, 18);
+        var result = await Execute(
+            Keys(claim: "12345/1", date: missingSide == "message" ? null : date),
+            [Candidate(CaseA, claim: "12345/1", date: missingSide == "case" ? null : date)]);
+
+        Assert.Equal(CaseMatchOutcome.UniqueMatch, result!.Outcome);
+        Assert.Equal(CaseA, result.MatchedCaseId);
+        Assert.Empty(Assert.Single(result.Candidates).Eliminations);
+    }
+
+    [Fact]
+    public async Task AnIncidentDateAloneIsNoKeys()
+    {
+        var result = await Execute(
+            Keys(date: new DateOnly(2026, 6, 18)),
+            [Candidate(CaseA, date: new DateOnly(2026, 6, 18))]);
+
+        Assert.Equal(CaseMatchOutcome.NoKeys, result!.Outcome);
         Assert.Null(result.MatchedCaseId);
     }
 

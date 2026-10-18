@@ -135,9 +135,10 @@ Inspection values, also once its Audit exists
 bytes and transport identifiers support correlation, while each visible
 placement and chronology entry stays auditable.
 
-Arrival-time proximity never associates or consolidates material. A mismatch
-between accepted incident dates may rule a candidate out. A matching incident
-date proves nothing on its own and needs corroborating accepted evidence.
+Arrival-time proximity never associates or consolidates material. The
+incident date is an excluding rule, not a matching rule. A vehicle could have
+two accidents on the same date, so a matching incident date is not a reliable
+matcher; two different incident dates mean it is not the same Case.
 
 The immutable source occurrence and its evidence stay separate from the
 editable Case projection. Linking creates a versioned source-to-Case
