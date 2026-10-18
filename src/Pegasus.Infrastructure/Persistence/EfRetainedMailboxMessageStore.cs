@@ -1135,7 +1135,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                     classification)
                 {
                     DismissedAtUtc = row.DismissedAtUtc,
-                    IsTriageCase = isTriageCase
+                    IsTriageCase = isTriageCase,
+                    ClassificationVersion = receipt?.Classification?.Version
                 };
             })
             .ToArray();

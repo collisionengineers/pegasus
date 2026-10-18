@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
@@ -987,20 +988,8 @@ public sealed class MessageModel(
         {
             return NotFound();
         }
-        if (!TryCategory(out var category))
-        {
-            ModelState.AddModelError(nameof(ClassificationKey), "Choose a valid classification.");
-        }
-        CaseType? workType = null;
-        if (category == MailCategory.NewInstruction
-            && !MailClassificationSelection.TryParseWorkType(WorkType, out workType))
-        {
-            ModelState.AddModelError(nameof(WorkType), "Choose a valid case type.");
-        }
-        if (string.IsNullOrWhiteSpace(CorrectionReason))
-        {
-            ModelState.AddModelError(nameof(CorrectionReason), "Explain why this classification is being corrected.");
-        }
+        RefuseInvalidCorrection(
+            ModelState, ClassificationKey, WorkType, CorrectionReason, out var category, out var workType);
         if (!ModelState.IsValid)
         {
             return await ReloadAsync(actor, id, cancellationToken);
@@ -2110,8 +2099,35 @@ public sealed class MessageModel(
             || dossier?.Current.Is(category) == true;
     }
 
-    private bool TryCategory(out MailCategory? category) =>
-        MailClassificationSelection.TryParse(ClassificationKey, out category);
+    /// <summary>
+    /// What a classification correction refuses before any message is touched:
+    /// a category the picker does not offer, a New instruction with no case
+    /// type, and no reason. The message record and the list's ticked rows
+    /// refuse with the same words, under the same field names.
+    /// </summary>
+    internal static void RefuseInvalidCorrection(
+        ModelStateDictionary modelState,
+        string? classificationKey,
+        string? workTypeValue,
+        string? correctionReason,
+        out MailCategory? category,
+        out CaseType? workType)
+    {
+        if (!MailClassificationSelection.TryParse(classificationKey, out category))
+        {
+            modelState.AddModelError(nameof(ClassificationKey), OperatorLabels.Inbox.ChooseClassification);
+        }
+        workType = null;
+        if (category == MailCategory.NewInstruction
+            && !MailClassificationSelection.TryParseWorkType(workTypeValue, out workType))
+        {
+            modelState.AddModelError(nameof(WorkType), OperatorLabels.Inbox.ChooseCaseType);
+        }
+        if (string.IsNullOrWhiteSpace(correctionReason))
+        {
+            modelState.AddModelError(nameof(CorrectionReason), OperatorLabels.Inbox.CorrectionReasonRequired);
+        }
+    }
 
     public string ActiveSection => Section switch
     {
