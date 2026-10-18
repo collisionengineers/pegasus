@@ -2855,6 +2855,11 @@ public static class OperatorLabels
         public const string Restore = "Restore";
         public const string DismissedNotice = "Dismissed";
         public const string RestoredNotice = "Restored";
+
+        // A classification correction's refusals, on the message record and for ticked rows alike.
+        public const string ChooseClassification = "Choose a valid classification.";
+        public const string ChooseCaseType = "Choose a valid case type.";
+        public const string CorrectionReasonRequired = "Explain why this classification is being corrected.";
         public const string OpenFile = "Open file";
         public const string OpenFullMessage = "Open full message";
 

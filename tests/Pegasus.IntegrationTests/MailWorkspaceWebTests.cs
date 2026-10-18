@@ -2534,6 +2534,339 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// Ticked rows (operator, 15 October 2026): the row's own Dismiss, and
+    /// Restore from the Dismissed scope, once per ticked message, each with its
+    /// own history entry; an unticked message is untouched.
+    /// </summary>
+    [Fact]
+    public async Task BulkDismissAndRestoreApplyTheSingleCommandToEachTickedMessage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var token = AntiforgeryToken(await GetHtmlAsync(client, "/Inbox"));
+        Guid[] ticked = [ids[0], ids[1]];
+
+        using (var dismiss = await client.PostAsync(
+            "/Inbox?handler=BulkDismiss",
+            BulkForm(token, ticked, ("operationKey", Guid.NewGuid().ToString("N")))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, dismiss.StatusCode);
+            Assert.Equal("/Inbox", dismiss.Headers.Location?.OriginalString);
+        }
+
+        Assert.Equal(OperatorLabels.Inbox.DismissedNotice, Confirmation(await GetHtmlAsync(client, "/Inbox")));
+        Assert.Equal(ticked.Order(), await DismissedMessagesAsync(factory));
+        Assert.Equal(2, await DismissalHistoryCountAsync(factory, "retained_mail_dismissed"));
+
+        using (var restore = await client.PostAsync(
+            "/Inbox?folder=dismissed&handler=BulkRestore",
+            BulkForm(token, ticked, ("operationKey", Guid.NewGuid().ToString("N")))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, restore.StatusCode);
+            Assert.Equal("/Inbox?folder=dismissed", restore.Headers.Location?.OriginalString);
+        }
+
+        Assert.Equal(OperatorLabels.Inbox.RestoredNotice, Confirmation(await GetHtmlAsync(client, "/Inbox?folder=dismissed")));
+        Assert.Empty(await DismissedMessagesAsync(factory));
+        Assert.Equal(2, await DismissalHistoryCountAsync(factory, "retained_mail_restored"));
+    }
+
+    /// <summary>
+    /// The same bulk form posted twice: Dismiss replays each message's keyed
+    /// act, and the correction's second post finds the version it named
+    /// already moved on, so neither writes a second history entry.
+    /// </summary>
+    [Fact]
+    public async Task ABulkPostIsReplayedNotRepeated()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        var messages = new Guid[3];
+        for (var index = 0; index < messages.Length; index++)
+        {
+            await StoreClassificationAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+            messages[index] = await MessageIdAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var token = AntiforgeryToken(await GetHtmlAsync(client, "/Inbox"));
+        var operationKey = Guid.NewGuid().ToString("N");
+
+        for (var post = 0; post < 2; post++)
+        {
+            using var dismiss = await client.PostAsync(
+                "/Inbox?handler=BulkDismiss",
+                BulkForm(token, messages[..2], ("operationKey", operationKey)));
+            Assert.Equal(HttpStatusCode.Redirect, dismiss.StatusCode);
+
+            using var classify = await client.PostAsync(
+                "/Inbox?handler=BulkClassify",
+                BulkForm(
+                    token,
+                    [messages[2]],
+                    ($"versions[{messages[2]:D}]", "1"),
+                    ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                    ("CorrectionReason", "An acknowledgement.")));
+            Assert.Equal(HttpStatusCode.Redirect, classify.StatusCode);
+        }
+
+        Assert.Equal(2, await DismissalHistoryCountAsync(factory, "retained_mail_dismissed"));
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Single(await context.IntakeMailClassificationHistory.ToListAsync());
+        Assert.Equal(
+            new[] { 1, 1, 2 },
+            await context.IntakeMailClassificationDecisions
+                .OrderBy(item => item.Version)
+                .Select(item => item.Version)
+                .ToArrayAsync());
+    }
+
+    /// <summary>
+    /// One category, case type and reason for every ticked message; each
+    /// message is corrected on its own against the version its row named, with
+    /// its own history entry carrying the shared reason (R140).
+    /// </summary>
+    [Fact]
+    public async Task BulkClassifyCorrectsEachTickedMessageWithItsOwnHistoryAndReason()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        var messages = new Guid[3];
+        var receipts = new Guid[3];
+        for (var index = 0; index < messages.Length; index++)
+        {
+            await StoreClassificationAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+            messages[index] = await MessageIdAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+            receipts[index] = await ReceiptIdAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var token = AntiforgeryToken(await GetHtmlAsync(client, "/Inbox"));
+        const string reason = "Instructions read from the retained messages.";
+
+        using (var response = await client.PostAsync(
+            "/Inbox?handler=BulkClassify",
+            BulkForm(
+                token,
+                messages[..2],
+                ($"versions[{messages[0]:D}]", "1"),
+                ($"versions[{messages[1]:D}]", "1"),
+                ("ClassificationKey", MailCategories.Code(MailCategory.NewInstruction)),
+                ("WorkType", nameof(CaseType.Inspection)),
+                ("CorrectionReason", reason))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal("/Inbox", response.Headers.Location?.OriginalString);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        foreach (var receiptId in receipts[..2])
+        {
+            var decision = await context.IntakeMailClassificationDecisions.SingleAsync(item => item.IntakeReceiptId == receiptId);
+            Assert.Equal(2, decision.Version);
+            Assert.Equal(MailCategories.Code(MailCategory.NewInstruction), decision.Category);
+            Assert.Equal(CaseTypeCodes.ToCode(CaseType.Inspection), decision.CaseType);
+            var entry = await context.IntakeMailClassificationHistory.SingleAsync(item => item.IntakeReceiptId == receiptId);
+            Assert.Equal(reason, entry.Reason);
+        }
+        Assert.Equal(
+            1,
+            await context.IntakeMailClassificationDecisions
+                .Where(item => item.IntakeReceiptId == receipts[2])
+                .Select(item => item.Version)
+                .SingleAsync());
+        Assert.Equal(2, await context.IntakeMailClassificationHistory.CountAsync());
+    }
+
+    /// <summary>
+    /// A ticked message a colleague corrected after the list was drawn, and
+    /// one with no classification decision, are refused on their own; the
+    /// messages after them are still corrected.
+    /// </summary>
+    [Fact]
+    public async Task BulkClassifyRefusesAStaleMessageAndStillCorrectsTheOthers()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 4);
+        var messages = new Guid[4];
+        var receipts = new Guid[3];
+        for (var index = 0; index < messages.Length; index++)
+        {
+            messages[index] = await MessageIdAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+        }
+        for (var index = 0; index < receipts.Length; index++)
+        {
+            await StoreClassificationAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+            receipts[index] = await ReceiptIdAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+        }
+        await using (var colleague = factory.Services.CreateAsyncScope())
+        {
+            await colleague.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                new(messages[0], 1, MailCategory.Billing, "A colleague's correction."));
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var token = AntiforgeryToken(await GetHtmlAsync(client, "/Inbox"));
+
+        using (var response = await client.PostAsync(
+            "/Inbox?handler=BulkClassify",
+            BulkForm(
+                token,
+                messages,
+                ($"versions[{messages[0]:D}]", "1"),
+                ($"versions[{messages[1]:D}]", "1"),
+                ($"versions[{messages[2]:D}]", "1"),
+                ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                ("CorrectionReason", "Acknowledgements."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal("/Inbox", response.Headers.Location?.OriginalString);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var stale = await context.IntakeMailClassificationDecisions.SingleAsync(item => item.IntakeReceiptId == receipts[0]);
+        Assert.Equal(2, stale.Version);
+        Assert.Equal(MailCategories.Code(MailCategory.Billing), stale.Category);
+        Assert.Equal(
+            "A colleague's correction.",
+            (await context.IntakeMailClassificationHistory.SingleAsync(item => item.IntakeReceiptId == receipts[0])).Reason);
+        foreach (var receiptId in receipts[1..])
+        {
+            var decision = await context.IntakeMailClassificationDecisions.SingleAsync(item => item.IntakeReceiptId == receiptId);
+            Assert.Equal(2, decision.Version);
+            Assert.Equal(MailCategories.Code(MailCategory.General), decision.Category);
+        }
+        Assert.Equal(3, await context.IntakeMailClassificationDecisions.CountAsync());
+        Assert.Equal(3, await context.IntakeMailClassificationHistory.CountAsync());
+    }
+
+    /// <summary>
+    /// Every bulk post stops before a write on an invalid list context, outside
+    /// the scope its row act belongs to, for an actor without casework, and,
+    /// for the correction, on a refused category, case type or reason.
+    /// </summary>
+    [Fact]
+    public async Task BulkPostsFailClosedOnAnInvalidListContextAndWithoutCaseworkRight()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        var messages = new Guid[2];
+        for (var index = 0; index < messages.Length; index++)
+        {
+            await StoreClassificationAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+            messages[index] = await MessageIdAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var token = AntiforgeryToken(await GetHtmlAsync(client, "/Inbox"));
+        (string Name, string Value)[] correction =
+        [
+            ($"versions[{messages[0]:D}]", "1"),
+            ($"versions[{messages[1]:D}]", "1"),
+            ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+            ("CorrectionReason", "Reviewed retained evidence."),
+            ("operationKey", Guid.NewGuid().ToString("N"))
+        ];
+
+        foreach (var route in new[]
+        {
+            "/Inbox?queue=not-a-category&handler=BulkDismiss",
+            "/Inbox?sort=newest&handler=BulkClassify",
+            "/Inbox?folder=elsewhere&handler=BulkRestore",
+            "/Inbox?folder=dismissed&handler=BulkDismiss",
+            "/Inbox?folder=dismissed&handler=BulkClassify",
+            "/Inbox?handler=BulkRestore",
+            "/Inbox?folder=sent&handler=BulkDismiss",
+            "/Inbox?folder=deleted&handler=BulkClassify"
+        })
+        {
+            using var response = await client.PostAsync(route, BulkForm(token, messages, correction));
+            Assert.True(HttpStatusCode.NotFound == response.StatusCode, $"{route} answered {response.StatusCode}.");
+        }
+
+        foreach (var route in new[]
+        {
+            "/Inbox?handler=BulkDismiss",
+            "/Inbox?folder=dismissed&handler=BulkRestore",
+            "/Inbox?handler=BulkClassify"
+        })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, route)
+            {
+                Content = BulkForm(token, messages, correction)
+            };
+            request.Headers.Add("X-Test-Roleless", "1");
+            using var roleless = await client.SendAsync(request);
+            Assert.True(HttpStatusCode.Forbidden == roleless.StatusCode, $"{route} answered {roleless.StatusCode}.");
+        }
+
+        // The correction's refusals come once, before any message is touched.
+        foreach (var refused in new (string Name, string Value)[][]
+        {
+            [($"versions[{messages[0]:D}]", "1"), ("ClassificationKey", "received:General:autoreply"), ("CorrectionReason", "Reviewed.")],
+            [($"versions[{messages[0]:D}]", "1"), ("ClassificationKey", MailCategories.Code(MailCategory.NewInstruction)), ("CorrectionReason", "Reviewed.")],
+            [($"versions[{messages[0]:D}]", "1"), ("ClassificationKey", MailCategories.Code(MailCategory.General)), ("CorrectionReason", " ")]
+        })
+        {
+            using var response = await client.PostAsync("/Inbox?handler=BulkClassify", BulkForm(token, messages, refused));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        Assert.Empty(await DismissedMessagesAsync(factory));
+        Assert.Equal(0, await DismissalHistoryCountAsync(factory, "retained_mail_dismissed"));
+        Assert.Equal(0, await DismissalHistoryCountAsync(factory, "retained_mail_restored"));
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.All(await context.IntakeMailClassificationDecisions.ToListAsync(), item => Assert.Equal(1, item.Version));
+        Assert.Empty(await context.IntakeMailClassificationHistory.ToListAsync());
+    }
+
+    private static FormUrlEncodedContent BulkForm(
+        string token,
+        IEnumerable<Guid> ticked,
+        params (string Name, string Value)[] fields)
+    {
+        var form = new List<KeyValuePair<string, string>> { new("__RequestVerificationToken", token) };
+        form.AddRange(ticked.Select(id => new KeyValuePair<string, string>("ids", id.ToString("D"))));
+        form.AddRange(fields.Select(field => new KeyValuePair<string, string>(field.Name, field.Value)));
+        return new FormUrlEncodedContent(form);
+    }
+
+    /// <summary>The shell's one-time confirmation notice, or null when the page carries none.</summary>
+    private static string? Confirmation(string html)
+    {
+        var match = Regex.Match(html, "data-confirmation>[\\s\\S]*?<span>(?<text>[^<]*)</span>");
+        return match.Success ? WebUtility.HtmlDecode(match.Groups["text"].Value) : null;
+    }
+
+    private static async Task<Guid[]> DismissedMessagesAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return (await context.RetainedMailboxMessages
+            .Where(item => item.DismissedAtUtc != null)
+            .Select(item => item.Id)
+            .ToArrayAsync())
+            .Order()
+            .ToArray();
+    }
+
+    private static async Task<int> DismissalHistoryCountAsync(IntakeWebApplicationFactory factory, string eventKind)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.ActionHistory
+            .CountAsync(item => item.AggregateType == "retained_mail" && item.EventKind == eventKind);
+    }
+
+    /// <summary>
     /// The message record carries Dismiss (Restore once dismissed), and its
     /// Attachments tab states an outcome per attachment in operator words with
     /// nothing linking to a receipt.

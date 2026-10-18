@@ -83,6 +83,12 @@ public sealed record RetainedMailSummary(
     public DateTimeOffset? DismissedAtUtc { get; init; }
 
     /// <summary>
+    /// The version of the message's classification decision, the one a
+    /// correction from the list must name; null while it has no decision.
+    /// </summary>
+    public int? ClassificationVersion { get; init; }
+
+    /// <summary>
     /// True when <see cref="CaseId"/> is a Triage Case by its own type, whether
     /// the message opened it or staff linked the message to it. Then
     /// <see cref="CaseReference"/> is its <c>t.</c> reference and the workspace

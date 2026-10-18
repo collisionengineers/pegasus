@@ -320,6 +320,7 @@ public sealed class RetainedMailPersistenceTests
             Assert.Equal(detail.Summary.EffectiveSenderAddress, summary.EffectiveSenderAddress);
             Assert.Equal(detail.Summary.CaseReference, summary.CaseReference);
             Assert.Equal(detail.Summary.ProcessingOutcome, summary.ProcessingOutcome);
+            Assert.Equal(detail.Summary.ClassificationVersion, summary.ClassificationVersion);
         }
         foreach (var preview in new[] { withRow, withoutRow })
         {
@@ -1480,9 +1481,12 @@ public sealed class RetainedMailPersistenceTests
         Guid retainedId;
         await using (var scope = database.CreateAsyncScope())
         {
-            retainedId = Assert.Single((await scope.ServiceProvider
+            var listed = Assert.Single((await scope.ServiceProvider
                 .GetRequiredService<IRetainedMailQueries>()
-                .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items).Id;
+                .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+            // The list row carries the version a correction from the list names.
+            Assert.Equal(1, listed.ClassificationVersion);
+            retainedId = listed.Id;
             await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
                 new(retainedId, 1, MailCategory.General, "An acknowledgement."));
@@ -1512,6 +1516,7 @@ public sealed class RetainedMailPersistenceTests
             .GetRequiredService<IRetainedMailQueries>()
             .GetAsync(retainedId, CancellationToken.None));
         Assert.Equal(2, detail.Classification!.Version);
+        Assert.Equal(2, detail.Summary.ClassificationVersion);
         Assert.Equal(MailCategory.General, detail.Classification.Current.Category);
         Assert.Single(detail.Classification.History);
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeMailClassificationHistory"));

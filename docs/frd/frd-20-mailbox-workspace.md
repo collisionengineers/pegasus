@@ -6,8 +6,10 @@
 
 - The Inbox shows retained mail from every approved mailbox, newest first,
   from each mailbox's retention start. Nothing older is shown or rebuilt.
-- Looking at a message never changes anything. Only the opened message
-  record offers classification and Case linking, one message at a time.
+- Looking at a message never changes anything. The opened message record
+  offers classification and Case linking. Ticked rows can be classified,
+  dismissed or restored together, each message on its own; there is no bulk
+  Case linking.
 - The list says when it was last refreshed and goes stale after 15 minutes.
   It never refreshes under an operator's hands.
 - Dismiss hides a message in Pegasus only. Outlook is untouched. Restore
@@ -141,9 +143,13 @@ view" state and a way back to the list.
 
 ### Classification and linking actions
 
-Classification and Case linking are offered only from the
-opened message record, never from a row or the quick preview. There is no
-bulk action: each decision applies to one exact message.
+Case linking is offered only from the opened message record, never from a
+row or the quick preview, and each link applies to one exact message; there
+is no bulk Case linking. Classification is offered from the opened message
+record and, for ticked rows in the incoming scopes, from the list, with one
+category and one reason for every ticked message. Each ticked message is
+corrected on its own, with its own history entry (operator, 15 and 16
+October 2026).
 
 The correction picker offers every mail category and Unclassified, and a
 correction to New instruction asks for the work type. Once a classification
@@ -195,9 +201,11 @@ stays in this mailbox workspace.
 
 A row or the message record offers **Dismiss**. It records the message as
 dismissed and takes it out of every other scope. **Restore**
-from the Dismissed scope brings it back. Both are always allowed, to staff
-and to the Automation Actor (`pegasus_mail_action`). An open
-Unidentified item stays open, and the message keeps its evidence,
+from the Dismissed scope brings it back. Ticked rows can be dismissed
+together in the incoming scopes and restored together in the Dismissed
+scope, each message on its own (operator, 15 and 16 October 2026). Both are
+always allowed, to staff and to the Automation Actor (`pegasus_mail_action`).
+An open Unidentified item stays open, and the message keeps its evidence,
 associations and history. Dismiss is Pegasus data only: the Outlook item
 does not move and no Graph call is made
 ([ADR-0052](../adr/0052-dismiss-by-logical-folder.md),
@@ -231,7 +239,9 @@ workspace only shows them.
 - A refreshed message that left the scope stays readable with a way back.
 - A thread identity seen in another mailbox is never followed.
 - A count or list whose query has not run shows nothing, never `0`.
-- No bulk classification, linking or dismiss exists.
+- No bulk Case linking exists. A bulk classification, Dismiss or Restore
+  applies to each ticked message on its own, so one that fails leaves the
+  others applied.
 
 ## Acceptance evidence
 
@@ -241,6 +251,10 @@ workspace only shows them.
 - Tests that a preview and an opened record change no classification,
   association, read state or custody.
 - Dismiss and Restore tests showing no Graph call.
+- Bulk classification, Dismiss and Restore tests showing one history entry
+  per ticked message, a repeated post writing none, a stale message leaving
+  the others corrected, and every bulk post refused before a write outside
+  its scope or without casework.
 - A persistence test that a retried Dismiss replays without a second history
   entry and that concurrent acts do not deadlock, and a grant test that Web
   holds UPDATE and not DELETE on the retained message table.
