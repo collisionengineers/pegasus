@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using DocumentFormat.OpenXml;
@@ -296,6 +297,31 @@ public sealed class StructuredIntakeSourceReaderTests
         Assert.All(
             result.Content.Where(fragment => fragment.Source == IntakeEvidenceSource.EmailBody),
             body => Assert.DoesNotContain("CLM-9003", body.Text, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AnAttachmentAssetIsOnlyTheDecodedBytes()
+    {
+        var photograph = Enumerable.Range(0, 700_000)
+            .Select(index => (byte)((index * 31) ^ (index >> 8)))
+            .ToArray();
+        var email = IntakeTestEvidence.CreateEmail(
+            "photograph-attachment.eml",
+            "The photograph is attached.\r\n",
+            attachments: [("photograph.jpg", "image/jpeg", photograph)]);
+
+        var result = await ReadAsync(email);
+
+        var descriptor = Assert.Single(result.AttachmentRecords);
+        var asset = Assert.Single(result.AssetCandidates, candidate => candidate.FileName == "photograph.jpg");
+        Assert.True(asset.Content.Span.SequenceEqual(photograph));
+
+        // The asset is a view of the buffer the attachment was decoded into. That
+        // buffer was sized from the encoded attachment, so it is no longer than
+        // that: a stream left to grow would double past it.
+        Assert.True(MemoryMarshal.TryGetArray(asset.Content, out var segment));
+        Assert.Equal(photograph.Length, segment.Count);
+        Assert.True(segment.Array!.Length <= descriptor.ContentLength);
     }
 
     [Fact]
