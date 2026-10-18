@@ -67,6 +67,7 @@
   "Pegasus.IntegrationTests.CaseReportWordingWebTests": 37.59,
   "Pegasus.IntegrationTests.CasesIndexWebTests": 119.06,
   "Pegasus.IntegrationTests.CaseTaskArchivePersistenceTests": 217.69,
+  "Pegasus.IntegrationTests.CaseTaskCreationMigrationTests": 36.0,
   "Pegasus.IntegrationTests.CaseTasksWebTests": 53.75,
   "Pegasus.IntegrationTests.CaseValuationSectionWebTests": 325.93,
   "Pegasus.IntegrationTests.CaseValuationWebTests": 44.27,

@@ -3170,7 +3170,8 @@ public sealed class CaseWorkflowPersistenceTests
 
     /// <summary>
     /// Each task's creation event, in the Case's workflow and in the action history, names
-    /// the staff member who sent the report, not whoever recorded the link.
+    /// the staff member who sent the report, not whoever recorded the link; the task row
+    /// stores the same sender and the history's instant.
     /// </summary>
     private static async Task AssertCreatedInTheSendersNameAsync(
         WorkflowHarness harness,
@@ -3196,6 +3197,18 @@ public sealed class CaseWorkflowPersistenceTests
         {
             Assert.Equal(nameof(ActorKind.Staff), item.ActorKind);
             Assert.Equal(sender.SubjectId, item.ActorSubjectId);
+        });
+        var taskGuids = tasks.Select(task => task.Id).ToArray();
+        var stored = await context.CaseTasks.AsNoTracking()
+            .Where(item => taskGuids.Contains(item.Id))
+            .ToListAsync();
+        Assert.Equal(tasks.Count, stored.Count);
+        Assert.All(stored, item =>
+        {
+            Assert.Equal(Guid.Parse(sender.SubjectId), item.CreatedByStaffId);
+            Assert.Equal(
+                history.Single(entry => entry.AggregateId == item.Id.ToString("D")).OccurredAtUtc,
+                item.CreatedAtUtc);
         });
     }
 
@@ -3608,7 +3621,7 @@ public sealed class CaseWorkflowPersistenceTests
             CaseTaskState state)
         {
             await database.ExecuteAsync(
-                $"INSERT INTO CaseTasks (Id, CaseId, Description, State, Version, ConcurrencyToken) VALUES ('{taskId:D}', '{caseId:D}', 'Retained replacement work', '{state}', 0, '{Guid.NewGuid():D}')");
+                $"INSERT INTO CaseTasks (Id, CaseId, Description, State, Version, ConcurrencyToken, CreatedAtUtc) VALUES ('{taskId:D}', '{caseId:D}', 'Retained replacement work', '{state}', 0, '{Guid.NewGuid():D}', '{StartUtc:O}')");
         }
 
         public Task<long> CountCasesAsync() =>

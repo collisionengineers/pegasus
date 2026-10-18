@@ -814,7 +814,7 @@ public sealed class CaseTaskArchivePersistenceTests
         }
 
         public Task SeedOpenTaskAsync(Guid taskId) => database.ExecuteAsync(
-            $"INSERT INTO CaseTasks (Id, CaseId, Description, State, Version, ConcurrencyToken) VALUES ('{taskId:D}', '{TaskCaseId:D}', 'Retained open task', 'Open', 0, '{Guid.NewGuid():D}')");
+            $"INSERT INTO CaseTasks (Id, CaseId, Description, State, Version, ConcurrencyToken, CreatedAtUtc) VALUES ('{taskId:D}', '{TaskCaseId:D}', 'Retained open task', 'Open', 0, '{Guid.NewGuid():D}', '2031-05-06T10:30:00+00:00')");
 
         public Task<long> CountAsync(string table) => database.ScalarAsync<long>(
             table == "CaseTasks"
