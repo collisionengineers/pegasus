@@ -1888,6 +1888,38 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         Assert.Equal(2, (await harness.CaseHistoryEventsAsync("case_report_artifact_downloaded")).Count);
     }
 
+    /// <summary>
+    /// The supersede of the prior generation is written before the new one.
+    /// A freeze that fails when the new generation is saved rolls the
+    /// supersede back with its transaction, so the prior generation is still
+    /// the work's current one.
+    /// </summary>
+    [Fact]
+    public async Task AFreezeThatFailsAtSaveLeavesThePriorGenerationCurrent()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var first = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        // New material without a stale marking: the second freeze supersedes.
+        harness.AcceptEngineerValue(5_250m);
+        var failing = harness.StoreUsing(new PooledDbContextFactory<PegasusDbContext>(
+            new DbContextOptionsBuilder<PegasusDbContext>()
+                .UseSqlServer(harness.ConnectionString)
+                .AddInterceptors(new GenerationSaveFailureInterceptor())
+                .Options));
+
+        var thrown = await Assert.ThrowsAsync<DbUpdateException>(() => failing.FreezeAsync(
+            new(harness.StaffActor, harness.CaseId, 1, harness.Lease.Token, harness.Key("case-report-2"),
+                CaseReportArtifactKind.AssessmentReport, "Generate the report",
+                AssessmentReportContract.TemplateVersion, "fake"), CancellationToken.None));
+
+        Assert.IsType<InvalidOperationException>(thrown.InnerException);
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(first.Generation!.Id, generation.Id);
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        Assert.Null(generation.SupersededById);
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         internal static readonly DateTimeOffset StartUtc = new(2026, 9, 6, 23, 30, 0, TimeSpan.Zero);
@@ -3211,6 +3243,28 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    /// <summary>
+    /// Fails the SaveChanges command that writes a generation. Reads, the
+    /// set-based supersede and every other command go through.
+    /// </summary>
+    private sealed class GenerationSaveFailureInterceptor : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.CommandSource == CommandSource.SaveChanges
+                && command.CommandText.Contains("[CaseReportGenerations]", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Simulated database failure at save.");
+            }
+
             return ValueTask.FromResult(result);
         }
     }

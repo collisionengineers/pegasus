@@ -1200,18 +1200,19 @@ public sealed class EfCaseReportGenerationStore(
         Convert.ToHexStringLower(SHA256.HashData(
             Encoding.UTF8.GetBytes(JsonSerializer.Serialize(snapshot, SnapshotJsonOptions))));
 
+    // Writes the database only: a generation of this work already tracked by the context would keep its
+    // old values (EfRepairSpecificationStore.MakeCurrentAsync shows the .Local sync should a caller track one).
     private static async Task SupersedeCurrentAsync(
         PegasusDbContext context, Guid workId, Guid supersededById, CancellationToken cancellationToken)
     {
-        var current = await context.Set<CaseReportGenerationEntity>()
+        await context.Set<CaseReportGenerationEntity>()
             .Where(item => item.WorkId == workId && item.SupersededById == null)
-            .ToArrayAsync(cancellationToken)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(item => item.SupersededById, supersededById)
+                    .SetProperty(item => item.State, nameof(CaseReportGenerationState.Stale)),
+                cancellationToken)
             .ConfigureAwait(false);
-        foreach (var generation in current)
-        {
-            generation.SupersededById = supersededById;
-            generation.State = nameof(CaseReportGenerationState.Stale);
-        }
     }
 
     private static async Task<(CaseReportGenerationEntity Generation, GeneratedCaseArtifactEntity Artifact)>
