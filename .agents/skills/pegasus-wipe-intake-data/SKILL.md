@@ -76,10 +76,11 @@ zero, so the next allocation is `QDOSyy001`.
   Azure SQL; no Graph or Box API call exists in it.
 
 Inbox poll rows survive, but their cursor/lease is cleared and their existing
-`StartBoundaryUtc` advances to the wipe cutoff. Missing poll rows are seeded
-at that cutoff. Original mailbox activation times remain unchanged. Preserving
-an old cursor alone is insufficient: Graph can expire it and enumerate old
-messages whose occurrence identities the wipe removed.
+`StartBoundaryUtc` advances to the wipe cutoff. Sent poll rows keep their
+cursor and their `StartBoundaryUtc` advances to the cutoff. Missing poll rows
+are seeded at that cutoff. Original mailbox activation times remain unchanged.
+Preserving an old cursor alone is insufficient: Graph can expire it and
+enumerate old messages whose occurrence identities the wipe removed.
 
 ## Procedure
 
