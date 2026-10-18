@@ -98,6 +98,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0075](0075-staff-take-over-of-an-automation-lease.md) | Staff may take over an Automation lease | accepted | — | CASE-27, MCP-01 |
 | [ADR-0076](0076-reviewed-register-is-the-contact-directory-data-contract.md) | The reviewed register is the Contacts directory data contract | accepted | — | DATA-02, ACC-05 |
 | [ADR-0077](0077-compress-json-responses.md) | Compress JSON responses over HTTPS | accepted | — | — |
+| [ADR-0078](0078-intermediaries-are-linked-claim-sources.md) | Intermediaries are linked Claim Sources | accepted | — | INT-04 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
