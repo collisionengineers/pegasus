@@ -603,12 +603,14 @@ internal static partial class InstructionFieldEngine
     private static bool IsLineScanned(IntakeContentFragment fragment) =>
         fragment.Locator?.Kind is not (IntakeLocatorKind.TableCell or IntakeLocatorKind.FormField);
 
-    // The real correspondence writes typographic apostrophes (\u2019); labels
-    // and lookaheads reason in ASCII, so the line text is normalized once per
-    // fragment here.
-    private static string[] FragmentLines(string text) => text
+    // The real correspondence writes typographic apostrophes (\u2019); labels,
+    // lookaheads and document signatures reason in ASCII, so apostrophes are
+    // folded to the straight form here.
+    internal static string FoldApostrophes(string text) => text
         .Replace('\u2019', '\'')
-        .Replace('\u2018', '\'')
+        .Replace('\u2018', '\'');
+
+    private static string[] FragmentLines(string text) => FoldApostrophes(text)
         .Replace("\r\n", "\n", StringComparison.Ordinal)
         .Replace('\r', '\n')
         .Split('\n', StringSplitOptions.TrimEntries);

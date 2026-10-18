@@ -36,6 +36,19 @@ public sealed class KbsInstructionExtractionPolicyTests
         Assert.Null(draft.InspectionDate);
         Assert.Null(draft.VatStatus);
     }
+
+    [Fact]
+    public void TheVehicleRowIsReadWhenItPrintsALeftSingleQuotationMark()
+    {
+        var result = Extract(
+            "Our Ref: AA.123456\n\nDear Sirs,\n\nOur Client: Mr Test Person\n"
+            + "Our Client\u2018s Vehicle: Toyota\nRegistration: AB12 CDE\n"
+            + "Date of Accident: 02/05/2026\n\nKNIGHTSBRIDGE SOLICITORS\n");
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("Toyota", draft.VehicleMake);
+    }
+
     private static InstructionExtractionResult Extract(string text) => new KbsInstructionExtractionPolicy().Extract(
         new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "KBS instruction", text, IntakeSourceLocator.ForPage(1))], [], [], RequiresOcr: false),
         new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero), new("KBS", KbsInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
