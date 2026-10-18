@@ -504,6 +504,13 @@ public sealed class Top15InstructionCorpusTests
         ,new("SWAN", $"{CorpusRoot}/SWAN 03.docx", "81ebf171fe46979ef9fa3effbe61e16789b4b6f5e8f7044bdc445d87c4206111", new("Miss Anna Jammeh", "01200- Anna.Jammeh", "KY70RLZ", new(2026, 3, 18)), [new("Incident date", "01/04/2026", "Date: the letter's own date.")])
         ,new("SWAN", $"{CorpusRoot}/SWAN 04.docx", "4929e82195367e24c89fa5491c2f91688c7b2c74d49fde67f3555688a2dc4e48", new("Mr Souhail Elhamdanhy", "01186- Souhail.Elhamdanhy", "LX20HUH", new(2026, 3, 10)), [new("Incident date", "13/03/2026", "Date: the letter's own date.")])
         ,new("SWAN", $"{CorpusRoot}/SWAN 05.docx", "8723a19be7759b81dec2ddc905c74ff42464f4a740ca925a2a5ab770396cc7d2", new("Mr Washim Saddik Mirza", "01169- Washim.Mirza", "GX64VEM", new(2026, 2, 27)), [new("Incident date", "06/03/2026", "Date: the letter's own date.")])
+        // TEN prints the labelled block at the head of the message body, with
+        // the inspection contact and the signer below it.
+        ,new("TEN", $"{CorpusRoot}/TEN 01.msg", "aaf2aad0843e9af2dea3071c51d0dba3751001d38b9f9626de422c4c07b04f96", new("Mr Farkh Jaweed", "AM.8373.VD", "LL61FZF", new(2025, 11, 23)), [new("Claimant name", "Samia Arif", "The sender of the instruction message.")])
+        ,new("TEN", $"{CorpusRoot}/TEN 02.msg", "6bb564894574ce70f207f2b935ed17ce19c5687cd19c24196e33151530cae080", new("Miss Kayleigh Booth", "JM.8385.PI", "PN18VKC", new(2026, 4, 17)), [new("Claimant name", "Samia Arif", "The sender of the instruction message.")])
+        ,new("TEN", $"{CorpusRoot}/TEN 03.msg", "7367847b975ce2df915976c6468f0fe97f1decf00470d014065d6cf2c1e18ec4", new("Mr Mohammad Ilyas", "NV.8391.VD", "MO51NUK", new(2026, 4, 27)), [new("Claimant name", "Samia Arif", "The sender of the instruction message."), new("Claimant name", "Mr Arif", "The inspection contact.")])
+        ,new("TEN", $"{CorpusRoot}/TEN 04.msg", "1379514b350f47312fc3ea405033f4abe87f6babffea4e19c46f23c1e25e4b44", new("Mr Shamshad Ahmed", "NV.8400.VD", "BL15LBO", new(2026, 4, 29)), [new("Claimant name", "Samia Arif", "The sender of the instruction message."), new("Claimant name", "Mr Arif", "The inspection contact.")])
+        ,new("TEN", $"{CorpusRoot}/TEN 05.msg", "1cf3dd85a35c30250eece4a684b204f3a8285bee1e2a3fa6b39feda4620ad3dc", new("Mrs Grace Maliti", "NV.8405.VD", "MW12RXF", new(2026, 4, 30)), [new("Claimant name", "Nizam Vaid", "The sender of the instruction message."), new("Claimant name", "Mr Arif", "The inspection contact.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -604,7 +611,8 @@ public sealed class Top15InstructionCorpusTests
             new YmlInstructionExtractionPolicy(),
             new AlsInstructionExtractionPolicy(),
             new BcInstructionExtractionPolicy(),
-            new SwanInstructionExtractionPolicy()
+            new SwanInstructionExtractionPolicy(),
+            new TenInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
@@ -613,7 +621,7 @@ public sealed class Top15InstructionCorpusTests
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var selector = new InstructionExtractionPolicySelector(Policies());
         var representatives = Expectations.GroupBy(sample => sample.Profile).Select(group => group.First()).ToArray();
-        Assert.Equal(17, representatives.Length);
+        Assert.Equal(18, representatives.Length);
         foreach (var sample in representatives)
         {
             var bytes = await File.ReadAllBytesAsync(Path.Combine(PackRoot(), sample.PackRelativePath));
@@ -711,7 +719,7 @@ public sealed class Top15InstructionCorpusTests
         var failures = new List<string>();
         var counts = new Dictionary<(string Profile, string Field, string Disposition), int>();
 
-        Assert.Equal(91, Expectations.Length);
+        Assert.Equal(96, Expectations.Length);
 
         foreach (var expectation in Expectations)
         {
