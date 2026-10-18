@@ -37,7 +37,7 @@
                 <input type="hidden" name="sessionId" value="@glassSession.Id" />
                 <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
                 <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--small">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
                     <span>@GlassLabels.FetchAgain</span>
                 </button>
             </form>
@@ -54,7 +54,7 @@
                 <input type="hidden" name="estimate" value="@specificationId.ToString("D")" />
             }
             <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--small">
-                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-external-link")" /></svg>
                 <span>@GlassLabels.Launch</span>
             </button>
         </form>

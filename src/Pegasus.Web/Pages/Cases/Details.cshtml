@@ -38,7 +38,7 @@
        h1 in the state where the case itself cannot be drawn. *@
     <h1>Case unavailable</h1>
     <div class="notice notice--danger mb-2" role="alert">
-        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
         <span>The case could not be loaded; reload the page to try again.</span>
     </div>
     return;
@@ -86,7 +86,7 @@
                     <a class="section-link" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
                        asp-route-section="@entry.Key" asp-route-view="@Model.ViewRoute" asp-fragment="section-@entry.Key" data-section-link="@entry.Key"
                        aria-current="@(Model.SectionLinkKey == entry.Key ? "true" : "false")">
-                        <svg class="icon" aria-hidden="true"><use href="#@entry.Icon" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(entry.Icon)" /></svg>
                         <span>@entry.Label</span>
                     </a>
                 }

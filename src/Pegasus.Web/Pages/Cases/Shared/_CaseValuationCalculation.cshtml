@@ -145,7 +145,7 @@
                             ReadVatRow(vatApplied, recorded);
                         }
                         <div class="add on" data-valuation-applied-addition="true">
-                            <span class="add-check"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
+                            <span class="add-check"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
                             <span>@row.Label</span>
                             <span class="amt">@(row.Amount is { } amount ? Money(amount) : "—")</span>
                         </div>
@@ -224,7 +224,7 @@
     private void ReadVatRow(bool vatApplied, AppliedValuation? recorded)
     {
         <div class="add add--vat @(vatApplied ? "on" : "is-static")" data-valuation-applied-addition="@(vatApplied ? "true" : "false")">
-            <span class="add-check">@if (vatApplied) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
+            <span class="add-check">@if (vatApplied) {<svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
             <span>@ValuationLabels.AddVat</span>
             <span class="amt" data-valuation-amount="vat">@(vatApplied ? ValuationLabels.VatAmount(recorded!.Calculation) : "—")</span>
         </div>

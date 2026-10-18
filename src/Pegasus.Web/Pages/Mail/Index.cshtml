@@ -44,7 +44,7 @@
                         }
                         <button type="submit" class="scope-button" aria-pressed="@(scope.Pressed ? "true" : "false")">
                             <span class="scope-visual-icon">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-@scope.Definition.IconId" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-" + scope.Definition.IconId)" /></svg>
                             </span>
                             <span>@scope.Definition.Label</span>
                             <span class="tabular">@scope.Count</span>
@@ -133,14 +133,14 @@
             @if (Model.SearchValidationMessage is { } validationMessage)
             {
                 <div class="notice notice--warning" role="alert">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                     <span>@validationMessage</span>
                 </div>
             }
             else if (Model.DeletedResults is { State: DeletedMailSearchState.Unavailable })
             {
                 <div class="notice" role="status">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
                     <span>Deleted Items search is unavailable. Retained Inbox mail remains available.</span>
                 </div>
             }
@@ -149,7 +149,7 @@
                 @if (deleted.IsTruncated)
                 {
                     <div class="notice" role="status">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
                         <span>This read-only search checked the 100 newest Deleted Items in the approved scope. Older items were not scanned.</span>
                     </div>
                 }
@@ -332,7 +332,7 @@
                                 <a class="icon-button" href="@replyUrl" data-mail-row-reply
                                    title="@OperatorLabels.StaffMail.Reply"
                                    aria-label="@OperatorLabels.StaffMail.Reply @Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-reply")" /></svg>
                                 </a>
                             }
                             @if (offersDismiss)
@@ -351,7 +351,7 @@
                                 <button type="submit" class="icon-button" data-busy-label="@(Model.Dismissed ? OperatorLabels.Busy.Restoring : OperatorLabels.Busy.Dismissing)"
                                         title="@(Model.Dismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss)"
                                         aria-label="@(Model.Dismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss) @Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">
-                                    <svg class="icon" aria-hidden="true"><use href="@(Model.Dismissed ? "#icon-undo" : "#icon-x")" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(Model.Dismissed ? "icon-undo" : "icon-x")" /></svg>
                                 </button>
                             </form>
                             }
@@ -469,7 +469,7 @@
                                asp-route-queue="@Model.QueueFilter"
                                asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-external-link")" /></svg>
                                 <span>@OperatorLabels.Inbox.OpenFullMessage</span>
                             </a>
                             @{
@@ -478,13 +478,13 @@
                             <a class="btn" data-mail-preview-reply
                                href="@(previewReply ? Url.Page("/Mail/Message", new { id = summary.Id, mailbox = Model.MailboxFilter, folder = Model.FolderRouteValue, search = Model.SearchTerm, queue = Model.QueueFilter, sort = Model.OldestFirst ? "oldest" : null, pageNumber = Model.Results.Page > 1 ? Model.Results.Page : (int?)null, compose = "reply" }) : null)"
                                hidden="@(previewReply ? null : "hidden")">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-reply")" /></svg>
                                 <span>@OperatorLabels.StaffMail.Reply</span>
                             </a>
                             @if (summary.CaseId is { } linkedCaseId)
                             {
                                 <a class="btn" data-mail-preview-case asp-page="/Cases/Details" asp-route-id="@linkedCaseId">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-folder")" /></svg>
                                     <span>@(summary.IsTriageCase ? OperatorLabels.Inbox.OpenTriage : OperatorLabels.Inbox.OpenCase)</span>
                                 </a>
                             }

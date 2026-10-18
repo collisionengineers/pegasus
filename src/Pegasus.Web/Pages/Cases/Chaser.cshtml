@@ -17,14 +17,14 @@
                 <h1 id="mail-compose-title">@CaseWorkspaceLabels.Frame.SendChaser</h1>
             </div>
             <a class="dialog-close" asp-page="/Cases/Details" asp-route-id="@Model.Id" aria-label="Close composer">
-                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
             </a>
         </header>
         <div class="dialog-body mail-compose-body">
             @if (TempData["SendNotice"] is string sendNotice)
             {
                 <div class="notice notice--success" role="status">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
                     <span>@sendNotice</span>
                 </div>
             }
@@ -117,7 +117,7 @@
                     {
                         <footer class="mail-compose-footer">
                             <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
                                 <span>Send</span>
                             </button>
                         </footer>

@@ -27,7 +27,7 @@
             <span class="muted grow">@EstimateLabels.HeldFromAnotherCase</span>
             <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@elsewhere.Session.CaseId" asp-route-section="estimate">
                 <span>@GlassLabels.OpenOn @elsewhere.CaseReference</span>
-                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
             </a>
         </div>
     }
@@ -42,7 +42,7 @@
             }
             @if (glassSession.State == GlassRepairEstimateSessionState.AwaitingImport)
             {
-                <span class="gated"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>@EstimateLabels.AvailableWhileEditing</span></span>
+                <span class="gated"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-lock")" /></svg><span>@EstimateLabels.AvailableWhileEditing</span></span>
             }
             @if (Model.CanCloseGlass)
             {
@@ -50,7 +50,7 @@
                    that Glass's is closed, one consequence, red Close. Never
                    offered mid-import (Recording). *@
                 <details class="glass-close" data-glass-close>
-                    <summary><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>@GlassLabels.Close</summary>
+                    <summary><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>@GlassLabels.Close</summary>
                     <form method="post" asp-page="/Cases/Details" asp-page-handler="CloseGlass"
                           asp-route-id="@caseId" asp-route-section="estimate" class="glass-close-form" data-glass-close-form>
                         <input type="hidden" name="sessionId" value="@glassSession.Id" />

@@ -365,6 +365,10 @@ builder.Services.AddRazorPages()
                 }
             });
     });
+// Every page draws its glyphs from the one sprite file; IconSprite owns its
+// fingerprinted address and reads the request it is rendered in.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Pegasus.Web.Presentation.IconSprite>();
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>
     {

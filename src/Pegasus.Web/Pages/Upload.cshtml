@@ -50,14 +50,14 @@
             else if (Model.DestinationUnavailable)
             {
                 <div class="up-alert" role="status" data-upload-declared-unavailable>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
                     <div><strong>@Labels.DestinationUnavailable</strong></div>
                 </div>
             }
             @if (errors.Length > 0)
             {
                 <div class="up-alert up-alert--error" role="alert" tabindex="-1">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
                     <div>
                         <strong>@Labels.CheckFiles</strong>
                         @foreach (var message in errors)
@@ -68,20 +68,20 @@
                 </div>
             }
             <div class="up-alert up-alert--error" role="alert" tabindex="-1" hidden data-select-errors>
-                <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
                 <div>
                     <strong data-select-error-title>@Labels.CheckFiles</strong>
                     <div data-select-error-list></div>
                 </div>
             </div>
             <div class="up-drop" data-drop>
-                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-upload")" /></svg>
                 <h2 data-drop-heading>@Labels.DropHeading</h2>
                 <p>@Labels.AcceptedKinds<br />@Labels.AcceptedExtensions</p>
                 <input asp-for="Upload" type="file" multiple class="up-file-input"
                        accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,.mp4,.mov,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png,video/mp4,video/quicktime" />
                 <label class="btn btn--primary" asp-for="Upload" data-select-choose>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                     <span>@Labels.Choose</span>
                 </label>
             </div>
@@ -98,7 +98,7 @@
                     <button type="reset" class="btn">@Labels.Clear</button>
                     <button type="submit" class="btn btn--primary" data-select-submit data-busy-label="@OperatorLabels.Busy.Uploading">
                         <span data-select-submit-label>@Labels.UploadFiles(1)</span>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
                     </button>
                 </div>
             </div>

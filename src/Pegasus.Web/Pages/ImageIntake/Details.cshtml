@@ -27,7 +27,7 @@
         <a class="btn" asp-page="/Cases/Index"
            asp-route-tab="@(awaiting ? "unassigned" : null)"
            asp-route-selected="@(awaiting ? Model.Detail.Record.Id : null)">
-            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
             <span>Back to Cases</span>
         </a>
         <partial name="Shared/_RefreshButton" />
@@ -54,7 +54,7 @@
         @if (Model.OpenFileHref is { } fileHref)
         {
             <a class="btn" href="@fileHref" target="_blank" rel="noopener" data-image-action="open-file">
-                <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Open file</span>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg><span>Open file</span>
             </a>
         }
         else if (Model.SourceAsset is { } unavailableSource)
@@ -66,13 +66,13 @@
         @if (Model.SourceMessageId is { } messageId)
         {
             <a class="btn" href="/Inbox/@messageId.ToString("D")" data-image-action="open-message">
-                <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg><span>Open message</span>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail")" /></svg><span>Open message</span>
             </a>
         }
         @if (Model.Triage is { } triage)
         {
             <a class="btn" asp-page="/Cases/Details" asp-route-id="@triage.CaseId">
-                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg><span>Open Triage</span>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg><span>Open Triage</span>
             </a>
         }
         @if (awaiting)
@@ -80,7 +80,7 @@
             @* The Cases list's Unassigned Images attach owns choosing the
                Case and the reasoned association; this record enters it. *@
             <a class="btn btn--dark" href="@Model.AddToCaseHref" data-image-action="add-to-case">
-                <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg><span>Add to an existing case</span>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg><span>Add to an existing case</span>
             </a>
         }
         <span class="image-record-bar-end">

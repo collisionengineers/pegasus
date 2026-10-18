@@ -31,25 +31,25 @@
         <div class="case-viewer-tools" data-viewer-tools>
             <span class="case-viewer-set" data-viewer-view-tools>
                 <button type="button" class="btn btn--small" data-viewer-rotate>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
                     <span>@ViewerLabels.Rotate</span>
                 </button>
                 <button type="button" class="btn btn--small" data-viewer-zoom>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-zoom-in" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-zoom-in")" /></svg>
                     <span data-viewer-zoom-label>@ViewerLabels.Zoom</span>
                 </button>
                 <button type="button" class="btn btn--small" data-viewer-crop hidden>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-crop" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-crop")" /></svg>
                     <span>@ReportImageLabels.Crop</span>
                 </button>
                 <a class="btn btn--small" data-viewer-download download>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
                     <span data-viewer-download-label>@ViewerLabels.Download</span>
                 </a>
                 @if (!Model.Standalone)
                 {
                     <a class="btn btn--small" href="@CaseFileAddresses.ImagesWindow(Model.CaseId)" target="_blank" rel="noopener" data-viewer-popout data-images-popout hidden>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-external-link")" /></svg>
                         <span>@ViewerLabels.PopOut</span>
                     </a>
                 }
@@ -68,37 +68,37 @@
                     <option value="1.7777778">16:9</option>
                 </select>
                 <button type="button" class="btn btn--small" data-viewer-crop-rotate="-90">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-ccw" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-ccw")" /></svg>
                     <span>@ReportImageLabels.RotateLeft</span>
                 </button>
                 <button type="button" class="btn btn--small" data-viewer-crop-rotate="90">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-rotate-cw")" /></svg>
                     <span>@ReportImageLabels.RotateRight</span>
                 </button>
                 <button type="button" class="btn btn--small" data-viewer-crop-full>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-image")" /></svg>
                     <span>@ReportImageLabels.FullFrame</span>
                 </button>
                 <button type="button" class="btn btn--small" data-viewer-crop-reset>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-history")" /></svg>
                     <span>@ReportImageLabels.Reset</span>
                 </button>
                 <button type="button" class="btn btn--small btn--primary" data-viewer-crop-save>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
                     <span>@ViewerLabels.SaveCrop</span>
                 </button>
                 <button type="button" class="btn btn--small" data-viewer-crop-cancel>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                     <span>@ViewerLabels.Cancel</span>
                 </button>
             </span>
         </div>
         <button type="button" class="icon-button" data-viewer-close aria-label="@ViewerLabels.Close">
-            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
         </button>
     </div>
     <button type="button" class="case-viewer-nav prev" data-viewer-prev aria-label="@ViewerLabels.Previous">
-        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
     </button>
     <div class="case-viewer-stage" data-viewer-stage>
         <img alt="" data-viewer-image hidden />
@@ -106,7 +106,7 @@
         <video controls preload="metadata" data-viewer-video hidden></video>
     </div>
     <button type="button" class="case-viewer-nav next" data-viewer-next aria-label="@ViewerLabels.Next">
-        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-right")" /></svg>
     </button>
     <div class="case-viewer-strip" data-viewer-strip></div>
 </div>

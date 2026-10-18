@@ -42,7 +42,7 @@
               data-message-dismissal="@(Model.IsDismissed ? "restore" : "dismiss")">
             <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
             <button class="btn" type="submit" data-busy-label="@(Model.IsDismissed ? OperatorLabels.Busy.Restoring : OperatorLabels.Busy.Dismissing)">
-                <svg class="icon" aria-hidden="true"><use href="@(Model.IsDismissed ? "#icon-undo" : "#icon-x")" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(Model.IsDismissed ? "icon-undo" : "icon-x")" /></svg>
                 <span>@(Model.IsDismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss)</span>
             </button>
         </form>
@@ -55,7 +55,7 @@
            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
            asp-route-pageNumber="@Model.PageRouteValue"
            asp-route-selected="@summary.Id">
-            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
             <span>Back to Inbox</span>
         </a>
     </div>
@@ -64,7 +64,7 @@
 @if (Model.OutsideListScope)
 {
     <div class="notice notice--warning" role="status">
-        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
         <span>
             This message is no longer in the view you opened it from. It is still here,
             in @summary.MailboxAddress.
@@ -105,7 +105,7 @@
                 @if (Model.QueryResponseJob is { IsReady: true, Job: var readyJob } && Model.StaffMailAvailable && Model.CurrentCase is { } draftCase)
                 {
                     <a class="btn btn--dark" href="@Pegasus.Core.Notifications.StaffNotificationPolicy.MessageReplyRoute(summary.Id, draftCase.Summary.Reference, readyJob.JobId)" data-query-ai-draft="@readyJob.JobId">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                         <span>@OperatorLabels.QueryResponseJobs.ReplyWithDraft</span>
                     </a>
                 }
@@ -127,7 +127,7 @@
                         <input type="hidden" name="operationKey"
                                value="@($"query-response:{Pegasus.Web.Pages.StaffPageModel.NewOperationKey()}")" />
                         <button class="btn btn--dark" type="submit" data-busy-label="@OperatorLabels.Busy.Drafting">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                             <span>@OperatorLabels.QueryResponseJobs.Create</span>
                         </button>
                     </form>
@@ -136,7 +136,7 @@
                 {
                     <span class="gated" data-condition="@Model.QueryResponseCondition">
                         <button class="btn btn--dark" type="button" disabled aria-disabled="true">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                             <span>@OperatorLabels.QueryResponseJobs.Create</span>
                         </button>
                     </span>
@@ -155,19 +155,19 @@
                 @if (offer == Pegasus.Web.Pages.Mail.MessageOffer.CreateCase)
                 {
                     <a class="btn btn--dark" asp-page="/Cases/Create" asp-route-receiptId="@Model.AssociationReceipt!.Id">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Create case</span>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>Create case</span>
                     </a>
                 }
                 else if (offer == Pegasus.Web.Pages.Mail.MessageOffer.OpenTriage)
                 {
                     <button class="btn btn--dark" type="button" data-dialog-open="messageTriageDialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-clipboard-list" /></svg><span>Open the Triage</span>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-clipboard-list")" /></svg><span>Open the Triage</span>
                     </button>
                 }
                 else
                 {
                     <button class="btn btn--dark" type="button" data-dialog-open="messageRegisterImagesDialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-image")" /></svg><span>Register images</span>
                     </button>
                 }
             </span>
@@ -217,28 +217,28 @@
         @if (Model.ClassificationNotice is { } classificationNotice)
         {
             <div class="notice notice--success" role="status">
-                <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
                 <span>@classificationNotice</span>
             </div>
         }
         @if (Model.AssociationNotice is { } associationNotice)
         {
             <div class="notice notice--success" role="status">
-                <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
                 <span>@associationNotice</span>
             </div>
         }
         @if (Model.QueryResponseNotice is { } queryResponseNotice)
         {
             <div class="notice notice--success" role="status">
-                <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
                 <span>@queryResponseNotice</span>
             </div>
         }
         @if (Model.CorrespondenceNotice is { } correspondenceNotice)
         {
             <div class="notice notice--success" role="status">
-                <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
                 <span>@correspondenceNotice</span>
             </div>
         }
@@ -261,7 +261,7 @@
             {
                 @* The send has gone but left its AI draft job as it was (FRD-27). *@
                 <div class="notice notice--warning section-gap" role="status" data-ai-job-not-completed>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                     <span>@aiJobNotice</span>
                 </div>
             }
@@ -340,7 +340,7 @@
                             @* Opened on an AI draft (FRD-27): Message holds the draft and
                                the send completes the job. Staff edit it before sending. *@
                             <div class="notice" role="status" data-ai-draft="@aiDraft.JobId">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                                 <span><span class="src-tag src-tag--ai">AI</span> @OperatorLabels.QueryResponseJobs.DraftLine(aiDraft.DraftReadyAtUtc ?? aiDraft.CreatedAtUtc, aiDraft.TakenBy)</span>
                             </div>
                         }
@@ -379,7 +379,7 @@
                         }
                         <div class="button-row">
                             <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Sending">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
                                 <span>Send</span>
                             </button>
                         </div>
@@ -443,7 +443,7 @@
                                         <strong>
                                             <time datetime="@decidedDossier.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(decidedDossier.CurrentDecidedAtUtc)</time>
                                             <span class="provenance" data-word="@actorWord" tabindex="0" role="img" aria-label="@actorWord">
-                                                <svg class="icon" aria-hidden="true"><use href="@(actorWord == "Automatic" ? "#icon-info" : "#icon-user")" /></svg>
+                                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(actorWord == "Automatic" ? "icon-info" : "icon-user")" /></svg>
                                             </span>
                                         </strong>
                                     </div>
@@ -610,7 +610,7 @@
                             </div>
                             <div class="button-row section-gap">
                                 <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@currentDestination.CaseId">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-folder")" /></svg>
                                     <span>@(currentDestination.IsTriageCase ? OperatorLabels.Inbox.OpenTriage : OperatorLabels.Inbox.OpenCase)</span>
                                 </a>
                                 @if (Model.AssociationLeaseCaseId == currentDestination.CaseId
@@ -722,7 +722,7 @@
                                 </div>
                                 <div class="button-row section-gap">
                                     <a class="btn" asp-page="/Cases/Details" asp-route-id="@openedTriageId">
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-folder")" /></svg>
                                         <span>@OperatorLabels.Inbox.OpenTriage</span>
                                     </a>
                                 </div>
