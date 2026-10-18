@@ -172,6 +172,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
 
     private const string FoundationWorkerGrantSpec = """
         CaseReportGenerations:SELECT,UPDATE
+        ContactPrincipalLinks:SELECT
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
         GeneratedCaseArtifacts:SELECT,UPDATE
         IntakeOcrOperations:SELECT,INSERT,UPDATE
@@ -761,6 +762,32 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
         Assert.Contains("CaseWorkflowEvents:SELECT", granted);
         Assert.Contains("ActionHistory:INSERT", granted);
         Assert.Contains("CaseWorkflows:UPDATE", granted);
+    }
+
+    // 20261018080000_GrantWorkerContactPrincipalLinksRead: the Worker's mail route
+    // evaluation reads which Principal each Claim Source is linked to, to recognise an
+    // intermediary. It reads the links only; Web's link grants are unchanged. The tests
+    // run full-privilege, so only this assertion catches a missing grant.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerContactPrincipalLinkRead()
+    {
+        var database = fixture.Database;
+
+        Assert.Equal(
+            ["ContactPrincipalLinks:SELECT"],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("ContactPrincipalLinks:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Contains("ContactPrincipalLinks", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+        Assert.Equal(
+            ["ContactPrincipalLinks:DELETE", "ContactPrincipalLinks:INSERT", "ContactPrincipalLinks:SELECT"],
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => value.StartsWith("ContactPrincipalLinks:", StringComparison.Ordinal))
+                .ToArray());
+        // What the registry reads beside the links was already granted.
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        Assert.Contains("Organizations:SELECT", granted);
+        Assert.Contains("Principals:SELECT", granted);
     }
 
     [Fact]

@@ -256,7 +256,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261017120000_ReportSendingSopV8",
                 "20261018033213_KeysetPagingAndCustodySweepIndexes",
                 "20261018060000_PersistNormalizedVehicleRegistration",
-                "20261018070000_CaseTaskCreation"
+                "20261018070000_CaseTaskCreation",
+                "20261018080000_GrantWorkerContactPrincipalLinksRead"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
