@@ -467,6 +467,23 @@ public sealed class QdosInstructionExtractionPolicyTests
         Assert.Contains("Vehicle registration", result.MissingFields);
     }
 
+    [Fact]
+    public void AnUnlabelledNorthernIrelandPlateIsNotSuggested()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.DocumentContent,
+                "instruction attachment",
+                "Please inspect the vehicle JIZ4821 at the address below.\nClaim Number: Q-901")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var field = Assert.Single(result.Fields, item => item.Name == "Vehicle registration");
+        Assert.Null(field.SuggestedValue);
+        Assert.Empty(field.Candidates);
+        Assert.Contains("Vehicle registration", result.MissingFields);
+    }
+
     [Theory]
     [InlineData("Registration Number: AB12 CDE")]
     [InlineData("Registration No: AB12 CDE")]
@@ -676,6 +693,25 @@ public sealed class QdosInstructionExtractionPolicyTests
         Assert.Equal(
             "LAND ROVER R ROVER EVOQUE SE LK17 NHT",
             Assert.Single(result.Fields, field => field.Name == "Vehicle description").SuggestedValue);
+    }
+
+    [Theory]
+    [InlineData("PEUGEOT RCZ GT THP 156")]
+    [InlineData("AUDI RS6")]
+    public void ATrailingDatelessShapedDescriptionWordIsNotARegistration(string description)
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    $"Our Client's Vehicle: {description}")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(description, Field(result, "Vehicle description").SuggestedValue);
+        Assert.Null(Field(result, "Vehicle registration").SuggestedValue);
+        Assert.Null(Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
     }
 
     [Fact]
@@ -1172,6 +1208,66 @@ public sealed class QdosInstructionExtractionPolicyTests
         Assert.Null(draft.VehicleMake);
         Assert.Null(draft.VehicleModel);
         Assert.Equal("SH61WDY", draft.VehicleRegistration);
+    }
+
+    [Theory]
+    [InlineData("JIZ4821")]
+    [InlineData("1234AB")]
+    [InlineData("BIG444")]
+    public void ASubjectVehiclePlateOfAnyUkShapeIsTheRegistration(string plate)
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                $"(EREF1) RTA on 01/01/2026 : Mr Example (Our Ref: ABC/12345/1, Vehicle: {plate})",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached instruction.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(plate, Field(result, "Vehicle registration").SuggestedValue);
+        Assert.Equal(
+            plate,
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
+    }
+
+    [Fact]
+    public void ASubjectVehicleMakeAndModelStaysADescriptionOnly()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                "(EREF1) RTA on 01/01/2026 : Mr Example (Our Ref: ABC/12345/1, Vehicle: FORD FOCUS TITANIUM)",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached instruction.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal("FORD FOCUS TITANIUM", Field(result, "Vehicle description").SuggestedValue);
+        Assert.Null(Field(result, "Vehicle registration").SuggestedValue);
+        Assert.Null(Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
+    }
+
+    [Theory]
+    [InlineData("JIZ4821")]
+    [InlineData("JIZ 4821")]
+    public void TheSubjectRegistrationLabelAcceptsANorthernIrelandPlate(string plate)
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                $"Engineer Triage - Our Claim Reference 12345/1 , Vehicle Registration {plate}",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached images.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "JIZ4821",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
     }
 
     [Fact]

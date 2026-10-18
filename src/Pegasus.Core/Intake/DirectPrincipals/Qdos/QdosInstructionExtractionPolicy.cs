@@ -916,7 +916,10 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// Fills an empty registration field from a combined vehicle description
     /// that ENDS in a valid registration ("PEUGEOT RCZ GT THP 156 LK17 NHT"),
     /// carrying the description candidate's own provenance so the acceptance
-    /// write still names a real source.
+    /// write still names a real source. A description of exactly one token is
+    /// the plate itself, so any UK registration shape reads as one; beside
+    /// other words only a current, prefix or suffix shape does, because a
+    /// dateless-shaped ending is a model ("RS6", "THP 156").
     ///
     /// Make and model are deliberately NOT derived here any more. Splitting a
     /// description on token position and a short list of two-word makes is a
@@ -944,15 +947,17 @@ public sealed partial class QdosInstructionExtractionPolicy
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
 
+        Func<string, bool> isRegistration = tokens.Count == 1
+            ? InstructionFieldEngine.IsUkRegistration
+            : InstructionFieldEngine.IsDatedUkRegistration;
         string? registration = null;
         if (tokens.Count >= 2
-            && InstructionFieldEngine.IsUkRegistration(
-                string.Concat(tokens[^2], tokens[^1])))
+            && isRegistration(string.Concat(tokens[^2], tokens[^1])))
         {
             registration = $"{tokens[^2]} {tokens[^1]}";
         }
         else if (tokens.Count >= 1
-            && InstructionFieldEngine.IsUkRegistration(tokens[^1]))
+            && isRegistration(tokens[^1]))
         {
             registration = tokens[^1];
         }
