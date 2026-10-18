@@ -70,6 +70,14 @@ public interface IRepairSpecificationSnapshotStore
     Task<RepairSpecificationSnapshot> FreezeAsync(FreezeRepairSpecificationRequest request, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<RepairSpecificationSnapshot>> ListAsync(Guid caseId, Guid specificationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The listed specifications' frozen versions in one read, by
+    /// specification then number: what <see cref="ListAsync"/> returns for
+    /// each, for the specifications that belong to the Case.
+    /// </summary>
+    Task<IReadOnlyList<RepairSpecificationSnapshot>> ListForSpecificationsAsync(
+        Guid caseId, IReadOnlyCollection<Guid> specificationIds, CancellationToken cancellationToken);
 }
 
 /// <summary>The floors scaling never goes below (v28 P34): a labour rate per hour and a share of each price.</summary>

@@ -1670,6 +1670,61 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
+    public async Task CompareOffersTheFrozenVersionsOfEveryEstimate()
+    {
+        var caseId = Guid.NewGuid();
+        var draft = DraftSpecification(caseId);
+        var currentBase = DraftSpecification(caseId);
+        var current = currentBase with
+        {
+            SpecificationId = Guid.NewGuid(),
+            Version = 2,
+            Details = currentBase.Details with { Name = "Engineer current" },
+            IsCurrent = true,
+        };
+        RepairSpecificationSnapshot Frozen(RepairSpecificationVersion specification, int number) => new(
+            Guid.NewGuid(), caseId, specification.SpecificationId, number, RepairSpecificationSnapshotKind.Imported,
+            "Frozen", "engineer-1", SeededAmendedAtUtc, specification.Details, specification.Lines,
+            EstimateTotals.Compute(specification).Printed.Gross, false);
+        // The selected estimate holds two frozen versions and the other one.
+        var seeded = new[] { Frozen(draft, 1), Frozen(draft, 2), Frozen(current, 1) };
+        var store = new RecordingStores(caseId) { WorkingEstimate = draft, OtherEstimate = current };
+        store.Snapshots.AddRange(seeded);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}&dialog=compare-estimates");
+
+        var start = html.IndexOf("data-dialog=\"compare-estimates-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.True(end > start);
+        var dialog = html[start..end];
+        var expected = seeded
+            .Select(version => DetailsModel.ComparisonKey(version.SpecificationId, version.Id))
+            .Append(DetailsModel.ComparisonKey(draft.SpecificationId, null))
+            .Append(DetailsModel.ComparisonKey(current.SpecificationId, null))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        foreach (var side in new[] { "from", "to" })
+        {
+            var select = Regex.Match(
+                dialog, $"<select [^>]*name=\"{side}\"[^>]*>(?<options>.*?)</select>", RegexOptions.Singleline);
+            Assert.True(select.Success);
+            var offered = Regex.Matches(select.Groups["options"].Value, "<option value=\"(?<key>[^\"]+)\"")
+                .Select(match => WebUtility.HtmlDecode(match.Groups["key"].Value))
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+            Assert.Equal(expected, offered);
+        }
+
+        Assert.Contains(CaseWorkspaceLabels.Estimate.VersionsCount(2), html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DuplicateEstimatePostsToTheNamedEstimateUseCase()
     {
         var caseId = Guid.NewGuid();
@@ -2567,6 +2622,12 @@ public sealed partial class AssessmentEstimateImportWebTests
             Guid ownerCaseId, Guid specificationId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>(
                 Snapshots.Where(item => item.CaseId == ownerCaseId && item.SpecificationId == specificationId).ToArray());
+
+        public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListForSpecificationsAsync(
+            Guid ownerCaseId, IReadOnlyCollection<Guid> specificationIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>(
+                Snapshots.Where(item => item.CaseId == ownerCaseId && specificationIds.Contains(item.SpecificationId))
+                    .OrderBy(item => item.Number).ToArray());
 
         public Task<RepairSpecificationVersion> ScaleAsync(
             ScaleRepairSpecificationRequest request, CancellationToken cancellationToken) =>

@@ -1306,13 +1306,14 @@ public sealed partial class DetailsModel(
         EvaluateEngineerSectionConditions(sendingToAi is not null && await sendingToAi);
         ApplyGlassSession(await glass);
 
-        // What the first reads decided: every spec's frozen versions (v38 P2:
-        // Compare and Supplementary read them), and the delivery reads a
-        // stored report needs, the viewed work's too.
+        // What the first reads decided: every spec's frozen versions in one
+        // read (v38 P2: Compare and Supplementary read them), and the
+        // delivery reads a stored report needs, the viewed work's too.
         var generated = CurrentReportGeneration is not null;
-        var snapshotReads = Estimates.ToDictionary(
-            item => item.SpecificationId,
-            item => reads.Start(token => specificationSnapshots.ListAsync(id, item.SpecificationId, token)));
+        var specificationIds = Estimates.Select(item => item.SpecificationId).ToArray();
+        var snapshotRead = specificationIds.Length > 0
+            ? reads.Start(token => specificationSnapshots.ListForSpecificationsAsync(id, specificationIds, token))
+            : null;
         var suggestions = generated
             ? reads.Start(token => reportRecipientSuggestions.GetAsync(id, work, token))
             : null;
@@ -1327,15 +1328,14 @@ public sealed partial class DetailsModel(
             : null;
         await reads.WhenAllAsync();
 
-        var snapshotsBySpecification = new Dictionary<Guid, IReadOnlyList<RepairSpecificationSnapshot>>();
-        foreach (var (specificationId, read) in snapshotReads)
-        {
-            snapshotsBySpecification[specificationId] = await read;
-        }
-        EstimateSnapshots = snapshotsBySpecification;
+        IReadOnlyList<RepairSpecificationSnapshot> frozen = snapshotRead is null ? [] : await snapshotRead;
+        var frozenBySpecification = frozen.ToLookup(item => item.SpecificationId);
+        EstimateSnapshots = Estimates.ToDictionary(
+            item => item.SpecificationId,
+            item => (IReadOnlyList<RepairSpecificationSnapshot>)frozenBySpecification[item.SpecificationId].ToArray());
         if (SelectedEstimate is not null)
         {
-            SelectedEstimateSnapshots = snapshotsBySpecification.GetValueOrDefault(SelectedEstimate.SpecificationId, []);
+            SelectedEstimateSnapshots = EstimateSnapshots.GetValueOrDefault(SelectedEstimate.SpecificationId, []);
             if (SelectedEstimate.Supplementary is { } supplementary)
             {
                 SupplementaryBase = SelectedEstimateSnapshots.FirstOrDefault(item => item.Id == supplementary.OfSnapshotId);
