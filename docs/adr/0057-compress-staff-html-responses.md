@@ -3,7 +3,7 @@ id: ADR-0057
 status: accepted
 date: 2026-09-28
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0077]
 related_capabilities: []
 related_frd: [frd-12]
 tags: [performance, web, security]

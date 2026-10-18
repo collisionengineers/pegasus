@@ -77,7 +77,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0054](0054-release-notes-authored-in-the-application.md) | Release notes are authored in the application by an Administrator | accepted | — | — |
 | [ADR-0055](0055-github-issues-as-the-problem-report-sink.md) | GitHub issues as the problem-report sink | accepted | — | — |
 | [ADR-0056](0056-one-case-per-work-data-and-triage-case-type.md) | One Case with per-work data; Triage as a Case type | accepted | — | CASE-04, CASE-07, CASE-08, TRI-01, TRI-08 |
-| [ADR-0057](0057-compress-staff-html-responses.md) | Compress staff HTML responses over HTTPS | accepted | — | — |
+| [ADR-0057](0057-compress-staff-html-responses.md) | Compress staff HTML responses over HTTPS | accepted | ADR-0077 (JSON responses) | — |
 | [ADR-0058](0058-glass-provider-work-in-the-web-host.md) | Glass's provider work runs in the background of the Web host | accepted | — | EXT-06 |
 | [ADR-0059](0059-native-mcp-file-content-and-consolidated-tool-inventory.md) | Native MCP file content and a consolidated tool inventory | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0060](0060-glass-valuation-account-and-valuation-report.md) | Glass's valuation through a Key Vault-held account, with its report filed on the Case | accepted | — | EXT-07, EXT-13 |
@@ -97,6 +97,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0074](0074-read-committed-default-transaction-isolation.md) | Read committed is the default transaction isolation | accepted | — | — |
 | [ADR-0075](0075-staff-take-over-of-an-automation-lease.md) | Staff may take over an Automation lease | accepted | — | CASE-27, MCP-01 |
 | [ADR-0076](0076-reviewed-register-is-the-contact-directory-data-contract.md) | The reviewed register is the Contacts directory data contract | accepted | — | DATA-02, ACC-05 |
+| [ADR-0077](0077-compress-json-responses.md) | Compress JSON responses over HTTPS | accepted | — | — |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
