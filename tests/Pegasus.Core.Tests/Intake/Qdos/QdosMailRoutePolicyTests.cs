@@ -6,6 +6,7 @@ public sealed class PrincipalMailRoutePolicyTests
 {
     [Theory]
     [InlineData("ALS", "kalan@autologistic.co.uk")]
+    [InlineData("AMS", "info@amssolicitors.co.uk")]
     [InlineData("AX", "instructions@ax-uk.com")]
     [InlineData("BC", "N.Ellahi@bakercoleman.co.uk")]
     [InlineData("BLACK", "instructions@blackstone-legal.co.uk")]

@@ -511,6 +511,13 @@ public sealed class Top15InstructionCorpusTests
         ,new("TEN", $"{CorpusRoot}/TEN 03.msg", "7367847b975ce2df915976c6468f0fe97f1decf00470d014065d6cf2c1e18ec4", new("Mr Mohammad Ilyas", "NV.8391.VD", "MO51NUK", new(2026, 4, 27)), [new("Claimant name", "Samia Arif", "The sender of the instruction message."), new("Claimant name", "Mr Arif", "The inspection contact.")])
         ,new("TEN", $"{CorpusRoot}/TEN 04.msg", "1379514b350f47312fc3ea405033f4abe87f6babffea4e19c46f23c1e25e4b44", new("Mr Shamshad Ahmed", "NV.8400.VD", "BL15LBO", new(2026, 4, 29)), [new("Claimant name", "Samia Arif", "The sender of the instruction message."), new("Claimant name", "Mr Arif", "The inspection contact.")])
         ,new("TEN", $"{CorpusRoot}/TEN 05.msg", "1cf3dd85a35c30250eece4a684b204f3a8285bee1e2a3fa6b39feda4620ad3dc", new("Mrs Grace Maliti", "NV.8405.VD", "MW12RXF", new(2026, 4, 30)), [new("Claimant name", "Nizam Vaid", "The sender of the instruction message."), new("Claimant name", "Mr Arif", "The inspection contact.")])
+        // AMS dates the letter in words above the salutation and prints the
+        // labelled block below it; the fee earner signs above the firm's name.
+        ,new("AMS", $"{CorpusRoot}/AMS 01.DOC", "30ba3639d8b2804010f077e125f287c0ffe9e763aee1224b44f5596a2cd447f6", new("Mr Bilal Ali", "100085.002/RSY/SQ", "AV59DXR", new(2026, 4, 29)), [new("Incident date", "29th April 2026", "Date: the letter's own date."), new("Claimant name", "Raja Yousaf", "The fee earner who signs the letter.")])
+        ,new("AMS", $"{CorpusRoot}/AMS 02.DOC", "d17d499ae88bc9185b3a8b6a29966ff090568860f41be08d27e1d445af0ee1e1", new("Mr Intikhab Alam", "100627.001/AU/SWA", "ME17DWM", new(2026, 4, 24)), [new("Incident date", "27th April 2026", "Date: the letter's own date."), new("Claimant name", "Adam Urquhart", "The fee earner who signs the letter.")])
+        ,new("AMS", $"{CorpusRoot}/AMS 03.DOC", "2f8f667454834c8e296c77e21af27f5eb5ed0978ddd398771dd95090f0434d62", new("Mr Ahmed Mansour A Daleel", "100623.001/AU/SWA", "MX16SYJ", new(2026, 4, 23)), [new("Incident date", "27th April 2026", "Date: the letter's own date."), new("Claimant name", "Adam Urquhart", "The fee earner who signs the letter.")])
+        ,new("AMS", $"{CorpusRoot}/AMS 04.DOC", "6876f5bf0884c0ae7dc036acf11336091309568aae2ef75166a152a098472d10", new("Mr Ahmed Younis Bashir", "100621.001/RSY/SWA", "MX67RFN", new(2026, 4, 18)), [new("Incident date", "24th April 2026", "Date: the letter's own date."), new("Claimant name", "Raja Yousaf", "The fee earner who signs the letter.")])
+        ,new("AMS", $"{CorpusRoot}/AMS 05.DOC", "2766088b7daffbf1e179222df7bbe85634c0eff014a3785b190eac8245b40102", new("Mr Tekleab Angosom Araya", "100615.001/RSY/SWA", "BT69BRF", new(2026, 4, 21)), [new("Incident date", "23rd April 2026", "Date: the letter's own date."), new("Claimant name", "Raja Yousaf", "The fee earner who signs the letter.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -612,7 +619,8 @@ public sealed class Top15InstructionCorpusTests
             new AlsInstructionExtractionPolicy(),
             new BcInstructionExtractionPolicy(),
             new SwanInstructionExtractionPolicy(),
-            new TenInstructionExtractionPolicy()
+            new TenInstructionExtractionPolicy(),
+            new AmsInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
@@ -621,7 +629,7 @@ public sealed class Top15InstructionCorpusTests
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var selector = new InstructionExtractionPolicySelector(Policies());
         var representatives = Expectations.GroupBy(sample => sample.Profile).Select(group => group.First()).ToArray();
-        Assert.Equal(18, representatives.Length);
+        Assert.Equal(19, representatives.Length);
         foreach (var sample in representatives)
         {
             var bytes = await File.ReadAllBytesAsync(Path.Combine(PackRoot(), sample.PackRelativePath));
@@ -719,7 +727,7 @@ public sealed class Top15InstructionCorpusTests
         var failures = new List<string>();
         var counts = new Dictionary<(string Profile, string Field, string Disposition), int>();
 
-        Assert.Equal(96, Expectations.Length);
+        Assert.Equal(101, Expectations.Length);
 
         foreach (var expectation in Expectations)
         {

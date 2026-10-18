@@ -23,6 +23,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
         new Dictionary<string, ImmutableArray<string>>(StringComparer.Ordinal)
         {
             ["ALS"] = ["autologistic.co.uk"],
+            ["AMS"] = ["amssolicitors.co.uk"],
             ["AX"] = ["ax-uk.com"],
             ["BC"] = ["bakercoleman.co.uk"],
             ["BLACK"] = ["blackstone-legal.co.uk"],

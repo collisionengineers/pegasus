@@ -179,9 +179,9 @@ public sealed partial class OrganizationDirectoryWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        Assert.False(Pegasus.Core.Intake.PrincipalMailRoutePolicy.AcceptedIdentities.ContainsKey("AMS"));
+        Assert.False(Pegasus.Core.Intake.PrincipalMailRoutePolicy.AcceptedIdentities.ContainsKey("WALKER"));
         var contactId = await factory.Database.ScalarAsync<Guid>(
-            "SELECT OrganizationId FROM Principals WHERE Code = 'AMS';");
+            "SELECT OrganizationId FROM Principals WHERE Code = 'WALKER';");
         var html = await GetContactSettingsAsync(client, $"/Administration/Contacts/Edit/{contactId:D}");
 
         Assert.Matches(
