@@ -93,7 +93,7 @@ Capture:
 | Principal | Named `Work Provider` in the Case export. |
 | Claimant Name | From the instruction. |
 | Claim Number | The Principal's external reference. |
-| Vehicle Registration | The VRM. |
+| Vehicle Registration | The VRM. Extraction and the vehicle lookup read one set of UK registration shapes. |
 | Source Vehicle Description | Keep the instruction's combined claimant-vehicle description with its source locator, on the Case record and the Received screen. Do not split it into make and model by guesswork, and do not treat a third-party vehicle as the claimant's. The Case Vehicle section shows the looked-up or confirmed make and model instead. |
 | Vehicle Make | From the instruction, or an authorised lookup when absent. |
 | Vehicle Model | From the instruction, or an authorised lookup when absent. |

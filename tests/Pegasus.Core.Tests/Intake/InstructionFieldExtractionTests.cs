@@ -274,6 +274,43 @@ public sealed class InstructionFieldExtractionTests
         Assert.Equal(IntakeMessagePart.CurrentBody, field.Candidates[0].Locator!.MessagePart);
     }
 
+    [Theory]
+    [InlineData("AB12CDE")]
+    [InlineData("A123BCD")]
+    [InlineData("ABC123D")]
+    [InlineData("JIZ4821")]
+    [InlineData("JIZ 4821")]
+    [InlineData("JIZ-4821")]
+    [InlineData("1234AB")]
+    [InlineData("AB1")]
+    [InlineData("BIG444")]
+    public void UkRegistrationAcceptsEveryRecognisedShape(string value) =>
+        Assert.True(InstructionFieldEngine.IsUkRegistration(value));
+
+    [Theory]
+    [InlineData("AB12CDE9")]
+    [InlineData("ABCD123")]
+    [InlineData("N/A")]
+    [InlineData(" ")]
+    [InlineData("")]
+    public void UkRegistrationRejectsMalformedValues(string value) =>
+        Assert.False(InstructionFieldEngine.IsUkRegistration(value));
+
+    [Fact]
+    public void ALabelledNorthernIrelandPlateBeatsAnInvalidCompetingValue()
+    {
+        var fields = Extract(
+            [Registration],
+            new IntakeContentFragment(
+                IntakeEvidenceSource.EmailBody,
+                "message, email body",
+                "Registration: JIZ4821\nRegistration: TBC"));
+
+        var field = Field(fields, "Vehicle registration");
+        Assert.False(field.HasConflict);
+        Assert.Equal("JIZ4821", field.SuggestedValue);
+    }
+
     private static IntakeContentFragment Cell(int table, int row, int column, string text) =>
         new(
             IntakeEvidenceSource.DocumentContent,

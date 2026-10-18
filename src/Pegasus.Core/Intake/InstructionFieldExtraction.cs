@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Intake;
 
@@ -855,18 +856,30 @@ internal static partial class InstructionFieldEngine
         && MakeModelCharsetRegex().IsMatch(value);
 
     /// <summary>
-    /// Whether a value is a plausible UK registration in the current
-    /// (AB12 CDE), prefix (L100 YDR), or suffix (ABC 123L) format once
-    /// spacing and hyphens are removed. Labelled registration fields and the
-    /// vehicle-description split accept all three; the unlabelled sole-VRM
-    /// fallback stays current-format-only, where a false positive is far
-    /// more likely.
+    /// Whether a value is a UK registration of any recognised shape once
+    /// spacing and hyphens are removed: current (AB12 CDE), prefix (L100 YDR),
+    /// suffix (ABC 123L), dateless (1234 AB) or letters then digits, which
+    /// includes Northern Ireland (JIZ 4821). Labelled registration fields
+    /// accept all of them, and so does a vehicle description of one token. The
+    /// unlabelled sole-VRM fallback stays current-format-only, where a false
+    /// positive is far more likely.
     /// </summary>
     internal static bool IsUkRegistration(string value) =>
         !string.IsNullOrWhiteSpace(value)
-        && UkRegistrationRegex().IsMatch(
-            WhitespaceHyphenRegex().Replace(value, string.Empty)
-                .ToUpperInvariant());
+        && UkRegistrationShapes.IsAnyShape(StripRegistrationSeparators(value));
+
+    /// <summary>
+    /// Whether a value is a current, prefix or suffix registration. The ending
+    /// of a longer vehicle description that only has a dateless shape is a
+    /// model ("RS6", "THP 156"), so a description of several tokens is split
+    /// on this narrower check.
+    /// </summary>
+    internal static bool IsDatedUkRegistration(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && UkRegistrationShapes.IsDatedShape(StripRegistrationSeparators(value));
+
+    private static string StripRegistrationSeparators(string value) =>
+        WhitespaceHyphenRegex().Replace(value, string.Empty).ToUpperInvariant();
 
     internal static string? TypedString(string? value, int maximumLength) =>
         !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength ? value : null;
@@ -878,8 +891,7 @@ internal static partial class InstructionFieldEngine
             return null;
         }
 
-        var normalized = WhitespaceHyphenRegex().Replace(value, string.Empty)
-            .ToUpperInvariant();
+        var normalized = StripRegistrationSeparators(value);
         return normalized.Length <= 20 && RegistrationRegex().IsMatch(normalized) ? normalized : null;
     }
 
@@ -957,9 +969,6 @@ internal static partial class InstructionFieldEngine
 
     [GeneratedRegex(@"\b[A-Z]{2}[0-9]{2} ?[A-Z]{3}\b", RegexOptions.CultureInvariant, 100)]
     private static partial Regex UnlabelledRegistrationRegex();
-
-    [GeneratedRegex("^(?:[A-Z]{2}[0-9]{2}[A-Z]{3}|[A-Z][0-9]{1,3}[A-Z]{3}|[A-Z]{3}[0-9]{1,3}[A-Z])$", RegexOptions.CultureInvariant, 100)]
-    private static partial Regex UkRegistrationRegex();
 
     [GeneratedRegex(@"[\s-]", RegexOptions.CultureInvariant, 100)]
     private static partial Regex WhitespaceHyphenRegex();
