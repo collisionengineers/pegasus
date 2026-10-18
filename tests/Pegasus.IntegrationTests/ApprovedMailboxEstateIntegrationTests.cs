@@ -95,6 +95,80 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         Assert.Equal(cutoff, nextClaim.StartBoundaryUtc);
     }
 
+    /// <summary>
+    /// The wipe advances the Sent boundary to its cutoff and keeps the Sent
+    /// cursor. A Sent-capable mailbox with no Sent row is seeded at the cutoff,
+    /// a boundary already later is not lowered, and a later Sent scope rebinding
+    /// does not bring back mail from before the cutoff.
+    /// </summary>
+    [Theory]
+    [InlineData("seeded", false, false, false)]
+    [InlineData("polled", true, false, false)]
+    [InlineData("rebound", true, true, false)]
+    [InlineData("later", true, false, true)]
+    public async Task WipeBoundaryAdvancesSentPollStateAndSurvivesScopeRebind(
+        string row,
+        bool previouslyPolled,
+        bool rebindScope,
+        bool boundaryAfterCutoff)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: services =>
+                services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>());
+        await database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes
+            SET AllowOutgoing = 1, MailboxIdentity = 'instructions',
+                SentFolderIdentity = 'sent-items',
+                ActivatedAtUtc = '2000-01-01T00:00:00+00:00'
+            WHERE Id = '{TestMailboxId.From("instructions"):D}';
+            """);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<ISentEvidencePollStore>();
+        var cutoff = new DateTimeOffset(2031, 9, 7, 10, 0, 0, TimeSpan.Zero);
+        var cursor = $"{row}-cursor";
+        if (previouslyPolled)
+        {
+            var previous = Assert.IsType<ApprovedSentPollLease>(await store.ClaimAsync(
+                cutoff.AddMinutes(-2), TimeSpan.FromMinutes(1), CancellationToken.None));
+            await store.CompleteAsync(
+                previous.MailboxId, previous.LeaseToken, cursor, cutoff.AddMinutes(-1),
+                hasRemainingItems: false, CancellationToken.None);
+        }
+
+        var expectedBoundary = boundaryAfterCutoff ? cutoff.AddDays(1) : cutoff;
+        if (boundaryAfterCutoff)
+        {
+            await database.ExecuteAsync(
+                $"UPDATE ApprovedSentPollStates SET StartBoundaryUtc = '{expectedBoundary:O}';");
+        }
+
+        var sql = await File.ReadAllTextAsync(Path.Combine(
+            CorpusPackage.RepositoryRoot, "scripts", "Reset-IntakeMailBoundary.sql"));
+        await using (var context = await database.CreateContextAsync())
+        {
+            await using var transaction = await context.Database.BeginTransactionAsync();
+            await context.Database.ExecuteSqlRawAsync(sql,
+                new Microsoft.Data.SqlClient.SqlParameter("@CutoffUtc", cutoff));
+            await transaction.CommitAsync();
+        }
+
+        if (rebindScope)
+        {
+            await database.ExecuteAsync(
+                $"""
+                UPDATE ApprovedMailboxes
+                SET SentFolderIdentity = 'rebound-sent', MailboxGeneration = MailboxGeneration + 1
+                WHERE Id = '{TestMailboxId.From("instructions"):D}';
+                """);
+        }
+
+        var claim = Assert.IsType<ApprovedSentPollLease>(await store.ClaimAsync(
+            cutoff, TimeSpan.FromMinutes(1), CancellationToken.None));
+        Assert.Equal(expectedBoundary, claim.StartBoundaryUtc);
+        Assert.Equal(previouslyPolled && !rebindScope ? cursor : null, claim.Cursor);
+    }
+
     [Fact]
     public async Task PollsTwoApprovedMailboxesAndKeepsSeparatePollStates()
     {

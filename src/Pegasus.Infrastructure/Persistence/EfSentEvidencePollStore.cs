@@ -74,7 +74,12 @@ internal sealed class EfSentEvidencePollStore(
                 existing.SentFolderIdentity = sentFolderIdentity;
                 existing.ScopeFingerprint = fingerprint;
                 existing.Generation = mailbox.MailboxGeneration;
-                existing.StartBoundaryUtc = activatedAtUtc;
+                // A maintenance wipe can deliberately exclude mail newer than
+                // onboarding. Rebinding the Sent scope must not resurrect that mail.
+                if (existing.StartBoundaryUtc < activatedAtUtc)
+                {
+                    existing.StartBoundaryUtc = activatedAtUtc;
+                }
                 existing.Cursor = null;
                 existing.DueAtUtc = nowUtc;
                 existing.LeaseToken = null;
