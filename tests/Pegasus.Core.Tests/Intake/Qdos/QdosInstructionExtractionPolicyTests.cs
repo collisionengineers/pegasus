@@ -1251,10 +1251,9 @@ public sealed class QdosInstructionExtractionPolicyTests
             ProcessedAtUtc,
             QdosContext);
 
-        var registration = plate.Replace(" ", string.Empty, StringComparison.Ordinal);
-        Assert.Equal(registration, Field(result, "Vehicle registration").SuggestedValue);
+        Assert.Equal(plate, Field(result, "Vehicle registration").SuggestedValue);
         Assert.Equal(
-            registration,
+            plate.Replace(" ", string.Empty, StringComparison.Ordinal),
             Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
         Assert.Null(Field(result, "Vehicle description").SuggestedValue);
     }
