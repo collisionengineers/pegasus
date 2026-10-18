@@ -382,7 +382,9 @@ public sealed class MailWorkspaceWebTests
         var message = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         var messageCommands = counter.Count;
         var messageDescription = counter.Describe();
-        var classificationDecisionReads = counter.CountMentioning("[IntakeMailClassificationDecisions]");
+        // An intake read is its receipt statement and its Assets statement: the receipt statement alone.
+        var classificationDecisionReads = counter.CountMentioning(
+            "[IntakeMailClassificationDecisions]", without: "[IntakeAssets]");
         Assert.Contains(messageId.ToString("D"), message, StringComparison.Ordinal);
 
         counter.Reset();
@@ -411,7 +413,7 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + previewDescription);
     }
 
-    private const int InboxMessageCommands = 19;
+    private const int InboxMessageCommands = 20;
 
     private const int InboxListCommands = 14;
 

@@ -450,7 +450,7 @@ public sealed class QdosAllocationRecoveryTests
                     scope.ServiceProvider.GetRequiredService<IAcceptIntake>(),
                     cancel: false),
                 scope.ServiceProvider.GetRequiredService<TimeProvider>());
-            result = await allocate.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+            result = await allocate.AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
         }
 
         Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
@@ -484,7 +484,7 @@ public sealed class QdosAllocationRecoveryTests
                     cancel: true),
                 scope.ServiceProvider.GetRequiredService<TimeProvider>());
             await Assert.ThrowsAsync<OperationCanceledException>(() =>
-                allocate.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid()));
+                allocate.AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid()));
 
             var current = await store.GetCurrentAsync(receipt.Id, CancellationToken.None);
             Assert.Equal(IntakeAllocationAttemptStatus.Succeeded, current?.Status);
@@ -548,7 +548,7 @@ public sealed class QdosAllocationRecoveryTests
                 CancellationToken.None);
 
             var result = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(receipt.Id, evaluationId);
+                .AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, evaluationId);
             Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
             Assert.True(result?.IsReplay);
         }
@@ -578,7 +578,7 @@ public sealed class QdosAllocationRecoveryTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             result = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+                .AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
         }
 
         Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
@@ -608,7 +608,7 @@ public sealed class QdosAllocationRecoveryTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var allocated = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(original.Id, Guid.NewGuid());
+                .AttemptAutomaticAsync(scope.ServiceProvider, original.Id, Guid.NewGuid());
             existingCaseId = Assert.IsType<Guid>(allocated?.State.CaseId);
         }
 
@@ -632,7 +632,7 @@ public sealed class QdosAllocationRecoveryTests
             // A recorded unique match is never a new-case invitation, even
             // before its association write has landed (or after that write fails).
             Assert.Null(await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(followOn.Id, Guid.NewGuid()));
+                .AttemptAutomaticAsync(scope.ServiceProvider, followOn.Id, Guid.NewGuid()));
             Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
             Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
             var workStore = scope.ServiceProvider.GetRequiredService<IIntakeWorkStore>();
@@ -667,7 +667,7 @@ public sealed class QdosAllocationRecoveryTests
             Assert.Equal(2, failure.Calls);
             Assert.Equal([existingCaseId, existingCaseId], imageReceipt.CurrentCaseIds);
             Assert.Null(await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(followOn.Id, Guid.NewGuid()));
+                .AttemptAutomaticAsync(scope.ServiceProvider, followOn.Id, Guid.NewGuid()));
 
             async Task DispatchAsync(DateTimeOffset at)
             {
@@ -701,8 +701,8 @@ public sealed class QdosAllocationRecoveryTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var allocate = scope.ServiceProvider.GetRequiredService<IAllocateIntake>();
-            first = await allocate.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
-            suppressed = await allocate.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+            first = await allocate.AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
+            suppressed = await allocate.AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
         }
 
         Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, first?.State.Status);
@@ -736,7 +736,7 @@ public sealed class QdosAllocationRecoveryTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var completedReplay = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+                .AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
             Assert.True(completedReplay?.IsSuppressed);
             Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, completedReplay?.State.Status);
         }
@@ -881,8 +881,8 @@ public sealed class QdosAllocationRecoveryTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var allocate = scope.ServiceProvider.GetRequiredService<IAllocateIntake>();
-            first = await allocate.AttemptAutomaticAsync(receipt.Id, evaluationId);
-            replay = await allocate.AttemptAutomaticAsync(receipt.Id, evaluationId);
+            first = await allocate.AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, evaluationId);
+            replay = await allocate.AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, evaluationId);
         }
 
         Assert.True(replay?.IsReplay);
@@ -898,7 +898,7 @@ public sealed class QdosAllocationRecoveryTests
         {
             await Assert.ThrowsAsync<IntakeAllocationOperationConflictException>(() =>
                 scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                    .AttemptAutomaticAsync(otherReceipt.Id, evaluationId));
+                    .AttemptAutomaticAsync(scope.ServiceProvider, otherReceipt.Id, evaluationId));
         }
 
         var actor = ActionActor.Staff(
@@ -1093,7 +1093,7 @@ public sealed class QdosAllocationRecoveryTests
         {
             var result = await allocationScope.ServiceProvider
                 .GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(original.Id, Guid.NewGuid());
+                .AttemptAutomaticAsync(allocationScope.ServiceProvider, original.Id, Guid.NewGuid());
             existingCaseId = Assert.IsType<Guid>(result?.State.CaseId);
         }
 
@@ -1150,7 +1150,6 @@ public sealed class QdosAllocationRecoveryTests
             clock);
         var allocation = new ObservingAllocateIntake(
             services.GetRequiredService<IAllocateIntake>(),
-            services.GetRequiredService<IIntakeReceiptQueries>(),
             events);
         var imageReceipt = new RecordingImageReceipt();
         var processor = CreateMailAssociationProcessor(
@@ -1240,19 +1239,18 @@ public sealed class QdosAllocationRecoveryTests
 
     private sealed class ObservingAllocateIntake(
         IAllocateIntake inner,
-        IIntakeReceiptQueries receipts,
         List<string> events) : IAllocateIntake
     {
         public Guid? CurrentCaseIdSeen { get; private set; }
 
-        public async Task<IntakeAllocationResult?> AttemptAutomaticAsync(
-            Guid receiptId,
+        public Task<IntakeAllocationResult?> AttemptAutomaticAsync(
+            IntakeReceipt receipt,
             Guid evaluationId,
             CancellationToken cancellationToken = default)
         {
             events.Add("allocation");
-            CurrentCaseIdSeen = (await receipts.GetAsync(receiptId, cancellationToken))?.CurrentCaseId;
-            return await inner.AttemptAutomaticAsync(receiptId, evaluationId, cancellationToken);
+            CurrentCaseIdSeen = receipt.CurrentCaseId;
+            return inner.AttemptAutomaticAsync(receipt, evaluationId, cancellationToken);
         }
 
         public Task<IntakeAllocationResult> AttemptStaffCreateAsync(
@@ -1269,7 +1267,7 @@ public sealed class QdosAllocationRecoveryTests
     private sealed class NoOpAllocateIntake : IAllocateIntake
     {
         public Task<IntakeAllocationResult?> AttemptAutomaticAsync(
-            Guid receiptId,
+            IntakeReceipt receipt,
             Guid evaluationId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IntakeAllocationResult?>(null);
@@ -1364,7 +1362,7 @@ public sealed class QdosAllocationRecoveryTests
         public int AutomaticCalls => automaticCalls;
 
         public Task<IntakeAllocationResult?> AttemptAutomaticAsync(
-            Guid receiptId,
+            IntakeReceipt receipt,
             Guid evaluationId,
             CancellationToken cancellationToken = default)
         {
@@ -1375,7 +1373,7 @@ public sealed class QdosAllocationRecoveryTests
                 throw new TimeoutException("Injected transient allocation-begin failure.");
             }
 
-            return inner.AttemptAutomaticAsync(receiptId, evaluationId, cancellationToken);
+            return inner.AttemptAutomaticAsync(receipt, evaluationId, cancellationToken);
         }
 
         public Task<IntakeAllocationResult> AttemptStaffCreateAsync(
@@ -1405,8 +1403,8 @@ public sealed class QdosAllocationRecoveryTests
             disabledCode);
         await using var scope = factory.Services.CreateAsyncScope();
         var allocate = scope.ServiceProvider.GetRequiredService<IAllocateIntake>();
-        var missingTypeResult = await allocate.AttemptAutomaticAsync(missingType.Id, Guid.NewGuid());
-        var disabledResult = await allocate.AttemptAutomaticAsync(disabled.Id, Guid.NewGuid());
+        var missingTypeResult = await allocate.AttemptAutomaticAsync(scope.ServiceProvider, missingType.Id, Guid.NewGuid());
+        var disabledResult = await allocate.AttemptAutomaticAsync(scope.ServiceProvider, disabled.Id, Guid.NewGuid());
 
         Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, missingTypeResult?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.ManualReview, missingTypeResult?.State.RecoveryDisposition);
@@ -1441,7 +1439,7 @@ public sealed class QdosAllocationRecoveryTests
                     store,
                     new ThrowingAcceptIntake(exception),
                     scope.ServiceProvider.GetRequiredService<TimeProvider>())
-                .AttemptAutomaticAsync(receiptId, Guid.NewGuid());
+                .AttemptAutomaticAsync(scope.ServiceProvider, receiptId, Guid.NewGuid());
         }
 
         var concurrency = await ExecuteAsync(
@@ -1494,7 +1492,7 @@ public sealed class QdosAllocationRecoveryTests
                     services.GetRequiredService<IAcceptIntake>(),
                     services.GetRequiredService<TimeProvider>(),
                     services.GetRequiredService<IStandaloneAuditEvidenceQueries>())
-                .AttemptAutomaticAsync(receiptId, Guid.NewGuid());
+                .AttemptAutomaticAsync(services, receiptId, Guid.NewGuid());
         }
 
         for (var round = 0; round < rounds; round++)
@@ -1555,7 +1553,7 @@ public sealed class QdosAllocationRecoveryTests
             await using (var scope = factory.Services.CreateAsyncScope())
             {
                 failed = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                    .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+                    .AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
             }
             await AllocationTestData.SeedPrincipalAsync(factory.Services, principals[round]);
 
@@ -1669,9 +1667,9 @@ public sealed class IntakeAllocationConsumerTests
         {
             var allocate = scope.ServiceProvider.GetRequiredService<IAllocateIntake>();
             var first = Assert.IsType<IntakeAllocationResult>(
-                await allocate.AttemptAutomaticAsync(formalReceipt.Id, evaluationId));
+                await allocate.AttemptAutomaticAsync(scope.ServiceProvider, formalReceipt.Id, evaluationId));
             Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, first.State.Status);
-            Assert.Null(await allocate.AttemptAutomaticAsync(formalReceipt.Id, evaluationId));
+            Assert.Null(await allocate.AttemptAutomaticAsync(scope.ServiceProvider, formalReceipt.Id, evaluationId));
 
             var receipt = Assert.IsType<IntakeReceipt>(
                 await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
@@ -1706,7 +1704,7 @@ public sealed class IntakeAllocationConsumerTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+                .AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
         }
 
         KeysetPage<IntakeReceiptSummary> page;
@@ -1914,7 +1912,7 @@ public sealed class IntakeAllocationConsumerTests
         {
             var failed = Assert.IsType<IntakeAllocationResult>(
                 await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                    .AttemptAutomaticAsync(formalReceipt.Id, Guid.NewGuid()));
+                    .AttemptAutomaticAsync(scope.ServiceProvider, formalReceipt.Id, Guid.NewGuid()));
             Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, failed.State.FailureKind);
             Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, failed.State.Status);
             Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
@@ -1954,6 +1952,23 @@ public sealed class IntakeAllocationConsumerTests
 
 internal static class AllocationTestData
 {
+    /// <summary>
+    /// The automatic route for a receipt as it is persisted now. The port takes
+    /// the receipt its caller holds; these tests change the stored receipt
+    /// between calls, so each call loads it first.
+    /// </summary>
+    public static async Task<IntakeAllocationResult?> AttemptAutomaticAsync(
+        this IAllocateIntake allocate,
+        IServiceProvider services,
+        Guid receiptId,
+        Guid evaluationId)
+    {
+        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None)
+            ?? throw new KeyNotFoundException("The intake receipt was not found.");
+        return await allocate.AttemptAutomaticAsync(receipt, evaluationId);
+    }
+
     /// <summary>
     /// Stages one source and drains it through the Worker path; the processed
     /// receipt id is what every caller reads next.

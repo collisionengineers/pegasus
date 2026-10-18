@@ -43,6 +43,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                     .Include(receipt => receipt.Assets)
                     .Include(receipt => receipt.MailClassificationDecision)
                     .Include(receipt => receipt.MailRouteDecision)
+                    .AsSplitQuery()
                     .Where(receipt => receiptIds.Contains(receipt.Id))
                     .ToArrayAsync(cancellationToken))
                 .ToDictionary(receipt => receipt.Id);

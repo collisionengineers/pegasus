@@ -1256,10 +1256,10 @@ public sealed partial class CaseCreateWebTests
             IAllocateIntake inner) : IAllocateIntake
         {
             public Task<IntakeAllocationResult?> AttemptAutomaticAsync(
-                Guid receiptId,
+                IntakeReceipt receipt,
                 Guid evaluationId,
                 CancellationToken cancellationToken = default) =>
-                inner.AttemptAutomaticAsync(receiptId, evaluationId, cancellationToken);
+                inner.AttemptAutomaticAsync(receipt, evaluationId, cancellationToken);
 
             public Task<IntakeAllocationResult> AttemptStaffCreateAsync(
                 AcceptIntakeRequest request,

@@ -14,7 +14,7 @@ public sealed class AllocateDefinitiveIntakeTests
         var accept = new RecordingAcceptance();
         var sut = new AllocateIntake(new ReceiptQueries(receipt), store, accept, TimeProvider.System);
 
-        var result = await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        var result = await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
 
         Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
         Assert.Equal(CaseType.InspectionAndAudit, Assert.Single(accept.Requests).CaseType);
@@ -32,7 +32,7 @@ public sealed class AllocateDefinitiveIntakeTests
         var accept = new RecordingAcceptance();
         var sut = new AllocateIntake(new ReceiptQueries(receipt), store, accept, TimeProvider.System);
 
-        var result = await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        var result = await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
 
         Assert.Null(result);
         Assert.Null(store.Current);
@@ -47,8 +47,8 @@ public sealed class AllocateDefinitiveIntakeTests
         var accept = new RecordingAcceptance(new PrincipalUnavailableException("MISSING"));
         var sut = new AllocateIntake(new ReceiptQueries(receipt), store, accept, TimeProvider.System);
 
-        var first = await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
-        var replay = await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        var first = await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
+        var replay = await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
 
         Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, first?.State.Status);
         Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, first?.State.FailureKind);
@@ -139,7 +139,7 @@ public sealed class AllocateDefinitiveIntakeTests
             TimeProvider.System,
             new EvidenceQueries(receipt.Id, evidenceId));
 
-        var failed = await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        var failed = await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
         accept.Failure = null;
         var retried = await sut.RetryAsync(new(
             receipt.Id,
@@ -164,7 +164,7 @@ public sealed class AllocateDefinitiveIntakeTests
             new RecordingAcceptance(new InvalidDataException("private failure detail")),
             TimeProvider.System);
 
-        var unexpected = await unexpectedSut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        var unexpected = await unexpectedSut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
 
         Assert.Equal(IntakeAllocationFailureKind.Unexpected, unexpected?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.ReloadThenRetry, unexpected?.State.RecoveryDisposition);
@@ -191,7 +191,7 @@ public sealed class AllocateDefinitiveIntakeTests
             TimeProvider.System,
             new EvidenceQueries(receipt.Id, evidenceId));
 
-        var failed = await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        var failed = await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
         Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, failed?.State.Status);
         Assert.True(failed?.State.CanRetry);
 
@@ -224,7 +224,7 @@ public sealed class AllocateDefinitiveIntakeTests
             TimeProvider.System);
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid()));
+            sut.AttemptAutomaticAsync(receipt, Guid.NewGuid()));
 
         Assert.Null(store.Current);
     }
@@ -243,7 +243,7 @@ public sealed class AllocateDefinitiveIntakeTests
             TimeProvider.System);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid()));
+            sut.AttemptAutomaticAsync(receipt, Guid.NewGuid()));
 
         Assert.Contains("accepted principal route", error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -262,7 +262,7 @@ public sealed class AllocateDefinitiveIntakeTests
             TimeProvider.System);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid()));
+            sut.AttemptAutomaticAsync(receipt, Guid.NewGuid()));
 
         Assert.Contains("does not match", error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -284,7 +284,7 @@ public sealed class AllocateDefinitiveIntakeTests
         var sut = new AllocateIntake(
             new ReceiptQueries(receipt), new RecordingAllocationStore(), accept, TimeProvider.System);
 
-        await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
 
         var completeness = Assert.Single(accept.Requests).Completeness;
         Assert.True(completeness.InstructionComplete);
@@ -302,7 +302,7 @@ public sealed class AllocateDefinitiveIntakeTests
         var sut = new AllocateIntake(
             new ReceiptQueries(receipt), new RecordingAllocationStore(), accept, TimeProvider.System);
 
-        await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
 
         Assert.True(Assert.Single(accept.Requests).Completeness.ImagesComplete);
     }
@@ -322,7 +322,7 @@ public sealed class AllocateDefinitiveIntakeTests
         var sut = new AllocateIntake(
             new ReceiptQueries(receipt), new RecordingAllocationStore(), accept, TimeProvider.System);
 
-        await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
 
         Assert.False(Assert.Single(accept.Requests).Completeness.ImagesComplete);
     }
@@ -343,7 +343,7 @@ public sealed class AllocateDefinitiveIntakeTests
         var sut = new AllocateIntake(
             new ReceiptQueries(receipt), new RecordingAllocationStore(), accept, TimeProvider.System);
 
-        await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
 
         Assert.False(Assert.Single(accept.Requests).Completeness.ImagesComplete);
     }
