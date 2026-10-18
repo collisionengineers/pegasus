@@ -201,11 +201,12 @@ stays in this mailbox workspace.
 
 A row or the message record offers **Dismiss**. It records the message as
 dismissed and takes it out of every other scope. **Restore**
-from the Dismissed scope brings it back. Ticked rows can be dismissed
-together in the incoming scopes and restored together in the Dismissed
-scope, each message on its own (operator, 15 and 16 October 2026). Both are
-always allowed, to staff and to the Automation Actor (`pegasus_mail_action`).
-An open Unidentified item stays open, and the message keeps its evidence,
+from the Dismissed scope brings it back. Both are always allowed, to staff
+and to the Automation Actor (`pegasus_mail_action`). Ticked rows can be
+dismissed together in the incoming scopes and restored together in the
+Dismissed scope, each message on its own (operator, 15 and 16 October
+2026). An open
+Unidentified item stays open, and the message keeps its evidence,
 associations and history. Dismiss is Pegasus data only: the Outlook item
 does not move and no Graph call is made
 ([ADR-0052](../adr/0052-dismiss-by-logical-folder.md),
