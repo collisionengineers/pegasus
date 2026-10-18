@@ -41,10 +41,7 @@ public sealed class CaseClosureWebTests
             workspace.MutationForm(
                 "reopen-review",
                 "Principal reinstated the instruction",
-                ("destination", "Review"),
-                ("instructionsComplete", "true"),
-                ("imagesComplete", "false"),
-                ("evidenceReference", "reopen-evidence-1")));
+                ("destination", "Review")));
         using var reopenedToNotReady = await workspace.PostAsync(
             "Closure?handler=Reopen",
             workspace.MutationForm("reopen-not-ready", "Images still outstanding", ("destination", "NotReady")));
@@ -65,11 +62,9 @@ public sealed class CaseClosureWebTests
         var toReview = store.Reopenings[0];
         AssertLeasedMutation(workspace, toReview, "reopen-review", "Principal reinstated the instruction");
         Assert.Equal(CaseReopenDestination.Review, toReview.Destination);
-        Assert.Equal(new CaseReadinessEvidence(true, false, "reopen-evidence-1"), toReview.Readiness);
         var toNotReady = store.Reopenings[1];
         Assert.Equal("reopen-not-ready", toNotReady.OperationKey);
         Assert.Equal(CaseReopenDestination.NotReady, toNotReady.Destination);
-        Assert.Null(toNotReady.Readiness);
 
         var archive = Assert.Single(store.Archives);
         AssertLeasedMutation(workspace, archive, "archive-case", "Retention period reached");

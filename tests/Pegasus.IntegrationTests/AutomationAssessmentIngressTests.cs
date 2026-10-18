@@ -130,7 +130,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(CaseLifecycleState.Review.ToString(), workflow.State);
             var handedOff = await scope.ServiceProvider.GetRequiredService<IAssignCaseEngineer>().ExecuteAsync(
                 new(caseId, 0, ActionActor.Automation(workflow.EditLeaseHolder!), "mcp:import-handoff",
-                    "Hand off to Engineer", lease.LeaseToken, engineerId, new(true, true, "accepted-readiness")), default);
+                    "Hand off to Engineer", lease.LeaseToken, engineerId), default);
             Assert.Equal(CaseLifecycleState.ReportPreparation, handedOff.State);
             Assert.Equal(1, handedOff.Version);
         }

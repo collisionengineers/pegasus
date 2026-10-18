@@ -302,8 +302,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                 harness.Key("assign-report-signatory"),
                 "Assign the replacement Engineer.",
                 harness.Lease.Token,
-                replacementId,
-                new(true, true, "persisted-case-readiness")),
+                replacementId),
             replacementId,
             CaseLifecycleState.ReportPreparation,
             default);

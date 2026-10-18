@@ -117,18 +117,6 @@ public interface ICaseWorkflowConfiguration
 }
 
 /// <summary>
-/// Retained only because the Case pages still post it. No gate reads
-/// it: entry to Review is decided by the persisted completeness facts the
-/// transition store re-reads inside its own transaction, so nothing a client
-/// sends here is evidence of anything. Delete this record with the last posting
-/// caller.
-/// </summary>
-public sealed record CaseReadinessEvidence(
-    bool InstructionsComplete,
-    bool ImagesComplete,
-    string EvidenceReference);
-
-/// <summary>
 /// A human approval of one immutable report artifact. It does not claim the report was sent.
 /// </summary>
 public sealed record ReportApprovalEvidence(
@@ -367,8 +355,7 @@ public sealed record ReturnCaseToReviewRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    string EditLeaseToken,
-    CaseReadinessEvidence? Readiness = null)
+    string EditLeaseToken)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record AssignCaseEngineerRequest(
@@ -378,8 +365,7 @@ public sealed record AssignCaseEngineerRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    Guid EngineerId,
-    CaseReadinessEvidence? Readiness = null)
+    Guid EngineerId)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record RecordCaseReportApprovalRequest(
@@ -511,8 +497,7 @@ public sealed record ReopenCaseRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    CaseReopenDestination Destination,
-    CaseReadinessEvidence? Readiness = null)
+    CaseReopenDestination Destination)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record ReturnCaseToEngineerRequest(
