@@ -216,15 +216,15 @@ public sealed class RetainedInstructionAnalysisTests
     }
 
     /// <summary>
-    /// Every one of the eighty-one genuine originals the reference pack carries
+    /// Every labelled genuine original the reference pack carries
     /// reaches extraction through <see cref="IAnalyzeRetainedInstruction"/> —
     /// resolved from the host's own composition, on real SQL, over material
     /// retained by the ordinary manual-upload path — and not one of them
     /// allocates anything.
     ///
     /// This is the integration proof the direct-drive corpus suite cannot give.
-    /// <see cref="Top15InstructionCorpusTests"/> hands the same eighty-one
-    /// originals to the reader and the selector by hand: it proves the DOCUMENTS
+    /// <see cref="Top15InstructionCorpusTests"/> hands the same originals to
+    /// the reader and the selector by hand: it proves the DOCUMENTS
     /// are identifiable. It never opens a retained source by identity, never
     /// persists a candidate, never replays an operation key and never counts a
     /// Case. So it cannot say whether the product actually reads its own
@@ -289,7 +289,7 @@ public sealed class RetainedInstructionAnalysisTests
         var failures = new List<string>();
         var measured = new Dictionary<(string Profile, string Disposition), int>();
         var report = new StringBuilder()
-            .AppendLine("# Retained-analysis corpus: fifteen profiles, eighty-one originals")
+            .AppendLine("# Retained-analysis corpus: every labelled original")
             .AppendLine()
             .AppendLine(
                 CultureInfo.InvariantCulture,
@@ -395,7 +395,7 @@ public sealed class RetainedInstructionAnalysisTests
         // The whole-run allocation claim, read from the tables that would carry
         // one: Cases is the case row itself, CaseIntakeLinks the association
         // automatic allocation writes, and IntakeManualAssociations the staff
-        // one. Eighty-one instructions were read and none created work.
+        // one. Every instruction was read and none created work.
         await using (var scope = host.Services.CreateAsyncScope())
         {
             await using var context = await scope.ServiceProvider
@@ -410,8 +410,8 @@ public sealed class RetainedInstructionAnalysisTests
     }
 
     /// <summary>
-    /// Mandatory acceptance gate across all eighty-one originals in the fifteen
-    /// Top15 profiles: every genuine original reaches retained analysis,
+    /// Mandatory acceptance gate across every original in the Top15
+    /// profiles: every genuine original reaches retained analysis,
     /// returns Analyzed, identifies the expected principal candidate, creates
     /// zero Cases or intake links, and produces zero inconclusive or failed
     /// outcomes.
@@ -490,7 +490,7 @@ public sealed class RetainedInstructionAnalysisTests
         Assert.Empty(failures);
         Assert.Empty(inconclusive);
         Assert.Equal(Top15InstructionCorpusTests.Expectations.Length, analysed);
-        Assert.Equal(15, profilesRepresented.Count);
+        Assert.Equal(21, profilesRepresented.Count);
     }
 
     /// <summary>
@@ -499,7 +499,7 @@ public sealed class RetainedInstructionAnalysisTests
     /// proposal the confirmation surface needs; it never establishes a mail
     /// route or allocates a Case/PO without the later staff decision.
     ///
-    /// Fourteen samples, not fifteen. QDOS's automatic allocation belongs to the
+    /// Every profile but QDOS. QDOS's automatic allocation belongs to the
     /// accepted mail route and is proved there by <c>QdosIntakeWebTests
     /// .StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft</c>.
     /// This fixture set deliberately retains the non-QDOS representatives.
@@ -523,7 +523,7 @@ public sealed class RetainedInstructionAnalysisTests
             .GroupBy(expectation => expectation.Profile, StringComparer.Ordinal)
             .Select(group => group.First())
             .ToArray();
-        Assert.Equal(14, samples.Length);
+        Assert.Equal(20, samples.Length);
 
         var failures = new List<string>();
         foreach (var expectation in samples)
@@ -628,8 +628,8 @@ public sealed class RetainedInstructionAnalysisTests
 
     /// <summary>
     /// What one original did: the row the matrix prints, and every way it fell
-    /// short. Failures are carried rather than thrown so a run reports all
-    /// eighty-one originals instead of the first bad one.
+    /// short. Failures are carried rather than thrown so a run reports every
+    /// original instead of the first bad one.
     /// </summary>
     private sealed record CorpusSample(
         string Outcome,
@@ -1049,8 +1049,8 @@ public sealed class RetainedInstructionAnalysisTests
     /// The production composition, plus — in this tree only — the one port it
     /// does not compose.
     ///
-    /// Stream A's <c>AddPegasusInfrastructure</c> registers the fifteen
-    /// extraction policies, the selector, the analysis store, the candidate
+    /// Stream A's <c>AddPegasusInfrastructure</c> registers the extraction
+    /// policies, the selector, the analysis store, the candidate
     /// queries and both <c>AnalyzeRetainedInstruction</c> registrations, so
     /// these tests resolve the command the host itself resolves rather than a
     /// hand-composed copy that could pass while production could not build the

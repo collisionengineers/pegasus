@@ -177,8 +177,8 @@ public sealed class AnalyzeRetainedInstructionTests
     /// A source that was read but not read COMPLETELY is unavailable, not
     /// extractable.
     ///
-    /// Every one of the fifteen extraction policies refuses an incomplete
-    /// reader result by throwing, so the alternative to this guard is not a
+    /// Every extraction policy refuses an incomplete reader result by
+    /// throwing, so the alternative to this guard is not a
     /// worse answer - it is an unhandled <see cref="ArgumentException"/> leaving
     /// the command, which is what the /Received re-evaluation of a retained
     /// legacy .doc actually did. The document still matched a profile here: the

@@ -425,8 +425,8 @@ public sealed class AnalyzeRetainedInstruction(
         }
 
         // A PARTIALLY read source is not a source to extract from, and every
-        // one of the fifteen extraction policies says so by throwing
-        // ArgumentException on an incomplete result. Selection sits outside the
+        // extraction policy says so by throwing ArgumentException on an
+        // incomplete result. Selection sits outside the
         // try/catch above, so without this guard a readable-but-partial
         // document - a legacy .doc whose binary parser reports Partial, an
         // e-mail whose attachment could not be processed - left the command as

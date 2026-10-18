@@ -223,19 +223,25 @@ public static class DependencyInjection
         services.AddSingleton<QdosInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy>(provider =>
             provider.GetRequiredService<QdosInstructionExtractionPolicy>());
+        services.AddSingleton<IInstructionExtractionPolicy, AlisonInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, AlsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, AmsInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, AxInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, BcInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, BlackInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, DfdInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, FwInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, KbsInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, KerrInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, KmrInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, MpInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, OakInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, PchInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, QclInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, RjsInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, SblInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, SwanInstructionExtractionPolicy>();
+        services.AddSingleton<IInstructionExtractionPolicy, TenInstructionExtractionPolicy>();
         services.AddSingleton<IInstructionExtractionPolicy, YmlInstructionExtractionPolicy>();
         services.AddScoped<InstructionExtractionPolicySelector>();
         services.AddScoped<EfRetainedInstructionAnalysisStore>();

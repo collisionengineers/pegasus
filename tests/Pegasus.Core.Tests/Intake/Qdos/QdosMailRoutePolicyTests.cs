@@ -5,13 +5,17 @@ namespace Pegasus.Core.Tests.Intake.Qdos;
 public sealed class PrincipalMailRoutePolicyTests
 {
     [Theory]
+    [InlineData("ALISON", "bradford@alison-law.co.uk")]
     [InlineData("ALS", "kalan@autologistic.co.uk")]
+    [InlineData("AMS", "info@amssolicitors.co.uk")]
     [InlineData("AX", "instructions@ax-uk.com")]
     [InlineData("BC", "N.Ellahi@bakercoleman.co.uk")]
     [InlineData("BLACK", "instructions@blackstone-legal.co.uk")]
     [InlineData("DFD", "instructions@dfd-solicitors.co.uk")]
     [InlineData("FW", "instructions@fairwaylegal.co.uk")]
     [InlineData("KBS", "instructions@knightsbridgesolicitors.co.uk")]
+    [InlineData("KERR", "instructions@kerrbrown.co.uk")]
+    [InlineData("KMR", "info@kmrlaw.co.uk")]
     [InlineData("MP", "instructions@montrealprestige.co.uk")]
     [InlineData("OAK", "instructions@oakwoodscotland.co.uk")]
     [InlineData("OAK", "instructions@oakwoodsolicitors.co.uk")]
@@ -20,6 +24,8 @@ public sealed class PrincipalMailRoutePolicyTests
     [InlineData("QDOS", "instructions@qdosassist.co.uk")]
     [InlineData("RJS", "instructions@robertjameslaw.co.uk")]
     [InlineData("SBL", "Claims@smartbusinesslink.com")]
+    [InlineData("SWAN", "instructions@swansolicitors.co.uk")]
+    [InlineData("TEN", "instructions@tenlegal.co.uk")]
     [InlineData("YML", "networkhduk@gmail.com")]
     public void EvidencedIdentityHasTheSamePrincipalDirectAndStaffForwarded(string principal, string address)
     {

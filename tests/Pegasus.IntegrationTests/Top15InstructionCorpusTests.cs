@@ -490,6 +490,57 @@ public sealed class Top15InstructionCorpusTests
         ,new("BC", $"{CorpusRoot}/BC 03.DOC", "b031745bb46d740cad472cc4be29705a338e819ebf3c7981033fad447cbd3809", new("Mr Humayun Tufail", "RTA135633.001/NE/Usayd Ibrahim", "NL22HNZ", new(2026, 4, 30)), [])
         ,new("BC", $"{CorpusRoot}/BC 04.DOC", "4240c22b2de79ba94dbbe87aeab675e329b9c8507af864bd2250ce35b664a87c", new("Mr Muhammad Aon", "RTA135598.001/NE/Usayd Ibrahim", "DE61CYJ", new(2026, 4, 24)), [])
         ,new("BC", $"{CorpusRoot}/BC 05.DOC", "1363d914b187c57d6a75f26da31c183c61ce30862c160b9120926153aae1efe5", new("Mr Muhammad Shahid Ramzan", "RTA135610.001/NE/Usayd Ibrahim", "LH12BKD", new(2026, 4, 28)), [])
+        // KERR prints its file reference only in the subject; the claimant's
+        // address and the third party's insurer sit in the same labelled block.
+        ,new("KERR", $"{CorpusRoot}/KERR 01.msg", "73c0d6cdaac90c7392c24ed7ec1f38fd30e45ec664b4fcccadfaff0bbebe550f", new("Samual Stephen", "AD/VRL/1/5241", "YD72KZX", new(2026, 2, 28)), [new(null, "Covea", "TPI: the third party's insurer."), new("Claimant name", "Scot Morton", "The sender of the instruction message.")])
+        ,new("KERR", $"{CorpusRoot}/KERR 02.msg", "ee086c4a796f271f1b1d773784fa86d3f09736cc90f99e41056d007768d2cf41", new("Patrick Conaghan", "AD/SR/VRL/1/5254", "YF12JBO", new(2026, 3, 21)), [new(null, "Ageas", "TPI: the third party's insurer."), new("Claimant name", "Stephen Robertson", "The sender of the instruction message.")])
+        ,new("KERR", $"{CorpusRoot}/KERR 03.msg", "60807a55b75d7511e98bb721f286a113f7662926444e5002c325b2e6bba2a2c2", new("Steven Maguire", "SR/VRL/1/5257", "SE66LJK", new(2026, 3, 21)), [new(null, "Acorn/Haven", "TPI: the third party's insurer.")])
+        ,new("KERR", $"{CorpusRoot}/KERR 04.msg", "754e165a6d9c0075aef20c06c3394e993aec615e1d1e95720e8fc7a8afef8db4", new("Mrs Roseann Dean", "SR/VRL/1/5274", "KM60OCB", new(2026, 4, 9)), [new("Claimant name", "Stephen Robertson", "The sender of the instruction message.")])
+        ,new("KERR", $"{CorpusRoot}/KERR 05.msg", "78813ea0d2fa5bb10e73d2cc4c623ccdd0ca0e24738de5e97256890320306dc7", new("Muhammad Junaid", "CH/LEG/3/3818", "WD74HLC", new(2026, 2, 10)), [new(null, "Hastings Direct", "TPI: the third party's insurer."), new("Claimant name", "Caitlin Hart", "The sender of the instruction message.")])
+        // SWAN dates the letter above its title and prints the accident date
+        // after an "RTA -" prefix in the labelled block.
+        ,new("SWAN", $"{CorpusRoot}/SWAN 01.docx", "d8eab26c5a7c522c17901c2d81be4729f74b628159df0c7c48f8bb9c4cc74d89", new("Mr Muhammed Tahmid Nadim Ahmed", "01239- Muhammed.Ahmed", "PN19VUA", new(2026, 4, 10)), [new("Incident date", "24/04/2026", "Date: the letter's own date.")])
+        ,new("SWAN", $"{CorpusRoot}/SWAN 02.docx", "c9ef76a0a46d95bc8a31257444534a16c1d850d898c45134faca64131cf793e9", new("Mr Shahid Yaseen", "01214- Shahid.Yaseen", "BH17PKC", new(2026, 3, 26)), [new("Incident date", "02/04/2026", "Date: the letter's own date.")])
+        ,new("SWAN", $"{CorpusRoot}/SWAN 03.docx", "81ebf171fe46979ef9fa3effbe61e16789b4b6f5e8f7044bdc445d87c4206111", new("Miss Anna Jammeh", "01200- Anna.Jammeh", "KY70RLZ", new(2026, 3, 18)), [new("Incident date", "01/04/2026", "Date: the letter's own date.")])
+        ,new("SWAN", $"{CorpusRoot}/SWAN 04.docx", "4929e82195367e24c89fa5491c2f91688c7b2c74d49fde67f3555688a2dc4e48", new("Mr Souhail Elhamdanhy", "01186- Souhail.Elhamdanhy", "LX20HUH", new(2026, 3, 10)), [new("Incident date", "13/03/2026", "Date: the letter's own date.")])
+        ,new("SWAN", $"{CorpusRoot}/SWAN 05.docx", "8723a19be7759b81dec2ddc905c74ff42464f4a740ca925a2a5ab770396cc7d2", new("Mr Washim Saddik Mirza", "01169- Washim.Mirza", "GX64VEM", new(2026, 2, 27)), [new("Incident date", "06/03/2026", "Date: the letter's own date.")])
+        // TEN prints the labelled block at the head of the message body, with
+        // the inspection contact and the signer below it.
+        ,new("TEN", $"{CorpusRoot}/TEN 01.msg", "aaf2aad0843e9af2dea3071c51d0dba3751001d38b9f9626de422c4c07b04f96", new("Mr Farkh Jaweed", "AM.8373.VD", "LL61FZF", new(2025, 11, 23)), [new("Claimant name", "Samia Arif", "The sender of the instruction message.")])
+        ,new("TEN", $"{CorpusRoot}/TEN 02.msg", "6bb564894574ce70f207f2b935ed17ce19c5687cd19c24196e33151530cae080", new("Miss Kayleigh Booth", "JM.8385.PI", "PN18VKC", new(2026, 4, 17)), [new("Claimant name", "Samia Arif", "The sender of the instruction message.")])
+        ,new("TEN", $"{CorpusRoot}/TEN 03.msg", "7367847b975ce2df915976c6468f0fe97f1decf00470d014065d6cf2c1e18ec4", new("Mr Mohammad Ilyas", "NV.8391.VD", "MO51NUK", new(2026, 4, 27)), [new("Claimant name", "Samia Arif", "The sender of the instruction message."), new("Claimant name", "Mr Arif", "The inspection contact.")])
+        ,new("TEN", $"{CorpusRoot}/TEN 04.msg", "1379514b350f47312fc3ea405033f4abe87f6babffea4e19c46f23c1e25e4b44", new("Mr Shamshad Ahmed", "NV.8400.VD", "BL15LBO", new(2026, 4, 29)), [new("Claimant name", "Samia Arif", "The sender of the instruction message."), new("Claimant name", "Mr Arif", "The inspection contact.")])
+        ,new("TEN", $"{CorpusRoot}/TEN 05.msg", "1cf3dd85a35c30250eece4a684b204f3a8285bee1e2a3fa6b39feda4620ad3dc", new("Mrs Grace Maliti", "NV.8405.VD", "MW12RXF", new(2026, 4, 30)), [new("Claimant name", "Nizam Vaid", "The sender of the instruction message."), new("Claimant name", "Mr Arif", "The inspection contact.")])
+        // AMS dates the letter in words above the salutation and prints the
+        // labelled block below it; the fee earner signs above the firm's name.
+        ,new("AMS", $"{CorpusRoot}/AMS 01.DOC", "30ba3639d8b2804010f077e125f287c0ffe9e763aee1224b44f5596a2cd447f6", new("Mr Bilal Ali", "100085.002/RSY/SQ", "AV59DXR", new(2026, 4, 29)), [new("Incident date", "29th April 2026", "Date: the letter's own date."), new("Claimant name", "Raja Yousaf", "The fee earner who signs the letter.")])
+        ,new("AMS", $"{CorpusRoot}/AMS 02.DOC", "d17d499ae88bc9185b3a8b6a29966ff090568860f41be08d27e1d445af0ee1e1", new("Mr Intikhab Alam", "100627.001/AU/SWA", "ME17DWM", new(2026, 4, 24)), [new("Incident date", "27th April 2026", "Date: the letter's own date."), new("Claimant name", "Adam Urquhart", "The fee earner who signs the letter.")])
+        ,new("AMS", $"{CorpusRoot}/AMS 03.DOC", "2f8f667454834c8e296c77e21af27f5eb5ed0978ddd398771dd95090f0434d62", new("Mr Ahmed Mansour A Daleel", "100623.001/AU/SWA", "MX16SYJ", new(2026, 4, 23)), [new("Incident date", "27th April 2026", "Date: the letter's own date."), new("Claimant name", "Adam Urquhart", "The fee earner who signs the letter.")])
+        ,new("AMS", $"{CorpusRoot}/AMS 04.DOC", "6876f5bf0884c0ae7dc036acf11336091309568aae2ef75166a152a098472d10", new("Mr Ahmed Younis Bashir", "100621.001/RSY/SWA", "MX67RFN", new(2026, 4, 18)), [new("Incident date", "24th April 2026", "Date: the letter's own date."), new("Claimant name", "Raja Yousaf", "The fee earner who signs the letter.")])
+        ,new("AMS", $"{CorpusRoot}/AMS 05.DOC", "2766088b7daffbf1e179222df7bbe85634c0eff014a3785b190eac8245b40102", new("Mr Tekleab Angosom Araya", "100615.001/RSY/SWA", "BT69BRF", new(2026, 4, 21)), [new("Incident date", "23rd April 2026", "Date: the letter's own date."), new("Claimant name", "Raja Yousaf", "The fee earner who signs the letter.")])
+        // ALISON dates the letter in words above the salutation, prints the
+        // claimant's address after the name on the Our Client line and a number
+        // in the footer. PDF 02 and WORD 01 print no Our Ref; WORD 02 and
+        // WORD 05 leave Vehicle Reg blank.
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 01.pdf", "d70b613c47138d65af56aeb3313ba86d416742e29d12f5275b9474175fcdf263", new("Nisa Dakhrun", "HA:MA:BFD/25/42518.001", "SJ12MRY", new(2025, 10, 8)), [new("Incident date", "17 October 2025", "The letter's own date."), new("Claimant name", "Worthington Street", "The claimant's address on the Our Client line."), new("Claim reference", "183434", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 02.pdf", "4245ad8fb9d0216bbc3a6e91ac7b79a4729ab5496963fca2e06ba9b597781b72", new("Mohammed Tausif", null, "BD65XRZ", new(2025, 10, 6)), [new("Incident date", "10 October 2025", "The letter's own date."), new("Claimant name", "Lady Royd Gate", "The claimant's address on the Our Client line."), new("Claim reference", "183146", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 03.pdf", "7bb3cace40cd619269c36ac7f2f1777d96a8b32b50fd1b8e6d45167fc0d91201", new("Everett Omar Henry", "HA:HH:BFD/25/42505.001", "LK75FHY", new(2025, 9, 10)), [new("Incident date", "18 September 2025", "The letter's own date."), new("Claimant name", "Bexley Gardens", "The claimant's address on the Our Client line."), new("Claim reference", "182269", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 04.pdf", "c9c48af52fbb4fdd8b5d1583d46113ab40e54e3d79372609b4037bd296bb462e", new("Patrick Doherty", "KM:HH:BFD/25/42502.001", "AF15UHS", new(2025, 9, 2)), [new("Incident date", "12 September 2025", "The letter's own date."), new("Claimant name", "Fryston Road", "The claimant's address on the Our Client line."), new("Claim reference", "182009", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON PDF 05.pdf", "e6c1d1888d9b00b708cac9ed61f375dfb4a2809daea6495b2ef7d49c914f710b", new("Mohammed Uzair Azhar", "HA:HH:BFD/25/42498.001", "KE17ZSO", new(2025, 9, 6)), [new("Incident date", "10 September 2025", "The letter's own date."), new("Claimant name", "Card House", "The claimant's address on the Our Client line."), new("Claim reference", "181904", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 01.docx", "0bb5640eadfe71c8fa7bca3cf03fdb123ae1d05dd2c6bac61e2054bdba389367", new("Uzair Khan", null, "YH14AMK", new(2025, 9, 12)), [new("Incident date", "18 September 2025", "The letter's own date."), new("Claimant name", "Blenheim Rd", "The claimant's address on the Our Client line."), new("Claim reference", "181571", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 02.docx", "b3b79b5001145457e06af78998174fa2be4608b474d6c8ede9117c52fd0702b6", new("Hamza Aziz", "MS:MA:BFD/24/42269.001", null, new(2025, 9, 3)), [new("Incident date", "4 September 2025", "The letter's own date."), new("Claimant name", "Whetley Hill", "The claimant's address on the Our Client line."), new("Claim reference", "181571", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 03.docx", "ceb3b496e36c9d4ca749982fc008df4a49f500b15b5c7c4f8636deb200e64bf8", new("Uzmaa Patel", "MS:MA:BFD/25/42474.001", "P8UHX", new(2025, 8, 8)), [new("Incident date", "12 August 2025", "The letter's own date."), new("Claimant name", "Whytecroft", "The claimant's address on the Our Client line."), new("Claim reference", "180223", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 04.docx", "1ca54f46c1d2c46f09d47343dc86f28b9fdbbd048b21812e450002e973183c2c", new("Asifah Nasur", "HA:HH:BFD/25/42486.001", "NJ10OXC", new(2025, 7, 28)), [new("Incident date", "1 August 2025", "The letter's own date."), new("Claimant name", "Lees Hall Road", "The claimant's address on the Our Client line."), new("Claim reference", "179685", "The number in the letter's footer.")])
+        ,new("ALISON", $"{CorpusRoot}/ALISON WORD 05.docx", "05415183569f8b71fcd899e5385b6be6e24fb5f5ad90d43daee107b684d3f7fd", new("Raja Khan", "MS:HH:BFD/25/42426.001", null, new(2025, 6, 20)), [new("Incident date", "26 June 2025", "The letter's own date."), new("Claimant name", "Calder Road", "The claimant's address on the Our Client line."), new("Claim reference", "175105", "The number in the letter's footer.")])
+        // KMR dates the letter above Our Reference, names the registration in
+        // its prose, and on four letters follows the client's name with a dash
+        // and the registration. The director and company number are in the
+        // footer.
+        ,new("KMR", $"{CorpusRoot}/KMR 01.pdf", "d7dd8d77204b224f7f5a212b5dc64ad868bd040da71de87d93a0d8947480011a", new("Aqeel Arshad", "01071-Arshad", "MJ25TPU", new(2026, 4, 17)), [new("Incident date", "27 April, 2026", "The letter's own date."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
+        ,new("KMR", $"{CorpusRoot}/KMR 02.pdf", "57d9ce853f2559f641a2da5ababe19288f00b68b47931556369a4d94dd3e7f9f", new("Streetrax Ltd", "01068-Streetrax Ltd – PN22 THG", "PN22THG", new(2026, 4, 24)), [new("Incident date", "27 April, 2026", "The letter's own date."), new("Claimant name", "PN22 THG", "The registration after the client's name."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
+        ,new("KMR", $"{CorpusRoot}/KMR 03.pdf", "75eae4d900a747e6cac9cccfaa976b1cf010f79d15eb2bc4b82aab6ae622eac1", new("Streetrax Ltd", "01066-Streetrax Ltd – EX23 LKD", "EX23LKD", new(2026, 4, 21)), [new("Incident date", "23 April, 2026", "The letter's own date."), new("Claimant name", "EX23 LKD", "The registration after the client's name."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
+        ,new("KMR", $"{CorpusRoot}/KMR 04.pdf", "900ca6d59ba3902aee61527aa84953d0c52842da487cd71a08057703fb5954cb", new("Streetrax Ltd", "00987-Streetrax Ltd – ET23 XJM", "ET23XJM", new(2025, 10, 17)), [new("Incident date", "9 March, 2026", "The letter's own date."), new("Claimant name", "ET23 XJM", "The registration after the client's name."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
+        ,new("KMR", $"{CorpusRoot}/KMR 05.pdf", "c62f1592bd495c43495074d5307ee0502efc949bdf68c9da0ed94e421de7a3d3", new("Streetrax Ltd", "01058-Streetrax Ltd – MT69 UBW", "MT69UBW", new(2026, 3, 31)), [new("Incident date", "9 April, 2026", "The letter's own date."), new("Claimant name", "MT69 UBW", "The registration after the client's name."), new("Claimant name", "Rehman", "The firm's director in the footer."), new("Claim reference", "13275578", "The firm's company number in the footer.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -585,10 +636,16 @@ public sealed class Top15InstructionCorpusTests
             new RjsInstructionExtractionPolicy(),
             new DfdInstructionExtractionPolicy(),
             new KbsInstructionExtractionPolicy(),
+            new KerrInstructionExtractionPolicy(),
             new MpInstructionExtractionPolicy(),
             new YmlInstructionExtractionPolicy(),
             new AlsInstructionExtractionPolicy(),
-            new BcInstructionExtractionPolicy()
+            new BcInstructionExtractionPolicy(),
+            new SwanInstructionExtractionPolicy(),
+            new TenInstructionExtractionPolicy(),
+            new AmsInstructionExtractionPolicy(),
+            new AlisonInstructionExtractionPolicy(),
+            new KmrInstructionExtractionPolicy()
         ];
 
     [ReferencePackFact]
@@ -597,7 +654,7 @@ public sealed class Top15InstructionCorpusTests
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var selector = new InstructionExtractionPolicySelector(Policies());
         var representatives = Expectations.GroupBy(sample => sample.Profile).Select(group => group.First()).ToArray();
-        Assert.Equal(15, representatives.Length);
+        Assert.Equal(21, representatives.Length);
         foreach (var sample in representatives)
         {
             var bytes = await File.ReadAllBytesAsync(Path.Combine(PackRoot(), sample.PackRelativePath));
@@ -695,7 +752,7 @@ public sealed class Top15InstructionCorpusTests
         var failures = new List<string>();
         var counts = new Dictionary<(string Profile, string Field, string Disposition), int>();
 
-        Assert.Equal(81, Expectations.Length);
+        Assert.Equal(116, Expectations.Length);
 
         foreach (var expectation in Expectations)
         {

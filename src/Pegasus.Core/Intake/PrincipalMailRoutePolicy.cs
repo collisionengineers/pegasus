@@ -22,13 +22,17 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
     public static readonly ImmutableDictionary<string, ImmutableArray<string>> AcceptedIdentities =
         new Dictionary<string, ImmutableArray<string>>(StringComparer.Ordinal)
         {
+            ["ALISON"] = ["alison-law.co.uk"],
             ["ALS"] = ["autologistic.co.uk"],
+            ["AMS"] = ["amssolicitors.co.uk"],
             ["AX"] = ["ax-uk.com"],
             ["BC"] = ["bakercoleman.co.uk"],
             ["BLACK"] = ["blackstone-legal.co.uk"],
             ["DFD"] = ["dfd-solicitors.co.uk"],
             ["FW"] = ["fairwaylegal.co.uk"],
             ["KBS"] = ["knightsbridgesolicitors.co.uk"],
+            ["KERR"] = ["kerrbrown.co.uk"],
+            ["KMR"] = ["kmrlaw.co.uk"],
             ["MP"] = ["montrealprestige.co.uk"],
             ["OAK"] = ["oakwoodscotland.co.uk", "oakwoodsolicitors.co.uk"],
             ["PCH"] = ["pch-ltd.com"],
@@ -36,6 +40,8 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
             ["QDOS"] = ["qdosassist.co.uk", "qdoslaw.co.uk", "qdosassists.co.uk"],
             ["RJS"] = ["robertjameslaw.co.uk"],
             ["SBL"] = ["smartbusinesslink.com"],
+            ["SWAN"] = ["swansolicitors.co.uk"],
+            ["TEN"] = ["tenlegal.co.uk"],
             ["YML"] = ["networkhduk@gmail.com"]
         }.ToImmutableDictionary(StringComparer.Ordinal);
 
