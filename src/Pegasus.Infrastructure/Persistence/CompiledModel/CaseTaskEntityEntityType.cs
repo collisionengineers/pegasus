@@ -19,7 +19,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.CaseTaskEntity",
                 typeof(CaseTaskEntity),
                 baseEntityType,
-                propertyCount: 7,
+                propertyCount: 9,
                 navigationCount: 1,
                 foreignKeyCount: 2,
                 unnamedIndexCount: 3,
@@ -59,6 +59,22 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 concurrencyToken: true,
                 sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
             concurrencyToken.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var createdAtUtc = runtimeEntityType.AddProperty(
+                "CreatedAtUtc",
+                typeof(DateTimeOffset),
+                propertyInfo: typeof(CaseTaskEntity).GetProperty("CreatedAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(CaseTaskEntity).GetField("<CreatedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)));
+            createdAtUtc.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var createdByStaffId = runtimeEntityType.AddProperty(
+                "CreatedByStaffId",
+                typeof(Guid?),
+                propertyInfo: typeof(CaseTaskEntity).GetProperty("CreatedByStaffId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(CaseTaskEntity).GetField("<CreatedByStaffId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            createdByStaffId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var description = runtimeEntityType.AddProperty(
                 "Description",

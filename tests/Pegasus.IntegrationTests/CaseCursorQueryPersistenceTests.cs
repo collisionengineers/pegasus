@@ -490,7 +490,8 @@ public sealed class CaseCursorQueryPersistenceTests
                     Description = "Open header task",
                     State = nameof(CaseTaskState.Open),
                     Version = 1,
-                    ConcurrencyToken = Guid.NewGuid()
+                    ConcurrencyToken = Guid.NewGuid(),
+                    CreatedAtUtc = BaseUtcNow
                 },
                 new CaseTaskEntity
                 {
@@ -499,7 +500,8 @@ public sealed class CaseCursorQueryPersistenceTests
                     Description = "Completed header task",
                     State = nameof(CaseTaskState.Completed),
                     Version = 1,
-                    ConcurrencyToken = Guid.NewGuid()
+                    ConcurrencyToken = Guid.NewGuid(),
+                    CreatedAtUtc = BaseUtcNow
                 });
             await context.SaveChangesAsync();
         }

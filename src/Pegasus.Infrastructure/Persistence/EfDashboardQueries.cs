@@ -157,18 +157,11 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var open = nameof(CaseTaskState.Open);
-        // A task records neither its creation instant nor its creator; both are
-        // on its case_task_created history, written in the transaction that
-        // added the task, whose aggregate id is the task id in "D" form matched
-        // under the database's own collation. The Case's vehicle and claimant
-        // are read as the Case search reads them: the instruction draft, else
-        // the confirmed Case data.
+        // The Case's vehicle and claimant are read as the Case search reads
+        // them: the instruction draft, else the confirmed Case data.
         var rows = await (
             from task in context.CaseTasks.AsNoTracking()
             where task.State == open
-            join created in context.ActionHistory.AsNoTracking()
-                    .Where(item => item.AggregateType == "case_task" && item.EventKind == "case_task_created")
-                on task.Id.ToString() equals created.AggregateId
             join caseEntity in context.Cases.AsNoTracking() on task.CaseId equals caseEntity.Id
             join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
                 on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
@@ -208,11 +201,9 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
                 TaskId = task.Id,
                 task.Description,
                 task.AssigneeId,
-                CreatedAtUtc = created.OccurredAtUtc,
-                CreatedByKind = created.ActorKind,
-                CreatedBySubjectId = created.ActorSubjectId
+                task.CreatedAtUtc,
+                task.CreatedByStaffId
             }).ToArrayAsync(cancellationToken);
-        var staff = nameof(ActorKind.Staff);
         return rows
             .Select(row => new OpenCaseTask(
                 row.CaseId,
@@ -226,9 +217,7 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
                 row.Description,
                 row.AssigneeId,
                 row.CreatedAtUtc,
-                row.CreatedByKind == staff && Guid.TryParse(row.CreatedBySubjectId, out var staffId)
-                    ? (Guid?)staffId
-                    : null))
+                row.CreatedByStaffId))
             .ToArray();
     }
 }

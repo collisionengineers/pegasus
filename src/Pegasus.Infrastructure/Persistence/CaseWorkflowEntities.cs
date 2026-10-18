@@ -196,4 +196,13 @@ internal sealed class CaseTaskEntity : IApplicationManagedConcurrencyToken
     public required string State { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }
+
+    /// <summary>When the task was created: the instant of its <c>case_task_created</c> history.</summary>
+    public required DateTimeOffset CreatedAtUtc { get; set; }
+
+    /// <summary>
+    /// The staff member who created the task, null for system work. Not a foreign key: a
+    /// removed staff account keeps the tasks it created.
+    /// </summary>
+    public Guid? CreatedByStaffId { get; set; }
 }

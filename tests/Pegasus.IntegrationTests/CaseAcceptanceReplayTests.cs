@@ -397,7 +397,7 @@ public sealed partial class CaseAcceptanceReplayTests
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         var inserted = await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseTasks (Id, CaseId, Description, State, Version, ConcurrencyToken) VALUES ({Guid.NewGuid()}, {caseId}, {"Retained open task"}, {"Open"}, {0L}, {Guid.NewGuid()})");
+            $"INSERT INTO CaseTasks (Id, CaseId, Description, State, Version, ConcurrencyToken, CreatedAtUtc) VALUES ({Guid.NewGuid()}, {caseId}, {"Retained open task"}, {"Open"}, {0L}, {Guid.NewGuid()}, {RecordedAtUtc})");
         Assert.Equal(1, inserted);
     }
 

@@ -9,8 +9,9 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The Work Centre's Open tasks read against SQL Server (FRD-15, operator,
-/// 6 October 2026): every open task with its Case and the creation its
-/// <c>case_task_created</c> history records, written by the real task store;
+/// 6 October 2026): every open task with its Case and the creation the task
+/// stores, the instant its <c>case_task_created</c> history records, written by
+/// the real task store;
 /// completed and cancelled tasks are not read; and the Work Centre's one row
 /// per Case returns past a dismissal when a newer task is opened.
 /// </summary>
@@ -61,6 +62,10 @@ public sealed class OpenCaseTasksPersistenceTests
         Assert.Equal(StartUtc, first.CreatedAtUtc);
         Assert.Equal(creatorId, first.CreatedByStaffId);
         Assert.Null(Assert.Single(open, task => task.TaskId == unassigned.Id).AssigneeId);
+        foreach (var created in new[] { assigned, unassigned, only })
+        {
+            await AssertStoredCreationIsTheHistoryAsync(database, created.Id);
+        }
 
         var rows = await OpenTasksRowsAsync(services, reader);
         Assert.Equal(2, rows.Count);
@@ -85,6 +90,16 @@ public sealed class OpenCaseTasksPersistenceTests
         var returned = Assert.Single(await OpenTasksRowsAsync(services, reader), row => row.Id == twoTasksCaseId);
         Assert.Equal("Chase the payment", returned.Reason);
         Assert.Equal(2, returned.MoreCount);
+    }
+
+    /// <summary>The stored task row's creation is the instant its <c>case_task_created</c> history records.</summary>
+    private static async Task AssertStoredCreationIsTheHistoryAsync(LocalDbTestDatabase database, Guid taskId)
+    {
+        var history = await database.ScalarAsync<DateTimeOffset>(
+            $"SELECT OccurredAtUtc FROM ActionHistory WHERE AggregateType = N'case_task' AND EventKind = N'case_task_created' AND AggregateId = '{taskId:D}'");
+        var stored = await database.ScalarAsync<DateTimeOffset>(
+            $"SELECT CreatedAtUtc FROM CaseTasks WHERE Id = '{taskId:D}'");
+        Assert.Equal(history, stored);
     }
 
     private static async Task<IReadOnlyList<NeedsAttentionItem>> OpenTasksRowsAsync(
