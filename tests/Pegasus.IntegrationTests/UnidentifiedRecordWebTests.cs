@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure.Persistence;
@@ -224,6 +225,59 @@ public sealed class UnidentifiedRecordWebTests
         Assert.Contains($"/Received/{first.ReceiptId:D}/Asset/{first.Photo.Id:D}", html, StringComparison.Ordinal);
         Assert.Contains($"/Received/{second.ReceiptId:D}/Asset/{second.Photo.Id:D}", html, StringComparison.Ordinal);
         Assert.Contains("2 photographs extracted from the retained files.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AGroupItemListsEveryMembersReadingsInMemberOrder()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (itemId, _, _, readingIdsInMemberOrder) = await SeedGroupedReadingsAsync(factory);
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+
+        // The first member's two readings come before the second member's, though
+        // the second member's was read earliest.
+        var positions = readingIdsInMemberOrder
+            .Select(readingId => html.IndexOf($"data-unidentified-reading=\"{readingId:D}\"", StringComparison.Ordinal))
+            .ToArray();
+        Assert.All(positions, position => Assert.True(position >= 0));
+        Assert.Equal(positions.Order(), positions);
+    }
+
+    [Fact]
+    public async Task ListingSeveralReceiptsReadsTheirSuggestionsInOneCommand()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: false, commandInterceptor: counter);
+        var (_, firstReceiptId, secondReceiptId, _) = await SeedGroupedReadingsAsync(factory);
+        var unknownReceiptId = Guid.NewGuid();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IVrmSuggestionStore>();
+
+        counter.Reset();
+        var byReceipt = await store.ListForReceiptsAsync(
+            [firstReceiptId, secondReceiptId, unknownReceiptId, firstReceiptId],
+            CancellationToken.None);
+        Assert.True(
+            counter.CountMentioning("[ImageVrmSuggestions]") == 1,
+            "The suggestions were not read in exactly one command." + Environment.NewLine + counter.Describe());
+
+        Assert.Equal(3, byReceipt.Count);
+        Assert.Empty(byReceipt[unknownReceiptId]);
+        foreach (var receiptId in new[] { firstReceiptId, secondReceiptId, unknownReceiptId })
+        {
+            Assert.Equal(await store.ListForReceiptAsync(receiptId, CancellationToken.None), byReceipt[receiptId]);
+        }
+        Assert.Equal(2, byReceipt[firstReceiptId].Count);
+        Assert.Single(byReceipt[secondReceiptId]);
+
+        counter.Reset();
+        Assert.Empty(await store.ListForReceiptsAsync([], CancellationToken.None));
+        Assert.True(
+            counter.CountMentioning("[ImageVrmSuggestions]") == 0,
+            "An empty request sent a command." + Environment.NewLine + counter.Describe());
     }
 
     [Fact]
@@ -488,6 +542,53 @@ public sealed class UnidentifiedRecordWebTests
                 claimed.WorkItem.Id, claimed.WorkItem.LeaseToken!, receivedAt, CancellationToken.None);
             return (receipt.Id, source, photo);
         }
+    }
+
+    /// <summary>
+    /// A grouped item whose first member holds two readings and whose second
+    /// member holds one, read before either of the first member's. The reading
+    /// ids come back in member order, each member's in time order.
+    /// </summary>
+    private static async Task<(Guid ItemId, Guid FirstReceiptId, Guid SecondReceiptId, Guid[] ReadingIdsInMemberOrder)> SeedGroupedReadingsAsync(
+        IntakeWebApplicationFactory factory)
+    {
+        var (itemId, first, second) = await SeedGroupedPdfItemAsync(factory);
+        var readAt = IntakeWebApplicationFactory.FixedUtcNow;
+        var firstEarlier = await RecordReadingAsync(factory, first, "AB12CDE", readAt.AddMinutes(2));
+        var firstLater = await RecordReadingAsync(factory, first, "CD34EFG", readAt.AddMinutes(3));
+        var secondOnly = await RecordReadingAsync(factory, second, "EF56GHJ", readAt.AddMinutes(1));
+        return (itemId, first.ReceiptId, second.ReceiptId, [firstEarlier, firstLater, secondOnly]);
+    }
+
+    private static async Task<Guid> RecordReadingAsync(
+        IntakeWebApplicationFactory factory,
+        (Guid ReceiptId, IntakeAssetRecord Source, IntakeAssetRecord Photo) member,
+        string registration,
+        DateTimeOffset occurredAtUtc)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var suggestion = await scope.ServiceProvider.GetRequiredService<IVrmSuggestionStore>().RecordAsync(
+            new ImageVrmSuggestionDraft(
+                member.ReceiptId,
+                member.Photo.Id,
+                member.Photo.StorageKey,
+                member.Photo.ContentHash,
+                "test-engine",
+                "1",
+                "test-models",
+                VrmRecognitionOutcomeKind.Suggested,
+                registration,
+                0.95,
+                null,
+                null,
+                $"unidentified-reading-test:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+        // The factory's clock is fixed, so each reading is given its own time.
+        await using var context = await factory.Database.CreateContextAsync();
+        await context.ImageVrmSuggestions
+            .Where(item => item.Id == suggestion.Id)
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.OccurredAtUtc, occurredAtUtc));
+        return suggestion.Id;
     }
 
     private static async Task CloseAsync(IntakeWebApplicationFactory factory, HttpClient client, Guid itemId)

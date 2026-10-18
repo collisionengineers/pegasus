@@ -106,11 +106,9 @@ public sealed class EfIntakeAssociationDestinations(
         var receiptIds = group is null
             ? [receipt.Id]
             : group.Members.Select(member => member.ProcessedReceiptId).OfType<Guid>().ToArray();
-        var suggestions = new List<ImageVrmSuggestion>();
-        foreach (var receiptId in receiptIds)
-        {
-            suggestions.AddRange(await vrmSuggestions.ListForReceiptAsync(receiptId, cancellationToken));
-        }
+        var suggestions = (await vrmSuggestions.ListForReceiptsAsync(receiptIds, cancellationToken))
+            .Values
+            .SelectMany(readings => readings);
 
         var registrations = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(suggestions);
         return registrations.Length == VrmRecognitionProvisionalBar.RequiredDistinctRegistrations
