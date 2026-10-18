@@ -287,13 +287,23 @@ internal sealed class EfCaseArtifactCustody(
             version.BoxFileId,
             version.BoxVersionId);
         content.Position = 0;
-        // The staged stream was verified against this hash when it was staged,
-        // so the Box store takes it as is instead of copying and hashing again.
-        var write = documentContentStore is BoxDocumentContentStore boxStore
-            ? await boxStore.StoreVerifiedStreamAsync(
-                address, content, request.ContentLength, version.Sha256, cancellationToken)
-            : await documentContentStore.StoreVersionAsync(
-                address, content, request.ContentLength, version.Sha256, cancellationToken);
+        DocumentContentWriteResult write;
+        try
+        {
+            // The staged stream was verified against this hash when it was staged,
+            // so the Box store takes it as is instead of copying and hashing again.
+            write = documentContentStore is BoxDocumentContentStore boxStore
+                ? await boxStore.StoreVerifiedStreamAsync(
+                    address, content, request.ContentLength, version.Sha256, cancellationToken)
+                : await documentContentStore.StoreVersionAsync(
+                    address, content, request.ContentLength, version.Sha256, cancellationToken);
+        }
+        catch (HttpRequestException exception) when (request.IsAutomaticIntakeEvidencePromotion)
+        {
+            // The version is already recorded Pending, so Core's bounded retry
+            // and the pending-custody reconciliation both find it again.
+            throw ContentWriteUnavailable(exception);
+        }
         if (documentContentStore is BoxDocumentContentStore
             && (string.IsNullOrWhiteSpace(write.RemoteId)
                 || string.IsNullOrWhiteSpace(write.BoxVersionId)))
@@ -385,6 +395,14 @@ internal sealed class EfCaseArtifactCustody(
         cachePublisher is null
             ? Task.CompletedTask
             : cachePublisher.PublishAsync(key, staged, sha256, contentLength, cancellationToken);
+
+    /// <summary>
+    /// The named fault Core retries on. The Box transport's own exception type
+    /// stays in the adapter, and the message carries no response content.
+    /// </summary>
+    private static IntakeDependencyUnavailableException ContentWriteUnavailable(
+        HttpRequestException exception) =>
+        new("The Case artifact content store is unavailable.", exception);
 
     private async Task RequireAutomaticPromotionTargetAsync(
         PegasusDbContext db,

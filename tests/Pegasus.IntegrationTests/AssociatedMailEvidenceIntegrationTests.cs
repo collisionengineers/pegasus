@@ -442,31 +442,8 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var box = new CaseFolderBox();
-        var client = new BoxContentClient(
-            new(
-                new Uri("https://api.box.com/2.0/"),
-                new Uri("https://upload.box.com/api/2.0/"),
-                CaseFolderBox.RootId,
-                "test", "test", "test", "test", "test", "test", "holding-folder"),
-            new HttpClient(box),
-            new StaticBoxAuthorizationHeaderProvider(),
-            TimeProvider.System);
-        var promotion = new PromoteAssociatedIntakeCaseEvidence(
-            services.GetRequiredService<IIntakeArtifactStore>(),
-            new EfCaseArtifactCustody(
-                services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
-                new BoxDocumentContentStore(client),
-                services.GetRequiredService<IIntakeQuarantineArtifactStore>(),
-                services.GetRequiredService<TimeProvider>()),
-            services.GetRequiredService<IAutomaticCaseEvidencePromotionStore>());
-        var email = FollowUp(includePhotos: false);
-        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
-            new(email.FileName, email.MediaType, email.Content,
-                services.GetRequiredService<TimeProvider>().GetUtcNow(),
-                "system-worker:approved-inbox-poller",
-                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
-            $"box-filing:{Guid.NewGuid():N}", default);
-        await DispatchAsync(services, received.StagedReceiptId);
+        var promotion = BoxPromotion(services, box);
+        var received = await ReceiveAndDispatchFollowUpAsync(services, $"box-filing:{Guid.NewGuid():N}");
 
         Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
             await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, promotion)
@@ -490,6 +467,38 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.Equal(
             ["GET /2.0/folders/case-root"],
             box.Requests.Where(request => request != CaseFolderBox.Upload).ToArray());
+    }
+
+    /// <summary>
+    /// Box answering the promotion's upload with a 503 is an outage, not an
+    /// unexpected failure: the custody adapter names it, so the work item is
+    /// scheduled to retry under the ordinary failure code, and the version the
+    /// write left Pending stays for reconciliation.
+    /// </summary>
+    [Fact]
+    public async Task ABoxOutageDuringPromotionSchedulesARetryAndLeavesTheVersionPending()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var promotion = BoxPromotion(services, new CaseFolderBox(HttpStatusCode.ServiceUnavailable));
+        var received = await ReceiveAndDispatchFollowUpAsync(services, $"box-outage:{Guid.NewGuid():N}");
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled,
+            await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, promotion)
+                .ExecuteAsync(received.StagedReceiptId, default));
+
+        var work = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(
+            services, received.StagedReceiptId));
+        Assert.Equal(IntakeWorkState.RetryScheduled, work.State);
+        Assert.Equal("intake_processing_failure", work.FailureCode);
+        await using var db = await factory.Database.CreateContextAsync();
+        var custody = await (from occurrence in db.Set<DocumentOccurrenceEntity>()
+                             join version in db.Set<DocumentVersionEntity>() on occurrence.VersionId equals version.Id
+                             where occurrence.CaseId == caseId
+                             select version.CustodyStatus).ToArrayAsync();
+        Assert.Equal(DocumentCustodyStatus.Pending, Assert.Single(custody));
     }
 
     /// <summary>
@@ -624,6 +633,45 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         return (receipt, received.StagedReceiptId);
     }
 
+    /// <summary>
+    /// The promotion the Worker composes, filing into the given Box through
+    /// the Case custody adapter.
+    /// </summary>
+    private static PromoteAssociatedIntakeCaseEvidence BoxPromotion(IServiceProvider services, CaseFolderBox box)
+    {
+        var client = new BoxContentClient(
+            new(
+                new Uri("https://api.box.com/2.0/"),
+                new Uri("https://upload.box.com/api/2.0/"),
+                CaseFolderBox.RootId,
+                "test", "test", "test", "test", "test", "test", "holding-folder"),
+            new HttpClient(box),
+            new StaticBoxAuthorizationHeaderProvider(),
+            TimeProvider.System);
+        return new PromoteAssociatedIntakeCaseEvidence(
+            services.GetRequiredService<IIntakeArtifactStore>(),
+            new EfCaseArtifactCustody(
+                services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                new BoxDocumentContentStore(client),
+                services.GetRequiredService<IIntakeQuarantineArtifactStore>(),
+                services.GetRequiredService<TimeProvider>()),
+            services.GetRequiredService<IAutomaticCaseEvidencePromotionStore>());
+    }
+
+    private static async Task<ReceivedIntake> ReceiveAndDispatchFollowUpAsync(
+        IServiceProvider services, string operationKey)
+    {
+        var email = FollowUp(includePhotos: false);
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            new(email.FileName, email.MediaType, email.Content,
+                services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
+            operationKey, default);
+        await DispatchAsync(services, received.StagedReceiptId);
+        return received;
+    }
+
     private static async Task DispatchAsync(IServiceProvider services, Guid stagedId)
     {
         var store = services.GetRequiredService<IIntakeWorkStore>();
@@ -719,9 +767,10 @@ public sealed class AssociatedMailEvidenceIntegrationTests
     /// The Box a seeded Case files into: the approved root, the Case folder
     /// <c>case-root</c> under it, and the files uploaded there. It answers
     /// every read the store can make of that folder and its files, and records
-    /// each request as its method and path.
+    /// each request as its method and path. Given an upload status, it answers
+    /// every upload with that status instead.
     /// </summary>
-    private sealed class CaseFolderBox : HttpMessageHandler
+    private sealed class CaseFolderBox(HttpStatusCode? uploadStatus = null) : HttpMessageHandler
     {
         public const string RootId = "405543781910";
         public const string Upload = "POST /api/2.0/files/content";
@@ -739,6 +788,10 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             Requests.Enqueue($"{request.Method} {path}");
             if (request.Method == HttpMethod.Post && path == "/api/2.0/files/content")
             {
+                if (uploadStatus is { } refused)
+                {
+                    return new HttpResponseMessage(refused);
+                }
                 var multipart = Assert.IsType<MultipartFormDataContent>(request.Content);
                 using var attributes = JsonDocument.Parse(
                     await Part(multipart, "attributes").ReadAsStringAsync(cancellationToken));

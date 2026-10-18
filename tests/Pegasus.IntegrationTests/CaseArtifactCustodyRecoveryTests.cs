@@ -628,6 +628,35 @@ public sealed class CaseArtifactCustodyRecoveryTests
         }
     }
 
+    /// <summary>
+    /// Only an automatic intake promotion has a transport fault named for Core's
+    /// retry. A member of staff's write sees the raw fault, and its version is
+    /// recorded Pending all the same.
+    /// </summary>
+    [Fact]
+    public async Task AStaffWriteThatFailsOverHttpRaisesTheRawFaultAndLeavesOnePendingVersion()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var store = new FailFirstContentStore(
+            new HttpRequestException("Box returned 503.", null, HttpStatusCode.ServiceUnavailable));
+        var custody = new EfCaseArtifactCustody(factory, store, new MemoryArtifactStore(), TimeProvider.System);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => custody.RetainAsync(
+            ArtifactRequest(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                caseId,
+                "filed while Box is down"u8.ToArray()),
+            default));
+
+        await using var db = await database.CreateContextAsync();
+        Assert.Equal(
+            DocumentCustodyStatus.Pending,
+            (await db.Set<DocumentVersionEntity>().SingleAsync()).CustodyStatus);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1406,7 +1435,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         return caseId;
     }
 
-    private sealed class FailFirstContentStore : IDocumentContentStore
+    private sealed class FailFirstContentStore(Exception? failure = null) : IDocumentContentStore
     {
         private int calls;
         public List<ManagedDocumentContentAddress> Addresses { get; } = [];
@@ -1420,7 +1449,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             Addresses.Add(address);
             if (Interlocked.Increment(ref calls) == 1)
             {
-                throw new IOException("Injected pre-write dependency failure.");
+                throw failure ?? new IOException("Injected pre-write dependency failure.");
             }
             return Task.FromResult(new DocumentContentWriteResult(
                 DocumentContentWriteDisposition.Created, null, null));
@@ -1436,7 +1465,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             Addresses.Add(address);
             if (Interlocked.Increment(ref calls) == 1)
             {
-                throw new IOException("Injected pre-write dependency failure.");
+                throw failure ?? new IOException("Injected pre-write dependency failure.");
             }
             return Task.FromResult(new DocumentContentWriteResult(
                 DocumentContentWriteDisposition.Created, null, null));

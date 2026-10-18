@@ -464,10 +464,12 @@ public sealed class RetainIncomingArtifact(
     /// <para>
     /// No transport type is named, deliberately. Core does not know what
     /// transport an adapter speaks, and naming one would make Core reference
-    /// <c>System.Net.Http</c>, which the dependency direction forbids; an
-    /// adapter translates its transport faults to
-    /// <see cref="IntakeDependencyUnavailableException"/>, which is uncertain
-    /// here like everything else. The two process-fatal faults
+    /// <c>System.Net.Http</c>, which the dependency direction forbids. The
+    /// Blob intake store translates its transport faults to
+    /// <see cref="IntakeDependencyUnavailableException"/>, but Box custody
+    /// raises <c>HttpRequestException</c> raw, so this hand-over does not
+    /// depend on translation: every fault that is not a refusal is uncertain
+    /// here, whatever type it is. The two process-fatal faults
     /// <see cref="IntakeExceptionPolicy.IsRecoverable"/> also excludes are
     /// left to propagate, because there is no database write to be made on
     /// the way down.

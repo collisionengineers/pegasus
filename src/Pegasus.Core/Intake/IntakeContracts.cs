@@ -911,13 +911,21 @@ public static class IntakeExceptionPolicy
             and not AccessViolationException;
 
     /// <summary>
+    /// Microsoft.Data.SqlClient 6.1.1 raises an exhausted connection pool as an
+    /// <see cref="InvalidOperationException"/> ("...prior to obtaining a
+    /// connection from the pool..."), not as a <see cref="DbException"/>, and
+    /// Core cannot reference the SqlClient type, so Core matches the message.
+    /// </summary>
+    private const string PoolTimeoutMessageFragment = "obtaining a connection from the pool";
+
+    /// <summary>
     /// Faults worth a bounded retry rather than an immediate terminal outcome:
     /// the named intake conflicts, the dependency-unavailable fault adapters
-    /// translate to, and raw I/O, timeout and database faults, including any
-    /// of those wrapped by another exception, which is how EF surfaces a
-    /// deadlock or dropped connection. Retryable processing must remain in
-    /// processing rather than allocating a terminal decision or an
-    /// Unidentified reference on the first attempt.
+    /// translate to, raw I/O, timeout and database faults, and the connection
+    /// pool timeout, including any of those wrapped by another exception, which
+    /// is how EF surfaces a deadlock or dropped connection. Retryable
+    /// processing must remain in processing rather than allocating a terminal
+    /// decision or an Unidentified reference on the first attempt.
     /// </summary>
     public static bool IsTransientFailure(Exception exception) =>
         exception is IntakeArtifactRetentionException
@@ -927,6 +935,8 @@ public static class IntakeExceptionPolicy
             or IOException
             or TimeoutException
             or DbException
+        || (exception is InvalidOperationException
+            && exception.Message.Contains(PoolTimeoutMessageFragment, StringComparison.Ordinal))
         || (exception.InnerException is { } inner && IsTransientFailure(inner));
 }
 
