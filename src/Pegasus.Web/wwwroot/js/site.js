@@ -65,18 +65,21 @@
 
     // Bounded status pages ask to be reloaded while their state is still
     // moving; the delay is data on the element, so nothing here is inline.
+    // A page that also names a status address (data-status-url) asks that
+    // address instead, and reloads once when nothing is moving any longer.
     var autoRefresh = document.querySelector('[data-auto-refresh]');
     if (autoRefresh) {
         var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
         if (Number.isFinite(delay) && delay > 0) {
+            var statusUrl = autoRefresh.getAttribute('data-status-url');
             // Exactly one pending timer at a time: a page can be sent to the
             // background and brought back any number of times, and every one
             // of those returns re-arms the same timer rather than adding
             // another reload to the pile.
             var timer = 0;
-            var schedule = function () {
+            var schedule = function (action, wait) {
                 window.clearTimeout(timer);
-                timer = window.setTimeout(reload, delay);
+                timer = window.setTimeout(action, wait);
             };
             // A page can still be moving while an operator has a form open
             // that a reload would wipe; any element opting in with
@@ -84,24 +87,58 @@
             var reload = function () {
                 timer = 0;
                 if (document.querySelector('[data-refresh-hold][open]')) {
-                    schedule();
+                    schedule(reload, delay);
                     return;
                 }
                 window.location.reload();
             };
-            // A hidden tab does not poll. Returning to it reloads immediately
+            // The status answer says whether anything is still moving and how
+            // long to wait before asking again. An answer that is not that
+            // (a failure, or the sign-in page after the session ended) falls
+            // back to a reload after the page's own delay, so a failing
+            // status address never asks faster than the page reloaded.
+            var asking = false;
+            var poll = function () {
+                if (asking) { return; }
+                asking = true;
+                window.clearTimeout(timer);
+                timer = 0;
+                fetch(statusUrl, { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } })
+                    .then(function (response) {
+                        if (!response.ok) { throw new Error('The status is unavailable.'); }
+                        return response.json();
+                    })
+                    .then(function (state) {
+                        asking = false;
+                        if (typeof state.moving !== 'boolean') { throw new Error('The status is not understood.'); }
+                        // A tab hidden meanwhile asks again when it is shown.
+                        if (document.hidden) { return; }
+                        if (state.moving) {
+                            var wait = Number(state.nextDelayMs);
+                            schedule(poll, Number.isFinite(wait) && wait > 0 ? wait : delay);
+                        } else {
+                            reload();
+                        }
+                    })
+                    .catch(function () {
+                        asking = false;
+                        if (!document.hidden) { schedule(reload, delay); }
+                    });
+            };
+            var refresh = statusUrl ? poll : reload;
+            // A hidden tab does not poll. Returning to it refreshes immediately
             // instead of showing content that can be a full delay out of date.
             var trackVisibility = function () {
                 if (document.hidden) {
                     window.clearTimeout(timer);
                     timer = 0;
                 } else {
-                    reload();
+                    refresh();
                 }
             };
             document.addEventListener('visibilitychange', trackVisibility);
             if (!document.hidden) {
-                schedule();
+                schedule(refresh, delay);
             }
         }
     }

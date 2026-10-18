@@ -50,7 +50,7 @@
     </div>
 </header>
 
-<div class="up-surface" data-upload-review data-auto-refresh="@Model.AutoRefreshMilliseconds">
+<div class="up-surface" data-upload-review data-auto-refresh="@Model.AutoRefreshMilliseconds" data-status-url="@Model.StatusUrl">
     <div class="up-workspace">
         <section class="up-decision" aria-labelledby="up-decision-title" data-upload-phase="@Model.Phase.ToString().ToLowerInvariant()">
             @if (Model.Error is { } error)
