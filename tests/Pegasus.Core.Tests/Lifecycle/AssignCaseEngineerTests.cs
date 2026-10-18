@@ -158,8 +158,7 @@ public sealed class AssignCaseEngineerTests
             "assign-engineer",
             "Assign eligible Engineer",
             "lease-token",
-            EngineerId,
-            new(true, true, "accepted-readiness"));
+            EngineerId);
 
     private sealed class StubEligibility(CaseEngineerEligibility current)
         : ICaseEngineerEligibility

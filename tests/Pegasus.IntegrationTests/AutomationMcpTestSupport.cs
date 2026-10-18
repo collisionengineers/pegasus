@@ -244,8 +244,7 @@ internal static class AutomationMcpTestSupport
                     ActionActor.Automation(ClientId),
                     Guid.NewGuid().ToString("N"),
                     "Integration fixture returned the case to Review.",
-                    lease.LeaseToken,
-                    new(true, true, "mcp-ingress-review-readiness")),
+                    lease.LeaseToken),
                 CancellationToken.None);
         // The Automation lease stands after its write, so the fixture ends it.
         await scope.ServiceProvider.GetRequiredService<IReleaseCaseEditLease>()

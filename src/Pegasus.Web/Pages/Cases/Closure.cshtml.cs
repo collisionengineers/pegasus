@@ -117,9 +117,6 @@ public sealed class ClosureModel(
         string reason,
         string editLeaseToken,
         CaseReopenDestination destination,
-        bool instructionsComplete,
-        bool imagesComplete,
-        string? evidenceReference,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
@@ -133,13 +130,7 @@ public sealed class ClosureModel(
                     operationKey,
                     reason,
                     editLeaseToken,
-                    destination,
-                    destination == CaseReopenDestination.Review
-                        ? Readiness(
-                            instructionsComplete,
-                            imagesComplete,
-                            evidenceReference ?? string.Empty)
-                        : null),
+                    destination),
                 cancellationToken),
             "The case was reopened through the selected destination gates.");
 

@@ -41,8 +41,7 @@ public sealed record TransitionCaseRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    CaseTransitionDestination Destination,
-    CaseReadinessEvidence? Readiness = null)
+    CaseTransitionDestination Destination)
     : CaseMutationRequest(
         CaseId,
         ExpectedVersion,

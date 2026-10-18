@@ -1887,11 +1887,10 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     [Fact]
-    public async Task ReviewGatedTransitionsReadThePersistedFactsNotThePostedOnes()
+    public async Task ReviewGatedTransitionsReadThePersistedFacts()
     {
         // The case is demoted through the workspace save, and the
-        // Review-gated transitions then refuse even when the caller sends a
-        // readiness envelope claiming the opposite.
+        // Review-gated transitions then refuse.
         await using var harness = await Harness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(
@@ -1916,10 +1915,9 @@ public sealed class CaseWorkspacePersistenceTests
                     harness.CaseId,
                     demoted.Version,
                     harness.StaffActor,
-                    "return-to-review-forged",
-                    "Forged readiness claim",
-                    transitionLease.Token,
-                    new(true, true, "case-completeness-projection")),
+                    "return-to-review-refused",
+                    "Return to Review while the case is demoted",
+                    transitionLease.Token),
                 CancellationToken.None));
 
         // The refused transition never cleared the lease, so the same holder's
@@ -1930,11 +1928,10 @@ public sealed class CaseWorkspacePersistenceTests
                     harness.CaseId,
                     demoted.Version,
                     harness.StaffActor,
-                    "assign-engineer-forged",
-                    "Forged readiness claim",
+                    "assign-engineer-refused",
+                    "Assign Engineer while the case is demoted",
                     transitionLease.Token,
-                    Guid.NewGuid(),
-                    new(true, true, "case-completeness-projection")),
+                    Guid.NewGuid()),
                 null,
                 CaseLifecycleState.ReportPreparation,
                 CancellationToken.None));

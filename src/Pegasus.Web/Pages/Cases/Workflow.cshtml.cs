@@ -82,9 +82,6 @@ public sealed class WorkflowModel(
         string operationKey,
         string reason,
         string? editLeaseToken,
-        bool instructionsComplete,
-        bool imagesComplete,
-        string evidenceReference,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandUnderLeaseAsync(
             id,
@@ -99,11 +96,7 @@ public sealed class WorkflowModel(
                     operationKey,
                     reason,
                     lease,
-                    CaseTransitionDestination.Review,
-                    Readiness(
-                        instructionsComplete,
-                        imagesComplete,
-                        evidenceReference)),
+                    CaseTransitionDestination.Review),
                 cancellationToken),
             "The case returned to Review.");
 
@@ -113,9 +106,6 @@ public sealed class WorkflowModel(
         string operationKey,
         string? editLeaseToken,
         Guid engineerId,
-        bool instructionsComplete,
-        bool imagesComplete,
-        string evidenceReference,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandUnderLeaseAsync(
             id,
@@ -130,11 +120,7 @@ public sealed class WorkflowModel(
                     operationKey,
                     Pegasus.Web.Presentation.CaseWorkspaceLabels.AssignEngineer,
                     lease,
-                    engineerId,
-                    Readiness(
-                        instructionsComplete,
-                        imagesComplete,
-                        evidenceReference)),
+                    engineerId),
                 cancellationToken),
             Pegasus.Web.Presentation.OperatorLabels.WorkCentre.Assigned);
 

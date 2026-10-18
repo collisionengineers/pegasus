@@ -4373,8 +4373,7 @@ public sealed partial class DetailsModel(
         // it rather than the screen guessing a value.
         static decimal Fraction(string? value) => (Money(value) ?? 0m) / 100m;
         // A checked box posts "true" ahead of its hidden "false"; an
-        // unchecked box posts the "false" alone (CaseMutationPageModel's
-        // BooleanFormFields convention), so the first entry is the answer.
+        // unchecked box posts the "false" alone, so the first entry is the answer.
         bool Checked(string field) =>
             bool.TryParse(form[field].FirstOrDefault(), out var value) && value;
 
@@ -5014,10 +5013,7 @@ public sealed partial class DetailsModel(
         return new(
             engineerDisplayName,
             signOffEngineerDisplayName,
-            new(
-                engineerOptions,
-                details.Data?.Completeness.Values.InstructionComplete ?? false,
-                details.Data?.Completeness.Values.ImagesComplete ?? false));
+            new(engineerOptions));
     }
 
     /// <summary>
@@ -5079,7 +5075,7 @@ public sealed partial class DetailsModel(
                     ?? "Unavailable sign-off Engineer"
                 : "Unavailable sign-off Engineer";
         }
-        return BooleanFormFields.Contains(field) || (EditorLabels.Label(field) is not null && bool.TryParse(value, out _))
+        return EditorLabels.Label(field) is not null && bool.TryParse(value, out _)
             ? YesOrNo(string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)) : value;
     }
 
@@ -5138,12 +5134,6 @@ public sealed partial class DetailsModel(
             "mileage" => Accepted(data.Vehicle.Mileage)?.Value.ToString(
                 CultureInfo.InvariantCulture),
             "mileageUnit" => Accepted(data.Vehicle.MileageUnit)?.Value,
-
-            // Two handlers name the same completeness flags differently; both compare against the
-            // one projected value.
-            "instructionComplete" or "instructionsComplete" =>
-                YesOrNo(data.Completeness.Values.InstructionComplete),
-            "imagesComplete" => YesOrNo(data.Completeness.Values.ImagesComplete),
             _ => null
         };
     }
@@ -5174,10 +5164,6 @@ public sealed partial class DetailsModel(
         "claimSourceContactTelephone" => FrameLabels.ContactPhone,
         "claimSourceContactEmail" => FrameLabels.ContactEmail,
         "reason" => "Reason",
-
-        // The completeness flags are labelled as the form the editor was looking at labelled them.
-        "instructionComplete" or "instructionsComplete" => "Instructions complete",
-        "imagesComplete" => "Images complete",
         _ => Humanize(field)
     });
 

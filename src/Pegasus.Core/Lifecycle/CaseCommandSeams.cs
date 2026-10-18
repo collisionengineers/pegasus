@@ -124,9 +124,8 @@ public sealed class TransitionCase(
     }
 
     /// <summary>
-    /// The transition carries no readiness claim. The store re-reads
-    /// the case's persisted completeness facts inside its own transaction and
-    /// decides there, so this seam neither demands nor forwards evidence.
+    /// The store re-reads the case's persisted completeness facts inside its
+    /// own transaction and decides there.
     /// </summary>
     private Task<CaseWorkflowRecord> ReturnToReviewAsync(
         TransitionCaseRequest request,

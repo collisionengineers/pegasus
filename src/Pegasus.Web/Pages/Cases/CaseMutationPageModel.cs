@@ -79,25 +79,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "content",
         "outcome",
         "assessment",
-        "evidenceReference",
         "artifactIdentity",
         "replacementPrincipalCode",
         "semanticRole",
-        "expiresAtUtc",
-        "instructionComplete",
-        "imagesComplete",
-        "instructionsComplete"
-    }.ToFrozenSet(StringComparer.Ordinal);
-
-    /// <summary>
-    /// The retainable fields posted by a checkbox. Each carries a trailing hidden false, so an
-    /// unchecked box still submits and a proposed "no" survives the refusal instead of vanishing.
-    /// </summary>
-    protected static readonly FrozenSet<string> BooleanFormFields = new[]
-    {
-        "instructionComplete",
-        "imagesComplete",
-        "instructionsComplete"
+        "expiresAtUtc"
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>
@@ -783,11 +768,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             .Select(field => new
             {
                 field.Key,
-                // A checked box posts "true" followed by its hidden "false"; the model binder reads
-                // the first entry, so retention reads the first entry too rather than joining both.
-                Value = BooleanFormFields.Contains(field.Key)
-                    ? field.Value.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty
-                    : string.Join(", ", field.Value.Where(value => !string.IsNullOrWhiteSpace(value)))
+                Value = string.Join(", ", field.Value.Where(value => !string.IsNullOrWhiteSpace(value)))
             })
             .Where(field => field.Key == "signOffEngineerId" || !Guid.TryParse(field.Value, out _))
             .Select(field =>
@@ -899,15 +880,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// </summary>
     private static bool RequiresReacquisition(Exception exception) =>
         IsLeaseLoss(exception) || exception is CaseVersionConflictException;
-
-    protected static CaseReadinessEvidence Readiness(
-        bool instructionsComplete,
-        bool imagesComplete,
-        string evidenceReference) =>
-        new(
-            instructionsComplete,
-            imagesComplete,
-            evidenceReference);
 
     /// <summary>
     /// Logs a failed case command. A designed refusal is a Warning naming the

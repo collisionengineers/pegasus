@@ -233,14 +233,13 @@ public partial class IndexModel(
             caseId,
             returnUrl,
             "assign_engineer",
-            async (actor, basis, lease) =>
+            async (actor, lease) =>
             {
                 if (engineerId == Guid.Empty)
                 {
                     throw new ArgumentException("An Engineer is required.", nameof(engineerId));
                 }
 
-                var completeness = basis.Data.Completeness.Values;
                 await assignEngineer.ExecuteAsync(
                     new AssignCaseEngineerRequest(
                         caseId,
@@ -249,11 +248,7 @@ public partial class IndexModel(
                         operationKey,
                         CaseWorkspaceLabels.AssignEngineer,
                         lease.Token,
-                        engineerId,
-                        new CaseReadinessEvidence(
-                            completeness?.InstructionComplete ?? false,
-                            completeness?.ImagesComplete ?? false,
-                            "case-completeness-projection")),
+                        engineerId),
                     cancellationToken);
             },
             Labels.Assigned,
@@ -695,7 +690,7 @@ public partial class IndexModel(
         Guid caseId,
         string? returnUrl,
         string commandName,
-        Func<ActionActor, CaseEditBasis, CaseEditLease, Task> execute,
+        Func<ActionActor, CaseEditLease, Task> execute,
         string successMessage,
         CancellationToken cancellationToken)
     {
@@ -712,7 +707,7 @@ public partial class IndexModel(
             lease = await acquireLease.ExecuteAsync(
                 new ClaimCaseEditLeaseRequest(caseId, basis.Workflow.Version, actor, NewOperationKey()),
                 cancellationToken);
-            await execute(actor, basis, lease);
+            await execute(actor, lease);
             // The committed mutation consumed the lease.
             lease = null;
             StatusMessage = successMessage;

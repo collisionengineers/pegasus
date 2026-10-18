@@ -74,10 +74,7 @@ public sealed class CaseWorkflowWebTests
                 ("expectedVersion", InputValue(dialog, "expectedVersion")),
                 ("operationKey", InputValue(dialog, "operationKey")),
                 ("editLeaseToken", InputValue(dialog, "editLeaseToken")),
-                ("engineerId", engineerId.ToString("D")),
-                ("instructionsComplete", InputValue(dialog, "instructionsComplete")),
-                ("imagesComplete", InputValue(dialog, "imagesComplete")),
-                ("evidenceReference", InputValue(dialog, "evidenceReference"))));
+                ("engineerId", engineerId.ToString("D"))));
         AssertPrg(response, store.CaseId);
         var handoff = Assert.Single(store.EngineerAssignments);
         AssertLeasedMutation(workspace, handoff, InputValue(dialog, "operationKey"), "Assign Engineer");
@@ -108,19 +105,13 @@ public sealed class CaseWorkflowWebTests
             Substitute<ICreateLinkedReplacement>(services, store);
         });
         var engineerId = Guid.NewGuid();
-        (string Name, string Value)[] readiness =
-        [
-            ("instructionsComplete", "true"),
-            ("imagesComplete", "true"),
-            ("evidenceReference", "review-evidence-1")
-        ];
 
         using var returned = await workspace.PostAsync(
             "Workflow?handler=ReturnToReview",
-            workspace.MutationForm("return-to-review", "Images arrived", readiness));
+            workspace.MutationForm("return-to-review", "Images arrived"));
         using var assigned = await workspace.PostAsync(
             "Workflow?handler=AssignEngineer",
-            workspace.MutationForm("assign-engineer", "Engineer available", [("engineerId", engineerId.ToString("D")), .. readiness]));
+            workspace.MutationForm("assign-engineer", "Engineer available", ("engineerId", engineerId.ToString("D"))));
         using var replaced = await workspace.PostAsync(
             "Workflow?handler=CreateLinkedReplacement",
             workspace.MutationForm("create-replacement", "Wrong principal", ("replacementPrincipalCode", "ACME")));
@@ -128,17 +119,14 @@ public sealed class CaseWorkflowWebTests
         AssertPrg(returned, store.CaseId);
         AssertPrg(assigned, store.CaseId);
         AssertPrg(replaced, store.CaseId);
-        var expectedReadiness = new CaseReadinessEvidence(true, true, "review-evidence-1");
 
         var transition = Assert.Single(store.Transitions);
         AssertLeasedMutation(workspace, transition, "return-to-review", "Images arrived");
         Assert.Equal(CaseTransitionDestination.Review, transition.Destination);
-        Assert.Equal(expectedReadiness, transition.Readiness);
 
         var assignment = Assert.Single(store.EngineerAssignments);
         AssertLeasedMutation(workspace, assignment, "assign-engineer", "Assign Engineer");
         Assert.Equal(engineerId, assignment.EngineerId);
-        Assert.Equal(expectedReadiness, assignment.Readiness);
 
         var replacement = Assert.Single(store.LinkedReplacements);
         AssertLeasedMutation(workspace, replacement, "create-replacement", "Wrong principal");
@@ -153,7 +141,7 @@ public sealed class CaseWorkflowWebTests
         await AssertLostLeaseClearsEditModeAsync(
             workspace,
             "Workflow?handler=ReturnToReview",
-            workspace.MutationForm("return-to-review-2", "Lease gone", readiness));
+            workspace.MutationForm("return-to-review-2", "Lease gone"));
     }
 
     /// <summary>
@@ -266,10 +254,7 @@ public sealed class CaseWorkflowWebTests
                 ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
                 ("operationKey", "native-handoff"),
                 ("editLeaseToken", store.LeaseToken),
-                ("engineerId", engineerId.ToString("D")),
-                ("instructionsComplete", "true"),
-                ("imagesComplete", "true"),
-                ("evidenceReference", "case-completeness-projection")));
+                ("engineerId", engineerId.ToString("D"))));
 
         AssertPrg(holdResponse, store.CaseId);
         AssertPrg(releaseResponse, store.CaseId);
