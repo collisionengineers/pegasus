@@ -309,7 +309,10 @@ This is done for each document, except that a batch of document writes into one
 folder shares a single read of that folder and its ancestry for the batch only,
 never for the 10-minute memory (operator ruling of 10 October 2026). A folder
 trashed or moved partway through a batch may therefore be noticed late; any
-fence failure on a write into the folder drops the shared read. An upload
+fence failure on a write into the folder drops the shared read. The fold of a
+Vehicle images folder into a Case likewise shares one read of each of its two
+folders for the fold only, never for the 10-minute memory (operator ruling of
+15 October 2026). An upload
 does not look for its name first. Box's answer to the upload must name the
 folder that was read as the file's parent. A name Box already holds comes back as Box's own refusal. Pegasus then
 accepts the file that holds it only when it is a file of the same length, in
@@ -320,8 +323,8 @@ A file over 50 MB is uploaded to Box in parts (operator ruling of 15 October
 2026).
 Box does not report a file's type, so the type is not compared. A not-found,
 trashed or outside-root answer to any of these reads drops what was
-remembered. Folder create, rename and delete, and file move and delete, still
-check the whole path every time.
+remembered. Folder create, rename and delete, and file delete, still check the
+whole path every time.
 
 A browser may keep a private copy of an image or PDF preview for a week. It
 keeps one only when the address names the exact bytes. For a Case document

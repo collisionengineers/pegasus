@@ -363,8 +363,8 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 /// parent, and a name Box already holds is Box's 409, resolved by comparing
 /// the existing file's content. Content over
 /// <see cref="SinglePartUploadLimit"/> goes up in parts through a Box upload
-/// session and is answered the same way. Folder create, rename, move and
-/// delete still walk the whole path on every call.
+/// session and is answered the same way. Folder create, rename and delete
+/// still walk the whole path on every call.
 /// </remarks>
 internal sealed partial class BoxContentClient(
     BoxCustodyOptions options,
@@ -406,8 +406,9 @@ internal sealed partial class BoxContentClient(
 
     /// <summary>
     /// A folder that fresh reads have proved fit to be written into. Only the
-    /// client's own prove methods make one, and an upload takes nothing else,
-    /// so no file reaches Box without its folder having been proved first.
+    /// client's own prove methods make one, and an upload or a move takes
+    /// nothing else, so no file reaches Box without its folder having been
+    /// proved first.
     /// </summary>
     internal sealed record ProvedFolder(string Id);
 
@@ -598,7 +599,8 @@ internal sealed partial class BoxContentClient(
         CancellationToken cancellationToken)
     {
         // The walk's first GET is the file itself, so it carries the metadata.
-        var file = await WalkToRootAsync(fileId, isFile: true, captureItem: true, cancellationToken)
+        var file = await WalkToRootAsync(
+            fileId, isFile: true, captureItem: true, provedAncestor: null, cancellationToken)
             ?? throw new InvalidDataException("Box returned the wrong type for a custody file.");
         if (!string.Equals(file.Type, "file", StringComparison.Ordinal))
         {
@@ -1297,7 +1299,7 @@ internal sealed partial class BoxContentClient(
     }
 
     /// <summary>Drops a folder from the read memory, so its next read walks the ancestry again.</summary>
-    private void Forget(string? folderId)
+    internal void Forget(string? folderId)
     {
         if (!string.IsNullOrEmpty(folderId))
         {
@@ -1402,16 +1404,23 @@ internal sealed partial class BoxContentClient(
         }
     }
 
+    /// <summary>
+    /// Moves a file and gives it a name. Both folders were proved by the
+    /// caller, once for its run of moves. The file is read before the move and
+    /// again after it, and a trashed file, or one outside the approved root, is
+    /// refused. Each read stops at the proved folder it reaches, as it stops at
+    /// the approved root, so no folder is read again for the move.
+    /// </summary>
     public async Task<BoxItem> MoveFileAsync(
         string fileId,
-        string newParentId,
+        ProvedFolder source,
+        ProvedFolder destination,
         string name,
         CancellationToken cancellationToken)
     {
-        Forget(newParentId);
-        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
-        await EnsureDescendantAsync(newParentId, cancellationToken);
-        using var content = JsonContent.Create(new { name, parent = new { id = newParentId } });
+        Forget(destination.Id);
+        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true, provedAncestor: source);
+        using var content = JsonContent.Create(new { name, parent = new { id = destination.Id } });
         using var response = await SendAsync(
             HttpMethod.Put,
             new Uri(options.BaseUri, $"files/{Uri.EscapeDataString(fileId)}"),
@@ -1424,7 +1433,7 @@ internal sealed partial class BoxContentClient(
         }
         using var document = await ReadSuccessJsonAsync(response, cancellationToken);
         var file = ParseItem(document.RootElement);
-        await EnsureDescendantAsync(file.Id, cancellationToken, isFile: true);
+        await EnsureDescendantAsync(file.Id, cancellationToken, isFile: true, provedAncestor: destination);
         return file;
     }
 
@@ -1471,17 +1480,21 @@ internal sealed partial class BoxContentClient(
     public Task EnsureDescendantAsync(
         string itemId,
         CancellationToken cancellationToken,
-        bool isFile = false) =>
-        WalkToRootAsync(itemId, isFile, captureItem: false, cancellationToken);
+        bool isFile = false,
+        ProvedFolder? provedAncestor = null) =>
+        WalkToRootAsync(itemId, isFile, captureItem: false, provedAncestor, cancellationToken);
 
     /// <summary>
-    /// The ancestry walk. Returns the item's own metadata, read by the walk's
-    /// first GET, or null when the item is the approved root itself.
+    /// The ancestry walk, which ends at the approved root or at
+    /// <paramref name="provedAncestor"/> when it is given and the walk reaches
+    /// it. Returns the item's own metadata, read by the walk's first GET, or
+    /// null when the item is the approved root itself.
     /// </summary>
     private async Task<BoxItem?> WalkToRootAsync(
         string itemId,
         bool isFile,
         bool captureItem,
+        ProvedFolder? provedAncestor,
         CancellationToken cancellationToken)
     {
         if (itemId.Equals(options.RootFolderId, StringComparison.Ordinal))
@@ -1520,7 +1533,9 @@ internal sealed partial class BoxContentClient(
                 }
                 current = ReadString(parent, "id")
                     ?? throw new InvalidDataException("Box omitted a parent identity.");
-                if (current.Equals(options.RootFolderId, StringComparison.Ordinal))
+                if (current.Equals(options.RootFolderId, StringComparison.Ordinal)
+                    || (provedAncestor is not null
+                        && current.Equals(provedAncestor.Id, StringComparison.Ordinal)))
                 {
                     return first;
                 }
@@ -1990,7 +2005,11 @@ internal sealed class BoxCaseCustody(
         {
             throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
         }
-        await ProveRootAsync(caseRoot, cancellationToken);
+        // The fold proves its image folder once, here, and that proof dies
+        // with the call. The Case folder's proof is the one this adapter
+        // already keeps for the root object. Every move relies on both.
+        var caseProof = await ProveRootAsync(caseRoot, cancellationToken);
+        var imageProof = await client.ProveFolderAsync(imageRoot.RemoteId, cancellationToken);
 
         // Flat, like everything else in the case folder (operator direction,
         // 2026-08-21). The folded images join the instruction's files rather
@@ -2003,32 +2022,44 @@ internal sealed class BoxCaseCustody(
             (await client.ListChildrenAsync(destination, cancellationToken))
                 .Select(item => item.Name),
             StringComparer.Ordinal);
-        foreach (var child in children)
+        try
         {
-            if (!string.Equals(child.Type, "file", StringComparison.Ordinal))
+            foreach (var child in children)
             {
-                throw new InvalidDataException(
-                    "The image-case custody folder holds an unexpected non-file child; the fold fails closed.");
-            }
-            if (string.Equals(child.Name, CaseBindingFileName, StringComparison.Ordinal))
-            {
-                continue;
-            }
+                if (!string.Equals(child.Type, "file", StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "The image-case custody folder holds an unexpected non-file child; the fold fails closed.");
+                }
+                if (string.Equals(child.Name, CaseBindingFileName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            // A same-named file already folded from another Image intake keeps
-            // its name unique by prefixing the source reference.
-            string targetName;
-            if (destinationNames.Add(child.Name))
-            {
-                targetName = child.Name;
+                // A same-named file already folded from another Image intake keeps
+                // its name unique by prefixing the source reference.
+                string targetName;
+                if (destinationNames.Add(child.Name))
+                {
+                    targetName = child.Name;
+                }
+                else
+                {
+                    targetName = $"{CaseFolderName(imageRoot.Reference)} {child.Name}";
+                    destinationNames.Add(targetName);
+                }
+                await RequireLeaseAsync(leaseGuard, cancellationToken);
+                await client.MoveFileAsync(child.Id, imageProof, caseProof, targetName, cancellationToken);
             }
-            else
-            {
-                targetName = $"{CaseFolderName(imageRoot.Reference)} {child.Name}";
-                destinationNames.Add(targetName);
-            }
-            await RequireLeaseAsync(leaseGuard, cancellationToken);
-            await client.MoveFileAsync(child.Id, destination, targetName, cancellationToken);
+        }
+        catch (Exception exception) when (BoxContentClient.IsFenceFailure(exception))
+        {
+            // The proofs end with the fold: both folders leave the read memory,
+            // and the next fold proves the Case folder again.
+            client.Forget(imageRoot.RemoteId);
+            client.Forget(destination);
+            provedRoots.Remove(caseRoot);
+            throw;
         }
 
         var binding = BoxContentClient.SelectChild(children, CaseBindingFileName, "file");
