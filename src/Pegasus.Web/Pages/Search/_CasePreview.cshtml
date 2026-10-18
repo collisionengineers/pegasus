@@ -1,14 +1,14 @@
 @model Pegasus.Web.Pages.Search.IndexModel.ResultRow
 @using Pegasus.Web.Presentation
-@{
-    var circumstances = string.IsNullOrWhiteSpace(Model.Item.AccidentCircumstances)
-        ? "Not recorded"
-        : Model.Item.AccidentCircumstances!;
-}
 
 @* The Selected Case preview is drawn once for the server-selected row and
    once per results row as that row's swap-in template. Open Case travels
-   with the preview, so the anchor remains live after the script swaps it in. *@
+   with the preview, so the anchor remains live after the script swaps it in.
+   The accident circumstances are read for the one Case the page opens on and
+   printed here; every other row carries the address that reads its own, which
+   the script fetches when the row is selected. The data- attributes sit in
+   their own branch because Razor writes a data- attribute even when its
+   value is null. *@
 <div class="detail-canvas">
     <p class="eyebrow">@OperatorLabels.CaseTypeName(Model.Item.CaseType)</p>
     <h2>@Model.Heading</h2>
@@ -16,7 +16,14 @@
     <partial name="Shared/_StatusChip" model="@Model.Chip" />
     <section class="section-gap">
         <h3 class="section-label">Accident circumstances</h3>
-        <p>@circumstances</p>
+        @if (Model.CircumstancesHref is { } circumstancesHref)
+        {
+            <p data-circumstances-url="@circumstancesHref" data-circumstances-failed="@OperatorLabels.CircumstancesUnavailable">@OperatorLabels.Busy.Loading</p>
+        }
+        else
+        {
+            <p>@Pegasus.Web.Pages.Search.IndexModel.CircumstancesText(Model.Circumstances)</p>
+        }
     </section>
     <div class="fact-grid">
         <dl class="fact"><dt>Our ref</dt><dd>@Model.PrincipalReference</dd></dl>
