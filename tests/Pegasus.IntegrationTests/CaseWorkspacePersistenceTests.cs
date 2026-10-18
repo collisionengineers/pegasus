@@ -1416,6 +1416,135 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
+    /// The lines the Case save returns on its assessment are the saved
+    /// specification's own, by position, and an exact replay returns the same.
+    /// </summary>
+    [Fact]
+    public async Task AWorkspaceSaveReturnsTheAssessmentLinesInPositionOrder()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-line-order");
+        var request = Request(harness, initial.Version, lease.Token, "workspace-line-order", engineer) with
+        {
+            Estimate = TwoLineEstimate()
+        };
+
+        var saved = await harness.WorkspaceStore.SaveAsync(request, CancellationToken.None);
+        var replayed = await harness.WorkspaceStore.SaveAsync(request, CancellationToken.None);
+
+        Assert.False(saved.WasReplay);
+        Assert.True(replayed.WasReplay);
+        var specificationLines = Assert.IsType<RepairSpecificationVersion>(saved.Estimate).Lines;
+        Assert.Equal(new[] { 1, 2 }, specificationLines.Select(line => line.Position).ToArray());
+        Assert.Equal(new[] { 1, 2 }, saved.Assessment.EstimateLines.Select(line => line.Position).ToArray());
+        Assert.Equal(
+            specificationLines.Select(line => line.Id).ToArray(),
+            saved.Assessment.EstimateLines.Select(line => line.Id).ToArray());
+        Assert.Equal(saved.Assessment.EstimateLines, replayed.Assessment.EstimateLines);
+    }
+
+    /// <summary>
+    /// The save's read-back takes the specification's lines with the
+    /// specification. No statement that reads the lines alone follows the one
+    /// that read them with it.
+    /// </summary>
+    [Fact]
+    public async Task ASaveThatCarriesAnEstimateReadsItsLinesOnlyWithTheSpecification()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-lines-read");
+        var counter = new SqlStatementCounter();
+        var store = await StoreCountingStatementsAsync(harness, counter);
+
+        await store.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-lines-read", engineer) with
+            {
+                Estimate = TwoLineEstimate()
+            },
+            CancellationToken.None);
+
+        var statements = counter.Statements;
+        var message = "The statements, in the order they started:" + Environment.NewLine
+            + string.Join(Environment.NewLine, statements);
+        var lastWithSpecification = statements.ToList().FindLastIndex(text =>
+            text.Contains("[CaseRepairSpecifications]", StringComparison.Ordinal)
+            && text.Contains("[CaseEstimateLines]", StringComparison.Ordinal));
+        Assert.True(lastWithSpecification >= 0, message);
+        Assert.False(
+            statements.Skip(lastWithSpecification + 1).Any(text =>
+                text.Contains("FROM [CaseEstimateLines]", StringComparison.Ordinal)),
+            message);
+    }
+
+    /// <summary>
+    /// A line cannot outlive its specification (operator, 11 October 2026: a
+    /// discard deletes the specification with its lines), so a replay naming a
+    /// specification that is gone has no lines to read and sends no statement
+    /// that reads them.
+    /// </summary>
+    [Fact]
+    public async Task AReplayWhoseSpecificationIsGoneReadsNoLines()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-lines-gone");
+        var request = Request(harness, initial.Version, lease.Token, "workspace-lines-gone", engineer) with
+        {
+            Estimate = TwoLineEstimate()
+        };
+        var saved = await harness.WorkspaceStore.SaveAsync(request, CancellationToken.None);
+        var specificationId = Assert.IsType<RepairSpecificationVersion>(saved.Estimate).SpecificationId;
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"DELETE FROM CaseEstimateLines WHERE RepairSpecificationId = {specificationId}");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"DELETE FROM CaseRepairSpecifications WHERE Id = {specificationId}");
+        }
+        var counter = new SqlStatementCounter();
+        var store = await StoreCountingStatementsAsync(harness, counter);
+
+        var replayed = await store.SaveAsync(request, CancellationToken.None);
+
+        Assert.True(replayed.WasReplay);
+        Assert.Null(replayed.Estimate);
+        Assert.Empty(replayed.Assessment.EstimateLines);
+        Assert.Equal(0, counter.CountContaining("FROM [CaseEstimateLines]"));
+    }
+
+    private static CaseWorkspaceEstimate TwoLineEstimate() => new(
+        null,
+        new("Estimate 1", 45m, 0m, 20m),
+        [
+            new("new_part", null, "Front bumper", 1.5m, 240m, false, "BP-1", null, null, null, null, 1),
+            new("new_part", null, "Rear bumper", 1.5m, 180m, false, "BP-2", null, null, null, null, 1)
+        ]);
+
+    /// <summary>
+    /// The harness's store, on a second factory over the same database whose
+    /// every statement <paramref name="counter"/> keeps.
+    /// </summary>
+    private static async Task<EfCaseWorkspaceStore> StoreCountingStatementsAsync(
+        Harness harness,
+        SqlStatementCounter counter)
+    {
+        await using var connectionContext = await harness.Factory.CreateDbContextAsync();
+        var connectionString = connectionContext.Database.GetConnectionString()
+            ?? throw new InvalidOperationException("The SQL fixture has no connection string.");
+        return new(
+            new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
+                .UseSqlServer(connectionString)
+                .AddInterceptors(counter)
+                .Options),
+            harness.TimeProvider);
+    }
+
+    /// <summary>
     /// A calculation in a Save that records a new guide month for the basis
     /// source is recorded against that new card, the one the page shows (one
     /// Save, 23 September 2026), names the Case version the save produced and
