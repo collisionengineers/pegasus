@@ -9,9 +9,10 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The one act that produces the case export. It reads a case, maps the
-/// thirteen fields, loads every eligible retained photograph, writes the
-/// archive and records each successful export in action history. It changes
-/// no case state or version, so it is available in every lifecycle state.
+/// thirteen fields, selects every eligible retained photograph, writes the
+/// archive reading one photograph at a time, and records each successful
+/// export in action history. It changes no case state or version, so it is
+/// available in every lifecycle state.
 /// </summary>
 public sealed class EfCaseExportStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -51,21 +52,23 @@ public sealed class EfCaseExportStore(
             CaseExportEvidenceReader.Build(caseData, vehicle),
             DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime));
 
-        var images = await imageReader.LoadEligibleImagesAsync(
+        var photographs = await imageReader.LoadEligibleImagesAsync(
             context,
             request.CaseId,
             caseData.Identity.Reference,
             cancellationToken);
-        var bundle = CaseExportArchive.Create(
+        var bundle = await CaseExportArchive.CreateAsync(
             export.Source,
-            new(images),
-            caseData.Identity.Reference);
+            new(photographs.Images),
+            photographs.ReadContentAsync,
+            caseData.Identity.Reference,
+            cancellationToken);
         await RecordExportAsync(
             context,
             request,
             caseData,
             export.Source,
-            images,
+            photographs.Images,
             bundle,
             cancellationToken);
 

@@ -1,10 +1,12 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.CaseExport;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -649,6 +651,39 @@ public sealed class CaseCustodyWebTests
         Assert.NotEqual(
             "application/zip",
             prefetched.Content.Headers.ContentType?.MediaType);
+    }
+
+    // The digest header is set from the archive's own SHA-256 before the body
+    // is returned, so a client can check the file it received against it.
+    [Fact]
+    public async Task TheExportAnswersTheArchiveWithItsContentDigest()
+    {
+        var content = "synthetic archive bytes"u8.ToArray();
+        var sha256 = Convert.ToHexStringLower(SHA256.HashData(content));
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IExportCaseBundle>(
+                services,
+                new StubExportCaseBundle(new CaseExportBundle(content, sha256, [], sha256, "QDOS26001.zip"))));
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Documents/Export?handler=Bundle",
+            Form(workspace.AntiforgeryToken, ("operationKey", Guid.NewGuid().ToString("N"))));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/zip", response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsByteArrayAsync();
+        var digest = Assert.Single(response.Headers.GetValues("Content-Digest"));
+        Assert.Equal($"sha-256=:{Convert.ToBase64String(Convert.FromHexString(sha256))}:", digest);
+        Assert.Equal(sha256, Convert.ToHexStringLower(SHA256.HashData(body)));
+    }
+
+    private sealed class StubExportCaseBundle(CaseExportBundle bundle) : IExportCaseBundle
+    {
+        public Task<ExportCaseBundleResult?> ExecuteAsync(
+            ExportCaseBundleRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<ExportCaseBundleResult?>(new(bundle, [], []));
     }
 
 

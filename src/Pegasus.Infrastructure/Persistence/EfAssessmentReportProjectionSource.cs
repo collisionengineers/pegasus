@@ -296,14 +296,10 @@ internal sealed class EfAssessmentReportProjectionSource(
     /// preview does not ask Box for the same photograph again. The read is of
     /// one version, so no other image is held while it is decoded.
     /// </summary>
-    private async Task<byte[]> ReadImageAsync(ManagedDocumentContentRead read, CancellationToken cancellationToken)
-    {
-        IReadOnlyList<ManagedDocumentContentRead> reads = [read];
-        var contents = cachedVersions is null
-            ? await contentStore.ReadVersionsAsync(reads, cancellationToken).ConfigureAwait(false)
-            : await cachedVersions.ReadVersionsAsync(reads, cancellationToken).ConfigureAwait(false);
-        return DocumentContentCachePublisherExtensions.ArrayOf(contents[0]);
-    }
+    private async Task<byte[]> ReadImageAsync(ManagedDocumentContentRead read, CancellationToken cancellationToken) =>
+        DocumentContentCachePublisherExtensions.ArrayOf(
+            await ManagedVersionBytes.ReadAsync(contentStore, cachedVersions, read, cancellationToken)
+                .ConfigureAwait(false));
 
     // Projection and transactional freeze use one definition of current source
     // membership. The supplied context decides the transaction, never a new one.
