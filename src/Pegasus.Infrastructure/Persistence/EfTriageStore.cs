@@ -17,10 +17,12 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfTriageStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     IEnumerable<IPrincipalCaseMatchPolicy> caseMatchPolicies,
-    TimeProvider? timeProvider = null) : ITriageStore, ITriagePrincipalGate
+    TimeProvider? timeProvider = null,
+    TriagePairingSweepCursor? sweepCursor = null) : ITriageStore, ITriagePrincipalGate
 {
     private readonly IReadOnlyList<IPrincipalCaseMatchPolicy> _caseMatchPolicies = caseMatchPolicies.ToArray();
     private const string AutomaticLinkEvent = "triage_case_linked";
+    private const int PairingPageSize = 50;
 
     public async Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
         Guid? triageCaseId, Guid? instructionCaseId, int maximumItems, CancellationToken cancellationToken)
@@ -43,8 +45,10 @@ public sealed class EfTriageStore(
                 return result;
             }
         }
-        DateTimeOffset? afterCreatedAtUtc = null;
-        var afterCaseId = Guid.Empty;
+        // Only the unscoped sweep continues from where the last one stopped;
+        // a scoped call looks at every Triage that could link.
+        var cursor = triageCaseId is null && instructionCaseId is null ? sweepCursor : null;
+        var after = cursor?.After;
         while (result.Count < maximumItems)
         {
             // The output cap follows dynamic matching. An old unknown/nonmatch
@@ -62,26 +66,24 @@ public sealed class EfTriageStore(
                 pageQuery = pageQuery.Where(item => context.Cases.Any(
                     triageCase => triageCase.Id == item.CaseId && triageCase.PrincipalId == principalFilter));
             }
-            if (afterCreatedAtUtc is { } afterCreated)
+            if (after is { } position)
             {
-                var afterId = afterCaseId;
+                var afterCreated = position.CreatedAtUtc;
+                var afterId = position.CaseId;
                 pageQuery = pageQuery.Where(item => item.CreatedAtUtc > afterCreated
                     || (item.CreatedAtUtc == afterCreated && item.CaseId > afterId));
             }
-            var page = await pageQuery
-                .OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.CaseId)
-                .Take(50).ToListAsync(cancellationToken);
+            var page = await ReadPairingPageAsync(context, pageQuery, cancellationToken);
             if (page.Count == 0)
             {
                 break;
             }
-            foreach (var triage in page)
+            var candidates = await FindPageCandidatesAsync(context, page, cancellationToken);
+            foreach (var row in page)
             {
-                afterCreatedAtUtc = triage.CreatedAtUtc;
-                afterCaseId = triage.CaseId;
-                var candidate = await FindAutomaticLinkCandidateAsync(
-                    context, triage, historyAlreadyExcluded: true, cancellationToken);
-                if (candidate is not null && (instructionCaseId is null || candidate.InstructionCaseId == instructionCaseId))
+                after = new(row.Triage.CreatedAtUtc, row.Triage.CaseId);
+                if (candidates.TryGetValue(row.Triage.CaseId, out var candidate)
+                    && (instructionCaseId is null || candidate.InstructionCaseId == instructionCaseId))
                 {
                     result.Add(candidate);
                     if (result.Count == maximumItems)
@@ -91,7 +93,107 @@ public sealed class EfTriageStore(
                 }
             }
         }
+        if (cursor is not null)
+        {
+            // Stopped at its last candidate: the next sweep continues after
+            // it. Reached the end of the listing: the next starts again.
+            cursor.After = result.Count == maximumItems ? after : null;
+        }
         return result;
+    }
+
+    /// <summary>
+    /// One page of Triage Cases with what the gate reads about each origin,
+    /// in one statement whatever the page holds. The receipt is not read
+    /// whole: its evidence, field and OCR columns are unbounded JSON.
+    /// </summary>
+    private static async Task<List<PairingPageRow>> ReadPairingPageAsync(
+        PegasusDbContext context, IQueryable<TriageEntity> pageQuery, CancellationToken cancellationToken) =>
+        await (from triage in pageQuery.OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.CaseId).Take(PairingPageSize)
+               from receipt in context.IntakeReceipts
+                   .Where(item => item.Id == triage.OriginReceiptId).DefaultIfEmpty()
+               from draft in context.InstructionDrafts
+                   .Where(item => item.IntakeReceiptId == triage.OriginReceiptId).DefaultIfEmpty()
+               from evaluation in context.IntakeEvaluations
+                   .Where(item => item.Id == triage.EvaluationRevisionId
+                       && item.ProcessedReceiptId == triage.OriginReceiptId).DefaultIfEmpty()
+               orderby triage.CreatedAtUtc, triage.CaseId
+               select new PairingPageRow(
+                   triage,
+                   new OriginEvidence(
+                       triage.Case.PrincipalId,
+                       triage.Case.Principal.IsActive ? triage.Case.Principal.Code : null,
+                       receipt.SourceChannel, receipt.ExternalReceiptToken, receipt.SourceHash,
+                       draft != null, draft.SuggestedPrincipalCode,
+                       new CaseMatchSourceData(
+                           draft.ClaimNumber, draft.VehicleRegistration, draft.ClaimantName, draft.DateOfIncident),
+                       evaluation != null,
+                       context.IntakeEvaluations.Any(later => later.StagedReceiptId == evaluation.StagedReceiptId
+                           && later.Revision > evaluation.Revision))))
+            .ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// The link candidate of each Triage of the page that has one, by Triage
+    /// Case id: the gate for every row, then one read of the match index for
+    /// the rows through it, then one read of the Cases they matched.
+    /// </summary>
+    private async Task<Dictionary<Guid, TriageCaseLinkCandidate>> FindPageCandidatesAsync(
+        PegasusDbContext context, IReadOnlyList<PairingPageRow> page, CancellationToken cancellationToken)
+    {
+        var candidates = new Dictionary<Guid, TriageCaseLinkCandidate>();
+        var gated = new List<(PairingPageRow Row, IPrincipalCaseMatchPolicy Policy)>();
+        foreach (var row in page)
+        {
+            if (SelectPolicy(_caseMatchPolicies, row.Triage, row.Origin) is { } policy)
+            {
+                gated.Add((row, policy));
+            }
+        }
+        if (gated.Count == 0)
+        {
+            return candidates;
+        }
+
+        // The keys the match queries with, as TriageCasePairing.MatchAsync
+        // derives them: the Triage's accepted registration stands in for the
+        // draft's.
+        var wanted = new List<(string PrincipalCode, CaseMatchIndexKeys Keys)>();
+        foreach (var (row, policy) in gated)
+        {
+            wanted.Add((policy.PrincipalCode, policy.DeriveIndexKeys(
+                row.Origin.DraftSource with { VehicleRegistration = row.Triage.NormalizedVehicleRegistration })));
+        }
+        var snapshot = await CaseMatchIndexSnapshot.ReadAsync(context, wanted, cancellationToken);
+        var matches = new List<(PairingPageRow Row, IPrincipalCaseMatchPolicy Policy, Guid TargetId)>();
+        foreach (var (row, policy) in gated)
+        {
+            if (await TriageCasePairing.MatchAsync(policy, snapshot, row.Triage.NormalizedVehicleRegistration,
+                    row.Origin.DraftSource, cancellationToken) is { } targetId)
+            {
+                matches.Add((row, policy, targetId));
+            }
+        }
+        if (matches.Count == 0)
+        {
+            return candidates;
+        }
+
+        var targetIds = matches.Select(item => item.TargetId).Distinct().ToArray();
+        var targets = (await context.CaseWorkflows.AsNoTracking()
+                .Where(workflow => targetIds.Contains(workflow.CaseId))
+                .Select(workflow => new LinkTarget(
+                    workflow.CaseId, workflow.Case.PrincipalId, workflow.Version, workflow.State,
+                    workflow.ArchivedAtUtc, workflow.EditLeaseHolderKind, workflow.EditLeaseExpiresAtUtc))
+                .ToListAsync(cancellationToken))
+            .ToDictionary(target => target.CaseId);
+        foreach (var (row, policy, targetId) in matches)
+        {
+            if (LinkCandidate(row.Triage, row.Origin, policy, targets.GetValueOrDefault(targetId)) is { } candidate)
+            {
+                candidates[row.Triage.CaseId] = candidate;
+            }
+        }
+        return candidates;
     }
 
     public async Task<bool> LinkAutomaticallyAsync(
@@ -114,8 +216,7 @@ public sealed class EfTriageStore(
         var triage = await LoadForMutationAsync(context, candidate.CaseId, candidate.TriageVersion, cancellationToken);
         // Every origin, principal, competing candidate and replacement lookup
         // below uses this transaction's context, not a preflight connection.
-        var current = await FindAutomaticLinkCandidateAsync(
-            context, triage, historyAlreadyExcluded: false, cancellationToken);
+        var current = await FindAutomaticLinkCandidateAsync(context, triage, cancellationToken);
         if (current is null || current.InstructionCaseId != candidate.InstructionCaseId
             || current.MatchPolicyKey != candidate.MatchPolicyKey
             || current.MatchPolicyVersion != candidate.MatchPolicyVersion)
@@ -179,20 +280,21 @@ public sealed class EfTriageStore(
             cancellationToken);
     }
 
+    /// <summary>
+    /// The link transaction's own read of one Triage Case against its Case:
+    /// the same gate and the same candidate as a sweep page decides, from
+    /// reads made under the transaction's isolation.
+    /// </summary>
     private async Task<TriageCaseLinkCandidate?> FindAutomaticLinkCandidateAsync(
-        PegasusDbContext context, TriageEntity triage, bool historyAlreadyExcluded,
-        CancellationToken cancellationToken)
+        PegasusDbContext context, TriageEntity triage, CancellationToken cancellationToken)
     {
         // Automatic association matches the route evidence the Triage Case was
         // opened from; a Triage Case created directly by staff has none.
         if (triage.LinkedInstructionCaseId is not null || triage.OriginReceiptId is null
             || ParseState(triage.State) == TriageState.Cancelled
-            // The list path's page query already excluded history-blocked rows;
-            // the link transaction must re-check under its own isolation.
-            || (!historyAlreadyExcluded
-                && await context.TriageHistory.AnyAsync(history => history.TriageCaseId == triage.CaseId
-                    && (history.EventType == "triage_case_unlinked"
-                        || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker")), cancellationToken)))
+            || await context.TriageHistory.AnyAsync(history => history.TriageCaseId == triage.CaseId
+                && (history.EventType == "triage_case_unlinked"
+                    || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker")), cancellationToken))
         {
             return null;
         }
@@ -207,26 +309,22 @@ public sealed class EfTriageStore(
         var evaluation = await context.IntakeEvaluations.AsNoTracking().SingleOrDefaultAsync(
             item => item.Id == triage.EvaluationRevisionId && item.ProcessedReceiptId == triage.OriginReceiptId,
             cancellationToken);
-        if (principal is null || receipt?.InstructionDraft is not { } draft || evaluation is null
-            || receipt.SourceChannel != triage.SourceChannel
-            || receipt.ExternalReceiptToken != triage.ExternalReceiptToken
-            || !string.Equals(receipt.SourceHash, triage.SourceHash, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(draft.SuggestedPrincipalCode, principal.Code, StringComparison.OrdinalIgnoreCase)
-            || await context.IntakeEvaluations.AnyAsync(item => item.StagedReceiptId == evaluation.StagedReceiptId
-                && item.Revision > evaluation.Revision, cancellationToken))
-        {
-            return null;
-        }
-
-        var policy = _caseMatchPolicies.SingleOrDefault(item =>
-            string.Equals(item.PrincipalCode, principal.Code, StringComparison.OrdinalIgnoreCase));
-        if (policy is null)
+        var draft = receipt?.InstructionDraft;
+        var origin = new OriginEvidence(
+            principalId, principal?.Code,
+            receipt?.SourceChannel, receipt?.ExternalReceiptToken, receipt?.SourceHash,
+            draft is not null, draft?.SuggestedPrincipalCode,
+            new CaseMatchSourceData(draft?.ClaimNumber, draft?.VehicleRegistration, draft?.ClaimantName, draft?.DateOfIncident),
+            evaluation is not null,
+            evaluation is not null
+                && await context.IntakeEvaluations.AnyAsync(item => item.StagedReceiptId == evaluation.StagedReceiptId
+                    && item.Revision > evaluation.Revision, cancellationToken));
+        if (SelectPolicy(_caseMatchPolicies, triage, origin) is not { } policy)
         {
             return null;
         }
         var targetId = await TriageCasePairing.MatchAsync(policy, new EfCaseMatchIndex(context),
-            triage.NormalizedVehicleRegistration,
-            new(draft.ClaimNumber, draft.VehicleRegistration, draft.ClaimantName, draft.DateOfIncident), cancellationToken);
+            triage.NormalizedVehicleRegistration, origin.DraftSource, cancellationToken);
         if (targetId is null)
         {
             return null;
@@ -234,15 +332,71 @@ public sealed class EfTriageStore(
         var target = await context.Cases.AsNoTracking().SingleOrDefaultAsync(item => item.Id == targetId, cancellationToken);
         var workflow = await context.CaseWorkflows.AsNoTracking().SingleOrDefaultAsync(
             item => item.CaseId == targetId, cancellationToken);
-        // A Created-in-error redirect cannot replace the known customer with
-        // the replacement's customer, even if its typed keys also match.
-        return target is not null && target.PrincipalId == principalId && workflow is not null
-            && TriageCasePairing.CanLinkTarget(Enum.Parse<CaseLifecycleState>(workflow.State),
-                workflow.ArchivedAtUtc is not null, CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
-                workflow.EditLeaseExpiresAtUtc, UtcNow())
-            ? new(triage.CaseId, triage.Version, target.Id, workflow.Version, policy.PolicyKey, policy.PolicyVersion)
-            : null;
+        return LinkCandidate(triage, origin, policy, target is null || workflow is null
+            ? null
+            : new LinkTarget(
+                target.Id, target.PrincipalId, workflow.Version, workflow.State,
+                workflow.ArchivedAtUtc, workflow.EditLeaseHolderKind, workflow.EditLeaseExpiresAtUtc));
     }
+
+    /// <summary>
+    /// What the gate reads about the origin of a Triage Case: its Case's
+    /// Principal (the code only while that Principal is active), the receipt it
+    /// was opened from with the instruction draft, and the evaluation it
+    /// recorded. The draft's source data is what the match queries with.
+    /// </summary>
+    private sealed record OriginEvidence(
+        Guid PrincipalId,
+        string? ActivePrincipalCode,
+        string? ReceiptSourceChannel,
+        string? ReceiptExternalReceiptToken,
+        string? ReceiptSourceHash,
+        bool HasDraft,
+        string? DraftPrincipalCode,
+        CaseMatchSourceData DraftSource,
+        bool HasEvaluation,
+        bool HasLaterRevision);
+
+    private sealed record PairingPageRow(TriageEntity Triage, OriginEvidence Origin);
+
+    private sealed record LinkTarget(
+        Guid CaseId, Guid PrincipalId, long WorkflowVersion, string State,
+        DateTimeOffset? ArchivedAtUtc, string? LeaseHolderKind, DateTimeOffset? LeaseExpiresAtUtc);
+
+    /// <summary>
+    /// The one gate an automatic link passes before its match is read: an
+    /// active Principal; an origin receipt with a draft that carries the
+    /// Triage Case's channel, token and hash and names the Principal; the
+    /// evaluation the Triage Case recorded, with no later revision of its
+    /// staged receipt. Returns the Principal's case-match policy, or null
+    /// when the Triage Case cannot link.
+    /// </summary>
+    private static IPrincipalCaseMatchPolicy? SelectPolicy(
+        IReadOnlyList<IPrincipalCaseMatchPolicy> policies, TriageEntity triage, OriginEvidence origin)
+    {
+        if (origin.ActivePrincipalCode is not { } principalCode || !origin.HasDraft || !origin.HasEvaluation
+            || origin.ReceiptSourceChannel != triage.SourceChannel
+            || origin.ReceiptExternalReceiptToken != triage.ExternalReceiptToken
+            || !string.Equals(origin.ReceiptSourceHash, triage.SourceHash, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(origin.DraftPrincipalCode, principalCode, StringComparison.OrdinalIgnoreCase)
+            || origin.HasLaterRevision)
+        {
+            return null;
+        }
+        return policies.SingleOrDefault(item =>
+            string.Equals(item.PrincipalCode, principalCode, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // A Created-in-error redirect cannot replace the known customer with
+    // the replacement's customer, even if its typed keys also match.
+    private TriageCaseLinkCandidate? LinkCandidate(
+        TriageEntity triage, OriginEvidence origin, IPrincipalCaseMatchPolicy policy, LinkTarget? target) =>
+        target is not null && target.PrincipalId == origin.PrincipalId
+            && TriageCasePairing.CanLinkTarget(Enum.Parse<CaseLifecycleState>(target.State),
+                target.ArchivedAtUtc is not null, CaseMutationGuard.RetainedHolderKind(target.LeaseHolderKind),
+                target.LeaseExpiresAtUtc, UtcNow())
+            ? new(triage.CaseId, triage.Version, target.CaseId, target.WorkflowVersion, policy.PolicyKey, policy.PolicyVersion)
+            : null;
 
     /// <summary>
     /// Opens a Triage Case from accepted route evidence. The Case number comes

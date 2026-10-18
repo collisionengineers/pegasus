@@ -138,6 +138,166 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Empty(await store.ListAutomaticLinkCandidatesAsync(null, caseId, 5, CancellationToken.None));
     }
 
+    /// <summary>
+    /// A listing sends the statements of its pages and of one read of the
+    /// match index and one of the matched Cases, whatever the page holds: here
+    /// the page read, the read that finds the end of the listing, the match
+    /// index and the Cases. An empty queue costs one.
+    /// </summary>
+    [Fact]
+    public async Task ListingAutomaticLinkCandidatesCostsTheSameStatementsForThreeAndSixTriages()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var store = services.GetRequiredService<ITriageStore>();
+
+        counter.Reset();
+        Assert.Empty(await store.ListAutomaticLinkCandidatesAsync(null, null, 50, CancellationToken.None));
+        var emptyQueue = counter.Count;
+
+        var original = await SubmitTriageOriginAsync(factory.Services, "triage-link-statement-count.eml");
+        await SeedMatchingFormalCaseAsync(factory.Services, original.Id);
+        await CreateTriageCopiesAsync(services, original, 0, 2);
+        counter.Reset();
+        Assert.Equal(3, (await store.ListAutomaticLinkCandidatesAsync(null, null, 50, CancellationToken.None)).Count);
+        var withThree = counter.Count;
+
+        await CreateTriageCopiesAsync(services, original, 2, 3);
+        counter.Reset();
+        Assert.Equal(6, (await store.ListAutomaticLinkCandidatesAsync(null, null, 50, CancellationToken.None)).Count);
+        var withSix = counter.Count;
+
+        const int ceiling = 4;
+        Assert.True(emptyQueue == 1, $"An empty queue sent {emptyQueue} statements; one is allowed.");
+        Assert.True(withThree > 0, "The interceptor observed no statements at all.");
+        Assert.True(
+            withThree == withSix,
+            $"The listing's statements grew with the Triage Cases: {withThree} for three and {withSix} for six.");
+        Assert.True(withSix <= ceiling, $"The listing sent {withSix} statements; at most {ceiling} are allowed.");
+    }
+
+    /// <summary>
+    /// A page of Triage Cases that none passes the gate for costs only its
+    /// page read: no match index is read for it, and the next page is.
+    /// </summary>
+    [Fact]
+    public async Task ListingAutomaticLinkCandidatesReadsASecondPageWhenTheFirstHoldsNoCandidate()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var original = await SubmitTriageOriginAsync(factory.Services, "triage-link-second-page.eml");
+        await SeedMatchingFormalCaseAsync(factory.Services, original.Id);
+        await CreateTriageCopiesAsync(services, original, 0, 50);
+        var contexts = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contexts.CreateDbContextAsync();
+        // Triage Cases share the factory's clock, so the order is the
+        // database's (created time, then Case id), not the creation order.
+        var order = await context.Triage.AsNoTracking()
+            .OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.CaseId)
+            .Select(item => new { item.CaseId, ReceiptId = item.OriginReceiptId!.Value })
+            .ToListAsync();
+        Assert.Equal(51, order.Count);
+        var firstPage = order.Take(50).Select(item => item.ReceiptId).ToList();
+        await context.InstructionDrafts.Where(item => firstPage.Contains(item.IntakeReceiptId))
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.SuggestedPrincipalCode, (string?)null));
+
+        counter.Reset();
+        var candidate = Assert.Single(await services.GetRequiredService<ITriageStore>()
+            .ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
+
+        Assert.Equal(order[50].CaseId, candidate.CaseId);
+        var matchIndexReads = counter.CountContaining("CaseMatchIndex");
+        Assert.True(
+            matchIndexReads == 1,
+            $"The match index was read {matchIndexReads} times; once, for the second page, is allowed.");
+    }
+
+    /// <summary>
+    /// The Worker's sweep lists from where its last listing stopped and, at
+    /// the end of the listing, starts again at the oldest Triage Case; a call
+    /// scoped to an accepted Case lists from the oldest and leaves it alone.
+    /// </summary>
+    [Fact]
+    public async Task TheSweepContinuesFromWhereItStoppedAndStartsAgainAtTheEndOfTheListing()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var original = await SubmitTriageOriginAsync(factory.Services, "triage-link-sweep-cursor.eml");
+        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, original.Id);
+        await CreateTriageCopiesAsync(services, original, 0, 50);
+        var contexts = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contexts.CreateDbContextAsync();
+        var order = await context.Triage.AsNoTracking()
+            .OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.CaseId)
+            .Select(item => new { item.CaseId, item.CreatedAtUtc, ReceiptId = item.OriginReceiptId!.Value })
+            .ToListAsync();
+        Assert.Equal(51, order.Count);
+        // Only the 50th and 51st can link: the first page ends on a candidate
+        // and the second holds the other.
+        var gatedOut = order.Take(49).Select(item => item.ReceiptId).ToList();
+        await context.InstructionDrafts.Where(item => gatedOut.Contains(item.IntakeReceiptId))
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.SuggestedPrincipalCode, (string?)null));
+        var cursor = new TriagePairingSweepCursor();
+        var sweep = new EfTriageStore(
+            contexts, services.GetRequiredService<IEnumerable<IPrincipalCaseMatchPolicy>>(), null, cursor);
+
+        var first = Assert.Single(await sweep.ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
+        Assert.Equal(order[49].CaseId, first.CaseId);
+        Assert.Equal(new TriagePairingPosition(order[49].CreatedAtUtc, order[49].CaseId), cursor.After);
+
+        var second = Assert.Single(await sweep.ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
+        Assert.Equal(order[50].CaseId, second.CaseId);
+        Assert.Equal(new TriagePairingPosition(order[50].CreatedAtUtc, order[50].CaseId), cursor.After);
+
+        var scoped = await sweep.ListAutomaticLinkCandidatesAsync(null, caseId, 5, CancellationToken.None);
+        Assert.Equal(new[] { order[49].CaseId, order[50].CaseId }, scoped.Select(item => item.CaseId));
+        Assert.Equal(new TriagePairingPosition(order[50].CreatedAtUtc, order[50].CaseId), cursor.After);
+
+        Assert.Empty(await sweep.ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
+        Assert.Null(cursor.After);
+        var again = Assert.Single(await sweep.ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
+        Assert.Equal(order[49].CaseId, again.CaseId);
+    }
+
+    private static async Task<IntakeReceipt> SubmitTriageOriginAsync(IServiceProvider services, string fileName)
+    {
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            services, IntakeTestEvidence.CreateEngineerTriageRequest(fileName));
+        await using var scope = services.CreateAsyncScope();
+        return Assert.IsType<IntakeReceipt>(
+            await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Opens <paramref name="count"/> more Triage Cases from copies of the
+    /// original's receipt, as the pending-selection test does: distinct test
+    /// occurrences of the original's evidence and typed values.
+    /// </summary>
+    private static async Task CreateTriageCopiesAsync(
+        IServiceProvider services, IntakeReceipt original, int firstIndex, int count)
+    {
+        for (var index = firstIndex; index < firstIndex + count; index++)
+        {
+            var identity = new IntakeSourceIdentity(original.SourceIdentity.Channel, $"triage-pairing-copy:{index}");
+            var copy = await services.GetRequiredService<IIntakeReceiptStore>().StoreAsync(new(
+                original.SourceFileName, original.MediaType, original.SourceLength, original.SourceHash, identity,
+                original.ReceivedAtUtc, original.ProcessedAtUtc, "triage-pairing-fixture", original.Decision,
+                original.DecisionReason, original.Evidence, original.Fields, original.InstructionDraft,
+                original.MissingFields, original.FailureCode, original.FailureReason, original.SourceReaderKey,
+                original.SourceReaderVersion, original.ExtractionPolicyKey, original.ExtractionPolicyVersion), CancellationToken.None);
+            var evaluation = await TriageQueuesWebTests.StageAndCompleteEvaluationAsync(services, copy.Id);
+            await services.GetRequiredService<ITriageStore>().CreateAsync(new(new(copy.Id, identity, copy.SourceHash, evaluation),
+                "VO75DFJ", Assert.Single(copy.Evidence, item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch),
+                ActionActor.SystemWorker("triage-pairing-fixture"), $"triage-pairing-create:{index}"), CancellationToken.None);
+        }
+    }
+
     internal static async Task<Guid> SeedMatchingFormalCaseAsync(
         IServiceProvider services, Guid originReceiptId, int sequence = 1)
     {

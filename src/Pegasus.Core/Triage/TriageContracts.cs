@@ -555,6 +555,23 @@ public sealed record TriageCaseLinkCandidate(
 public sealed record TriageCasePairingResult(
     int Candidates, int Linked, int Failures, string? FirstFailure = null);
 
+/// <summary>
+/// The Triage Case the unscoped pairing sweep reached, in the sweep's order
+/// (created time, then Case id).
+/// </summary>
+public sealed record TriagePairingPosition(DateTimeOffset CreatedAtUtc, Guid CaseId);
+
+/// <summary>
+/// Where the Worker's unscoped Triage pairing sweep resumes, so a Triage that
+/// never pairs cannot keep the front of the queue for good. A singleton,
+/// because the Worker builds the timer's function afresh for every tick; a
+/// restart begins again at the oldest Triage.
+/// </summary>
+public sealed class TriagePairingSweepCursor
+{
+    public TriagePairingPosition? After { get; set; }
+}
+
 public interface ITriageCasePairing
 {
     Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken);
