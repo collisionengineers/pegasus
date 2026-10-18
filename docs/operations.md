@@ -4,6 +4,83 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Reference-data load (REF-04) - 17 October 2026 (production applied)
+
+The reference-data load (REF-04; R16, R17, R18, R21 and R23) was applied to production on 17 October
+2026, after Release 112 was live and smoked. The programme's lead ran the one-off loader
+`scripts/reference-data-loader/` ([PR 1397](https://github.com/collisionengineers/pegasus/pull/1397),
+live since Release 111), not the application: a read-only `dry-run`, then `apply` with the dry-run's
+plan hash, as the Administrator `alex`, under the operator's authorisation of 16 October that the
+Release 112 record says this load follows under. `apply` wrote 1696 rows (329 contacts created, 39
+contacts saved and 1328 inspection locations created) and rejected none at write. Every number below
+is from the dry-run report, the apply report or the read-only read-back; those files and the CSVs
+are ignored artifacts, named in code spans.
+
+| Observation | Value |
+| --- | --- |
+| Authorisation | The operator's authorisation of 16 October 2026 for the programme's landings, promotions and deployments, which the Release 112 record names for this load; the apply log records it as "the operator's standing authorisation of 16 October". |
+| Target and actor | Server and database `tcp:pegasus-prod-sql-252ow37gij.database.windows.net,1433/pegasus`, the `--target` `apply` took against its connection string. Actor staff id `02989e49-c616-4c79-bbea-79e4e4c10f43` (`alex`; the loader refuses an actor that is not an enabled Administrator). Batch `prod-20261017`; `--reviewed-at 2026-10-17`. |
+| Loader commit | The dry-run built the loader (Debug, locked restore, 0 warnings, 0 errors) from a clean tree at `f563547406d08e6ef4daa05ca61b2b7e7e6a6113`, the merge of PR 1400; the loader's last commit is `59224a914eea7d4b6d8f73bd54d58a6836aac845` (PR 1397). `apply` ran from `2636e70fd93212380957b8c84f4b2d83b664c94b`, whose loader and `src` are identical to `f56354740` (the apply log's statement). |
+| Input files | The ten CSVs under `artifacts/pegasus-release-readiness/entities/load/` and their SHA-256 are in the first table below; the loader reads seven of them. |
+| Approved report | Plan hash `f21321f2ad35befdd9427147408a0b22f7461c59da40c0cef59c8694becc6ab1`, the value `--approved-report-sha256` takes and `apply` compares with the plan it recomputes from the live baseline and the files; the dry-run and apply reports carry the same hash. Dry-run report `prod-20261017-dry-run.json` SHA-256 `02DC23B5DE5D987C4872BC442C53C667515ACB6B57471D71F40DAC7AA5951474`; apply report `prod-20261017-apply.json` SHA-256 `4B522D3598416402C469E1C64770600F253C755CBB4226B3DF588DF8AFCD47B8`. |
+| Window | The run times in the logs. Dry-run 19:57:25Z to 19:59:13Z (exit 0). `apply` 20:02:07Z to 20:06:44Z (exit 0); its `ActionHistory` rows run 20:02:31Z to 20:06:43Z. Read-back 20:07:31Z. Release 112's full smoke had passed at 19:55:25Z. |
+| Rehearsal | LocalDB, 17 October 2026, batches `rehearsal-a` and `rehearsal-b` (`artifacts/pegasus-release-readiness/entities/load/_rehearsal/20261017T190419Z`): the first `apply` wrote 1696 rows; the second, on a new batch, wrote 0 rows (1328 locations kept as stored). The production dry-run matched the first: the same file hashes, per-kind counts, links, locations, six overwrites, 1292 `rest_listed` entries and matched locations. There are two differences, both the baseline: 54 Principals against 53 (`TEST`, the hand-made Principal, which no CSV loads), and the QDOS (`P0316`) contact write, saved at expected version 12 in production against 0 in the LocalDB seed (operation key `...:P0316:v12` against `...:P0316:v0`). |
+| Counts per kind | The dry-run and apply plans give the same counts (second table below). Baseline 54 Principals and 11 claim sources. The 329 creates and 39 updates are the read-back's `contact_created` and `contact_saved` events. Hygiene dropped 0 values; the 1292 `rest_listed` entries are carried in the report and none is loaded. |
+| Links | 269 linked, 9 not loaded, 0 rejected. Not loaded: `links.csv` rows with `linkable_at_load` false (5 approved, 2 proposed) and 2 proposed rows with it true. Read back by contact type: claim_source 36, repairer 172, storage 50 and third_party_engineer 11, the same as the links in the apply report's contact writes (269 in all). |
+| Locations | 1328 created, 0 updated, 0 kept as stored, 0 rejected, with 1238 Principal links (1177 locations carry at least one, 151 carry none). 3 matched a contact and were not written (`X0523` to repairer `R0042`, `X0545` to storage `S0009`, `X0692` to repairer `R0085`; each contact loaded in this batch). 60 `hold` rows were not loaded. 27 location-to-Principal links across 26 locations were dropped, their locations still loaded, because the code is neither stored nor loaded: CHAUS 7, ARSHED 5, MCADE 2, MS 2 and one each of AL, BERWICKS, DJS, KHS, LEIGH, ML, MONACO, MORAFIQ, PW, SUSSEX and ZL. Read back: 1328 locations, all active, 1 source, all reviewed at 2026-10-17 00:00 UTC, 1238 location links. |
+| Modes and fees | The five R21 Principals were set from `physical_address` to `image_based_assessment`: ALS (`P0066`), AX (`P0069`), CASTLE (`P0093`), PCH (`P0306`) and SBL (`P0376`). Read back: 6 Principals are image-based, ALS, AX, CASTLE, PCH, QDOS and SBL (QDOS is not among the overwrites; it was saved at expected version 12 and reads organisation version 13, Principal version 3). The loader has no fee step and `principals.csv` has no fee column, so no fee was written; read back, the fee of all 69 Principals is 180.00 (minimum and maximum). |
+| Overwrites | Six stored values, each listed before and after in the apply report: the five modes above and SWADE (`P0384`) `active` true to false; the report lists no other overwrite of a stored value. 15 Principals were created, all inactive: AA, ALIS, ARIANA, CAN, FA, HVL, JMV, NATIONAL, PARKERS, PHOUSE, R1AM, RC, TDP, THECARHIRE and WATERMANS. The read-back lists 17 inactive codes: those 15, FRZ (created inactive by Release 112) and SWADE (active at Release 112). |
+| Read-back | Read-only at 20:07:31Z against `pegasus-prod-sql-252ow37gij.database.windows.net/pegasus`, after `apply`. Organisations by role are in the second table below. `ActionHistory` rows of batch `ref04:prod-20261017`: 329 `contact_created`, 39 `contact_saved` and 1328 `inspection_location_created`, 1696 in all, equal to the apply report's 1696 written; all with a Staff actor, `02989e49-c616-4c79-bbea-79e4e4c10f43`, and 1696 distinct keys. `OrganizationAdministrationOperations` holds 1696 `ref04` rows. No other `ActionHistory` row falls in the window (0). Key rows: PCH reads "PCH / Connexus" with its notes opening "TL threshold: 66%" and OAK "TL threshold: 65%", as Release 112 set them, both organisation version 1; FRZ inactive and physical address; SWADE inactive; `TEST` (not loaded) active and physical address, organisation version 1. Cases: 1. |
+| Left proposed or rejected | Rejected at write: none; rejected rows: 0 for every kind, for links and for locations. Never written: every row whose `review` is not `approved`; the approved rows whose action is `hold`, `exclude`, `leave` or `moved` (third table below); the 5 approved `links.csv` rows with `linkable_at_load` false (their Principals are held); and the 3 approved locations matched to a contact (`X0523`, `X0545`, `X0692`), which the contact rows cover. The rows left `proposed` are `claim-sources.csv` update-live 1, `engineers.csv` hold 1, `links.csv` 4 (2 each with `linkable_at_load` false and true) and `principals.csv` hold 8. |
+| Still owed | Live proof signed in, owed by the Release 111 record and not shown by these counts: a Case offering a Principal's reviewed locations at Inspect at, and the Repairers list over five pages (222 repairers, 50 a panel). This load discharges the Release 112 record's owed item for the production reference-data load; the Release 108 to 112 owed items otherwise stand. |
+| Evidence | Ignored `artifacts/reference-data-load/`: `prod-20261017-dry-run.json`, `.txt` and `.log`; `prod-20261017-apply.json`, `.txt` and `.log`; `prod-20261017-readback.txt`. The CSVs and the rehearsal reports are at the `artifacts/pegasus-release-readiness/entities/load/` paths above. |
+
+The input files and their SHA-256, as the dry-run log recorded them. The row counts are the apply
+report's; the three files the loader does not read have none.
+
+| File | Rows | SHA-256 |
+| --- | --- | --- |
+| `aliases.csv` | not read | `E1CD741E5A676D805B3C3F8607F07EE7159901F32CD54B3024D42F46F42C6408` |
+| `claim-sources.csv` | 36 | `4DDC5F08A5B5A866B0E6B126D0179B2A5901AE416E20F14EFEA90BE0FD16C745` |
+| `discrepancies.csv` | not read | `DAAB1B18420E9FD5E3CC778E4477B88DD834128F9A9331A1E92D6AB3529BB57B` |
+| `engineers.csv` | 20 | `FC9537A89AB9A655E778D0CFCDF2A0896D310AC99F755574E6AF51DDD2F2760C` |
+| `inspection-locations.csv` | 1391 | `96962AFAF060060BEF5DB424818B72E665C824C7E31EF9402B95B85F1716B4A0` |
+| `inspection-mode.csv` | not read | `EDB9E769FBBEE2415F734AB64B09EDD658766E2610D9D4585E5558F5628D9FA8` |
+| `links.csv` | 278 | `ED85BB49E9D3D1FD85AB30C0BC364DE303F329CA0D46B9E36E72DFAA7E94486E` |
+| `principals.csv` | 436 | `8E3C69C8C046535AEFE6620D60CA4979D9FC74C96ADFB5EF1A3C491C78FA40D3` |
+| `repairers.csv` | 223 | `AD307009C858CFC8A13DA83CF9C4241B5F88BB206D6CB4AC9D8D156221EAE290` |
+| `storage.csv` | 51 | `6DF861BC03AF9CCBB92266F1E4C65B6271ACB98EA73DD5605ECAA50569FD3D6C` |
+
+The counts per kind, the same in the dry-run and the apply plan, beside the read-back's rows by
+role after `apply`.
+
+| Kind | Create | Update | Unchanged | Reject | Stored after | Active after |
+| --- | --- | --- | --- | --- | --- | --- |
+| Principals | 15 | 29 | 24 | 0 | 69 | 52 |
+| Claim sources | 24 | 10 | 0 | 0 | 35 | 35 |
+| Repairers | 222 | 0 | 0 | 0 | 222 | 222 |
+| Storage and recovery | 50 | 0 | 0 | 0 | 50 | 50 |
+| Third-party engineers | 18 | 0 | 0 | 0 | 18 | 18 |
+
+The rows not loaded, the same in the dry-run and the apply report.
+
+| File | Action | Review | Rows |
+| --- | --- | --- | --- |
+| `claim-sources.csv` | exclude | approved | 1 |
+| `claim-sources.csv` | update-live | proposed | 1 |
+| `engineers.csv` | exclude | approved | 1 |
+| `engineers.csv` | hold | proposed | 1 |
+| `inspection-locations.csv` | hold | approved | 60 |
+| `links.csv` | `linkable_at_load` false | approved | 5 |
+| `links.csv` | `linkable_at_load` false | proposed | 2 |
+| `links.csv` | `linkable_at_load` true | proposed | 2 |
+| `principals.csv` | exclude | approved | 5 |
+| `principals.csv` | hold | approved | 354 |
+| `principals.csv` | hold | proposed | 8 |
+| `principals.csv` | leave | approved | 1 |
+| `repairers.csv` | exclude | approved | 1 |
+| `storage.csv` | moved | approved | 1 |
+
 ## Release 112 - 17 October 2026 (deployment live)
 
 Release 112 deployed [PR 1400](https://github.com/collisionengineers/pegasus/pull/1400) (REF-06 B):
