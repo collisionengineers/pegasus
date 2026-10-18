@@ -577,9 +577,11 @@ pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
   -Verify
 ```
 
-Generation reads originals without modifying them, deduplicates by SHA-256,
-groups messages by thread root then stable case key then source hash, and
-assigns hash buckets 0–1 to holdout and 2–9 to development. `-Verify`
+Generation reads the originals under `corpus/<CODE>/<type>/<category>/`
+without modifying them. Each `<CODE>` folder is one Principal's samples; the
+underscore-prefixed folders and `holding/` are not read. It deduplicates by
+SHA-256, groups messages by thread root then stable case key then source hash,
+and assigns hash buckets 0–1 to holdout and 2–9 to development. `-Verify`
 regenerates canonical JSON and byte-compares the tracked package. The
 tracked text-source snapshots declare `normalized-lf` hashing and byte counts
 so Git checkout line endings cannot create false drift; email, PDF, Office, workbook, and
@@ -591,6 +593,16 @@ criterion states, deterministic split, and the hashes of the tracked
 read from git history, not pinned by hash. The
 focused corpus lane additionally hashes every locally present original and
 runs it through the real MIME/PDF/Office reader.
+
+To list one Principal's development and holdout buckets, name its code. This
+needs no CollisionSpike checkout; the manifest is written beneath
+`artifacts/evaluation/` unless `-ManifestPath` names another place:
+
+```powershell
+pwsh ./scripts/Build-PrincipalIdentificationCorpus.ps1 `
+  -CorpusRoot $corpusRoot `
+  -PrincipalCode KERR
+```
 
 CollisionSpike confidence, priorities, thresholds, and winner selection are
 not copied into the normalized criteria. Dormant, unknown, conflicting, and
