@@ -209,6 +209,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfEmailEvidenceStore>());
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
         services.AddSingleton<IMailRoutePolicy, PrincipalMailRoutePolicy>();
+        services.AddScoped<IIntermediaryRegistry, EfIntermediaryRegistry>();
         services.AddSingleton<IEnumerable<IMailClassificationPolicy>>(provider =>
             provider.GetServices<IInstructionExtractionPolicy>()
                 .Select(policy => (IMailClassificationPolicy)new PrincipalMailClassificationPolicy(policy.PrincipalCode))

@@ -17,7 +17,9 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
     /// <summary>
     /// Exact direct sender identities from the supplied reference and original
     /// instructions. An identity containing @ is one mailbox, never its domain.
-    /// This is the one runtime list, also read by customer Settings.
+    /// This is the one runtime list of the direct routes, also read by customer
+    /// Settings; intermediaries come from the Contacts directory
+    /// (<see cref="IIntermediaryRegistry"/>).
     /// </summary>
     public static readonly ImmutableDictionary<string, ImmutableArray<string>> AcceptedIdentities =
         new Dictionary<string, ImmutableArray<string>>(StringComparer.Ordinal)
@@ -44,9 +46,6 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
             ["TEN"] = ["tenlegal.co.uk"],
             ["YML"] = ["networkhduk@gmail.com"]
         }.ToImmutableDictionary(StringComparer.Ordinal);
-
-    private static readonly ImmutableArray<string> PchIntermediaryDomains =
-        ["connexus.co.uk", "ensurance-claims.co.uk"];
 
     /// <summary>
     /// Current document boundaries, including the proved original in a staff
@@ -159,9 +158,11 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
 
     public MailRouteEvaluationResult Evaluate(
         IntakeSourceReadResult readResult,
-        InstructionPolicySelection? instruction = null)
+        InstructionPolicySelection? instruction = null,
+        IntermediaryDomains? intermediaries = null)
     {
         EnsureReadable(readResult);
+        intermediaries ??= IntermediaryDomains.Empty;
 
         var transportIdentities = SenderIdentities(
             readResult.TransportEvidence,
@@ -205,9 +206,12 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
                 entry.Identity, StringComparison.OrdinalIgnoreCase));
         var matchedPrincipal = directMatch.Principal;
         var matchesDirectIdentity = matchedPrincipal is not null;
+        var intermediaryPrincipal = instruction is { Outcome: InstructionPolicySelectionOutcome.Selected }
+            ? instruction.Policy?.PrincipalCode
+            : null;
         var matchesIntermediary = hasValidEffectiveSender
-            && PchIntermediaryDomains.Contains(effectiveDomain, StringComparer.OrdinalIgnoreCase)
-            && instruction is { Outcome: InstructionPolicySelectionOutcome.Selected, Policy.PrincipalCode: "PCH" };
+            && intermediaryPrincipal is not null
+            && intermediaries.IsIntermediaryFor(effectiveSender!.Address, intermediaryPrincipal);
 
         MailRoutePredicateResult[] predicates =
         [
@@ -245,7 +249,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
                 "intermediary.accepted-policy",
                 matchesIntermediary,
                 matchesIntermediary
-                    ? "The evidenced intermediary and unique PCH instruction profile agree."
+                    ? $"The evidenced intermediary and unique {intermediaryPrincipal} instruction profile agree."
                     : "No evidenced intermediary with an agreeing instruction profile was proved.")
         ];
 
@@ -321,11 +325,25 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
                 effectiveSender);
         }
 
+        // ADR-0008 decision 9: a sender that is both a direct identity and an
+        // intermediary is ambiguous and fails closed (operator, 16 October 2026).
+        if (matchesDirectIdentity && matchesIntermediary)
+        {
+            return Result(
+                MailRouteDisposition.NeedsSorting,
+                null,
+                predicates,
+                "The effective sender matches both an accepted direct principal identity and an evidenced intermediary.",
+                transportIdentities,
+                originalIdentities,
+                effectiveSender);
+        }
+
         return Result(
             MailRouteDisposition.Accepted,
             matchesDirectIdentity
                 ? new(matchedPrincipal!, MailRouteKind.DirectPrincipal, matchedPrincipal!)
-                : new(effectiveDomain, MailRouteKind.Intermediary, "PCH"),
+                : new(effectiveDomain, MailRouteKind.Intermediary, intermediaryPrincipal!),
             predicates,
             "The effective sender matches an evidenced principal mail route.",
             transportIdentities,
@@ -381,7 +399,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
         }
     }
 
-    private static bool TryGetMailboxDomain(string address, out string domain)
+    internal static bool TryGetMailboxDomain(string address, out string domain)
     {
         domain = string.Empty;
         var separator = address.IndexOf('@');

@@ -186,7 +186,8 @@ active through the ordinary email path. Principal API credentials and mailbox
 onboarding are separate capabilities.
 
 `PrincipalMailRoutePolicy.AcceptedIdentities` is the single runtime catalogue
-of evidenced exact domains and mailboxes. Principal Settings displays it. It
+of the direct routes' evidenced exact domains and mailboxes. Principal
+Settings displays it. It
 covers ALISON, ALS, AMS, AX, BC, BLACK, DFD, FW, KBS, KERR, KMR, MP, OAK,
 PCH, QCL, QDOS, RJS, SBL, SWAN, TEN and YML. YML accepts only its evidenced
 mailbox, never the shared Gmail domain. HDUK-branded instructions in the
@@ -197,9 +198,14 @@ widening is allowed.
 
 **One sender.** Exactly one consistent transport sender is required. A
 Collision Engineers staff forward must also prove one external original
-sender. PCH mail from the evidenced Connexus or Ensurance intermediary needs
-one agreeing PCH instruction profile; an intermediary is not a direct PCH
-identity. An accepted sender on its own classifies and allocates nothing.
+sender. An intermediary is a Claim Source linked to a Principal. Mail from
+the exact domain of its e-mail needs one agreeing instruction profile of that
+Principal; an intermediary is not a direct identity (operator, 15 October
+2026). On a shared mail domain only the Claim Source's own mailbox matches,
+and a sender that is both a direct identity and an intermediary fails closed
+(operator, 16 October 2026;
+[ADR-0078](../adr/0078-intermediaries-are-linked-claim-sources.md)). An
+accepted sender on its own classifies and allocates nothing.
 
 **One document.** A profile is chosen from its signals within one physical
 current document, not assembled across attachments. Separate reports cannot
@@ -260,8 +266,9 @@ key. Reads and Case-index writes share one normalisation.
 The Core policies are versioned in code. The derived match index is kept in
 the same transaction by every existing Case-data writer through one shared
 projector. There is no new rule engine, rule table, admin editor or parallel
-matcher. A new identity needs genuine evidence and an agreeing supported
-extraction profile, not a guessed company domain.
+matcher; intermediary identities come from the Contacts directory (operator,
+15 October 2026). A new direct identity needs genuine evidence and an
+agreeing supported extraction profile, not a guessed company domain.
 
 ### Accepted QDOS automatic Triage predicates
 
@@ -354,4 +361,5 @@ for a named Principal needs exact-target approval and its own evidence tier
   [FRD-18](frd-18-manual-upload.md).
 - Technical constraints:
   [ADR-0004](../adr/0004-provider-api-and-staff-mcp-authentication.md),
-  [ADR-0008](../adr/0008-separate-direct-provider-and-intermediary-email-policies.md).
+  [ADR-0008](../adr/0008-separate-direct-provider-and-intermediary-email-policies.md),
+  [ADR-0078](../adr/0078-intermediaries-are-linked-claim-sources.md).

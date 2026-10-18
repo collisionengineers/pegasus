@@ -1092,6 +1092,53 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task ASelectedProfileHandsTheLoadedIntermediariesToTheRoute()
+    {
+        var loaded = new IntermediaryDomains([("desk@linked-route.example", "OTHER")]);
+        var registry = new FixedIntermediaryRegistry(loaded);
+        var routePolicy = new RecordingMailRoutePolicy();
+
+        var receipt = await CreateSut(
+                new StubReader(RouteRead("route-profile.pdf, page 1", "Recording profile instruction")),
+                new RecordingStore(),
+                extractionPolicies: [new ProfilePolicy("OTHER", "Recording profile instruction")],
+                mailRoutePolicy: routePolicy,
+                intermediaryRegistry: registry)
+            .ExecuteAsync(CreateSource());
+
+        Assert.Equal(1, registry.Loads);
+        Assert.Same(loaded, Assert.Single(routePolicy.Intermediaries));
+        Assert.Equal(MailRouteDisposition.NoMatch, receipt.MailRouteDecision?.Disposition);
+    }
+
+    [Fact]
+    public async Task WithoutASelectedProfileTheIntermediariesAreNotRead()
+    {
+        var registry = new FixedIntermediaryRegistry(IntermediaryDomains.Empty);
+        var routePolicy = new RecordingMailRoutePolicy();
+
+        var receipt = await CreateSut(
+                new StubReader(RouteRead("route-body.pdf, page 1", "Please see the attached.")),
+                new RecordingStore(),
+                extractionPolicies: [new ProfilePolicy("OTHER", "Recording profile instruction")],
+                mailRoutePolicy: routePolicy,
+                intermediaryRegistry: registry)
+            .ExecuteAsync(CreateSource());
+
+        Assert.Equal(0, registry.Loads);
+        Assert.Null(Assert.Single(routePolicy.Intermediaries));
+        Assert.Equal(MailRouteDisposition.NoMatch, receipt.MailRouteDecision?.Disposition);
+    }
+
+    private static IntakeSourceReadResult RouteRead(string label, string text) =>
+        Readable(
+            transportEvidence:
+            [
+                new(IntakeEvidenceSource.Sender, "claims@unlinked-route.example", IntakeSenderIdentityKind.Transport, "outer message")
+            ],
+            content: [new(IntakeEvidenceSource.PdfContent, label, text)]);
+
+    [Fact]
     public async Task ExtractionDraftPrincipalMustMatchAcceptedRoute()
     {
         var store = new RecordingStore();
@@ -2115,11 +2162,13 @@ public sealed class ProcessIntakeTests
         IRegisterUnidentified? registerUnidentified = null,
         RetainIncomingArtifact? retainIncomingArtifact = null,
         IPrincipalSubmissionBindings? principalSubmissionBindings = null,
-        RecordThirdPartyReportReading? recordThirdPartyReportReading = null) =>
+        RecordThirdPartyReportReading? recordThirdPartyReportReading = null,
+        IIntermediaryRegistry? intermediaryRegistry = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             new InstructionExtractionPolicySelector(
                 extractionPolicies ?? [extractionPolicy ?? new QdosInstructionExtractionPolicy()]),
             mailRoutePolicy ?? new PrincipalMailRoutePolicy(),
+            intermediaryRegistry ?? new FixedIntermediaryRegistry(IntermediaryDomains.Empty),
             classificationPolicies ?? [new PrincipalMailClassificationPolicy("QDOS")],
             caseMatchEvaluator ?? new EvaluateIntakeCaseMatch([], new NoCaseMatchCandidates()),
             new FixedTimeProvider(ProcessedAtUtc),
@@ -2128,6 +2177,31 @@ public sealed class ProcessIntakeTests
             principalSubmissionBindings,
             recordThirdPartyReportReading,
             retainIncomingArtifact: retainIncomingArtifact);
+
+    private sealed class FixedIntermediaryRegistry(IntermediaryDomains intermediaries) : IIntermediaryRegistry
+    {
+        public int Loads { get; private set; }
+
+        public Task<IntermediaryDomains> LoadAsync(CancellationToken cancellationToken)
+        {
+            Loads++;
+            return Task.FromResult(intermediaries);
+        }
+    }
+
+    private sealed class RecordingMailRoutePolicy : IMailRoutePolicy
+    {
+        public List<IntermediaryDomains?> Intermediaries { get; } = [];
+
+        public MailRouteEvaluationResult Evaluate(
+            IntakeSourceReadResult readResult,
+            InstructionPolicySelection? instruction = null,
+            IntermediaryDomains? intermediaries = null)
+        {
+            Intermediaries.Add(intermediaries);
+            return new PrincipalMailRoutePolicy().Evaluate(readResult, instruction, intermediaries);
+        }
+    }
 
     private sealed class NoCaseMatchCandidates : ICaseMatchCandidateQueries
     {

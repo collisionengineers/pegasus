@@ -310,7 +310,8 @@ public interface IMailRoutePolicy
 {
     MailRouteEvaluationResult Evaluate(
         IntakeSourceReadResult readResult,
-        InstructionPolicySelection? instruction = null);
+        InstructionPolicySelection? instruction = null,
+        IntermediaryDomains? intermediaries = null);
 }
 
 public sealed record IntakeSourceIdentity(

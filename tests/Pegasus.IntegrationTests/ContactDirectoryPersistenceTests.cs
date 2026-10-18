@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
@@ -228,6 +229,60 @@ public sealed class ContactDirectoryPersistenceTests
         Assert.Equal(linked, await FixtureChoices(linking.OrganizationId));
         Assert.Equal([activeId], await FixtureChoices(other.OrganizationId));
         Assert.Equal([activeId], await FixtureChoices(null));
+    }
+
+    /// <summary>
+    /// R35, R17: an intermediary is an active Claim Source with an e-mail, once
+    /// for each active Principal it is linked to. No other contact type, and no
+    /// unlinked, inactive or e-mail-less Claim Source, is one.
+    /// </summary>
+    [Fact]
+    public async Task TheIntermediaryRegistryReadsLinkedActiveClaimSourcesOnly()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var first = (await SaveAsync(database, NewPrincipal("Intermediary principal one", "CPI01"))).OwnPrincipalIds!.Single();
+        var second = (await SaveAsync(database, NewPrincipal("Intermediary principal two", "CPI02"))).OwnPrincipalIds!.Single();
+        var inactiveRequest = NewPrincipal("Intermediary principal inactive", "CPI03");
+        var inactiveSaved = await SaveAsync(database, inactiveRequest);
+        _ = await SaveAsync(database, inactiveRequest with
+        {
+            ExpectedVersion = inactiveSaved.Version,
+            Active = false,
+            OperationKey = Guid.NewGuid().ToString("N")
+        });
+        var inactive = inactiveSaved.OwnPrincipalIds!.Single();
+        async Task Contact(string name, ContactRole role, string? email, bool active, params Guid[] principals) =>
+            _ = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+            {
+                Name = name,
+                Role = role,
+                Email = email,
+                Active = active,
+                LinkedPrincipalIds = principals
+            });
+        await Contact("Linked claim source", ContactRole.ClaimSource, "desk@linked-claims.example", true, first, second);
+        await Contact("Inactive claim source", ContactRole.ClaimSource, "desk@inactive-claims.example", false, first);
+        await Contact("Inactive Principal claim source", ContactRole.ClaimSource, "desk@inactive-principal.example", true, inactive);
+        await Contact("Blank e-mail claim source", ContactRole.ClaimSource, null, true, first);
+        await Contact("Unlinked claim source", ContactRole.ClaimSource, "desk@unlinked-claims.example", true);
+        await Contact("Linked repairer", ContactRole.Repairer, "desk@linked-repairer.example", true, first);
+        await Contact("Linked storage", ContactRole.Storage, "desk@linked-storage.example", true, first);
+        await Contact("Linked engineer", ContactRole.ThirdPartyEngineer, "desk@linked-engineer.example", true, first);
+
+        await using var scope = database.CreateAsyncScope();
+        var registry = scope.ServiceProvider.GetRequiredService<IIntermediaryRegistry>();
+        Assert.IsType<EfIntermediaryRegistry>(registry);
+        var intermediaries = await registry.LoadAsync(CancellationToken.None);
+
+        Assert.True(intermediaries.IsIntermediaryFor("claims@linked-claims.example", "CPI01"));
+        Assert.True(intermediaries.IsIntermediaryFor("claims@linked-claims.example", "CPI02"));
+        Assert.False(intermediaries.IsIntermediaryFor("claims@linked-claims.example", "CPI03"));
+        Assert.False(intermediaries.IsIntermediaryFor("claims@inactive-claims.example", "CPI01"));
+        Assert.False(intermediaries.IsIntermediaryFor("claims@inactive-principal.example", "CPI03"));
+        Assert.False(intermediaries.IsIntermediaryFor("claims@unlinked-claims.example", "CPI01"));
+        Assert.False(intermediaries.IsIntermediaryFor("claims@linked-repairer.example", "CPI01"));
+        Assert.False(intermediaries.IsIntermediaryFor("claims@linked-storage.example", "CPI01"));
+        Assert.False(intermediaries.IsIntermediaryFor("claims@linked-engineer.example", "CPI01"));
     }
 
     [Fact]

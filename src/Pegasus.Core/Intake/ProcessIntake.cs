@@ -16,6 +16,7 @@ public sealed class ProcessIntake(
     IIntakeArtifactStore artifactStore,
     InstructionExtractionPolicySelector extractionPolicies,
     IMailRoutePolicy mailRoutePolicy,
+    IIntermediaryRegistry intermediaryRegistry,
     IEnumerable<IMailClassificationPolicy> mailClassificationPolicies,
     EvaluateIntakeCaseMatch caseMatchEvaluator,
     TimeProvider timeProvider,
@@ -939,7 +940,8 @@ public sealed class ProcessIntake(
             instructionSelection.Outcome == InstructionPolicySelectionOutcome.Ambiguous
                 ? IntakeEvidenceSignals.AmbiguousInstructionSelection
                 : null);
-        var mailRouteDecision = EvaluateMailRoute(readResult, sourceChannel, instructionSelection);
+        var mailRouteDecision = await EvaluateMailRouteAsync(
+            readResult, sourceChannel, instructionSelection, cancellationToken);
         if (mailRouteDecision is not null
             && mailRouteDecision.Disposition != MailRouteDisposition.Accepted)
         {
@@ -1419,10 +1421,11 @@ public sealed class ProcessIntake(
         }
     }
 
-    private MailRouteEvaluationResult? EvaluateMailRoute(
+    private async Task<MailRouteEvaluationResult?> EvaluateMailRouteAsync(
         IntakeSourceReadResult readResult,
         IntakeSourceChannel sourceChannel,
-        InstructionPolicySelection instruction)
+        InstructionPolicySelection instruction,
+        CancellationToken cancellationToken)
     {
         // A Principal API submission's route identity is its credential, and a
         // manual upload awaits a staff decision. Sender metadata inside either
@@ -1440,7 +1443,11 @@ public sealed class ProcessIntake(
             return null;
         }
 
-        var result = mailRoutePolicy.Evaluate(readResult, instruction);
+        // No intermediary is accepted without a selected instruction profile.
+        var intermediaries = instruction.Outcome == InstructionPolicySelectionOutcome.Selected
+            ? await intermediaryRegistry.LoadAsync(cancellationToken)
+            : null;
+        var result = mailRoutePolicy.Evaluate(readResult, instruction, intermediaries);
         EnsureConsistentMailRouteResult(result);
         return result;
     }

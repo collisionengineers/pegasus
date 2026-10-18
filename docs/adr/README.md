@@ -29,7 +29,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0005](0005-multiformat-intake-assets.md) | Multi-format intake and review assets | accepted | ADR-0040 | — |
 | [ADR-0006](0006-provider-neutral-intake-with-contained-qdos-policy.md) | Provider-neutral intake with a contained QDOS policy | accepted | ADR-0008 | — |
 | [ADR-0007](0007-direct-terminal-azure-deployment.md) | Direct authorised-terminal Azure deployment | accepted | ADR-0014, ADR-0015, ADR-0037 | — |
-| [ADR-0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | accepted | — | — |
+| [ADR-0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | accepted | ADR-0078 (intermediary identities clause) | — |
 | [ADR-0009](0009-adopt-pegasus-monorepo-workspaces.md) | Adopt Pegasus monorepo source workspaces | accepted | ADR-0025 | — |
 | [ADR-0010](0010-adopt-single-context-domain-documentation.md) | Adopt single-context domain documentation | superseded | — | — |
 | [ADR-0011](0011-restrict-mcp-to-automation-actor.md) | Restrict MCP to a vendor-neutral Automation Actor | accepted | — | — |

@@ -3,7 +3,7 @@ id: ADR-0008
 status: accepted
 date: 2026-07-27
 supersedes: [ADR-0006]
-superseded_by: []
+superseded_by: [ADR-0078]
 related_capabilities: []
 related_frd: [frd-08, frd-09]
 tags: [email, routing]
@@ -11,13 +11,20 @@ tags: [email, routing]
 # ADR-0008: Separate direct-provider and intermediary email policies
 
 - Date: 2026-07-27
-- Status: accepted
+- Status: accepted; the Consequences clause on intermediary identities is
+  replaced by [ADR-0078](0078-intermediaries-are-linked-claim-sources.md)
 - Owners: Collision Engineers product owner and Pegasus development team
 - Supersedes: ADR-0006's single-policy selection and no-provider-registry/table limits; preserves its provider-neutral transport, provenance, storage, and fail-closed boundaries
 
 ## Current applicability
 
 This refines ADR-0006’s route/principal boundary. Current accepted principal behavior is in FRD-09; original QDOS-only allocation context does not limit it.
+
+[ADR-0078](0078-intermediaries-are-linked-claim-sources.md) (16 October
+2026) replaces the Consequences clause that intermediary identities are
+code-owned: an intermediary is a Claim Source linked to a Principal in the
+Contacts directory. Direct sender traits and route-to-provider predicates
+stay code-owned, and the rest of this decision stands.
 
 ## Context
 
@@ -81,8 +88,11 @@ and the automatic case-association predicates — is specified in
   Reference-data presence is not a live policy, caller, or permission to create
   cases for that provider.
 - Provider and inspection-location reference identities are persisted. Direct
-  sender traits, intermediary identities, and route-to-provider predicates are
-  code-owned by the route-policy catalog, not database-authored configuration.
+  sender traits and route-to-provider predicates are code-owned by the
+  route-policy catalog, not database-authored configuration; intermediary
+  identities are Claim Sources linked to a Principal in the Contacts
+  directory (operator, 15 and 16 October 2026;
+  [ADR-0078](0078-intermediaries-are-linked-claim-sources.md)).
   Every evaluation persists route kind, stable policy key/version, resolved
   provider code, classification/case outcome, and supporting evidence on the
   receipt; retries reuse that immutable evaluation identity.
