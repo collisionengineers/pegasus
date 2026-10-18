@@ -158,8 +158,10 @@ Owner: `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`
   references keep their own letters-only grammar under the same Principal.
 - **Vehicle registration**: labelled VRM only, with **TP-prefixed labels
   skipped** — only the client vehicle is a key, keeping two claimants from one
-  accident apart. **Name** and **incident date** are labelled keys with the
-  same discipline.
+  accident apart. **Name** is a labelled key with the same discipline. The
+  **incident date** is an excluding rule, not a matching rule (operator
+  decision 2026-10-15): two different incident dates mean it is not the
+  same Case.
 - Each key must be **single-distinct** across the message; conflicting values
   for a key drop that key rather than guess.
 
