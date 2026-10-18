@@ -29,6 +29,9 @@
     "classifierActivation": {
       "value": "${PEGASUS_CLASSIFIER_ACTIVATION=disabled}"
     },
+    "classifierDryRun": {
+      "value": "${PEGASUS_CLASSIFIER_DRY_RUN=false}"
+    },
     "alertEmailAddress": {
       "value": "${PEGASUS_ALERT_EMAIL}"
     },
