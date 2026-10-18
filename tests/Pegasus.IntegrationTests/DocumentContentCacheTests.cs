@@ -1490,6 +1490,223 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// One pass claims, deletes and removes a batch of expired entries in a
+    /// fixed number of SQL commands whatever its size: the select, one claim,
+    /// one read of what was claimed and one delete. Nothing expired costs the
+    /// select alone and calls no object.
+    /// </summary>
+    [Fact]
+    public async Task CleanupRemovesAWholeBatchOfExpiredEntries()
+    {
+        var estate = await Estate.CreateDocumentAsync("first pinned image"u8.ToArray());
+        await using (estate)
+        {
+            var commands = new CountingCommandInterceptor();
+            var cache = await ExpiredCacheAsync(estate, 9, commands);
+
+            var result = await cache.Store.ExecuteAsync(50, CancellationToken.None);
+
+            Assert.Equal(new DocumentContentCacheCleanupResult(9, 9, 0, 0), result);
+            Assert.Equal(4, commands.Count);
+            Assert.Equal(9, cache.Container.Blobs.Count);
+            Assert.All(cache.Container.Blobs, blob => Assert.Equal(1, blob.DeleteCount));
+            Assert.Empty(await EntriesAsync(estate));
+
+            commands.Reset();
+            var idle = await cache.Store.ExecuteAsync(50, CancellationToken.None);
+
+            Assert.Equal(new DocumentContentCacheCleanupResult(0, 0, 0, 0), idle);
+            Assert.Equal(1, commands.Count);
+            Assert.All(cache.Container.Blobs, blob => Assert.Equal(1, blob.DeleteCount));
+        }
+    }
+
+    /// <summary>
+    /// The claimed objects are deleted four at a time: with nine claimed, four
+    /// deletes are in flight and a fifth does not start until one finishes.
+    /// </summary>
+    [Fact]
+    public async Task CleanupDeletesBlobsInParallelButNeverMoreThanTheBound()
+    {
+        var estate = await Estate.CreateDocumentAsync("first pinned image"u8.ToArray());
+        await using (estate)
+        {
+            var cache = await ExpiredCacheAsync(estate, 9);
+            var gate = new Lock();
+            var started = 0;
+            var inFlight = 0;
+            var peak = 0;
+            var fourInFlight = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            foreach (var blob in cache.Container.Blobs)
+            {
+                blob.OnDelete = async () =>
+                {
+                    lock (gate)
+                    {
+                        started++;
+                        inFlight++;
+                        peak = Math.Max(peak, inFlight);
+                        if (inFlight == 4) fourInFlight.TrySetResult();
+                    }
+                    await release.Task;
+                    lock (gate) { inFlight--; }
+                };
+            }
+
+            var pass = cache.Store.ExecuteAsync(50, CancellationToken.None);
+            try
+            {
+                await fourInFlight.Task.WaitAsync(TimeSpan.FromSeconds(30));
+                await Task.Delay(TimeSpan.FromMilliseconds(250));
+                lock (gate) { Assert.Equal(4, started); }
+            }
+            finally
+            {
+                release.TrySetResult();
+            }
+            var result = await pass;
+
+            Assert.Equal(new DocumentContentCacheCleanupResult(9, 9, 0, 0), result);
+            lock (gate)
+            {
+                Assert.Equal(9, started);
+                Assert.Equal(4, peak);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A row a publisher changed after the pass read it is never deleted: one
+    /// changed before the claim is not claimed and its object is not touched,
+    /// and one changed while its object is deleted keeps its row because the
+    /// delete is guarded by the pass's token.
+    /// </summary>
+    [Fact]
+    public async Task ARowWhoseTokenChangesDuringTheBatchIsSkippedNotDeleted()
+    {
+        var estate = await Estate.CreateDocumentAsync("first pinned image"u8.ToArray());
+        await using (estate)
+        {
+            var beforeClaim = new BeforeFirstUpdateInterceptor();
+            var cache = await ExpiredCacheAsync(estate, 9, beforeClaim);
+            var changedBeforeClaim = cache.Images[0].Request.VersionId!.Value;
+            var changedDuringDelete = cache.Images[1].Request.VersionId!.Value;
+            var firstToken = Guid.NewGuid();
+            var secondToken = Guid.NewGuid();
+            beforeClaim.Arm(() => ChangeTokenAsync(estate, changedBeforeClaim, firstToken));
+            cache.Container.BlobOf(changedDuringDelete).OnDelete =
+                () => ChangeTokenAsync(estate, changedDuringDelete, secondToken);
+
+            var result = await cache.Store.ExecuteAsync(50, CancellationToken.None);
+
+            Assert.Equal(new DocumentContentCacheCleanupResult(9, 7, 2, 0), result);
+            Assert.Equal(0, cache.Container.BlobOf(changedBeforeClaim).DeleteCount);
+            Assert.Equal(1, cache.Container.BlobOf(changedDuringDelete).DeleteCount);
+            var surviving = (await EntriesAsync(estate)).ToDictionary(entry => entry.DocumentVersionId!.Value);
+            Assert.Equal(2, surviving.Count);
+            Assert.Equal(firstToken, surviving[changedBeforeClaim].ConcurrencyToken);
+            Assert.Equal(secondToken, surviving[changedDuringDelete].ConcurrencyToken);
+        }
+    }
+
+    /// <summary>
+    /// An object's own failure is handled on its own row and does not hold
+    /// back the rest of the batch: an object already gone is removed with its
+    /// row, a replaced object (412) and any other failure release their row
+    /// with the outcome recorded.
+    /// </summary>
+    [Fact]
+    public async Task PerRowBlobFailuresAreHandledOnTheirOwnRowsWhileTheRestOfTheBatchIsRemoved()
+    {
+        var estate = await Estate.CreateDocumentAsync("first pinned image"u8.ToArray());
+        await using (estate)
+        {
+            var cache = await ExpiredCacheAsync(estate, 4);
+            var versions = cache.Images.Select(image => image.Request.VersionId!.Value).ToArray();
+            var (deleted, missing, replaced, failing) = (versions[0], versions[1], versions[2], versions[3]);
+            cache.Container.BlobOf(missing).DeleteFailureStatus = 404;
+            var replacedBlob = cache.Container.BlobOf(replaced);
+            replacedBlob.ReplaceContent(replacedBlob.Content!);
+            cache.Container.BlobOf(failing).DeleteFailureStatus = 500;
+            var before = (await EntriesAsync(estate)).ToDictionary(entry => entry.DocumentVersionId!.Value);
+
+            var result = await cache.Store.ExecuteAsync(50, CancellationToken.None);
+
+            Assert.Equal(new DocumentContentCacheCleanupResult(4, 2, 0, 2), result);
+            var remaining = (await EntriesAsync(estate)).ToDictionary(entry => entry.DocumentVersionId!.Value);
+            Assert.Equal(new[] { replaced, failing }.Order(), remaining.Keys.Order());
+            Assert.Null(remaining[replaced].ReadLeaseExpiresAtUtc);
+            Assert.NotEqual(before[replaced].ConcurrencyToken, remaining[replaced].ConcurrencyToken);
+            Assert.Equal("RequestFailedException:412", remaining[replaced].LastCleanupOutcome);
+            Assert.Equal("\"2\"", remaining[replaced].ETag);
+            Assert.Null(remaining[failing].ReadLeaseExpiresAtUtc);
+            Assert.NotEqual(before[failing].ConcurrencyToken, remaining[failing].ConcurrencyToken);
+            Assert.Equal("RequestFailedException:500", remaining[failing].LastCleanupOutcome);
+            Assert.Equal(1, cache.Container.BlobOf(deleted).DeleteCount);
+        }
+    }
+
+    private sealed record ExpiredCache(
+        List<(ReadLogicalDocumentVersionRequest Request, byte[] Bytes)> Images,
+        NamedCacheContainer Container,
+        CachedDocumentContentStore Store);
+
+    /// <summary>
+    /// The estate's Case with <paramref name="count"/> filed versions, each
+    /// cached under an object of its own and now past its expiry, and a store
+    /// over that cache whose SQL the given interceptors see.
+    /// </summary>
+    private static async Task<ExpiredCache> ExpiredCacheAsync(
+        Estate estate, int count, params IInterceptor[] interceptors)
+    {
+        var images = await AddVersionsAsync(
+            estate,
+            Enumerable.Range(2, count - 1).Select(number => $"batch image {number}").ToArray());
+        var container = new NamedCacheContainer();
+        var box = new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock);
+        await using (var scope = estate.Database.CreateAsyncScope())
+        {
+            var filing = new CachedDocumentContentStore(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                container,
+                box,
+                estate.Clock);
+            foreach (var image in images)
+            {
+                await filing.PublishAsync(
+                    KeyOf(image.Request), image.Bytes, image.Request.ExpectedSha256, CancellationToken.None);
+            }
+        }
+        estate.Clock.Advance(TimeSpan.FromDays(15));
+        var store = new CachedDocumentContentStore(
+            new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>()
+                    .UseSqlServer(estate.Database.ConnectionString)
+                    .AddInterceptors(interceptors)
+                    .Options),
+            container,
+            box,
+            estate.Clock);
+        return new(images, container, store);
+    }
+
+    private static async Task<DocumentContentCacheEntryEntity[]> EntriesAsync(Estate estate)
+    {
+        await using var db = await estate.Database.CreateContextAsync();
+        return await db.Set<DocumentContentCacheEntryEntity>().AsNoTracking().ToArrayAsync();
+    }
+
+    /// <summary>Changes a version's entry token through SQL, as a publisher that found its lease lapsed would.</summary>
+    private static async Task ChangeTokenAsync(Estate estate, Guid versionId, Guid token)
+    {
+        await using var db = await estate.Database.CreateContextAsync();
+        await db.Set<DocumentContentCacheEntryEntity>()
+            .Where(value => value.DocumentVersionId == versionId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(value => value.ConcurrencyToken, token));
+    }
+
     private static async Task<DateTimeOffset> ExpiryAsync(Estate estate)
     {
         await using var db = await estate.Database.CreateContextAsync();
@@ -2402,6 +2619,32 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Runs the callback it is armed with once, just before the first UPDATE a
+    /// context sends, so a test can change a row between a pass's read and its
+    /// claim.
+    /// </summary>
+    private sealed class BeforeFirstUpdateInterceptor : DbCommandInterceptor
+    {
+        private Func<Task>? callback;
+
+        public void Arm(Func<Task> value) => Volatile.Write(ref callback, value);
+
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("UPDATE", StringComparison.Ordinal)
+                && Interlocked.Exchange(ref callback, null) is { } once)
+            {
+                await once();
+            }
+            return result;
+        }
+    }
+
     private sealed class CancellingReadStream(byte[] content, CancellationTokenSource cancellation)
         : MemoryStream(content, writable: false)
     {
@@ -2425,6 +2668,21 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         public int UploadCount
         {
             get { lock (blobs) { return blobs.Values.Sum(blob => blob.UploadCount); } }
+        }
+
+        /// <summary>Every blob asked for so far.</summary>
+        public IReadOnlyList<CacheBlob> Blobs
+        {
+            get { lock (blobs) { return [.. blobs.Values]; } }
+        }
+
+        /// <summary>The blob a version's original is cached under.</summary>
+        public CacheBlob BlobOf(Guid versionId)
+        {
+            lock (blobs)
+            {
+                return blobs.Values.Single(blob => blob.BlobName.EndsWith(versionId.ToString("D"), StringComparison.Ordinal));
+            }
         }
 
         public override BlobClient GetBlobClient(string blobName)
@@ -2481,7 +2739,12 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         private ETag etag = new("\"1\"");
         public string BlobName { get; set; }="";
         public byte[]? Content { get; set; }
-        public int DeleteCount { get; private set; }
+        private int deleteCount;
+        public int DeleteCount => Volatile.Read(ref deleteCount);
+        /// <summary>Awaited by every delete before it answers, so a test can hold it or change SQL during it.</summary>
+        public Func<Task>? OnDelete { get; set; }
+        /// <summary>Answers every delete with this status instead of deleting.</summary>
+        public int? DeleteFailureStatus { get; set; }
         public int UploadCount { get; private set; }
         private int propertiesReads;
         /// <summary>Property reads (HEAD requests) asked for.</summary>
@@ -2546,15 +2809,23 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 BlobsModelFactory.BlobDownloadStreamingResult(new MemoryStream(Content ?? [])),
                 new StubResponse()));
         }
-        public override Task<Response<bool>> DeleteIfExistsAsync(DeleteSnapshotsOption option=default,BlobRequestConditions? conditions=null,CancellationToken token=default)
+        public override async Task<Response<bool>> DeleteIfExistsAsync(DeleteSnapshotsOption option=default,BlobRequestConditions? conditions=null,CancellationToken token=default)
         {
-            DeleteCount++;
+            Interlocked.Increment(ref deleteCount);
+            if (OnDelete is { } hook)
+            {
+                await hook();
+            }
+            if (DeleteFailureStatus is { } status)
+            {
+                throw new RequestFailedException(status, "failure");
+            }
             if (DeletePreconditionFails || (conditions?.IfMatch is { } expected && expected != etag))
             {
-                return Task.FromException<Response<bool>>(new RequestFailedException(412, "condition"));
+                throw new RequestFailedException(412, "condition");
             }
             Content=null;
-            return Task.FromResult(Response.FromValue(DeleteResult,new StubResponse()));
+            return Response.FromValue(DeleteResult,new StubResponse());
         }
     }
     private sealed class BoxHandler(byte[] bytes) : HttpMessageHandler
