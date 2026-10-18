@@ -2616,11 +2616,11 @@ public sealed class MailWorkspaceWebTests
         await using var context = await contextFactory.CreateDbContextAsync();
         Assert.Single(await context.IntakeMailClassificationHistory.ToListAsync());
         Assert.Equal(
-            new[] { 1, 1, 2 },
+            [1, 1, 2],
             await context.IntakeMailClassificationDecisions
                 .OrderBy(item => item.Version)
                 .Select(item => item.Version)
-                .ToArrayAsync());
+                .ToListAsync());
     }
 
     /// <summary>
