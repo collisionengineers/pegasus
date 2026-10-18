@@ -111,6 +111,11 @@ internal sealed partial class CachedDocumentContentStore(
     /// takes the process-wide Box gate, so this bounds the cached reads.
     /// </summary>
     private const int MaximumConcurrentBatchReads = 4;
+
+    /// <summary>
+    /// How many claimed objects one cleanup pass deletes at once.
+    /// </summary>
+    private const int MaximumConcurrentCleanups = 4;
     internal const string CachePrefix = "cache/";
     internal const string HashMetadata = "sha256";
 
@@ -305,48 +310,55 @@ internal sealed partial class CachedDocumentContentStore(
             .Take(maximumItems)
             .AsNoTracking()
             .ToArrayAsync(cancellationToken);
-        var deleted = 0;
-        var retained = 0;
-        var failures = 0;
-        foreach (var candidate in candidates)
+        if (candidates.Length == 0)
         {
-            var cleanupToken = Guid.NewGuid();
+            return new(0, 0, 0, 0);
+        }
+
+        // One statement claims the batch under one token. A row changed since
+        // the select no longer matches its candidate's token, so the claim
+        // skips it and it is retained for the next pass, never deleted.
+        var cleanupToken = Guid.NewGuid();
+        var candidateIds = candidates.Select(value => value.Id).ToArray();
+        var candidateTokens = candidates.Select(value => value.ConcurrencyToken).ToArray();
+        await db.Set<DocumentContentCacheEntryEntity>()
+            .Where(value => candidateIds.Contains(value.Id)
+                && candidateTokens.Contains(value.ConcurrencyToken)
+                && value.ExpiresAtUtc <= now
+                && (value.ReadLeaseExpiresAtUtc == null || value.ReadLeaseExpiresAtUtc <= now))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(value => value.ReadLeaseExpiresAtUtc, now.Add(ReadLeaseLifetime))
+                .SetProperty(value => value.ConcurrencyToken, cleanupToken),
+                cancellationToken);
+        var claimedIds = (await db.Set<DocumentContentCacheEntryEntity>()
+            .Where(value => value.ConcurrencyToken == cleanupToken)
+            .Select(value => value.Id)
+            .ToArrayAsync(cancellationToken)).ToHashSet();
+        var claimed = candidates.Where(value => claimedIds.Contains(value.Id)).ToArray();
+        var deleted = 0;
+        var retained = candidates.Length - claimed.Length;
+        var failures = 0;
+        var objectGone = new ConcurrentBag<Guid>();
+        var options = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = MaximumConcurrentCleanups,
+            CancellationToken = cancellationToken
+        };
+        // A body awaits the caller's token, never the loop's: when one row's
+        // failure escapes, the loop cancels its own token, and a sibling
+        // must not record that cancellation as a failure on its own row.
+        await Parallel.ForEachAsync(claimed, options, async (candidate, _) =>
+        {
             try
             {
-                await using var itemDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-                var claimed = await itemDb.Set<DocumentContentCacheEntryEntity>()
-                    .Where(value => value.Id == candidate.Id
-                        && value.ConcurrencyToken == candidate.ConcurrencyToken
-                        && value.ExpiresAtUtc <= now
-                        && (value.ReadLeaseExpiresAtUtc == null || value.ReadLeaseExpiresAtUtc <= now))
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(value => value.ReadLeaseExpiresAtUtc, now.Add(ReadLeaseLifetime))
-                        .SetProperty(value => value.ConcurrencyToken, cleanupToken),
-                        cancellationToken);
-                if (claimed == 0)
-                {
-                    retained++;
-                    continue;
-                }
-                var response = await container.GetBlobClient(candidate.BlobIdentity)
+                await container.GetBlobClient(candidate.BlobIdentity)
                     .DeleteIfExistsAsync(
                         DeleteSnapshotsOption.IncludeSnapshots,
                         conditions: candidate.ETag is { Length: > 0 }
                             ? new BlobRequestConditions { IfMatch = new ETag(candidate.ETag) }
                             : null,
                         cancellationToken);
-                var removed = await itemDb.Set<DocumentContentCacheEntryEntity>()
-                    .Where(value => value.Id == candidate.Id
-                        && value.ConcurrencyToken == cleanupToken)
-                    .ExecuteDeleteAsync(cancellationToken);
-                if (removed == 1)
-                {
-                    deleted++;
-                }
-                else
-                {
-                    retained++;
-                }
+                objectGone.Add(candidate.Id);
             }
             catch (RequestFailedException exception) when (exception.Status == 404)
             {
@@ -356,7 +368,7 @@ internal sealed partial class CachedDocumentContentStore(
                     .Where(value => value.Id == candidate.Id
                         && value.ConcurrencyToken == cleanupToken)
                     .ExecuteDeleteAsync(CancellationToken.None);
-                if (removed == 1) deleted++; else retained++;
+                if (removed == 1) Interlocked.Increment(ref deleted); else Interlocked.Increment(ref retained);
             }
             catch (RequestFailedException exception) when (exception.Status == 412)
             {
@@ -390,11 +402,11 @@ internal sealed partial class CachedDocumentContentStore(
                         CancellationToken.None);
                 if (released == 0)
                 {
-                    retained++;
+                    Interlocked.Increment(ref retained);
                 }
                 else
                 {
-                    failures++;
+                    Interlocked.Increment(ref failures);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -422,10 +434,21 @@ internal sealed partial class CachedDocumentContentStore(
                         "The cache cleanup failure could not be recorded because its lease was lost.",
                         exception);
                 }
-                failures++;
+                Interlocked.Increment(ref failures);
             }
-        }
-        return new(candidates.Length, deleted, retained, failures);
+        });
+        // Every row whose object is gone leaves under the batch's own token; a
+        // row a publisher changed in the meantime has a new token and stays.
+        var removableIds = objectGone.ToArray();
+        var rowsRemoved = await db.Set<DocumentContentCacheEntryEntity>()
+            .Where(value => removableIds.Contains(value.Id)
+                && value.ConcurrencyToken == cleanupToken)
+            .ExecuteDeleteAsync(cancellationToken);
+        return new(
+            candidates.Length,
+            deleted + rowsRemoved,
+            retained + removableIds.Length - rowsRemoved,
+            failures);
     }
 
     /// <summary>
