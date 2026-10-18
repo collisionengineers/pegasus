@@ -1951,7 +1951,7 @@ public sealed class CustodyOutboxIntegrationTests
     /// <summary>
     /// An automatic allocation reads the receipt back once when the item is
     /// processed, after the Case is created. The allocator is handed the
-    /// receipt the processor holds, so the read it once made for itself is gone.
+    /// receipt the processor holds and makes no read of its own.
     /// </summary>
     [Fact]
     public async Task AnAutomaticAllocationReadsTheReceiptBackAtMostOnce()
