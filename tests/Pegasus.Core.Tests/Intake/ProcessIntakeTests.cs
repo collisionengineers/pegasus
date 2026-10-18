@@ -677,19 +677,10 @@ public sealed class ProcessIntakeTests
     [Fact]
     public async Task HoldingCustodyRetainsFourFilesAtOnceAndAFailureLetsTheOthersFinish()
     {
-        var documents = Enumerable.Range(1, 9)
-            .Select(index => new IntakeAssetCandidate(
-                $"outer message, attachment {index}: document-{index}.pdf",
-                $"document-{index}.pdf",
-                "application/pdf",
-                new byte[] { 0x25, (byte)index },
-                IntakeAssetKind.Attachment,
-                IntakeAssetDisposition.Attachment))
-            .ToArray();
         var receiptStore = new RecordingStore();
-        var custody = new OverlappingHoldingCustody(ProcessIntake.MaximumConcurrentHoldingRetentions);
+        var custody = new OverlappingHoldingCustody(ProcessIntake.MaximumConcurrentRetentions);
         var sut = CreateSut(
-            new StubReader(Readable() with { Assets = documents }),
+            new StubReader(Readable() with { Assets = PdfAttachments(9) }),
             receiptStore,
             retainIncomingArtifact: new RetainIncomingArtifact(
                 custody, new FailingLookupHoldingRetentionStore(failingLookup: 2)));
@@ -698,10 +689,57 @@ public sealed class ProcessIntakeTests
             () => sut.ExecuteAsync(CreateSource()));
 
         Assert.Equal(FailingLookupHoldingRetentionStore.FailureMessage, failure.Message);
-        Assert.Equal(ProcessIntake.MaximumConcurrentHoldingRetentions, custody.MaximumInFlight);
+        Assert.Equal(ProcessIntake.MaximumConcurrentRetentions, custody.MaximumInFlight);
         var held = Assert.Single(receiptStore.Drafts).AssetRecords.Count;
-        Assert.True(held > ProcessIntake.MaximumConcurrentHoldingRetentions);
+        Assert.True(held > ProcessIntake.MaximumConcurrentRetentions);
         Assert.Equal(held - 1, custody.OperationKeys.Count);
+    }
+
+    /// <summary>
+    /// One receipt's reader candidates are stored up to four at once, and a
+    /// candidate that fails does not stop the others: each runs to its own end
+    /// before the failure is thrown. The failure thrown is the first in reader
+    /// order, although a later candidate fails earlier.
+    /// </summary>
+    [Fact]
+    public async Task RetentionStoresFourCandidatesAtOnceAndAFailureLetsTheOthersFinish()
+    {
+        var documents = PdfAttachments(9);
+        byte[] failing = [2, 4];
+        var artifactStore = new OverlappingArtifactStore(
+            ProcessIntake.MaximumConcurrentRetentions, failing);
+        var receiptStore = new RecordingStore();
+        var sut = CreateSut(
+            new StubReader(Readable() with { Assets = documents }), receiptStore, artifactStore);
+
+        var failure = await Assert.ThrowsAsync<IntakeArtifactRetentionException>(
+            () => sut.ExecuteAsync(CreateSource()));
+
+        Assert.Equal("controlled artifact failure for document 2", failure.InnerException?.Message);
+        Assert.Equal(ProcessIntake.MaximumConcurrentRetentions, artifactStore.MaximumInFlight);
+        Assert.Equal(1 + documents.Length, artifactStore.Calls);
+        Assert.Equal(1 + documents.Length - failing.Length, artifactStore.StoredCount);
+        Assert.Empty(receiptStore.Drafts);
+    }
+
+    /// <summary>
+    /// The receipt lists the source and then the candidates in reader order,
+    /// whatever order the uploads finish in.
+    /// </summary>
+    [Fact]
+    public async Task RetentionKeepsCandidateOrderWhenUploadsFinishOutOfOrder()
+    {
+        var documents = PdfAttachments(9);
+        var artifactStore = new OverlappingArtifactStore(ProcessIntake.MaximumConcurrentRetentions);
+        var sut = CreateSut(
+            new StubReader(Readable() with { Assets = documents }), new RecordingStore(), artifactStore);
+
+        var receipt = await sut.ExecuteAsync(CreateSource());
+
+        Assert.Equal(new byte[] { 4, 3, 2, 1 }, artifactStore.HeldFinishOrder);
+        Assert.Equal(
+            documents.Select(document => document.FileName).Prepend("selected.pdf"),
+            receipt.AssetRecords.Select(asset => asset.FileName));
     }
 
     [Fact]
@@ -2114,6 +2152,18 @@ public sealed class ProcessIntakeTests
             "operator",
             new(IntakeSourceChannel.Mailbox, "22222222222222222222222222222222"));
 
+    /// <summary>Synthetic PDF attachments whose second byte is their number, from one.</summary>
+    private static IntakeAssetCandidate[] PdfAttachments(int count) =>
+        Enumerable.Range(1, count)
+            .Select(index => new IntakeAssetCandidate(
+                $"outer message, attachment {index}: document-{index}.pdf",
+                $"document-{index}.pdf",
+                "application/pdf",
+                new byte[] { 0x25, (byte)index },
+                IntakeAssetKind.Attachment,
+                IntakeAssetDisposition.Attachment))
+            .ToArray();
+
     private static IntakeSourceReadResult Readable(
         bool requiresOcr = false,
         IReadOnlyList<IntakeTransportEvidence>? transportEvidence = null,
@@ -2424,6 +2474,118 @@ public sealed class ProcessIntakeTests
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// An artifact store whose first call, the source stored alone, completes
+    /// at once. The next <paramref name="overlap"/> calls wait for one another,
+    /// so the most that ever run at once is observed exactly: the last of them
+    /// pauses first, long enough for a caller with no limit to start another.
+    /// They then finish in reverse of the order they arrived. A document whose
+    /// number is in <paramref name="failingDocuments"/> fails as it finishes.
+    /// </summary>
+    private sealed class OverlappingArtifactStore(int overlap, byte[]? failingDocuments = null)
+        : IIntakeArtifactStore
+    {
+        private static readonly TimeSpan OverlapGrace = TimeSpan.FromMilliseconds(100);
+
+        private readonly Lock sync = new();
+        private readonly List<TaskCompletionSource> turns = [];
+        private int calls;
+        private int arrivals;
+        private int inFlight;
+        private int stored;
+
+        public int MaximumInFlight { get; private set; }
+
+        public int Calls => calls;
+
+        public int StoredCount => stored;
+
+        /// <summary>The document numbers of the waiting calls, in the order they finished.</summary>
+        public List<byte> HeldFinishOrder { get; } = [];
+
+        public async Task<string> StoreAsync(
+            string contentHash,
+            ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken)
+        {
+            var key = $"sha256/{contentHash[..2]}/{contentHash}";
+            int arrival;
+            TaskCompletionSource? turn = null;
+            lock (sync)
+            {
+                if (++calls == 1)
+                {
+                    stored++;
+                    return key;
+                }
+
+                arrival = ++arrivals;
+                MaximumInFlight = Math.Max(MaximumInFlight, ++inFlight);
+                if (arrival < overlap)
+                {
+                    turn = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    turns.Add(turn);
+                }
+            }
+
+            var document = content.Span[1];
+            try
+            {
+                if (turn is not null)
+                {
+                    await Task.WhenAny(turn.Task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken));
+                }
+                else if (arrival == overlap)
+                {
+                    await Task.Delay(OverlapGrace, cancellationToken);
+                }
+
+                if (failingDocuments?.Contains(document) == true)
+                {
+                    throw new IOException($"controlled artifact failure for document {document}");
+                }
+
+                lock (sync)
+                {
+                    stored++;
+                }
+
+                return key;
+            }
+            finally
+            {
+                lock (sync)
+                {
+                    inFlight--;
+                    if (arrival <= overlap)
+                    {
+                        HeldFinishOrder.Add(document);
+                    }
+
+                    // The call that arrived just before this one may now finish.
+                    if (arrival > 1 && arrival <= overlap)
+                    {
+                        turns[arrival - 2].TrySetResult();
+                    }
+                }
+            }
+        }
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId,
+            string contentHash,
+            Stream content,
+            long contentLength,
+            DateTimeOffset firstSeenAtUtc,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The overlap test only stores.");
+
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(
+            string storageKey,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The overlap test only stores.");
     }
 
     /// <summary>Every arrival is unoffered, and looking up the nth one fails.</summary>

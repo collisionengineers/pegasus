@@ -198,10 +198,12 @@ public sealed class ProcessIntake(
         var assets = new List<IntakeAssetRecord> { sourceAsset };
         try
         {
-            foreach (var candidate in InstructionEvidenceImages.RetentionCandidates(readResult))
-            {
-                assets.Add(await RetainAsync(candidate, cancellationToken));
-            }
+            // Storage is by content hash and a retry presents the same bytes,
+            // so a candidate stored before a sibling fails is harmless.
+            assets.AddRange(await RunRetentionsAsync(
+                InstructionEvidenceImages.RetentionCandidates(readResult).ToArray(),
+                candidate => RetainAsync(candidate, cancellationToken),
+                cancellationToken));
         }
         catch (IntakeArtifactRetentionException)
         {
@@ -379,26 +381,15 @@ public sealed class ProcessIntake(
             .ToArray();
 
         // One receipt's holding retention is one batch sharing one folder
-        // proof, and up to four files are retained at once (FRD-05). Every
-        // file runs to its own end, so a failure never abandons an upload
-        // already in flight; the first failure, in file order, is then thrown.
+        // proof, and up to four files are retained at once (FRD-05).
         RetainedIncomingArtifact[] retained;
         using (retention.BeginBatch())
-        using (var gate = new SemaphoreSlim(MaximumConcurrentHoldingRetentions))
         {
-            retained = await Task.WhenAll(candidates.Select(async asset =>
-            {
-                await gate.WaitAsync(cancellationToken);
-                try
-                {
-                    return await RetainHoldingAssetAsync(
-                        retention, actor, receipt.Id, asset, cancellationToken);
-                }
-                finally
-                {
-                    gate.Release();
-                }
-            }));
+            retained = await RunRetentionsAsync(
+                candidates,
+                asset => RetainHoldingAssetAsync(
+                    retention, actor, receipt.Id, asset, cancellationToken),
+                cancellationToken);
         }
 
         var unconfirmedStates = retained
@@ -432,8 +423,37 @@ public sealed class ProcessIntake(
         return reloaded with { IsDuplicate = receipt.IsDuplicate };
     }
 
-    /// <summary>How many of one receipt's files are put into holding custody at once.</summary>
-    internal const int MaximumConcurrentHoldingRetentions = 4;
+    /// <summary>
+    /// How many of one receipt's files are retained at once, whether stored
+    /// as intake artifacts or put into holding custody.
+    /// </summary>
+    internal const int MaximumConcurrentRetentions = 4;
+
+    /// <summary>
+    /// Runs one retention per item, up to <see cref="MaximumConcurrentRetentions"/>
+    /// at once. Every retention runs to its own end, so a failure never
+    /// abandons an upload already in flight; the results are in item order,
+    /// and the first failure, in item order, is then thrown.
+    /// </summary>
+    private static async Task<TResult[]> RunRetentionsAsync<TItem, TResult>(
+        TItem[] items,
+        Func<TItem, Task<TResult>> retain,
+        CancellationToken cancellationToken)
+    {
+        using var gate = new SemaphoreSlim(MaximumConcurrentRetentions);
+        return await Task.WhenAll(items.Select(async item =>
+        {
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                return await retain(item);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
+    }
 
     private async Task<RetainedIncomingArtifact> RetainHoldingAssetAsync(
         RetainIncomingArtifact retention,
