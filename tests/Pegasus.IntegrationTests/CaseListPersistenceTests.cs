@@ -186,6 +186,31 @@ public sealed class CaseListPersistenceTests
         Assert.Equal("Invoicing", reused.Name);
     }
 
+    /// <summary>DA-03: the Case ids reach each read as one parameter, so more Cases than SQL Server allows parameters in a command still read.</summary>
+    [Fact]
+    public async Task AnUnfilteredListOfMoreCasesThanSqlServerHasParametersStillReads()
+    {
+        const int cases = 2150;
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var expected = new List<Guid>(cases);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            for (var sequence = 1; sequence <= cases; sequence++)
+            {
+                expected.Add(AddCase(context, principal, sequence, "inspection", Received));
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var all = await scope.ServiceProvider.GetRequiredService<ICaseListQueries>().GetAsync(Everything, CancellationToken.None);
+
+        Assert.Equal(cases, all.Count);
+        Assert.Equal(expected.Order(), all.Select(record => record.CaseId).Order());
+    }
+
     private static Guid AddCase(
         PegasusDbContext context,
         SeededPrincipalTestData principal,

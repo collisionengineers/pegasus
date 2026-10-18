@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Cases;
@@ -12,13 +11,12 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Reads the Case list (MI-04). One filtered set of Cases is reused as a
-/// semi-join by every read, and each read beyond the Cases themselves runs
+/// Reads the Case list (MI-04). The filtered Cases are read once; every read
+/// beyond them is limited to those Cases' ids, sent as one parameter, and runs
 /// only when a chosen column needs it.
 /// </summary>
 internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> contextFactory) : ICaseListQueries
 {
-    private const string AgreedFeePath = "$.agreedFee";
     private const string RepairCostPath = "$.costs.totals.printed.gross";
     private const string SignatoryPath = "$.signatoryStaffId";
 
@@ -26,10 +24,9 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
     {
         ArgumentNullException.ThrowIfNull(query);
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var cases = Cases(db, query);
 
         var rows = await (
-            from @case in cases
+            from @case in Cases(db, query)
             join snapshot in db.CaseDataSnapshots.AsNoTracking() on @case.Id equals snapshot.WorkId into snapshots
             from snapshot in snapshots.DefaultIfEmpty()
             join workflow in db.CaseWorkflows.AsNoTracking() on @case.Id equals workflow.CaseId into workflows
@@ -50,24 +47,28 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 workflow == null ? null : workflow.SignOffEngineerId,
                 workflow != null && workflow.HasOpenQuery))
             .ToListAsync(cancellationToken);
+        // Each read below is limited to these ids, passed as one parameter
+        // (EF.Parameter) so the count of Cases never meets SQL Server's cap on
+        // parameters in one command.
+        var caseIds = rows.Select(row => row.CaseId).ToHashSet();
         var auditWorks = await db.CaseWorks.AsNoTracking()
-            .Where(work => work.Kind == CaseWorkKinds.Audit && cases.Any(@case => @case.Id == work.CaseId))
+            .Where(work => work.Kind == CaseWorkKinds.Audit && EF.Parameter(caseIds).Contains(work.CaseId))
             .ToDictionaryAsync(work => work.CaseId, work => work.Id, cancellationToken);
 
         var claimData = query.Needs.HasFlag(CaseListFacts.ClaimData) && query.ClaimFields.Count > 0
-            ? await ClaimDataAsync(db, cases, query.ClaimFields, cancellationToken)
+            ? await ClaimDataAsync(db, caseIds, query.ClaimFields, cancellationToken)
             : [];
         var assessment = query.Needs.HasFlag(CaseListFacts.Assessment) && query.AssessmentPaths.Count > 0
-            ? await AssessmentAsync(db, cases, query.AssessmentPaths, cancellationToken)
+            ? await AssessmentAsync(db, caseIds, query.AssessmentPaths, cancellationToken)
             : [];
         var reports = query.Needs.HasFlag(CaseListFacts.ReportFigures)
-            ? await ReportFiguresAsync(db, cases, cancellationToken)
+            ? await ReportFiguresAsync(db, caseIds, cancellationToken)
             : [];
         var sends = query.Needs.HasFlag(CaseListFacts.Sends)
-            ? await FirstSendsAsync(db, cases, cancellationToken)
+            ? await FirstSendsAsync(db, caseIds, cancellationToken)
             : [];
         var activity = query.Needs.HasFlag(CaseListFacts.Activity)
-            ? await ActivityAsync(db, cases, rows.Select(row => row.CaseId).ToHashSet(), cancellationToken)
+            ? await ActivityAsync(db, caseIds, cancellationToken)
             : [];
 
         return [.. rows.Select(row =>
@@ -122,7 +123,7 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
     /// <summary>The accepted value of each asked-for field on the Case's own work (<see cref="CaseDataFieldValues.Accepted"/>).</summary>
     private static async Task<Dictionary<Guid, IReadOnlyDictionary<string, string>>> ClaimDataAsync(
         PegasusDbContext db,
-        IQueryable<CaseEntity> cases,
+        HashSet<Guid> caseIds,
         IReadOnlySet<string> fieldNames,
         CancellationToken cancellationToken)
     {
@@ -130,7 +131,7 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         var fields = await db.CaseDataFields.AsNoTracking()
             .Where(field => names.Contains(field.FieldName)
                 && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact)
-                && cases.Any(@case => @case.Id == field.WorkId))
+                && EF.Parameter(caseIds).Contains(field.WorkId))
             .ToListAsync(cancellationToken);
         return fields
             .GroupBy(field => field.WorkId)
@@ -150,14 +151,14 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
 
     private static async Task<Dictionary<Guid, Dictionary<string, string>>> AssessmentAsync(
         PegasusDbContext db,
-        IQueryable<CaseEntity> cases,
+        HashSet<Guid> caseIds,
         IReadOnlySet<string> assessmentPaths,
         CancellationToken cancellationToken)
     {
         var paths = assessmentPaths.ToArray();
         var fields = await db.CaseAssessmentFields.AsNoTracking()
             .Where(field => paths.Contains(field.FieldPath)
-                && db.CaseWorks.Any(work => work.Id == field.WorkId && cases.Any(@case => @case.Id == work.CaseId)))
+                && db.CaseWorks.Any(work => work.Id == field.WorkId && EF.Parameter(caseIds).Contains(work.CaseId)))
             .Select(field => new { field.WorkId, field.FieldPath, field.Value })
             .ToListAsync(cancellationToken);
         return fields
@@ -175,7 +176,7 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
     /// </summary>
     private static async Task<Dictionary<Guid, ReportFigures>> ReportFiguresAsync(
         PegasusDbContext db,
-        IQueryable<CaseEntity> cases,
+        HashSet<Guid> caseIds,
         CancellationToken cancellationToken)
     {
         var reports = await (
@@ -184,7 +185,7 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 on generation.Id equals artifact.GenerationId
             join version in db.Set<DocumentVersionEntity>().AsNoTracking()
                 on artifact.VersionId equals (Guid?)version.Id
-            where cases.Any(@case => @case.Id == generation.CaseId)
+            where EF.Parameter(caseIds).Contains(generation.CaseId)
                 && artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
                 && artifact.Sha256 != null
                 && artifact.Sha256 == version.Sha256
@@ -193,7 +194,7 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 generation.WorkId,
                 generation.Id,
                 generation.GeneratedAtUtc,
-                SqlJson.Value(generation.SnapshotJson, AgreedFeePath),
+                SqlJson.Value(generation.SnapshotJson, FrozenReportSnapshot.AgreedFeePath),
                 SqlJson.Value(generation.SnapshotJson, RepairCostPath),
                 SqlJson.Value(generation.SnapshotJson, SignatoryPath)))
             .ToListAsync(cancellationToken);
@@ -205,9 +206,8 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 var first = ordered[0];
                 var latest = ordered[^1];
                 return new ReportFigures(
-                    Number(first.AgreedFee)
-                        ?? throw new InvalidDataException($"The frozen snapshot of report generation '{first.GenerationId}' has no valid agreed fee."),
-                    Number(latest.RepairCost),
+                    FrozenReportSnapshot.AgreedFee(first.GenerationId, first.AgreedFee),
+                    FrozenReportSnapshot.Number(latest.RepairCost),
                     Guid.TryParse(latest.SignatoryId, out var signatory) ? signatory : null);
             });
     }
@@ -218,7 +218,7 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
     /// </summary>
     private static async Task<Dictionary<Guid, SendRow>> FirstSendsAsync(
         PegasusDbContext db,
-        IQueryable<CaseEntity> cases,
+        HashSet<Guid> caseIds,
         CancellationToken cancellationToken)
     {
         var sends = await (
@@ -228,7 +228,7 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 && operation.Purpose == StaffMailPurpose.CaseReport
                 && operation.State == StaffMailState.Sent
                 && operation.ObservedSentAtUtc != null
-                && cases.Any(@case => @case.Id == generation.CaseId)
+                && EF.Parameter(caseIds).Contains(generation.CaseId)
             select new SendRow(generation.WorkId, operation.ObservedSentAtUtc!.Value, operation.ActorKind, operation.ActorSubjectId))
             .ToListAsync(cancellationToken);
         return sends
@@ -238,14 +238,13 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
 
     private static async Task<Dictionary<Guid, CaseListActivity>> ActivityAsync(
         PegasusDbContext db,
-        IQueryable<CaseEntity> cases,
         HashSet<Guid> caseIds,
         CancellationToken cancellationToken)
     {
         var documents = await (
             from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
             join version in db.Set<DocumentVersionEntity>().AsNoTracking() on occurrence.VersionId equals version.Id
-            where !version.IsLogicallyRemoved && cases.Any(@case => @case.Id == occurrence.CaseId)
+            where !version.IsLogicallyRemoved && EF.Parameter(caseIds).Contains(occurrence.CaseId)
             group occurrence by occurrence.CaseId into byCase
             select new
             {
@@ -257,18 +256,18 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             .ToDictionaryAsync(item => item.CaseId, cancellationToken);
         var notes = await CountsAsync(
             db.CaseWorkflowEvents.AsNoTracking()
-                .Where(item => item.EventType == AddCaseNote.EventType && cases.Any(@case => @case.Id == item.CaseId))
+                .Where(item => item.EventType == AddCaseNote.EventType && EF.Parameter(caseIds).Contains(item.CaseId))
                 .Select(item => item.CaseId),
             cancellationToken);
         var chases = await CountsAsync(
             db.CaseManualChases.AsNoTracking()
-                .Where(item => cases.Any(@case => @case.Id == item.CaseId))
+                .Where(item => EF.Parameter(caseIds).Contains(item.CaseId))
                 .Select(item => item.CaseId),
             cancellationToken);
         var openTask = nameof(CaseTaskState.Open);
         var openTasks = await CountsAsync(
             db.CaseTasks.AsNoTracking()
-                .Where(item => item.State == openTask && cases.Any(@case => @case.Id == item.CaseId))
+                .Where(item => item.State == openTask && EF.Parameter(caseIds).Contains(item.CaseId))
                 .Select(item => item.CaseId),
             cancellationToken);
 
@@ -277,13 +276,13 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         var sent = db.Set<StaffMailSendOperationEntity>().AsNoTracking()
             .Where(item => item.State == StaffMailState.Sent);
         var correspondence = await CountsAsync(
-            sent.Where(item => item.Purpose != StaffMailPurpose.CaseReport && cases.Any(@case => @case.Id == item.ContextId))
+            sent.Where(item => item.Purpose != StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(item.ContextId))
                 .Select(item => item.ContextId),
             cancellationToken);
         var reportMail = await CountsAsync(
             from operation in sent
             join generation in db.Set<CaseReportGenerationEntity>().AsNoTracking() on operation.ContextId equals generation.Id
-            where operation.Purpose == StaffMailPurpose.CaseReport && cases.Any(@case => @case.Id == generation.CaseId)
+            where operation.Purpose == StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(generation.CaseId)
             select generation.CaseId,
             cancellationToken);
 
@@ -296,9 +295,9 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 && item.MailClassificationDecision != null
                 && item.MailClassificationDecision.Category == query
                 && (db.IntakeManualAssociations.Any(link => link.IntakeReceiptId == item.Id
-                        && cases.Any(@case => @case.Id == link.CaseId))
+                        && EF.Parameter(caseIds).Contains(link.CaseId))
                     || db.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id
-                        && cases.Any(@case => @case.Id == link.CaseId))))
+                        && EF.Parameter(caseIds).Contains(link.CaseId))))
             .Select(item => item.Id)
             .ToListAsync(cancellationToken);
         var associations = await CurrentIntakeAssociations.ReadAsync(db, receipts, cancellationToken);
@@ -345,9 +344,6 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             send?.ActorKind,
             send?.ActorSubjectId);
     }
-
-    private static decimal? Number(string? value) =>
-        decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : null;
 
     private sealed record CaseRow(
         Guid CaseId,
