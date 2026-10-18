@@ -1163,6 +1163,102 @@ public sealed class ProductionBoxCustodyTests
             CreateClient(box).DeleteFolderAsync("405543781910", default));
     }
 
+    /// <summary>
+    /// Folding an image folder into a Case reads each of the two folders a
+    /// fixed number of times, however many files it moves. Each file is read
+    /// before and after its move, and nothing else is asked of Box for it.
+    /// </summary>
+    [Fact]
+    public async Task AMergeReadsItsFoldersNoMoreOftenForFourFilesThanForOne()
+    {
+        var one = await FoldImageFilesAsync(1);
+        var four = await FoldImageFilesAsync(4);
+
+        Assert.True(one.CaseFolderReads >= 1);
+        Assert.Equal(one.ImageFolderReads, four.ImageFolderReads);
+        Assert.Equal(one.CaseFolderReads, four.CaseFolderReads);
+        Assert.Single(one.Files);
+        Assert.Equal(4, four.Files.Length);
+        Assert.All(one.Files.Concat(four.Files), file => Assert.Equal((2, 1), file));
+    }
+
+    /// <summary>
+    /// A fence failure partway through a fold ends the fold's proofs: the files
+    /// already moved stay moved, and the next fold into the same Case proves
+    /// the Case folder again.
+    /// </summary>
+    [Fact]
+    public async Task AFenceFailureMidMergeDropsTheProofsAndTheNextMergeProvesAgain()
+    {
+        var box = new StatefulBox { AllowDeletes = true };
+        var bytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var imageRoot = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        for (var ordinal = 1; ordinal <= 2; ordinal++)
+        {
+            await custody.RetainImageCaseAssetAsync(
+                imageRoot, ImagePhoto(bytes, $"photo {ordinal}.jpg"), ordinal, $"retain-{ordinal}", default);
+        }
+        var caseRoot = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "QDOS31001", "23456789ABCDEFGHJKMNPQRS01", "case-root", default);
+        box.MakeFileMetadataOutside("AB12CDE-01/002 photo 2.jpg");
+        var before = box.Requests.Count;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            custody.MergeImageCaseContentsAsync(imageRoot, caseRoot, "fold", default));
+
+        Assert.True(box.PathExists("QDOS31001/001 photo 1.jpg"));
+        Assert.True(box.PathExists("AB12CDE-01/002 photo 2.jpg"));
+        Assert.Equal(1, box.Requests.Skip(before).Count(request => IsCaseFolderProof(request, caseRoot.RemoteId)));
+
+        box.RestoreFileMetadata("AB12CDE-01/002 photo 2.jpg");
+        before = box.Requests.Count;
+        await custody.MergeImageCaseContentsAsync(imageRoot, caseRoot, "fold", default);
+
+        Assert.Equal(1, box.Requests.Skip(before).Count(request => IsCaseFolderProof(request, caseRoot.RemoteId)));
+        Assert.True(box.PathExists("QDOS31001/002 photo 2.jpg"));
+        Assert.False(box.PathExists("AB12CDE-01"));
+    }
+
+    /// <summary>
+    /// Folds an image folder of <paramref name="files"/> files into a Case, in a
+    /// Box and an adapter of their own, and counts what the fold asked of Box:
+    /// the reads of each folder, and for each file its reads and its moves.
+    /// </summary>
+    private static async Task<(int ImageFolderReads, int CaseFolderReads, (int Reads, int Moves)[] Files)>
+        FoldImageFilesAsync(int files)
+    {
+        var box = new StatefulBox { AllowDeletes = true };
+        var bytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var imageRoot = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        for (var ordinal = 1; ordinal <= files; ordinal++)
+        {
+            await custody.RetainImageCaseAssetAsync(
+                imageRoot, ImagePhoto(bytes, $"photo {ordinal}.jpg"), ordinal, $"retain-{ordinal}", default);
+        }
+        var caseRoot = await custody.CreateCaseRootAsync(
+            Guid.NewGuid(), "QDOS31001", "23456789ABCDEFGHJKMNPQRS01", "case-root", default);
+        var before = box.Requests.Count;
+
+        await custody.MergeImageCaseContentsAsync(imageRoot, caseRoot, "fold", default);
+
+        var requests = box.Requests.Skip(before).ToArray();
+        Assert.False(box.PathExists("AB12CDE-01"));
+        return (
+            requests.Count(request => IsFolderRead(request, imageRoot.RemoteId)),
+            requests.Count(request => IsFolderRead(request, caseRoot.RemoteId)),
+            Enumerable.Range(1, files).Select(ordinal =>
+            {
+                var id = box.IdAt($"QDOS31001/{ordinal:000} photo {ordinal}.jpg");
+                return (
+                    requests.Count(request => request.StartsWith($"GET /2.0/files/{id}?", StringComparison.Ordinal)),
+                    requests.Count(request => request == $"PUT /2.0/files/{id}"));
+            }).ToArray());
+    }
+
     private static BoxCaseCustody Create(DelegateHandler handler, IIntakeArtifactStore? artifactStore = null) => new(
         artifactStore ?? new EmptyArtifactStore(),
         CreateClient(handler));
@@ -1256,6 +1352,10 @@ public sealed class ProductionBoxCustodyTests
     private static bool IsCaseFolderProof(string request, string folderId) =>
         request.StartsWith($"GET /2.0/folders/{folderId}?", StringComparison.Ordinal)
         && request.EndsWith("fields=id,name,type,parent,trashed_at", StringComparison.Ordinal);
+
+    /// <summary>Any read of a folder's own record, whether the walk or the proof makes it; listing its items is not one.</summary>
+    private static bool IsFolderRead(string request, string folderId) =>
+        request.StartsWith($"GET /2.0/folders/{folderId}?", StringComparison.Ordinal);
 
     private static bool IsUpload(string request) =>
         request.StartsWith("POST /api/2.0/files/content", StringComparison.Ordinal);
@@ -1408,9 +1508,17 @@ public sealed class ProductionBoxCustodyTests
             var root = Add("folder", Root, name, null, countMutation: false);
             Add("file", root.Id, "pegasus-case-binding.json", binding, countMutation: false);
         }
-        public void MakeCaseMetadataOutside(string name)
+        public void MakeCaseMetadataOutside(string name) => MakeMetadataOutside(Find(Root, name)!);
+
+        /// <summary>The file's metadata names a parent outside the approved root, as Box's would after an outside move.</summary>
+        public void MakeFileMetadataOutside(string path) => MakeMetadataOutside(RequirePath(path));
+
+        public void RestoreFileMetadata(string path) => RequirePath(path).MetadataParentOverride = null;
+
+        public string IdAt(string path) => RequirePath(path).Id;
+
+        private void MakeMetadataOutside(Node item)
         {
-            var item = Find(Root, name)!;
             item.MetadataParentOverride = "outside";
             nodes["outside"] = new("outside", "outside", "folder", null);
         }
