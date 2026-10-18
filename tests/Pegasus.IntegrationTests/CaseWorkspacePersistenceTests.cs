@@ -1437,8 +1437,8 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.False(saved.WasReplay);
         Assert.True(replayed.WasReplay);
         var specificationLines = Assert.IsType<RepairSpecificationVersion>(saved.Estimate).Lines;
-        Assert.Equal(new[] { 1, 2 }, specificationLines.Select(line => line.Position).ToArray());
-        Assert.Equal(new[] { 1, 2 }, saved.Assessment.EstimateLines.Select(line => line.Position).ToArray());
+        Assert.Equal(Enumerable.Range(1, 2), specificationLines.Select(line => line.Position));
+        Assert.Equal(Enumerable.Range(1, 2), saved.Assessment.EstimateLines.Select(line => line.Position));
         Assert.Equal(
             specificationLines.Select(line => line.Id).ToArray(),
             saved.Assessment.EstimateLines.Select(line => line.Id).ToArray());
