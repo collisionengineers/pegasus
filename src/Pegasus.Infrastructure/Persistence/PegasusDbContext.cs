@@ -138,8 +138,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
-        EnsurePrimaryWorks();
-        RegenerateConcurrencyTokens();
+        PrepareChangesForSave();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
@@ -147,8 +146,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
     {
-        EnsurePrimaryWorks();
-        RegenerateConcurrencyTokens();
+        PrepareChangesForSave();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
@@ -157,23 +155,37 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     // and none can forget it; the database still fails closed
     // (CK_CaseWorks_PrimaryId, the unique (CaseId, Kind) index and the
     // foreign keys from every per-work table).
-    private void EnsurePrimaryWorks()
+    //
+    // One enumeration of the tracker (one change detection) collects what both
+    // steps need. The tracker is changed only after it ends: the primary works
+    // first, then the fresh concurrency tokens.
+    internal void PrepareChangesForSave()
     {
-        var added = ChangeTracker.Entries<CaseEntity>()
-            .Where(entry => entry.State == EntityState.Added)
-            .Select(entry => entry.Entity)
-            .ToList();
-        if (added.Count == 0)
+        var addedCases = new List<CaseEntity>();
+        var trackedWorkIds = new HashSet<Guid>();
+        var tokenEntities = new List<IApplicationManagedConcurrencyToken>();
+        foreach (var entry in ChangeTracker.Entries())
         {
-            return;
+            if (entry.Entity is CaseEntity addedCase && entry.State == EntityState.Added)
+            {
+                addedCases.Add(addedCase);
+            }
+
+            if (entry.Entity is CaseWorkEntity trackedWork)
+            {
+                trackedWorkIds.Add(trackedWork.Id);
+            }
+
+            if (entry.State is EntityState.Added or EntityState.Modified
+                && entry.Entity is IApplicationManagedConcurrencyToken entityWithToken)
+            {
+                tokenEntities.Add(entityWithToken);
+            }
         }
 
-        var tracked = ChangeTracker.Entries<CaseWorkEntity>()
-            .Select(entry => entry.Entity.Id)
-            .ToHashSet();
-        foreach (var caseEntity in added)
+        foreach (var caseEntity in addedCases)
         {
-            if (tracked.Contains(caseEntity.Id))
+            if (trackedWorkIds.Contains(caseEntity.Id))
             {
                 continue;
             }
@@ -187,16 +199,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 CreatedAtUtc = caseEntity.CreatedAtUtc
             });
         }
-    }
 
-    private void RegenerateConcurrencyTokens()
-    {
-        foreach (var entry in ChangeTracker.Entries<IApplicationManagedConcurrencyToken>())
+        foreach (var tokenEntity in tokenEntities)
         {
-            if (entry.State is EntityState.Added or EntityState.Modified)
-            {
-                entry.Entity.ConcurrencyToken = Guid.NewGuid();
-            }
+            tokenEntity.ConcurrencyToken = Guid.NewGuid();
         }
     }
 
