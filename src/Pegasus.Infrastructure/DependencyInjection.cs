@@ -892,7 +892,8 @@ public static class DependencyInjection
             provider.GetRequiredService<BoxCustodyOptions>(),
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(BoxContentClient)),
             provider.GetRequiredService<IBoxAuthorizationHeaderProvider>(),
-            provider.GetRequiredService<TimeProvider>()));
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetService<ILogger<BoxContentClient>>()));
         services.AddSingleton<ICaseCustody>(provider => new BoxCaseCustody(
             provider.GetRequiredService<IIntakeArtifactStore>(),
             provider.GetRequiredService<BoxContentClient>()));

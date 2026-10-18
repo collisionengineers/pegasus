@@ -40,7 +40,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// <summary>
     /// How many times one Box call is attempted before its failure is the answer.
     /// </summary>
-    private const int MaximumAttempts = 3;
+    internal const int MaximumAttempts = 3;
 
     /// <summary>
     /// The longest a call waits before its next attempt, whatever Box asks.

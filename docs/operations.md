@@ -2150,9 +2150,10 @@ its holding folder is created by the operator beneath it. None of these
 folders is standing write authority. The exact-target approval and invocation checks are
 owned by the [runbook's live-operation approval matrix](runbook.md#operational-authority).
 The activated production caller is confined to case-scoped objects under the
-configured root and has no delete, move, copy, or share operation. Failed
-attempts remain visible for authorised staff retry; there is no automatic
-business retry.
+configured root and has no copy or share operation. An upload in parts that
+is not committed deletes its Box upload session (operator ruling of 16 October
+2026). Failed attempts remain visible for authorised staff retry; there is no
+automatic business retry.
 
 Production server authentication uses the retained `box-config-json` JWT
 configuration and `box-client-secret` Key Vault secrets. The Box SDK obtains and
