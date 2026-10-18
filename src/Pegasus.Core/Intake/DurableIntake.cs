@@ -815,8 +815,11 @@ public sealed class ProcessQueuedIntake(
             if (await AssociateCaseIfUnambiguousAsync(
                     completedReceipt,
                     completedEvaluation,
-                    cancellationToken)
-                || await AssociateRetainedMailAsync(completedReceipt, cancellationToken))
+                    cancellationToken))
+            {
+                completedReceipt = await ReloadAsync(completedReceipt, cancellationToken);
+            }
+            if (await AssociateRetainedMailAsync(completedReceipt, cancellationToken))
             {
                 completedReceipt = await ReloadAsync(completedReceipt, cancellationToken);
             }
@@ -950,12 +953,16 @@ public sealed class ProcessQueuedIntake(
                 // A destination the uploading member of staff declared is
                 // their decision, made before the upload: it is recorded
                 // first, so nothing below identifies, registers or holds
-                // material that already has its Case. The first route that
-                // links the receipt ends the search, since a linked receipt
-                // has its Case and every route after it declines it.
-                if (await AssociateDeclaredDestinationAsync(processed, stagedReceipt, cancellationToken)
-                    || await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken)
-                    || await AssociateRetainedMailAsync(processed, cancellationToken))
+                // material that already has its Case.
+                if (await AssociateDeclaredDestinationAsync(processed, stagedReceipt, cancellationToken))
+                {
+                    processed = await ReloadAsync(processed, cancellationToken);
+                }
+                if (await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken))
+                {
+                    processed = await ReloadAsync(processed, cancellationToken);
+                }
+                if (await AssociateRetainedMailAsync(processed, cancellationToken))
                 {
                     processed = await ReloadAsync(processed, cancellationToken);
                 }
