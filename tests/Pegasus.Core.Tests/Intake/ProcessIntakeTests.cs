@@ -15,6 +15,11 @@ public sealed class ProcessIntakeTests
     private static readonly DateTimeOffset ProcessedAtUtc = new(2031, 4, 5, 9, 30, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset ReceivedAtUtc = new(2030, 12, 31, 16, 45, 0, TimeSpan.Zero);
 
+    // The text Microsoft.Data.SqlClient 6.1.1 gives an exhausted connection pool.
+    private const string SqlClientPoolTimeoutMessage =
+        "Timeout expired.  The timeout period elapsed prior to obtaining a connection from the pool.  "
+        + "This may have occurred because all pooled connections were in use and max pool size was reached.";
+
     [Fact]
     public async Task AConflictingSelectedPrincipalCannotExtractClassifyOrAssociate()
     {
@@ -224,6 +229,23 @@ public sealed class ProcessIntakeTests
         Assert.Empty(store.Drafts);
     }
 #pragma warning restore CA2201
+
+    [Fact]
+    public void ExceptionPolicyTreatsTheSqlClientPoolTimeoutAsTransient() =>
+        Assert.True(IntakeExceptionPolicy.IsTransientFailure(
+            new InvalidOperationException(SqlClientPoolTimeoutMessage)));
+
+    [Fact]
+    public void ExceptionPolicyTreatsAPoolTimeoutInsideAnotherExceptionAsTransient() =>
+        Assert.True(IntakeExceptionPolicy.IsTransientFailure(
+            new InvalidOperationException(
+                "The save failed.",
+                new InvalidOperationException(SqlClientPoolTimeoutMessage))));
+
+    [Fact]
+    public void ExceptionPolicyDoesNotTreatAnotherInvalidOperationAsTransient() =>
+        Assert.False(IntakeExceptionPolicy.IsTransientFailure(
+            new InvalidOperationException("The sequence contains no elements.")));
 
     [Fact]
     public async Task FirstAttemptTransientReaderFailurePropagatesWithoutAllocatingUnidentified()
