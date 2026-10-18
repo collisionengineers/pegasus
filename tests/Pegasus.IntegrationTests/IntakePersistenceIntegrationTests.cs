@@ -253,7 +253,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261017090000_ApprovedInboxPendingWake",
                 "20261017100000_VehicleLookupMileageEstimate",
                 "20261017110000_InspectionLocations",
-                "20261017120000_ReportSendingSopV8"
+                "20261017120000_ReportSendingSopV8",
+                "20261018033213_KeysetPagingAndCustodySweepIndexes"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -366,6 +367,41 @@ public sealed class IntakePersistenceIntegrationTests
                         N'IX_CaseWorkflowEvents_ActorKind_OccurredAtUtc',
                         N'IX_CaseWorkflows_State',
                         N'IX_Cases_CreatedAtUtc')
+                ) AS indexes
+                """));
+        // The keyset pagers, the Open-task read and the pending-custody sweep
+        // are answered by their own indexes. The check above reads keys and
+        // includes only, so this one also reads each key's direction and the
+        // filter. SQL Server stores the filter wrapped in parentheses, so
+        // spaces and parentheses are stripped before comparing.
+        Assert.Equal(
+            "CaseTasks.IX_CaseTasks_State:State ASC||;"
+            + "CaseWorkflowEvents.IX_CaseWorkflowEvents_CaseId_OccurredAtUtc_Id:CaseId ASC,OccurredAtUtc DESC,Id DESC||;"
+            + "DocumentOccurrences.IX_DocumentOccurrences_CaseId_RecordedAtUtc_Id:CaseId ASC,RecordedAtUtc DESC,Id DESC||;"
+            + "DocumentVersions.IX_DocumentVersions_CustodyStatus:CustodyStatus ASC|[CustodyStatus]=N'Pending'|PendingContentStorageKey",
+            await database.ScalarAsync<string>(
+                """
+                SELECT STRING_AGG(entry, N';') WITHIN GROUP (ORDER BY entry COLLATE Latin1_General_BIN2)
+                FROM (
+                    SELECT OBJECT_NAME(i.object_id) + N'.' + i.name + N':'
+                        + (SELECT STRING_AGG(c.name + CASE WHEN ic.is_descending_key = 1 THEN N' DESC' ELSE N' ASC' END, N',')
+                               WITHIN GROUP (ORDER BY ic.key_ordinal)
+                           FROM sys.index_columns AS ic
+                           JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+                           WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 0)
+                        + N'|'
+                        + ISNULL(REPLACE(REPLACE(REPLACE(i.filter_definition, N' ', N''), N'(', N''), N')', N''), N'')
+                        + N'|'
+                        + ISNULL((SELECT STRING_AGG(c.name, N',') WITHIN GROUP (ORDER BY c.name COLLATE Latin1_General_BIN2)
+                           FROM sys.index_columns AS ic
+                           JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+                           WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 1), N'') AS entry
+                    FROM sys.indexes AS i
+                    WHERE i.name IN (
+                        N'IX_CaseTasks_State',
+                        N'IX_CaseWorkflowEvents_CaseId_OccurredAtUtc_Id',
+                        N'IX_DocumentOccurrences_CaseId_RecordedAtUtc_Id',
+                        N'IX_DocumentVersions_CustodyStatus')
                 ) AS indexes
                 """));
         Assert.Equal(1, await database.ScalarAsync<int>(

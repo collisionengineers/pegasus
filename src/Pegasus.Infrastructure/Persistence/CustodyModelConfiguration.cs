@@ -44,6 +44,12 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.RecognisedEstimateProvider)
                 .HasMaxLength(Pegasus.Core.Assessment.EstimatePolicy.MaximumNameLength);
             entity.HasIndex(value => new { value.DocumentId, value.Version }).IsUnique();
+            // The pending-custody sweep runs every minute and reads only the
+            // versions still waiting to be filed; the filter keeps the index
+            // as small as that handful.
+            entity.HasIndex(value => value.CustodyStatus)
+                .HasFilter("[CustodyStatus] = N'Pending'")
+                .IncludeProperties(value => new { value.PendingContentStorageKey });
             entity.HasOne<CaseDocumentEntity>().WithMany().HasForeignKey(value => value.DocumentId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -67,6 +73,9 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.PreparedBy).HasMaxLength(200);
             entity.HasIndex(value => new { value.CaseId, value.OperationKey }).IsUnique();
             entity.HasIndex(value => new { value.CaseId, value.DocumentId });
+            // The Case's paged document list reads newest first by this key.
+            entity.HasIndex(value => new { value.CaseId, value.RecordedAtUtc, value.Id })
+                .IsDescending(false, true, true);
             entity.HasOne<CaseEntity>().WithMany().HasForeignKey(value => value.CaseId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<CaseDocumentEntity>().WithMany().HasForeignKey(value => value.DocumentId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(value => value.VersionId).OnDelete(DeleteBehavior.Restrict);
