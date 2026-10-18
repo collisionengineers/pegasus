@@ -490,6 +490,13 @@ public sealed class Top15InstructionCorpusTests
         ,new("BC", $"{CorpusRoot}/BC 03.DOC", "b031745bb46d740cad472cc4be29705a338e819ebf3c7981033fad447cbd3809", new("Mr Humayun Tufail", "RTA135633.001/NE/Usayd Ibrahim", "NL22HNZ", new(2026, 4, 30)), [])
         ,new("BC", $"{CorpusRoot}/BC 04.DOC", "4240c22b2de79ba94dbbe87aeab675e329b9c8507af864bd2250ce35b664a87c", new("Mr Muhammad Aon", "RTA135598.001/NE/Usayd Ibrahim", "DE61CYJ", new(2026, 4, 24)), [])
         ,new("BC", $"{CorpusRoot}/BC 05.DOC", "1363d914b187c57d6a75f26da31c183c61ce30862c160b9120926153aae1efe5", new("Mr Muhammad Shahid Ramzan", "RTA135610.001/NE/Usayd Ibrahim", "LH12BKD", new(2026, 4, 28)), [])
+        // KERR prints its file reference only in the subject; the claimant's
+        // address and the third party's insurer sit in the same labelled block.
+        ,new("KERR", $"{CorpusRoot}/KERR 01.msg", "73c0d6cdaac90c7392c24ed7ec1f38fd30e45ec664b4fcccadfaff0bbebe550f", new("Samual Stephen", "AD/VRL/1/5241", "YD72KZX", new(2026, 2, 28)), [new(null, "Covea", "TPI: the third party's insurer."), new("Claimant name", "Scot Morton", "The sender of the instruction message.")])
+        ,new("KERR", $"{CorpusRoot}/KERR 02.msg", "ee086c4a796f271f1b1d773784fa86d3f09736cc90f99e41056d007768d2cf41", new("Patrick Conaghan", "AD/SR/VRL/1/5254", "YF12JBO", new(2026, 3, 21)), [new(null, "Ageas", "TPI: the third party's insurer."), new("Claimant name", "Stephen Robertson", "The sender of the instruction message.")])
+        ,new("KERR", $"{CorpusRoot}/KERR 03.msg", "60807a55b75d7511e98bb721f286a113f7662926444e5002c325b2e6bba2a2c2", new("Steven Maguire", "SR/VRL/1/5257", "SE66LJK", new(2026, 3, 21)), [new(null, "Acorn/Haven", "TPI: the third party's insurer.")])
+        ,new("KERR", $"{CorpusRoot}/KERR 04.msg", "754e165a6d9c0075aef20c06c3394e993aec615e1d1e95720e8fc7a8afef8db4", new("Mrs Roseann Dean", "SR/VRL/1/5274", "KM60OCB", new(2026, 4, 9)), [new("Claimant name", "Stephen Robertson", "The sender of the instruction message.")])
+        ,new("KERR", $"{CorpusRoot}/KERR 05.msg", "78813ea0d2fa5bb10e73d2cc4c623ccdd0ca0e24738de5e97256890320306dc7", new("Muhammad Junaid", "CH/LEG/3/3818", "WD74HLC", new(2026, 2, 10)), [new(null, "Hastings Direct", "TPI: the third party's insurer."), new("Claimant name", "Caitlin Hart", "The sender of the instruction message.")])
     ];
 
     private static readonly FwExpectation[] FwExpectations =
@@ -585,6 +592,7 @@ public sealed class Top15InstructionCorpusTests
             new RjsInstructionExtractionPolicy(),
             new DfdInstructionExtractionPolicy(),
             new KbsInstructionExtractionPolicy(),
+            new KerrInstructionExtractionPolicy(),
             new MpInstructionExtractionPolicy(),
             new YmlInstructionExtractionPolicy(),
             new AlsInstructionExtractionPolicy(),
@@ -597,7 +605,7 @@ public sealed class Top15InstructionCorpusTests
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
         var selector = new InstructionExtractionPolicySelector(Policies());
         var representatives = Expectations.GroupBy(sample => sample.Profile).Select(group => group.First()).ToArray();
-        Assert.Equal(15, representatives.Length);
+        Assert.Equal(16, representatives.Length);
         foreach (var sample in representatives)
         {
             var bytes = await File.ReadAllBytesAsync(Path.Combine(PackRoot(), sample.PackRelativePath));
@@ -695,7 +703,7 @@ public sealed class Top15InstructionCorpusTests
         var failures = new List<string>();
         var counts = new Dictionary<(string Profile, string Field, string Disposition), int>();
 
-        Assert.Equal(81, Expectations.Length);
+        Assert.Equal(86, Expectations.Length);
 
         foreach (var expectation in Expectations)
         {

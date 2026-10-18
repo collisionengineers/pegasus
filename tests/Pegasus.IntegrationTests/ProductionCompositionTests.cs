@@ -447,7 +447,7 @@ public sealed class ProductionCompositionTests
         var services = scope.ServiceProvider;
 
         var policies = services.GetServices<IInstructionExtractionPolicy>().ToArray();
-        Assert.Equal(15, policies.Length);
+        Assert.Equal(PrincipalMailRoutePolicy.AcceptedIdentities.Count, policies.Length);
         Assert.Equal(
             policies.Length,
             policies.Select(policy => policy.PrincipalCode).Distinct(StringComparer.Ordinal).Count());
