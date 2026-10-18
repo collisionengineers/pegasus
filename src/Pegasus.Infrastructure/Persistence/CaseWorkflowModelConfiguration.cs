@@ -109,6 +109,9 @@ internal static class CaseWorkflowModelConfiguration
             // completions by event type and time from this index alone.
             entity.HasIndex(item => new { item.EventType, item.OccurredAtUtc })
                 .IncludeProperties(item => new { item.CaseId });
+            // The Case's paged history reads newest first by this key.
+            entity.HasIndex(item => new { item.CaseId, item.OccurredAtUtc, item.Id })
+                .IsDescending(false, true, true);
             // A report or estimate-document preview, a report download, an
             // edit lease taken over from a colleague, a market research
             // result filed while the Case is being edited, or a correspondence
@@ -240,6 +243,9 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
             entity.HasIndex(item => new { item.CaseId, item.State });
             entity.HasIndex(item => new { item.AssigneeId, item.State });
+            // The Work Centre reads every Open task. The state reaches SQL as a
+            // parameter, which a filtered index cannot serve.
+            entity.HasIndex(item => item.State);
             entity.HasOne(item => item.Workflow)
                 .WithMany()
                 .HasForeignKey(item => item.CaseId)

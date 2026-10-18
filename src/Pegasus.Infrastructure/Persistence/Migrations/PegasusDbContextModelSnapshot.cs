@@ -2693,6 +2693,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("State");
+
                     b.HasIndex("AssigneeId", "State");
 
                     b.HasIndex("CaseId", "State");
@@ -3034,6 +3036,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("EventType", "OccurredAtUtc"), new[] { "CaseId" });
 
+                    b.HasIndex("CaseId", "OccurredAtUtc", "Id")
+                        .IsDescending(false, true, true);
+
                     b.ToTable("CaseWorkflowEvents", (string)null);
                 });
 
@@ -3208,6 +3213,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
 
+                    b.HasIndex("CaseId", "RecordedAtUtc", "Id")
+                        .IsDescending(false, true, true);
+
                     b.ToTable("DocumentOccurrences", null, t =>
                         {
                             t.HasCheckConstraint("CK_DocumentOccurrences_Crop", "([CropLeft] IS NULL AND [CropTop] IS NULL AND [CropWidth] IS NULL AND [CropHeight] IS NULL) OR ([CropLeft] BETWEEN 0 AND 1 AND [CropTop] BETWEEN 0 AND 1 AND [CropWidth] > 0 AND [CropWidth] <= 1 AND [CropHeight] > 0 AND [CropHeight] <= 1 AND [CropLeft] + [CropWidth] <= 1 AND [CropTop] + [CropHeight] <= 1)");
@@ -3327,6 +3335,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CustodyStatus")
+                        .HasFilter("[CustodyStatus] = N'Pending'");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("CustodyStatus"), new[] { "PendingContentStorageKey" });
 
                     b.HasIndex("DocumentId", "Version")
                         .IsUnique();

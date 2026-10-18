@@ -22,7 +22,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 baseEntityType,
                 propertyCount: 19,
                 foreignKeyCount: 1,
-                unnamedIndexCount: 1,
+                unnamedIndexCount: 2,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -193,6 +193,10 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
+                new[] { custodyStatus });
+            index.AddAnnotation("Relational:Filter", "[CustodyStatus] = N'Pending'");
+
+            var index0 = runtimeEntityType.AddIndex(
                 new[] { documentId, version },
                 unique: true);
 
