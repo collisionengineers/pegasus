@@ -6,7 +6,7 @@ public sealed partial class MpInstructionExtractionPolicy
     : IInstructionExtractionPolicy, IInstructionDocumentProfile, IInstructionFieldRoles
 {
     public const string Key = "mp_instruction";
-    public const int Version = 1;
+    public const int Version = 2;
     public const string SupportedPrincipalCode = "MP";
     public const string DocumentProfileKeyValue = "mp_instruction_document";
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
@@ -36,7 +36,7 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         ArgumentNullException.ThrowIfNull(readResult); ArgumentNullException.ThrowIfNull(principalContext);
         if (readResult.Status != IntakeSourceReadStatus.Readable || readResult.IsIncomplete) throw new ArgumentException("MP extraction requires complete readable content.", nameof(readResult));
         if (!string.Equals(principalContext.PrincipalCode, SupportedPrincipalCode, StringComparison.Ordinal)) throw new ArgumentException("The established principal is not MP.", nameof(principalContext));
-        var (fields, missing, extracted) = InstructionFieldEngine.ExtractFields(readResult.Content.SelectMany(InstructionFields).ToArray(), Definitions, Cache, timing);
+        var (fields, missing, extracted) = InstructionFieldEngine.ExtractFields(readResult.Content.SelectMany(InstructionFields).Concat(SubjectFacts(readResult)).ToArray(), Definitions, Cache, timing);
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(SupportedPrincipalCode, InstructionFieldEngine.TypedString(values["Claimant name"], 300), InstructionFieldEngine.TypedString(values["Claim reference"], 100),
             InstructionFieldEngine.NormalizeRegistration(values["Vehicle registration"]), InstructionFieldEngine.TypedString(values["Vehicle make and model"], 100), null,
@@ -61,6 +61,26 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         foreach (Match match in ExplicitInspectionDateRegex().Matches(body)) yield return Label(fragment, "Completed inspection date", match.Groups["value"].Value);
         foreach (Match match in VatRegex().Matches(body)) yield return Label(fragment, "VAT status", match.Groups["value"].Value);
     }
+    // The subject ("... VRM: AB12 CDE   DOA: 03/11/26") is rewritten as labelled
+    // lines in one fragment appended after the document's, so a value the document
+    // states wins rank-aware conflict resolution. It never selects the policy: the
+    // signature reads document text only.
+    private static IEnumerable<IntakeContentFragment> SubjectFacts(IntakeSourceReadResult readResult)
+    {
+        var subject = readResult.TransportEvidence
+            .FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject && item.SenderIdentityKind == IntakeSenderIdentityKind.Transport)?.Value;
+        if (string.IsNullOrWhiteSpace(subject)) yield break;
+        var lines = new List<string>();
+        var registration = SubjectRegistrationRegex().Match(subject);
+        if (registration.Success && IsSupportedUkRegistration(registration.Groups["value"].Value)) lines.Add($"Vehicle Reg: {registration.Groups["value"].Value}");
+        var accident = SubjectAccidentRegex().Match(subject);
+        if (accident.Success)
+        {
+            var date = $"{accident.Groups["day"].Value}/{accident.Groups["month"].Value}/{accident.Groups["year"].Value}";
+            if (InstructionFieldEngine.ParseDate(date) is not null) lines.Add($"Date of Accident: {date}");
+        }
+        if (lines.Count > 0) yield return new(IntakeEvidenceSource.Subject, "message subject", string.Join('\n', lines));
+    }
     private static IntakeContentFragment Label(IntakeContentFragment origin, string label, string value) => origin with { Text = $"{label}: {WhitespaceRegex().Replace(value, " ").Trim()}" };
     private static bool IsSupportedUkRegistration(string value) => InstructionFieldEngine.IsUkRegistration(value) && Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)).Length <= 7;
     [GeneratedRegex(@"Please\s+arrange\s+to\s+inspect\s+the\s+above\s+vehicle\s+at\s+your\s+earliest\s+convenience\.", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)] private static partial Regex RequestRegex();
@@ -73,5 +93,7 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
     [GeneratedRegex(@"(?im)^\s*Mileage\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex MileageRegex();
     [GeneratedRegex(@"(?im)^\s*(?:Completed|Appointed)\s+Inspection\s+Date\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ExplicitInspectionDateRegex();
     [GeneratedRegex(@"(?im)^\s*VAT\s+(?:status|registered)\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VatRegex();
+    [GeneratedRegex(@"\bVRM\s{0,10}:\s{0,10}(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)] private static partial Regex SubjectRegistrationRegex();
+    [GeneratedRegex(@"\bDOA\s{0,10}:\s{0,10}(?<day>\d{1,2})[/.-](?<month>\d{1,2})[/.-](?<year>\d{4}|\d{2})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)] private static partial Regex SubjectAccidentRegex();
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant, 100)] private static partial Regex WhitespaceRegex();
 }

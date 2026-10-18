@@ -102,6 +102,10 @@ Capture:
 | Date of Incident | From the instruction. |
 | Inspection Address | FRD-06 inspection-location rules. |
 
+Montreal Prestige instructions also read the vehicle registration and the
+date of incident from the e-mail subject, as QDOS does; the document's own
+values rank first (operator, 15 October 2026).
+
 The Case's instruction date is its Received date (operator, 24 September
 2026): the Europe/London date its instruction was received, or the date
 staff created the Case directly. It is not read from the instruction,
