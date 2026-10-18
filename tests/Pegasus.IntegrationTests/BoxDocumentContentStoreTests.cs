@@ -1257,7 +1257,8 @@ public sealed class BoxDocumentContentStoreTests
             nodes[fileId] = nodes[fileId] with { MediaType = mediaType };
         }
 
-        // A batch read now downloads concurrently, so the dictionaries below are
+        // Separate callers' single reads, such as the gallery's tiles, run
+        // concurrently up to the read gate of four, so the dictionaries below are
         // reached from several threads at once. The real Box is a server; this
         // one is a Dictionary, and needs saying so.
         public HttpResponseMessage Handle(HttpRequestMessage request)
