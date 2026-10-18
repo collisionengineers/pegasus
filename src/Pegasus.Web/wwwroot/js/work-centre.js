@@ -6,7 +6,7 @@
 
     var SCOPE_KEY = 'pegasus.workCentre.scope';
     var FIVE_MINUTES = 5 * 60 * 1000;
-    var FOCUS_GAP = 30 * 1000;
+    var FOCUS_GAP = 2 * 60 * 1000;
     var SECTION_NAMES = ['metrics', 'activity', 'attention', 'new-cases', 'ai-jobs'];
 
     function root() {
