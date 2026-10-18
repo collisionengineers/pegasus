@@ -4,6 +4,67 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 114 - 18 October 2026 (deployment live)
+
+Release 114 deployed [PR 1453](https://github.com/collisionengineers/pegasus/pull/1453), the first
+landing of wave 4 of the release-readiness programme: 33 finding PRs combined as five stacked chains
+and eighteen singles. The chains: [PR 1412](https://github.com/collisionengineers/pegasus/pull/1412)
+(corpus CI fixtures sentence in the runbook, R136) then
+[PR 1438](https://github.com/collisionengineers/pegasus/pull/1438) (one UK registration shape owner
+for extraction and the vehicle lookup; Northern Ireland and dateless plates, R132);
+[PR 1413](https://github.com/collisionengineers/pegasus/pull/1413) (MP subject facts) then
+[PR 1439](https://github.com/collisionengineers/pegasus/pull/1439) (AX and ALS parser wraps),
+[PR 1441](https://github.com/collisionengineers/pegasus/pull/1441) (the incident date as an
+eliminator, R35) and [PR 1444](https://github.com/collisionengineers/pegasus/pull/1444) (plate-area
+weighting); [PR 1415](https://github.com/collisionengineers/pegasus/pull/1415) (four indexes, the
+one migration); [PR 1421](https://github.com/collisionengineers/pegasus/pull/1421) (Box upload
+sessions above the ceiling, R107) then [PR 1442](https://github.com/collisionengineers/pegasus/pull/1442)
+(Box ancestry cache) and [PR 1445](https://github.com/collisionengineers/pegasus/pull/1445) (no
+holding readback, R110); [PR 1419](https://github.com/collisionengineers/pegasus/pull/1419) (mailbox
+bulk actions, handlers only; the markup waits for v41 Stage 2, R140) then
+[PR 1443](https://github.com/collisionengineers/pegasus/pull/1443) (upload group status polling),
+[PR 1446](https://github.com/collisionengineers/pegasus/pull/1446) (Search circumstances read on
+selection), [PR 1448](https://github.com/collisionengineers/pegasus/pull/1448) (Work Centre focus
+refresh gap of 2 minutes, R42) and [PR 1449](https://github.com/collisionengineers/pegasus/pull/1449)
+(the static fingerprinted icon sprite, R39, R150). The singles:
+[PR 1414](https://github.com/collisionengineers/pegasus/pull/1414) reconcile step guards,
+[PR 1418](https://github.com/collisionengineers/pegasus/pull/1418) Case readiness evidence removed,
+[PR 1423](https://github.com/collisionengineers/pegasus/pull/1423) sent-report tidy parallelism,
+[PR 1422](https://github.com/collisionengineers/pegasus/pull/1422) recovery-poll MIME concurrency,
+[PR 1430](https://github.com/collisionengineers/pegasus/pull/1430) mailbox poll parallelism,
+[PR 1420](https://github.com/collisionengineers/pegasus/pull/1420) Graph upload chunk pool,
+[PR 1424](https://github.com/collisionengineers/pegasus/pull/1424) attachment buffers,
+[PR 1426](https://github.com/collisionengineers/pegasus/pull/1426) cache cleanup batch,
+[PR 1427](https://github.com/collisionengineers/pegasus/pull/1427) export archive image by image,
+[PR 1431](https://github.com/collisionengineers/pegasus/pull/1431) intake receipt reads,
+[PR 1429](https://github.com/collisionengineers/pegasus/pull/1429) triage pairing batch,
+[PR 1428](https://github.com/collisionengineers/pegasus/pull/1428) Case-list report queries,
+[PR 1432](https://github.com/collisionengineers/pegasus/pull/1432) estimate-lines requery,
+[PR 1435](https://github.com/collisionengineers/pegasus/pull/1435) specification snapshots batch,
+[PR 1436](https://github.com/collisionengineers/pegasus/pull/1436) Unidentified VRM batch,
+[PR 1434](https://github.com/collisionengineers/pegasus/pull/1434) change-tracker scan merge,
+[PR 1433](https://github.com/collisionengineers/pegasus/pull/1433) report generation supersede and
+[PR 1437](https://github.com/collisionengineers/pegasus/pull/1437) JSON compression with its ADR.
+The candidate also carried the Release 113 record
+([PR 1411](https://github.com/collisionengineers/pegasus/pull/1411), docs only). The wave's other
+ten PRs land with its second part.
+
+The route was the additive migration route: the one migration, which only creates indexes, was
+applied with Release 113's bytes serving, the bootstrap re-verified, then the normal stage ran. Web
+and Worker are Running on the approved release and full production smoke passed first time.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `de7f56800c64620868501584c3ba25cb771404d1`, the merge of PR 1453 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `30BA2588B501B00144F45A9BF05A213287B88B8F30D0914E76C466468EEA5AF4` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `AAF461AE23FF27D89B08AC882F51E5D9C9CFD50360AC1E9BFBDD79540501C933`; `worker.zip` `3122A480E26E6C97A1C0CD94B0581293298D7F06D841B65A5850E6A8BF8F909D`; `classifier.zip` `C5C09E9A50C2CAC042D9499B0554D09A00A99F45754A4004B6D682B31E8AEF6C` (built, not deployed: no classifier Function App exists); `efbundle.exe` `36810039B3BA897D43417D02FE848F60E255735DCFB93141118CFBDAC29CDFC0` (run once, below). Built 12:16-12:23Z in a detached worktree at the release SHA; Local and Artifact plan validations passed 12:23Z. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | Every constituent PR was CI-green at its head and independently reviewed inside the wave workflow (PR 1438's one review point was a PR-body call-site count, corrected and re-counted at its head). PR 1453 is 33 `--no-ff` merges of the pinned heads, stacks parent first, with one hand resolution: in `CachedDocumentContentStore.cs` PR 1427 removes `MaximumConcurrentBatchReads` with the batch read it retires and PR 1426 adds `MaximumConcurrentCleanups` beside it; both intents kept. Its lost-work audit had no FAIL line; its two REVIEW lines were `BoxCaseCustody.cs` comment wording that the Box stack reworded member by member (the tip equals PR 1445's head). The removed-symbol sweep over the tip found no surviving use (all 395 icon `<use>` elements read `IconSprite.Href`). No local run: free workstation memory was under the 3 GB floor, so CI was the build; its checks passed first time (run 39124086613: changes, invariants, unit, infrastructure, six `sql-integration` shards and coverage; classifier skipped by path). PR 1419 had been opened as a draft because its markup waits for the signed-off v41 item; the lead marked it ready and landed it with the four web PRs stacked on it, with a comment on the PR. One promotion from `main` `2f07418e1` at 12:16:02Z, under the operator's authorisation of 16 October for the programme's landings, promotions and deployments. |
+| Schema and grants | Additive. Live head `20261017120000_ReportSendingSopV8` (226 applied) read at 12:24:08Z; PreMigration gate passed 12:24:27Z; `efbundle.exe` applied `20261018033213_KeysetPagingAndCustodySweepIndexes` 12:24:28-12:24:35Z with Release 113's Web and Worker Running (the additive route stops neither); the bootstrap verified 688 catalogued permission/denial rows and 482 effective runtime DML rows at 12:24:53Z (no new grant); the head read back equal to the manifest identity (227 applied) at 12:24:54Z. |
+| Deployment | PreDeploy 12:25:29Z; PreProvision passed 12:25:46Z (B1 quota in `uksouth` 3); provision 12:25:56Z found no changes; `web.zip` deployed with `--clean true --restart true` 12:29:56Z, exact release read back 12:30:03Z; `worker.zip` deployed 12:31:41Z; the classifier Function App is absent, so `classifier.zip` was not deployed. |
+| Production smoke | Passed 12:32:30Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; deployment record `1d00e2fb-5d7f-46b3-a4b0-0421052f1a08` (OneDeploy, 12:26:23Z); active package `20261018122605.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 12:30:00Z; Graph subscription expires 2026-10-18 17:10:00Z, a Disabled mailbox's row as the Release 110 record explains); all five Disabled settings `false`. |
+| Query Store | State `READ_WRITE`. Before snapshot for this release (24 h to 12:05Z, 224 statements) at ignored `artifacts/performance/query-store-release-114-before-20261018T1205Z.csv`. The after snapshot that shows the four new indexes (PR 1415) is owed after a day of use. |
+| Still owed | Live evidence the PR bodies defer to this release's estate. Worker: two simultaneous Outlook moves in one mailbox without a 429 and a real tidy of two due instructions (PR 1423); two simultaneous MIME reads beside webhook wake reads, and the backlog poll inside the 60 s folded-job budget (PR 1422); no poll overlap across the three approved mailboxes (PR 1430); the receipt read's SQL dependency durations (PR 1431). Box: the create and commit answers carrying parent and file version, session endpoints on `upload.box.com`, the error code for a held name and the upload-session abort (PR 1421); the read count of the next production image-case fold (PR 1442); the upload answer carrying `sha1` with no content read after a holding upload (PR 1445); a live Export of a Case with several photographs (PR 1427). Web: the sprite under the production CSP (rail, `/Cases`, the sign-in frame) with its cache header and encoding (PR 1449); `Content-Encoding` on a JSON route (PR 1437); the upload-group polling watched in a browser (PR 1443); a non-selected Search row showing its circumstances on selection and the `/Search` keyboard walk (PR 1446); no `?handler=Refresh` under 2 minutes and one after (PR 1448); the bulk-bar markup and its words, which wait for v41 Stage 2 (PR 1419). Extraction: a real MP scan read through Document Intelligence (PR 1413); detector box area picking the subject vehicle's plate on real multi-vehicle photographs (PR 1444). Data: the Query Store after snapshot for the four indexes (PR 1415). Release 108 to 113 owed items otherwise stand. |
+| PR states | PRs 1412 to 1415, 1418 to 1424, 1426 to 1439, 1441 to 1446, 1448, 1449 and 1453 read Merged with their heads in `main` and `dev`. No issue was closed: no constituent carries a closing keyword, and the issues their bodies cite were already closed. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-114-de7f5680`; the stage driver and its logs at `artifacts/releases/release-114-driver` (`promote-and-build.log`, `release-stage-migrate.log`, `release-stage-normal.log`). |
+
 ## Release 113 - 18 October 2026 (deployment live)
 
 Release 113 deployed [PR 1410](https://github.com/collisionengineers/pegasus/pull/1410), the
