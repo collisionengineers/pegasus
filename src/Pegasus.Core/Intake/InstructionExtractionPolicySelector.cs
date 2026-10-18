@@ -261,15 +261,22 @@ public sealed class InstructionExtractionPolicySelector(
     /// and the corpus records them as printed rather than as a canonical form.
     /// Transport evidence is deliberately excluded: a sender address is route
     /// identity, which is the very thing this selection must not rely on.
+    /// Typographic apostrophes in the signal and in the document are folded to
+    /// the straight form first, so the form a letter prints does not decide
+    /// whether it is recognised.
     /// </summary>
     private static bool Matches(InstructionDocumentSignature signature, string text)
     {
         InstructionDocumentSignature.Validate(signature);
-        return signature.RequiredSignals.All(signal =>
-                text.Contains(signal, StringComparison.OrdinalIgnoreCase))
-            && !signature.NegativeSignals.Any(signal =>
-                text.Contains(signal, StringComparison.OrdinalIgnoreCase));
+        var folded = InstructionFieldEngine.FoldApostrophes(text);
+        return signature.RequiredSignals.All(signal => ContainsSignal(folded, signal))
+            && !signature.NegativeSignals.Any(signal => ContainsSignal(folded, signal));
     }
+
+    private static bool ContainsSignal(string foldedText, string signal) =>
+        foldedText.Contains(
+            InstructionFieldEngine.FoldApostrophes(signal),
+            StringComparison.OrdinalIgnoreCase);
 
     public IInstructionExtractionPolicy? ForPrincipal(string principalCode) =>
         this.policies.SingleOrDefault(policy => string.Equals(

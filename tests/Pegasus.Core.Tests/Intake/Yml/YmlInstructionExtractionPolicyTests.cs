@@ -33,15 +33,7 @@ public sealed class YmlInstructionExtractionPolicyTests
             Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(
                 Path.Combine(root, "principal-docs", "original-mapper-instruction-corpus", original)))));
 
-        var result = new YmlInstructionExtractionPolicy().Extract(
-            new(
-                IntakeSourceReadStatus.Readable,
-                [new(IntakeEvidenceSource.DocumentContent, "HDUK instruction", text, IntakeSourceLocator.ForPage(1))],
-                [],
-                [],
-                false),
-            new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero),
-            new("YML", YmlInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
+        var result = Extract(text);
 
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal("YML", draft.SuggestedPrincipalCode);
@@ -55,6 +47,29 @@ public sealed class YmlInstructionExtractionPolicyTests
         Assert.Null(draft.InspectionDate);
         Assert.Null(draft.VatStatus);
     }
+
+    [Fact]
+    public void TheVehicleRowIsReadWhenItPrintsALeftSingleQuotationMark()
+    {
+        var result = Extract(
+            "HD UK Network\nOur Ref: HD1234\n\nDear Sirs,\n\nOur Client: Test Person\n"
+            + "Our Client\u2018s Vehicle: Toyota Corolla\nRegistration: AB12 CDE\n"
+            + "Date of Accident: 04/05/2026\n\nHD UK Network\n");
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("Toyota Corolla", draft.VehicleMake);
+    }
+
+    private static InstructionExtractionResult Extract(string text) =>
+        new YmlInstructionExtractionPolicy().Extract(
+            new(
+                IntakeSourceReadStatus.Readable,
+                [new(IntakeEvidenceSource.DocumentContent, "HDUK instruction", text, IntakeSourceLocator.ForPage(1))],
+                [],
+                [],
+                false),
+            new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero),
+            new("YML", YmlInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
 
     private static string? Date(DateOnly? date) => date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
