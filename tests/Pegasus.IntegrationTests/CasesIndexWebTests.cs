@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Net;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -396,6 +397,8 @@ public sealed class CasesIndexWebTests
         Assert.Contains("Inspection", html, StringComparison.Ordinal);
         Assert.Contains("QDOS3100043 &#xB7; AB12CDE", html, StringComparison.Ordinal);
         Assert.Contains("Rear-end impact at a roundabout", html, StringComparison.Ordinal);
+        // The circumstances are read once, for the selected Case alone.
+        Assert.Equal(search.ClosedCaseId, Assert.Single(search.Circumstances.Reads));
         Assert.Contains("Our ref", html, StringComparison.Ordinal);
         Assert.Contains("CLM43", html, StringComparison.Ordinal);
         Assert.Contains("Unassigned", html, StringComparison.Ordinal);
@@ -403,6 +406,77 @@ public sealed class CasesIndexWebTests
         Assert.DoesNotContain("Copy Case/PO", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-copy-reference", html, StringComparison.Ordinal);
         Assert.Contains("name=\"selected\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WithNoSelectionTheFirstCaseIsReadAndEveryOtherRowCarriesTheAddressForItsOwn()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases();
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync("/Search?query=needle");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(search.CaseId, Assert.Single(search.Circumstances.Reads));
+        Assert.Contains("Struck from behind at a junction", html, StringComparison.Ordinal);
+        var otherRow = Regex.Match(
+            html,
+            "<tr[^>]*data-select-id=\"" + search.ClosedCaseId.ToString("D") + "\".*?</tr>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant).Value;
+        Assert.Contains(
+            $"data-circumstances-url=\"/Search?handler=Circumstances&amp;id={search.ClosedCaseId:D}\"",
+            otherRow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.Busy.Loading,
+            WebUtility.HtmlDecode(otherRow),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Rear-end impact at a roundabout", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheCircumstancesHandlerAnswersTheNamedCaseAsJson()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases();
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync($"/Search?handler=Circumstances&id={search.ClosedCaseId:D}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(
+            "Rear-end impact at a roundabout",
+            body.RootElement.GetProperty("circumstances").GetString());
+        Assert.Equal(search.ClosedCaseId, Assert.Single(search.Circumstances.Reads));
+
+        // A Case read and found blank answers the word the preview prints for it.
+        using var blank = await client.GetAsync($"/Search?handler=Circumstances&id={Guid.NewGuid():D}");
+        using var blankBody = JsonDocument.Parse(await blank.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, blank.StatusCode);
+        Assert.Equal("Not recorded", blankBody.RootElement.GetProperty("circumstances").GetString());
+    }
+
+    [Fact]
+    public async Task AFailedCircumstancesReadTakesTheUnavailablePath()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases();
+        search.Circumstances.ThrowUnavailable = true;
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync("/Search?query=needle");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("Cases are unavailable", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(nameof(InvalidOperationException), html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -500,6 +574,10 @@ public sealed class CasesIndexWebTests
         Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=audit\"", pane, StringComparison.Ordinal);
         Assert.Contains("name=\"selectedView\" value=\"audit\"", html, StringComparison.Ordinal);
         Assert.Contains($"selected={search.AuditCaseId:D}&amp;selectedView=audit", html, StringComparison.Ordinal);
+        // One read serves both entries of the Case: the pane and each
+        // entry's template carry its circumstances.
+        Assert.Equal(search.AuditCaseId, Assert.Single(search.Circumstances.Reads));
+        Assert.Equal(3, Regex.Count(html, "Side impact at a crossroads"));
 
         // A link without the discriminator reads the Case's first entry.
         using var caseOnly = await client.GetAsync($"/Search?selected={search.AuditCaseId:D}");
@@ -560,6 +638,8 @@ public sealed class CasesIndexWebTests
             {
                 services.RemoveAll<ISearchCases>();
                 services.AddSingleton<ISearchCases>(search);
+                services.RemoveAll<IGetCaseCircumstances>();
+                services.AddSingleton<IGetCaseCircumstances>(search.Circumstances);
                 if (images is not null)
                 {
                     services.RemoveAll<IImageIntakeQueries>();
@@ -582,8 +662,39 @@ public sealed class CasesIndexWebTests
         return await client.PostAsync("/Cases?handler=Attach", new FormUrlEncodedContent(fields));
     }
 
+    /// <summary>
+    /// The circumstances read the Search page makes, recorded: each Case it
+    /// was told about answers its text, any other Case answers none.
+    /// </summary>
+    private sealed class RecordingCaseCircumstances(IReadOnlyDictionary<Guid, string> answers) : IGetCaseCircumstances
+    {
+        public List<Guid> Reads { get; } = [];
+
+        public bool ThrowUnavailable { get; set; }
+
+        public Task<string?> ExecuteAsync(ActionActor actor, Guid caseId, CancellationToken cancellationToken)
+        {
+            Reads.Add(caseId);
+            if (ThrowUnavailable)
+            {
+                throw new InvalidOperationException("sensitive store failure");
+            }
+
+            return Task.FromResult(answers.GetValueOrDefault(caseId));
+        }
+    }
+
     private sealed class RecordingSearchCases : ISearchCases
     {
+        public RecordingSearchCases() => Circumstances = new(new Dictionary<Guid, string>
+        {
+            [CaseId] = "Struck from behind at a junction",
+            [ClosedCaseId] = "Rear-end impact at a roundabout",
+            [AuditCaseId] = "Side impact at a crossroads"
+        });
+
+        public RecordingCaseCircumstances Circumstances { get; }
+
         public Guid CaseId { get; } = Guid.NewGuid();
 
         /// <summary>A second result in a D3 terminal state, with the search projection fields.</summary>
@@ -696,8 +807,7 @@ public sealed class CasesIndexWebTests
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero))
                     {
                         VehicleMake = "Ford",
-                        VehicleModel = "Fiesta",
-                        AccidentCircumstances = "Rear-end impact at a roundabout"
+                        VehicleModel = "Fiesta"
                     }
                 ];
             return Task.FromResult(new SearchCasesResult(items, query.Page, query.PageSize, true, true));

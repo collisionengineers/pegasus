@@ -89,6 +89,47 @@ public sealed class CaseSearchTests
         Assert.Null(store.Query);
     }
 
+    [Fact]
+    public async Task CircumstancesRequireAuthorizedStaffBeforeCallingStore()
+    {
+        var circumstances = new RecordingCircumstances("Rear-ended at lights");
+        var read = new GetCaseCircumstances(circumstances);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => read.ExecuteAsync(
+            ActionActor.SystemWorker("case-circumstances-test"),
+            Guid.NewGuid(),
+            default));
+
+        Assert.Empty(circumstances.CaseIds);
+    }
+
+    [Fact]
+    public async Task CircumstancesAreReadForTheCaseTheStaffActorNames()
+    {
+        var caseId = Guid.NewGuid();
+        var circumstances = new RecordingCircumstances("Rear-ended at lights");
+        var read = new GetCaseCircumstances(circumstances);
+
+        var text = await read.ExecuteAsync(
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            caseId,
+            default);
+
+        Assert.Equal("Rear-ended at lights", text);
+        Assert.Equal(caseId, Assert.Single(circumstances.CaseIds));
+    }
+
+    private sealed class RecordingCircumstances(string? answer) : ICaseCircumstancesQueries
+    {
+        public List<Guid> CaseIds { get; } = [];
+
+        public Task<string?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            CaseIds.Add(caseId);
+            return Task.FromResult(answer);
+        }
+    }
+
     private sealed class RecordingStore : ICaseQueryStore
     {
         public SearchCasesQuery? Query { get; private set; }

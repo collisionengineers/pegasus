@@ -21,7 +21,10 @@ namespace Pegasus.Web.Pages.Search;
 /// <c>receivedDate</c>, <c>kind</c>) stay bound and pager-preserved. The preview pane is built
 /// from the row projection plus one batched Engineer-name resolve rather than
 /// a per-row Case read: the wave-1 selection script needs a preview template
-/// per row regardless, and this keeps the page at its two queries.
+/// per row regardless. The accident circumstances are the one fact the
+/// projection leaves out: the page reads them for the selected Case alone,
+/// and a row selected later asks for its own through the
+/// <c>Circumstances</c> handler.
 /// Closed Cases render their "Closed" chip here — this is the one work view
 /// that lists them.
 /// </remarks>
@@ -30,6 +33,7 @@ namespace Pegasus.Web.Pages.Search;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class IndexModel(
     ISearchCases searchCases,
+    IGetCaseCircumstances getCaseCircumstances,
     IImageIntakeQueries imageIntakeQueries,
     IStaffAccountQueries staffAccounts,
     TimeProvider timeProvider,
@@ -120,6 +124,10 @@ public sealed partial class IndexModel(
     /// Case: <c>Reference</c> is the entry's own reference (the Case/PO or
     /// <c>a.{Case/PO}</c>) and <c>View</c> the Case page view it opens
     /// (<c>inspection</c> or <c>audit</c>; null for a Case listed once).
+    /// The accident circumstances are not in the projection: the Case the
+    /// page read carries them as <c>Circumstances</c> (null once read and
+    /// blank), and every other entry carries instead the address
+    /// (<c>CircumstancesHref</c>) that reads them when the row is selected.
     /// </summary>
     public sealed record ResultRow(
         CaseSearchItem Item,
@@ -136,7 +144,9 @@ public sealed partial class IndexModel(
         string Editing,
         string Due,
         string NextAction,
-        IReadOnlyList<OperatorLabels.CaseRequirement> Outstanding);
+        IReadOnlyList<OperatorLabels.CaseRequirement> Outstanding,
+        string? Circumstances,
+        string? CircumstancesHref);
 
     public async Task<IActionResult> OnGetAsync(
         [FromQuery(Name = "page")] int? pageNumber,
@@ -194,8 +204,7 @@ public sealed partial class IndexModel(
                             IncludeTriage: true,
                             HasOpenQuery: OperatorLabels.FindCaseStageOption(State)?.HasOpenQuery),
                         PageNumber,
-                        ResultsPerPage,
-                        IncludeAccidentCircumstances: true),
+                        ResultsPerPage),
                     cancellationToken);
             }
             catch
@@ -207,8 +216,14 @@ public sealed partial class IndexModel(
 
             await imageIntakeLoad;
             Results = await caseSearch;
+            // The circumstances are read for the one Case the pane opens on;
+            // every other row asks for its own when it is selected.
+            var previewedCaseId = PreviewedCaseId(Results.Items);
+            var circumstances = previewedCaseId is { } previewed
+                ? await getCaseCircumstances.ExecuteAsync(actor, previewed, cancellationToken)
+                : null;
             // Paging counts Cases: the page's Cases expand into their entries here.
-            Rows = await ComposeRowsAsync(cancellationToken);
+            Rows = await ComposeRowsAsync(previewedCaseId, circumstances, cancellationToken);
 
             var selectedRow = SelectedId is { } selectedId
                 ? Rows.FirstOrDefault(row => row.Item.CaseId == selectedId
@@ -240,6 +255,51 @@ public sealed partial class IndexModel(
         }
 
         return Page();
+    }
+
+    /// <summary>
+    /// One Case's accident circumstances, as the preview prints them, for a row
+    /// the operator selects after the page was drawn. The answer is JSON the
+    /// page's script writes into the preview.
+    /// </summary>
+    public async Task<IActionResult> OnGetCircumstancesAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var circumstances = await getCaseCircumstances.ExecuteAsync(actor, id, cancellationToken);
+            return new JsonResult(new { circumstances = CircumstancesText(circumstances) });
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>The circumstances as the preview prints them: the text, or "Not recorded" once read and blank.</summary>
+    public static string CircumstancesText(string? circumstances) =>
+        string.IsNullOrWhiteSpace(circumstances) ? "Not recorded" : circumstances;
+
+    /// <summary>
+    /// The Case the pane opens on, whose circumstances the page reads: the
+    /// selected Case when it is on the page, otherwise the first result's. A
+    /// selected Case that is not on the page opens nothing (the page answers
+    /// Not Found), so none is read for it.
+    /// </summary>
+    private Guid? PreviewedCaseId(IReadOnlyList<CaseSearchItem> items)
+    {
+        if (SelectedId is not { } selectedId)
+        {
+            return items.Count > 0 ? items[0].CaseId : null;
+        }
+
+        return items.Any(item => item.CaseId == selectedId) ? selectedId : null;
     }
 
     /// <summary>
@@ -321,9 +381,14 @@ public sealed partial class IndexModel(
     /// only a Not ready case has any). An Inspection + Audit Case with its
     /// Audit lists as two entries, <c>{Case/PO}</c> opening the Inspection
     /// view and <c>a.{Case/PO}</c> the Audit view (decision 8); a Triage Case
-    /// shows its own Triage state.
+    /// shows its own Triage state. Both entries of the Case whose
+    /// circumstances were read carry them; every other entry carries the
+    /// address that reads its own.
     /// </summary>
-    private async Task<IReadOnlyList<ResultRow>> ComposeRowsAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<ResultRow>> ComposeRowsAsync(
+        Guid? circumstancesCaseId,
+        string? circumstances,
+        CancellationToken cancellationToken)
     {
         var items = Results?.Items ?? [];
         var engineerIds = items
@@ -353,6 +418,7 @@ public sealed partial class IndexModel(
                 && item is { State: CaseLifecycleState.NotReady, InstructionComplete: { } instructions, ImagesComplete: { } images }
                     ? OperatorLabels.CaseRequirements(!instructions, !images)
                     : [];
+            var isRead = item.CaseId == circumstancesCaseId;
             return new ResultRow(
                 item,
                 reference,
@@ -375,7 +441,9 @@ public sealed partial class IndexModel(
                     : string.Empty,
                 item.DueAtUtc is { } due ? OperatorLabels.DueDate(due) : "Not recorded",
                 outstanding.Count > 0 ? outstanding[0].Resolve : "Not recorded",
-                outstanding);
+                outstanding,
+                isRead ? circumstances : null,
+                isRead ? null : Url.Page("/Search/Index", "Circumstances", new { id = item.CaseId }));
         }
     }
 

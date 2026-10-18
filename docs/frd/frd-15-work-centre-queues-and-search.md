@@ -438,8 +438,9 @@ Received from/to and Origin, with Search and Clear. Results are one table
 (Case/PO and Our ref, vehicle, claimant, principal, type, state, due).
 Pointer or keyboard intent on a row shows a selected-Case preview beside the
 table (type, state, accident circumstances, Our ref, Engineer, due, next
-action, outstanding requirements, Open Case, copy Case/PO). At constrained
-width the preview stacks after the table. Vehicle-images records are
+action, outstanding requirements, Open Case, copy Case/PO). The accident
+circumstances are read for the selected Case only. At constrained width the
+preview stacks after the table. Vehicle-images records are
 searchable by Image reference or registration and use the named states
 Awaiting instruction, Merged into Instruction-initiated Case and
 Staff-closed ([FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces)).

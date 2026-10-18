@@ -2415,6 +2415,60 @@ window.pegasusPreferences = (function () {
         return;
     }
 
+    // A preview whose accident circumstances the page did not read names the
+    // address that reads them (data-circumstances-url). The answer is kept per
+    // address, a request still out when the selection moves is aborted, and
+    // the text is written only into the preview that is showing that address,
+    // so a late answer never lands on another row. A failed read says so
+    // (data-circumstances-failed) and is asked again when the row is selected
+    // again.
+    var circumstances = new Map();
+    var asking = null;
+
+    function circumstancesSlot(url) {
+        var slot = target.querySelector('[data-circumstances-url]');
+        return slot && slot.getAttribute('data-circumstances-url') === url ? slot : null;
+    }
+
+    function showCircumstances() {
+        var slot = target.querySelector('[data-circumstances-url]');
+        var url = slot && slot.getAttribute('data-circumstances-url');
+        if (asking && asking.url !== url) {
+            asking.controller.abort();
+            asking = null;
+        }
+        if (!url) {
+            return;
+        }
+        if (circumstances.has(url)) {
+            slot.textContent = circumstances.get(url);
+            return;
+        }
+        if (asking) {
+            return;
+        }
+        var request = asking = { url: url, controller: new AbortController() };
+        fetch(url, { headers: { 'Accept': 'application/json' }, signal: request.controller.signal })
+            .then(function (response) {
+                if (!response.ok) { throw new Error('The circumstances are unavailable.'); }
+                return response.json();
+            })
+            .then(function (answer) {
+                if (typeof answer.circumstances !== 'string') { throw new Error('The circumstances are not understood.'); }
+                circumstances.set(url, answer.circumstances);
+                var shown = circumstancesSlot(url);
+                if (shown) { shown.textContent = answer.circumstances; }
+            })
+            .catch(function (error) {
+                if (error.name === 'AbortError') { return; }
+                var shown = circumstancesSlot(url);
+                if (shown) { shown.textContent = shown.getAttribute('data-circumstances-failed'); }
+            })
+            .finally(function () {
+                if (asking === request) { asking = null; }
+            });
+    }
+
     function select(row, moveFocus) {
         var template = row.querySelector('template');
         if (!template || !('content' in template)) {
@@ -2424,6 +2478,7 @@ window.pegasusPreferences = (function () {
             candidate.setAttribute('aria-selected', candidate === row ? 'true' : 'false');
         });
         target.replaceChildren(template.content.cloneNode(true));
+        showCircumstances();
         var url = new URL(window.location.href);
         url.searchParams.set('selected', row.getAttribute('data-select-id') || row.getAttribute('data-select-href'));
         // Two rows of one record (an Inspection + Audit Case's two Search
