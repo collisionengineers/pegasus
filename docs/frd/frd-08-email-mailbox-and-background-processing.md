@@ -1,6 +1,6 @@
 # FRD-08: Email, mailbox, and background processing
 
-> Owner capabilities: MAIL-01 to MAIL-04, MAIL-09, MAIL-21, MAIL-22, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-01 to MAIL-04, MAIL-09, MAIL-21, MAIL-22, MAIL-26, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -172,6 +172,11 @@ the receipt's accepted Triage match, so Open the Triage reads one fact. A
 re-evaluation reads a corrected classification in place of the classifier and
 never removes or overwrites it or its history.
 
+The mail classifier agent is an Automation MCP client under `automation.mail`;
+it classifies and links only mail that is Unclassified or has no Case and was
+decided by the pipeline, and leaves a decision by staff, an Automation caller
+or a Principal alone (operator, 15 October 2026).
+
 **History.** Every automated or human classification decision keeps the
 source identity, policy key and version, outcome, evidence references,
 confidence or ambiguity facts, the actor or automated identity, and the
@@ -259,7 +264,7 @@ mailbox and Graph subscription states are owned by
 ## Links
 
 - Capabilities: `MAIL-01`–`MAIL-04`, `MAIL-09`, `MAIL-21`,
-  `MAIL-22`, `UI-14` in
+  `MAIL-22`, `MAIL-26`, `UI-14` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md)
   (Unidentified, intake receipts),
