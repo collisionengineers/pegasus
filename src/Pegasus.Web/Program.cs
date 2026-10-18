@@ -630,12 +630,13 @@ builder.Services.AddAuthorizationBuilder()
         .Build())
     .AddPolicy("Administrator", policy =>
         policy.RequireRole(StaffRoleNames.Administrator));
-// Pages only, over HTTPS too; a decision record accepts the BREACH risk.
+// Pages and JSON, over HTTPS too; decision records ADR-0057 and ADR-0077 accept
+// the BREACH risk.
 // Static assets are precompressed at build and files keep their own encoding.
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
-    options.MimeTypes = ["text/html"];
+    options.MimeTypes = ["text/html", "application/json", "text/json", "application/problem+json"];
     options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
     options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
 });
