@@ -566,12 +566,11 @@ public sealed class EfCaseWorkspaceStore(
             .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
-        var lines = estimateId is null
+        // The specification's own lines, read with it above: a line cannot
+        // outlive its specification, so a specification not found has none.
+        var lines = estimate is null
             ? []
-            : await context.CaseEstimateLines.AsNoTracking()
-                .Where(item => item.WorkId == workId && item.RepairSpecificationId == estimateId)
-                .OrderBy(item => item.Position)
-                .ToArrayAsync(cancellationToken);
+            : estimate.Lines.OrderBy(line => line.Position).ToArray();
         return new(
             EfCaseDataStore.ApplyConfiguration(EfCaseDataStore.Map(snapshot, workflow), configuration),
             EfCaseAssessmentStore.Map(
