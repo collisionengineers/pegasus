@@ -334,4 +334,50 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.NotEmpty(carriers);
         Assert.All(carriers, carrier => Assert.Contains(carrier, parts.Keys));
     }
+
+    /// <summary>
+    /// Issue 1463 (FRD-16): clicking a section link mounts any preceding lazy
+    /// placeholders, re-scrolls the target as preceding or bottom-clamping lazy
+    /// sections finish loading, and holds the jumped link current until user
+    /// scroll or input moves the page.
+    /// </summary>
+    [Fact]
+    public void JumpingToASectionSettlesAcrossLazyMountsAndKeepsTheClickedLinkCurrent()
+    {
+        var script = File.ReadAllText(Path.Combine(
+            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
+
+        var mount = FunctionBody(script, "function mount(placeholder, then) {", "    ");
+        var waiting = mount.IndexOf("waiting.splice(0, waiting.length)", StringComparison.Ordinal);
+        var settleInMount = mount.IndexOf("settlePendingAnchor();", StringComparison.Ordinal);
+        var spyInMount = mount.IndexOf("spy();", StringComparison.Ordinal);
+        Assert.True(waiting >= 0 && waiting < settleInMount && settleInMount < spyInMount);
+
+        var pendingLazy = FunctionBody(script, "function pendingLazyFor(target) {", "    ");
+        Assert.Contains("lazyBefore(target)", pendingLazy, StringComparison.Ordinal);
+        Assert.Contains("lazyAfter(target)", pendingLazy, StringComparison.Ordinal);
+
+        var settle = FunctionBody(script, "function settlePendingAnchor() {", "    ");
+        Assert.Contains("if (target.hasAttribute('data-lazy')) {", settle, StringComparison.Ordinal);
+        Assert.Contains("scrollSectionIntoView(target);", settle, StringComparison.Ordinal);
+        Assert.Contains("var remaining = pendingLazyFor(target);", settle, StringComparison.Ordinal);
+        Assert.Contains("remaining.forEach(function (placeholder) { mount(placeholder); });", settle, StringComparison.Ordinal);
+        Assert.Contains("if (!remaining.length) {", settle, StringComparison.Ordinal);
+
+        var jumpTo = FunctionBody(script, "function jumpTo(key, focus, tab, field) {", "    ");
+        Assert.Contains("jumpedKey = ownerKey(key);", jumpTo, StringComparison.Ordinal);
+        Assert.Contains("pendingAnchor = { key: key };", jumpTo, StringComparison.Ordinal);
+        Assert.Contains("lazyBefore(target).forEach(function (placeholder) { mount(placeholder); });", jumpTo, StringComparison.Ordinal);
+        Assert.Contains("settlePendingAnchor();", jumpTo, StringComparison.Ordinal);
+
+        var spy = FunctionBody(script, "function spy() {", "    ");
+        var bottomClamp = spy.IndexOf("window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40", StringComparison.Ordinal);
+        var heldJump = spy.IndexOf("if (jumpedKey) {", StringComparison.Ordinal);
+        Assert.True(bottomClamp >= 0 && heldJump > bottomClamp);
+
+        Assert.Contains(
+            "window.addEventListener(name, function () { pendingAnchor = null; jumpedKey = null; navigationVersion += 1; }, { passive: true });",
+            script,
+            StringComparison.Ordinal);
+    }
 }

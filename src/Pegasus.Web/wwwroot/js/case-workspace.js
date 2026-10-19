@@ -1,4 +1,4 @@
-﻿// Case record behaviour (v26). Everything here is a convenience on top of
+// Case record behaviour (v26). Everything here is a convenience on top of
 // markup that already works as plain forms and links; nothing creates a
 // separate mutation path and no business rule lives in the browser.
 //
@@ -54,6 +54,7 @@
         'case-edit-form': 'Case'
     };
     var pendingAnchor = null;
+    var jumpedKey = null;
     var navigationVersion = 0;
 
     function links() {
@@ -155,9 +156,9 @@
                 // bound through its parent (every binder is idempotent).
                 bindMounted(host.parentElement || host);
                 measure();
-                spy();
                 waiting.splice(0, waiting.length).forEach(function (callback) { callback(host); });
                 settlePendingAnchor();
+                spy();
             })
             .catch(function (error) {
                 if (!stillCurrent()) {
@@ -169,6 +170,7 @@
                 placeholder.textContent = 'This section could not be loaded.';
                 waiting.length = 0;
                 settlePendingAnchor();
+                spy();
                 if (window.console && window.console.error) {
                     window.console.error('Case section failed to load: ' + key, error);
                 }
@@ -230,6 +232,18 @@
                 && placeholder.dataset.lazyState !== 'failed';
         });
     }
+    function lazyAfter(target) {
+        return Array.prototype.filter.call(main.querySelectorAll('[data-lazy]'), function (placeholder) {
+            return (placeholder.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_PRECEDING) !== 0
+                && placeholder.dataset.lazyState !== 'failed';
+        });
+    }
+    function pendingLazyFor(target) {
+        var before = lazyBefore(target);
+        var clamped = target.getBoundingClientRect().top > readingLine() + 16
+            || window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40;
+        return clamped ? before.concat(lazyAfter(target)) : before;
+    }
     function settlePendingAnchor() {
         if (!pendingAnchor) {
             return;
@@ -237,11 +251,10 @@
         var target = sectionFor(pendingAnchor.key);
         if (!target || target.dataset.lazyState === 'failed') {
             pendingAnchor = null;
+            jumpedKey = null;
             return;
         }
-        if (pendingAnchor.predecessors.some(function (placeholder) {
-            return placeholder.isConnected && placeholder.dataset.lazyState !== 'failed';
-        })) {
+        if (target.hasAttribute('data-lazy')) {
             return;
         }
         var marked = target.querySelector('.is-jump-target');
@@ -250,7 +263,11 @@
         } else {
             scrollSectionIntoView(target);
         }
-        pendingAnchor = null;
+        var remaining = pendingLazyFor(target);
+        remaining.forEach(function (placeholder) { mount(placeholder); });
+        if (!remaining.length) {
+            pendingAnchor = null;
+        }
     }
     function scrollSectionIntoView(host) {
         measure();
@@ -321,10 +338,12 @@
         if (!target) {
             return;
         }
-        var predecessors = lazyBefore(target);
-        pendingAnchor = predecessors.length ? { key: key, predecessors: predecessors } : null;
+        jumpedKey = ownerKey(key);
+        pendingAnchor = { key: key };
+        lazyBefore(target).forEach(function (placeholder) { mount(placeholder); });
         if (target.hasAttribute('data-lazy')) {
             markField(null);
+            spy();
             mount(target, function (host) {
                 if (navigation !== navigationVersion) { return; }
                 openSubTab(host, tab);
@@ -338,6 +357,8 @@
         scrollSectionIntoView(target);
         mountApproaching();
         if (!markField(target, field) && focus) { focusSection(target); }
+        settlePendingAnchor();
+        spy();
     }
     function spy() {
         var hosts = sections();
@@ -353,6 +374,9 @@
         });
         if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40) {
             current = ownerKey(hosts[hosts.length - 1].getAttribute('data-section'));
+        }
+        if (jumpedKey) {
+            current = jumpedKey;
         }
         activeKey = current;
         links().forEach(function (link) {
@@ -397,10 +421,11 @@
         }, 80);
     }, { passive: true });
     ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach(function (name) {
-        window.addEventListener(name, function () { pendingAnchor = null; navigationVersion += 1; }, { passive: true });
+        window.addEventListener(name, function () { pendingAnchor = null; jumpedKey = null; navigationVersion += 1; }, { passive: true });
     });
     window.addEventListener('resize', function () {
         pendingAnchor = null;
+        jumpedKey = null;
         measure();
         spy();
     });
