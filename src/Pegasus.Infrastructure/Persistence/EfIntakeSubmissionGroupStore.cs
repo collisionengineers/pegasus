@@ -79,8 +79,8 @@ public sealed class EfIntakeSubmissionGroupStore(
                     && asset.Disposition == "source"
                     && asset.ContentLength > 0
                     && asset.StorageKey != "")
-                && !context.IntakeSubmissionGroups.Any(group => group.DiscardedAtUtc != null
-                    && context.IntakeSubmissionGroupMembers.Any(member => member.GroupId == group.Id
+                && !context.IntakeSubmissionGroups.Any(submissionGroup => submissionGroup.DiscardedAtUtc != null
+                    && context.IntakeSubmissionGroupMembers.Any(member => member.GroupId == submissionGroup.Id
                         && member.StagedReceiptId == work.StagedReceiptId))
                 && !context.IntakeMutationHistory.Any(history => history.IntakeReceiptId == receipt.Id
                     && history.CaseId == association.CaseId
