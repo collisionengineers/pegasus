@@ -4,6 +4,59 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 115 - 19 October 2026 (deployment live)
+
+Release 115 deployed [PR 1459](https://github.com/collisionengineers/pegasus/pull/1459), the second
+landing of wave 4 of the release-readiness programme: the wave's remaining ten finding PRs and the two
+classifier PRs, combined as twelve `--no-ff` merges. The chains:
+[PR 1417](https://github.com/collisionengineers/pegasus/pull/1417) (a SQL pool timeout and a Box
+outage during evidence promotion classified as transient failures, R106) then
+[PR 1455](https://github.com/collisionengineers/pegasus/pull/1455) (four retention uploads at a time
+through one gate, F-06); [PR 1440](https://github.com/collisionengineers/pegasus/pull/1440) (persisted
+`NormalizedRegistration` and the batched lookup-sweep enqueue, R44, the first migration) then
+[PR 1454](https://github.com/collisionengineers/pegasus/pull/1454) (`CaseTasks.CreatedAtUtc` and
+`CreatedByStaffId`; the Work Centre Open tasks read without its `ActionHistory` join, R40, the
+second migration) then [PR 1458](https://github.com/collisionengineers/pegasus/pull/1458)
+(intermediaries recognised from the Claim Sources linked to each Principal, ADR-0078, R35, the grant
+migration); [PR 1450](https://github.com/collisionengineers/pegasus/pull/1450) (instruction
+signatures across apostrophe forms, R135) then
+[PR 1456](https://github.com/collisionengineers/pegasus/pull/1456) (the QDOS `PL on` subject date and
+plate-shaped `Vehicle:` values, QDOS version 13, R132). The singles:
+[PR 1447](https://github.com/collisionengineers/pegasus/pull/1447) a Box single-version read hashed
+while it downloads, [PR 1416](https://github.com/collisionengineers/pegasus/pull/1416) the intake wipe
+advances the Sent poll boundary, [PR 1425](https://github.com/collisionengineers/pegasus/pull/1425)
+release-note and staff display-name caches,
+[PR 1451](https://github.com/collisionengineers/pegasus/pull/1451) `CLASSIFIER_DRY_RUN` as the
+`classifierDryRun` Bicep parameter (R154) and
+[PR 1452](https://github.com/collisionengineers/pegasus/pull/1452) the `MAIL-26` capability row and
+one FRD-08 line for the classifier agent (R2). The candidate also carried the Release 114 record
+([PR 1457](https://github.com/collisionengineers/pegasus/pull/1457), docs only).
+
+The route was the destructive one, chosen for containment rather than for data loss:
+`20261018070000_CaseTaskCreation` ends by making `CaseTasks.CreatedAtUtc` NOT NULL with no default,
+so once it had run Release 114's bytes could not have added a task (the Tasks dialog's Add and the
+Worker's after-send tasks inside the Report sent transaction). The other two migrations are additive
+(a persisted computed column with two indexes; one GRANT). The Worker and the Web App were stopped
+and read back unserved before SQL, the new Web package went onto the stopped site, and activation
+followed. The outage ran 07:27:42Z to 07:36:43Z on a Monday morning (08:27 to 08:37 BST) with one
+Case and no tasks on the estate, under the operator's authorisation of 16 October for the
+programme's landings, promotions and deployments. Both are Running on the approved release and full
+production smoke passed first time.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `07b8f1c8323b97176751e19bf8ff697922841623`, the merge of PR 1459 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `52EB180F37FB4339B7E8D6886A43783B7F015A5C3C21DDBEF86FACEBA6C2498A` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `EAE462FF5A96673C77C4D8FDB2CAAD0E91694528DEDE8EB7CDC6456EDBE2C808`; `worker.zip` `C7FB78EF15517B1FB88B51E8CD99E7A869784C5171513EEA66637F7A73892F45`; `classifier.zip` `C91A1D6FF65D0FE509E6DF0AF655F3C7E69E3C1E3DD843BD75A7DFA4C6A77625` (built, not deployed: no classifier Function App exists); `efbundle.exe` `0EF3AEB1021BF5989B01F4D8798B3E9D25272B6CA1ECC2D0D591624EA53B78AB` (run once, below). Built 07:14-07:22Z in a detached worktree at the release SHA; Local and Artifact plan validations passed 07:22:48Z. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | Every constituent PR was CI-green at its head and independently reviewed inside the wave workflow or by the lead; several heads needed one re-run of a hung or failed `sql-integration (3)` job in classes they do not touch, never an empty commit. PR 1458's one review point was its ADR-0078 index row, withheld because `dev` had landed the ADR-0077 row at the same place; the lead accepted the PR and the combination added the row after ADR-0077's (`0aec21aa7`). PR 1459 is twelve `--no-ff` merges of the pinned heads, stacks parent first, on `dev` `f459e83d6`, with four hand resolutions: `AssociatedMailEvidenceIntegrationTests.cs` keeps dev's and PR 1417's new Facts, dev's first; `BoxDocumentContentStore.cs` keeps PR 1427's deletion of the batch read and drops PR 1447's one line inside it, as PR 1447's body anticipated; the `current-architecture.md` "Staff cookie check" row keeps dev's title and compression sentence with PR 1425's two clauses; `MailWorkspaceWebTests.InboxMessageCommands` is 19 (dev's 20, less PR 1425's one cached read). Its lost-work audit's two FAIL and REVIEW pairs are those two union lines. The removed-symbol sweep over the tip found no surviving use. No local run: free workstation memory was under the 3 GB floor, so CI was the build; run 39131666193 passed first time (changes, invariants, infrastructure, unit, six `sql-integration` shards and coverage; classifier skipped by path). Landed with a merge commit at 07:09:02Z. One promotion from `main` `de7f56800` at 07:14:05-08Z, under the operator's authorisation of 16 October. |
+| Release gate (PR 1458) | Read-only at about 07:16Z, before promotion: `Connexus Vehicle Assessors` (`isobel.sharkey@connexus.co.uk`) active and linked to active PCH and active QDOS; `Ensurance Claims` (`colette.woods@ensurance-claims.co.uk`) active and linked to active PCH; the registry's read (active Claim Sources with an e-mail, once per active linked Principal) returns 17 rows. |
+| Containment | PreDeploy 07:23:56Z; Worker Flex `siteUpdateStrategy` read `Recreate` 07:23:59Z; the Web App reported the approved old SHA `de7f56800` Running on `DOTNETCORE\|10.0` 07:24:05Z; Worker Running 07:24:07Z; live head `20261018033213_KeysetPagingAndCustodySweepIndexes` (227 applied), 0 `CaseTasks`, 0 tasks without a `case_task_created` row, neither creation column, no `NormalizedRegistration` column 07:24:10Z. The five-member Disabled census was set `true` 07:24:32Z and smoked 07:24:42Z; the approved `worker.zip` was staged with the census disabled 07:26:19Z (Kudu deployment `0706bbd6-bde8-431e-b4d7-8098e8de2872`) and smoked again 07:26:31Z. Worker Stopped 07:27:34Z; Web Stopped and unserved (`/health/live` 403) 07:27:42Z; fresh pre-SQL read-back 07:27:51Z and again 07:28:00Z. |
+| Schema and grants | Destructive by containment. PreMigration gate 07:28:15Z; `efbundle.exe` applied `20261018060000_PersistNormalizedVehicleRegistration`, `20261018070000_CaseTaskCreation` and `20261018080000_GrantWorkerContactPrincipalLinksRead` 07:28:16-07:28:23Z (the backfill touched no row and the THROW guard had nothing to refuse); bootstrap passed 07:28:45Z (689 catalogued permission/denial rows and 483 effective runtime DML rows, one more of each than Release 114: the Worker role's SELECT on `ContactPrincipalLinks`, PR 1458's second owed check); head `20261018080000_GrantWorkerContactPrincipalLinksRead` (230 applied), 0 `CaseTasks`, both creation columns present, `NormalizedRegistration` present 07:28:48Z. |
+| Deployment | Census read back all `true` and Worker Stopped 07:29:00Z; `web.zip` deployed to the stopped site with `--restart false --track-status false` 07:29:45Z, still Stopped; PreProvision (Worker disabled) 07:30:10Z (B1 quota in `uksouth` 3); provision 07:31:37Z; post-provision disabled smoke 07:31:47Z; Web Stopped and Worker Stopped read back 07:31:55Z. |
+| Activation and smoke | PreProvision (Worker `approved-live-worker`, live disabled) 07:32:13Z; provision 07:33:43Z; Web start 07:33:46Z, exact release ready 07:36:43Z; Worker Running 07:36:52Z; the classifier Function App is absent, so `classifier.zip` was not deployed 07:36:56Z; all five Disabled settings `false` 07:37:00Z. Full smoke passed 07:37:48Z: deployment record `21639f13-2fdd-4116-af6c-46ebf46e0a5b` (OneDeploy, 07:29:28Z); active package `20261019072912.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 07:25:00Z, the last before containment; Graph subscription expires 2026-10-23 08:20:00Z). |
+| Query Store | State `READ_WRITE`. Before snapshot for this release (24 h to 07:13Z, 97 statements) at ignored `artifacts/performance/query-store-release-115-before-20261019T0713Z.csv`. Release 114's owed after snapshot was taken at 07:39Z (24 h, 97 statements) at ignored `artifacts/performance/query-store-release-114-after-20261019T0739Z.csv`, covering about nineteen hours of Release 114's bytes. This release's after snapshot (PR 1440's registration lookup, PR 1454's Open tasks statement) is owed after a day of use. |
+| Still owed | Live evidence the PR bodies defer to this release's estate. PR 1417: a read-only count of intake work items by `FailureCode` once the estate has seen a pool exhaustion or a Box outage. PR 1440: the Query Store after snapshot compared with the release-102, -103 and -105 baselines of the registration lookup; with one Case it will not move and is to be recorded as not exercised. PR 1454: the pre-migration zero count is recorded above; owed are the Open tasks statement text without `ActionHistory` and its average against the 485-execution, 31.1 ms baseline (an empty table shows no gain), and the Open tasks rows before and after (none on either side). PR 1458: one PCH instruction through an intermediary reading `Accepted` / `Intermediary` in its receipt; the overlap `NeedsSorting` reason sentence is operator copy. PR 1456: a real `PL on` instruction end to end and a plate-only subject leaving the description empty. PR 1447: a large managed version downloaded through a staff document download completing with no second copy held. PR 1416: the first authorised wipe records its dry run and the Sent boundary read-back (merging the script authorised no wipe). PR 1425: a repeat page load inside the window sending no release-note SQL dependency, and a deleted account's name turning to Former staff on the next load. PR 1455: Azure Blob under four simultaneous uploads from one item (the PR owes nothing to this record; noted for the proof round). PRs 1451 and 1452: the classifier activation release (the two per-secret grants, `PEGASUS_CLASSIFIER_ACTIVATION=approved`, `CLASSIFIER_DRY_RUN` read back `true`, one observed timer run, the switch) is its own release and record. Release 108 to 114 owed items otherwise stand. |
+| PR states | PRs 1416, 1417, 1425, 1440, 1447, 1450, 1451, 1452, 1454, 1455, 1456, 1458 and 1459 read Merged with their heads in `main` and `dev`. No issue was closed: no constituent carries a closing keyword. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-115-07b8f1c8`; the stage driver (promote-and-build, A to D) and its logs at `artifacts/releases/release-115-driver` (`promote-and-build.log`, `release-stage-a.log`, `release-stage-b.log`, `release-stage-b2.log`, `release-stage-c.log`, `release-stage-d.log`, `release-chain.log`). |
+
 ## Release 114 - 18 October 2026 (deployment live)
 
 Release 114 deployed [PR 1453](https://github.com/collisionengineers/pegasus/pull/1453), the first
