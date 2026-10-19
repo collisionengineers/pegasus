@@ -74,8 +74,38 @@ public sealed class ReconcileGroupedImageIntake(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
-            if (receipt is null
-                || receipt.Decision != IntakeDecision.NeedsSorting
+            if (receipt is null)
+            {
+                continue;
+            }
+
+            if (receipt.CurrentCaseId is not null
+                && receipt.Decision != IntakeDecision.ImageIntakeRegistered)
+            {
+                candidates++;
+                try
+                {
+                    var stagedReceiptId = await workStore.FindStagedReceiptIdForReceiptAsync(
+                        receipt.Id,
+                        cancellationToken);
+                    if (stagedReceiptId is null)
+                    {
+                        failures++;
+                        continue;
+                    }
+
+                    _ = await processQueuedIntake.ExecuteAsync(stagedReceiptId.Value, cancellationToken);
+                    retried++;
+                }
+                catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+                {
+                    failures++;
+                }
+
+                continue;
+            }
+
+            if (receipt.Decision != IntakeDecision.NeedsSorting
                 || !ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt))
             {
                 continue;

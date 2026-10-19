@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -696,17 +696,24 @@ public sealed class UploadConfirmationWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "AB12 CDE", "WAIT-GROUP-01");
+        await using (var setupDb = await factory.Database.CreateContextAsync())
+        {
+            await setupDb.Cases.Where(value => value.Id == caseId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.CustodyState, "confirmed")
+                .SetProperty(value => value.CustodyRootRemoteId, "case-root")
+                .SetProperty(value => value.ImagesComplete, false));
+        }
         var caseReference = await CaseReferenceAsync(factory, caseId);
 
+        var png = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
         var upload = await IntakeWebDriver.PostUploadManyAsync(
             client,
             form.AntiforgeryToken,
             form.ExternalReceiptToken,
-            [
-                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
-                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
-            ]);
+            Enumerable.Range(0, 5)
+                .Select(index => ($"IMG_{8096 + index}.png", "image/png", (byte[])[.. png, (byte)index]))
+                .ToArray());
         var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
         _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
         await using (var sweep = factory.Services.CreateAsyncScope())
@@ -714,17 +721,61 @@ public sealed class UploadConfirmationWebTests
             await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(sweep.ServiceProvider);
         }
 
-        // Both images read the matched Case's registration: the group waits.
+        // All five images read the matched Case's registration: the group waits
+        // in retained blob storage without uploading any member to Box holding.
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
         var confirmation = await ConfirmGroupAttachAsync(factory, client, groupId, caseId, caseReference);
         Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
+        var memberReceiptIds = confirmation.ReceiptVersions.Keys.ToArray();
+        Assert.Equal(5, memberReceiptIds.Length);
+        await using (var beforeDb = await factory.Database.CreateContextAsync())
+        {
+            var heldBeforeAttach = await beforeDb.IntakeAssets.AsNoTracking()
+                .Where(asset => memberReceiptIds.Contains(asset.IntakeReceiptId))
+                .ToArrayAsync();
+            Assert.Equal(5, heldBeforeAttach.Length);
+            Assert.All(heldBeforeAttach, asset =>
+            {
+                Assert.Null(asset.CustodyStatus);
+                Assert.Null(asset.BoxParentFolderId);
+            });
+        }
 
-        foreach (var receiptId in confirmation.ReceiptVersions.Keys)
+        await Task.WhenAll(memberReceiptIds.Select(async receiptId =>
         {
             await AssertLinkedAsync(factory, receiptId, caseId);
             await using var replay = factory.Services.CreateAsyncScope();
             await IntakeWebDriver.ReplayCompletedWorkAsync(replay.ServiceProvider, receiptId);
+        }));
+
+        foreach (var receiptId in memberReceiptIds)
+        {
             await AssertFiledOnCaseAsync(factory, receiptId, caseId, minimumDocuments: 1);
+        }
+
+        await using (var afterDb = await factory.Database.CreateContextAsync())
+        {
+            var versions = await (
+                from occurrence in afterDb.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in afterDb.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == caseId
+                    && occurrence.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Image
+                select version).ToArrayAsync();
+            Assert.Equal(5, versions.Length);
+            Assert.All(versions, version =>
+                Assert.Equal(Pegasus.Core.Documents.DocumentCustodyStatus.Confirmed, version.CustodyStatus));
+
+            var promotedAssets = await afterDb.IntakeAssets.AsNoTracking()
+                .Where(asset => memberReceiptIds.Contains(asset.IntakeReceiptId))
+                .ToArrayAsync();
+            Assert.Equal(5, promotedAssets.Length);
+            Assert.All(promotedAssets, asset =>
+            {
+                Assert.Equal("confirmed", asset.CustodyStatus);
+                Assert.Equal("case-root", asset.BoxParentFolderId);
+            });
+            Assert.True((await afterDb.Cases.AsNoTracking().SingleAsync(value => value.Id == caseId)).ImagesComplete);
         }
 
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));

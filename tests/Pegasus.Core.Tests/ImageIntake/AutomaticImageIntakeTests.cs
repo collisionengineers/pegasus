@@ -1509,6 +1509,42 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(0, result.Failures);
     }
 
+    [Fact]
+    public async Task GroupedImageSweepReplaysAnUnpromotedCaseAssociatedReceiptWithoutEscapingToUnidentified()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        var receiptId = harness.Receipts[0].Id;
+        harness.ReceiptQueries.Receipts[0] = harness.ReceiptQueries.Receipts[0] with
+        {
+            ManualLinkedCaseId = Guid.NewGuid(),
+            ManualAssociationVersion = 0
+        };
+        var receiptReads = Forwarder.For<IIntakeReceiptQueries>(harness.ReceiptQueries);
+        var groups = Forwarder.For<IIntakeSubmissionGroupStore>(harness.GroupStore);
+        groups.Overrides[nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync)] =
+            _ => Task.FromResult<IReadOnlyList<Guid>>([receiptId]);
+        var work = Forwarder.For<IIntakeWorkStore>(null!);
+        work.Overrides[nameof(IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync)] =
+            _ => Task.FromResult<Guid?>(Guid.NewGuid());
+        var register = new CountingRegisterUnidentified();
+        var sweep = new ReconcileGroupedImageIntake(
+            (IIntakeReceiptQueries)receiptReads.Proxy,
+            (IIntakeSubmissionGroupStore)groups.Proxy,
+            (IIntakeWorkStore)work.Proxy,
+            new FixedOutcomeProcessor(QueuedIntakeProcessingOutcome.RetryScheduled),
+            new FixedTimeProvider(harness.GroupStore.Group!.ReceivedAtUtc.AddHours(3)),
+            register);
+
+        var result = await sweep.ExecuteAsync(5);
+
+        Assert.Equal(1, result.Candidates);
+        Assert.Equal(1, result.Retried);
+        Assert.Equal(0, result.Escaped);
+        Assert.Equal(0, result.Failures);
+        Assert.Equal(0, register.Calls);
+        Assert.DoesNotContain(nameof(IIntakeSubmissionGroupStore.FindForMemberSourceAsync), groups.Calls);
+    }
+
     private sealed class FixedOutcomeProcessor(QueuedIntakeProcessingOutcome outcome) : IProcessQueuedIntake
     {
         public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(

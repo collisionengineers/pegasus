@@ -142,10 +142,117 @@ internal sealed class EfCaseArtifactCustody(
             _ => throw new InvalidDataException("The artifact custody status is invalid.")
         };
 
+    private sealed record RecordedCaseVersion(
+        CaseEntity? Case,
+        CaseDocumentEntity? Document,
+        DocumentVersionEntity? Version,
+        DocumentOccurrenceEntity? Occurrence,
+        CaseArtifactCustodyResult? ImmediateResult);
+
     private async Task<CaseArtifactCustodyResult> RetainCaseAsync(
         Guid caseId,
         CaseArtifactCustodyRequest request,
         Stream content,
+        string pendingContentStorageKey,
+        CancellationToken cancellationToken)
+    {
+        var recorded = await StoreConcurrencyRetry.ExecuteAsync(
+            token => RecordPendingCaseVersionAsync(caseId, request, pendingContentStorageKey, token),
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
+        if (recorded.ImmediateResult is { } immediateResult)
+        {
+            return immediateResult;
+        }
+
+        var caseEntity = recorded.Case!;
+        var document = recorded.Document!;
+        var version = recorded.Version!;
+        var occurrence = recorded.Occurrence!;
+        // A document is filed in its own folder; the Audit's a. folder may
+        // not exist yet, and reconciliation files the document once it does.
+        var auditFolder = string.Equals(document.CustodyFolder, CaseCustodyFolders.Audit, StringComparison.Ordinal);
+        var folderRoot = CaseCustodyFolders.RootOf(caseEntity, document.CustodyFolder);
+        if (string.IsNullOrWhiteSpace(folderRoot))
+        {
+            return Pending(version, occurrence.Id, auditFolder ? "audit_custody_pending" : "case_custody_pending");
+        }
+
+        // An automatic promotion's target was checked before the version was
+        // recorded and is checked again inside the confirmation below; a
+        // target that moves in between leaves the version pending there.
+        var address = new ManagedDocumentContentAddress(
+            caseId,
+            caseEntity.Reference,
+            folderRoot,
+            occurrence.Id,
+            occurrence.Ordinal,
+            document.Id,
+            version.Id,
+            version.Version,
+            occurrence.SemanticRole,
+            version.FileName,
+            version.MediaType,
+            version.BoxFileId,
+            version.BoxVersionId);
+        content.Position = 0;
+        DocumentContentWriteResult write;
+        try
+        {
+            // The staged stream was verified against this hash when it was staged,
+            // so the Box store takes it as is instead of copying and hashing again.
+            write = documentContentStore is BoxDocumentContentStore boxStore
+                ? await boxStore.StoreVerifiedStreamAsync(
+                    address, content, request.ContentLength, version.Sha256, cancellationToken)
+                : await documentContentStore.StoreVersionAsync(
+                    address, content, request.ContentLength, version.Sha256, cancellationToken);
+        }
+        catch (HttpRequestException exception) when (request.IsAutomaticIntakeEvidencePromotion)
+        {
+            // The version is already recorded Pending, so Core's bounded retry
+            // and the pending-custody reconciliation both find it again.
+            throw ContentWriteUnavailable(exception);
+        }
+        if (documentContentStore is BoxDocumentContentStore
+            && (string.IsNullOrWhiteSpace(write.RemoteId)
+                || string.IsNullOrWhiteSpace(write.BoxVersionId)))
+        {
+            throw new InvalidDataException(
+                "Confirmed artifact custody requires exact Box file and version identities.");
+        }
+        var capturedRoot = address.CaseRootRemoteId!;
+        var unconfirmed = await StoreConcurrencyRetry.ExecuteAsync(
+            token => ConfirmCaseVersionAsync(
+                caseId,
+                request,
+                version,
+                occurrence,
+                pendingContentStorageKey,
+                auditFolder,
+                capturedRoot,
+                write,
+                token),
+            cancellationToken,
+            StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
+        if (unconfirmed is not null)
+        {
+            return unconfirmed;
+        }
+        // The version is confirmed and committed, and the staged bytes are still
+        // in hand: the cache copy is written now so its first read is a hit. It
+        // is best effort and never changes what this call answers.
+        await PublishFiledAsync(
+            DocumentContentCacheKey.ForVersion(version.Id),
+            content,
+            version.Sha256,
+            request.ContentLength,
+            cancellationToken);
+        return Confirmed(version, occurrence.Id);
+    }
+
+    private async Task<RecordedCaseVersion> RecordPendingCaseVersionAsync(
+        Guid caseId,
+        CaseArtifactCustodyRequest request,
         string pendingContentStorageKey,
         CancellationToken cancellationToken)
     {
@@ -155,7 +262,10 @@ internal sealed class EfCaseArtifactCustody(
         // row covers them.
         await using var initialWriteTransaction = request.IsAutomaticIntakeEvidencePromotion
             ? await db.Database.BeginSerializableAsync(cancellationToken)
-            : null;
+            : await db.Database.BeginReadCommittedAsync(cancellationToken);
+        // The Case's workflow (or Triage) lock first, so concurrent Case
+        // filings serialize on it before taking any document range lock.
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(db, caseId, cancellationToken);
         var existing = await (
             from persistedOccurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
             join persistedVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
@@ -174,16 +284,14 @@ internal sealed class EfCaseArtifactCustody(
             if (existing.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)
             {
                 RequireConfirmed(existing.Version, documentContentStore is BoxDocumentContentStore);
-                if (initialWriteTransaction is not null)
-                    await initialWriteTransaction.CommitAsync(cancellationToken);
-                return Confirmed(existing.Version, existing.Occurrence.Id);
+                await initialWriteTransaction.CommitAsync(cancellationToken);
+                return new(null, null, null, null, Confirmed(existing.Version, existing.Occurrence.Id));
             }
             if (existing.Version.CustodyStatus is DocumentCustodyStatus.Pending
                 or DocumentCustodyStatus.Failed)
             {
-                if (initialWriteTransaction is not null)
-                    await initialWriteTransaction.CommitAsync(cancellationToken);
-                return Status(existing.Version, existing.Occurrence.Id);
+                await initialWriteTransaction.CommitAsync(cancellationToken);
+                return new(null, null, null, null, Status(existing.Version, existing.Occurrence.Id));
             }
         }
 
@@ -258,60 +366,22 @@ internal sealed class EfCaseArtifactCustody(
             version.PendingContentStorageKey = pendingContentStorageKey;
             await db.SaveChangesAsync(cancellationToken);
         }
-        if (initialWriteTransaction is not null)
-            await initialWriteTransaction.CommitAsync(cancellationToken);
-        // A document is filed in its own folder; the Audit's a. folder may
-        // not exist yet, and reconciliation files the document once it does.
-        var auditFolder = string.Equals(document.CustodyFolder, CaseCustodyFolders.Audit, StringComparison.Ordinal);
-        var folderRoot = CaseCustodyFolders.RootOf(caseEntity, document.CustodyFolder);
-        if (string.IsNullOrWhiteSpace(folderRoot))
-        {
-            return Pending(version, occurrence.Id, auditFolder ? "audit_custody_pending" : "case_custody_pending");
-        }
+        await initialWriteTransaction.CommitAsync(cancellationToken);
+        return new(caseEntity, document, version, occurrence, null);
+    }
 
-        // An automatic promotion's target was checked before the version was
-        // recorded and is checked again inside the confirmation below; a
-        // target that moves in between leaves the version pending there.
-        var address = new ManagedDocumentContentAddress(
-            caseId,
-            caseEntity.Reference,
-            folderRoot,
-            occurrence.Id,
-            occurrence.Ordinal,
-            document.Id,
-            version.Id,
-            version.Version,
-            occurrence.SemanticRole,
-            version.FileName,
-            version.MediaType,
-            version.BoxFileId,
-            version.BoxVersionId);
-        content.Position = 0;
-        DocumentContentWriteResult write;
-        try
-        {
-            // The staged stream was verified against this hash when it was staged,
-            // so the Box store takes it as is instead of copying and hashing again.
-            write = documentContentStore is BoxDocumentContentStore boxStore
-                ? await boxStore.StoreVerifiedStreamAsync(
-                    address, content, request.ContentLength, version.Sha256, cancellationToken)
-                : await documentContentStore.StoreVersionAsync(
-                    address, content, request.ContentLength, version.Sha256, cancellationToken);
-        }
-        catch (HttpRequestException exception) when (request.IsAutomaticIntakeEvidencePromotion)
-        {
-            // The version is already recorded Pending, so Core's bounded retry
-            // and the pending-custody reconciliation both find it again.
-            throw ContentWriteUnavailable(exception);
-        }
-        if (documentContentStore is BoxDocumentContentStore
-            && (string.IsNullOrWhiteSpace(write.RemoteId)
-                || string.IsNullOrWhiteSpace(write.BoxVersionId)))
-        {
-            throw new InvalidDataException(
-                "Confirmed artifact custody requires exact Box file and version identities.");
-        }
-        var capturedRoot = address.CaseRootRemoteId!;
+    private async Task<CaseArtifactCustodyResult?> ConfirmCaseVersionAsync(
+        Guid caseId,
+        CaseArtifactCustodyRequest request,
+        DocumentVersionEntity version,
+        DocumentOccurrenceEntity occurrence,
+        string pendingContentStorageKey,
+        bool auditFolder,
+        string capturedRoot,
+        DocumentContentWriteResult write,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         // Serializable: the confirmation is decided on the receipt's
         // association, the Case's workflow and the pending version; no one
         // row covers them.
@@ -370,16 +440,7 @@ internal sealed class EfCaseArtifactCustody(
                 request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
         }
         await confirmation.CommitAsync(cancellationToken);
-        // The version is confirmed and committed, and the staged bytes are still
-        // in hand: the cache copy is written now so its first read is a hit. It
-        // is best effort and never changes what this call answers.
-        await PublishFiledAsync(
-            DocumentContentCacheKey.ForVersion(version.Id),
-            content,
-            version.Sha256,
-            request.ContentLength,
-            cancellationToken);
-        return Confirmed(version, occurrence.Id);
+        return null;
     }
 
     /// <summary>
@@ -497,6 +558,12 @@ internal sealed class EfCaseArtifactCustody(
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
         if (!promotionPlan!.HasSelectedPhotographs || workflow is null)
         {
+            var currentCaseVersion = workflow?.Version
+                ?? await db.Triage.AsNoTracking()
+                    .Where(item => item.CaseId == caseId)
+                    .Select(item => (long?)item.Version)
+                    .SingleOrDefaultAsync(cancellationToken)
+                ?? expectedCaseVersion;
             db.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
             {
                 Id = Guid.NewGuid(),
@@ -515,9 +582,9 @@ internal sealed class EfCaseArtifactCustody(
                 ExpectedIntakeVersion = plan.ExpectedIntakeVersion,
                 BeforeIntakeVersion = plan.AfterIntakeVersion,
                 AfterIntakeVersion = plan.AfterIntakeVersion,
-                ExpectedCaseVersion = expectedCaseVersion,
-                BeforeCaseVersion = expectedCaseVersion,
-                AfterCaseVersion = expectedCaseVersion
+                ExpectedCaseVersion = currentCaseVersion,
+                BeforeCaseVersion = currentCaseVersion,
+                AfterCaseVersion = currentCaseVersion
             });
             await db.SaveChangesAsync(cancellationToken);
             return;
