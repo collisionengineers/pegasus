@@ -221,7 +221,7 @@ internal sealed class EfCaseArtifactCustody(
                 "Confirmed artifact custody requires exact Box file and version identities.");
         }
         var capturedRoot = address.CaseRootRemoteId!;
-        var unconfirmed = await StoreConcurrencyRetry.ExecuteAsync(
+        var (result, confirmed) = await StoreConcurrencyRetry.ExecuteAsync(
             token => ConfirmCaseVersionAsync(
                 caseId,
                 request,
@@ -234,9 +234,9 @@ internal sealed class EfCaseArtifactCustody(
                 token),
             cancellationToken,
             StoreConcurrencyRetry.IsDeadlockOrKeyCollision);
-        if (unconfirmed is not null)
+        if (!confirmed)
         {
-            return unconfirmed;
+            return result;
         }
         // The version is confirmed and committed, and the staged bytes are still
         // in hand: the cache copy is written now so its first read is a hit. It
@@ -247,7 +247,7 @@ internal sealed class EfCaseArtifactCustody(
             version.Sha256,
             request.ContentLength,
             cancellationToken);
-        return Confirmed(version, occurrence.Id);
+        return result;
     }
 
     private async Task<RecordedCaseVersion> RecordPendingCaseVersionAsync(
@@ -370,7 +370,7 @@ internal sealed class EfCaseArtifactCustody(
         return new(caseEntity, document, version, occurrence, null);
     }
 
-    private async Task<CaseArtifactCustodyResult?> ConfirmCaseVersionAsync(
+    private async Task<(CaseArtifactCustodyResult Result, bool Confirmed)> ConfirmCaseVersionAsync(
         Guid caseId,
         CaseArtifactCustodyRequest request,
         DocumentVersionEntity version,
@@ -422,7 +422,7 @@ internal sealed class EfCaseArtifactCustody(
                 RequireConfirmed(current, documentContentStore is BoxDocumentContentStore);
             }
             await confirmation.CommitAsync(cancellationToken);
-            return Status(current, occurrence.Id);
+            return (Status(current, occurrence.Id), false);
         }
         version.BoxFileId = write.RemoteId;
         version.BoxVersionId = write.BoxVersionId;
@@ -440,7 +440,7 @@ internal sealed class EfCaseArtifactCustody(
                 request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
         }
         await confirmation.CommitAsync(cancellationToken);
-        return null;
+        return (Confirmed(version, occurrence.Id), true);
     }
 
     /// <summary>
