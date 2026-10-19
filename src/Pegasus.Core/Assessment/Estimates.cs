@@ -643,6 +643,8 @@ public static class EstimatePolicy
             var carried = line with
             {
                 Type = EstimateOperations.Carry(line.Type, previous.Type),
+                WorkUnits = CarryHours(line.WorkUnits, previous.WorkUnits),
+                PaintWorkUnits = CarryHours(line.PaintWorkUnits, previous.PaintWorkUnits),
                 GuideCode = line.GuideCode ?? previous.GuideCode,
                 // The line normalizer clears To be confirmed on a priced line.
                 Unpriced = previous.Unpriced || line.Unpriced,
@@ -821,11 +823,22 @@ public static class EstimatePolicy
     }
 
     /// <summary>
+    /// The editor shows hours to two decimal places (v36 item X). A line whose
+    /// posted figure is still that two-decimal reading of its stored hours was
+    /// not moved by the operator and keeps its stored precision.
+    /// </summary>
+    private static decimal? CarryHours(decimal? submitted, decimal? previous) =>
+        submitted is { } hours && previous is { } stored
+        && hours == decimal.Round(stored, 2, MidpointRounding.AwayFromZero)
+            ? stored
+            : submitted;
+
+    /// <summary>
     /// The precision an estimate line's hours are kept to. A provider states
     /// time in its own unit — Glass's in sixtieths of an hour or work units,
     /// Audatex in work units to its printed time basis — and the import
     /// converts it to hours, so B04 retains the converted figure instead of
-    /// rounding it to the editor's 0.1 step, and the persisted column is
+    /// rounding it to the editor's 0.01 step, and the persisted column is
     /// <c>decimal(18,6)</c>.
     /// </summary>
     public const int WorkUnitDecimals = 6;

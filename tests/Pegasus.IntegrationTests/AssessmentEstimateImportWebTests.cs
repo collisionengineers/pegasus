@@ -1788,6 +1788,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         var editorHtml = await GetHtmlAsync(
             client,
             $"/Cases/{caseId:D}?section=estimate&estimate={seeded.SpecificationId:D}");
+        Assert.Contains(">0.33</span>", editorHtml, StringComparison.Ordinal);
+        Assert.Contains(">0.91</span>", editorHtml, StringComparison.Ordinal);
         var details = seeded.Details;
         var fields = new List<KeyValuePair<string, string>>
         {
@@ -1815,8 +1817,8 @@ public sealed partial class AssessmentEstimateImportWebTests
             fields.Add(new("lineDescription", line.Description ?? string.Empty));
             fields.Add(new("linePartNumber", line.PartNumber ?? string.Empty));
             fields.Add(new("lineQuantity", line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
-            fields.Add(new("lineLabourHours", line.WorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
-            fields.Add(new("linePaintHours", line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("lineLabourHours", line.WorkUnits?.ToString("0.00", CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("linePaintHours", line.PaintWorkUnits?.ToString("0.00", CultureInfo.InvariantCulture) ?? string.Empty));
             fields.Add(new("linePartPounds", amount));
             fields.Add(new("lineMaterials", line.Materials?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
         }
@@ -1837,6 +1839,14 @@ public sealed partial class AssessmentEstimateImportWebTests
             $"value=\"{AmendedAmount.ToString(CultureInfo.InvariantCulture)}\"",
             reloadedHtml,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "name=\"lineLabourHours\" form=\"case-edit-form\" type=\"number\" min=\"0\" step=\"0.01\" inputmode=\"decimal\" value=\"0.33\"",
+            reloadedHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "name=\"linePaintHours\" form=\"case-edit-form\" type=\"number\" min=\"0\" step=\"0.01\" inputmode=\"decimal\" value=\"0.91\"",
+            reloadedHtml,
+            StringComparison.Ordinal);
 
         var reloaded = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
         var amended = Assert.Single(reloaded.Lines, line => line.Description == "FRONT BUMPER");
@@ -1849,6 +1859,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(seeded.Lines[0].SourceRowIdentity, amended.SourceRowIdentity);
 
         var untouched = Assert.Single(reloaded.Lines, line => line.Description == "REPAIR NEARSIDE DOOR");
+        Assert.Equal(0.333333m, untouched.WorkUnits);
+        Assert.Equal(0.91m, untouched.PaintWorkUnits);
         Assert.Equal(SeededAmendedBy, untouched.AmendedBy);
         Assert.Equal(SeededAmendedAtUtc, untouched.AmendedAtUtc);
 
@@ -1894,13 +1906,13 @@ public sealed partial class AssessmentEstimateImportWebTests
                     AmendedBy: SeededAmendedBy,
                     AmendedAtUtc: SeededAmendedAtUtc),
                 new(
-                    Guid.NewGuid(), 2, "repair", null, "REPAIR NEARSIDE DOOR", 2.5m, null, false,
+                    Guid.NewGuid(), 2, "repair", null, "REPAIR NEARSIDE DOOR", 0.333333m, null, false,
                     null, null, "judgement", null,
                     ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc,
-                    PaintWorkUnits: 1.5m,
+                    PaintWorkUnits: 0.91m,
                     Quantity: null,
                     Materials: null,
-                    Origin: new("repair", "REPAIR NEARSIDE DOOR", null, null, 2.5m, 1.5m, null, null),
+                    Origin: new("repair", "REPAIR NEARSIDE DOOR", null, null, 0.333333m, 0.91m, null, null),
                     SourceDocumentIdentity: "estimate-import:seeded",
                     SourceDocumentVersionId: documentVersionId,
                     SourceDocumentSha256: documentSha,
