@@ -511,11 +511,11 @@ Repair cost figures come from external estimate imports (including Audatex
 and Glass's), AI estimates returned through MCP, or staff file import. Manual
 repair totals are never invented to get around the estimate contract. The
 repairer's VAT status is recorded on each repair specification, the one
-owner of that fact; an `Unknown` status never blocks **Use repair spec**, and
-the specification's selected VAT categories govern its totals
+owner of that fact. The default is Registered and does not block **Use
+repair spec**; Not registered remains a choice. A hand-picked set of VAT
+categories the report has no wording for still blocks. Unknown still blocks
+the report only if a spec is still stored as Unknown
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report)).
-An `Unknown` status does block the report, and so does a hand-picked set of
-VAT categories the report has no wording for (operator, 27 September 2026).
 Report readiness reads the status from the Current repair specification; the
 Case records it nowhere else. Supplied, observed, derived and professionally
 accepted values keep their distinctions.

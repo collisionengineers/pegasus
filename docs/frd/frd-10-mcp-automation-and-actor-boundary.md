@@ -444,7 +444,10 @@ place; editing the Current one makes a generated report stale. Each kept line
 sends its `lineId` so it keeps its source evidence. The header carries the
 labour rates, the repairer's VAT status, the VAT categories, discounts and
 regional uplift; a header value the call omits keeps its recorded value. An
-`Unknown` VAT status, the default, charges no VAT until the status is known.
+omitted repairer VAT status keeps the recorded one, or Registered when none
+is recorded. Registered charges VAT on labour, parts, materials and
+specialist. The choices are Registered and NotRegistered; an explicit
+Unknown is refused.
 A line marked To be confirmed that carries a price is saved priced: the
 price wins, as on the Case page. Each line carries one evidence label, and
 its source text goes in its justification:

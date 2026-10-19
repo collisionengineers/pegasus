@@ -283,7 +283,7 @@ internal sealed class AssessmentMcpTools(
         [Description("One hourly rate for both panel and paint labour.")] decimal? labourRate = null,
         [Description("Other costs amount.")] decimal? otherCosts = null,
         [Description("VAT percentage, 0 to 100; defaults to 20.")] decimal? vatPercent = null,
-        [Description("The repairer's VAT status: Registered, NotRegistered or Unknown.")] string? repairerVatStatus = null,
+        [Description("The repairer's VAT status: Registered or NotRegistered.")] string? repairerVatStatus = null,
         [Description("Override of which categories carry VAT: any of Labour, Parts, Materials, Specialist; an empty list charges none.")] IReadOnlyList<string>? vatCategories = null,
         [Description("Discounts by category, each a fraction of one (0.1 is 10%).")] EstimateDiscountsToolInput? discounts = null,
         [Description("Whether the regional labour uplift applies.")] bool? regionalUplift = null,
@@ -318,7 +318,7 @@ internal sealed class AssessmentMcpTools(
                             ? await FindEstimateAsync(caseId, id, cancellationToken)
                             : null;
                         var recorded = existing?.Details;
-                        var recordedVat = recorded?.VatPolicy ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown);
+                        var recordedVat = recorded?.VatPolicy ?? EstimateVatPolicy.For(RepairerVatStatuses.Default);
                         return await saveEstimate.ExecuteAsync(
                             new(
                                 caseId,
@@ -690,9 +690,9 @@ internal sealed class AssessmentMcpTools(
         string.IsNullOrWhiteSpace(value)
             ? null
             : Enum.TryParse<RepairerVatStatus>(value.Trim(), ignoreCase: true, out var status)
-                && Enum.IsDefined(status)
+                && RepairerVatStatuses.IsChoosable(status)
                 ? status
-                : throw new McpException("The repairer VAT status must be Registered, NotRegistered or Unknown.");
+                : throw new McpException("The repairer VAT status must be Registered or NotRegistered.");
 
     private static EstimateVatCategories? ParseVatCategories(IReadOnlyList<string>? values)
     {

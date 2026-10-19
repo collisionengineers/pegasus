@@ -168,7 +168,7 @@ public sealed class AutomationAssessmentIngressTests
         var imported = Assert.IsType<RepairSpecificationVersion>(await store.GetVersionAsync(caseId, importedId, default));
         Assert.False(imported.IsCurrent);
         Assert.Null(imported.AiJobId);
-        Assert.Equal(RepairerVatStatus.Unknown, imported.Details.VatPolicy.RepairerStatus);
+        Assert.Equal(RepairerVatStatus.Registered, imported.Details.VatPolicy.RepairerStatus);
         Assert.Equal(14, imported.Lines.Count);
         Assert.All(imported.Lines, line =>
         {
@@ -1483,8 +1483,8 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(0m, totals.GetProperty("specialist").GetDecimal());
             Assert.Equal(405.40m, totals.GetProperty("net").GetDecimal());
             Assert.Equal(20m, totals.GetProperty("vatPercent").GetDecimal());
-            Assert.Equal(0m, totals.GetProperty("vat").GetDecimal());
-            Assert.Equal(405.40m, totals.GetProperty("gross").GetDecimal());
+            Assert.Equal(81.08m, totals.GetProperty("vat").GetDecimal());
+            Assert.Equal(486.48m, totals.GetProperty("gross").GetDecimal());
             Assert.False(totals.TryGetProperty("labour", out _));
             Assert.False(totals.TryGetProperty("paint", out _));
             Assert.False(totals.TryGetProperty("other", out _));
@@ -1499,9 +1499,9 @@ public sealed class AutomationAssessmentIngressTests
             var store = scope.ServiceProvider.GetRequiredService<IRepairSpecificationStore>();
             var saved = await store.GetVersionAsync(caseId, estimateId, CancellationToken.None);
             Assert.NotNull(saved);
-            Assert.Equal(RepairerVatStatus.Unknown, saved.Details.VatPolicy.RepairerStatus);
-            Assert.True(saved.Details.VatPolicy.TreatmentPending);
-            // v28 P10: the unknown VAT status is no refusal, and the AI lines
+            Assert.Equal(RepairerVatStatus.Registered, saved.Details.VatPolicy.RepairerStatus);
+            Assert.False(saved.Details.VatPolicy.TreatmentPending);
+            // An omitted status is Registered and is no refusal. The AI lines
             // are the Draft's own; Use repair spec is a staff member's choice.
             EstimatePolicy.ValidateSetCurrent(
                 saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));

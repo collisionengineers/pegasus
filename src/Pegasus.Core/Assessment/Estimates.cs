@@ -10,18 +10,36 @@ namespace Pegasus.Core.Assessment;
 
 /// <summary>
 /// Which repairer VAT position the repair spec stands on (B04), recorded on
-/// the spec itself, the only owner of the fact. Unknown is a real state: its
-/// totals charge VAT on nothing until the operator records the status or
-/// selects the categories, and it never gates Use repair spec (v28 P10). It
-/// does block the report, which would otherwise understate the repair cost
-/// (operator, 27 September 2026). The claimant's VAT position never controls
-/// estimate VAT.
+/// the spec itself, the only owner of the fact. A spec with no recorded
+/// status stands on <see cref="RepairerVatStatuses.Default"/> (operator, 19
+/// October 2026). <see cref="RepairerVatStatus.Unknown"/> remains a stored
+/// state: its totals charge VAT on nothing, it never gates Use repair spec
+/// (v28 P10), and it blocks the report, which would otherwise understate the
+/// repair cost (operator, 27 September 2026). Nothing new writes it. The
+/// claimant's VAT position never controls estimate VAT.
 /// </summary>
 public enum RepairerVatStatus
 {
     Unknown,
     Registered,
     NotRegistered,
+}
+
+/// <summary>
+/// The repairer VAT status a spec stands on when none was recorded, and the
+/// statuses staff and the tools may choose. <see cref="RepairerVatStatus.Unknown"/>
+/// stays on the enum so a row still stored as Unknown parses and still blocks
+/// the report; it is not a choice.
+/// </summary>
+public static class RepairerVatStatuses
+{
+    public const RepairerVatStatus Default = RepairerVatStatus.Registered;
+
+    public static IReadOnlyList<RepairerVatStatus> Choosable { get; } =
+        [RepairerVatStatus.Registered, RepairerVatStatus.NotRegistered];
+
+    public static bool IsChoosable(RepairerVatStatus status) =>
+        status is RepairerVatStatus.Registered or RepairerVatStatus.NotRegistered;
 }
 
 /// <summary>
@@ -82,8 +100,9 @@ public sealed record EstimateVatPolicy(
 
     /// <summary>
     /// An unknown repairer VAT status with no hand-made override: the totals
-    /// carry no VAT until the operator records the status or selects the
-    /// categories. It never gates Use repair spec (v28 P10, 18 September 2026).
+    /// carry no VAT. A new spec does not land here; the unrecorded status is
+    /// <see cref="RepairerVatStatuses.Default"/>. It never gates Use repair
+    /// spec (v28 P10, 18 September 2026).
     /// </summary>
     public bool TreatmentPending =>
         RepairerStatus == RepairerVatStatus.Unknown && !CategoriesOverridden;
@@ -128,9 +147,10 @@ public sealed record EstimateRateSnapshot(
 /// the free per-estimate percentage and computes VAT as
 /// <c>Taxable × VatPercent / 100</c>. The percentage never states a
 /// repairer's VAT position: an estimate that records no <see cref="Vat"/>
-/// policy stands on <see cref="RepairerVatStatus.Unknown"/> and charges VAT
-/// on nothing until an Engineer records the status or selects the
-/// categories; that never gates Use repair spec (v28 P10).
+/// policy stands on <see cref="RepairerVatStatuses.Default"/> and charges
+/// VAT on all four categories. A policy still stored as
+/// <see cref="RepairerVatStatus.Unknown"/> charges VAT on nothing and blocks
+/// the report; that never gates Use repair spec (v28 P10).
 /// </remarks>
 public sealed record EstimateDetails(
     string Name,
@@ -153,7 +173,7 @@ public sealed record EstimateDetails(
 
     public EstimateDiscounts AppliedDiscounts => Discounts ?? EstimateDiscounts.None;
 
-    public EstimateVatPolicy VatPolicy => Vat ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown);
+    public EstimateVatPolicy VatPolicy => Vat ?? EstimateVatPolicy.For(RepairerVatStatuses.Default);
 }
 
 /// <summary>

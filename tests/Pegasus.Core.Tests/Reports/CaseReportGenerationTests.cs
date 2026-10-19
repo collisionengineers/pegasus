@@ -181,7 +181,10 @@ public sealed class CaseReportGenerationTests
     public void AnUnknownRepairerVatStatusBlocksGenerationAndThePreviewAlike()
     {
         var estimate = Estimate();
-        var unknown = estimate with { Details = estimate.Details with { Vat = null } };
+        var unknown = estimate with
+        {
+            Details = estimate.Details with { Vat = EstimateVatPolicy.For(RepairerVatStatus.Unknown) },
+        };
 
         var generation = CaseReportReadiness.Evaluate(ReadyInput() with { CurrentEstimate = unknown });
         var preview = AssessmentReportProjection.Prepare(

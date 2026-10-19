@@ -349,8 +349,8 @@ public sealed class ImportRawEstimate(
                 // No parser reads a repairer's VAT position — a
                 // ParsedEstimate carries lines, a provider and source totals
                 // whose Vat is a money amount, never a status — so an import
-                // records no VAT policy and the estimate stands on Unknown
-                // until a staff member records one (B08).
+                // records no VAT policy and the estimate stands on
+                // Registered (operator, 19 October 2026).
                 new EstimateDetails(
                     string.IsNullOrWhiteSpace(request.Name)
                         ? NextName(existing, parsed.ProviderName)

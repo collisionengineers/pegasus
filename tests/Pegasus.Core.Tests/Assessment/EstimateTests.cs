@@ -640,6 +640,15 @@ public sealed class EstimateTests
     // ---- The repairer's VAT status and acceptance ----
 
     [Fact]
+    public void AnOmittedRepairerVatStatusIsRegistered()
+    {
+        var details = new EstimateDetails("Repairer", 40m, null, 20m);
+
+        Assert.Equal(EstimateVatPolicy.For(RepairerVatStatus.Registered), details.VatPolicy);
+        Assert.False(details.VatPolicy.TreatmentPending);
+    }
+
+    [Fact]
     public void AnUnknownRepairerVatStatusNoLongerGatesUseAsCurrent()
     {
         // v28 P10: Use repair spec is simply available; an unknown status

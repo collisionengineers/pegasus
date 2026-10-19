@@ -650,9 +650,12 @@ and Assign Engineer is the only review
 VAT comes only from the
 Current repair spec
 ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report)).
-Readiness reads that spec's repairer VAT status. A status of `Unknown` blocks
-the report, and so does a hand-picked set of VAT categories the report has no
-wording for (operator, 27 September 2026).
+Readiness reads that spec's repairer VAT status. The default is Registered.
+The choices are Registered and Not registered. A status still stored as
+Unknown blocks the report, and so does a hand-picked set of VAT categories
+the report has no wording for. Live repair specs are rewritten to Registered
+and snapshots are left as they were (operator, 27 September 2026; default,
+19 October 2026).
 
 ### Report correction, finality, and post-report work
 
@@ -697,17 +700,21 @@ Requirements:
 ### Estimate VAT on the rendered report
 
 Each estimate has its own VAT percentage, default 20, and selected VAT
-categories. An `Unknown` repairer VAT status does not block Use repair spec;
-the selected VAT categories still govern the calculation.
+categories. No recorded status stands on Registered and charges labour,
+parts, materials and specialist. Registered and Not registered are the
+choices. Unknown is not offered and is not written. Use repair spec is not
+gated by the status.
 
-An `Unknown` status does block the report (operator, 27 September 2026). With
-no status recorded, the report would understate the repair cost. The blocker
-is named Repairer VAT status. Staff clear it on Repair Spec by choosing
-Registered or Not registered. VAT categories nobody chose by hand follow the
-status, so choosing one charges what that status charges (operator, 28
-September 2026). One edge is accepted: an operator who changes the status and
-then ticks the categories back to exactly the saved set is read as having
-left them alone, so on Save they follow the new status.
+A spec still stored as Unknown blocks the report, because the report would
+understate the repair cost (operator, 27 September 2026). The blocker is
+named Repairer VAT status. Staff clear it on Repair Spec by choosing
+Registered or Not registered. The migration rewrites live repair specs to
+Registered and leaves snapshots as they were (operator, 19 October 2026).
+VAT categories nobody chose by hand follow the status, so choosing one
+charges what that status charges (operator, 28 September 2026). One edge is
+accepted: an operator who changes the status and then ticks the categories
+back to exactly the saved set is read as having left them alone, so on Save
+they follow the new status.
 
 The report words its VAT row as the template does. The percentage shown is
 the estimate's own.
@@ -770,8 +777,9 @@ The Case's own states are in
 - A missing printed fact, such as a total loss with no salvage category, is
   a named readiness item: preview and Generate refuse before any generation
   is recorded, never at render.
-- An `Unknown` repairer VAT status, or a hand-picked set of VAT categories
-  the report has no wording for, is a named readiness item too.
+- A status still stored as Unknown, or a hand-picked set of VAT categories
+  the report has no wording for, is a named readiness item. A new spec
+  defaults to Registered.
 - A report still being filed never reads as stored, and a retry never draws
   again a file that is already held.
 - No generated file, preview, draft or export counts as Report sent.

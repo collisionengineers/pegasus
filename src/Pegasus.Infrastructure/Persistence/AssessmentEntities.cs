@@ -82,7 +82,7 @@ internal sealed class CaseRepairSpecificationEntity
     public bool? PartsVatApplicable { get; set; }
     public bool? MaterialsVatApplicable { get; set; }
     public bool? SpecialistVatApplicable { get; set; }
-    public string RepairerVatStatus { get; set; } = "Unknown";
+    public string RepairerVatStatus { get; set; } = "Registered";
     public decimal VatPercent { get; set; }
     public bool IsCurrent { get; set; }
     public Guid? AiJobId { get; set; }
