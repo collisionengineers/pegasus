@@ -170,7 +170,7 @@ Owner: `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`
 Owners: `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` (the
 Principal-neutral `InstructionFieldEngine`) and
 `src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs`
-(the QDOS grammar, `Version 12`). The engine carries no QDOS knowledge; every
+(the QDOS grammar, `Version 13`). The engine carries no QDOS knowledge; every
 QDOS-specific label, guard, and synthesis rule is supplied by the policy.
 
 Mechanics (engine):
@@ -211,14 +211,17 @@ QDOS grammar (policy):
   `Pre-existing damage`, `TP `, `If you need`). Audit letters carry no prompt
   — circumstances legitimately stay empty.
 - **Subject facts last**: settled facts in the Principal's own subject grammar
-  rank below every document: `Our Ref`, `RTA on DD_MM_YYYY`, the titled client
-  name, the vehicle description, and the `Vehicle Registration` label. The
-  registration rule accepts both recorded spacings (`Vehicle Registration
-  YD14VGJ` and `Vehicle Registration : VO75DFJ`) and validates the captured
-  value as a UK registration; the vehicle-description rule is held off that
-  label, which it used to read as the description `Registration : VO75DFJ`. The
-  Triage subject template states its registration nowhere else, so without this
-  rule every one of those requests fell to Unidentified.
+  rank below every document: `Our Ref`, `RTA on DD_MM_YYYY` or `PL on
+  DD_MM_YYYY`, the titled client name, the vehicle description, and the
+  `Vehicle Registration` label. The registration rule accepts both recorded
+  spacings (`Vehicle Registration YD14VGJ` and `Vehicle Registration :
+  VO75DFJ`) and validates the captured value as a UK registration; the
+  vehicle-description rule is held off that label, which it used to read as
+  the description `Registration : VO75DFJ`. A `Vehicle:` value shaped like a
+  registration is the registration and any other value is the vehicle
+  description (operator, 15 October 2026). The Triage subject template states
+  its registration nowhere else, so without this rule every one of those
+  requests fell to Unidentified.
 - **Party blocks**: a flattened `Vehicle Details` column heading and rows
   labelled for other definitions are skipped rather than ending the claimant
   or repairer block. When a titled personal-name row appears, only the rows

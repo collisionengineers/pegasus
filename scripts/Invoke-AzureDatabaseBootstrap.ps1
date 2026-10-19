@@ -434,7 +434,8 @@ function Get-MigrationPermissionMatrix {
         }
     }
     # 20260909141000_Contacts: the Web directory writer replaces role/link
-    # rows atomically. The Worker has no Contact caller.
+    # rows atomically. The Worker never writes a Contact; it reads the links
+    # from 20261018080000_GrantWorkerContactPrincipalLinksRead (below).
     foreach ($table in @('ContactRoles','ContactPrincipalLinks') | Where-Object { $_ -notin $removedTables }) {
         foreach ($permission in @('SELECT','INSERT','DELETE')) {
             $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
@@ -644,6 +645,11 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("$role|D|DELETE|$table")
         }
     }
+    # 20261018080000_GrantWorkerContactPrincipalLinksRead: the Worker's mail
+    # route evaluation reads which Principal each Claim Source is linked to,
+    # to recognise an intermediary. It never writes a link; DELETE stays
+    # denied (20260909141000_Contacts, above).
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|ContactPrincipalLinks')
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

@@ -1,11 +1,30 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Primitives;
+using Pegasus.Core.Actors;
 using Pegasus.Core.ReleaseNotes;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> contextFactory) : IReleaseNoteStore
+internal sealed class EfReleaseNoteStore(
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    IMemoryCache cache) : IReleaseNoteStore
 {
+    // Each person's unacknowledged note is kept in IMemoryCache. Publishing and
+    // acknowledging are the only writes that change it, and the Web is their
+    // only writer (ADR-0054) and runs as one instance (ADR-0058), so each
+    // clears what it changes. A change made outside Pegasus (direct SQL) is
+    // seen once the entry expires.
+    private static readonly TimeSpan UnacknowledgedSlidingWindow = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan UnacknowledgedCeiling = StaffSessionPolicy.AccountReadLifetime;
+    private static readonly Lock PublishSignalGate = new();
+
+    // Private key types, so no other IMemoryCache user can collide with an entry.
+    private readonly record struct UnacknowledgedKey(Guid StaffId);
+
+    private readonly record struct PublishSignalKey;
+
     public async Task<ReleaseNote?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -121,10 +140,34 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
         entity.UpdatedAtUtc = atUtc;
         entity.RowVersion = expectedRowVersion + 1;
         await SaveAsync(context, id, cancellationToken);
+        ExpireEveryUnacknowledged();
         return Map(entity);
     }
 
     public async Task<ReleaseNote?> GetUnacknowledgedAsync(Guid staffId, CancellationToken cancellationToken)
+    {
+        var key = new UnacknowledgedKey(staffId);
+        if (cache.TryGetValue(key, out ReleaseNote? kept))
+        {
+            return kept;
+        }
+
+        // Taken before the read: a publish that lands during it cancels the
+        // token, and an entry stored with a cancelled token is already expired.
+        var publishes = TakePublishSignal();
+        var note = await ReadUnacknowledgedAsync(staffId, cancellationToken);
+        cache.Set(
+            key,
+            note,
+            new MemoryCacheEntryOptions
+            {
+                SlidingExpiration = UnacknowledgedSlidingWindow,
+                AbsoluteExpirationRelativeToNow = UnacknowledgedCeiling
+            }.AddExpirationToken(new CancellationChangeToken(publishes)));
+        return note;
+    }
+
+    private async Task<ReleaseNote?> ReadUnacknowledgedAsync(Guid staffId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // Every full page asks this. One read names the newest note and says
@@ -155,12 +198,14 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
             .AnyAsync(item => item.StaffId == staffId && item.ReleaseNoteId == noteId, cancellationToken);
         if (exists)
         {
+            ForgetUnacknowledged(staffId);
             return;
         }
 
         var published = await Published(context).AnyAsync(item => item.Id == noteId, cancellationToken);
         if (!published)
         {
+            ForgetUnacknowledged(staffId);
             return;
         }
 
@@ -177,6 +222,41 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
         catch (DbUpdateException exception) when (IsDuplicateKey(exception))
         {
             // Two tabs acknowledged at once; the row is there, which is all that was asked.
+        }
+
+        ForgetUnacknowledged(staffId);
+    }
+
+    private void ForgetUnacknowledged(Guid staffId) => cache.Remove(new UnacknowledgedKey(staffId));
+
+    // Entries cannot be listed, so each is stored with the token of the one
+    // signal a publish cancels.
+    private CancellationToken TakePublishSignal()
+    {
+        lock (PublishSignalGate)
+        {
+            if (cache.Get(default(PublishSignalKey)) is not CancellationTokenSource signal)
+            {
+                signal = new CancellationTokenSource();
+                cache.Set(
+                    default(PublishSignalKey),
+                    signal,
+                    new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
+            }
+
+            return signal.Token;
+        }
+    }
+
+    private void ExpireEveryUnacknowledged()
+    {
+        lock (PublishSignalGate)
+        {
+            if (cache.Get(default(PublishSignalKey)) is CancellationTokenSource signal)
+            {
+                cache.Remove(default(PublishSignalKey));
+                signal.Cancel();
+            }
         }
     }
 

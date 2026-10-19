@@ -220,6 +220,87 @@ public sealed class InstructionExtractionPolicySelectorTests
             Select(selector, lookalike).Outcome);
     }
 
+    /// <summary>
+    /// Which apostrophe a letter prints does not decide whether it is
+    /// recognised: the shipped signal is written with U+2019 and the typewriter,
+    /// left and right quotation marks all select the same profile.
+    /// </summary>
+    [Theory]
+    [InlineData("straight")]
+    [InlineData("left")]
+    [InlineData("right")]
+    public void TheShippedQdosProfileMatchesAQdosLetterWhicheverApostropheItPrints(string form)
+    {
+        var selector = new InstructionExtractionPolicySelector(
+            [new QdosInstructionExtractionPolicy()]);
+
+        var selected = Select(selector, Readable(
+            $"QDOS Assist\nOur Client: Jane Smith\nOur Client{Apostrophe(form)}s Vehicle: Ford Focus\n"
+            + "Registration: AB12 CDE\nDate of Accident: 01/02/2031"));
+
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selected.Outcome);
+        Assert.Equal("QDOS", selected.Policy!.PrincipalCode);
+    }
+
+    [Theory]
+    [InlineData("straight")]
+    [InlineData("left")]
+    [InlineData("right")]
+    public void ANegativeSignalStillDisqualifiesAfterTheApostropheFold(string form)
+    {
+        var selector = new InstructionExtractionPolicySelector(
+            [new QdosInstructionExtractionPolicy()]);
+        var letter =
+            $"QDOS style letter\nOur Client{Apostrophe(form)}s Vehicle: Ford Focus\nRegistration: AB12 CDE";
+
+        Assert.Equal(
+            InstructionPolicySelectionOutcome.Selected,
+            Select(selector, Readable(letter)).Outcome);
+        foreach (var assessor in new[] { "Connexus Vehicle Assessors", "Exclusive Vehicle Assessors" })
+        {
+            Assert.Equal(
+                InstructionPolicySelectionOutcome.NotApplicable,
+                Select(selector, Readable($"{letter}\n{assessor}")).Outcome);
+        }
+    }
+
+    [Fact]
+    public void ASignalPrintedStraightMatchesADocumentPrintedCurly()
+    {
+        var selector = new InstructionExtractionPolicySelector(
+            [Profile("X", ["Client's Vehicle"])]);
+
+        Assert.Equal(
+            InstructionPolicySelectionOutcome.Selected,
+            Select(selector, Readable("Our Client\u2019s Vehicle: Ford Focus")).Outcome);
+    }
+
+    [Fact]
+    public void TheShippedKbsProfileMatchesAStraightApostropheLetter()
+    {
+        var selector = new InstructionExtractionPolicySelector(
+            [new KbsInstructionExtractionPolicy()]);
+
+        var selected = Select(selector, Readable(
+            "KNIGHTSBRIDGE SOLICITORS\nOur Client's Vehicle: Toyota\nRegistration: AB12 CDE"));
+
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selected.Outcome);
+        Assert.Equal("KBS", selected.Policy!.PrincipalCode);
+    }
+
+    [Fact]
+    public void TheShippedYmlProfileMatchesAStraightApostropheLetter()
+    {
+        var selector = new InstructionExtractionPolicySelector(
+            [new YmlInstructionExtractionPolicy()]);
+
+        var selected = Select(selector, Readable(
+            "HD UK NETWORK\nOur Client's Vehicle: Toyota Corolla\nRegistration: AB12 CDE"));
+
+        Assert.Equal(InstructionPolicySelectionOutcome.Selected, selected.Outcome);
+        Assert.Equal("YML", selected.Policy!.PrincipalCode);
+    }
+
     [Fact]
     public void StructuredFragmentsAreReadForSignalsLikeAnyOtherContent()
     {
@@ -441,6 +522,14 @@ public sealed class InstructionExtractionPolicySelectorTests
         InstructionExtractionPolicySelector selector,
         IntakeSourceReadResult readResult) =>
         selector.Select(readResult, InstructionDocumentSignature.InstructionRole);
+
+    private static string Apostrophe(string form) => form switch
+    {
+        "straight" => "'",
+        "left" => "\u2018",
+        "right" => "\u2019",
+        _ => throw new ArgumentOutOfRangeException(nameof(form), form, null)
+    };
 
     private static IntakeSourceReadResult Readable(string text) =>
         new(

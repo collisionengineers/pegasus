@@ -66,14 +66,108 @@ public sealed class PrincipalMailRoutePolicyTests
         var read = Readable(transport:
             [new(IntakeEvidenceSource.Sender, $"instructions@{domain}", IntakeSenderIdentityKind.Transport, "outer")]);
         var sut = new PrincipalMailRoutePolicy();
-        Assert.NotEqual(MailRouteDisposition.Accepted, sut.Evaluate(read).Disposition);
+        Assert.NotEqual(MailRouteDisposition.Accepted, sut.Evaluate(read, null, PchIntermediaries).Disposition);
         var selection = InstructionPolicySelection.Selected(new PchInstructionExtractionPolicy());
-        var accepted = sut.Evaluate(read, selection);
+        var accepted = sut.Evaluate(read, selection, PchIntermediaries);
         Assert.Equal(MailRouteDisposition.Accepted, accepted.Disposition);
         Assert.Equal(MailRouteKind.Intermediary, accepted.SelectedRoute?.Kind);
         Assert.Equal("PCH", accepted.SelectedRoute?.PrincipalCode);
+        Assert.Equal(domain, accepted.SelectedRoute?.RouteOwnerCode);
+        Assert.Contains(accepted.Predicates, predicate => predicate.Key == "intermediary.accepted-policy"
+            && predicate.Matched
+            && predicate.Detail == "The evidenced intermediary and unique PCH instruction profile agree.");
         Assert.NotEqual(MailRouteDisposition.Accepted,
-            sut.Evaluate(read, selection with { Policy = new QdosInstructionExtractionPolicy() }).Disposition);
+            sut.Evaluate(read, selection with { Policy = new QdosInstructionExtractionPolicy() }, PchIntermediaries).Disposition);
+    }
+
+    [Fact]
+    public void WithoutTheDirectoryNoIntermediaryIsAccepted()
+    {
+        var read = Readable(transport:
+            [new(IntakeEvidenceSource.Sender, "instructions@connexus.co.uk", IntakeSenderIdentityKind.Transport, "outer")]);
+        var selection = InstructionPolicySelection.Selected(new PchInstructionExtractionPolicy());
+
+        var result = new PrincipalMailRoutePolicy().Evaluate(read, selection);
+
+        Assert.Equal(MailRouteDisposition.NoMatch, result.Disposition);
+        Assert.Null(result.SelectedRoute);
+        Assert.Contains(result.Predicates, predicate => predicate.Key == "intermediary.accepted-policy" && !predicate.Matched);
+    }
+
+    [Fact]
+    public void AnIntermediaryIsAcceptedOnlyForThePrincipalItIsLinkedTo()
+    {
+        var read = Readable(transport:
+            [new(IntakeEvidenceSource.Sender, "reports@qcl-intermediary.example", IntakeSenderIdentityKind.Transport, "outer")]);
+        var linkedToQcl = new IntermediaryDomains([("desk@qcl-intermediary.example", "QCL")]);
+        var sut = new PrincipalMailRoutePolicy();
+
+        var refused = sut.Evaluate(
+            read, InstructionPolicySelection.Selected(new PchInstructionExtractionPolicy()), linkedToQcl);
+        Assert.Equal(MailRouteDisposition.NoMatch, refused.Disposition);
+        Assert.Null(refused.SelectedRoute);
+
+        var accepted = sut.Evaluate(
+            read, InstructionPolicySelection.Selected(new QclInstructionExtractionPolicy()), linkedToQcl);
+        Assert.Equal(MailRouteDisposition.Accepted, accepted.Disposition);
+        Assert.Equal(new MailRouteSelection("qcl-intermediary.example", MailRouteKind.Intermediary, "QCL"), accepted.SelectedRoute);
+        Assert.Contains(accepted.Predicates, predicate => predicate.Key == "intermediary.accepted-policy"
+            && predicate.Detail == "The evidenced intermediary and unique QCL instruction profile agree.");
+    }
+
+    [Theory]
+    [InlineData("subdomain", "instructions@mail.connexus.co.uk")]
+    [InlineData("suffix", "instructions@connexus.co.uk.example.com")]
+    [InlineData("prefix", "instructions@myconnexus.co.uk")]
+    public void AnIntermediaryDomainIsNeverWidened(string row, string address)
+    {
+        Assert.NotEmpty(row);
+        var result = new PrincipalMailRoutePolicy().Evaluate(
+            Readable(transport: [new(IntakeEvidenceSource.Sender, address, IntakeSenderIdentityKind.Transport, "outer")]),
+            InstructionPolicySelection.Selected(new PchInstructionExtractionPolicy()),
+            PchIntermediaries);
+
+        Assert.Equal(MailRouteDisposition.NoMatch, result.Disposition);
+        Assert.Null(result.SelectedRoute);
+    }
+
+    [Theory]
+    [InlineData("direct", false)]
+    [InlineData("forwarded", true)]
+    public void AnIntermediaryMatchesInAnyCaseDirectOrStaffForwarded(string row, bool forwarded)
+    {
+        Assert.NotEmpty(row);
+        const string address = "Instructions@Connexus.CO.UK";
+        IntakeTransportEvidence[] transport = forwarded
+            ? [new(IntakeEvidenceSource.Sender, "desk@collisionengineers.co.uk", IntakeSenderIdentityKind.Transport, "outer"),
+               new(IntakeEvidenceSource.Sender, address, IntakeSenderIdentityKind.AttachedOriginal, "original")]
+            : [new(IntakeEvidenceSource.Sender, address, IntakeSenderIdentityKind.Transport, "outer")];
+
+        var result = new PrincipalMailRoutePolicy().Evaluate(
+            Readable(transport: transport),
+            InstructionPolicySelection.Selected(new PchInstructionExtractionPolicy()),
+            PchIntermediaries);
+
+        Assert.Equal(MailRouteDisposition.Accepted, result.Disposition);
+        Assert.Equal(MailRouteKind.Intermediary, result.SelectedRoute?.Kind);
+        Assert.Equal("PCH", result.SelectedRoute?.PrincipalCode);
+        Assert.Equal(address, result.EffectiveSender?.Address);
+    }
+
+    [Fact]
+    public void ASenderThatIsBothADirectIdentityAndAnIntermediaryNeedsSorting()
+    {
+        var read = Readable(transport:
+            [new(IntakeEvidenceSource.Sender, "instructions@qc-law.co.uk", IntakeSenderIdentityKind.Transport, "outer")]);
+        var overlapping = new IntermediaryDomains([("intake@qc-law.co.uk", "PCH")]);
+
+        var result = new PrincipalMailRoutePolicy().Evaluate(
+            read, InstructionPolicySelection.Selected(new PchInstructionExtractionPolicy()), overlapping);
+
+        Assert.Equal(MailRouteDisposition.NeedsSorting, result.Disposition);
+        Assert.Null(result.SelectedRoute);
+        Assert.Contains(result.Predicates, predicate => predicate.Key == "direct.principal-identity" && predicate.Matched);
+        Assert.Contains(result.Predicates, predicate => predicate.Key == "intermediary.accepted-policy" && predicate.Matched);
     }
 
     [Fact]
@@ -206,7 +300,9 @@ public sealed class PrincipalMailRoutePolicyTests
                         $"claims@{domain}",
                         IntakeSenderIdentityKind.Transport,
                         "outer message")
-                ]));
+                ]),
+            null,
+            PchIntermediaries);
 
         Assert.Equal(principal is null ? MailRouteDisposition.NoMatch : MailRouteDisposition.Accepted, result.Disposition);
         Assert.Equal(principal, result.SelectedRoute?.PrincipalCode);
@@ -356,6 +452,10 @@ public sealed class PrincipalMailRoutePolicyTests
         Assert.NotEmpty(row);
         Assert.Equal(expected, PrincipalMailRoutePolicy.StaffForwardOriginalSender(transport, effective));
     }
+
+    // The two PCH intermediaries as the Contacts directory links them (synthetic mailboxes).
+    private static readonly IntermediaryDomains PchIntermediaries = new(
+        [("desk@connexus.co.uk", "PCH"), ("desk@ensurance-claims.co.uk", "PCH")]);
 
     private static IntakeSourceReadResult Readable(
         IReadOnlyList<IntakeTransportEvidence>? transport = null) =>

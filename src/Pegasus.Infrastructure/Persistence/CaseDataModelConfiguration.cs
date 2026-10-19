@@ -1,9 +1,21 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 internal static class CaseDataModelConfiguration
 {
+    // The coarse form of a vehicle registration that the automatic lookup sweep
+    // compares with a lookup request's Registration: no spaces or hyphens, case
+    // kept (the collation ignores it), and NULL for any other field or for a
+    // value longer than a request can hold. CurrentRegistration still decides
+    // exactly, so a value this form cannot match is only read again.
+    private static readonly string NormalizedRegistrationSql =
+        $"CONVERT(nvarchar({CaseDataLimits.VehicleRegistration}), "
+        + $"CASE WHEN [FieldName] = N'{CaseDataFieldNames.VehicleRegistration}' "
+        + $"AND LEN(REPLACE(REPLACE([Value], N' ', N''), N'-', N'')) <= {CaseDataLimits.VehicleRegistration} "
+        + "THEN REPLACE(REPLACE([Value], N' ', N''), N'-', N'') END)";
+
     public static void Configure(ModelBuilder builder)
     {
         builder.Entity<CaseDataSnapshotEntity>(entity =>
@@ -73,7 +85,11 @@ internal static class CaseDataModelConfiguration
             entity.Property(item => item.SourceLabel).HasMaxLength(500).IsRequired();
             entity.Property(item => item.PolicyKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.ConfirmedByActor).HasMaxLength(200);
-            entity.HasIndex(item => new { item.FieldName, item.ValueKind });
+            entity.Property(item => item.NormalizedRegistration)
+                .HasMaxLength(CaseDataLimits.VehicleRegistration)
+                .HasComputedColumnSql(NormalizedRegistrationSql, stored: true);
+            entity.HasIndex(item => new { item.FieldName, item.ValueKind })
+                .IncludeProperties(item => new { item.NormalizedRegistration });
             entity.HasOne(item => item.Snapshot)
                 .WithMany(item => item.Fields)
                 .HasForeignKey(item => item.WorkId)

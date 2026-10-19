@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -151,6 +152,7 @@ public sealed class EfCaseTaskStore(
         }
         await RequireEligibleAssigneeAsync(context, request.AssigneeId, cancellationToken);
 
+        var createdAtUtc = timeProvider.GetUtcNow();
         var task = new CaseTaskEntity
         {
             Id = request.TaskId,
@@ -159,7 +161,9 @@ public sealed class EfCaseTaskStore(
             Description = request.Description.Trim(),
             AssigneeId = request.AssigneeId,
             State = nameof(CaseTaskState.Open),
-            Version = 0
+            Version = 0,
+            CreatedAtUtc = createdAtUtc,
+            CreatedByStaffId = StaffNotificationPolicy.StaffId(request.Actor)
         };
         context.CaseTasks.Add(task);
         var beforeCaseVersion = workflow.Version;
@@ -177,7 +181,7 @@ public sealed class EfCaseTaskStore(
             beforeCaseVersion,
             result,
             before: null,
-            timeProvider.GetUtcNow());
+            createdAtUtc);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -275,7 +279,9 @@ public sealed class EfCaseTaskStore(
             Description = description.Trim(),
             AssigneeId = null,
             State = nameof(CaseTaskState.Open),
-            Version = 0
+            Version = 0,
+            CreatedAtUtc = occurredAtUtc,
+            CreatedByStaffId = StaffNotificationPolicy.StaffId(actor)
         };
         context.CaseTasks.Add(task);
         // System work: the version moves on and an editor keeps their session.

@@ -77,7 +77,7 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
     [GeneratedRegex(@"(?im)^\s*KNIGHTSBRIDGE\s+SOLICITORS\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex SignatureRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Ref\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ReferenceRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Client\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ClaimantRegex();
-    [GeneratedRegex(@"(?im)^\s*Our\s+Client['’]s\s+Vehicle\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VehicleRegex();
+    [GeneratedRegex(@"(?im)^\s*Our\s+Client['‘’]s\s+Vehicle\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VehicleRegex();
     [GeneratedRegex(@"(?im)^\s*Registration\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex RegistrationRegex();
     [GeneratedRegex(@"(?im)^\s*Date\s+of\s+Accident\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex AccidentRegex();
     [GeneratedRegex(@"(?ims)The\s+circumstances\s+of\s+the\s+accident\s+are\s+that\s*:?[ \t]*(?<value>.+?)(?=\s+As\s+a\s+result\s+of\s+the\s+collision)", RegexOptions.CultureInvariant, 100)] private static partial Regex CircumstancesRegex();

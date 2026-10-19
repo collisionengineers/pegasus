@@ -50,6 +50,27 @@ public sealed class StaffAccountAdministrationPersistenceTests
         Assert.Equal(
             ActorDisplayNames.FormerStaff,
             ActorDisplayNames.Resolve(ActorKind.Staff, missingId.ToString("D"), names));
+
+        // The names that were found are kept, so a repeat call sends nothing.
+        var queries = services.GetRequiredService<IStaffAccountQueries>();
+        commandCounter.Reset();
+        var repeated = await ActorDisplayNames.ResolveStaffNamesAsync(
+            queries, [enabled.Id, disabled.Id], default);
+        Assert.Equal(0, commandCounter.Count);
+        Assert.Equal("actor-display-enabled", repeated[enabled.Id]);
+        Assert.Equal("actor-display-disabled", repeated[disabled.Id]);
+
+        // Deleting an account evicts its name; the other stays kept.
+        var version = (await queries.GetAsync(disabled.Id, default))!.Version;
+        await services.GetRequiredService<IDeleteStaffAccountStore>().DeleteAsync(
+            new(ActionActor.Staff(enabled.Id, [StaffRole.Administrator]), disabled.Id, null, "actor-display-delete", version),
+            default);
+        var afterDelete = await ActorDisplayNames.ResolveStaffNamesAsync(
+            queries, [enabled.Id, disabled.Id], default);
+        Assert.Equal("actor-display-enabled", afterDelete[enabled.Id]);
+        Assert.Equal(
+            ActorDisplayNames.FormerStaff,
+            ActorDisplayNames.Resolve(ActorKind.Staff, disabled.Id.ToString("D"), afterDelete));
     }
 
     /// <summary>

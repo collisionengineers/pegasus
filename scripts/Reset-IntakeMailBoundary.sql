@@ -28,3 +28,30 @@ WHERE mailbox.ActivatedAtUtc IS NOT NULL
     AND NOT EXISTS (
         SELECT 1 FROM dbo.ApprovedInboxPollStates AS state WITH (UPDLOCK, HOLDLOCK)
         WHERE state.ApprovedMailboxId = mailbox.Id);
+
+-- The Sent cursor survives; only the boundary advances, so a full delta restart
+-- after a Graph 410 cannot retain Sent items from before the cutoff.
+UPDATE dbo.ApprovedSentPollStates
+SET StartBoundaryUtc = CASE WHEN StartBoundaryUtc > @CutoffUtc
+        THEN StartBoundaryUtc ELSE @CutoffUtc END;
+
+-- A Sent-capable mailbox may never have been polled. Same predicate as the
+-- Sent claim; the normal claim binds the empty scope without lowering the cutoff.
+INSERT dbo.ApprovedSentPollStates
+    (MailboxId, MailboxAddress, SentFolderIdentity, ScopeFingerprint,
+     Generation, StartBoundaryUtc, DueAtUtc)
+SELECT mailbox.MailboxIdentity, mailbox.Address, mailbox.SentFolderIdentity, '',
+    mailbox.MailboxGeneration,
+    CASE WHEN mailbox.ActivatedAtUtc > @CutoffUtc
+        THEN mailbox.ActivatedAtUtc ELSE @CutoffUtc END,
+    @CutoffUtc
+FROM dbo.ApprovedMailboxes AS mailbox
+WHERE mailbox.State = 'Approved'
+    AND mailbox.AllowOutgoing = 1
+    AND mailbox.MailboxIdentity IS NOT NULL
+    AND mailbox.SentFolderIdentity IS NOT NULL
+    AND mailbox.ActivatedAtUtc IS NOT NULL
+    AND mailbox.MailboxGeneration > 0
+    AND NOT EXISTS (
+        SELECT 1 FROM dbo.ApprovedSentPollStates AS state WITH (UPDLOCK, HOLDLOCK)
+        WHERE state.MailboxId = mailbox.MailboxIdentity);

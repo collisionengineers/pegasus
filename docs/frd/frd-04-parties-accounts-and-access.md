@@ -34,11 +34,13 @@ A Principal is the customer role that instructs and pays Collision
 Engineers. Every Contact has one type: Principal, Claim Source, Repairer,
 Storage provider or Third Party Engineer (operator, 13 October 2026). A
 Principal never links to another Principal. A Contact of any other type may
-link to several Principals; the links are directory information shown on
-the Contacts list and the Contact's page, and they do not narrow a Case's
-Claim Source or Repairer choices (operator, 13 October 2026). A Storage or
-Third Party Engineer Contact is directory information only: no Case field,
-report or reader uses one today.
+link to several Principals; the links are shown on the Contacts list and the
+Contact's page, and they do not narrow a Case's Claim Source or Repairer
+choices (operator, 13 October 2026). A Claim Source's links also make it an
+intermediary for those Principals' mail (operator, 15 October 2026;
+[FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association)).
+A Storage or Third Party Engineer Contact is directory information only: no
+Case field, report or reader uses one today.
 Staff accounts are not Contacts.
 
 An intermediary is a Claim Source Contact. An organisation that is also a
@@ -132,13 +134,14 @@ Contact through a code replacement
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 That Contact is where a Principal exists: every route that allocates a Case
 requires its active Principal row and fails closed without one. Which
-Principals have an accepted e-mail route, and how each one's instruction is
-read, is released code
+Principals have an accepted direct e-mail route, and how each one's
+instruction is read, is released code
 ([FRD-09](frd-09-principal-and-intermediary-routes.md#principal-and-intermediary-routes)),
 not directory data; a Principal with no route is a normal state whose
 instructions arrive by upload, Triage or the Principal API (operator, 13
-October 2026). Recognition of documents and mail stays entirely in code; the
-directory records who a party is, never how Pegasus recognises it.
+October 2026). Recognition of documents and of direct mail routes stays in
+code; the directory records who a party is, and a linked Claim Source is an
+intermediary (operator, 15 October 2026).
 Names are unique within a type: a second Contact of the same type and name,
 or a duplicate Principal code, fails without leaving an orphan identity. The screen's visuals and controls are owned by the
 [design README](../design/README.md); its layout is in

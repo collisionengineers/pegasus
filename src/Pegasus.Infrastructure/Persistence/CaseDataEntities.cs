@@ -31,6 +31,7 @@ internal sealed class CaseDataFieldEntity
     public required string ValueKind { get; set; }
     public required string ValueType { get; set; }
     public required string Value { get; set; }
+    public string? NormalizedRegistration { get; private set; }
     public required string SourceKind { get; set; }
     public required string SourceIdentity { get; set; }
     public required string SourceLabel { get; set; }

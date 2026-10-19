@@ -403,6 +403,7 @@ public sealed class RecoveryTests
     [InlineData("io")]
     [InlineData("dependency")]
     [InlineData("wrapped-database")]
+    [InlineData("pool-timeout")]
     public async Task TransientProcessingFailureSchedulesARetry(string failureKind)
     {
         var clock = new AdjustableTimeProvider(new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
@@ -676,6 +677,11 @@ public sealed class RecoveryTests
             "wrapped-database" => new DbUpdateException(
                 "Controlled wrapped database failure.",
                 new ControlledDbException()),
+            // SqlClient 6.1.1 raises an exhausted connection pool as a plain
+            // InvalidOperationException, with this text.
+            "pool-timeout" => new InvalidOperationException(
+                "Timeout expired.  The timeout period elapsed prior to obtaining a connection from the pool.  "
+                + "This may have occurred because all pooled connections were in use and max pool size was reached."),
             "unexpected" => new InvalidOperationException("Controlled unexpected read failure."),
             _ => throw new ArgumentOutOfRangeException(nameof(failureKind), failureKind, null)
         };

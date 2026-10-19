@@ -96,8 +96,8 @@ public sealed class CaseListPersistenceTests
                 Occurrence(inspection, document, version, 1, DocumentSemanticRole.Image, inReport: true),
                 Occurrence(inspection, document, version, 2, DocumentSemanticRole.Image, inReport: false),
                 Occurrence(inspection, document, version, 3, DocumentSemanticRole.Correspondence, inReport: false),
-                new CaseTaskEntity { Id = Guid.NewGuid(), CaseId = inspection, Description = "Chase images", State = "Open", Version = 0, ConcurrencyToken = Guid.NewGuid() },
-                new CaseTaskEntity { Id = Guid.NewGuid(), CaseId = inspection, Description = "Done", State = "Completed", Version = 0, ConcurrencyToken = Guid.NewGuid() },
+                new CaseTaskEntity { Id = Guid.NewGuid(), CaseId = inspection, Description = "Chase images", State = "Open", Version = 0, ConcurrencyToken = Guid.NewGuid(), CreatedAtUtc = Received },
+                new CaseTaskEntity { Id = Guid.NewGuid(), CaseId = inspection, Description = "Done", State = "Completed", Version = 0, ConcurrencyToken = Guid.NewGuid(), CreatedAtUtc = Received },
                 new CaseWorkflowEventEntity
                 {
                     Id = Guid.NewGuid(), CaseId = inspection, EventType = AddCaseNote.EventType, OperationKey = "note:case-list",

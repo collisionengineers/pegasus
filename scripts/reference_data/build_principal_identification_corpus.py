@@ -33,7 +33,7 @@ PEGASUS_POLICY_SNAPSHOTS = (
     ),
     ("principal-case-match-v1", "src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs"),
     (
-        "qdos-extraction-policy-v12",
+        "qdos-extraction-policy-v13",
         "src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs",
     ),
     ("shared-mail-taxonomy", "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs"),
@@ -876,7 +876,7 @@ def dossier(
             "observedMethod": "label-anchored",
             "observedConfiguration": value,
             "criterionState": state(observed=True, accepted=True, active=True),
-            "evidenceRefs": ["qdos-extraction-policy-v12"],
+            "evidenceRefs": ["qdos-extraction-policy-v13"],
         }
         for value in QDOS_EXTRACTION_LABELS
     ] if code == "QDOS" else observed_extraction
@@ -896,7 +896,7 @@ def dossier(
                 "principal-mail-route-v1",
                 "principal-mail-classification-v3",
                 "principal-case-match-v1",
-                "qdos-extraction-policy-v12",
+                "qdos-extraction-policy-v13",
                 "qdos-local-email-evidence",
                 "qdos-policy-v5-volume-evaluation",
             }

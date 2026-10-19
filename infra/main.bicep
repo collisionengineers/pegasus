@@ -29,6 +29,13 @@ param workerActivation string = 'disabled'
 @description('Fail-closed classifier activation. Base provisioning leaves the classifier Function App absent.')
 param classifierActivation string = 'disabled'
 
+@allowed([
+  'true'
+  'false'
+])
+@description('CLASSIFIER_DRY_RUN app setting. true makes every classifier tick log its proposals and write nothing.')
+param classifierDryRun string = 'false'
+
 @description('Primary Azure region.')
 param location string = 'uksouth'
 
@@ -153,6 +160,7 @@ module classifier 'modules/classifier.bicep' = if (activationAllowed) {
     location: location
     tags: commonTags
     classifierActivation: classifierActivation
+    classifierDryRun: classifierDryRun
     webPublicOrigin: platform!.outputs.webPublicOrigin
     applicationInsightsName: platform!.outputs.applicationInsightsName
     automationMcpClientSecretUri: automationMcpClientSecretUri

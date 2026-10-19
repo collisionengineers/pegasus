@@ -21,6 +21,7 @@ internal static class VehicleModelConfiguration
             entity.Property(item => item.RequestedByRolesJson).HasMaxLength(500).IsRequired();
             entity.HasIndex(item => new { item.CaseId, item.OperationKey }).IsUnique();
             entity.HasIndex(item => new { item.CaseId, item.RequestedAtUtc });
+            entity.HasIndex(item => new { item.CaseId, item.Registration });
             entity.HasOne(item => item.WorkItem)
                 .WithOne()
                 .HasForeignKey<VehicleLookupRequestEntity>(item => item.WorkItemId)

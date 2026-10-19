@@ -128,6 +128,9 @@ if ($classifierAppMatches.Count -ne 1) {
     throw 'The classifier Function App must be declared exactly once and conditional on approved activation.'
 }
 $classifierAppResource = $classifierAppMatches[0].Value
+Assert-Text $mainBicep "param\s+classifierDryRun\s+string\s*=\s*'false'" 'Base provisioning must leave the classifier out of dry run by default.'
+Assert-Text $parameters '"classifierDryRun"\s*:\s*\{\s*"value"\s*:\s*"\$\{PEGASUS_CLASSIFIER_DRY_RUN=false\}"\s*\}' 'The azd parameter map must default PEGASUS_CLASSIFIER_DRY_RUN to false.'
+Assert-Text $classifierAppResource "name:\s*'CLASSIFIER_DRY_RUN',\s*value:\s*classifierDryRun" 'The classifier CLASSIFIER_DRY_RUN setting must take its value from the classifierDryRun parameter.'
 
 # Transport and credential security.
 Assert-Text $webAppResource "httpsOnly:\s*true" 'The Web App must be HTTPS only.'

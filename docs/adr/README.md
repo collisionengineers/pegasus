@@ -29,7 +29,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0005](0005-multiformat-intake-assets.md) | Multi-format intake and review assets | accepted | ADR-0040 | — |
 | [ADR-0006](0006-provider-neutral-intake-with-contained-qdos-policy.md) | Provider-neutral intake with a contained QDOS policy | accepted | ADR-0008 | — |
 | [ADR-0007](0007-direct-terminal-azure-deployment.md) | Direct authorised-terminal Azure deployment | accepted | ADR-0014, ADR-0015, ADR-0037 | — |
-| [ADR-0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | accepted | — | — |
+| [ADR-0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | accepted | ADR-0078 (intermediary identities clause) | — |
 | [ADR-0009](0009-adopt-pegasus-monorepo-workspaces.md) | Adopt Pegasus monorepo source workspaces | accepted | ADR-0025 | — |
 | [ADR-0010](0010-adopt-single-context-domain-documentation.md) | Adopt single-context domain documentation | superseded | — | — |
 | [ADR-0011](0011-restrict-mcp-to-automation-actor.md) | Restrict MCP to a vendor-neutral Automation Actor | accepted | — | — |
@@ -98,6 +98,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0075](0075-staff-take-over-of-an-automation-lease.md) | Staff may take over an Automation lease | accepted | — | CASE-27, MCP-01 |
 | [ADR-0076](0076-reviewed-register-is-the-contact-directory-data-contract.md) | The reviewed register is the Contacts directory data contract | accepted | — | DATA-02, ACC-05 |
 | [ADR-0077](0077-compress-json-responses.md) | Compress JSON responses over HTTPS | accepted | — | — |
+| [ADR-0078](0078-intermediaries-are-linked-claim-sources.md) | Intermediaries are linked Claim Sources | accepted | — | INT-04 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
