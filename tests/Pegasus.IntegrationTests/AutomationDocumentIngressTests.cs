@@ -243,8 +243,8 @@ public sealed class AutomationDocumentIngressTests
             var docs = structured.GetProperty("documents").EnumerateArray().ToArray();
             Assert.Equal(4, docs.Length);
             Assert.Equal(
-                ["photo.jpg", "estimate.pdf", "photo-rear.jpg", "note.txt"],
-                docs.Select(item => item.GetProperty("fileName").GetString()).ToArray());
+                new[] { "photo.jpg", "estimate.pdf", "photo-rear.jpg", "note.txt" },
+                docs.Select(item => item.GetProperty("fileName").GetString()!).ToArray());
             Assert.All(docs, item => Assert.True(item.GetProperty("contentIncluded").GetBoolean()));
 
             var imageBlocks = blocks.EnumerateArray()
