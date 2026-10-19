@@ -14,7 +14,8 @@ namespace Pegasus.Web.Mcp;
 internal sealed record AutomationFileDelivery(
     bool ContentIncluded,
     string? Notice,
-    IReadOnlyList<ContentBlock> Blocks);
+    IReadOnlyList<ContentBlock> Blocks,
+    int InlineBytes = 0);
 
 /// <summary>
 /// How the Automation download tools deliver a file's content as native MCP
@@ -90,7 +91,8 @@ internal static class AutomationFileContent
                     [
                         new TextContentBlock { Text = caption },
                         ImageContentBlock.FromBytes(rendered.Content, rendered.MediaType)
-                    ]);
+                    ],
+                    rendered.Content.Length);
             }
             return Withheld(
                 summary,
@@ -110,8 +112,10 @@ internal static class AutomationFileContent
                         Text = $"{summary} {extracted.PageCount} page(s); text follows per page. The PDF itself is at contentUrl."
                     }
                 };
+                var extractedCharacters = 0;
                 foreach (var page in extracted.Pages)
                 {
+                    extractedCharacters += page.Text.Length;
                     var heading = new StringBuilder()
                         .Append(CultureInfo.InvariantCulture, $"Page {page.Number} of {extracted.PageCount}");
                     if (page.NeedsOcr)
@@ -131,7 +135,7 @@ internal static class AutomationFileContent
                 {
                     blocks.Add(new TextContentBlock { Text = notice });
                 }
-                return new AutomationFileDelivery(true, notice, blocks);
+                return new AutomationFileDelivery(true, notice, blocks, extractedCharacters);
             }
             return Withheld(summary, "The PDF could not be read for text; fetch contentUrl with this bearer token.", contentUrl);
         }
@@ -144,7 +148,8 @@ internal static class AutomationFileContent
                 [
                     new TextContentBlock { Text = summary },
                     new TextContentBlock { Text = Encoding.UTF8.GetString(content.Span) }
-                ]);
+                ],
+                content.Length);
         }
 
         return Withheld(
@@ -163,19 +168,22 @@ internal static class AutomationFileContent
         string contentUrl) =>
         Withheld(Summary(fileName, mediaType, contentLength, sha256), notice, contentUrl);
 
-    public static CallToolResult ToResult(AutomationFileDelivery delivery, object structured) => new()
+    public static CallToolResult ToResult(AutomationFileDelivery delivery, object structured) =>
+        ToResult(delivery.Blocks, structured);
+
+    public static CallToolResult ToResult(IEnumerable<ContentBlock> blocks, object structured) => new()
     {
-        Content = [.. delivery.Blocks],
+        Content = [.. blocks],
         StructuredContent = JsonSerializer.SerializeToElement(structured, structured.GetType(), Json)
     };
+
+    public static bool IsImage(string mediaType) => CaseDocumentThumbnails.IsThumbnailable(mediaType);
 
     private static AutomationFileDelivery Withheld(string summary, string notice, string contentUrl) =>
         new(false, notice, [new TextContentBlock { Text = $"{summary} {notice} contentUrl: {contentUrl}" }]);
 
     private static string Summary(string fileName, string mediaType, long contentLength, string sha256) =>
         $"{fileName} ({mediaType}, {contentLength} bytes, SHA-256 {sha256}).";
-
-    private static bool IsImage(string mediaType) => CaseDocumentThumbnails.IsThumbnailable(mediaType);
 
     private static bool IsPdf(string mediaType) =>
         string.Equals(mediaType, "application/pdf", StringComparison.OrdinalIgnoreCase);
