@@ -4,6 +4,67 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Intake data wipe - 19 October 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped and read back `Stopped` before execution; the Web App stayed
+  Running. The fresh dry run immediately before the execute found 37 blobs
+  (7,567,028 bytes) in `pegcustody252ow37gij/transient-intake` and 86
+  non-preserved tables / 2,251 rows in SQL `pegasus` on
+  `pegasus-prod-sql-252ow37gij` (1 Case); the preserve list was 34/34
+  found (35 effective with `ApprovedMailbox*`). The batch reported 2,255
+  affected rows including the mail-boundary update. Blobs remaining: 0.
+  Wiped tables still holding rows: 0. Preserved rows after: 5,867. The
+  committed mail cutoff is `2026-10-19T08:31:22.0176414+00:00`; mailbox
+  approval and activation times were unchanged.
+  `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences` were
+  unchanged at 104/12/1. `ValuationPresets` 4/4, `EmailTemplates` 3/3 and
+  built-in image tags 4/4 before/after. `authentication-ring`, `box-links`,
+  `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. Post-run script verification reported zero
+  blobs remaining and zero wiped tables holding rows. The Worker was resumed
+  and read back `Running` at 08:32:12Z after verification.
+- Approved ordinary intake wipe, the second on 19 October 2026: Worker
+  `pegasus-prod-worker-252ow37gij` stopped and read back `Stopped` at
+  13:29:11Z before execution; the Web App stayed Running. The approved dry
+  run and the fresh dry run immediately before the execute both found 128
+  blobs (18,215,186 bytes) in `pegcustody252ow37gij/transient-intake` and
+  86 non-preserved tables / 1,328 rows in SQL `pegasus` on
+  `pegasus-prod-sql-252ow37gij` (4 Cases, 54 documents, 4 retained mails,
+  1 image intake, 1 Unidentified item); the preserve list was 34/34 found
+  (35 effective with `ApprovedMailbox*`). The batch reported 1,332
+  affected rows including the mail-boundary update. Blobs remaining: 0.
+  Wiped tables still holding rows: 0. Preserved rows after: 5,895. The
+  committed mail cutoff is `2026-10-19T13:29:39.9462093+00:00`; mailbox
+  approval and activation times were unchanged.
+  `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences` were
+  unchanged at 108/13/1. `ValuationPresets` 4/4, `EmailTemplates` 3/3 and
+  built-in image tags 4/4 before/after. `authentication-ring`, `box-links`,
+  `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. Post-run script verification reported zero
+  blobs remaining and zero wiped tables holding rows. The Worker was resumed
+  and read back `Running` at 13:30:16Z after verification.
+- Approved ordinary intake wipe, the third on 19 October 2026: Worker
+  `pegasus-prod-worker-252ow37gij` stopped and read back `Stopped` at
+  13:36:12Z before execution; the Web App stayed Running. The approved dry
+  run and the fresh dry run immediately before the execute both found 20
+  blobs (5,884,748 bytes) in `pegcustody252ow37gij/transient-intake` and
+  86 non-preserved tables / 286 rows in SQL `pegasus` on
+  `pegasus-prod-sql-252ow37gij` (1 Case, 12 documents, 3 retained mails);
+  the preserve list was 34/34 found (35 effective with `ApprovedMailbox*`).
+  The batch reported 290 affected rows including the mail-boundary update.
+  Blobs remaining: 0. Wiped tables still holding rows: 0. Preserved rows
+  after: 5,896. The committed mail cutoff is
+  `2026-10-19T13:36:30.1217128+00:00`; mailbox approval and activation times
+  were unchanged.
+  `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences` were
+  unchanged at 109/13/1. `ValuationPresets` 4/4, `EmailTemplates` 3/3 and
+  built-in image tags 4/4 before/after. `authentication-ring`,
+  `box-links`, `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. Post-run script verification reported zero
+  blobs remaining and zero wiped tables holding rows. The Worker was resumed
+  and read back `Running` at 13:36:52Z after verification.
+
 ## Release 116 - 19 October 2026 (classifier activation live)
 
 Release 116 activated the mail classifier agent (plan `finding-classifier-activation`; R2 and R154; SC-04, D1-01)
