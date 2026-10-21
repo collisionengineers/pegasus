@@ -372,11 +372,18 @@
                 current = ownerKey(host.getAttribute('data-section'));
             }
         });
-        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40) {
+        var atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40;
+        if (atBottom) {
             current = ownerKey(hosts[hosts.length - 1].getAttribute('data-section'));
         }
-        if (jumpedKey) {
+        // The clicked link stays current only while the jump is still settling
+        // or the page is clamped at its bottom. A settled jump scrolls by
+        // scrollTo, which fires none of the events that end a jump, so the
+        // highlight follows the page after one.
+        if (jumpedKey && (pendingAnchor || atBottom)) {
             current = jumpedKey;
+        } else {
+            jumpedKey = null;
         }
         activeKey = current;
         links().forEach(function (link) {

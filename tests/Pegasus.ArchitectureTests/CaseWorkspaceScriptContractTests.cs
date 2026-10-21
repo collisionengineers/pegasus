@@ -338,8 +338,8 @@ public sealed class CaseWorkspaceScriptContractTests
     /// <summary>
     /// Issue 1463 (FRD-16): clicking a section link mounts any preceding lazy
     /// placeholders, re-scrolls the target as preceding or bottom-clamping lazy
-    /// sections finish loading, and holds the jumped link current until user
-    /// scroll or input moves the page.
+    /// sections finish loading, and holds the jumped link current only while
+    /// that settle is pending or the page is clamped at its bottom.
     /// </summary>
     [Fact]
     public void JumpingToASectionSettlesAcrossLazyMountsAndKeepsTheClickedLinkCurrent()
@@ -356,6 +356,10 @@ public sealed class CaseWorkspaceScriptContractTests
         var pendingLazy = FunctionBody(script, "function pendingLazyFor(target) {", "    ");
         Assert.Contains("lazyBefore(target)", pendingLazy, StringComparison.Ordinal);
         Assert.Contains("lazyAfter(target)", pendingLazy, StringComparison.Ordinal);
+        Assert.Contains(
+            "|| window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40;",
+            pendingLazy,
+            StringComparison.Ordinal);
 
         var settle = FunctionBody(script, "function settlePendingAnchor() {", "    ");
         Assert.Contains("if (target.hasAttribute('data-lazy')) {", settle, StringComparison.Ordinal);
@@ -371,9 +375,15 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Contains("settlePendingAnchor();", jumpTo, StringComparison.Ordinal);
 
         var spy = FunctionBody(script, "function spy() {", "    ");
-        var bottomClamp = spy.IndexOf("window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40", StringComparison.Ordinal);
-        var heldJump = spy.IndexOf("if (jumpedKey) {", StringComparison.Ordinal);
-        Assert.True(bottomClamp >= 0 && heldJump > bottomClamp);
+        Assert.Contains(
+            "var atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40;",
+            spy,
+            StringComparison.Ordinal);
+        var heldJump = spy.IndexOf("if (jumpedKey && (pendingAnchor || atBottom)) {", StringComparison.Ordinal);
+        var releasedJump = spy.IndexOf("jumpedKey = null;", StringComparison.Ordinal);
+        Assert.True(
+            heldJump >= 0 && releasedJump > heldJump,
+            "The jumped link is held only while the jump is pending or the page is clamped at its bottom, and released otherwise.");
 
         Assert.Contains(
             "window.addEventListener(name, function () { pendingAnchor = null; jumpedKey = null; navigationVersion += 1; }, { passive: true });",
