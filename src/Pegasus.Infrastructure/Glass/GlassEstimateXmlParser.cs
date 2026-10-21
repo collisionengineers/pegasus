@@ -67,7 +67,7 @@ public sealed record GlassEstimateExport(
 /// zero, negative, absent or non-integer unit refuses the document. The stated
 /// figure is validated as printed, and the hours are retained at
 /// <see cref="EstimatePolicy.WorkUnitDecimals"/>, never rounded to the
-/// editor's 0.1 step.
+/// editor's 0.01 step.
 /// </para>
 ///
 /// <para><b>Which hours a row costs.</b> Glass's states each row's gross time
