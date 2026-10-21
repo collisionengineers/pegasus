@@ -4,6 +4,29 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 118 - 21 October 2026 (deployment live)
+
+Release 118 deployed [PR 1476](https://github.com/collisionengineers/pegasus/pull/1476) (the Tasks
+dialog keeps **Add task** beside its field and an open task's assignee list, **Assign**, **Complete**
+and **Cancel task** on one line; a narrow dialog scrolls the table; `CASE-20`). The candidate also
+carried two commits made directly on `dev` without a PR: `3218a381e` (agent skills under `.agents/`)
+and `fb80cc1b5` (the 21 October intake wipe record); neither is deployed code.
+
+The route was the normal one: no migration, infrastructure, project or package file differs from
+Release 117's `3da5450b1`, so the migration identity was unchanged and no SQL ran. Web and Worker
+are Running on the approved release and the full production smoke passed first time.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `79131ad815f41edae35625f2e3c72cc2d6a20171`, the merge of PR 1476 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `37C8C0FC7B70D6D8DC8F8C7E07A3F4C8A47BA7F4E59C278687E2678D5DD8197C` (schema 3, clean, `win-x64`/`efbundle.exe`); `web.zip` `0083AD99AA8B3F7E2F8C0F13332BCF66CC087AEAA855BA7C04CB53A1D178385E`; `worker.zip` `884112CE23C6E058661F4A10EFA2DDE2C79083A313227A1CA899DFDE28BE9E95`; `classifier.zip` `91164090DDFB74DB7BB636AC766EFE46ECECEFCC0871673C8B7FCB974FCA47B2`; `efbundle.exe` `9A8B05496DDA0BA65F54155550B44D3CF789414E667CB5DA8E3A9622519B2B1D` (not run: identity unchanged). Built 12:40-12:49Z in a detached worktree at the release SHA (manifest 12:47:50Z); Local and Artifact plan validations passed. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | PR 1476 had a code-review comment with no findings and a Correct verdict, and CI passed at its head `f85367648` (changes, invariants, unit, six `sql-integration` shards and coverage; infrastructure and classifier skipped by path). Merged to `dev` with a merge commit at about 12:36:55Z. The operator gave `MERGE AUTH GRANTED` at 12:39:43Z; one atomic leased promotion from `main` `a0ef28c9f` at about 12:40:00Z. |
+| Deployment | Operator approval of the manifest and targets 12:49:36Z. PreDeploy passed; `PEGASUS_WEB_ACTIVATION=approved` and `PEGASUS_WORKER_ACTIVATION=approved-live-worker`; PreProvision passed (B1 quota in `uksouth` 3; live Worker `approved-live-worker`); `azd provision` found no changes. `web.zip` deployed with `--clean true --restart true` (deployment record `a8547827-bcf3-4797-bf89-25a745f23695`, OneDeploy, 12:51:20Z; the site started after about 205 s); the exact release read back on the first attempt. `worker.zip` deployed (Kudu deployment `003ac02c-c017-4dbb-b0d6-d8900304cc93`); `classifier.zip` deployed to the existing classifier Function App (Kudu deployment `fefef994-6018-45dc-8d0d-73047b9bb34c`). |
+| Smoke | Full smoke passed by 13:00:02Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; active package `20261021125102.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 12:55:00Z; Graph subscription expires 2026-10-27 08:20:00Z). |
+| Query Store | Not snapshotted: the release changes no data access or telemetry. Release 117's owed after snapshot stands. |
+| Still owed | Live evidence for PR 1476: the Tasks dialog on a running Case record with an open task, its controls on one line at the dialog width and the table scrolling when narrow (the PR verified the rendered markup and CSS in Edge only). Release 108 to 117 owed items otherwise stand. |
+| PR states | PR 1476 reads Merged with its head in `main` and `dev`. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-118-79131ad8`; the driver scripts and logs at `artifacts/releases/release-118-driver` (`promote.ps1`, `build.ps1`, `build.log`, `deploy.ps1`, `deploy.log`). |
+
 ## Intake data wipe - 21 October 2026
 
 - Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
