@@ -11,8 +11,8 @@
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
-  Glass's and Cazana are connected: Get valuation fetches their figures, and
-  files Glass's PDF report on the Case.
+  Glass's and Cazana are connected: Get valuation fetches their figures, files
+  each provider's PDF report on the Case, and fills an empty Case VIN.
   The Engineer's Value is a box on Valuation, typed or filled by the
   calculation. A click on a guide card is the Engineer's decision to use that
   card: the Save records the calculation against it and writes the report's
@@ -184,12 +184,19 @@ vehicle's "Vehicle Valuation Report – Glass's Values Only" PDF on the Case's
 Documents as `Glass's valuation {registration} {yyyy-MM}.pdf` (operator, 1
 October 2026), only when the report's own text names the Case registration
 (operator, 5 October 2026). Whatever else stops a Glass's valuation, the card shows its notice.
-Cazana's Get valuation values the Case's accepted registration at its accepted
-mileage and fills the card with Cazana's retail and trade (operator, 9 October
-2026). Cazana values on a day: a card in the current month is valued today,
-an earlier month on its last day, and a later month today, filling the card
-with the current month. Cazana files no report and fills no VIN. When Cazana
-holds no data for the registration, its card shows an info notice instead,
+Cazana's Get valuation signs in with the Cazana Companion account, runs one
+metered Companion lookup for the Case's accepted registration at its accepted
+mileage, and fills the card with Cazana's retail and trade (`remarket`;
+operator, 9 October 2026 and 21 October 2026;
+[ADR-0079](../adr/0079-cazana-companion-account-and-companion-report.md)).
+Cazana values on a day: a card in the current month is valued today, an
+earlier month on its last day, and a later month today, filling the card with
+the current month. Once the figures have answered, it renders Cazana's
+Companion Report (without private value) and files the PDF on the Case's
+Documents as `Cazana valuation {registration} {yyyy-MM}.pdf` when the report's
+text names the Case registration, and fills the work's VIN when the work holds
+none (operator, 21 October 2026). When Cazana holds no data for the
+registration, its card shows an info notice instead,
 `Cazana cannot value this vehicle: it holds no data for its registration.`
 (operator, 9 October 2026); whatever else stops a Cazana valuation, the card
 shows its notice.
@@ -426,10 +433,12 @@ cover Glass's Get valuation against the scripted provider — its figures, month
 mileage and stock save, every failure answering the notice and a vehicle
 too old to value answering its own sentence — and its report
 filed on the Case without touching the open edit session. Integration tests
-cover Cazana's Get valuation against a scripted API — its figures, the date
-each month is valued on, the mileage in whole miles, the key sent only as a
-Bearer header, every failure answering the notice and a registration with no
-data answering its own sentence. Live Glass's and Cazana evidence is a
+cover Cazana's Get valuation and Companion Report against a scripted Companion
+API — sign-in, the one metered lookup, its figures, VIN and Companion Report
+HTML and PDF, the date each month is valued on, the mileage in whole miles,
+credentials and JWT kept out of URLs and logs, every failure answering the
+notice and a registration with no data answering its own sentence. Live
+Glass's and Cazana evidence is a
 separate tier
 ([engineering](../engineering.md#required-evidence-tiers)).
 

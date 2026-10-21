@@ -1,0 +1,35 @@
+<div class="w-3/5 h-auto flex flex-col gap-2">
+  <div class="flex flex-col gap-2 p-2">
+    <p class="text-sm">Vehicle overview</p>
+    <p class="text-primary font-semibold text-2xl max-w-2xl mb-4">
+      {{vehicleDescription}} {{tranmission}}
+    </p>
+    {{#isHistoricalValuationDate}}
+    <span
+      class="inline-flex items-center my-2 font-semibold justify-center rounded-xl text-white text-xs h-8 px-3 whitespace-nowrap bg-slate-500 w-fit"
+    >
+      Historical value for {{valuationDate}}
+    </span>
+    {{/isHistoricalValuationDate}}
+    <p class="text-primary my-2">Market value</p>
+    <p class="text-purple-900 text-3xl border-b-2 pb-4 font-bold">
+      £{{marketValue}}
+    </p>
+    <div class="flex flex-col"></div>
+    <div class="flex flex-row justify-between flex-wrap w-full">
+      <p class="text-gray-600">Trade value</p>
+      <p class="text-gray-600">£{{tradeValue}}</p>
+    </div>
+    {{#privateValue}}
+    <div class="flex flex-row justify-between flex-wrap w-full">
+      <p class="text-gray-600">Private value</p>
+      <p class="text-gray-600">£{{privateValue}}</p>
+    </div>
+    {{/privateValue}} {{#originalValue}}
+    <div class="flex flex-row justify-between flex-wrap w-full">
+      <p class="text-gray-900">Original cost new</p>
+      <p class="text-gray-900">£{{originalValue}}</p>
+    </div>
+    {{/originalValue}}
+  </div>
+</div>

@@ -46,9 +46,10 @@ param glassRepairProfileId string
 // Web identity reads each secret through its own secret-scoped grant.
 param glassValuationUsernameSecretUri string
 param glassValuationPasswordSecretUri string
-// ADR-0066. The Cazana API key Get valuation sends; the Web identity reads it
-// through its own secret-scoped grant.
-param cazanaApiKeySecretUri string
+// ADR-0079. The Cazana Companion account Get valuation signs in with; the Web
+// identity reads each secret through its own secret-scoped grant.
+param cazanaCompanionEmailSecretUri string
+param cazanaCompanionPasswordSecretUri string
 
 var suffix =take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
 var prefix = 'pegasus-prod'
@@ -472,8 +473,9 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         // ADR-0060 Glass's valuation account, read on each Get valuation.
         { name: 'Glass__ValuationAccount__Username', value: '@Microsoft.KeyVault(SecretUri=${glassValuationUsernameSecretUri})' }
         { name: 'Glass__ValuationAccount__Password', value: '@Microsoft.KeyVault(SecretUri=${glassValuationPasswordSecretUri})' }
-        // ADR-0066 Cazana API key, read on each Get valuation.
-        { name: 'Cazana__ApiKey', value: '@Microsoft.KeyVault(SecretUri=${cazanaApiKeySecretUri})' }
+        // ADR-0079 Cazana Companion account, read on each Get valuation.
+        { name: 'Cazana__CompanionAccount__Email', value: '@Microsoft.KeyVault(SecretUri=${cazanaCompanionEmailSecretUri})' }
+        { name: 'Cazana__CompanionAccount__Password', value: '@Microsoft.KeyVault(SecretUri=${cazanaCompanionPasswordSecretUri})' }
       ], automationMcpSigningCertificateEnvironment, automationMcpEncryptionCertificateEnvironment)
     }
   }

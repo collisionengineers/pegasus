@@ -89,8 +89,11 @@
     "glassValuationPasswordSecretUri": {
       "value": "${GLASS_VALUATION_PASSWORD_SECRET_URI}"
     },
-    "cazanaApiKeySecretUri": {
-      "value": "${CAZANA_API_KEY_SECRET_URI}"
+    "cazanaCompanionEmailSecretUri": {
+      "value": "${CAZANA_COMPANION_EMAIL_SECRET_URI}"
+    },
+    "cazanaCompanionPasswordSecretUri": {
+      "value": "${CAZANA_COMPANION_PASSWORD_SECRET_URI}"
     },
     "dvsaApiKeySecretUri": {
       "value": "${DVSA_API_KEY_SECRET_URI}"

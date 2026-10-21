@@ -8,7 +8,7 @@ intentional differences; operations records observed activation.
 | Component | Supplied material |
 | --- | --- |
 | Experian | [API schema](experian/experian-velocity-api-schema.yaml) |
-| Cazana | [API specification](cazana/cazana-api-spec.json) |
+| Cazana | [API specification](cazana/cazana-api-spec.json), [Companion and API notes](cazana/cazana-companion-and-api-notes.md) |
 | Brego | [Notes](brego/brego.md), [API example](brego/api1.json) |
 
 Preserve supplied bytes and provenance. Do not reformat a vendor schema or

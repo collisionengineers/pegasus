@@ -924,26 +924,26 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Connects Cazana as a guide valuation source (ADR-0066). A host that
+    /// Connects Cazana as a guide valuation source (ADR-0079). A host that
     /// does not call this has no Cazana provider, so the Case's Cazana card
-    /// says it is unavailable and offers no Get valuation. The key comes
+    /// says it is unavailable and offers no Get valuation. The account comes
     /// through a factory and is read on each valuation, because the platform
     /// can hand over an unresolved Key Vault reference, which must not fail
     /// the host at build.
     /// </summary>
     public static IServiceCollection AddCazanaGuideValuation(
         this IServiceCollection services,
-        Func<IServiceProvider, CazanaApiKey> apiKeyFactory)
+        Func<IServiceProvider, CazanaCompanionAccount> accountFactory)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(apiKeyFactory);
+        ArgumentNullException.ThrowIfNull(accountFactory);
 
         services.AddHttpClient(
             CazanaGuideValuationProvider.HttpClientName,
             client => client.Timeout = TimeSpan.FromSeconds(30));
         services.AddSingleton<IGuideValuationProvider>(provider => new CazanaGuideValuationProvider(
             provider.GetRequiredService<IHttpClientFactory>(),
-            () => apiKeyFactory(provider),
+            () => accountFactory(provider),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<CazanaGuideValuationProvider>>()));
         return services;

@@ -86,7 +86,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0063](0063-glass-estimate-belongs-to-its-repair-spec.md) | A Glass's estimate belongs to its repair spec, by its stock vehicle | accepted | — | EXT-06, ENG-01 |
 | [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | ADR-0068 (`pegasus_mail_send` new mode), ADR-0069 (mail folder move), ADR-0075 (decision 7: staff Take over of an Automation lease) | MCP-01, MCP-02, MCP-06 |
 | [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03, EXT-04, UI-04 |
-| [ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md) | Cazana valuation through a Key Vault-held API key | accepted | — | EXT-07, EXT-13 |
+| [ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md) | Cazana valuation through a Key Vault-held API key | superseded | ADR-0079 | EXT-07, EXT-13 |
 | [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | — | CASE-16, CASE-23 |
 | [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md) | Incoming and Outgoing mailboxes, and Case mail replies to its instruction | accepted | — | MAIL-12, MAIL-14, MAIL-18, INT-05, INT-06, INT-07 |
 | [ADR-0069](0069-one-flat-mail-category.md) | One flat mail category | accepted | ADR-0072 (Inbox scope rail; Unidentified as undecided mail) | MAIL-02, MAIL-21, MAIL-22, UI-14 |
@@ -99,6 +99,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0076](0076-reviewed-register-is-the-contact-directory-data-contract.md) | The reviewed register is the Contacts directory data contract | accepted | — | DATA-02, ACC-05 |
 | [ADR-0077](0077-compress-json-responses.md) | Compress JSON responses over HTTPS | accepted | — | — |
 | [ADR-0078](0078-intermediaries-are-linked-claim-sources.md) | Intermediaries are linked Claim Sources | accepted | — | INT-04 |
+| [ADR-0079](0079-cazana-companion-account-and-companion-report.md) | Cazana Companion account and Companion Report | accepted | — | EXT-07, EXT-13 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

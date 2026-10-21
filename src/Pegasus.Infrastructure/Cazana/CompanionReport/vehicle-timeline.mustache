@@ -1,0 +1,118 @@
+<div class=" w-3/5 h-auto p-2 flex flex-col gap-4 text-gray-700">
+    <h3 class="font-semibold my-4 border-b-2 pb-2 text-gray-600">
+       Timeline
+    </h3>
+    {{#carHistory}}
+    {{#motDate}}
+    <div class="break-inside-avoid border-b-2 pb-4">
+       <p class="mb-2 text-sm">{{motDate}}</p>
+       <div class="flex flex-col gap-2">
+          <div class="flex flex-row justify-between">
+             <div class="flex flex-row gap-4 items-baseline">
+                <i class="{{motStatusColour}}"></i>
+                <span class="text-purple-900 text-lg font-medium">
+                   {{motStatus}} MOT Test
+                </span>
+             </div>
+             <div>
+                <p class="text-lg text-purple-900">{{motMileage}} miles</p>
+             </div>
+          </div>
+          <p class="">
+             {{#motComments}}
+          <ul class="list-outside">
+             <li>{{.}}</li>
+          </ul>
+          {{/motComments}}
+          </p>
+       </div>
+    </div>
+    {{/motDate}}
+    {{#plateChangeDate}}
+    <div class="break-inside-avoid border-b-2 pb-6">
+       <p class="mb-2 text-sm">{{plateChangeDate}}</p>
+       <div class="flex flex-row justify-between items-center">
+          <p class="text-purple-900 text-lg font-medium">
+             Numberplate change
+          </p>
+          <div class="gap-4 flex flex-row items-center">
+             <button class="bg-white text-purple-900 font-bold py-1 px-2 rounded border-purple-900 border-2 text-sm">
+                {{plateChangePrevious}}
+             </button>
+             <i class="fa-solid fa-chevron-right"></i>
+             <button class="bg-white text-purple-900 font-bold py-1 px-2 rounded border-purple-900 border-2 text-sm">
+                {{plateChangeCurrent}}
+             </button>
+          </div>
+       </div>
+    </div>
+    {{/plateChangeDate}}
+    {{#keeperChangeDate}}
+    <div class="break-inside-avoid border-b-2 pb-4">
+       <p class="mb-2 text-sm">{{keeperChangeDate}}</p>
+       <p class="text-purple-900 text-lg font-medium">
+          Registered owner change
+       </p>
+    </div>
+    {{/keeperChangeDate}}
+    {{#advertisementDateRange}}
+    <div class="break-inside-avoid">
+       <p class="mb-2 text-sm">{{advertisementDateRange}}</p>
+       <p class="text-purple-900 text-lg font-medium">Previously listed for sale</p>
+    </div>
+    {{/advertisementDateRange}}
+    {{#saleListings}}
+    {{#advertisementImage}}
+    <div class="break-inside-avoid">
+       <p class="mb-2 text-sm">{{advertisementDate}}</p>
+       <p class="text-purple-900 font-medium mb-2">listed for sale</p>
+       <div class="flex flex-row border-b-2 pb-4 mb-4 gap-2">
+          <div class="w-1/2">
+             <img src={{advertisementImage}} alt="logo" class="rounded w-full object-contain" />
+          </div>
+          <div class="w-1/2 flex flex-col gap-4 text-gray-700">
+             <div class="flex flex-row justify-between">
+                <p>Listing price</p>
+                <p>£{{advertisementPrice}}</p>
+             </div>
+             <div class="flex flex-row justify-between">
+                <p>Listed mileage</p>
+                <p>{{advertisementMileage}}</p>
+             </div>
+             <div>
+                <p class="text-sm">See last page for Full Advert Details</p>
+             </div>
+          </div>
+       </div>
+    </div>
+   {{/advertisementImage}}
+   {{^advertisementImage}}
+    <div class="break-inside-avoid">
+       <p class="mb-2 text-sm">{{advertisementDate}}</p>
+       <p class="text-purple-900 font-medium mb-2">listed for sale</p>
+       <div class="flex flex-row border-b-2 pb-4 mb-4 gap-2">
+          <div class="w-full flex flex-col gap-4 text-gray-700">
+             <div class="flex flex-row justify-between">
+                <p>Listing price</p>
+                <p>£{{advertisementPrice}}</p>
+             </div>
+             <div class="flex flex-row justify-between">
+                <p>Listed mileage</p>
+                <p>{{advertisementMileage}}</p>
+             </div>
+             <div>
+                <p class="text-sm">See last page for Full Advert Details</p>
+             </div>
+          </div>
+       </div>
+    </div>
+    {{/advertisementImage}}
+    {{/saleListings}}
+    {{/carHistory}}
+    <div class="break-inside-avoid border-b-2 pb-4">
+       <p class="mb-2 text-sm">{{firstRegistration}}</p>
+       <p class="text-purple-900 text-lg font-medium">
+          First registration date
+       </p>
+    </div>
+ </div>

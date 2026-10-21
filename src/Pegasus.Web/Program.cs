@@ -192,8 +192,9 @@ if (productionProfile)
         // Glass's valuation account (ADR-0060), read on each Get valuation.
         "Glass:ValuationAccount:Username",
         "Glass:ValuationAccount:Password",
-        // Cazana's API key (ADR-0066), read on each Get valuation.
-        "Cazana:ApiKey",
+        // Cazana's Companion account (ADR-0079), read on each Get valuation.
+        "Cazana:CompanionAccount:Email",
+        "Cazana:CompanionAccount:Password",
         "GitHub:ProblemReports:Token",
         "GitHub:ProblemReports:Repository"
     })
@@ -724,7 +725,7 @@ documentStorage: composesLocalArtifactRoot
                 : BoxCustodyOptions.ProductionRootFolderId))));
 // The staff-identity surfaces need this host's Identity and key ring.
 builder.Services.AddPegasusStaffIdentity();
-// Glass's (ADR-0060) and Cazana (ADR-0066) valuation: Production only — the
+// Glass's (ADR-0060) and Cazana (ADR-0079) valuation: Production only — the
 // offline profile reaches no vendor — and each Key Vault-held credential is
 // read on each valuation for the same unresolved-Key-Vault-reference reason
 // as Box's.
@@ -733,7 +734,7 @@ if (productionProfile)
     builder.Services.AddGlassGuideValuation(
         _ => Pegasus.Infrastructure.Glass.GlassValuationAccount.Create(key => builder.Configuration[key]));
     builder.Services.AddCazanaGuideValuation(
-        _ => Pegasus.Infrastructure.Cazana.CazanaApiKey.Create(key => builder.Configuration[key]));
+        _ => Pegasus.Infrastructure.Cazana.CazanaCompanionAccount.Create(key => builder.Configuration[key]));
 }
 
 builder.Services.AddPegasusReportRendering();
