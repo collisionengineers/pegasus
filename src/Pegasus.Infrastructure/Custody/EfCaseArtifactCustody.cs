@@ -287,8 +287,9 @@ internal sealed class EfCaseArtifactCustody(
                 await initialWriteTransaction.CommitAsync(cancellationToken);
                 return new(null, null, null, null, Confirmed(existing.Version, existing.Occurrence.Id));
             }
-            if (existing.Version.CustodyStatus is DocumentCustodyStatus.Pending
-                or DocumentCustodyStatus.Failed)
+            // Pending stays with reconciliation. A Failed version is re-driven:
+            // replay uploads it again, and confirmation below accepts Failed.
+            if (existing.Version.CustodyStatus == DocumentCustodyStatus.Pending)
             {
                 await initialWriteTransaction.CommitAsync(cancellationToken);
                 return new(null, null, null, null, Status(existing.Version, existing.Occurrence.Id));
@@ -398,7 +399,8 @@ internal sealed class EfCaseArtifactCustody(
                 request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
         var changed = await db.Set<DocumentVersionEntity>()
             .Where(value => value.Id == version.Id
-                && value.CustodyStatus == DocumentCustodyStatus.Pending
+                && (value.CustodyStatus == DocumentCustodyStatus.Pending
+                    || value.CustodyStatus == DocumentCustodyStatus.Failed)
                 && value.PendingContentStorageKey == pendingContentStorageKey
                 && db.Cases.Any(caseValue => caseValue.Id == caseId
                     && (auditFolder
