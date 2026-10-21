@@ -38,6 +38,16 @@ internal sealed record DocumentDownloadToolResult(
     string OperationKey,
     string CorrelationId);
 
+internal sealed record DocumentDownloadBatchItemInput(
+    [property: Description("The case-scoped document occurrence identifier.")] Guid OccurrenceId,
+    [property: Description("The exact immutable document-version identifier.")] Guid VersionId);
+
+internal sealed record DocumentBatchDownloadToolResult(
+    Guid CaseId,
+    IReadOnlyList<DocumentDownloadToolResult> Documents,
+    string OperationKey,
+    string CorrelationId);
+
 /// <summary>
 /// Automation Actor document tools (MCP-04): thin adapters over the same
 /// canonical case-document custody use cases as the staff app, guarded by the
@@ -59,6 +69,7 @@ internal sealed class DocumentMcpTools(
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
+    public const int MaximumBatchDocuments = 25;
     private const string SourceIdentityPrefix = "automation:";
 
     [McpServerTool(
@@ -193,39 +204,14 @@ internal sealed class DocumentMcpTools(
                     new(caseId, occurrenceId, versionId, context.Actor),
                     cancellationToken)
                     ?? throw new McpException("The document version was not found.");
-                var contentUrl = $"/automation/documents/{occurrenceId:D}/versions/{versionId:D}?caseId={caseId:D}";
-                AutomationFileDelivery delivery;
-                if (!AutomationFileContent.CanDeliverInline(metadata.MediaType, metadata.ContentLength, inlineLimit))
-                {
-                    delivery = AutomationFileContent.Withheld(
-                        metadata.FileName,
-                        metadata.MediaType,
-                        metadata.ContentLength,
-                        metadata.Sha256,
-                        $"The content ({metadata.ContentLength} bytes, {metadata.MediaType}) exceeds the inline limit of {inlineLimit} bytes or is not an image, PDF or text file; fetch contentUrl with this bearer token.",
-                        contentUrl);
-                }
-                else
-                {
-                    await using var download = await downloadDocument.ExecuteAsync(
-                        new(caseId, occurrenceId, versionId, context.Actor, operationKey),
-                        cancellationToken)
-                        ?? throw new McpException("The document version was not found.");
-                    using var buffer = new MemoryStream(
-                        (int)Math.Min(download.ContentLength, AutomationMcpErrors.MaximumDocumentBytes));
-                    await download.Content.CopyToAsync(buffer, cancellationToken);
-                    delivery = await AutomationFileContent.DeliverAsync(
-                        images,
-                        pdfText,
-                        download.FileName,
-                        download.MediaType,
-                        download.ContentLength,
-                        download.Sha256,
-                        buffer.GetBuffer().AsMemory(0, (int)buffer.Length),
-                        inlineLimit,
-                        contentUrl,
-                        cancellationToken);
-                }
+                var contentUrl = ContentUrl(caseId, occurrenceId, versionId);
+                var delivery = await DeliverMetadataAsync(
+                    metadata,
+                    context.Actor,
+                    operationKey,
+                    inlineLimit,
+                    contentUrl,
+                    cancellationToken);
 
                 return AutomationFileContent.ToResult(
                     delivery,
@@ -243,6 +229,208 @@ internal sealed class DocumentMcpTools(
                         operationKey,
                         AutomationMcpAuditor.CorrelationId(context, operationKey)));
             }),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_document_download_batch",
+        Title = "Download case documents",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false)]
+    [Description("Returns 1 to 25 exact case document versions in one call as native content the client can show, sharing maxInlineBytes across the batch: PDFs and small text files take from the budget first, and the remaining budget is divided across the images (each re-encoded as JPEG up to 1568 px to fit its share). Any other type, a file over 10 MiB, or an item that does not fit the remaining budget returns metadata only. Every item carries its file name, media type, size, SHA-256 and authenticated contentUrl in request order. Document identifiers come from pegasus_case_get.")]
+    public async Task<CallToolResult> DownloadBatchAsync(
+        [Description("The durable Pegasus case identifier.")] Guid caseId,
+        [Description("The 1 to 25 exact document versions to download, each named once.")] IReadOnlyList<DocumentDownloadBatchItemInput> documents,
+        [Description("Total byte budget for inline content across the batch; 0 selects 100 KiB, at most 10 MiB. Text and PDF page text draw from the budget first; remaining bytes are shared across images.")] int maxInlineBytes = 0,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var operationKey = $"mcp:document-download-batch:{Guid.NewGuid():N}";
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_document_download_batch",
+            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
+            operationKey,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                AutomationMcpErrors.RequireId(caseId, "case identifier");
+                if (documents is null || documents.Count is < 1 or > MaximumBatchDocuments)
+                {
+                    throw new McpException($"Between 1 and {MaximumBatchDocuments} documents are required.");
+                }
+
+                var seen = new HashSet<(Guid OccurrenceId, Guid VersionId)>(documents.Count);
+                foreach (var item in documents)
+                {
+                    if (item is null)
+                    {
+                        throw new McpException($"Between 1 and {MaximumBatchDocuments} documents are required.");
+                    }
+                    AutomationMcpErrors.RequireId(item.OccurrenceId, "occurrence identifier");
+                    AutomationMcpErrors.RequireId(item.VersionId, "version identifier");
+                    if (!seen.Add((item.OccurrenceId, item.VersionId)))
+                    {
+                        throw new McpException("Each document version may be named once.");
+                    }
+                }
+
+                var inlineLimit = AutomationFileContent.NormalizeInlineLimit(maxInlineBytes);
+                var metadataItems = new CaseDocumentMetadata[documents.Count];
+                for (var index = 0; index < documents.Count; index++)
+                {
+                    var item = documents[index];
+                    metadataItems[index] = await getDocumentMetadata.ExecuteAsync(
+                        new(caseId, item.OccurrenceId, item.VersionId, context.Actor),
+                        cancellationToken)
+                        ?? throw new McpException("The document version was not found.");
+                }
+
+                var deliveries = new AutomationFileDelivery[documents.Count];
+                var itemKeys = new string[documents.Count];
+                var remainingBudget = inlineLimit;
+                var remainingImages = 0;
+
+                for (var index = 0; index < metadataItems.Length; index++)
+                {
+                    itemKeys[index] = $"{operationKey}:{index}";
+                    var metadata = metadataItems[index];
+                    if (AutomationFileContent.IsImage(metadata.MediaType))
+                    {
+                        if (metadata.ContentLength is > 0 and <= AutomationMcpErrors.MaximumDocumentBytes)
+                        {
+                            remainingImages++;
+                        }
+                        continue;
+                    }
+
+                    var contentUrl = ContentUrl(caseId, metadata.OccurrenceId, metadata.VersionId);
+                    var delivery = AutomationFileContent.AccountTextBlocks(
+                        await DeliverMetadataAsync(
+                            metadata,
+                            context.Actor,
+                            itemKeys[index],
+                            remainingBudget,
+                            contentUrl,
+                            cancellationToken),
+                        remainingBudget,
+                        metadata.FileName,
+                        metadata.MediaType,
+                        metadata.ContentLength,
+                        metadata.Sha256,
+                        contentUrl);
+                    deliveries[index] = delivery;
+                    remainingBudget = Math.Max(0, remainingBudget - delivery.InlineBytes);
+                }
+
+                for (var index = 0; index < metadataItems.Length; index++)
+                {
+                    var metadata = metadataItems[index];
+                    if (!AutomationFileContent.IsImage(metadata.MediaType))
+                    {
+                        continue;
+                    }
+
+                    var contentUrl = ContentUrl(caseId, metadata.OccurrenceId, metadata.VersionId);
+                    var imageBudget = 0;
+                    if (metadata.ContentLength is > 0 and <= AutomationMcpErrors.MaximumDocumentBytes
+                        && remainingImages > 0)
+                    {
+                        imageBudget = remainingBudget / remainingImages;
+                        remainingImages--;
+                    }
+
+                    var delivery = AutomationFileContent.AccountTextBlocks(
+                        await DeliverMetadataAsync(
+                            metadata,
+                            context.Actor,
+                            itemKeys[index],
+                            imageBudget,
+                            contentUrl,
+                            cancellationToken),
+                        imageBudget,
+                        metadata.FileName,
+                        metadata.MediaType,
+                        metadata.ContentLength,
+                        metadata.Sha256,
+                        contentUrl);
+                    deliveries[index] = delivery;
+                    remainingBudget = Math.Max(0, remainingBudget - delivery.InlineBytes);
+                }
+
+                var correlationId = AutomationMcpAuditor.CorrelationId(context, operationKey);
+                var results = new DocumentDownloadToolResult[documents.Count];
+                for (var index = 0; index < documents.Count; index++)
+                {
+                    var metadata = metadataItems[index];
+                    var delivery = deliveries[index];
+                    results[index] = new DocumentDownloadToolResult(
+                        caseId,
+                        metadata.OccurrenceId,
+                        metadata.VersionId,
+                        metadata.FileName,
+                        metadata.MediaType,
+                        metadata.ContentLength,
+                        metadata.Sha256,
+                        delivery.ContentIncluded,
+                        ContentUrl(caseId, metadata.OccurrenceId, metadata.VersionId),
+                        delivery.Notice,
+                        itemKeys[index],
+                        correlationId);
+                }
+
+                return AutomationFileContent.ToResult(
+                    deliveries.SelectMany(delivery => delivery.Blocks),
+                    new DocumentBatchDownloadToolResult(
+                        caseId,
+                        results,
+                        operationKey,
+                        correlationId));
+            }),
+            cancellationToken);
+    }
+
+    private static string ContentUrl(Guid caseId, Guid occurrenceId, Guid versionId) =>
+        $"/automation/documents/{occurrenceId:D}/versions/{versionId:D}?caseId={caseId:D}";
+
+    private async Task<AutomationFileDelivery> DeliverMetadataAsync(
+        CaseDocumentMetadata metadata,
+        Pegasus.Core.Identity.ActionActor actor,
+        string operationKey,
+        int inlineLimit,
+        string contentUrl,
+        CancellationToken cancellationToken)
+    {
+        if (inlineLimit <= 0
+            || !AutomationFileContent.CanDeliverInline(metadata.MediaType, metadata.ContentLength, inlineLimit))
+        {
+            return AutomationFileContent.Withheld(
+                metadata.FileName,
+                metadata.MediaType,
+                metadata.ContentLength,
+                metadata.Sha256,
+                AutomationFileContent.InlineLimitNotice(metadata.ContentLength, metadata.MediaType, inlineLimit),
+                contentUrl);
+        }
+
+        await using var download = await downloadDocument.ExecuteAsync(
+            new(metadata.CaseId, metadata.OccurrenceId, metadata.VersionId, actor, operationKey),
+            cancellationToken)
+            ?? throw new McpException("The document version was not found.");
+        using var buffer = new MemoryStream(
+            (int)Math.Min(download.ContentLength, AutomationMcpErrors.MaximumDocumentBytes));
+        await download.Content.CopyToAsync(buffer, cancellationToken);
+        return await AutomationFileContent.DeliverAsync(
+            images,
+            pdfText,
+            download.FileName,
+            download.MediaType,
+            download.ContentLength,
+            download.Sha256,
+            buffer.GetBuffer().AsMemory(0, (int)buffer.Length),
+            inlineLimit,
+            contentUrl,
             cancellationToken);
     }
 }

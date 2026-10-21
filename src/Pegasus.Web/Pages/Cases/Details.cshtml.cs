@@ -4325,7 +4325,7 @@ public sealed partial class DetailsModel(
         /// differ from the status's own are the operator's override.
         /// </summary>
         public EstimateVatPolicy VatPolicyFrom(EstimateVatPolicy? saved) => EstimateVatPolicy.Revised(
-            saved ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown),
+            saved ?? EstimateVatPolicy.For(RepairerVatStatuses.Default),
             VatStatus,
             VatCategories);
     }
@@ -4490,13 +4490,13 @@ public sealed partial class DetailsModel(
             Checked("estimateRegionalUplift"),
             Money(form["estimateOtherCosts"].ToString()),
             Money(form["estimateVatPercent"].ToString()),
-            // Enum.TryParse accepts any number, so a posted value that is not
-            // one of the three named states falls back to Unknown rather than
-            // reaching Core as an undefined status.
+            // Enum.TryParse accepts any number. A missing, undefined or
+            // Unknown post is Registered: Unknown is no longer a choice, and
+            // a page still showing it saves as the default.
             Enum.TryParse<RepairerVatStatus>(form["estimateVatStatus"].ToString(), out var status)
-                && Enum.IsDefined(status)
+                && RepairerVatStatuses.IsChoosable(status)
                 ? status
-                : RepairerVatStatus.Unknown,
+                : RepairerVatStatuses.Default,
             categories,
             new(
                 Fraction(form["estimateDiscountParts"].ToString()),

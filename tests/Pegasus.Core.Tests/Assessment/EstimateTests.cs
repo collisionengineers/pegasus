@@ -640,6 +640,15 @@ public sealed class EstimateTests
     // ---- The repairer's VAT status and acceptance ----
 
     [Fact]
+    public void AnOmittedRepairerVatStatusIsRegistered()
+    {
+        var details = new EstimateDetails("Repairer", 40m, null, 20m);
+
+        Assert.Equal(EstimateVatPolicy.For(RepairerVatStatus.Registered), details.VatPolicy);
+        Assert.False(details.VatPolicy.TreatmentPending);
+    }
+
+    [Fact]
     public void AnUnknownRepairerVatStatusNoLongerGatesUseAsCurrent()
     {
         // v28 P10: Use repair spec is simply available; an unknown status
@@ -973,6 +982,46 @@ public sealed class EstimateTests
         // A third of an hour is 0.333333 at the persisted precision, not 0.3.
         var providerTime = decimal.Round(1m / 3m, EstimatePolicy.WorkUnitDecimals);
         EstimatePolicy.ValidateLineAmounts(LineInput("repair") with { WorkUnits = providerTime });
+
+        var storedLine = Line("repair", workUnits: providerTime, paintWorkUnits: 0.91m);
+        var existing = Estimate(Details(), storedLine);
+        var submitted = SaveRequest(Engineer, RepairSpecificationSourceRoute.Manual) with
+        {
+            EstimateId = existing.SpecificationId,
+            ExistingLineIds = [storedLine.Id],
+            Lines =
+            [
+                LineInput("repair") with
+                {
+                    Description = storedLine.Description,
+                    WorkUnits = 0.33m,
+                    PaintWorkUnits = 0.91m,
+                },
+            ],
+        };
+
+        var untouched = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted), existing, Now.AddMinutes(1));
+        var untouchedLine = Assert.Single(untouched.Lines);
+        Assert.Equal(providerTime, untouchedLine.WorkUnits);
+        Assert.Equal(0.91m, untouchedLine.PaintWorkUnits);
+        Assert.Null(untouchedLine.AmendedBy);
+        Assert.Null(untouchedLine.AmendedAtUtc);
+        Assert.True(EstimatePolicy.IsUnchanged(untouched, existing));
+
+        var amended = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted with
+            {
+                Lines = [submitted.Lines[0] with { WorkUnits = 0.35m }],
+            }),
+            existing,
+            Now.AddMinutes(2));
+        var amendedLine = Assert.Single(amended.Lines);
+        Assert.Equal(0.35m, amendedLine.WorkUnits);
+        Assert.Equal(0.91m, amendedLine.PaintWorkUnits);
+        Assert.Equal(Engineer.SubjectId, amendedLine.AmendedBy);
+        Assert.Equal(Now.AddMinutes(2), amendedLine.AmendedAtUtc);
+        Assert.False(EstimatePolicy.IsUnchanged(amended, existing));
 
         Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateLineAmounts(
             LineInput("repair") with { WorkUnits = 0.1234567m }));

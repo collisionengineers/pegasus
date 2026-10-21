@@ -1768,8 +1768,9 @@ public sealed class EfCaseWorkflowStore(
 
 
     /// <summary>
-    /// Takes the Case's workflow row <c>UPDLOCK, HOLDLOCK</c> for the rest of the
-    /// caller's transaction, so concurrent Case mutations serialize on it.
+    /// Takes the Case's workflow (or Triage) row <c>UPDLOCK, HOLDLOCK</c> for
+    /// the rest of the caller's transaction, so concurrent Case mutations
+    /// serialize on it.
     /// </summary>
     internal static async Task AcquireWorkflowMutationLockAsync(
         PegasusDbContext context,
@@ -1781,15 +1782,27 @@ public sealed class EfCaseWorkflowStore(
             return;
         }
 
-        _ = await context.CaseWorkflows
+        var lockedWorkflow = await context.CaseWorkflows
             .FromSqlInterpolated($"""
                 SELECT *
                 FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK)
                 WHERE [CaseId] = {caseId}
                 """)
             .AsNoTracking()
-            .Select(item => item.CaseId)
+            .Select(item => (Guid?)item.CaseId)
             .SingleOrDefaultAsync(cancellationToken);
+        if (lockedWorkflow is null)
+        {
+            _ = await context.Triage
+                .FromSqlInterpolated($"""
+                    SELECT *
+                    FROM [Triage] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [CaseId] = {caseId}
+                    """)
+                .AsNoTracking()
+                .Select(item => (Guid?)item.CaseId)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
     }
 
     private static AutoLinkReportEvidenceResult AutoLinkNotLinked(string reasonCode) =>

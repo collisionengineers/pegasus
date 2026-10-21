@@ -418,6 +418,32 @@ public sealed class EfIntakeWorkStore(
         }, cancellationToken);
     }
 
+    public async Task RecordTerminalReplayFailureAsync(
+        Guid stagedReceiptId,
+        string failureCode,
+        DateTimeOffset failedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(failureCode);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var item = await context.IntakeWorkItems.SingleOrDefaultAsync(
+            item => item.StagedReceiptId == stagedReceiptId,
+            cancellationToken)
+            ?? throw new InvalidDataException(
+                "The intake replay does not identify a staged receipt.");
+        if (item.State != "completed")
+        {
+            return;
+        }
+
+        item.State = ToCode(IntakeWorkState.Failed);
+        item.DueAtUtc = failedAtUtc;
+        item.FailureCode = failureCode;
+        item.LeaseToken = null;
+        item.LeaseExpiresAtUtc = null;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task MarkPoisonedAsync(
         Guid stagedReceiptId,
         DateTimeOffset failedAtUtc,

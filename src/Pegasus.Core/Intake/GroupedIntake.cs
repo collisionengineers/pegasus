@@ -74,7 +74,12 @@ public sealed record GroupedIntakeSubmissionResult(
 
 public interface IIntakeSubmissionGroupStore
 {
-    /// <summary>Oldest eligible group members, one per unresolved image group.</summary>
+    /// <summary>
+    /// Receipts the grouped-image sweep should re-drive, oldest first, up to
+    /// <paramref name="maximumItems"/>. Unpromoted Case-associated receipts
+    /// come first, so a full page of unresolved image groups cannot starve
+    /// them; any slots left are one member of each unresolved image group.
+    /// </summary>
     Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(
         int maximumItems,
         CancellationToken cancellationToken = default);

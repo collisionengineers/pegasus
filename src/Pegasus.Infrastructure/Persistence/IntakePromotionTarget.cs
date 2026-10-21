@@ -121,7 +121,7 @@ internal static class IntakePromotionTarget
             : new(PromotionTargetDisposition.NotApplicable);
     }
 
-    /// <summary>Whether the Case may receive the receipt's evidence now, at exactly the version the filing was planned against.</summary>
+    /// <summary>Whether the Case may receive the receipt's evidence now, at or after the version the filing was planned against.</summary>
     public static async Task<bool> IsCurrentAsync(
         PegasusDbContext db,
         Guid caseId,
@@ -132,6 +132,6 @@ internal static class IntakePromotionTarget
     {
         var target = await EvaluateAsync(db, caseId, receiptId, nowUtc, cancellationToken);
         return target.Disposition == PromotionTargetDisposition.Current
-            && target.Version == expectedCaseVersion;
+            && target.Version >= expectedCaseVersion;
     }
 }

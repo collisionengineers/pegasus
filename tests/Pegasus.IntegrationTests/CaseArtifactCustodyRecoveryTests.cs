@@ -931,6 +931,119 @@ public sealed class CaseArtifactCustodyRecoveryTests
             default));
     }
 
+    /// <summary>
+    /// Reconciliation does not select a Failed version, so a replay of its
+    /// operation key uploads it again and confirms it, even when the Failed
+    /// row still carries a stale non-blank pending key. Confirmation matches
+    /// the replay's key, not that stale one. A later replay of the confirmed
+    /// version files nothing.
+    /// </summary>
+    [Fact]
+    public async Task AFailedCaseVersionIsReuploadedAndConfirmedOnReplayAndALaterReplayDoesNothing()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var bytes = "failed custody bytes"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(bytes));
+        var storageKey = $"test/{hash}";
+        const string stalePendingKey = "stale/previous-failed-attempt";
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var occurrenceId = Guid.NewGuid();
+        const string operationKey = "failed-custody-replay";
+        const string occurrenceIdentity = "failed-custody-replay";
+        await using (var db = await database.CreateContextAsync())
+        {
+            db.Add(new CaseDocumentEntity
+            {
+                Id = documentId,
+                CaseId = caseId,
+                Ordinal = 1,
+                SourceOccurrenceIdentity = occurrenceIdentity
+            });
+            db.Add(new DocumentVersionEntity
+            {
+                Id = versionId,
+                DocumentId = documentId,
+                Version = 1,
+                FileName = "evidence.txt",
+                MediaType = "text/plain",
+                ContentLength = bytes.Length,
+                Sha256 = hash.ToLowerInvariant(),
+                PendingContentStorageKey = stalePendingKey,
+                CustodyStatus = DocumentCustodyStatus.Failed,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                CreatedBy = "test",
+                IsCurrent = true
+            });
+            db.Add(new DocumentOccurrenceEntity
+            {
+                Id = occurrenceId,
+                CaseId = caseId,
+                DocumentId = documentId,
+                VersionId = versionId,
+                Ordinal = 1,
+                SemanticRole = DocumentSemanticRole.OriginalSource,
+                Source = DocumentSource.Generated,
+                SourceOccurrenceIdentity = occurrenceIdentity,
+                RecordedAtUtc = DateTimeOffset.UtcNow,
+                OperationKey = operationKey
+            });
+            await db.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var store = new SuccessfulContentStore();
+        var custody = new EfCaseArtifactCustody(factory, store, new MemoryArtifactStore(), TimeProvider.System);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var request = new CaseArtifactCustodyRequest(
+            actor,
+            caseId,
+            null,
+            occurrenceIdentity,
+            operationKey,
+            "evidence.txt",
+            "text/plain",
+            bytes.LongLength,
+            hash,
+            new MemoryStream(bytes, writable: false),
+            RetainedStorageKey: storageKey);
+        Assert.NotEqual(stalePendingKey, storageKey);
+
+        var replay = await custody.RetainAsync(request, default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, replay.Disposition);
+        Assert.Equal(documentId, replay.DocumentId);
+        Assert.Equal(versionId, replay.VersionId);
+        Assert.Equal(occurrenceId, replay.OccurrenceId);
+        Assert.Null(replay.FailureCode);
+        Assert.Null(replay.PendingContentStorageKey);
+        Assert.Equal(1, store.WriteCount);
+        await using (var db = await database.CreateContextAsync())
+        {
+            var version = Assert.Single(await db.Set<DocumentVersionEntity>().ToArrayAsync());
+            Assert.Equal(versionId, version.Id);
+            Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
+            Assert.Null(version.PendingContentStorageKey);
+            Assert.Equal(occurrenceId, (await db.Set<DocumentOccurrenceEntity>().SingleAsync()).Id);
+        }
+
+        var again = await custody.RetainAsync(
+            request with { Content = new MemoryStream(bytes, writable: false) },
+            default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, again.Disposition);
+        Assert.Equal(versionId, again.VersionId);
+        Assert.Equal(occurrenceId, again.OccurrenceId);
+        Assert.Equal(1, store.WriteCount);
+        await using (var db = await database.CreateContextAsync())
+        {
+            var version = Assert.Single(await db.Set<DocumentVersionEntity>().ToArrayAsync());
+            Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
+            Assert.Single(await db.Set<DocumentOccurrenceEntity>().ToArrayAsync());
+        }
+    }
+
     [Fact]
     public async Task ReconciliationRotatesRetainedRowsSoLaterPendingWorkIsSelected()
     {

@@ -81,10 +81,11 @@ import paths.
 
 **Documents.** Permission and immutable metadata are checked before content
 is read. A download (`pegasus_document_download`,
-`pegasus_unidentified_source_download`, `pegasus_triage_source_download`)
-returns the file as native MCP content, because an MCP client can show an
-image block and read a text block but can do nothing with base64 text, and
-Claude's hosted connector refuses a binary embedded resource
+`pegasus_document_download_batch`, `pegasus_unidentified_source_download`,
+`pegasus_triage_source_download`) returns the file as native MCP content,
+because an MCP client can show an image block and read a text block but can
+do nothing with base64 text, and Claude's hosted connector refuses a binary
+embedded resource
 ([ADR-0059](../adr/0059-native-mcp-file-content-and-consolidated-tool-inventory.md)):
 
 - an image (not SVG) as one JPEG image block, EXIF orientation applied, the
@@ -96,8 +97,12 @@ Claude's hosted connector refuses a binary embedded resource
 - a text file that already fits the budget as its text;
 - anything else, or any file over 10 MiB, as metadata only.
 
-Every result carries the file's identity, size, media type, SHA-256 and an
-authenticated URL for the original bytes:
+`pegasus_document_download_batch` downloads 1 to 25 exact Case document
+versions in one call, checking every version's metadata before any bytes are
+read and sharing `maxInlineBytes` across the batch: PDFs and text files draw
+from the budget first, and the remaining budget is divided across the images
+(operator, 19 October 2026). Every result carries the file's identity, size,
+media type, SHA-256 and an authenticated URL for the original bytes:
 `/automation/documents/{occurrence}/versions/{version}` for a Case document
 (Documents scope) and `/automation/intake-sources/{receipt}` for a retained
 intake source (Intake scope). Each endpoint needs the same bearer audience and
@@ -444,7 +449,10 @@ place; editing the Current one makes a generated report stale. Each kept line
 sends its `lineId` so it keeps its source evidence. The header carries the
 labour rates, the repairer's VAT status, the VAT categories, discounts and
 regional uplift; a header value the call omits keeps its recorded value. An
-`Unknown` VAT status, the default, charges no VAT until the status is known.
+omitted repairer VAT status keeps the recorded one, or Registered when none
+is recorded. Registered charges VAT on labour, parts, materials and
+specialist. The choices are Registered and NotRegistered; an explicit
+Unknown is refused.
 A line marked To be confirmed that carries a price is saved priced: the
 price wins, as on the Case page. Each line carries one evidence label, and
 its source text goes in its justification:
@@ -471,7 +479,7 @@ tranche rule above.
 
 ### Tool inventory
 
-The Actor's whole inventory, 64 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 65 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -502,7 +510,7 @@ its one command when none is given.
 | `automation.intake` | `pegasus_triage_case_link` | Link or unlink the Triage and an instruction Case; both records' versions and leases | one-command lease on each record |
 | `automation.intake` | `pegasus_triage_assign`, `pegasus_triage_note_add` | Assign or unassign the Triage; add a Triage note | one-command lease |
 | `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced | one-command lease |
-| `automation.documents` | `pegasus_document_download` | One exact document version as native content | none |
+| `automation.documents` | `pegasus_document_download`, `pegasus_document_download_batch` | One exact document version, or 1 to 25 versions sharing the inline budget, as native content | none |
 | `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
 | `automation.documents` | `pegasus_report_list` | A work's report generations and artifacts, its report approval and its report-Sent evidence | none |
 | `automation.documents` | `pegasus_report_action` | Generate the report, Repair Spec or images; record report approval; link or unlink report-Sent evidence | one-command lease |
