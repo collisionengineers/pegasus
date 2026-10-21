@@ -32,17 +32,22 @@ internal sealed class CazanaCompanionReport(
 
     private static readonly CultureInfo EnGb = CultureInfo.GetCultureInfo("en-GB");
 
-    private static readonly Lazy<Dictionary<string, string>> Templates = new(LoadTemplates);
+    private static readonly Lazy<Dictionary<string, CazanaMustache.Template>> Templates = new(LoadTemplates);
 
     public string Identity => "cazana-companion:" + uuid;
 
+    /// <summary>
+    /// The timeline, comparable listings and stock image do not depend on each
+    /// other, so they are asked for together and the page waits for the slowest.
+    /// </summary>
     public async Task<byte[]> FetchPdfAsync(CancellationToken cancellationToken)
     {
-        var timeline = await client.TimelineAsync(jwt, uuid, cancellationToken);
-        var similar = await client.SimilarListingsAsync(jwt, response, cancellationToken);
-        var images = await client.ImagesAsync(
+        var timeline = client.TimelineAsync(jwt, uuid, cancellationToken);
+        var similar = client.SimilarListingsAsync(jwt, response, cancellationToken);
+        var image = client.ImageAsync(
             jwt, CazanaJson.String(response, "valuation", "searchMethod", "identifier") ?? "", cancellationToken);
-        var html = RenderHtml(response, timeline, similar, images, timeProvider.GetUtcNow());
+        await Task.WhenAll(timeline, similar, image);
+        var html = RenderHtml(response, await timeline, await similar, await image, timeProvider.GetUtcNow());
         return await client.CreatePdfAsync(jwt, html, cancellationToken);
     }
 
@@ -50,12 +55,12 @@ internal sealed class CazanaCompanionReport(
     internal static string RenderHtml(
         JsonElement response,
         JsonElement? timeline,
-        JsonElement similar,
-        IReadOnlyList<string> images,
+        SimilarListings similar,
+        string? image,
         DateTimeOffset now)
     {
         var templates = Templates.Value;
-        var view = View(response, timeline, similar, images, now);
+        var view = View(response, timeline, similar, image, now);
         string Section(string name) => CazanaMustache.Render(templates[name], view);
         var partials = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -81,8 +86,8 @@ internal sealed class CazanaCompanionReport(
     private static Dictionary<string, object?> View(
         JsonElement response,
         JsonElement? timeline,
-        JsonElement similar,
-        IReadOnlyList<string> images,
+        SimilarListings similar,
+        string? image,
         DateTimeOffset now)
     {
         var valuation = CazanaJson.Get(response, "valuation");
@@ -123,7 +128,7 @@ internal sealed class CazanaCompanionReport(
             ["isHistoricalValuationDate"] = CazanaJson.String(valuation, "date")
                 != LondonCalendar.DateAt(now).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["sortBy"] = "Newest",
-            ["listings"] = CazanaJson.Items(similar, "listings").Take(8).Select(SimilarListing).ToList<object?>(),
+            ["listings"] = similar.Listings.Select(SimilarListing).ToList<object?>(),
             ["similarListingFilters"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["listingTypes"] = "",
@@ -134,7 +139,7 @@ internal sealed class CazanaCompanionReport(
                 ["distance"] = "",
                 ["options"] = "",
             },
-            ["totalSimilarListings"] = Scalar(CazanaJson.Get(similar, "total")),
+            ["totalSimilarListings"] = Scalar(similar.Total),
             ["customerReference"] = null,
             ["placeholderLogo"] = PlaceholderLogo,
             ["placeholderBgClass"] = PlaceholderBackground,
@@ -142,9 +147,9 @@ internal sealed class CazanaCompanionReport(
             ["secondaryColor"] = SecondaryColour,
             ["priceColor"] = PriceColour,
         };
-        if (images.Count > 0)
+        if (image is not null)
         {
-            view["vehicleImage"] = images[0];
+            view["vehicleImage"] = image;
         }
 
         if (timeline is not null)
@@ -349,7 +354,7 @@ internal sealed class CazanaCompanionReport(
 
     private static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
-    private static Dictionary<string, string> LoadTemplates()
+    private static Dictionary<string, CazanaMustache.Template> LoadTemplates()
     {
         string[] names =
         [
@@ -357,14 +362,14 @@ internal sealed class CazanaCompanionReport(
             "vehicle-specification", "vehicle-timeline", "vehicle-advert-full-details", "recent-listing",
         ];
         var assembly = typeof(CazanaCompanionReport).Assembly;
-        var templates = new Dictionary<string, string>(StringComparer.Ordinal);
+        var templates = new Dictionary<string, CazanaMustache.Template>(StringComparer.Ordinal);
         foreach (var name in names)
         {
             var resource = $"Pegasus.Infrastructure.Cazana.CompanionReport.{name}.mustache";
             using var stream = assembly.GetManifestResourceStream(resource)
                 ?? throw new InvalidOperationException($"The Companion Report template {resource} is not embedded.");
             using var reader = new StreamReader(stream);
-            templates[name] = reader.ReadToEnd();
+            templates[name] = CazanaMustache.Parse(reader.ReadToEnd());
         }
 
         return templates;

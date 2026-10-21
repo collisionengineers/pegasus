@@ -19,7 +19,8 @@ internal sealed class PdfPigPageTextExtractor : IExtractPdfPageText
     public Task<PdfTextExtraction?> ExtractAsync(
         ReadOnlyMemory<byte> content,
         int maximumCharacters,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<string, bool>? stopAfterPage = null)
     {
         if (content.IsEmpty || maximumCharacters <= 0)
         {
@@ -44,6 +45,10 @@ internal sealed class PdfPigPageTextExtractor : IExtractPdfPageText
                 }
                 remaining -= text.Length;
                 pages.Add(new PdfPageText(number, text, readable < MinimumReadableCharacters, truncated));
+                if (stopAfterPage?.Invoke(text) == true)
+                {
+                    break;
+                }
             }
 
             return Task.FromResult<PdfTextExtraction?>(

@@ -110,7 +110,7 @@ Request body:
 ```json
 {
   "credentials": {
-    "email": "andrew@collisionengineers.co.uk",
+    "email": "<companion-account-email>",
     "password": "<password>"
   }
 }

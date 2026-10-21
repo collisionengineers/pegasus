@@ -114,14 +114,41 @@ public sealed class FileGuideValuationReportTests
         Assert.Empty(custody.Requests);
     }
 
+    /// <summary>
+    /// A report longer than one page is read only as far as the page that
+    /// names the registration: the extractor is asked to stop there.
+    /// </summary>
+    [Fact]
+    public async Task TheReadStopsAtTheFirstPageThatNamesTheRegistration()
+    {
+        var text = new StubText("Companion Report KY12CAB");
+
+        await new FileGuideValuationReport(new RecordingCustody(), text).ExecuteAsync(
+            new(Engineer, Guid.NewGuid(), ValuationSource.Cazana, "KY12CAB", new DateOnly(2026, 10, 1),
+                new StubReport(Pdf)),
+            default);
+
+        Assert.NotNull(text.StopAfterPage);
+        Assert.True(text.StopAfterPage!("Companion Report ky12 cab"));
+        Assert.False(text.StopAfterPage!("Market overview"));
+    }
+
     /// <summary>Answers one page of the given text, or an unreadable PDF for null.</summary>
     private sealed class StubText(string? printed) : IExtractPdfPageText
     {
+        public Func<string, bool>? StopAfterPage { get; private set; }
+
         public Task<PdfTextExtraction?> ExtractAsync(
-            ReadOnlyMemory<byte> content, int maximumCharacters, CancellationToken cancellationToken) =>
-            Task.FromResult<PdfTextExtraction?>(printed is null
+            ReadOnlyMemory<byte> content,
+            int maximumCharacters,
+            CancellationToken cancellationToken,
+            Func<string, bool>? stopAfterPage = null)
+        {
+            StopAfterPage = stopAfterPage;
+            return Task.FromResult<PdfTextExtraction?>(printed is null
                 ? null
                 : new PdfTextExtraction(1, [new PdfPageText(1, printed, NeedsOcr: false, Truncated: false)]));
+        }
     }
 
     private sealed class StubReport(byte[] content) : IGuideValuationReport

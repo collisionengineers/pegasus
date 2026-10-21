@@ -22,6 +22,9 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     private const string Environment = "production";
     private const string Client = "cazana";
 
+    /// <summary>How many of the ten comparable listings Companion's market overview prints.</summary>
+    private const int ListingsShown = 8;
+
     /// <summary>The Companion portal's own client identifier for guest requests.</summary>
     private const string Czn = "5ab3cc97a8d11a00017332a7a609b760ad0147e0a12295c85fabe703";
 
@@ -29,8 +32,8 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     {
         string token;
         long branchId;
-        using (var answer = Parse("sign_in", await ExchangeAsync(
-            Guest("guest/onboard/branch", new { credentials = new { email, password } }), cancellationToken)))
+        using (var answer = await ExchangeAsync(
+            "sign_in", Guest("guest/onboard/branch", new { credentials = new { email, password } }), cancellationToken))
         {
             token = CazanaJson.String(answer.RootElement, "token")
                 ?? throw new CazanaCompanionFailure("sign_in", null, "token=absent");
@@ -40,8 +43,8 @@ internal sealed class CazanaCompanionClient(HttpClient http)
                 ?? throw new CazanaCompanionFailure("branch", null, "branches=none_active");
         }
 
-        using var confirmed = Parse("confirm", await ExchangeAsync(
-            Guest("guest/onboard/confirm", new { token, orgId = branchId }), cancellationToken));
+        using var confirmed = await ExchangeAsync(
+            "confirm", Guest("guest/onboard/confirm", new { token, orgId = branchId }), cancellationToken);
         return CazanaJson.String(confirmed.RootElement, "jwt")
             ?? throw new CazanaCompanionFailure("confirm", null, "jwt=absent");
     }
@@ -59,8 +62,8 @@ internal sealed class CazanaCompanionClient(HttpClient http)
                 options = new { forceEstimate = false },
             },
         };
-        using var answer = Parse("lookup", await ExchangeAsync(
-            App(HttpMethod.Post, "app/companion", jwt, search), cancellationToken));
+        using var answer = await ExchangeAsync(
+            "lookup", App(HttpMethod.Post, "app/companion", jwt, search), cancellationToken);
         return CazanaJson.String(answer.RootElement, "uuid")
             ?? throw new CazanaCompanionFailure("lookup", null, "uuid=absent");
     }
@@ -68,8 +71,8 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     /// <summary>The lookup's <c>response</c>: valuation, unmasked VIN, specification and any listing.</summary>
     public async Task<JsonElement> ReadAsync(string jwt, string uuid, CancellationToken cancellationToken)
     {
-        using var answer = Parse("read", await ExchangeAsync(
-            App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid), jwt), cancellationToken));
+        using var answer = await ExchangeAsync(
+            "read", App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid), jwt), cancellationToken);
         if (CazanaJson.Get(answer.RootElement, "response") is { } response
             && CazanaJson.Get(response, "valuation") is { ValueKind: JsonValueKind.Object })
         {
@@ -85,24 +88,28 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     /// </summary>
     public async Task<JsonElement?> TimelineAsync(string jwt, string uuid, CancellationToken cancellationToken)
     {
-        var (status, body) = await ExchangeAsync(
-            App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid) + "/timeline", jwt), cancellationToken);
-        if (status == HttpStatusCode.RequestTimeout)
+        try
+        {
+            using var answer = await ExchangeAsync(
+                "timeline",
+                App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid) + "/timeline", jwt),
+                cancellationToken);
+            var response = CazanaJson.Get(answer.RootElement, "response");
+            return string.IsNullOrEmpty(CazanaJson.String(response, "vin")) ? null : response!.Value.Clone();
+        }
+        catch (CazanaCompanionFailure failure) when (failure.Status == HttpStatusCode.RequestTimeout)
         {
             return null;
         }
-
-        using var answer = Parse("timeline", (status, body));
-        var response = CazanaJson.Get(answer.RootElement, "response");
-        return string.IsNullOrEmpty(CazanaJson.String(response, "vin")) ? null : response!.Value.Clone();
     }
 
     /// <summary>
-    /// Comparable listings exactly as Companion asks for them. The listing
-    /// cid is the valuation's, not the specification's: Cazana answers 500
-    /// for the latter.
+    /// Comparable listings exactly as Companion asks for them, ten of them,
+    /// of which the report prints the first eight with the total: only those
+    /// leave the answer. The listing cid is the valuation's, not the
+    /// specification's: Cazana answers 500 for the latter.
     /// </summary>
-    public async Task<JsonElement> SimilarListingsAsync(string jwt, JsonElement response, CancellationToken cancellationToken)
+    public async Task<SimilarListings> SimilarListingsAsync(string jwt, JsonElement response, CancellationToken cancellationToken)
     {
         var valuation = CazanaJson.Get(response, "valuation");
         var request = new
@@ -130,56 +137,51 @@ internal sealed class CazanaCompanionClient(HttpClient http)
             page = 1,
             limit = 10,
         };
-        using var answer = Parse("listings", await ExchangeAsync(
-            App(HttpMethod.Post, "app/listings/similar", jwt, request), cancellationToken));
-        return answer.RootElement.Clone();
+        using var answer = await ExchangeAsync(
+            "listings", App(HttpMethod.Post, "app/listings/similar", jwt, request), cancellationToken);
+        return new SimilarListings(
+            CazanaJson.Get(answer.RootElement, "total")?.Clone(),
+            [.. CazanaJson.Items(answer.RootElement, "listings").Take(ListingsShown).Select(listing => listing.Clone())]);
     }
 
     /// <summary>
-    /// Stock images of the vehicle. Companion shows its placeholder when this
-    /// fails for any reason, so no failure here stops the report.
+    /// The vehicle's first stock image. Companion shows its placeholder when
+    /// this fails for any reason, so no failure here stops the report.
     /// </summary>
-    public async Task<IReadOnlyList<string>> ImagesAsync(string jwt, string vrm, CancellationToken cancellationToken)
+    public async Task<string?> ImageAsync(string jwt, string vrm, CancellationToken cancellationToken)
     {
         var message = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUri, "cz/image/2.0?vrm=" + Uri.EscapeDataString(vrm)));
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
         try
         {
-            var (status, body) = await ExchangeAsync(message, cancellationToken);
-            if (!Succeeded(status))
-            {
-                return [];
-            }
-
-            using var answer = JsonDocument.Parse(body);
+            using var answer = await ExchangeAsync("image", message, cancellationToken);
             return CazanaJson.Items(answer.RootElement, "image")
                 .Where(image => image.ValueKind == JsonValueKind.String)
-                .Select(image => image.GetString()!)
-                .ToArray();
+                .Select(image => image.GetString())
+                .FirstOrDefault();
         }
-        catch (Exception exception) when (exception is HttpRequestException or JsonException
+        catch (Exception exception) when (exception is HttpRequestException or CazanaCompanionFailure
             || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            return [];
+            return null;
         }
     }
 
-    /// <summary>Cazana's PDF service: rendered HTML in, the PDF out.</summary>
+    /// <summary>
+    /// Cazana's PDF service: rendered HTML in, the PDF out. The HTML travels
+    /// as bytes, which the serializer writes as Base64, and the PDF is decoded
+    /// from the answer's own bytes.
+    /// </summary>
     public async Task<byte[]> CreatePdfAsync(string jwt, string html, CancellationToken cancellationToken)
     {
-        var request = new { html = Convert.ToBase64String(Encoding.UTF8.GetBytes(html)) };
-        using var answer = Parse("pdf", await ExchangeAsync(
-            App(HttpMethod.Post, "app/pdf/create", jwt, request), cancellationToken));
-        try
-        {
-            return CazanaJson.String(answer.RootElement, "data") is { Length: > 0 } data
-                ? Convert.FromBase64String(data)
+        var request = new { html = Encoding.UTF8.GetBytes(html) };
+        using var answer = await ExchangeAsync(
+            "pdf", App(HttpMethod.Post, "app/pdf/create", jwt, request), cancellationToken);
+        return CazanaJson.Get(answer.RootElement, "data") is { ValueKind: JsonValueKind.String } data
+            && data.TryGetBytesFromBase64(out var pdf)
+            && pdf.Length > 0
+                ? pdf
                 : throw new CazanaCompanionFailure("pdf", null, "pdf=absent");
-        }
-        catch (FormatException)
-        {
-            throw new CazanaCompanionFailure("pdf", null, "pdf=absent");
-        }
     }
 
     private static HttpRequestMessage Guest(string path, object body)
@@ -207,32 +209,35 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         return message;
     }
 
-    private async Task<(HttpStatusCode Status, string Body)> ExchangeAsync(
+    /// <summary>
+    /// One call, named by its stage: the answer parsed from its bytes, or a
+    /// stage-named failure. Only a refusal is read as text, for its detail.
+    /// </summary>
+    private async Task<JsonDocument> ExchangeAsync(
+        string stage,
         HttpRequestMessage message,
         CancellationToken cancellationToken)
     {
         using (message)
         using (var response = await http.SendAsync(message, cancellationToken))
         {
-            return (response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
-        }
-    }
+            if (!Succeeded(response.StatusCode))
+            {
+                throw new CazanaCompanionFailure(
+                    stage,
+                    response.StatusCode,
+                    $"status={(int)response.StatusCode} {ErrorDetail(await response.Content.ReadAsStringAsync(cancellationToken))}");
+            }
 
-    private static JsonDocument Parse(string stage, (HttpStatusCode Status, string Body) answer)
-    {
-        if (!Succeeded(answer.Status))
-        {
-            throw new CazanaCompanionFailure(
-                stage, answer.Status, $"status={(int)answer.Status} {ErrorDetail(answer.Body)}");
-        }
-
-        try
-        {
-            return JsonDocument.Parse(answer.Body);
-        }
-        catch (JsonException)
-        {
-            throw new CazanaCompanionFailure(stage, null, "json=invalid");
+            try
+            {
+                await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
+                return await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+            }
+            catch (JsonException)
+            {
+                throw new CazanaCompanionFailure(stage, null, "json=invalid");
+            }
         }
     }
 
@@ -293,6 +298,9 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         return detail.Length <= 200 ? detail : detail[..200];
     }
 }
+
+/// <summary>The comparable listings the report prints: the answer's total and its first listings.</summary>
+internal sealed record SimilarListings(JsonElement? Total, IReadOnlyList<JsonElement> Listings);
 
 /// <summary>A Companion call that did not answer as Companion answers, named by its stage.</summary>
 internal sealed class CazanaCompanionFailure(string stage, HttpStatusCode? status, string detail)

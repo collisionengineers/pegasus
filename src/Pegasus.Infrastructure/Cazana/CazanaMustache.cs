@@ -16,18 +16,32 @@ namespace Pegasus.Infrastructure.Cazana;
 /// changes appear in none of the templates and are refused rather than
 /// guessed.
 /// </para>
+///
+/// <para>
+/// A template is parsed once, names split into their segments as it is, and
+/// rendered as often as it is needed.
+/// </para>
 /// </summary>
 internal static class CazanaMustache
 {
-    public static string Render(string template, object? view, IReadOnlyDictionary<string, string>? partials = null)
+    public static string Render(Template template, object? view, IReadOnlyDictionary<string, string>? partials = null)
     {
         ArgumentNullException.ThrowIfNull(template);
         var output = new StringBuilder(template.Length);
-        RenderNodes(Parse(template), [view], partials, output);
+        RenderNodes(template.Nodes, [view], partials, output);
         return output.ToString();
     }
 
-    private static List<Node> Parse(string template)
+    public static Template Parse(string template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        return new Template(template.Length, ParseNodes(template));
+    }
+
+    /// <summary>A name as the segments a lookup walks; the bare dot names the current frame.</summary>
+    private static string[] PathOf(string name) => name == "." ? [] : name.Split('.');
+
+    private static List<Node> ParseNodes(string template)
     {
         var root = new List<Node>();
         var open = new Stack<(string Name, bool Inverted, List<Node> Children, List<Node> Parent)>();
@@ -76,13 +90,13 @@ internal static class CazanaMustache
 
                     var section = open.Pop();
                     current = section.Parent;
-                    current.Add(new Section(section.Name, section.Inverted, section.Children));
+                    current.Add(new Section(PathOf(section.Name), section.Inverted, section.Children));
                     break;
                 case '>':
                     current.Add(new Partial(tag[1..].Trim()));
                     break;
                 default:
-                    current.Add(new Variable(tag.Trim()));
+                    current.Add(new Variable(PathOf(tag.Trim())));
                     break;
             }
         }
@@ -109,7 +123,7 @@ internal static class CazanaMustache
                     output.Append(text.Value);
                     break;
                 case Variable variable:
-                    AppendEscaped(output, Print(Lookup(frames, variable.Name)));
+                    AppendEscaped(output, Print(Lookup(frames, variable.Path)));
                     break;
                 case Partial partial:
                     if (partials is not null && partials.TryGetValue(partial.Name, out var html))
@@ -119,14 +133,14 @@ internal static class CazanaMustache
 
                     break;
                 case Section { Inverted: true } inverted:
-                    if (!Truthy(Lookup(frames, inverted.Name)))
+                    if (!Truthy(Lookup(frames, inverted.Path)))
                     {
                         RenderNodes(inverted.Children, frames, partials, output);
                     }
 
                     break;
                 case Section section:
-                    var value = Lookup(frames, section.Name);
+                    var value = Lookup(frames, section.Path);
                     if (!Truthy(value))
                     {
                         break;
@@ -170,24 +184,23 @@ internal static class CazanaMustache
     /// The nearest frame whose first name segment resolves answers the whole
     /// name; later segments that do not resolve answer nothing.
     /// </summary>
-    private static object? Lookup(List<object?> frames, string name)
+    private static object? Lookup(List<object?> frames, string[] path)
     {
-        if (name == ".")
+        if (path.Length == 0)
         {
             return frames[^1];
         }
 
-        var segments = name.Split('.');
         for (var index = frames.Count - 1; index >= 0; index--)
         {
-            if (!TryResolve(frames[index], segments[0], out var value))
+            if (!TryResolve(frames[index], path[0], out var value))
             {
                 continue;
             }
 
-            for (var segment = 1; segment < segments.Length; segment++)
+            for (var segment = 1; segment < path.Length; segment++)
             {
-                if (!TryResolve(value, segments[segment], out value))
+                if (!TryResolve(value, path[segment], out value))
                 {
                     return null;
                 }
@@ -268,13 +281,16 @@ internal static class CazanaMustache
         }
     }
 
-    private abstract record Node;
+    /// <summary>A template parsed once, to be rendered with any view.</summary>
+    internal sealed record Template(int Length, IReadOnlyList<Node> Nodes);
+
+    internal abstract record Node;
 
     private sealed record Text(string Value) : Node;
 
-    private sealed record Variable(string Name) : Node;
+    private sealed record Variable(string[] Path) : Node;
 
     private sealed record Partial(string Name) : Node;
 
-    private sealed record Section(string Name, bool Inverted, IReadOnlyList<Node> Children) : Node;
+    private sealed record Section(string[] Path, bool Inverted, IReadOnlyList<Node> Children) : Node;
 }

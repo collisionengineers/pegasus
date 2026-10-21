@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -91,21 +92,25 @@ public sealed class CazanaCompanionReportTests
         var pdf = await report.FetchPdfAsync(default);
 
         Assert.Equal(PdfBytes, pdf);
+
+        // The three reads are asked for together, so their order is the
+        // network's; the page is posted once all three have answered.
+        var calls = requests.Select(request => $"{request.Method} {request.Uri}").ToArray();
         Assert.Equal(
             [
                 "GET https://api.cazana.com/app/companion/" + Uuid + "/timeline",
-                "POST https://api.cazana.com/app/listings/similar",
                 "GET https://api.cazana.com/cz/image/2.0?vrm=AB12CDE",
-                "POST https://api.cazana.com/app/pdf/create",
+                "POST https://api.cazana.com/app/listings/similar",
             ],
-            requests.Select(request => $"{request.Method} {request.Uri}").ToArray());
+            calls[..3].Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal("POST https://api.cazana.com/app/pdf/create", calls[3]);
 
-        using var listingsRequest = JsonDocument.Parse(requests[1].Body!);
+        using var listingsRequest = JsonDocument.Parse(RequestTo(requests, "/app/listings/similar").Body!);
         Assert.Equal(9946663, listingsRequest.RootElement.GetProperty("cid").GetInt64());
         Assert.Equal(10, listingsRequest.RootElement.GetProperty("limit").GetInt32());
         Assert.Equal("daysOnSale", listingsRequest.RootElement.GetProperty("sort").GetString());
 
-        var html = PostedHtml(requests[3]);
+        var html = PostedHtml(RequestTo(requests, "/app/pdf/create"));
         Assert.Contains("For internal use only, not to be shared with any 3rd party", html, StringComparison.Ordinal);
         Assert.Contains("Companion Report", html, StringComparison.Ordinal);
         Assert.Contains("AB12CDE", html, StringComparison.Ordinal);
@@ -141,7 +146,7 @@ public sealed class CazanaCompanionReportTests
 
         await report.FetchPdfAsync(default);
 
-        var html = PostedHtml(requests[3]);
+        var html = PostedHtml(RequestTo(requests, "/app/pdf/create"));
         Assert.DoesNotContain("Passed MOT Test", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Numberplate change", html, StringComparison.Ordinal);
         Assert.Contains("4th January 2024", html, StringComparison.Ordinal);
@@ -156,9 +161,9 @@ public sealed class CazanaCompanionReportTests
 
         await report.FetchPdfAsync(default);
 
-        var html = PostedHtml(requests[3]);
+        var html = PostedHtml(RequestTo(requests, "/app/pdf/create"));
         Assert.Contains("cazana-logotype-white.svg", html, StringComparison.Ordinal);
-        Assert.Contains("bg-tertiary", html, StringComparison.Ordinal);
+        Assert.Contains("justify-center bg-tertiary border-transparent", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -172,6 +177,39 @@ public sealed class CazanaCompanionReportTests
 
         Assert.Equal("pdf", failed.Stage);
         Assert.Equal(HttpStatusCode.InternalServerError, failed.Status);
+    }
+
+    /// <summary>
+    /// Cazana timing out on the timeline is no timeline, as Companion treats it;
+    /// any other timeline or listings refusal stops the report at its stage.
+    /// </summary>
+    [Fact]
+    public async Task ATimelineThatTimesOutLeavesTheTimelineOutOfTheReport()
+    {
+        var (report, requests) = CreateReport(path => path.EndsWith("/timeline", StringComparison.Ordinal)
+            ? CazanaGuideValuationProviderTests.Json(HttpStatusCode.RequestTimeout, "{}")
+            : null);
+
+        await report.FetchPdfAsync(default);
+
+        var html = PostedHtml(RequestTo(requests, "/app/pdf/create"));
+        Assert.DoesNotContain("Passed MOT Test", html, StringComparison.Ordinal);
+        Assert.Contains("4th January 2024", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("timeline", "/app/companion/" + Uuid + "/timeline")]
+    [InlineData("listings", "/app/listings/similar")]
+    public async Task ATimelineOrListingsFailureIsNamedByItsStageAndNothingIsPosted(string stage, string failingPath)
+    {
+        var (report, requests) = CreateReport(path => path == failingPath
+            ? CazanaGuideValuationProviderTests.Json(HttpStatusCode.InternalServerError, """{"error":"Server Error"}""")
+            : null);
+
+        var failed = await Assert.ThrowsAsync<CazanaCompanionFailure>(() => report.FetchPdfAsync(default));
+
+        Assert.Equal(stage, failed.Stage);
+        Assert.DoesNotContain(requests, request => request.Uri.AbsolutePath == "/app/pdf/create");
     }
 
     [Fact]
@@ -190,22 +228,27 @@ public sealed class CazanaCompanionReportTests
         };
 
         var rendered = CazanaMustache.Render(
-            "{{a}}|{{#s.length}}x{{/s.length}}|{{#list}}{{.}},{{/list}}|{{#rows}}{{label}}:{{colour}}{{/rows}}",
+            CazanaMustache.Parse(
+                "{{a}}|{{#s.length}}x{{/s.length}}|{{#list}}{{.}},{{/list}}|{{#rows}}{{label}}:{{colour}}{{/rows}}"),
             view);
 
         Assert.Equal("&lt;&amp;&quot;&#39;&#x2F;&#x3D;&#x60;||one,two,|Row:#581c87", rendered);
     }
 
-    private static (CazanaCompanionReport Report, List<CazanaGuideValuationProviderTests.RecordedRequest> Requests) CreateReport(
+    private static CazanaGuideValuationProviderTests.RecordedRequest RequestTo(
+        ConcurrentQueue<CazanaGuideValuationProviderTests.RecordedRequest> requests, string path) =>
+        requests.Single(request => request.Uri.AbsolutePath == path);
+
+    private static (CazanaCompanionReport Report, ConcurrentQueue<CazanaGuideValuationProviderTests.RecordedRequest> Requests) CreateReport(
         Func<string, HttpResponseMessage?>? overridePath = null)
     {
-        var requests = new List<CazanaGuideValuationProviderTests.RecordedRequest>();
+        var requests = new ConcurrentQueue<CazanaGuideValuationProviderTests.RecordedRequest>();
         using var document = JsonDocument.Parse(CazanaGuideValuationProviderTests.LookupJson());
         var response = document.RootElement.GetProperty("response").Clone();
         var http = new HttpClient(new CazanaGuideValuationProviderTests.Answering(async request =>
         {
             var body = request.Content is null ? null : await request.Content.ReadAsStringAsync();
-            requests.Add(new(
+            requests.Enqueue(new(
                 request.Method,
                 request.RequestUri!,
                 request.Headers.Authorization?.ToString(),

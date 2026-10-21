@@ -307,7 +307,13 @@ public sealed class FileGuideValuationReport(ICaseArtifactCustody custody, IExtr
             throw new InvalidOperationException("The provider's valuation report is not a PDF.");
         }
 
-        var extraction = await _pdfText.ExtractAsync(content, MaximumTextCharacters, cancellationToken);
+        // The registration is on the first page that names it; later pages of
+        // a longer report are not read.
+        var extraction = await _pdfText.ExtractAsync(
+            content,
+            MaximumTextCharacters,
+            cancellationToken,
+            text => GlassRepairEstimateSessionPolicy.NamesRegistration(text, request.Registration));
         var pages = extraction?.Pages.Where(page => !string.IsNullOrWhiteSpace(page.Text)).ToArray() ?? [];
         if (pages.Length == 0)
         {

@@ -172,7 +172,7 @@ is automation-only.
 
 Glass's and Cazana are the connected guide sources
 ([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md),
-[ADR-0066](../adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md)).
+[ADR-0079](../adr/0079-cazana-companion-account-and-companion-report.md)).
 Staff or the Automation Actor press Get valuation
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md); operator, 8 October
 2026). Its Get valuation signs in with the Glass's valuation account, values the

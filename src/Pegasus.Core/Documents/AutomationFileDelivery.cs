@@ -51,12 +51,14 @@ public sealed record PdfTextExtraction(
 
 /// <summary>
 /// Extracts page text from a PDF for delivery to an MCP client. Answers
-/// <c>null</c> when the bytes are not a readable PDF.
+/// <c>null</c> when the bytes are not a readable PDF. When the
+/// optional stop predicate accepts a page's text, no later page is read.
 /// </summary>
 public interface IExtractPdfPageText
 {
     Task<PdfTextExtraction?> ExtractAsync(
         ReadOnlyMemory<byte> content,
         int maximumCharacters,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Func<string, bool>? stopAfterPage = null);
 }

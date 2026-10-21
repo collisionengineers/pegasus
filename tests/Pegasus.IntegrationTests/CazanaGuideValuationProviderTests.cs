@@ -133,13 +133,13 @@ public sealed class CazanaGuideValuationProviderTests
     }
 
     [Theory]
-    [InlineData("/guest/onboard/branch", 401, """{"error":"Bad credentials"}""", "cazana.valuation.forbidden stage=sign_in status=401 error=Bad credentials")]
-    [InlineData("/guest/onboard/branch", 404, """{"error":"Not Found"}""", "cazana.valuation.provider_failed stage=sign_in status=404 error=Not Found")]
-    [InlineData("/app/companion", 400, """{"error":{"code":400,"message":"Bad Request","data":["mileage must be less than or equal to 500000"]}}""", "cazana.valuation.rejected stage=lookup status=400 error=Bad Request; mileage must be less than or equal to 500000")]
-    [InlineData("/app/companion", 429, "", "cazana.valuation.throttled stage=lookup status=429 error=unreadable")]
-    [InlineData("/app/companion/" + Uuid, 500, """{"error":{"code":500,"message":"Server Error"}}""", "cazana.valuation.provider_failed stage=read status=500 error=Server Error")]
+    [InlineData(401, "/guest/onboard/branch", """{"error":"Bad credentials"}""", "cazana.valuation.forbidden stage=sign_in status=401 error=Bad credentials")]
+    [InlineData(404, "/guest/onboard/branch", """{"error":"Not Found"}""", "cazana.valuation.provider_failed stage=sign_in status=404 error=Not Found")]
+    [InlineData(400, "/app/companion", """{"error":{"code":400,"message":"Bad Request","data":["mileage must be less than or equal to 500000"]}}""", "cazana.valuation.rejected stage=lookup status=400 error=Bad Request; mileage must be less than or equal to 500000")]
+    [InlineData(429, "/app/companion", "", "cazana.valuation.throttled stage=lookup status=429 error=unreadable")]
+    [InlineData(500, "/app/companion/" + Uuid, """{"error":{"code":500,"message":"Server Error"}}""", "cazana.valuation.provider_failed stage=read status=500 error=Server Error")]
     public async Task EveryOtherRefusalIsUnavailableAndLoggedByItsCodeAndStage(
-        string failingPath, int status, string body, string logged)
+        int status, string failingPath, string body, string logged)
     {
         var harness = Harness.Create(path => path == failingPath ? Json((HttpStatusCode)status, body) : null);
 
