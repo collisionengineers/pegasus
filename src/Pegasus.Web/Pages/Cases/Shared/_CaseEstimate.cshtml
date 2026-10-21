@@ -203,7 +203,7 @@
                     <div class="fc">
                         <label for="estimate-vat-status">@VatLabels.RepairerStatus</label>
                         <select id="estimate-vat-status" class="fi" name="estimateVatStatus" form="case-edit-form" data-vat-status>
-                            @foreach (var status in Enum.GetValues<RepairerVatStatus>())
+                            @foreach (var status in RepairerVatStatuses.Choosable)
                             {
                                 <option value="@status" selected="@((Model.PostedEstimateValue("estimateVatStatus") is { } postedStatus ? postedStatus == status.ToString() : vatPolicy.RepairerStatus == status) ? "selected" : null)">@VatLabels.StatusLabel(status)</option>
                             }

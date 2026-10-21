@@ -1334,7 +1334,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(RepairSpecificationState.Draft, imported.State);
         Assert.Equal(80m, imported.Details.LabourRate);
         Assert.Equal(new EstimateRateSnapshot(rateCard.Id, rateCard.Version, 80m), imported.Details.Rate);
-        Assert.Equal(RepairerVatStatus.Unknown, imported.Details.VatPolicy.RepairerStatus);
+        Assert.Equal(RepairerVatStatus.Registered, imported.Details.VatPolicy.RepairerStatus);
         var current = (await harness.RepairSpecifications.GetCurrentAsync(caseId, CancellationToken.None))!;
         Assert.Equal(imported.SpecificationId, current.SpecificationId);
         Assert.Equal(80m, current.Details.HourlyRate);

@@ -685,7 +685,7 @@ internal sealed class CaseEditMcpTools(
                 EstimateLineCodes.EvidenceLabelMeanings
                     .Select(label => new CodeMeaningItem(label.Key, label.Value))
                     .ToArray(),
-                Enum.GetNames<RepairerVatStatus>(),
+                RepairerVatStatuses.Choosable.Select(status => status.ToString()).ToArray(),
                 [nameof(EstimateVatCategories.Labour), nameof(EstimateVatCategories.Parts),
                     nameof(EstimateVatCategories.Materials), nameof(EstimateVatCategories.Specialist)],
                 Enum.GetNames<ValuationSource>(),

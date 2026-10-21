@@ -571,7 +571,9 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void AnUnknownRepairerVatStatusIsNotReady()
     {
-        var estimate = CurrentEstimate(new("Repairer", 45m, 15m, 20m), materials: 60m);
+        var estimate = CurrentEstimate(
+            new("Repairer", 45m, 15m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
+            materials: 60m);
 
         var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = estimate });
 

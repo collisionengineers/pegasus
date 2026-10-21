@@ -270,7 +270,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Saves an estimate (repair spec) on a case, as the Case's Repair Spec editor does: creates a named estimate, which lands as an AI draft in Draft, or, with estimateId, edits any live estimate in place (the Current one included; its report goes stale). On an edit, send each kept line's lineId (pegasus_estimate_get) so it keeps its source evidence; header values you omit keep their recorded values. Only a staff member puts an estimate in use (Use repair spec). Citing the Estimate AI job the work fulfils (aiJobId) is optional. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Rates are per hour in pounds. VAT follows the repairer's VAT status: Registered charges VAT on everything, NotRegistered on parts and materials, Unknown (the default) on nothing until the status is known; vatCategories overrides which categories carry VAT. Line types and evidence labels are listed by pegasus_vocabulary_get.")]
+    [Description("Saves an estimate (repair spec) on a case, as the Case's Repair Spec editor does: creates a named estimate, which lands as an AI draft in Draft, or, with estimateId, edits any live estimate in place (the Current one included; its report goes stale). On an edit, send each kept line's lineId (pegasus_estimate_get) so it keeps its source evidence; header values you omit keep their recorded values. Only a staff member puts an estimate in use (Use repair spec). Citing the Estimate AI job the work fulfils (aiJobId) is optional. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command). Rates are per hour in pounds. VAT follows the repairer's VAT status: Registered charges VAT on everything, NotRegistered on parts and materials; an omitted status keeps the recorded one, or Registered when none is recorded, and an explicit Unknown is refused; vatCategories overrides which categories carry VAT. Line types and evidence labels are listed by pegasus_vocabulary_get.")]
     public async Task<EstimateSaveToolResult> SaveEstimateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -283,7 +283,7 @@ internal sealed class AssessmentMcpTools(
         [Description("One hourly rate for both panel and paint labour.")] decimal? labourRate = null,
         [Description("Other costs amount.")] decimal? otherCosts = null,
         [Description("VAT percentage, 0 to 100; defaults to 20.")] decimal? vatPercent = null,
-        [Description("The repairer's VAT status: Registered, NotRegistered or Unknown.")] string? repairerVatStatus = null,
+        [Description("The repairer's VAT status: Registered or NotRegistered.")] string? repairerVatStatus = null,
         [Description("Override of which categories carry VAT: any of Labour, Parts, Materials, Specialist; an empty list charges none.")] IReadOnlyList<string>? vatCategories = null,
         [Description("Discounts by category, each a fraction of one (0.1 is 10%).")] EstimateDiscountsToolInput? discounts = null,
         [Description("Whether the regional labour uplift applies.")] bool? regionalUplift = null,
@@ -318,7 +318,7 @@ internal sealed class AssessmentMcpTools(
                             ? await FindEstimateAsync(caseId, id, cancellationToken)
                             : null;
                         var recorded = existing?.Details;
-                        var recordedVat = recorded?.VatPolicy ?? EstimateVatPolicy.For(RepairerVatStatus.Unknown);
+                        var recordedVat = recorded?.VatPolicy ?? EstimateVatPolicy.For(RepairerVatStatuses.Default);
                         return await saveEstimate.ExecuteAsync(
                             new(
                                 caseId,
@@ -690,9 +690,9 @@ internal sealed class AssessmentMcpTools(
         string.IsNullOrWhiteSpace(value)
             ? null
             : Enum.TryParse<RepairerVatStatus>(value.Trim(), ignoreCase: true, out var status)
-                && Enum.IsDefined(status)
+                && RepairerVatStatuses.IsChoosable(status)
                 ? status
-                : throw new McpException("The repairer VAT status must be Registered, NotRegistered or Unknown.");
+                : throw new McpException("The repairer VAT status must be Registered or NotRegistered.");
 
     private static EstimateVatCategories? ParseVatCategories(IReadOnlyList<string>? values)
     {

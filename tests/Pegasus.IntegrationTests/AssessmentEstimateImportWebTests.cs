@@ -1510,14 +1510,13 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// B08: an Unknown repairer status charges VAT on nothing, so the Engineer
-    /// who selects the categories by hand is making an override. The screen
-    /// records that override without a control of its own — the checked set
-    /// differing from the status's own default is what the override means.
-    /// The new spec is the one in use, so it offers no Use repair spec.
+    /// A new spec opens on Registered. Posting Unknown, as a page that still
+    /// shows that choice would, is recorded as Registered. Parts and materials
+    /// differ from Registered's own categories, so they stay a hand-picked
+    /// override. The new spec is the one in use, so it offers no Use repair spec.
     /// </summary>
     [Fact]
-    public async Task PostingUnknownWithCategoriesRecordsTheOverrideOnTheSpecInUse()
+    public async Task APostedUnknownIsRecordedAsRegisteredAndTheHandPickedCategoriesStay()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
@@ -1526,11 +1525,17 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var client = CreateEngineerClient(factory);
 
         var html = await EnterEditModeAsync(client, caseId, "?section=estimate&estimate=new");
-        // A new estimate opens on Unknown, charging VAT on nothing.
+        var start = html.IndexOf("id=\"estimate-vat-status\"", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var end = html.IndexOf("</select>", start, StringComparison.Ordinal);
+        Assert.True(end > start);
+        var select = html[start..end];
         Assert.Contains(
-            "<option value=\"Unknown\" selected=\"selected\">Unknown</option>",
-            html,
+            "value=\"Registered\" selected=\"selected\">Registered",
+            select,
             StringComparison.Ordinal);
+        Assert.Contains("value=\"NotRegistered\">Not registered", select, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unknown", select, StringComparison.Ordinal);
 
         var fields = new List<KeyValuePair<string, string>>
         {
@@ -1560,7 +1565,7 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var saved = Assert.Single(store.SavedEstimates);
-        Assert.Equal(RepairerVatStatus.Unknown, saved.Details.Vat!.RepairerStatus);
+        Assert.Equal(RepairerVatStatus.Registered, saved.Details.Vat!.RepairerStatus);
         Assert.Equal(
             EstimateVatCategories.Parts | EstimateVatCategories.Materials,
             saved.Details.Vat.Categories);
@@ -1575,8 +1580,8 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// v28 P10: an unrecorded repairer VAT status no longer gates Use repair
-    /// spec. The control is offered; the totals simply carry no VAT.
+    /// v28 P10: an unrecorded repairer VAT status stands on Registered and
+    /// does not gate Use repair spec. The control is offered.
     /// </summary>
     [Fact]
     public async Task AnUnrecordedRepairerVatStatusDoesNotGateUseRepairSpec()
@@ -1589,7 +1594,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        Assert.True(draft.Details.VatPolicy.TreatmentPending);
+        Assert.Equal(RepairerVatStatus.Registered, draft.Details.VatPolicy.RepairerStatus);
+        Assert.False(draft.Details.VatPolicy.TreatmentPending);
         var html = await EnterEditModeAsync(
             client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
 

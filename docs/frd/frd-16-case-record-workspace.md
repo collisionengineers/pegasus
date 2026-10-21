@@ -946,10 +946,12 @@ One spec is Current and drives the report. A new spec — typed in, imported
 or returned from Glass's — is Current as soon as it is recorded; **Use repair
 spec** switches to another live spec. Each version's rate prices
 panel, paint and Specialist work-unit hours. The VAT rule is owned by
-[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report);
-an unknown repairer VAT status never gates **Use repair spec** (P10), and it
-does block the report (operator, 27 September 2026). VAT categories nobody
-chose by hand follow the Repairer VAT status as it changes (operator, 28 September 2026). Lines an import brought
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report).
+The default repairer VAT status is Registered and does not block the report
+or **Use repair spec**. Not registered remains a choice. A hand-picked set
+with no wording still blocks the report (operator, 19 October 2026). VAT
+categories nobody chose by hand follow the Repairer VAT status as it changes
+(operator, 28 September 2026). Lines an import brought
 in read `imported · AX`, `GL`, `JSON` or `AI` on their
 Source chip (P18); a cell Core finds off-pattern reads amber and named
 Off-pattern, and the rollup carries the off-pattern amount as specialist
