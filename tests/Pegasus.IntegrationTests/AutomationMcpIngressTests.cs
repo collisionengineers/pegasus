@@ -39,6 +39,7 @@ public sealed class AutomationMcpIngressTests
         "pegasus_case_create",
         "pegasus_document_add",
         "pegasus_document_download",
+        "pegasus_document_download_batch",
         "pegasus_document_action",
         "pegasus_report_list",
         "pegasus_report_action",

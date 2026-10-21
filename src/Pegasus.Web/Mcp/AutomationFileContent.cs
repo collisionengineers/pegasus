@@ -14,7 +14,8 @@ namespace Pegasus.Web.Mcp;
 internal sealed record AutomationFileDelivery(
     bool ContentIncluded,
     string? Notice,
-    IReadOnlyList<ContentBlock> Blocks);
+    IReadOnlyList<ContentBlock> Blocks,
+    int InlineBytes = 0);
 
 /// <summary>
 /// How the Automation download tools deliver a file's content as native MCP
@@ -90,7 +91,8 @@ internal static class AutomationFileContent
                     [
                         new TextContentBlock { Text = caption },
                         ImageContentBlock.FromBytes(rendered.Content, rendered.MediaType)
-                    ]);
+                    ],
+                    rendered.Content.Length);
             }
             return Withheld(
                 summary,
@@ -110,8 +112,13 @@ internal static class AutomationFileContent
                         Text = $"{summary} {extracted.PageCount} page(s); text follows per page. The PDF itself is at contentUrl."
                     }
                 };
+                // Character length is the single-download cap (FRD-10). The batch
+                // does not spend this figure: it remeasures each text block in
+                // UTF-8 bytes before the image split.
+                var extractedCharacters = 0;
                 foreach (var page in extracted.Pages)
                 {
+                    extractedCharacters += page.Text.Length;
                     var heading = new StringBuilder()
                         .Append(CultureInfo.InvariantCulture, $"Page {page.Number} of {extracted.PageCount}");
                     if (page.NeedsOcr)
@@ -131,7 +138,7 @@ internal static class AutomationFileContent
                 {
                     blocks.Add(new TextContentBlock { Text = notice });
                 }
-                return new AutomationFileDelivery(true, notice, blocks);
+                return new AutomationFileDelivery(true, notice, blocks, extractedCharacters);
             }
             return Withheld(summary, "The PDF could not be read for text; fetch contentUrl with this bearer token.", contentUrl);
         }
@@ -144,13 +151,78 @@ internal static class AutomationFileContent
                 [
                     new TextContentBlock { Text = summary },
                     new TextContentBlock { Text = Encoding.UTF8.GetString(content.Span) }
-                ]);
+                ],
+                content.Length);
         }
 
         return Withheld(
             summary,
             $"The content ({contentLength} bytes, {mediaType}) is not delivered inline; fetch contentUrl with this bearer token.",
             contentUrl);
+    }
+
+    /// <summary>
+    /// The notice a download uses when the bytes are not handed back inline.
+    /// </summary>
+    public static string InlineLimitNotice(long contentLength, string mediaType, int inlineLimit) =>
+        $"The content ({contentLength} bytes, {mediaType}) exceeds the inline limit of {inlineLimit} bytes or is not an image, PDF or text file; fetch contentUrl with this bearer token.";
+
+    /// <summary>
+    /// Batch budget only. Charges every text block at its UTF-8 byte length,
+    /// and an image at the bytes already rendered for it. Text that does not
+    /// fit the bytes still remaining is trimmed; a text delivery that does not
+    /// fit at all is withheld with <see cref="InlineLimitNotice"/>. The
+    /// single-download character cap is unchanged.
+    /// </summary>
+    public static AutomationFileDelivery AccountTextBlocks(
+        AutomationFileDelivery delivery,
+        int remainingBytes,
+        string fileName,
+        string mediaType,
+        long contentLength,
+        string sha256,
+        string contentUrl)
+    {
+        ArgumentNullException.ThrowIfNull(delivery);
+        if (remainingBytes < 0)
+        {
+            remainingBytes = 0;
+        }
+
+        var imageBytes = 0;
+        var textBytes = 0;
+        var hasImage = false;
+        foreach (var block in delivery.Blocks)
+        {
+            if (block is ImageContentBlock)
+            {
+                hasImage = true;
+                continue;
+            }
+
+            if (block is TextContentBlock text && text.Text is not null)
+            {
+                textBytes += Encoding.UTF8.GetByteCount(text.Text);
+            }
+        }
+
+        if (hasImage && delivery.ContentIncluded)
+        {
+            imageBytes = delivery.InlineBytes;
+        }
+
+        if (imageBytes > remainingBytes || (imageBytes == 0 && textBytes > remainingBytes && delivery.ContentIncluded))
+        {
+            return WithheldWithinBudget(fileName, mediaType, contentLength, sha256, contentUrl, remainingBytes);
+        }
+
+        var textRoom = remainingBytes - imageBytes;
+        if (textBytes <= textRoom)
+        {
+            return delivery with { InlineBytes = imageBytes + textBytes };
+        }
+
+        return TrimText(delivery, textRoom, imageBytes);
     }
 
     /// <summary>The metadata-only answer, with the reason and where the bytes are.</summary>
@@ -163,19 +235,107 @@ internal static class AutomationFileContent
         string contentUrl) =>
         Withheld(Summary(fileName, mediaType, contentLength, sha256), notice, contentUrl);
 
-    public static CallToolResult ToResult(AutomationFileDelivery delivery, object structured) => new()
+    public static CallToolResult ToResult(AutomationFileDelivery delivery, object structured) =>
+        ToResult(delivery.Blocks, structured);
+
+    public static CallToolResult ToResult(IEnumerable<ContentBlock> blocks, object structured) => new()
     {
-        Content = [.. delivery.Blocks],
+        Content = [.. blocks],
         StructuredContent = JsonSerializer.SerializeToElement(structured, structured.GetType(), Json)
     };
+
+    public static bool IsImage(string mediaType) => CaseDocumentThumbnails.IsThumbnailable(mediaType);
+
+    private static AutomationFileDelivery WithheldWithinBudget(
+        string fileName,
+        string mediaType,
+        long contentLength,
+        string sha256,
+        string contentUrl,
+        int remainingBytes)
+    {
+        var withheld = Withheld(
+            fileName,
+            mediaType,
+            contentLength,
+            sha256,
+            InlineLimitNotice(contentLength, mediaType, remainingBytes),
+            contentUrl);
+        return TrimText(withheld, remainingBytes, imageBytes: 0);
+    }
+
+    private static AutomationFileDelivery TrimText(AutomationFileDelivery delivery, int textRoom, int imageBytes)
+    {
+        var kept = new List<ContentBlock>(delivery.Blocks.Count);
+        var textUsed = 0;
+        var closed = false;
+        foreach (var block in delivery.Blocks)
+        {
+            if (block is ImageContentBlock)
+            {
+                kept.Add(block);
+                continue;
+            }
+
+            if (closed || block is not TextContentBlock text || string.IsNullOrEmpty(text.Text))
+            {
+                continue;
+            }
+
+            var size = Encoding.UTF8.GetByteCount(text.Text);
+            if (textUsed + size <= textRoom)
+            {
+                kept.Add(text);
+                textUsed += size;
+                continue;
+            }
+
+            var cut = TrimToUtf8Bytes(text.Text, textRoom - textUsed);
+            if (cut.Length > 0)
+            {
+                kept.Add(new TextContentBlock { Text = cut });
+                textUsed += Encoding.UTF8.GetByteCount(cut);
+            }
+
+            closed = true;
+        }
+
+        return new AutomationFileDelivery(delivery.ContentIncluded, delivery.Notice, kept, imageBytes + textUsed);
+    }
+
+    private static string TrimToUtf8Bytes(string text, int maxBytes)
+    {
+        if (maxBytes <= 0 || text.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        if (Encoding.UTF8.GetByteCount(text) <= maxBytes)
+        {
+            return text;
+        }
+
+        var end = 0;
+        var used = 0;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            if (used + rune.Utf8SequenceLength > maxBytes)
+            {
+                break;
+            }
+
+            used += rune.Utf8SequenceLength;
+            end += rune.Utf16SequenceLength;
+        }
+
+        return end == 0 ? string.Empty : text[..end];
+    }
 
     private static AutomationFileDelivery Withheld(string summary, string notice, string contentUrl) =>
         new(false, notice, [new TextContentBlock { Text = $"{summary} {notice} contentUrl: {contentUrl}" }]);
 
     private static string Summary(string fileName, string mediaType, long contentLength, string sha256) =>
         $"{fileName} ({mediaType}, {contentLength} bytes, SHA-256 {sha256}).";
-
-    private static bool IsImage(string mediaType) => CaseDocumentThumbnails.IsThumbnailable(mediaType);
 
     private static bool IsPdf(string mediaType) =>
         string.Equals(mediaType, "application/pdf", StringComparison.OrdinalIgnoreCase);
