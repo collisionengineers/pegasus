@@ -301,6 +301,20 @@ public interface IIntakeWorkStore
     Task<Guid?> FindStagedReceiptIdForReceiptAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records a terminal failure on an already-completed work item, the same
+    /// <see cref="IntakeWorkState.Failed"/> outcome
+    /// <see cref="RetryProcessingAsync"/> records on the live path. A
+    /// completed-evaluation replay holds no lease, so it cannot call that
+    /// method; this does not make the item claimable again. An item that is
+    /// not completed is left unchanged.
+    /// </summary>
+    Task RecordTerminalReplayFailureAsync(
+        Guid stagedReceiptId,
+        string failureCode,
+        DateTimeOffset failedAtUtc,
+        CancellationToken cancellationToken);
 }
 
 public interface IIntakeWorkEnqueuer
@@ -824,7 +838,7 @@ public sealed class ProcessQueuedIntake(
                 completedReceipt = await ReloadAsync(completedReceipt, cancellationToken);
             }
             var replayPromotion = await PromoteAssociatedCaseEvidenceAsync(
-                completedReceipt, cancellationToken);
+                completedReceipt, cancellationToken, throwOnDeferred: false);
 
             // Completed redelivery replays destination operation identities.
             var replayAllocation = await allocateIntake.AttemptAutomaticAsync(
@@ -849,7 +863,7 @@ public sealed class ProcessQueuedIntake(
             {
                 // Images filed on a matched Case: no record, so file them there.
                 replayPromotion = await PromoteAssociatedCaseEvidenceAsync(
-                    replayImageOutcome.Receipt, cancellationToken);
+                    replayImageOutcome.Receipt, cancellationToken, throwOnDeferred: false);
             }
             if (replayImageOutcome.AwaitingStaffDecision)
             {
@@ -857,19 +871,29 @@ public sealed class ProcessQueuedIntake(
                 // the sweep (not GroupPending) re-drives it at the window.
                 return QueuedIntakeProcessingOutcome.NoOp;
             }
-            completedReceipt = await RetainHoldingIfRequiredAsync(
-                replayImageOutcome.Receipt, replayPromotion, cancellationToken);
             if (replayImageOutcome.GroupPending)
             {
+                if (await IsGroupPastEscapeWindowAsync(completedReceipt, cancellationToken))
+                {
+                    await RetainSubmissionGroupHoldingAsync(
+                        replayImageOutcome.Receipt,
+                        includeCurrentReceipt: true,
+                        cancellationToken);
+                }
+
                 return QueuedIntakeProcessingOutcome.RetryScheduled;
             }
+            completedReceipt = await RetainHoldingIfRequiredAsync(
+                replayImageOutcome.Receipt, replayPromotion, cancellationToken);
 
             await SynchronizeUnidentifiedAsync(
                 completedReceipt,
                 replayTriage,
                 replayImageOutcome.UnidentifiedGroup,
                 cancellationToken);
-            return QueuedIntakeProcessingOutcome.NoOp;
+            return replayPromotion == AutomaticCaseEvidencePromotionOutcome.Deferred
+                ? QueuedIntakeProcessingOutcome.RetryScheduled
+                : QueuedIntakeProcessingOutcome.NoOp;
         }
 
         var (workItem, stagedReceipt) = claimed.Value;
@@ -988,7 +1012,7 @@ public sealed class ProcessQueuedIntake(
             {
                 promotion = await PromoteAssociatedCaseEvidenceAsync(imageOutcome.Receipt, cancellationToken);
             }
-            processed = imageOutcome.AwaitingStaffDecision
+            processed = imageOutcome.GroupPending || imageOutcome.AwaitingStaffDecision
                 ? imageOutcome.Receipt
                 : await RetainHoldingIfRequiredAsync(imageOutcome.Receipt, promotion, cancellationToken);
             if (!imageOutcome.GroupPending && !imageOutcome.AwaitingStaffDecision)
@@ -1021,7 +1045,7 @@ public sealed class ProcessQueuedIntake(
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            await FailProcessingAsync(workItem, terminal: true, "unexpected_intake_processing_failure", cancellationToken);
+            await FailProcessingAsync(workItem, terminal: true, TerminalReplayFailureCode(exception), cancellationToken);
             throw;
         }
 
@@ -1173,6 +1197,93 @@ public sealed class ProcessQueuedIntake(
         return group?.Discard is not null;
     }
 
+    private async Task<bool> IsGroupPastEscapeWindowAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (submissionGroups is null)
+        {
+            return false;
+        }
+
+        var group = await submissionGroups.FindForMemberSourceAsync(
+            receipt.SourceIdentity,
+            cancellationToken);
+        return group is not null
+            && timeProvider.GetUtcNow() - group.ReceivedAtUtc >= ReconcileGroupedImageIntake.EscapeAfter;
+    }
+
+    private async Task RetainSubmissionGroupHoldingAsync(
+        IntakeReceipt receipt,
+        bool includeCurrentReceipt,
+        CancellationToken cancellationToken)
+    {
+        if (submissionGroups is null)
+        {
+            return;
+        }
+
+        var group = await submissionGroups.FindForMemberSourceAsync(
+            receipt.SourceIdentity,
+            cancellationToken);
+        if (group is not null)
+        {
+            await RetainSubmissionGroupHoldingAsync(
+                receipt,
+                group,
+                includeCurrentReceipt,
+                cancellationToken);
+        }
+    }
+
+    private async Task RetainSubmissionGroupHoldingAsync(
+        IntakeReceipt receipt,
+        Guid groupId,
+        bool includeCurrentReceipt,
+        CancellationToken cancellationToken)
+    {
+        if (submissionGroups is null)
+        {
+            return;
+        }
+
+        var group = await submissionGroups.GetAsync(groupId, cancellationToken);
+        if (group is not null)
+        {
+            await RetainSubmissionGroupHoldingAsync(
+                receipt,
+                group,
+                includeCurrentReceipt,
+                cancellationToken);
+        }
+    }
+
+    private async Task RetainSubmissionGroupHoldingAsync(
+        IntakeReceipt currentReceipt,
+        IntakeSubmissionGroup group,
+        bool includeCurrentReceipt,
+        CancellationToken cancellationToken)
+    {
+        foreach (var member in group.Members.OrderBy(item => item.Ordinal))
+        {
+            var memberReceipt = await receiptQueries.FindBySourceIdentityAsync(
+                new(
+                    group.Channel,
+                    GroupedIntakeMemberToken.Create(group.SubmissionToken, member.Ordinal)),
+                cancellationToken);
+            if (memberReceipt is null
+                || (!includeCurrentReceipt && memberReceipt.Id == currentReceipt.Id))
+            {
+                continue;
+            }
+
+            _ = await RetainHoldingIfRequiredAsync(
+                memberReceipt,
+                AutomaticCaseEvidencePromotionOutcome.NotApplicable,
+                cancellationToken);
+        }
+    }
+
     /// <summary>
     /// Persists the one holding outcome after destination automation, or resolves
     /// an existing receipt holding item to its now-established destination.
@@ -1185,6 +1296,15 @@ public sealed class ProcessQueuedIntake(
     {
         if (unidentifiedGroup is not null && registerUnidentified is not null)
         {
+            if (unidentifiedGroup.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
+            {
+                await RetainSubmissionGroupHoldingAsync(
+                    receipt,
+                    unidentifiedGroup.Origin.Id,
+                    includeCurrentReceipt: false,
+                    cancellationToken);
+            }
+
             await registerUnidentified.ExecuteAsync(unidentifiedGroup, cancellationToken);
             return;
         }
@@ -1322,7 +1442,8 @@ public sealed class ProcessQueuedIntake(
 
     private async Task<AutomaticCaseEvidencePromotionOutcome> PromoteAssociatedCaseEvidenceAsync(
         IntakeReceipt receipt,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool throwOnDeferred = true)
     {
         if (promoteAssociatedCaseEvidence is null)
         {
@@ -1330,7 +1451,7 @@ public sealed class ProcessQueuedIntake(
         }
 
         var outcome = await promoteAssociatedCaseEvidence.ExecuteAsync(receipt, cancellationToken);
-        if (outcome == AutomaticCaseEvidencePromotionOutcome.Deferred)
+        if (outcome == AutomaticCaseEvidencePromotionOutcome.Deferred && throwOnDeferred)
         {
             // An active staff edit is a temporary Case-target guard. Keep the
             // existing intake work owner so the same receipt is retried after
@@ -1388,6 +1509,14 @@ public sealed class ProcessQueuedIntake(
             terminal,
             cancellationToken);
     }
+
+    /// <summary>
+    /// The failure code a completed-evaluation replay records when the fault
+    /// will not clear on retry. A known bad input keeps the live path's own
+    /// code; anything else is the unexpected processing failure.
+    /// </summary>
+    internal static string TerminalReplayFailureCode(Exception exception) =>
+        TerminalInputFailureCode(exception) ?? "unexpected_intake_processing_failure";
 
     /// <summary>
     /// The failure code for a fault that says the input itself is wrong, or

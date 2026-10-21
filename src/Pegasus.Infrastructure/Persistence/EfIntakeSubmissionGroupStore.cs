@@ -9,7 +9,8 @@ using Pegasus.Core.Intake.Unidentified;
 namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfIntakeSubmissionGroupStore(
-    IDbContextFactory<PegasusDbContext> contextFactory) : IIntakeSubmissionGroupStore
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    TimeProvider? timeProvider = null) : IIntakeSubmissionGroupStore
 {
     public async Task<IReadOnlyList<Guid>> ListPendingImageGroupReceiptsAsync(
         int maximumItems,
@@ -17,6 +18,15 @@ public sealed class EfIntakeSubmissionGroupStore(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // Unpromoted Case filings first. A backlog of unresolved image groups
+        // used to fill maximumItems and drop this recovery entirely.
+        var results = new List<Guid>();
+        await AppendUnpromotedCaseReceiptsAsync(context, results, maximumItems, cancellationToken);
+        if (results.Count >= maximumItems)
+        {
+            return results;
+        }
+
         var emptyFields = EfIntakeReceiptStore.SerializeFields([]);
         var groupOrigin = nameof(UnidentifiedOriginKind.SubmissionGroup);
         var receiptOrigin = nameof(UnidentifiedOriginKind.Receipt);
@@ -47,7 +57,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                     .Where(receipt => receiptIds.Contains(receipt.Id))
                     .ToArrayAsync(cancellationToken))
                 .ToDictionary(receipt => receipt.Id);
-        return candidates
+        var groupReceiptIds = candidates
             .Where(candidate => receipts.TryGetValue(candidate.ReceiptId, out var receipt)
                 && ImageIntakeLifecycleRules.IsImageAutomationEligible(
                     EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
@@ -55,8 +65,110 @@ public sealed class EfIntakeSubmissionGroupStore(
             .OrderBy(group => group.Key.ReceivedAtUtc)
             .ThenBy(group => group.Key.Id)
             .Select(group => group.OrderBy(item => item.Ordinal).Select(item => item.ReceiptId).First())
-            .Take(maximumItems)
-            .ToArray();
+            .Where(receiptId => !results.Contains(receiptId))
+            .Take(maximumItems - results.Count);
+        results.AddRange(groupReceiptIds);
+        return results;
+    }
+
+    /// <summary>
+    /// Completed Case-associated receipts whose automatic filing has not
+    /// recorded its occurrences, oldest association first. A set whose every
+    /// planned occurrence exists and at least one is still Pending is left to
+    /// <c>ReconcilePendingArtifactCustody</c>; a Failed set is not selected
+    /// there, so it stays listed for replay.
+    /// </summary>
+    private async Task AppendUnpromotedCaseReceiptsAsync(
+        PegasusDbContext context,
+        List<Guid> results,
+        int maximumItems,
+        CancellationToken cancellationToken)
+    {
+        var unpromotedCandidates = await (
+            from association in context.IntakeManualAssociations.AsNoTracking()
+            join work in context.IntakeWorkItems.AsNoTracking()
+                on (Guid?)association.IntakeReceiptId equals work.ProcessedReceiptId
+            join receipt in context.IntakeReceipts.AsNoTracking()
+                on association.IntakeReceiptId equals receipt.Id
+            where association.IsActive
+                && work.State == "completed"
+                && receipt.Decision != "image_intake_registered"
+                && !context.Cases.Any(caseRow => caseRow.Id == association.CaseId
+                    && caseRow.OriginIntakeReceiptId == receipt.Id)
+                && context.IntakeAssets.Any(asset => asset.IntakeReceiptId == receipt.Id
+                    && asset.Kind == "source"
+                    && asset.Disposition == "source"
+                    && asset.ContentLength > 0
+                    && asset.StorageKey != "")
+                && !context.IntakeSubmissionGroups.Any(submissionGroup => submissionGroup.DiscardedAtUtc != null
+                    && context.IntakeSubmissionGroupMembers.Any(member => member.GroupId == submissionGroup.Id
+                        && member.StagedReceiptId == work.StagedReceiptId))
+                && !context.IntakeMutationHistory.Any(history => history.IntakeReceiptId == receipt.Id
+                    && history.CaseId == association.CaseId
+                    && history.EventType == "intake_case_evidence_promotion_completed")
+            orderby association.LinkedAtUtc, receipt.Id
+            select new { ReceiptId = receipt.Id, association.CaseId })
+            .ToArrayAsync(cancellationToken);
+        var nowUtc = (timeProvider ?? TimeProvider.System).GetUtcNow();
+        foreach (var candidate in unpromotedCandidates)
+        {
+            if (results.Contains(candidate.ReceiptId))
+            {
+                continue;
+            }
+
+            var target = await IntakePromotionTarget.EvaluateAsync(
+                context,
+                candidate.CaseId,
+                candidate.ReceiptId,
+                nowUtc,
+                cancellationToken);
+            if (target.Disposition != PromotionTargetDisposition.Current)
+            {
+                continue;
+            }
+
+            var planKey = AutomaticCaseEvidencePromotionOperationKey.Plan(candidate.ReceiptId);
+            var plan = await context.IntakeMutationHistory.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.OperationKey == planKey, cancellationToken);
+            if (plan?.CaseId == candidate.CaseId && !string.IsNullOrWhiteSpace(plan.AfterJson))
+            {
+                var promotionPlan = JsonSerializer.Deserialize<AutomaticCaseEvidencePromotionPlan>(plan.AfterJson);
+                var assetIds = promotionPlan?.AssetIds?.ToArray() ?? [];
+                if (assetIds.Length > 0)
+                {
+                    var keys = assetIds.Select(assetId =>
+                        AutomaticCaseEvidencePromotionOperationKey.For(
+                            candidate.CaseId,
+                            candidate.ReceiptId,
+                            assetId)).ToArray();
+                    var statuses = await (
+                        from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                        join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                            on occurrence.VersionId equals version.Id
+                        where occurrence.CaseId == candidate.CaseId
+                            && keys.Contains(occurrence.OperationKey)
+                            && !version.IsLogicallyRemoved
+                        select new { occurrence.OperationKey, version.CustodyStatus })
+                        .ToArrayAsync(cancellationToken);
+                    if (statuses.Select(item => item.OperationKey).Distinct().Count() == keys.Length
+                        && statuses.Any(item => item.CustodyStatus == Pegasus.Core.Documents.DocumentCustodyStatus.Pending))
+                    {
+                        // Every planned occurrence exists and at least one is still
+                        // Pending, which ReconcilePendingArtifactCustody selects.
+                        // A Failed set is not selected there, so it stays listed
+                        // for replay.
+                        continue;
+                    }
+                }
+            }
+
+            results.Add(candidate.ReceiptId);
+            if (results.Count >= maximumItems)
+            {
+                break;
+            }
+        }
     }
 
     public async Task<IntakeSubmissionGroup?> GetAsync(

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -355,7 +355,8 @@ public sealed class ProcessIntake(
         receipt.AcceptedCaseId is null
         && receipt.Decision != IntakeDecision.ImageIntakeRegistered
         && promotion is not (AutomaticCaseEvidencePromotionOutcome.Confirmed
-            or AutomaticCaseEvidencePromotionOutcome.Pending);
+            or AutomaticCaseEvidencePromotionOutcome.Pending
+            or AutomaticCaseEvidencePromotionOutcome.Deferred);
 
     /// <summary>
     /// Ensures every eligible retained intake asset has confirmed holding

@@ -597,6 +597,74 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             item.CaseId == caseId && item.EventType == "original_report_recorded"));
     }
 
+    /// <summary>
+    /// A linked receipt replayed while its Case holds an active edit lease
+    /// returns <see cref="QueuedIntakeProcessingOutcome.RetryScheduled"/>
+    /// without faulting or copying its files into Box holding. Once the edit
+    /// lease clears, the grouped-image reconcile sweep re-drives the receipt
+    /// and files its evidence on the Case (#1462).
+    /// </summary>
+    [Fact]
+    public async Task AnEditedCaseDefersReplayFilingWithoutHoldingAndGroupedImageReconcileCompletesItAfterTheLeaseClears()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var (receipt, stagedReceiptId) = await LinkWithoutFilingAsync(services, caseId);
+
+        await using (var db = await factory.Database.CreateContextAsync())
+        {
+            await db.IntakeAssets.Where(value => value.IntakeReceiptId == receipt.Id).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.CustodyStatus, (string?)null)
+                .SetProperty(value => value.BoxParentFolderId, (string?)null)
+                .SetProperty(value => value.BoxFileId, (string?)null)
+                .SetProperty(value => value.BoxVersionId, (string?)null));
+            await db.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.EditLeaseHolder, Guid.NewGuid().ToString())
+                .SetProperty(value => value.EditLeaseHolderKind, nameof(ActorKind.Staff))
+                .SetProperty(value => value.EditLeaseTokenHash, new string('A', 64))
+                .SetProperty(value => value.EditLeaseExpiresAtUtc, DateTimeOffset.MaxValue));
+        }
+
+        Assert.Equal(
+            QueuedIntakeProcessingOutcome.RetryScheduled,
+            await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(stagedReceiptId, default));
+        Assert.DoesNotContain(
+            receipt.Id,
+            await services.GetRequiredService<IIntakeSubmissionGroupStore>()
+                .ListPendingImageGroupReceiptsAsync(20, default));
+
+        await using (var whileEdited = await factory.Database.CreateContextAsync())
+        {
+            Assert.False(await whileEdited.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
+            var assets = await whileEdited.IntakeAssets.AsNoTracking()
+                .Where(value => value.IntakeReceiptId == receipt.Id)
+                .ToArrayAsync();
+            Assert.NotEmpty(assets);
+            Assert.All(assets, asset =>
+            {
+                Assert.Null(asset.CustodyStatus);
+                Assert.Null(asset.BoxParentFolderId);
+            });
+        }
+
+        await using (var clearLease = await factory.Database.CreateContextAsync())
+        {
+            await clearLease.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.EditLeaseExpiresAtUtc, (DateTimeOffset?)null)
+                .SetProperty(value => value.EditLeaseTokenHash, (string?)null)
+                .SetProperty(value => value.EditLeaseHolder, (string?)null)
+                .SetProperty(value => value.EditLeaseHolderKind, (string?)null));
+        }
+
+        await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(services);
+
+        await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
+        await using var verify = await factory.Database.CreateContextAsync();
+        Assert.True((await verify.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
+    }
+
     private const string ConnexusReport =
         "Engineer Repairable Report Our Ref: 48450/1 Roadworthy: No Connexus Vehicle Assessors";
 

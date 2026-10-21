@@ -671,6 +671,13 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
+        public Task RecordTerminalReplayFailureAsync(
+            Guid stagedReceiptId,
+            string failureCode,
+            DateTimeOffset failedAtUtc,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
         public Task<Guid?> FindStagedReceiptIdForReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken) =>
