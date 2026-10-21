@@ -37,7 +37,15 @@ and the [verification procedure](docs/runbook.md).
 - `docs/current-architecture.md`: source structure; `docs/operations.md`: dated
   deployed observations. A release updates operations; architecture changes only
   when source structure changes.
-- `.agents/skills/`: Pegasus operational and UI procedures.
+- `.agents/skills/`: the Pegasus procedures (`pegasus-release`,
+  `pegasus-wipe-intake-data`, `pegasus-corpus-holding`,
+  `pegasus-ui-guardrails`, `razor-pages-ui-design`,
+  `razor-pages-ui-implementation`, `razor-pages-ui-review`,
+  `razor-html-mockup-creation`, `razor-html-mockup-conversion`) and the
+  generic workflow skills (`combine-prs`, `investigate-issue`, `record-issue`,
+  `resolve-issue`, `git-branch-cleanup`, `github-researcher`,
+  `microsoft-learn-cli`, `translator`, `typesafe-ai`). `.claude/skills` is a
+  symlink to this folder, so every skill is exposed to Claude Code.
 - Any change under `src/Pegasus.Web` must follow
   [`.agents/skills/pegasus-ui-guardrails/SKILL.md`](.agents/skills/pegasus-ui-guardrails/SKILL.md)
   and any nearer local `AGENTS.md`/`CLAUDE.md`. A Web feature or bug fix is not
@@ -94,3 +102,9 @@ Current Markdown additions and renames use the index-routed canonical location;
 CI checks that relative links resolve. The current operator task owns scope and authorization. Use PR review and CI
 for delivery evidence, and name one verifier for heavy checks on this host.
 Historical tickets and retired plans are provenance only.
+
+Task work uses a worktree at `../pegasus-worktrees/<slug>` on branch
+`task/<slug>`, created from `origin/dev` with `--no-track`. A release build
+uses a detached worktree at `../pegasus-worktrees/release-<sha8>`.
+`.agents/skills/resolve-issue/scripts/cleanup_worktree.py` removes a task
+worktree once the PR head equals the worktree HEAD and the tree is clean.
