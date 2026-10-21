@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using Pegasus.Web.Mcp;
 using SkiaSharp;
@@ -276,6 +277,83 @@ public sealed class AutomationDocumentIngressTests
             """));
     }
 
+    /// <summary>
+    /// A PDF whose page text is fewer characters than <c>maxInlineBytes</c> can
+    /// still be more UTF-8 bytes, once pound signs and accents are counted.
+    /// The batch must keep every returned text and image block inside that
+    /// shared byte budget, including the share then given to an image.
+    /// </summary>
+    [Fact]
+    public async Task BatchDownloadKeepsNonAsciiPdfTextWithinTheSharedByteBudget()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = AutomationMcpTestSupport.WithAutomationMcp(factory);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await AutomationMcpTestSupport.RequestTokenAsync(
+            client,
+            AutomationMcpTestSupport.AllScopes);
+        var pageText = string.Concat(Enumerable.Repeat("£50 café résumé. ", 40));
+        var pdf = IntakeTestEvidence.CreatePdf(pageText);
+        var photograph = NoisyJpeg(900, 700);
+
+        var (pdfOccurrence, pdfVersion) = await AddWithoutLeaseAsync(
+            client, token, caseId, 0, "estimate.pdf", "application/pdf", pdf, "Other", "mcp:add-nonascii-pdf");
+        var (imageOccurrence, imageVersion) = await AddWithoutLeaseAsync(
+            client, token, caseId, 1, "photo.jpg", "image/jpeg", photograph, "Image", "mcp:add-nonascii-photo");
+
+        int budget;
+        using (var single = await AutomationMcpTestSupport.PostMcpAsync(
+            client,
+            token,
+            AutomationMcpTestSupport.ToolCallPayload(
+                6,
+                "pegasus_document_download",
+                new { caseId, occurrenceId = pdfOccurrence, versionId = pdfVersion })))
+        {
+            var (blocks, structured) = await AutomationMcpTestSupport.ReadToolResultAsync(single);
+            Assert.True(structured.GetProperty("contentIncluded").GetBoolean());
+            var text = string.Concat(blocks.EnumerateArray()
+                .Where(block => block.GetProperty("type").GetString() == "text")
+                .Select(block => block.GetProperty("text").GetString()));
+            // Helvetica extraction keeps the pound sign. The café/résumé accents
+            // are in the PDF; the budget proof is the multi-byte text that comes back.
+            Assert.Contains("£", text, StringComparison.Ordinal);
+            var characters = text.Length;
+            var utf8Bytes = Encoding.UTF8.GetByteCount(text);
+            Assert.True(
+                utf8Bytes > characters,
+                $"The fixture must be more UTF-8 bytes ({utf8Bytes}) than characters ({characters}).");
+            budget = characters;
+        }
+
+        using var batch = await AutomationMcpTestSupport.PostMcpAsync(
+            client,
+            token,
+            AutomationMcpTestSupport.ToolCallPayload(
+                7,
+                "pegasus_document_download_batch",
+                new
+                {
+                    caseId,
+                    maxInlineBytes = budget,
+                    documents = new[]
+                    {
+                        new { occurrenceId = pdfOccurrence, versionId = pdfVersion },
+                        new { occurrenceId = imageOccurrence, versionId = imageVersion }
+                    }
+                }));
+        var (batchBlocks, batchStructured) = await AutomationMcpTestSupport.ReadToolResultAsync(batch);
+        var documents = batchStructured.GetProperty("documents").EnumerateArray().ToArray();
+        Assert.Equal(
+            ["estimate.pdf", "photo.jpg"],
+            documents.Select(item => item.GetProperty("fileName").GetString()!).ToArray());
+        var inlineBytes = InlineContentBytes(batchBlocks);
+        Assert.True(
+            inlineBytes <= budget,
+            $"Batch inline content was {inlineBytes} bytes, above the shared budget of {budget}.");
+    }
+
     [Fact]
     public async Task DocumentToolsRefuseValidationFailuresWithoutLeakingTheLeaseToken()
     {
@@ -460,6 +538,25 @@ public sealed class AutomationDocumentIngressTests
                 }));
         var structured = await AutomationMcpTestSupport.ReadStructuredContentAsync(response);
         return (structured.GetProperty("occurrenceId").GetGuid(), structured.GetProperty("versionId").GetGuid());
+    }
+
+    private static int InlineContentBytes(JsonElement blocks)
+    {
+        var total = 0;
+        foreach (var block in blocks.EnumerateArray())
+        {
+            switch (block.GetProperty("type").GetString())
+            {
+                case "text":
+                    total += Encoding.UTF8.GetByteCount(block.GetProperty("text").GetString() ?? string.Empty);
+                    break;
+                case "image":
+                    total += Convert.FromBase64String(block.GetProperty("data").GetString()!).Length;
+                    break;
+            }
+        }
+
+        return total;
     }
 
     /// <summary>A photograph-sized JPEG that does not compress: random pixels.</summary>

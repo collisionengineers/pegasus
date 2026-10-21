@@ -306,13 +306,20 @@ internal sealed class DocumentMcpTools(
                     }
 
                     var contentUrl = ContentUrl(caseId, metadata.OccurrenceId, metadata.VersionId);
-                    var delivery = await DeliverMetadataAsync(
-                        metadata,
-                        context.Actor,
-                        itemKeys[index],
+                    var delivery = AutomationFileContent.AccountTextBlocks(
+                        await DeliverMetadataAsync(
+                            metadata,
+                            context.Actor,
+                            itemKeys[index],
+                            remainingBudget,
+                            contentUrl,
+                            cancellationToken),
                         remainingBudget,
-                        contentUrl,
-                        cancellationToken);
+                        metadata.FileName,
+                        metadata.MediaType,
+                        metadata.ContentLength,
+                        metadata.Sha256,
+                        contentUrl);
                     deliveries[index] = delivery;
                     remainingBudget = Math.Max(0, remainingBudget - delivery.InlineBytes);
                 }
@@ -334,13 +341,20 @@ internal sealed class DocumentMcpTools(
                         remainingImages--;
                     }
 
-                    var delivery = await DeliverMetadataAsync(
-                        metadata,
-                        context.Actor,
-                        itemKeys[index],
+                    var delivery = AutomationFileContent.AccountTextBlocks(
+                        await DeliverMetadataAsync(
+                            metadata,
+                            context.Actor,
+                            itemKeys[index],
+                            imageBudget,
+                            contentUrl,
+                            cancellationToken),
                         imageBudget,
-                        contentUrl,
-                        cancellationToken);
+                        metadata.FileName,
+                        metadata.MediaType,
+                        metadata.ContentLength,
+                        metadata.Sha256,
+                        contentUrl);
                     deliveries[index] = delivery;
                     remainingBudget = Math.Max(0, remainingBudget - delivery.InlineBytes);
                 }
@@ -396,7 +410,7 @@ internal sealed class DocumentMcpTools(
                 metadata.MediaType,
                 metadata.ContentLength,
                 metadata.Sha256,
-                $"The content ({metadata.ContentLength} bytes, {metadata.MediaType}) exceeds the inline limit of {inlineLimit} bytes or is not an image, PDF or text file; fetch contentUrl with this bearer token.",
+                AutomationFileContent.InlineLimitNotice(metadata.ContentLength, metadata.MediaType, inlineLimit),
                 contentUrl);
         }
 

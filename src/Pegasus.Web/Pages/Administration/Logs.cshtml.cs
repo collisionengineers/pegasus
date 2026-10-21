@@ -469,6 +469,7 @@ public sealed class LogsModel(
             or "pegasus_valuation_save"
             or "pegasus_document_add"
             or "pegasus_document_download"
+            or "pegasus_document_download_batch"
             or "pegasus_estimate_import"
             or "pegasus_estimate_save"
             or "pegasus_estimate_list"
