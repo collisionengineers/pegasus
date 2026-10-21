@@ -933,8 +933,10 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
     /// <summary>
     /// Reconciliation does not select a Failed version, so a replay of its
-    /// operation key uploads it again and confirms it. A later replay of the
-    /// confirmed version files nothing.
+    /// operation key uploads it again and confirms it, even when the Failed
+    /// row still carries a stale non-blank pending key. Confirmation matches
+    /// the replay's key, not that stale one. A later replay of the confirmed
+    /// version files nothing.
     /// </summary>
     [Fact]
     public async Task AFailedCaseVersionIsReuploadedAndConfirmedOnReplayAndALaterReplayDoesNothing()
@@ -944,6 +946,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         var bytes = "failed custody bytes"u8.ToArray();
         var hash = Convert.ToHexString(SHA256.HashData(bytes));
         var storageKey = $"test/{hash}";
+        const string stalePendingKey = "stale/previous-failed-attempt";
         var documentId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
         var occurrenceId = Guid.NewGuid();
@@ -967,7 +970,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 MediaType = "text/plain",
                 ContentLength = bytes.Length,
                 Sha256 = hash.ToLowerInvariant(),
-                PendingContentStorageKey = storageKey,
+                PendingContentStorageKey = stalePendingKey,
                 CustodyStatus = DocumentCustodyStatus.Failed,
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 CreatedBy = "test",
@@ -1005,6 +1008,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
             hash,
             new MemoryStream(bytes, writable: false),
             RetainedStorageKey: storageKey);
+        Assert.NotEqual(stalePendingKey, storageKey);
 
         var replay = await custody.RetainAsync(request, default);
 

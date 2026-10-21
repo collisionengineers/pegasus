@@ -362,7 +362,15 @@ internal sealed class EfCaseArtifactCustody(
         {
             db.Attach(version);
         }
-        if (string.IsNullOrWhiteSpace(version.PendingContentStorageKey))
+        // A Failed version is re-driven under this replay's pending key, so a
+        // stale non-blank key is overwritten before commit. Otherwise only a
+        // blank key is filled; a non-blank Pending key is left as it is.
+        if (version.CustodyStatus == DocumentCustodyStatus.Failed)
+        {
+            version.PendingContentStorageKey = pendingContentStorageKey;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        else if (string.IsNullOrWhiteSpace(version.PendingContentStorageKey))
         {
             version.PendingContentStorageKey = pendingContentStorageKey;
             await db.SaveChangesAsync(cancellationToken);
