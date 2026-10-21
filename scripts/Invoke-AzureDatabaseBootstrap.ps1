@@ -518,7 +518,9 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|UnroadworthyReasons')
     # 20260921080000_RepairSpecificationSnapshots: frozen repair specification
     # versions (v28 P43). Web freezes and reads them; the Worker reads them
-    # (it freezes the Sent version since 20261012120000); neither deletes one.
+    # (it freezes the Sent version since 20261012120000); neither deletes one
+    # (Web's Discard does from 20261021120000_GrantWebRepairSpecDiscardDelete,
+    # below).
     foreach ($permission in @('SELECT', 'INSERT')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|CaseRepairSpecificationSnapshots")
     }
@@ -650,6 +652,16 @@ function Get-MigrationPermissionMatrix {
     # to recognise an intermediary. It never writes a link; DELETE stays
     # denied (20260909141000_Contacts, above).
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|ContactPrincipalLinks')
+    # 20261021120000_GrantWebRepairSpecDiscardDelete: Discard deletes a
+    # non-Current repair spec with its lines and numbered versions in the Web
+    # process (FRD-25; operator, 11 October 2026). Web replaces its DELETE
+    # denial with a grant on both tables; the Worker never discards and keeps
+    # its snapshot DELETE denial.
+    foreach ($table in @('CaseRepairSpecifications', 'CaseRepairSpecificationSnapshots')) {
+        $denied = "pegasus_web_runtime_role|D|DELETE|$table"
+        [void]$expected.RemoveAll([Predicate[string]] { param($row) $row -ceq $denied })
+        $expected.Add("pegasus_web_runtime_role|G|DELETE|$table")
+    }
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

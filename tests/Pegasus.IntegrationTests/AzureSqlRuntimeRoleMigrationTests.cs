@@ -962,6 +962,44 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
             await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
+    // 20261021120000_GrantWebRepairSpecDiscardDelete: Discard in the Web
+    // process deletes the spec, its lines and its numbered versions (FRD-25;
+    // operator, 11 October 2026). Web holds DELETE on all three tables; the
+    // Worker never discards and keeps its snapshot DELETE denial.
+    [Fact]
+    public async Task LatestMigrationGrantsWebRepairSpecDiscardDelete()
+    {
+        var database = fixture.Database;
+
+        var webGranted = await ReadGrantedPermissionsAsync(database, WebRole);
+        Assert.Equal(
+            [
+                "CaseRepairSpecifications:DELETE",
+                "CaseRepairSpecifications:INSERT",
+                "CaseRepairSpecifications:SELECT",
+                "CaseRepairSpecifications:UPDATE"
+            ],
+            webGranted
+                .Where(value => value.StartsWith("CaseRepairSpecifications:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Equal(
+            [
+                "CaseRepairSpecificationSnapshots:DELETE",
+                "CaseRepairSpecificationSnapshots:INSERT",
+                "CaseRepairSpecificationSnapshots:SELECT"
+            ],
+            webGranted
+                .Where(value => value.StartsWith("CaseRepairSpecificationSnapshots:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Contains("CaseEstimateLines:DELETE", webGranted);
+        var webDeniedDelete = await ReadDeniedDeleteTablesAsync(database, WebRole);
+        Assert.DoesNotContain("CaseRepairSpecifications", webDeniedDelete);
+        Assert.DoesNotContain("CaseRepairSpecificationSnapshots", webDeniedDelete);
+        Assert.Contains(
+            "CaseRepairSpecificationSnapshots",
+            await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+    }
+
     // 20260929091000_GrantWebRetainedMailDismissal: Inbox Dismiss and Restore
     // write the dismissal cells of the retained message row as the Web role,
     // which held SELECT only. The grant is table-level; the exact list below

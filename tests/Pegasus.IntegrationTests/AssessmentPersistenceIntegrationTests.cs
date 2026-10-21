@@ -1560,6 +1560,72 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
+    /// Discard runs in the Web process, so <c>pegasus_web_runtime_role</c>
+    /// can delete a non-Current repair spec together with its lines and its
+    /// numbered versions and record <c>estimate_discarded</c> in Case history.
+    /// </summary>
+    [Fact]
+    public async Task TheWebRuntimeRoleCanDiscardANonCurrentRepairSpec()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("web-role-discard-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
+
+        var firstLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "web-discard-lease-1");
+        var first = await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            new(caseId, 0, engineer, "web-discard-import", ImportRawEstimate.ImportReason, firstLease.Token, null,
+                new("Glass's 1", 40m, null, 20m), parsed.Lines,
+                new(RepairSpecificationSourceRoute.Glasses, "estimate-import:web-discard", parsed.SourceVersion, hash)),
+            CancellationToken.None);
+        var typedLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "web-discard-lease-typed");
+        var typed = await new SaveEstimate(harness.RepairSpecifications,
+            new EfAiJobStore(harness.Factory, harness.Clock)).ExecuteAsync(
+            new(caseId, typedLease.Version, engineer, "web-discard-typed", "Recorded a typed spec.",
+                typedLease.Token, null, new("Typed", 40m, 0m, 20m),
+                [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+        Assert.True(typed.IsCurrent);
+        var discardLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "web-discard-lease-discard");
+        var discardRequest = new DiscardEstimateRequest(
+            caseId, discardLease.Version, engineer, "web-discard-act", "Wrong document.",
+            discardLease.Token, first.SpecificationId);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        await context.Database.OpenConnectionAsync();
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE USER [estimate_discard_web] WITHOUT LOGIN; ALTER ROLE [pegasus_web_runtime_role] ADD MEMBER [estimate_discard_web];");
+        await context.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'estimate_discard_web';");
+        try
+        {
+            var runtimeFactory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(context.Database.GetDbConnection()).Options);
+            var discard = new DiscardEstimate(new EfRepairSpecificationStore(runtimeFactory, harness.Clock));
+            await discard.ExecuteAsync(discardRequest, CancellationToken.None);
+            await discard.ExecuteAsync(discardRequest, CancellationToken.None);
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+
+        Assert.False(await context.CaseRepairSpecifications.AsNoTracking()
+            .AnyAsync(item => item.Id == first.SpecificationId));
+        Assert.False(await context.CaseEstimateLines.AsNoTracking()
+            .AnyAsync(item => item.RepairSpecificationId == first.SpecificationId));
+        Assert.False(await context.CaseRepairSpecificationSnapshots.AsNoTracking()
+            .AnyAsync(item => item.SpecificationId == first.SpecificationId));
+        var history = await context.ActionHistory.AsNoTracking()
+            .SingleAsync(item => item.AggregateId == caseId.ToString("D")
+                && item.EventKind == "estimate_discarded");
+        Assert.Equal("Wrong document.", history.Reason);
+        Assert.Contains(first.SpecificationId.ToString("D"), history.AfterJson, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A Glass's estimate belongs to its repair spec (operator, 6 October
     /// 2026). The return that makes the spec records the stock vehicle on it;
     /// a later return for that vehicle replaces the same spec's lines and
