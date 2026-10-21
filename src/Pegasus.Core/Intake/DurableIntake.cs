@@ -301,6 +301,20 @@ public interface IIntakeWorkStore
     Task<Guid?> FindStagedReceiptIdForReceiptAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records a terminal failure on an already-completed work item, the same
+    /// <see cref="IntakeWorkState.Failed"/> outcome
+    /// <see cref="RetryProcessingAsync"/> records on the live path. A
+    /// completed-evaluation replay holds no lease, so it cannot call that
+    /// method; this does not make the item claimable again. An item that is
+    /// not completed is left unchanged.
+    /// </summary>
+    Task RecordTerminalReplayFailureAsync(
+        Guid stagedReceiptId,
+        string failureCode,
+        DateTimeOffset failedAtUtc,
+        CancellationToken cancellationToken);
 }
 
 public interface IIntakeWorkEnqueuer
@@ -1031,7 +1045,7 @@ public sealed class ProcessQueuedIntake(
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            await FailProcessingAsync(workItem, terminal: true, "unexpected_intake_processing_failure", cancellationToken);
+            await FailProcessingAsync(workItem, terminal: true, TerminalReplayFailureCode(exception), cancellationToken);
             throw;
         }
 
@@ -1495,6 +1509,14 @@ public sealed class ProcessQueuedIntake(
             terminal,
             cancellationToken);
     }
+
+    /// <summary>
+    /// The failure code a completed-evaluation replay records when the fault
+    /// will not clear on retry. A known bad input keeps the live path's own
+    /// code; anything else is the unexpected processing failure.
+    /// </summary>
+    internal static string TerminalReplayFailureCode(Exception exception) =>
+        TerminalInputFailureCode(exception) ?? "unexpected_intake_processing_failure";
 
     /// <summary>
     /// The failure code for a fault that says the input itself is wrong, or

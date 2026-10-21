@@ -83,9 +83,12 @@ public sealed class ReconcileGroupedImageIntake(
                 && receipt.Decision != IntakeDecision.ImageIntakeRegistered)
             {
                 candidates++;
+                // Declared outside the try so a non-transient replay fault can
+                // be recorded against the work item the replay just drove.
+                Guid? stagedReceiptId = null;
                 try
                 {
-                    var stagedReceiptId = await workStore.FindStagedReceiptIdForReceiptAsync(
+                    stagedReceiptId = await workStore.FindStagedReceiptIdForReceiptAsync(
                         receipt.Id,
                         cancellationToken);
                     if (stagedReceiptId is null)
@@ -97,8 +100,26 @@ public sealed class ReconcileGroupedImageIntake(
                     _ = await processQueuedIntake.ExecuteAsync(stagedReceiptId.Value, cancellationToken);
                     retried++;
                 }
+                catch (Exception exception) when (IntakeExceptionPolicy.IsTransientFailure(exception))
+                {
+                    failures++;
+                }
                 catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
                 {
+                    // A permanent fault must leave the list. The live path
+                    // records the same terminal failure on a claimed item;
+                    // this replay holds no lease, so the work store records
+                    // it directly. Not Unidentified: the receipt already has
+                    // its Case.
+                    if (stagedReceiptId is Guid id)
+                    {
+                        await workStore.RecordTerminalReplayFailureAsync(
+                            id,
+                            ProcessQueuedIntake.TerminalReplayFailureCode(exception),
+                            nowUtc,
+                            cancellationToken);
+                    }
+
                     failures++;
                 }
 

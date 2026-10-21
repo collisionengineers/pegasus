@@ -18,6 +18,15 @@ public sealed class EfIntakeSubmissionGroupStore(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // Unpromoted Case filings first. A backlog of unresolved image groups
+        // used to fill maximumItems and drop this recovery entirely.
+        var results = new List<Guid>();
+        await AppendUnpromotedCaseReceiptsAsync(context, results, maximumItems, cancellationToken);
+        if (results.Count >= maximumItems)
+        {
+            return results;
+        }
+
         var emptyFields = EfIntakeReceiptStore.SerializeFields([]);
         var groupOrigin = nameof(UnidentifiedOriginKind.SubmissionGroup);
         var receiptOrigin = nameof(UnidentifiedOriginKind.Receipt);
@@ -48,7 +57,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                     .Where(receipt => receiptIds.Contains(receipt.Id))
                     .ToArrayAsync(cancellationToken))
                 .ToDictionary(receipt => receipt.Id);
-        var results = candidates
+        var groupReceiptIds = candidates
             .Where(candidate => receipts.TryGetValue(candidate.ReceiptId, out var receipt)
                 && ImageIntakeLifecycleRules.IsImageAutomationEligible(
                     EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
@@ -56,13 +65,25 @@ public sealed class EfIntakeSubmissionGroupStore(
             .OrderBy(group => group.Key.ReceivedAtUtc)
             .ThenBy(group => group.Key.Id)
             .Select(group => group.OrderBy(item => item.Ordinal).Select(item => item.ReceiptId).First())
-            .Take(maximumItems)
-            .ToList();
-        if (results.Count >= maximumItems)
-        {
-            return results;
-        }
+            .Where(receiptId => !results.Contains(receiptId))
+            .Take(maximumItems - results.Count);
+        results.AddRange(groupReceiptIds);
+        return results;
+    }
 
+    /// <summary>
+    /// Completed Case-associated receipts whose automatic filing has not
+    /// recorded its occurrences, oldest association first. A set whose every
+    /// planned occurrence exists and at least one is still Pending is left to
+    /// <c>ReconcilePendingArtifactCustody</c>; a Failed set is not selected
+    /// there, so it stays listed for replay.
+    /// </summary>
+    private async Task AppendUnpromotedCaseReceiptsAsync(
+        PegasusDbContext context,
+        List<Guid> results,
+        int maximumItems,
+        CancellationToken cancellationToken)
+    {
         var unpromotedCandidates = await (
             from association in context.IntakeManualAssociations.AsNoTracking()
             join work in context.IntakeWorkItems.AsNoTracking()
@@ -131,11 +152,12 @@ public sealed class EfIntakeSubmissionGroupStore(
                         select new { occurrence.OperationKey, version.CustodyStatus })
                         .ToArrayAsync(cancellationToken);
                     if (statuses.Select(item => item.OperationKey).Distinct().Count() == keys.Length
-                        && statuses.Any(item => item.CustodyStatus != Pegasus.Core.Documents.DocumentCustodyStatus.Confirmed))
+                        && statuses.Any(item => item.CustodyStatus == Pegasus.Core.Documents.DocumentCustodyStatus.Pending))
                     {
-                        // Every planned occurrence is already recorded on the Case and at
-                        // least one is waiting in Pending/Failed custody, which
-                        // ReconcilePendingArtifactCustody owns.
+                        // Every planned occurrence exists and at least one is still
+                        // Pending, which ReconcilePendingArtifactCustody selects.
+                        // A Failed set is not selected there, so it stays listed
+                        // for replay.
                         continue;
                     }
                 }
@@ -147,8 +169,6 @@ public sealed class EfIntakeSubmissionGroupStore(
                 break;
             }
         }
-
-        return results;
     }
 
     public async Task<IntakeSubmissionGroup?> GetAsync(

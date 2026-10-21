@@ -1545,6 +1545,78 @@ public sealed class AutomaticImageIntakeTests
         Assert.DoesNotContain(nameof(IIntakeSubmissionGroupStore.FindForMemberSourceAsync), groups.Calls);
     }
 
+    [Theory]
+    [InlineData("transient", true)]
+    [InlineData("invalid-data", false)]
+    public async Task GroupedImageSweepRetriesOnlyATransientReplayFailure(string fault, bool retriedAgain)
+    {
+        var exception = fault == "transient"
+            ? (Exception)new TimeoutException("The filing connection timed out.")
+            : new InvalidDataException("The automatic Case evidence plan is invalid.");
+        var harness = new GroupHarness(memberCount: 1);
+        var receiptId = harness.Receipts[0].Id;
+        harness.ReceiptQueries.Receipts[0] = harness.ReceiptQueries.Receipts[0] with
+        {
+            ManualLinkedCaseId = Guid.NewGuid(),
+            ManualAssociationVersion = 0
+        };
+        var listed = new List<Guid> { receiptId };
+        var groups = Forwarder.For<IIntakeSubmissionGroupStore>(harness.GroupStore);
+        groups.Overrides[nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync)] =
+            _ => Task.FromResult<IReadOnlyList<Guid>>(listed.ToArray());
+        var recorded = new List<string>();
+        var work = Forwarder.For<IIntakeWorkStore>(null!);
+        work.Overrides[nameof(IIntakeWorkStore.FindStagedReceiptIdForReceiptAsync)] =
+            _ => Task.FromResult<Guid?>(Guid.NewGuid());
+        work.Overrides[nameof(IIntakeWorkStore.RecordTerminalReplayFailureAsync)] = args =>
+        {
+            recorded.Add(Assert.IsType<string>(args[1]));
+            listed.Clear();
+            return Task.CompletedTask;
+        };
+        var processor = new ThrowingProcessor(exception);
+        var register = new CountingRegisterUnidentified();
+        var sweep = new ReconcileGroupedImageIntake(
+            harness.ReceiptQueries,
+            (IIntakeSubmissionGroupStore)groups.Proxy,
+            (IIntakeWorkStore)work.Proxy,
+            processor,
+            new FixedTimeProvider(harness.GroupStore.Group!.ReceivedAtUtc.AddHours(3)),
+            register);
+
+        var first = await sweep.ExecuteAsync(5);
+        var second = await sweep.ExecuteAsync(5);
+
+        Assert.Equal(1, first.Candidates);
+        Assert.Equal(0, first.Retried);
+        Assert.Equal(0, first.Escaped);
+        Assert.Equal(1, first.Failures);
+        Assert.Equal(0, register.Calls);
+        Assert.Equal(retriedAgain ? 1 : 0, second.Candidates);
+        Assert.Equal(retriedAgain ? 2 : 1, processor.Calls);
+        if (retriedAgain)
+        {
+            Assert.Empty(recorded);
+        }
+        else
+        {
+            Assert.Equal(ProcessQueuedIntake.TerminalReplayFailureCode(exception), Assert.Single(recorded));
+        }
+    }
+
+    private sealed class ThrowingProcessor(Exception exception) : IProcessQueuedIntake
+    {
+        public int Calls { get; private set; }
+
+        public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromException<QueuedIntakeProcessingOutcome>(exception);
+        }
+    }
+
     private sealed class FixedOutcomeProcessor(QueuedIntakeProcessingOutcome outcome) : IProcessQueuedIntake
     {
         public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
