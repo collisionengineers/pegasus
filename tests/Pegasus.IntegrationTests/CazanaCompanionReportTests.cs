@@ -2,7 +2,13 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Cazana;
+using Pegasus.Infrastructure.Intake;
+using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 
 namespace Pegasus.IntegrationTests;
 
@@ -233,6 +239,30 @@ public sealed class CazanaCompanionReportTests
             view);
 
         Assert.Equal("&lt;&amp;&quot;&#39;&#x2F;&#x3D;&#x60;||one,two,|Row:#581c87", rendered);
+    }
+
+    /// <summary>
+    /// A report of several pages is read only as far as the first page that
+    /// names the registration, not to its last page.
+    /// </summary>
+    [Fact]
+    public async Task TheTextReadStopsAtTheFirstPageThatNamesTheRegistration()
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        string[] printedPages = ["Market overview", "Companion Report AB12CDE", "Vehicle advert full details"];
+        foreach (var printed in printedPages)
+        {
+            builder.AddPage(PageSize.A4).AddText(printed, 12, new PdfPoint(36, 780), font);
+        }
+
+        var read = await new PdfPigPageTextExtractor().ExtractAsync(
+            builder.Build(), 20_000, default, GlassRepairEstimateSessionPolicy.NamesRegistration("AB12CDE"));
+
+        Assert.NotNull(read);
+        Assert.Equal(3, read.PageCount);
+        Assert.Equal(2, read.Pages.Count);
+        Assert.Equal(2, read.Pages[^1].Number);
     }
 
     private static CazanaGuideValuationProviderTests.RecordedRequest RequestTo(

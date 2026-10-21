@@ -307,13 +307,16 @@ public sealed class FileGuideValuationReport(ICaseArtifactCustody custody, IExtr
             throw new InvalidOperationException("The provider's valuation report is not a PDF.");
         }
 
-        // The registration is on the first page that names it; later pages of
-        // a longer report are not read.
+        // The extractor tests each page it reads and stops at the first that
+        // names the registration, so the last answer is the report's answer:
+        // no page is tested twice.
+        var namesRegistration = GlassRepairEstimateSessionPolicy.NamesRegistration(request.Registration);
+        var named = false;
         var extraction = await _pdfText.ExtractAsync(
             content,
             MaximumTextCharacters,
             cancellationToken,
-            text => GlassRepairEstimateSessionPolicy.NamesRegistration(text, request.Registration));
+            text => named = namesRegistration(text));
         var pages = extraction?.Pages.Where(page => !string.IsNullOrWhiteSpace(page.Text)).ToArray() ?? [];
         if (pages.Length == 0)
         {
@@ -321,7 +324,7 @@ public sealed class FileGuideValuationReport(ICaseArtifactCustody custody, IExtr
                 "The provider's valuation report names no registration (registration=absent).");
         }
 
-        if (!pages.Any(page => GlassRepairEstimateSessionPolicy.NamesRegistration(page.Text, request.Registration)))
+        if (!named)
         {
             throw new InvalidOperationException(
                 "The provider's valuation report names another registration (registration=different).");

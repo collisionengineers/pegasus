@@ -133,7 +133,10 @@ public sealed class FileGuideValuationReportTests
         Assert.False(text.StopAfterPage!("Market overview"));
     }
 
-    /// <summary>Answers one page of the given text, or an unreadable PDF for null.</summary>
+    /// <summary>
+    /// Answers one page of the given text, or an unreadable PDF for null, and
+    /// asks the stop predicate of that page as an extractor does.
+    /// </summary>
     private sealed class StubText(string? printed) : IExtractPdfPageText
     {
         public Func<string, bool>? StopAfterPage { get; private set; }
@@ -145,6 +148,11 @@ public sealed class FileGuideValuationReportTests
             Func<string, bool>? stopAfterPage = null)
         {
             StopAfterPage = stopAfterPage;
+            if (printed is not null)
+            {
+                stopAfterPage?.Invoke(printed);
+            }
+
             return Task.FromResult<PdfTextExtraction?>(printed is null
                 ? null
                 : new PdfTextExtraction(1, [new PdfPageText(1, printed, NeedsOcr: false, Truncated: false)]));

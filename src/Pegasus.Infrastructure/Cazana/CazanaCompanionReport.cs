@@ -42,25 +42,26 @@ internal sealed class CazanaCompanionReport(
     /// </summary>
     public async Task<byte[]> FetchPdfAsync(CancellationToken cancellationToken)
     {
+        var vrm = CazanaJson.String(response, "valuation", "searchMethod", "identifier");
         var timeline = client.TimelineAsync(jwt, uuid, cancellationToken);
         var similar = client.SimilarListingsAsync(jwt, response, cancellationToken);
-        var image = client.ImageAsync(
-            jwt, CazanaJson.String(response, "valuation", "searchMethod", "identifier") ?? "", cancellationToken);
+        var image = client.ImageAsync(jwt, vrm ?? "", cancellationToken);
         await Task.WhenAll(timeline, similar, image);
-        var html = RenderHtml(response, await timeline, await similar, await image, timeProvider.GetUtcNow());
+        var html = RenderHtml(response, vrm, await timeline, await similar, await image, timeProvider.GetUtcNow());
         return await client.CreatePdfAsync(jwt, html, cancellationToken);
     }
 
     /// <summary>Companion's <c>getCompanionPDF</c> page: each section rendered, then the report around them.</summary>
     internal static string RenderHtml(
         JsonElement response,
+        string? vrm,
         JsonElement? timeline,
         SimilarListings similar,
         string? image,
         DateTimeOffset now)
     {
         var templates = Templates.Value;
-        var view = View(response, timeline, similar, image, now);
+        var view = View(response, vrm, timeline, similar, image, now);
         string Section(string name) => CazanaMustache.Render(templates[name], view);
         var partials = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -85,6 +86,7 @@ internal sealed class CazanaCompanionReport(
 
     private static Dictionary<string, object?> View(
         JsonElement response,
+        string? vrm,
         JsonElement? timeline,
         SimilarListings similar,
         string? image,
@@ -92,13 +94,14 @@ internal sealed class CazanaCompanionReport(
     {
         var valuation = CazanaJson.Get(response, "valuation");
         var specs = CazanaJson.Get(response, "specs");
+        var valuedOn = CazanaJson.String(valuation, "date");
         var events = CazanaJson.Items(timeline, "events").ToArray();
         var view = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["vrm"] = CazanaJson.String(valuation, "searchMethod", "identifier"),
+            ["vrm"] = vrm,
             ["vehicleDescription"] = NonEmpty(CazanaJson.String(valuation, "description")) ?? NotAvailable,
             ["mileage"] = Number(CazanaJson.Get(valuation, "mileage", "value")),
-            ["valuationDate"] = DayMonthYear(CazanaJson.String(valuation, "date")),
+            ["valuationDate"] = DayMonthYear(valuedOn),
             ["condition"] = Condition(CazanaJson.Get(valuation, "namaGrade")),
             ["marketValue"] = Number(CazanaJson.Get(valuation, "retail")),
             ["tradeValue"] = Number(CazanaJson.Get(valuation, "remarket")),
@@ -124,8 +127,9 @@ internal sealed class CazanaCompanionReport(
             ["powerOutputBhp"] = Scalar(CazanaJson.Get(specs, "powerOutputBhp")),
             ["currentColour"] = Capitalise(CazanaJson.String(specs, "currentColour")),
             ["vehicleSeats"] = Scalar(CazanaJson.Get(specs, "seats")),
-            ["containsSalesEvents"] = events.Any(item => CazanaJson.String(item, "type") == "Sale"),
-            ["isHistoricalValuationDate"] = CazanaJson.String(valuation, "date")
+            ["containsSalesEvents"] = events.Any(
+                item => CazanaJson.Get(item, "type") is { ValueKind: JsonValueKind.String } type && type.ValueEquals("Sale")),
+            ["isHistoricalValuationDate"] = valuedOn
                 != LondonCalendar.DateAt(now).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["sortBy"] = "Newest",
             ["listings"] = similar.Listings.Select(SimilarListing).ToList<object?>(),
@@ -158,7 +162,8 @@ internal sealed class CazanaCompanionReport(
         }
 
         var listing = CazanaJson.Get(response, "listing");
-        if (NonEmpty(CazanaJson.String(listing, "adText")) is not null)
+        var adText = CazanaJson.String(listing, "adText");
+        if (NonEmpty(adText) is not null)
         {
             view["listing"] = new Dictionary<string, object?>(StringComparer.Ordinal)
             {
@@ -169,7 +174,7 @@ internal sealed class CazanaCompanionReport(
                 ["listingDateListed"] = DayMonthYear(CazanaJson.String(listing, "firstSeen")),
                 ["listingMileage"] = Number(CazanaJson.Get(listing, "mileage")),
                 ["listingSeller"] = Scalar(CazanaJson.Get(listing, "dealerName")),
-                ["listingAdText"] = CazanaJson.String(listing, "adText"),
+                ["listingAdText"] = adText,
             };
         }
 
