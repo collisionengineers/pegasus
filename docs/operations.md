@@ -4,6 +4,34 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Classifier agent status - 21 October 2026 (read-only observation)
+
+A read-only status pass over the live mail classifier ran on 21 October 2026,
+12:00Z to 13:15Z. Nothing was written to Azure, the database or the mailbox. The
+only outbound calls were the Anthropic probes below, which carried one four-token
+message. The agent is alive and idle, and it has never called the model.
+
+| Observation | Value |
+| --- | --- |
+| Function App | `pegasus-prod-classifier-252ow37gij` Running; Node 22 on Flex Consumption `FC1`; at most one instance, 2048 MB; HTTPS only; site last modified 2026-10-21T09:33:15Z |
+| Trigger | `classify`, a timer on `CLASSIFIER_CRON` (`0 */15 * * * *`); present and not disabled |
+| Settings | `CLASSIFIER_MODEL=claude-sonnet-5-5`; `CLASSIFIER_DRY_RUN=false` (write mode); `PEGASUS_MCP_URL` and `PEGASUS_TOKEN_URL` on the Web origin; `ANTHROPIC_API_KEY` and `PEGASUS_CLIENT_SECRET` as Key Vault references to `anthropic-api-key/8c259f5d…` and `automation-mcp-client-secret/68ff4a6b…` |
+| Grants | Identity `626a2e55-6cee-4d85-9446-0abea30bbf8d` holds Key Vault Secrets User at both secret scopes; both secret versions are enabled and carry no expiry |
+| Deployed bytes | One active Kudu deployment, `f6ade679-acae-4598-948a-9d7c6d3c3b8e`, status 4 (Success), deployer `az_cli`: Release 117's `classifier.zip`. Byte equality with the approved package is not exposed read-only |
+| Ticks | 11:30:00.006Z, 11:45:00.009Z, 12:00:00.004Z, 12:15:00.004Z, 12:30:00.000Z and 12:45:00.008Z each Succeeded in 2.2 to 3.8 s, each logging `nothing eligible {}` and `run complete { eligible: 0, outcome: 'nothing eligible', costUsd: 0 }` |
+| Errors | No error-severity trace from the classifier role in the window, and no `result`, `classify`, `link` or `closed as failed` line has ever been written |
+| Why it is idle | The mailbox holds five retained messages, three of them in the inbox. Each of those three was decided by `system-worker:approved-inbox-notification` and is already linked to a Case, so none is eligible; the other two rows (one sent, one upload) carry no decision. The agent's own rule, applied in the database, finds 0 eligible inbox messages |
+| Writes | `ActionHistory` holds no row whose reason begins `Classifier agent: `, and no ActionHistory, classification history, Case history or classification decision anywhere mentions the classifier. The `reviewed` table in `pegclass252ow37gij` is unreadable by the operator identity (403), as expected: only the classifier identity holds Table Data Contributor |
+| Anthropic path | Proven from the workstation on 21 October, not yet in Azure: `GET /v1/models` returned 200 and lists `claude-sonnet-5-5` (Claude Sonnet 5.5, created 28 September 2026) among thirteen models; one minimal `messages` call on that model returned 200 and `OK` (input 20, output 4); one Claude Agent SDK `query()` with the same key and model returned `success`, one turn, 0.000888 USD |
+| Still unproven | The Function App has never called Anthropic. No mail has been eligible since [Release 116](#release-116---19-october-2026-classifier-activation-live), so the app's own egress and the app's own copy of the key are untested, and Release 116's owed tick with eligible mail still stands |
+
+Application Insights answered for about one hour of the classifier's traces on 21
+October although the workspace retention is 31 days, so ticks earlier than that
+window are not available for audit. The component carries a 0.5 GB daily cap, read
+back unchanged on 21 October, and the `pegasus-prod-telemetry-daily-cap` Sev3 rule
+fires daily; the read-only evidence does not establish which of the two accounts
+for the short window.
+
 ## Release 118 - 21 October 2026 (deployment live)
 
 Release 118 deployed [PR 1476](https://github.com/collisionengineers/pegasus/pull/1476) (the Tasks
