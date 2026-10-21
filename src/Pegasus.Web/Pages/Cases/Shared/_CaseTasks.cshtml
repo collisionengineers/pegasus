@@ -51,7 +51,7 @@
         if (mayChange)
         {
             <form method="post" asp-page="/Cases/Details" asp-page-handler="CreateCaseTask" asp-route-id="@workflow.CaseId"
-                  class="note-form" data-case-task-form>
+                  class="task-compose" data-case-task-form>
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="taskId" value="@(Guid.NewGuid().ToString("D"))" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -60,8 +60,8 @@
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <input type="hidden" name="section" value="@Model.Section" />
                 <label class="lbl" for="case-task-description">@TaskLabels.NewTask</label>
-                <input id="case-task-description" name="description" required />
-                <div class="button-row">
+                <div class="task-compose-row">
+                    <input id="case-task-description" name="description" required />
                     <button type="submit" data-busy-label="@OperatorLabels.Busy.Adding" class="btn btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                         <span>@TaskLabels.AddTask</span>
@@ -104,14 +104,14 @@
                                 <td><span class="status status--plain @TaskLabels.StateTone(task.State)">@TaskLabels.StateText(task.State)</span></td>
                                 @if (mayChange)
                                 {
-                                    <td>
+                                    <td class="task-actions">
                                         @if (task.State == Pegasus.Core.Tasks.CaseTaskState.Open)
                                         {
-                                            <div class="button-row">
+                                            <div class="row-actions">
                                                 @if (assigneeChoices.Count > 0)
                                                 {
                                                     <form method="post" asp-page="/Cases/Details" asp-page-handler="AssignCaseTask" asp-route-id="@workflow.CaseId"
-                                                          class="button-row" data-case-task-assign>
+                                                          class="task-assign" data-case-task-assign>
                                                         <input type="hidden" name="id" value="@workflow.CaseId" />
                                                         <input type="hidden" name="taskId" value="@task.Id" />
                                                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -121,10 +121,17 @@
                                                         <input type="hidden" name="view" value="@Model.ViewRoute" />
                                                         <input type="hidden" name="section" value="@Model.Section" />
                                                         <select name="assigneeId" aria-label="@TaskLabels.Assignee" required>
-                                                            <option value="" selected="@(task.AssigneeId is null)"></option>
+                                                            @if (task.AssigneeId is null)
+                                                            {
+                                                                <option value="" selected="selected">@TaskLabels.Unassigned</option>
+                                                            }
+                                                            else if (!assigneeChoices.Any(choice => choice.StaffId == task.AssigneeId))
+                                                            {
+                                                                <option value="" selected="selected" disabled="disabled">@assignee</option>
+                                                            }
                                                             @foreach (var choice in assigneeChoices)
                                                             {
-                                                                <option value="@choice.StaffId" selected="@(choice.StaffId == task.AssigneeId)">@choice.DisplayName</option>
+                                                                <option value="@choice.StaffId" selected="@(choice.StaffId == task.AssigneeId ? "selected" : null)">@choice.DisplayName</option>
                                                             }
                                                         </select>
                                                         <button type="submit" data-busy-label="@OperatorLabels.Busy.Working" class="btn btn--small">
@@ -132,10 +139,11 @@
                                                         </button>
                                                     </form>
                                                 }
+                                                <div class="task-outcomes">
                                                 @foreach (var action in new[] { "CompleteCaseTask", "CancelCaseTask" })
                                                 {
                                                     var completing = action == "CompleteCaseTask";
-                                                    <form method="post" asp-page="/Cases/Details" asp-page-handler="@action" asp-route-id="@workflow.CaseId">
+                                                    <form method="post" asp-page="/Cases/Details" asp-page-handler="@action" asp-route-id="@workflow.CaseId" class="@(completing ? null : "task-cancel")">
                                                         <input type="hidden" name="id" value="@workflow.CaseId" />
                                                         <input type="hidden" name="taskId" value="@task.Id" />
                                                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -150,6 +158,7 @@
                                                         </button>
                                                     </form>
                                                 }
+                                                </div>
                                             </div>
                                         }
                                     </td>
