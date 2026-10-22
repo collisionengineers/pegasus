@@ -4,99 +4,79 @@
     form on a blocked received item both render this; a second copy would be a
     second place to forget a field or let the two screens disagree about what
     "required" means.
+
+    Each value is a label and its box in the form grid. A value taken from the
+    file carries the Extracted tag in its label line; a value staff typed
+    carries none (v41 U4).
 *@
 @{
     var draft = Model.Draft;
+
+    Microsoft.AspNetCore.Html.IHtmlContent Tag(string fieldName) =>
+        Model.ProvenanceWord(fieldName) == "Extracted"
+            ? Pegasus.Web.Presentation.OperatorLabels.SourceTagWord.Extracted.Render()
+            : Microsoft.AspNetCore.Html.HtmlString.Empty;
 }
 
-@if (Model.IncludePrincipalCode)
-{
-    <label for="draft-suggested-principal-code">Suggested principal code</label>
-    <input id="draft-suggested-principal-code" name="SuggestedPrincipalCode" value="@draft?.SuggestedPrincipalCode" maxlength="20" autocomplete="off" />
-    @foreach (var candidate in Model.CandidatesFor("Suggested principal"))
+<div class="form-grid form-grid--2">
+    @if (Model.IncludePrincipalCode)
     {
-        <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+        <div class="field">
+            <label for="draft-suggested-principal-code">Suggested principal code @Tag("Suggested principal")</label>
+            <input id="draft-suggested-principal-code" name="SuggestedPrincipalCode" value="@draft?.SuggestedPrincipalCode" maxlength="20" autocomplete="off" />
+        </div>
     }
-}
 
-<label for="draft-claimant-name">Claimant name</label>
-<input id="draft-claimant-name" name="ClaimantName" value="@draft?.ClaimantName" maxlength="200" autocomplete="off" />
-<small>@Model.ProvenanceWord("Claimant name")</small>
-@foreach (var candidate in Model.CandidatesFor("Claimant name"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
+    <div class="field">
+        <label for="draft-claimant-name">Claimant name @Tag("Claimant name")</label>
+        <input id="draft-claimant-name" name="ClaimantName" value="@draft?.ClaimantName" maxlength="200" autocomplete="off" />
+    </div>
 
-<label for="draft-claim-number">Claim number</label>
-<input id="draft-claim-number" name="ClaimNumber" value="@draft?.ClaimNumber" maxlength="100" autocomplete="off" />
-<small>@Model.ProvenanceWord("Claim number")</small>
-@foreach (var candidate in Model.CandidatesFor("Claim number"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
+    <div class="field">
+        <label for="draft-claim-number">Claim number @Tag("Claim number")</label>
+        <input id="draft-claim-number" name="ClaimNumber" value="@draft?.ClaimNumber" maxlength="100" autocomplete="off" />
+    </div>
 
-<label for="draft-vehicle-registration">Vehicle registration</label>
-<input id="draft-vehicle-registration" name="VehicleRegistration" value="@draft?.VehicleRegistration" maxlength="20" autocomplete="off" />
-<small>@Model.ProvenanceWord("Vehicle registration")</small>
-@foreach (var candidate in Model.CandidatesFor("Vehicle registration"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
+    <div class="field">
+        <label for="draft-vehicle-registration">Vehicle registration @Tag("Vehicle registration")</label>
+        <input id="draft-vehicle-registration" name="VehicleRegistration" value="@draft?.VehicleRegistration" maxlength="20" autocomplete="off" />
+    </div>
 
-<label for="draft-vehicle-make">Vehicle make</label>
-<input id="draft-vehicle-make" name="VehicleMake" value="@draft?.VehicleMake" maxlength="100" autocomplete="off" />
-<small>@Model.ProvenanceWord("Vehicle make")</small>
-@foreach (var candidate in Model.CandidatesFor("Vehicle make"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
+    <div class="field">
+        <label for="draft-vehicle-make">Vehicle make @Tag("Vehicle make")</label>
+        <input id="draft-vehicle-make" name="VehicleMake" value="@draft?.VehicleMake" maxlength="100" autocomplete="off" />
+    </div>
 
-<label for="draft-vehicle-model">Vehicle model</label>
-<input id="draft-vehicle-model" name="VehicleModel" value="@draft?.VehicleModel" maxlength="100" autocomplete="off" />
-<small>@Model.ProvenanceWord("Vehicle model")</small>
-@foreach (var candidate in Model.CandidatesFor("Vehicle model"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
+    <div class="field">
+        <label for="draft-vehicle-model">Vehicle model @Tag("Vehicle model")</label>
+        <input id="draft-vehicle-model" name="VehicleModel" value="@draft?.VehicleModel" maxlength="100" autocomplete="off" />
+    </div>
 
-<label for="draft-vehicle-mileage">Vehicle mileage</label>
-<input id="draft-vehicle-mileage" name="VehicleMileage" type="number" min="0" value="@draft?.VehicleMileage" />
-<small>@Model.ProvenanceWord("Vehicle mileage")</small>
-@foreach (var candidate in Model.CandidatesFor("Vehicle mileage"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
+    <div class="field">
+        <label for="draft-vehicle-mileage">Vehicle mileage @Tag("Vehicle mileage")</label>
+        <input id="draft-vehicle-mileage" name="VehicleMileage" type="number" min="0" value="@draft?.VehicleMileage" />
+    </div>
 
-<label for="draft-accident-circumstances">Accident circumstances</label>
-<textarea id="draft-accident-circumstances" name="AccidentCircumstances" maxlength="4000" rows="3">@draft?.AccidentCircumstances</textarea>
-<small>@Model.ProvenanceWord("Accident circumstances")</small>
-@foreach (var candidate in Model.CandidatesFor("Accident circumstances"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
+    <div class="field field-wide">
+        <label for="draft-accident-circumstances">Accident circumstances @Tag("Accident circumstances")</label>
+        <textarea id="draft-accident-circumstances" name="AccidentCircumstances" maxlength="4000" rows="3">@draft?.AccidentCircumstances</textarea>
+    </div>
 
-<label for="draft-date-of-incident">Date of incident</label>
-<input id="draft-date-of-incident" name="DateOfIncident" type="date" value="@draft?.DateOfIncident?.ToString("yyyy-MM-dd")" />
-<small>@Model.ProvenanceWord("Date of incident")</small>
-@foreach (var candidate in Model.CandidatesFor("Date of incident"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
+    <div class="field">
+        <label for="draft-date-of-incident">Date of incident @Tag("Date of incident")</label>
+        <input id="draft-date-of-incident" name="DateOfIncident" type="date" value="@draft?.DateOfIncident?.ToString("yyyy-MM-dd")" />
+    </div>
 
-@if (Model.IncludeInspectionAddress)
-{
-    <label for="draft-inspection-address">Inspection address</label>
-    <textarea id="draft-inspection-address" name="InspectionAddress" maxlength="1000" rows="3">@draft?.InspectionAddress</textarea>
-    @foreach (var candidate in Model.CandidatesFor("Inspection address"))
+    @if (Model.IncludeInspectionAddress)
     {
-        <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
+        <div class="field field-wide">
+            <label for="draft-inspection-address">Inspection address @Tag("Inspection address")</label>
+            <textarea id="draft-inspection-address" name="InspectionAddress" maxlength="1000" rows="3">@draft?.InspectionAddress</textarea>
+        </div>
     }
-}
 
-<label for="draft-inspection-date">Inspection date</label>
-<input id="draft-inspection-date" name="InspectionDate" type="date" value="@draft?.InspectionDate?.ToString("yyyy-MM-dd")" />
-<small>@Model.ProvenanceWord("Inspection date")</small>
-@foreach (var candidate in Model.CandidatesFor("Inspection date"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
+    <div class="field">
+        <label for="draft-inspection-date">Inspection date @Tag("Inspection date")</label>
+        <input id="draft-inspection-date" name="InspectionDate" type="date" value="@draft?.InspectionDate?.ToString("yyyy-MM-dd")" />
+    </div>
+</div>

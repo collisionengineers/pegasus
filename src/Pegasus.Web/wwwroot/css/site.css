@@ -1279,6 +1279,10 @@ td time, .tabular { font-variant-numeric: tabular-nums; }
 .form-grid > div, .form-grid > label { min-width: 0; }
 .form-grid > div { display: grid; align-content: start; gap: var(--sp-1); }
 .field-wide { grid-column: 1 / -1; }
+.form-grid label .src-tag { margin-left: 6px; }
+/* Create case (v41 U10): the form is bounded and its actions end it. */
+.create-form { max-width: 960px; }
+.create-form > .cluster { justify-content: flex-end; }
 
 input[readonly], input:disabled, select:disabled, textarea:disabled { border-color: var(--line); background: var(--paper); color: var(--muted); }
 input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; accent-color: var(--ce-red); }
