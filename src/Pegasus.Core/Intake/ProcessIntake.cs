@@ -131,15 +131,16 @@ public sealed class ProcessIntake(
         {
             try
             {
-                sourceAsset = await RetainAsync(
-                    new(
-                        "uploaded source",
-                        safeSource.FileName,
-                        safeSource.MediaType,
-                        safeSource.Content,
-                        IntakeAssetKind.Source,
-                        IntakeAssetDisposition.Source),
-                    cancellationToken);
+                IntakeAssetCandidate sourceCandidate = new(
+                    "uploaded source",
+                    safeSource.FileName,
+                    safeSource.MediaType,
+                    safeSource.Content,
+                    IntakeAssetKind.Source,
+                    IntakeAssetDisposition.Source);
+                sourceAsset = AssetRecord(
+                    sourceCandidate,
+                    await StoreAsync(sourceCandidate.Content, cancellationToken));
             }
             catch (IntakeArtifactRetentionException)
             {

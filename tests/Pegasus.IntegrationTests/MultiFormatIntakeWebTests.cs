@@ -719,7 +719,9 @@ public sealed partial class MultiFormatIntakeWebTests
         ];
         const string text =
             "Engineer report prepared for the instructing party,\nwith enough printed words to read clearly as a text layer.";
-        var report = CreateSharedImagePdf(images, (text, new[] { 0 }), (text, new[] { 0, 1 }), (text, new[] { 0 }));
+        int[] firstOnly = [0];
+        int[] both = [0, 1];
+        var report = CreateSharedImagePdf(images, (text, firstOnly), (text, both), (text, firstOnly));
         var message = CreateMessage(
             "Report and photograph",
             "Please find the report and a photograph attached.",
