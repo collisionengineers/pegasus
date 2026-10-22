@@ -685,7 +685,7 @@ internal sealed class EfDocumentCustodyStore(
     }
 
     /// <summary>The Case's current, not removed document with the Audit report role.</summary>
-    private static IQueryable<DocumentOccurrenceEntity> CurrentAuditReports(PegasusDbContext context, Guid caseId) =>
+    internal static IQueryable<DocumentOccurrenceEntity> CurrentAuditReports(PegasusDbContext context, Guid caseId) =>
         from item in context.Set<DocumentOccurrenceEntity>()
         join itemVersion in context.Set<DocumentVersionEntity>()
             on item.VersionId equals itemVersion.Id

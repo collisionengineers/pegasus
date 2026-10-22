@@ -245,7 +245,7 @@ public sealed partial class DetailsModel
     /// (<see cref="CaseNextAction"/>); null otherwise.
     /// </summary>
     public CaseRequirement? NextActionRequirement =>
-        Case!.Workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held
+        CaseNextAction.ReadsTheRequirements(Case!.Workflow)
         && NextAction is { Blocker: null }
         && ReportNotReadyRequirements is [var first, ..]
             ? first

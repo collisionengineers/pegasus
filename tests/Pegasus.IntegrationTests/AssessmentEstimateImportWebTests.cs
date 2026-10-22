@@ -2291,6 +2291,10 @@ public sealed partial class AssessmentEstimateImportWebTests
             Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseDocument>>(id == caseId ? Documents() : []);
 
+        Task<bool> ICaseDocumentQueries.HasCurrentAuditReportAsync(
+            Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         /// <summary>The Case's files as the Case read returns them: one document per retained version group.</summary>
         private CaseDocument[] Documents() =>
             RetainedDocuments

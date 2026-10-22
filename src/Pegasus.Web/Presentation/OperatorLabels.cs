@@ -38,6 +38,12 @@ public static class OperatorLabels
     public const string MarkAsOriginalReport = "Mark as original report";
 
     /// <summary>
+    /// The Case requirement an Audit lists first until its original report is
+    /// filed (FRD-01): the Case page's aside and the Cases quick detail name it.
+    /// </summary>
+    public const string OriginalReportMissing = "Original report missing";
+
+    /// <summary>
     /// The known principal on a pre-case record — an Image Intake or a Triage.
     /// One pair owns the concept for both surfaces: `Not known` is the absent
     /// principal and is never reused as a generic empty label elsewhere.

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -41,7 +42,8 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed class IndexModel(
     IListTriage listTriage,
     ISearchCases searchCases,
-    IGetCaseEditBasis getCaseEditBasis,
+    IGetCaseSectionFrame getCaseSectionFrame,
+    ICaseDocumentQueries caseDocuments,
     ICaseReportSnapshotSource reportSnapshotSource,
     ICaseReportGenerationStore reportGenerations,
     ICaseReportSendHistoryQueries reportSendHistory,
@@ -68,8 +70,10 @@ public sealed class IndexModel(
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly ISearchCases _searchCases =
         searchCases ?? throw new ArgumentNullException(nameof(searchCases));
-    private readonly IGetCaseEditBasis _getCaseEditBasis =
-        getCaseEditBasis ?? throw new ArgumentNullException(nameof(getCaseEditBasis));
+    private readonly IGetCaseSectionFrame _getCaseSectionFrame =
+        getCaseSectionFrame ?? throw new ArgumentNullException(nameof(getCaseSectionFrame));
+    private readonly ICaseDocumentQueries _caseDocuments =
+        caseDocuments ?? throw new ArgumentNullException(nameof(caseDocuments));
     private readonly ICaseReportSnapshotSource _reportSnapshotSource =
         reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
     private readonly ICaseReportGenerationStore _reportGenerations =
@@ -601,7 +605,8 @@ public sealed class IndexModel(
 
     /// <summary>
     /// The selected row's quick detail. The record kinds already carry their
-    /// facts; only the Case's own requirements and work need reading here.
+    /// facts; only the Case's own requirements and work need reading here,
+    /// from its frame and only what its Next action names (PERF-WEB-03).
     /// </summary>
     private async Task<QuickDetail> LoadDetailAsync(ActionActor actor, QueueRow row, CancellationToken cancellationToken)
     {
@@ -610,31 +615,61 @@ public sealed class IndexModel(
             return RecordDetail(row);
         }
 
-        var basis = await _getCaseEditBasis.ExecuteAsync(new(row.Id, actor), cancellationToken)
+        var frame = await _getCaseSectionFrame.ExecuteAsync(new(row.Id, actor), cancellationToken)
             ?? throw new InvalidOperationException($"Case '{row.Id}' was listed but could not be read.");
-        var missingRequirements = basis.Data.Completeness.Evaluation.MissingRequirements;
-        var outstanding = basis.Workflow.State == CaseLifecycleState.NotReady && missingRequirements is not null
+        var workflow = frame.Workflow;
+        var summary = frame.Summary;
+        var caseId = workflow.CaseId;
+
+        // Current work is the Case's Next action, the one the Case page's
+        // aside states (issue 896), read from the same facts. In Not ready
+        // and Held it is the first outstanding requirement in the aside's
+        // order: Original report missing on an Audit without its report
+        // (R155), then the completeness facts the configuration requires.
+        // Only those states read the configuration, and only an Audit kept
+        // without standalone evidence reads whether its report is filed.
+        IReadOnlyList<string> missingRequirements = [];
+        string? firstRequirement = null;
+        if (CaseNextAction.ReadsTheRequirements(workflow))
+        {
+            var configurationRead = _workflowConfiguration.GetCurrentAsync(cancellationToken);
+            var auditReportRead = OriginalReportPolicy.ReadsTheDocuments(summary.CaseType, frame.StandaloneAuditEvidenceId)
+                ? _caseDocuments.HasCurrentAuditReportAsync(caseId, cancellationToken)
+                : Task.FromResult(false);
+            await Task.WhenAll(configurationRead, auditReportRead);
+            missingRequirements = CaseCompletenessPolicy.Evaluate(
+                new(summary.InstructionComplete ?? false, summary.ImagesComplete ?? false),
+                configurationRead.Result).MissingRequirements;
+            firstRequirement = OriginalReportPolicy.IsMissing(
+                summary.CaseType, frame.StandaloneAuditEvidenceId, auditReportRead.Result)
+                ? OperatorLabels.OriginalReportMissing
+                : missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null;
+        }
+        var outstanding = workflow.State == CaseLifecycleState.NotReady
             ? OperatorLabels.CaseRequirements(missingRequirements)
             : [];
 
-        // Current work is the Case's Next action, the one the Case page's
-        // aside states (issue 896), read from the same facts: the first
-        // missing requirement, and once the report is the Case's concern its
-        // readiness while the assessment can open, the current report and
-        // whether a send of it was accepted.
-        var caseId = basis.Workflow.CaseId;
+        // Once the report is the Case's concern: its readiness while the
+        // assessment can open, the current report, whether a send of it was
+        // accepted and, once Report sent is recorded, the open tasks, which
+        // are then its step as the Case page's aside lists them (operator,
+        // 6 October 2026).
         IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
         CaseReportGenerationRecord? currentReport = null;
         var reportSent = false;
-        if (CaseNextAction.ReadsTheReport(basis.Workflow))
+        var hasOpenTasks = false;
+        if (CaseNextAction.ReadsTheReport(workflow))
         {
-            // The snapshot, the current report and its sends are independent reads.
+            // The snapshot, the current report, its sends and the tasks are independent reads.
             using var reads = new BoundedReads(cancellationToken);
-            var snapshotTask = AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
+            var snapshotTask = AssessmentAccessPolicy.For(actor, workflow).CanOpen
                 ? reads.Start(token => _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, token))
                 : null;
             var currentTask = reads.Start(token => _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, token));
             var historyTask = reads.Start(token => _reportSendHistory.GetAsync(caseId, CaseWorkSelector.Current, token));
+            var tasksTask = workflow.ReportSentEvidence is not null
+                ? reads.Start(token => _caseTasks.ListAsync(caseId, token))
+                : null;
             await reads.WhenAllAsync();
             if (snapshotTask?.Result is { } reportInputs)
             {
@@ -643,17 +678,13 @@ public sealed class IndexModel(
             }
             currentReport = currentTask.Result;
             reportSent = historyTask.Result.Accepted;
+            hasOpenTasks = tasksTask?.Result.Any(task => task.State == Pegasus.Core.Tasks.CaseTaskState.Open) == true;
         }
-        // Once Report sent is recorded the Case's open tasks are its step, as
-        // the Case page's aside lists them (operator, 6 October 2026).
-        var hasOpenTasks = basis.Workflow.ReportSentEvidence is not null
-            && (await _caseTasks.ListAsync(caseId, cancellationToken))
-                .Any(task => task.State == Pegasus.Core.Tasks.CaseTaskState.Open);
         var next = CaseNextAction.Of(
-            basis.Workflow,
-            basis.Summary.CaseType,
-            basis.Frame.Works,
-            missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
+            workflow,
+            summary.CaseType,
+            frame.Works,
+            firstRequirement,
             reportBlockers,
             _ => null,
             currentReport,
@@ -663,7 +694,7 @@ public sealed class IndexModel(
         var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
 
         var engineer = "Not assigned";
-        if (basis.Workflow.AssignedEngineerId is { } engineerId)
+        if (workflow.AssignedEngineerId is { } engineerId)
         {
             // The queue rows already resolved this name; only an id the rows
             // did not carry is read.
@@ -674,12 +705,11 @@ public sealed class IndexModel(
         }
         work.Add(("Engineer", engineer));
 
-        if (basis.Summary.DueAtUtc is { } due)
+        if (summary.DueAtUtc is { } due)
         {
             work.Add(("Due", OperatorLabels.DueDate(due)));
         }
 
-        var summary = basis.Summary;
         var vehicle = string.Join(" ", new[] { summary.VehicleMake, summary.VehicleModel }.Where(part => !string.IsNullOrWhiteSpace(part)));
         return new(
             RowKind.Case,
@@ -891,12 +921,6 @@ public sealed class IndexModel(
             NoticeTone: "success");
     }
 
-    private static string[] PrincipalsOf(IEnumerable<CaseSearchItem> items) => items
-        .Select(item => item.Principal)
-        .Distinct(StringComparer.Ordinal)
-        .Order(StringComparer.Ordinal)
-        .ToArray();
-
     /// <summary>
     /// The Principal select's options (v41 U3): every active Principal,
     /// whatever page of rows the queue shows, plus the Principals of the rows
@@ -907,7 +931,7 @@ public sealed class IndexModel(
     private string[] PrincipalOptions(CaseSearchItem[] items, IReadOnlyList<string> activePrincipals)
     {
         var options = new HashSet<string>(activePrincipals, StringComparer.Ordinal);
-        options.UnionWith(PrincipalsOf(items));
+        options.UnionWith(items.Select(item => item.Principal));
         if (PrincipalFilter is not null)
         {
             options.Add(PrincipalFilter);

@@ -333,7 +333,7 @@ public sealed partial class DetailsModel(
             var requirements = new List<CaseRequirement>();
             if (OriginalReportMissing)
             {
-                requirements.Add(new("Original report missing", "Audit", null, "files"));
+                requirements.Add(new(Labels.OriginalReportMissing, "Audit", null, "files"));
             }
             requirements.AddRange(data.Completeness.Evaluation.MissingRequirements
                 .Select(requirement => new CaseRequirement(
