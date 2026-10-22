@@ -11,9 +11,9 @@ relying on training data for questions about Microsoft technologies. The CLI ret
 Microsoft Learn documentation and code samples without requiring an MCP client.
 
 ```sh
-npx @microsoft/learn-cli@latest search "<query>" --json
-npx @microsoft/learn-cli@latest fetch "<url>"
-npx @microsoft/learn-cli@latest code-search "<query>" --language <language> --json
+npx @microsoft/learn-cli@1.0.0 search "<query>" --json
+npx @microsoft/learn-cli@1.0.0 fetch "<url>"
+npx @microsoft/learn-cli@1.0.0 code-search "<query>" --language <language> --json
 ```
 
 ## When to Use
@@ -31,21 +31,21 @@ Do not use this skill for unrelated programming concepts, business logic, or non
    when relevant:
 
    ```sh
-   npx @microsoft/learn-cli@latest search "Azure Functions Python v2 timeout configuration" --json
+   npx @microsoft/learn-cli@1.0.0 search "Azure Functions Python v2 timeout configuration" --json
    ```
 
 2. Use the most relevant result excerpts first. Fetch a Microsoft Learn URL only when the excerpt
    is insufficient or the user needs a complete tutorial, configuration reference, or API page:
 
    ```sh
-   npx @microsoft/learn-cli@latest fetch "<url>"
+   npx @microsoft/learn-cli@1.0.0 fetch "<url>"
    ```
 
 3. For a long page, fetch only the relevant section or limit the returned content:
 
    ```sh
-   npx @microsoft/learn-cli@latest fetch "<url>" --section "<heading>"
-   npx @microsoft/learn-cli@latest fetch "<url>" --max-chars 5000
+   npx @microsoft/learn-cli@1.0.0 fetch "<url>" --section "<heading>"
+   npx @microsoft/learn-cli@1.0.0 fetch "<url>" --max-chars 5000
    ```
 
 4. Answer from the retrieved content and cite the Microsoft Learn URLs used.
@@ -55,7 +55,7 @@ Do not use this skill for unrelated programming concepts, business logic, or non
 Use code search before producing or fixing code that depends on a Microsoft SDK or API:
 
 ```sh
-npx @microsoft/learn-cli@latest code-search "upload blob with managed identity" --language <language> --json
+npx @microsoft/learn-cli@1.0.0 code-search "upload blob with managed identity" --language <language> --json
 ```
 
 Use `search` for API signatures, package names, configuration, or troubleshooting guidance. Use
