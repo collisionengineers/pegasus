@@ -38,6 +38,12 @@ public static class OperatorLabels
     public const string MarkAsOriginalReport = "Mark as original report";
 
     /// <summary>
+    /// The Case requirement an Audit lists first until its original report is
+    /// filed (FRD-01): the Case page's aside and the Cases quick detail name it.
+    /// </summary>
+    public const string OriginalReportMissing = "Original report missing";
+
+    /// <summary>
     /// The known principal on a pre-case record — an Image Intake or a Triage.
     /// One pair owns the concept for both surfaces: `Not known` is the absent
     /// principal and is never reused as a generic empty label elsewhere.
@@ -81,11 +87,11 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// What an Unidentified item's retained material is, for the Queues
-    /// page's Images/E-mails filter and the row/detail "what is going on"
-    /// text. Supersedes the old origin-kind label ("Intake receipt"), which
-    /// named the internal record rather than the material and used the
-    /// banned word "intake".
+    /// What an Unidentified item's retained material is, for the Material
+    /// column, the row/detail "what is going on" text and the Automation list
+    /// filter (<c>UnidentifiedMcpTools.ListAsync</c>). Supersedes the old
+    /// origin-kind label ("Intake receipt"), which named the internal record
+    /// rather than the material and used the banned word "intake".
     /// </summary>
     public static string UnidentifiedMediaKind(Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind kind) => kind switch
     {
@@ -1475,14 +1481,13 @@ public static class OperatorLabels
             "review" => "navy",
             "with engineer" => "navy",
             "held" => "amber",
-            "complete" or "completed" or "post report completion" => "green",
+            "completed" => "green",
             "cancelled" or "principal cancellation" or "archived" => "neutral",
             "created in error" => "neutral",
             "reopened" or "open" => "navy",
 
             // Intake and Triage
             "needs sorting" or "unidentified" or "no case found" => "amber",
-            "blocked intake" or "blocked" => "red",
             "document text required" or "unsupported" => "amber",
             "awaiting information" => "amber",
             "finding recorded" => "navy",
@@ -2108,6 +2113,16 @@ public static class OperatorLabels
     }
 
     /// <summary>
+    /// The Cases queue's footer line (v41 U3, signed off 19 October 2026): the
+    /// page number shows only when another page exists.
+    /// </summary>
+    public static class CaseQueueFooter
+    {
+        public static string PageLine(int page, bool hasOtherPage) =>
+            hasOtherPage ? string.Create(CultureInfo.InvariantCulture, $"Page {page} · newest first") : "Newest first";
+    }
+
+    /// <summary>
     /// Search's filter and results words that v41 W2 and W3 gave (signed off
     /// 19 October 2026): the stage filter's name, the two lists' empty choice,
     /// the results' Type column and the preview's copy button.
@@ -2413,7 +2428,6 @@ public static class OperatorLabels
         public const string PreviousAddress = "Previous";
         public const string ManualEntry = "Manual entry";
         public const string NotRecorded = "Not recorded";
-        public const string NotRecordedSuffix = " · not recorded";
         // The Case's repairer.
         public const string Repairer = "Repairer";
         public const string RepairerDirectory = "Repairer contact";
@@ -2575,7 +2589,6 @@ public static class OperatorLabels
     public static class Upload
     {
         public const string Title = "Upload";
-        public const string ReviewSubtitle = "Review your upload and its destination.";
         public const string SelectEyebrow = "Add files to Pegasus";
         public const string ChooseHeading = "Choose the files for this upload";
         public const string DropHeading = "Drop files here";
@@ -2607,8 +2620,6 @@ public static class OperatorLabels
         public const string ChooseTitle = "Which Case do these files belong to?";
         public const string NoMatchEyebrow = "No suggested match";
         public const string NoMatchTitle = "Find the right Case";
-        public const string NoMatchSentence = "Search all Cases and Triage items. The upload is retained while you decide.";
-        public const string SelectHint = "Select a Case to continue.";
         public const string Review = "Review and add to Case";
         public const string FindCase = "Find a Case";
         public const string FindAnotherCase = "Find another Case";
@@ -2618,10 +2629,9 @@ public static class OperatorLabels
         public const string RetrySearch = "Retry search";
         public const string SearchUnavailable = "Case search is unavailable.";
         public const string SearchUnavailableSentence = "Your upload is retained. Try again in a moment.";
-        public const string ImageIntake = "Image intake";
+        public const string VehicleImages = "Vehicle images";
         public const string RegisteredAutomatically = "Registered automatically";
         public const string Proposal = "Review new Case proposal";
-        public const string ProposalSentence = "Use the extracted instruction details to create a new Case.";
         public const string LeaveUndecided = "Leave undecided";
         public const string Discard = "Discard upload";
         public const string DiscardTitle = "Discard this upload?";
@@ -2675,14 +2685,6 @@ public static class OperatorLabels
         public static string DiscardSentence(int count) => $"Discard all {Files(count)} in this upload. The source files and processing record will be retained.";
 
         public static string OriginalFiles(int count) => count == 1 ? "1 original file" : string.Create(CultureInfo.InvariantCulture, $"{count} original files");
-
-        public static string CandidatesSentence(int count, string? registration) => (count, registration) switch
-        {
-            (1, null) => "One possible Case. Check the details before adding the files.",
-            (1, _) => $"One possible Case for {registration}. Check the details before adding the files.",
-            (_, null) => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases. Choose the correct claimant and Case."),
-            _ => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases for {registration}. Choose the correct claimant and Case.")
-        };
 
         public static string CouldNotBeReadTitle(int count) => count == 1 ? "1 file could not be read" : string.Create(CultureInfo.InvariantCulture, $"{count} files could not be read");
 

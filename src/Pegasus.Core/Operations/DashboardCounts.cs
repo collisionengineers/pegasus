@@ -28,6 +28,13 @@ public sealed record CaseStageCounts(
     int Query = 0);
 
 /// <summary>
+/// The Cases rail counts and the Principal codes of the Cases its Case queues
+/// hold (Not ready, Review, With Engineer, Queries and Held): the Principal
+/// select's options on a Case queue (v41 U3).
+/// </summary>
+public sealed record CaseQueues(CaseStageCounts Counts, IReadOnlyList<string> Principals);
+
+/// <summary>
 /// A pre-report Case its early vehicle images were paired into, which no
 /// member of staff has changed since (FRD-19, INT-32).
 /// </summary>
@@ -70,6 +77,12 @@ public sealed record OpenCaseTask(
 public interface IDashboardQueries
 {
     Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <see cref="GetCaseStageCountsAsync"/> with the Principals of the Cases
+    /// those queues hold, in the same statement. Only a Case queue reads it.
+    /// </summary>
+    Task<CaseQueues> GetCaseQueuesAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// Unassociated image-initiated records still awaiting instruction. Only

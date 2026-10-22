@@ -26,6 +26,7 @@ public sealed record TriageCasePorts(
     ICompleteTriage Complete,
     ICancelTriage Cancel,
     IReopenTriage Reopen,
+    ISearchCases SearchCases,
     ILinkTriageCase LinkCase,
     IUnlinkTriageCase UnlinkCase,
     IEditScopeLeases EditScopes,

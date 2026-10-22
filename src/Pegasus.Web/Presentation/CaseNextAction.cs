@@ -115,6 +115,17 @@ public static class CaseNextAction
             && !CaseQueryRules.IsQueryStage(workflow.State, workflow.HasOpenQuery);
     }
 
+    /// <summary>
+    /// Whether the Next action names the Case's first outstanding requirement:
+    /// in Not ready and Held; a caller that has not read the requirements
+    /// need not for any other state.
+    /// </summary>
+    public static bool ReadsTheRequirements(CaseWorkflowRecord workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        return workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held;
+    }
+
     // The steps the Case takes before the report is its next concern.
     private static CaseNextActionStep? BeforeTheReport(CaseWorkflowRecord workflow, string? firstRequirement)
     {
@@ -126,7 +137,7 @@ public static class CaseNextAction
         {
             return new(CaseWorkspaceLabels.AssignEngineer, "overview", OpensAssignEngineer: true);
         }
-        if (workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held)
+        if (ReadsTheRequirements(workflow))
         {
             return new(firstRequirement ?? OperatorLabels.CaseStage(workflow.State), "overview");
         }

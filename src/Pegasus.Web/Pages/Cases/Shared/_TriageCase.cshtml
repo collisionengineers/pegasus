@@ -355,12 +355,13 @@
                             }
                             else
                             {
-                                <div class="doc-list stack" data-document-list>
+                                <div class="doc-list stack" data-evidence-set data-document-list>
                                     @foreach (var entry in files)
                                     {
                                         var occurrence = entry.Occurrence;
                                         var version = entry.Version;
                                         var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
+                                        var viewable = mayRead && DetailsModel.IsViewable(version.MediaType);
                                         var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
                                             || occurrence.Source == DocumentSource.ExternalCorrespondence;
                                         <div class="doc-row" data-document-row="@occurrence.Id">
@@ -379,6 +380,18 @@
                                             <span class="doc-row-actions">
                                                 @if (mayRead)
                                                 {
+                                                    @if (viewable)
+                                                    {
+                                                        <a class="btn btn--small"
+                                                           href="@view.PreviewUrl(entry)"
+                                                           data-evidence-item
+                                                           data-download-href="@view.DownloadUrl(entry)"
+                                                           data-media-type="@version.MediaType"
+                                                           data-file-name="@version.FileName">
+                                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
+                                                            <span>@FilesLabels.View</span>
+                                                        </a>
+                                                    }
                                                     <a class="btn btn--small btn--icon" href="@view.DownloadUrl(entry)" download title="@OperatorLabels.CaseWorkspace.SaveAs" aria-label="@OperatorLabels.CaseWorkspace.SaveAs @version.FileName">
                                                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
                                                     </a>
@@ -468,9 +481,7 @@
                                                         {
                                                             <option value="@candidate.PollOutcomeId|@candidate.SentEvidenceId">
                                                                 @OperatorLabels.OfficeTime(candidate.SentAtUtc) —
-                                                                @candidate.MailboxAddress —
-                                                                message @candidate.InternetMessageIdentity —
-                                                                Sent evidence @candidate.SentEvidenceId
+                                                                @candidate.MailboxAddress
                                                             </option>
                                                         }
                                                     </select>
@@ -758,9 +769,16 @@
                     <input type="hidden" name="operationKey" value="@view.OperationKey" />
                     <input type="hidden" name="actionName" value="link_case" />
                     <div class="dialog-body stack">
-                        <div class="field">
-                            <label class="req" for="triage-link-case-id">Case ID</label>
-                            <input id="triage-link-case-id" name="caseId" required maxlength="100" data-dialog-initial-focus />
+                        @* Case / PO searches as staff type: choosing an option
+                           fills the field. A reference typed in full posts as it
+                           is. *@
+                        <div class="field case-picker" data-case-picker
+                             data-case-picker-url="@Url.Page("/Cases/Details", "TriageLinkCaseOptions", new { id = record.CaseId })">
+                            <label class="req" for="triage-link-case-id">Case / PO</label>
+                            <input id="triage-link-case-id" name="caseReference" type="text" required maxlength="100" autocomplete="off"
+                                   role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                   aria-controls="triage-link-case-options" data-dialog-initial-focus />
+                            <div id="triage-link-case-options" class="case-picker-options" data-case-picker-options hidden></div>
                         </div>
                         <div class="field">
                             <label class="req" for="triage-link-case-reason">Reason for action</label>

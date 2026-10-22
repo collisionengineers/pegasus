@@ -211,8 +211,6 @@ public sealed record UploadReviewView(
 
     public bool OffersDiscard => CanDiscard && OffersLeave;
 
-    public string? Registration => Candidates.Select(candidate => candidate.Registration).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-
     public string FileCount => OperatorLabels.Upload.Files(Files.Count);
 
     public string TotalSize

@@ -646,6 +646,173 @@ public sealed class CasesIndexWebTests
         Assert.DoesNotContain("data-cases-type", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// v41 U3, U7 and U8: the Principal filter sits in the list head and lists
+    /// every Principal on the Case queues, not only those on the page's rows;
+    /// the footer names the page only when another page exists; and a Case's
+    /// quick detail is one fact grid ending with what the row does not show.
+    /// </summary>
+    [Fact]
+    public async Task TheListHeadHoldsThePrincipalFilterAndTheQuickDetailIsOneFactGrid()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "PA12 NEL", "V41-PANE-01");
+        // A Not ready Case of another Principal: no Review row carries it.
+        var notReadyId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "PA12 NRY", "V41-PANE-02", CaseLifecycleState.NotReady);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            var organizationId = Guid.NewGuid();
+            var lineageId = Guid.NewGuid();
+            var principalId = Guid.NewGuid();
+            var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Filter test provider"}, {0L})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"ZZPANE"}, {lineageId}, {true}, {0L})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Cases SET PrincipalId = {principalId} WHERE Id = {notReadyId}");
+        }
+
+        using var response = await client.GetAsync($"/Cases?tab=review&selected={caseId:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Matches(
+            new Regex(@"<div class=""pane-head"">\s*<h2>Review</h2>\s*<span class=""meta"">1 case</span>\s*<form method=""get"" class=""filter-bar cases-filters"""),
+            html);
+        Assert.Contains("<option value=\"ZZPANE\">ZZPANE</option>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span>{Pegasus.Web.Presentation.OperatorLabels.CaseQueueFooter.PageLine(1, false)}</span>",
+            html,
+            StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(@"<dt>Vehicle</dt>.*<dt>Type</dt>.*<dt>State</dt>.*<dt>Current work</dt>.*<dt>Engineer</dt>", RegexOptions.Singleline),
+            html);
+    }
+
+    /// <summary>
+    /// PERF-WEB-03: in Not ready and Held a Case's Current work is its first
+    /// outstanding requirement, read from its frame's completeness facts, and
+    /// the Case page's aside names the same step.
+    /// </summary>
+    [Theory]
+    [InlineData("not_ready", CaseLifecycleState.NotReady, "QD21 NRY", "QUICK-DETAIL-01")]
+    [InlineData("held", CaseLifecycleState.Held, "QD21 HLD", "QUICK-DETAIL-02")]
+    public async Task TheQuickDetailNamesTheAsidesFirstRequirement(
+        string tab,
+        CaseLifecycleState state,
+        string registration,
+        string claimNumber)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await SeedImagesIncompleteCaseAsync(factory, client, registration, claimNumber, state);
+        var step = Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete("Images");
+
+        Assert.Matches(
+            CurrentWork(step),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab={tab}&selected={caseId:D}"));
+        Assert.Contains(
+            AsideStep(step),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// PERF-WEB-03: the requirements are evaluated under the workflow
+    /// configuration, not from the raw facts: with images no longer required
+    /// the same Not ready Case's step is its stage, on both surfaces.
+    /// </summary>
+    [Fact]
+    public async Task TheQuickDetailHonoursTheConfiguredRequirements()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 CFG", "QUICK-DETAIL-03", CaseLifecycleState.NotReady);
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            var configuration = await context.Set<WorkflowConfigurationEntity>().SingleAsync();
+            configuration.RequireImages = false;
+            configuration.Version++;
+            await context.SaveChangesAsync();
+        }
+        var step = Pegasus.Web.Presentation.OperatorLabels.CaseStage(CaseLifecycleState.NotReady);
+
+        Assert.Matches(
+            CurrentWork(step),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=not_ready&selected={caseId:D}"));
+        Assert.Contains(
+            AsideStep(step),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// PERF-WEB-03: the selected Case's quick detail reads its frame, not its
+    /// accepted data snapshot with every field.
+    /// </summary>
+    [Fact]
+    public async Task TheQuickDetailReadsNoCaseDataSnapshot()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "QD21 RVW", "QUICK-DETAIL-04");
+
+        counter.Reset();
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=review&selected={caseId:D}");
+
+        Assert.Matches(CurrentWork(Pegasus.Web.Presentation.CaseWorkspaceLabels.AssignEngineer), html);
+        Assert.Equal(0, counter.CountContaining("[CaseDataSnapshots]"));
+    }
+
+    /// <summary>
+    /// R155: a Not ready Audit kept without its original report names Original
+    /// report missing first, as the Case page's aside lists it, ahead of its
+    /// incomplete images. Only the Audit reads whether its report is filed, in
+    /// one document query; an Inspection Case in the same queue reads none.
+    /// </summary>
+    [Fact]
+    public async Task AnAuditWithoutItsOriginalReportNamesItAsTheAsideDoes()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var inspectionId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 INS", "QUICK-DETAIL-05", CaseLifecycleState.NotReady);
+        var auditId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 AUD", "QUICK-DETAIL-06", CaseLifecycleState.NotReady, audit: true);
+
+        counter.Reset();
+        var inspection = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=not_ready&selected={inspectionId:D}");
+        var inspectionDocumentReads = counter.CountContaining("[DocumentOccurrences]");
+        counter.Reset();
+        var audit = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=not_ready&selected={auditId:D}");
+        var auditDocumentReads = counter.CountContaining("[DocumentOccurrences]");
+
+        Assert.Matches(CurrentWork(Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete("Images")), inspection);
+        Assert.Matches(CurrentWork(Pegasus.Web.Presentation.OperatorLabels.OriginalReportMissing), audit);
+        Assert.Equal(0, inspectionDocumentReads);
+        Assert.Equal(1, auditDocumentReads);
+        Assert.Contains(
+            AsideStep(Pegasus.Web.Presentation.OperatorLabels.OriginalReportMissing),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{auditId:D}"),
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TheSelectedEntryOfAnAuditedCaseIsReadServerSide()
     {
@@ -751,6 +918,47 @@ public sealed class CasesIndexWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+
+    /// <summary>The quick detail's Current work fact reading <paramref name="step"/>.</summary>
+    private static Regex CurrentWork(string step) =>
+        new(@"<dt>Current work</dt>\s*<dd>" + Regex.Escape(step) + "</dd>");
+
+    /// <summary>The Case page aside's Next action step reading <paramref name="step"/>.</summary>
+    private static string AsideStep(string step) => $"<strong data-next-label>{step}</strong>";
+
+    /// <summary>
+    /// A seeded instruction Case moved by direct writes to
+    /// <paramref name="state"/> (a Held Case held from Not ready) with its
+    /// images incomplete; with <paramref name="audit"/>, an Audit kept with no
+    /// standalone evidence and no original report.
+    /// </summary>
+    private static async Task<Guid> SeedImagesIncompleteCaseAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        string registration,
+        string claimNumber,
+        CaseLifecycleState state,
+        bool audit = false)
+    {
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(factory, client, registration, claimNumber);
+        await using var context = await factory.Database.CreateContextAsync();
+        var workflow = await context.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleAsync(item => item.CaseId == caseId);
+        workflow.Case.ImagesComplete = false;
+        if (audit)
+        {
+            workflow.Case.Type = CaseTypeCodes.Audit;
+        }
+        workflow.State = state.ToString();
+        if (state == CaseLifecycleState.Held)
+        {
+            workflow.PreHoldState = nameof(CaseLifecycleState.NotReady);
+            workflow.HeldAtUtc = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        }
+        await context.SaveChangesAsync();
+        return caseId;
+    }
 
     private static async Task<HttpResponseMessage> PostImageAttachAsync(
         HttpClient client,

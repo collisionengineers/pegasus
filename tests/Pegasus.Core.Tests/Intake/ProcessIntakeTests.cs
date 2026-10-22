@@ -847,7 +847,7 @@ public sealed class ProcessIntakeTests
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Equal(
-            "No accepted intake route established the principal for automatic case creation.",
+            "Unrecognised Principal",
             receipt.DecisionReason);
         Assert.Null(receipt.InstructionDraft);
         Assert.Empty(receipt.Fields);

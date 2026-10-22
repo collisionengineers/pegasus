@@ -252,13 +252,20 @@ public sealed record GetCaseHeaderQuery(Guid CaseId, ActionActor Actor);
 /// lazily rendered Case section needs. It deliberately has no body
 /// collections: each section supplies only its own content.
 /// </summary>
+/// <param name="StandaloneAuditEvidenceId">
+/// The standalone-Audit evidence an Audit kept at intake, read with the Case
+/// row, so a caller holding only the frame knows whether
+/// <see cref="OriginalReportPolicy.IsMissing"/> turns on the Case's
+/// documents.
+/// </param>
 public sealed record CaseSectionFrame(
     CaseSearchItem Summary,
     CaseWorkflowRecord Workflow,
     CaseEditLeaseSnapshot? ActiveEditLease,
     string? CustodyFolderRemoteId = null,
     CaseCustodyState CustodyState = CaseCustodyState.Pending,
-    CaseWorkSet? Works = null);
+    CaseWorkSet? Works = null,
+    Guid? StandaloneAuditEvidenceId = null);
 
 /// <summary>
 /// The already-authorized page inputs a directly rendered body may reuse. A
@@ -608,6 +615,38 @@ public sealed class GetCaseEditBasis(
 }
 
 /// <summary>
+/// The authorized frame-only read of a Case: its summary, workflow, lease,
+/// custody and works, without the accepted data or any body. The Cases queue
+/// detail reads it; a caller that needs the data reads
+/// <see cref="IGetCaseEditBasis"/>.
+/// </summary>
+public interface IGetCaseSectionFrame
+{
+    Task<CaseSectionFrame?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Requires <see cref="StaffAccessRight.PerformCasework"/> and a case
+/// identifier, then returns the store's frame; null when the Case has no
+/// workflow.
+/// </summary>
+public sealed class GetCaseSectionFrame(ICaseQueryStore store) : IGetCaseSectionFrame
+{
+    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<CaseSectionFrame?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+        return _store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+    }
+}
+
+/// <summary>
 /// The persistence half of <see cref="CaseFilesSection"/>. It contains only
 /// Files-owned rows; the page frame supplies the already-rendered documents.
 /// </summary>
@@ -920,6 +959,13 @@ public sealed class ValidateCaseRenderLease(
 public interface ICaseDocumentQueries
 {
     Task<IReadOnlyList<CaseDocument>> ListAsync(Guid caseId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether a current, not removed document of the Case holds the Audit
+    /// report role (<see cref="OriginalReportPolicy.IsMissing"/>), in one
+    /// indexed query, for a caller that has not read the documents.
+    /// </summary>
+    Task<bool> HasCurrentAuditReportAsync(Guid caseId, CancellationToken cancellationToken);
 }
 
 /// <summary>The retained report-Sent evidence no Case has linked yet.</summary>

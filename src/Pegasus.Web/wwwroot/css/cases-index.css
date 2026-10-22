@@ -7,6 +7,9 @@
 
 .cases-filters { margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .cases-list .pane-head .meta { font-size: 12px; color: var(--muted); margin-left: auto; }
+.cases-list .pane-head .cases-filters { margin: 0 0 0 12px; padding: 0; border: 0; background: none; }
+.cases-list .pane-head .cases-filters .field { min-width: 0; }
+.cases-list .pane-head .cases-filters select { width: auto; min-height: 32px; font-size: 12px; }
 
 .cases-table { overflow-x: auto; }
 .cases-table .table td { overflow-wrap: anywhere; }
@@ -22,8 +25,9 @@
 .cases-facts { grid-template-columns: minmax(0, 1fr); }
 .cases-facts .fact { border-right: 0; border-bottom: 1px solid var(--line); }
 .cases-facts .fact:last-child { border-bottom: 0; }
-.cases-work .decision-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; padding: 4px 0; }
-.cases-work .decision-row span { color: var(--muted); }
+/* A Case's quick detail (v41 U8): one compact fact grid of what the row does not show. */
+.cases-detail [data-cases-detail="Case"] .cases-facts .fact { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 6px 11px; }
+.cases-detail [data-cases-detail="Case"] .cases-facts .fact dd { margin: 0; }
 
 @media (max-width: 1280px) {
     .cases-queue { grid-template-columns: 185px minmax(0, 1fr); }

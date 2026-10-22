@@ -24,34 +24,73 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
     private readonly IDbContextFactory<PegasusDbContext> contextFactory =
         contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
 
+    /// <summary>
+    /// The states of the Case queues other than Queries, which is the
+    /// open-query mark on any open state.
+    /// </summary>
+    private static readonly string[] QueueStates =
+    [
+        nameof(CaseLifecycleState.NotReady),
+        nameof(CaseLifecycleState.Review),
+        nameof(CaseLifecycleState.Held),
+        nameof(CaseLifecycleState.ReportPreparation)
+    ];
+
     public async Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var notReady = CaseLifecycleState.NotReady.ToString();
-        var review = CaseLifecycleState.Review.ToString();
-        var held = CaseLifecycleState.Held.ToString();
-        var reportPreparation = CaseLifecycleState.ReportPreparation.ToString();
-        var terminal = CaseLifecycleRules.TerminalStateNames();
-
         // One statement: every open Case by state and open-query mark. Query is
         // a queue of open Cases with an open query, whatever their state
         // (operator, 11 October 2026).
-        var counts = await context.CaseWorkflows
-            .AsNoTracking()
-            .Where(workflow => !terminal.Contains(workflow.State))
+        var counts = await OpenCaseWorkflows(context)
             .GroupBy(workflow => new { workflow.State, workflow.HasOpenQuery })
             .Select(group => new { group.Key.State, group.Key.HasOpenQuery, Count = group.Count() })
             .ToArrayAsync(cancellationToken);
+        return StageCounts(counts.Select(item => (item.State, item.HasOpenQuery, item.Count)).ToArray());
+    }
 
-        int For(string state) =>
-            counts.Where(item => item.State == state).Sum(item => item.Count);
+    public async Task<CaseQueues> GetCaseQueuesAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // The counts' one statement, grouped by each Case's Principal as well,
+        // so the Principals on the Case queues (v41 U3) cost the join and no
+        // second round trip.
+        var counts = await (
+            from workflow in OpenCaseWorkflows(context)
+            join caseEntity in context.Cases.AsNoTracking() on workflow.CaseId equals caseEntity.Id
+            join principal in context.Principals.AsNoTracking() on caseEntity.PrincipalId equals principal.Id
+            group workflow by new { workflow.State, workflow.HasOpenQuery, principal.Code } into grouped
+            select new { grouped.Key.State, grouped.Key.HasOpenQuery, grouped.Key.Code, Count = grouped.Count() })
+            .ToArrayAsync(cancellationToken);
+        return new(
+            StageCounts(counts.Select(item => (item.State, item.HasOpenQuery, item.Count)).ToArray()),
+            counts
+                .Where(item => item.HasOpenQuery || QueueStates.Contains(item.State))
+                .Select(item => item.Code)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray());
+    }
+
+    private static IQueryable<CaseWorkflowEntity> OpenCaseWorkflows(PegasusDbContext context)
+    {
+        var terminal = CaseLifecycleRules.TerminalStateNames();
+        return context.CaseWorkflows
+            .AsNoTracking()
+            .Where(workflow => !terminal.Contains(workflow.State));
+    }
+
+    private static CaseStageCounts StageCounts((string State, bool HasOpenQuery, int Count)[] counts)
+    {
+        int For(CaseLifecycleState state) =>
+            counts.Where(item => item.State == state.ToString()).Sum(item => item.Count);
 
         return new(
-            For(notReady),
-            For(review),
-            For(held),
-            For(reportPreparation),
+            For(CaseLifecycleState.NotReady),
+            For(CaseLifecycleState.Review),
+            For(CaseLifecycleState.Held),
+            For(CaseLifecycleState.ReportPreparation),
             counts.Where(item => item.HasOpenQuery).Sum(item => item.Count));
     }
 

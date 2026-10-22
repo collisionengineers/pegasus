@@ -41,7 +41,6 @@ public static class CaseWorkspaceLabels
         public const string TakeOver = "Take over";
         public const string Editing = "Editing";
         public const string Archived = "Archived";
-        public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
         /// <summary>The aside's Views card and its two rows, present once the Case has its Audit (v29 option 4).</summary>
         public const string Views = "Views";
         public const string InspectionView = "Inspection";
@@ -93,7 +92,6 @@ public static class CaseWorkspaceLabels
         public const string CancellationReceived = "Cancellation received";
         public const string Review = "Review";
         public const string CaseType = "Case type";
-        public const string OurRef = "Our ref";
         public const string ClaimReference = "Claim reference";
         public const string IncidentDate = "Incident date";
         public const string Received = "Received";
@@ -336,14 +334,10 @@ public static class CaseWorkspaceLabels
         public const string EngineersValue = "Engineer's Value";
         public const string SalvageValue = "Salvage value";
         public const string Equity = "Equity";
-        public const string EquityMeta = "Engineer's Value − salvage";
         public const string RepairCostIncVat = "Repair cost inc VAT";
         public const string CashInLieu = "Cash in lieu";
         public const string LabourHours = "Labour hours";
         public const string RepairCostOfValue = "Repair cost of value";
-        public const string ExceedsEngineersValue = "Exceeds Engineer's Value";
-        public const string FromCurrentEstimate = "From current repair spec";
-        public const string SetInValuationMeta = "Set in Valuation";
         public const string Salvage = "Salvage";
         public const string NotApplicable = "Not applicable";
         public const string SalvageShare = "Salvage value as a percentage of the Engineer\u2019s Value";
@@ -508,7 +502,6 @@ public static class CaseWorkspaceLabels
         public const string Undo = "Undo";
         public const string LineRemoved = "Line removed";
         public const string OffPattern = "Off-pattern";
-        public const string UpliftPercent = "+ 15 %";
         public const string Suggested = "Suggested";
         public const string LondonAndHomeCounties = "London & Home Counties";
         public const string TargetPercentOfValue = "Target % of value";
@@ -598,7 +591,6 @@ public static class CaseWorkspaceLabels
         };
         public const string Blend = "Blend";
         public const string LabourRateCard = "Labour-rate card";
-        public const string KeepEnteredRate = "Keep entered rate";
         public const string PartNumberShort = "Part no.";
         public const string UnitPounds = "Unit (£)";
         public const string Hours = "Hours";
@@ -1323,7 +1315,7 @@ public static class CaseWorkspaceLabels
         public const string NoDocuments = "No documents on this Case.";
         public const string NoImages = "No images on this Case.";
         public const string NoCorrespondence = "No retained correspondence is associated with this Case.";
-        public const string ImageIntake = "Image intake";
+        public const string VehicleImages = "Vehicle images";
         public const string Photographs = "photographs";
     }
 

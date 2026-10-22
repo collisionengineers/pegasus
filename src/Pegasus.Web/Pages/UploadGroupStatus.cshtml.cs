@@ -543,7 +543,7 @@ public sealed class UploadGroupStatusModel(
             }
             else if (label == OperatorLabels.UploadDecision.VehicleImages)
             {
-                report = new(Labels.CompleteEyebrow, $"Registered as {Labels.ImageIntake}", record is null ? decided.Message : $"{Labels.RegisteredAutomatically} · {record.State}", decided.Action);
+                report = new(Labels.CompleteEyebrow, OperatorLabels.UploadDecision.VehicleImages, record is null ? decided.Message : $"{Labels.RegisteredAutomatically} · {record.State}", decided.Action);
             }
             else
             {
