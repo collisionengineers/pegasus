@@ -112,7 +112,7 @@ public sealed class EditModel(
         if (Contact is null) return NotFound();
         ExpectedVersion = Contact.Version;
         CopyFrom(Contact);
-        await LoadPrincipalAsync(actor, cancellationToken);
+        await LoadPrincipalAsync(actor, cancellationToken, readCredential: CurrentTab == ApiTab);
         InitializePrincipalSettings();
         await LoadReportSendingChoicesAsync(actor, cancellationToken);
         PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
@@ -365,7 +365,8 @@ public sealed class EditModel(
                 if (action == "issue")
                 {
                     var result = await issueCredential.ExecuteAsync(request, cancellationToken);
-                    await PopulateAsync(actor, cancellationToken);
+                    // The issued record is the credential the page draws.
+                    await PopulateAsync(actor, cancellationToken, readCredential: false);
                     ExpectedVersion = Contact!.Version;
                     Credential = result.Credential;
                     IssuedSecret = result.Secret;
@@ -401,13 +402,13 @@ public sealed class EditModel(
         return Page();
     }
 
-    private async Task PopulateAsync(ActionActor actor, CancellationToken cancellationToken, bool copyContactFields = true)
+    private async Task PopulateAsync(ActionActor actor, CancellationToken cancellationToken, bool copyContactFields = true, bool readCredential = true)
     {
         Contact = await contacts.GetAsync(actor, ContactId, cancellationToken);
         if (Contact is not null)
         {
             if (copyContactFields) CopyFrom(Contact);
-            await LoadPrincipalAsync(actor, cancellationToken);
+            await LoadPrincipalAsync(actor, cancellationToken, readCredential: readCredential && CurrentTab == ApiTab);
             InitializePrincipalSettings();
             await LoadReportSendingChoicesAsync(actor, cancellationToken);
         }

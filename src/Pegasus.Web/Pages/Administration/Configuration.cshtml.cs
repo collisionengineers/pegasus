@@ -169,8 +169,13 @@ public sealed class ConfigurationModel(
 
     private async Task LoadAsync(ActionActor actor, bool initializeWorkflowSettings, CancellationToken cancellationToken)
     {
-        Configuration = await getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
-        RateCards = await rateCards.ListAsync(actor, cancellationToken);
+        // Two independent reads, each on a context of its own from the factory,
+        // so they run side by side.
+        var configuration = getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
+        var cards = rateCards.ListAsync(actor, cancellationToken);
+        await Task.WhenAll(configuration, cards);
+        Configuration = await configuration;
+        RateCards = await cards;
         if (!initializeWorkflowSettings) return;
 
         WorkflowExpectedVersion = Configuration.PolicyVersion;

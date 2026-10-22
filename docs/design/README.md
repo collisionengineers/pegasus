@@ -641,7 +641,7 @@ symbols: the fifty-three above plus these twenty-two.
 | — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Open the Triage; Triage Record finding |
 | — | `zoom-in` | `F32744E452483FCC60A24618A5C05630138A6C07806F647D510CE82726F0E8B2` | Case viewer Zoom |
 | — | `bar-chart` | `DB920FF9B7CE38B0D2703AE4B696B0682A3DCFE46B9BADE4260DFCF685BABB42` | Administration nav: Management Reports |
-| — | `bot` | `91A0B1650FB3AE4CAC2615A264F8F023989CEFB119F21012937B322B5F941CCC` | Administration nav and hub: Automation & AI |
+| — | `bot` | `91A0B1650FB3AE4CAC2615A264F8F023989CEFB119F21012937B322B5F941CCC` | Administration nav and hub: Automation & AI ([v41 A1](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | — | `file-spreadsheet` | `16CF1ECDEF4DF9F53F2B22B78B633FBB9754BEC4ACF9D3BB9FEAEF3B0EB00DD9` | Management Reports: Download workbook |
 | — | `heart-pulse` | `995A8F1F889A4EC78A7CD23E35DC50DAA9B7983AD78FDAA370D70F6608EC2718` | Administration nav: Service health |
 | — | `pound-sterling` | `72454D0BBC72046B76787C89101DC263E6060D4F4AF8B2DDD47EF2BB9976171A` | Administration nav: Valuation presets |

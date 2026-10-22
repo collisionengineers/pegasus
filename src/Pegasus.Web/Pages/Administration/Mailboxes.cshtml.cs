@@ -354,9 +354,15 @@ public sealed class MailboxesModel(
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        await LoadMailboxesAsync(actor, cancellationToken);
-        PollStatuses = await pollStatusQueries.ListAsync(cancellationToken);
-        Subscriptions = await subscriptionStore.ListAsync(cancellationToken);
+        // Three independent reads, each on a context of its own from the factory,
+        // so they run side by side.
+        var mailboxes = listApprovedMailboxes.ExecuteAsync(actor, cancellationToken);
+        var pollStatuses = pollStatusQueries.ListAsync(cancellationToken);
+        var subscriptions = subscriptionStore.ListAsync(cancellationToken);
+        await Task.WhenAll(mailboxes, pollStatuses, subscriptions);
+        Mailboxes = await mailboxes;
+        PollStatuses = await pollStatuses;
+        Subscriptions = await subscriptions;
     }
 
     private void PrepareFormState()
