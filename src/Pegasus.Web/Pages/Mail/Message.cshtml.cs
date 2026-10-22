@@ -1002,9 +1002,10 @@ public sealed class MessageModel(
             cancellationToken);
 
     /// <summary>
-    /// The Link to Case options as staff type: the Cases and Triage Cases the
-    /// message's receipt may be linked to. Choosing one fills the Case / PO field;
-    /// nothing is written until the reason dialog is confirmed.
+    /// The Case / PO options as staff type: the Cases and Triage Cases the
+    /// message's receipt may be linked to, or, for a linked message, changed to.
+    /// Choosing one fills the Case / PO field; nothing is written until the
+    /// reason dialog is confirmed.
     /// </summary>
     public async Task<IActionResult> OnGetLinkCaseOptionsAsync(
         Guid id,
@@ -1025,12 +1026,13 @@ public sealed class MessageModel(
             }
 
             // Choosing an option only fills the Case / PO field.
+            var found = binding.CurrentCaseId is null
+                ? await destinations.SearchAsync(binding, term!, actor, cancellationToken)
+                : await destinations.SearchToChangeAsync(binding, term!, actor, cancellationToken);
             return Partial(
                 CaseOptionsView,
                 new Pegasus.Web.Presentation.CaseOptions(
-                    (await destinations.SearchAsync(binding, term!, actor, cancellationToken))
-                        .Select(item => new CaseOption(item.Reference, item.Registration, item.Claimant))
-                        .ToList(),
+                    found.Select(item => new CaseOption(item.Reference, item.Registration, item.Claimant)).ToList(),
                     "mail-link-option"));
         }
         catch (StaffAuthorizationException)

@@ -381,6 +381,70 @@ public sealed class StaffCorrespondenceWebTests
             command.Cc.Select(item => item.Address));
     }
 
+    /// <summary>
+    /// Reply all from the record (v41 I15, I17): the record's foot offers Reply
+    /// all, following it opens the composer for the exact message and Case, its
+    /// Send posts ReplyAll, and the record the send lands on reads the sent
+    /// state back.
+    /// </summary>
+    [Fact]
+    public async Task ReplyAllSendsFromTheRecord()
+    {
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Sent };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 RECORD", "SC08-RECORD-REPLY-ALL");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var recordGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}");
+        Assert.Equal(HttpStatusCode.OK, recordGet.StatusCode);
+        var record = await recordGet.Content.ReadAsStringAsync();
+        var replyAll = Regex.Match(
+            record,
+            $"<a[^>]*href=\"(?<href>[^\"]*compose=reply-all[^\"]*)\"[^>]*>\\s*{Regex.Escape(OperatorLabels.StaffMail.ReplyAll)}\\s*</a>",
+            RegexOptions.CultureInvariant);
+        Assert.True(replyAll.Success, "The record's foot did not offer Reply all.");
+        Assert.Equal(0, send.SendCalls);
+
+        using var composerGet = await client.GetAsync(WebUtility.HtmlDecode(replyAll.Groups["href"].Value));
+        Assert.Equal(HttpStatusCode.OK, composerGet.StatusCode);
+        var composer = await composerGet.Content.ReadAsStringAsync();
+        Assert.Equal("reply-all", InputValue(composer, "compose"));
+        Assert.Equal("Re: Source subject", InputValue(composer, "CorrespondenceSubject"));
+        Assert.Equal(0, send.SendCalls);
+
+        var form = RetainedReplyForm(
+            composer, InputValue(composer, "CorrespondenceOperationKey"), "Reviewed response.");
+        form["FixedCorrespondenceCaseReference"] = InputValue(composer, "FixedCorrespondenceCaseReference");
+        using var post = await client.PostAsync(
+            FormAction(composer, "ReplyAll"),
+            new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailComposeMode.ReplyAll, command.ComposeMode);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.Equal(await CaseVersionAsync(factory, caseId), command.ExpectedContextVersion);
+        Assert.Equal(seeded.MessageId, command.OriginalMessage!.RetainedMessageId);
+        Assert.Equal(
+            ["reply@example.invalid", "other-to@example.invalid"],
+            command.To.Select(item => item.Address));
+        Assert.Equal(["copy@example.invalid"], command.Cc.Select(item => item.Address));
+
+        using var landed = await client.GetAsync(post.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, landed.StatusCode);
+        var landedHtml = await landed.Content.ReadAsStringAsync();
+        Assert.Contains("Send status", landedHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<dd>{OperatorLabels.StaffMail.State(StaffMailState.Sent)}</dd>",
+            landedHtml,
+            StringComparison.Ordinal);
+        Assert.Equal(1, send.SendCalls);
+    }
+
     [Fact]
     public async Task RetainedForwardSearchAndSelectionUseRenderedActionsAndRetainFormState()
     {

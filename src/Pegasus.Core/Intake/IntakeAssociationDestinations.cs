@@ -47,6 +47,17 @@ public interface IIntakeAssociationDestinationQueries
         ActionActor actor,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The typed search for Change linked Case: for a message that is already
+    /// linked, the Cases it may be linked to instead, never the one it is linked
+    /// to. <see cref="SearchAsync"/> answers only a message with no Case.
+    /// </summary>
+    Task<IReadOnlyList<IntakeAssociationDestination>> SearchToChangeAsync(
+        IntakeReceipt receipt,
+        string term,
+        ActionActor actor,
+        CancellationToken cancellationToken = default);
+
     Task<IntakeAssociationDestination?> GetAsync(
         IntakeReceipt receipt,
         Guid caseId,
@@ -69,10 +80,20 @@ public interface IIntakeAssociationDestinationQueries
 public static class IntakeAssociationDestinationPolicy
 {
     public static bool CanOffer(IntakeReceipt receipt) =>
-        receipt.CurrentCaseId is null
-        && (receipt.Decision == IntakeDecision.OcrRequired
-            || IntakeDecisionPolicy.CanBecomeCase(receipt.Decision)
-            || receipt.Decision == IntakeDecision.ImageIntakeRegistered);
+        receipt.CurrentCaseId is null && CanBeLinked(receipt);
+
+    /// <summary>
+    /// Change linked Case offers a linked message the same destinations. It
+    /// unlinks first, so the link itself is still decided by
+    /// <see cref="CanOffer"/> against the receipt the unlink leaves.
+    /// </summary>
+    public static bool CanOfferToChange(IntakeReceipt receipt) =>
+        receipt.CurrentCaseId is not null && CanBeLinked(receipt);
+
+    private static bool CanBeLinked(IntakeReceipt receipt) =>
+        receipt.Decision == IntakeDecision.OcrRequired
+        || IntakeDecisionPolicy.CanBecomeCase(receipt.Decision)
+        || receipt.Decision == IntakeDecision.ImageIntakeRegistered;
 
     /// <summary>
     /// Staff "Link to case" offers every Case and every Triage Case in any

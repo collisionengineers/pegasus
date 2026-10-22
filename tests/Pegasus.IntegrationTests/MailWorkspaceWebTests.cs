@@ -648,6 +648,67 @@ public sealed class MailWorkspaceWebTests
         Assert.Null((await context.CaseWorkflows.SingleAsync(item => item.CaseId == newCaseId)).EditLeaseToken);
     }
 
+    /// <summary>
+    /// A linked message's Case / PO picker lists Cases (v41 I13): typing finds
+    /// another Case, never the one the message is linked to, and the reason
+    /// dialog then re-links the message to the chosen Case in one step.
+    /// </summary>
+    [Fact]
+    public async Task ALinkedMessagesPickerListsCasesAndChangeLinkedCaseRelinksItInOneStep()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        _ = Assert.Single(await SeedAsync(
+            factory, SecondMailboxId, SecondMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var otherOriginId = await ReceiptIdAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var firstCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, receiptId, "MAIL34001", nameof(CaseLifecycleState.Review));
+        var newCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, otherOriginId, "MAIL34002", nameof(CaseLifecycleState.Review));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var link = DialogSubmission(
+            await GetHtmlAsync(client, $"/Inbox/{messageId:D}"),
+            "LinkCase",
+            "The message names this Case/PO.",
+            "MAIL34001");
+        using (var linked = await client.PostAsync(link.Action, new FormUrlEncodedContent(link.Fields)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, linked.StatusCode);
+        }
+        await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
+
+        // The linked record's picker belongs to the Change linked Case dialog; typing lists another Case.
+        var page = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.Contains("form=\"changeLinkedCaseForm\"", page, StringComparison.Ordinal);
+        using (var options = await client.GetAsync($"/Inbox/{messageId:D}?handler=LinkCaseOptions&q=MAIL34002"))
+        {
+            Assert.Equal(HttpStatusCode.OK, options.StatusCode);
+            var optionsHtml = await options.Content.ReadAsStringAsync();
+            Assert.Contains("role=\"listbox\"", optionsHtml, StringComparison.Ordinal);
+            Assert.Contains("value=\"MAIL34002\"", optionsHtml, StringComparison.Ordinal);
+        }
+        // The Case the message is linked to is not offered as the Case to change to.
+        using (var own = await client.GetAsync($"/Inbox/{messageId:D}?handler=LinkCaseOptions&q=MAIL34001"))
+        {
+            Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+            Assert.DoesNotContain("value=\"MAIL34001\"", await own.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+        await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
+
+        // Choosing the option only fills the field; the reason dialog's one post re-links.
+        var change = DialogSubmission(page, "ChangeLinkedCase", "Moved to the right Case.", "MAIL34002");
+        using (var changed = await client.PostAsync(change.Action, new FormUrlEncodedContent(change.Fields)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, changed.StatusCode);
+        }
+        await AssertAssociationStateAsync(factory, receiptId, newCaseId, expectedHistoryCount: 3);
+    }
+
     [Fact]
     public async Task LinkedPostReportMessageCreatesAQueryResponseJobFromTheRecord()
     {

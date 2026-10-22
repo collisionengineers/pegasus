@@ -116,17 +116,42 @@ public sealed class EfIntakeAssociationDestinations(
             : null;
     }
 
-    public async Task<IReadOnlyList<IntakeAssociationDestination>> SearchAsync(
+    public Task<IReadOnlyList<IntakeAssociationDestination>> SearchAsync(
         IntakeReceipt receipt,
         string term,
         ActionActor actor,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(receipt);
+        return FindAsync(IntakeAssociationDestinationPolicy.CanOffer(receipt), receipt, term, actor, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<IntakeAssociationDestination>> SearchToChangeAsync(
+        IntakeReceipt receipt,
+        string term,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        return FindAsync(IntakeAssociationDestinationPolicy.CanOfferToChange(receipt), receipt, term, actor, cancellationToken);
+    }
+
+    /// <summary>
+    /// The one typed search behind <see cref="SearchAsync"/> and
+    /// <see cref="SearchToChangeAsync"/>; <paramref name="offered"/> is the
+    /// policy's answer for the receipt. The Case a linked receipt is linked to
+    /// is never listed (for an unlinked receipt there is none).
+    /// </summary>
+    private async Task<IReadOnlyList<IntakeAssociationDestination>> FindAsync(
+        bool offered,
+        IntakeReceipt receipt,
+        string term,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (!IntakeAssociationDestinationPolicy.CanOffer(receipt)
-            || string.IsNullOrWhiteSpace(term) || term.Trim().Length < 2)
+        if (!offered || string.IsNullOrWhiteSpace(term) || term.Trim().Length < 2)
         {
             return [];
         }
@@ -158,6 +183,11 @@ public sealed class EfIntakeAssociationDestinations(
                 .ToDictionary(item => item.CaseId, item => item.Version);
             foreach (var item in searched.Items)
             {
+                if (item.CaseId == receipt.CurrentCaseId)
+                {
+                    continue;
+                }
+
                 IntakeAssociationDestination? destination = null;
                 if (item.TriageState is { } triageState
                     && triageVersions.TryGetValue(item.CaseId, out var triageVersion))
