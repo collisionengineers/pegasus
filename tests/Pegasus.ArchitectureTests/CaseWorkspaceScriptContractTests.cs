@@ -85,9 +85,10 @@ public sealed class CaseWorkspaceScriptContractTests
             StringComparison.Ordinal);
         Assert.Contains("response.status === 409", beat, StringComparison.Ordinal);
         var ok = beat.IndexOf("if (response.ok) {", StringComparison.Ordinal);
-        var redirected = beat.IndexOf("if (response.redirected) {", StringComparison.Ordinal);
+        var redirected = beat.IndexOf("if (response.type === 'opaqueredirect') {", StringComparison.Ordinal);
         Assert.True(redirected >= 0 && redirected < ok);
         Assert.Contains("stopHeartbeat();", beat[redirected..ok], StringComparison.Ordinal);
+        Assert.Contains("redirect: 'manual'", beat, StringComparison.Ordinal);
         Assert.Contains("response.status === 403 || response.status === 404", beat, StringComparison.Ordinal);
         Assert.Equal(2, beat.Split("requestCatchUp();", StringSplitOptions.None).Length - 1);
         Assert.DoesNotContain("document.hidden", beat, StringComparison.Ordinal);
@@ -109,8 +110,9 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.True(start >= 0);
         var body = site[start..];
         var ok = body.IndexOf("if (response.ok) {", StringComparison.Ordinal);
-        var redirected = body.IndexOf("if (response.redirected) {", StringComparison.Ordinal);
+        var redirected = body.IndexOf("if (response.type === 'opaqueredirect') {", StringComparison.Ordinal);
         Assert.True(redirected >= 0 && redirected < ok);
+        Assert.Contains("redirect: 'manual'", body[..redirected], StringComparison.Ordinal);
         var branch = body[redirected..ok];
         Assert.Contains("window.clearInterval(timer);", branch, StringComparison.Ordinal);
         Assert.Contains("document.removeEventListener('visibilitychange', onVisible);", branch, StringComparison.Ordinal);

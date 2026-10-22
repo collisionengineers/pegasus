@@ -606,14 +606,16 @@
             fetch(form.getAttribute('action') || window.location.href, {
                 method: 'POST',
                 body: new FormData(form),
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                redirect: 'manual'
             }).then(function (response) {
                 if (generation !== heartbeatGeneration) {
                     return;
                 }
-                // A followed redirect is the sign-in page: the session has
-                // ended and no later beat can renew the lease.
-                if (response.redirected) {
+                // A redirect answer is the sign-in page: the session has
+                // ended and no later beat can renew the lease. It is not
+                // followed, so a stale tab costs no sign-in GET.
+                if (response.type === 'opaqueredirect') {
                     stopHeartbeat();
                     return;
                 }
