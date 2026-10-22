@@ -45,30 +45,67 @@ public sealed class EfIntakeSubmissionGroupStore(
                            && !context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id && association.IsActive)
                            && !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id)
                        select new { submissionGroup.Id, submissionGroup.ReceivedAtUtc, ReceiptId = receipt.Id, member.Ordinal };
-        var candidates = await eligible.ToArrayAsync(cancellationToken);
-        var receiptIds = candidates.Select(candidate => candidate.ReceiptId).Distinct().ToArray();
-        var receipts = receiptIds.Length == 0
-            ? new Dictionary<Guid, IntakeReceiptEntity>()
-            : (await context.IntakeReceipts.AsNoTracking()
-                    .Include(receipt => receipt.Assets)
-                    .Include(receipt => receipt.MailClassificationDecision)
-                    .Include(receipt => receipt.MailRouteDecision)
-                    .AsSplitQuery()
-                    .Where(receipt => receiptIds.Contains(receipt.Id))
-                    .ToArrayAsync(cancellationToken))
-                .ToDictionary(receipt => receipt.Id);
-        var groupReceiptIds = candidates
-            .Where(candidate => receipts.TryGetValue(candidate.ReceiptId, out var receipt)
-                && ImageIntakeLifecycleRules.IsImageAutomationEligible(
-                    EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
-            .GroupBy(item => new { item.Id, item.ReceivedAtUtc })
-            .OrderBy(group => group.Key.ReceivedAtUtc)
-            .ThenBy(group => group.Key.Id)
-            .Select(group => group.OrderBy(item => item.Ordinal).Select(item => item.ReceiptId).First())
-            .Where(receiptId => !results.Contains(receiptId))
-            .Take(maximumItems - results.Count);
-        results.AddRange(groupReceiptIds);
-        return results;
+        // Eligibility is Core's rule over the whole receipt, so it runs in
+        // memory, but only over one ordered page of rows at a time and only
+        // until maximumItems is reached. A group's receipt is its lowest
+        // ordinal eligible member; the group is spent whether or not that
+        // receipt was already listed.
+        var ordered = eligible
+            .OrderBy(candidate => candidate.ReceivedAtUtc)
+            .ThenBy(candidate => candidate.Id)
+            .ThenBy(candidate => candidate.Ordinal);
+        Guid? currentGroupId = null;
+        var currentGroupSpent = false;
+        for (var offset = 0; ; offset += maximumItems)
+        {
+            var page = await ordered.Skip(offset).Take(maximumItems).ToArrayAsync(cancellationToken);
+            var receiptIds = page
+                .Where(candidate => !(currentGroupSpent && candidate.Id == currentGroupId))
+                .Select(candidate => candidate.ReceiptId)
+                .Distinct()
+                .ToArray();
+            var receipts = receiptIds.Length == 0
+                ? new Dictionary<Guid, IntakeReceiptEntity>()
+                : (await context.IntakeReceipts.AsNoTracking()
+                        .Include(receipt => receipt.Assets)
+                        .Include(receipt => receipt.MailClassificationDecision)
+                        .Include(receipt => receipt.MailRouteDecision)
+                        .AsSplitQuery()
+                        .Where(receipt => receiptIds.Contains(receipt.Id))
+                        .ToArrayAsync(cancellationToken))
+                    .ToDictionary(receipt => receipt.Id);
+            foreach (var candidate in page)
+            {
+                if (candidate.Id != currentGroupId)
+                {
+                    currentGroupId = candidate.Id;
+                    currentGroupSpent = false;
+                }
+
+                if (currentGroupSpent
+                    || !receipts.TryGetValue(candidate.ReceiptId, out var receipt)
+                    || !ImageIntakeLifecycleRules.IsImageAutomationEligible(
+                        EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
+                {
+                    continue;
+                }
+
+                currentGroupSpent = true;
+                if (!results.Contains(candidate.ReceiptId))
+                {
+                    results.Add(candidate.ReceiptId);
+                    if (results.Count >= maximumItems)
+                    {
+                        return results;
+                    }
+                }
+            }
+
+            if (page.Length < maximumItems)
+            {
+                return results;
+            }
+        }
     }
 
     /// <summary>

@@ -184,6 +184,37 @@ public sealed class DiscardIntakeSubmissionGroupTests
     }
 
     [Fact]
+    public async Task TheGroupedImageListStopsAtTheLimitAfterOnePage()
+    {
+        var statements = new SqlStatementCounter();
+        await using var harness = await Harness.CreateAsync(statements);
+        var first = new DateTimeOffset(2031, 5, 1, 8, 0, 0, TimeSpan.Zero);
+        var groups = new List<SeededReceipt>();
+        for (var index = 0; index < 4; index++)
+        {
+            groups.Add(await harness.AddImageGroupAsync(first.AddHours(index)));
+        }
+
+        statements.Reset();
+        Assert.Equal(
+            [groups[0].ReceiptId],
+            await harness.Store.ListPendingImageGroupReceiptsAsync(1));
+        Assert.Equal(1, statements.CountContaining("OFFSET"));
+
+        statements.Reset();
+        Assert.Equal(
+            groups.Take(3).Select(group => group.ReceiptId),
+            await harness.Store.ListPendingImageGroupReceiptsAsync(3));
+        Assert.Equal(1, statements.CountContaining("OFFSET"));
+
+        statements.Reset();
+        Assert.Equal(
+            groups.Select(group => group.ReceiptId),
+            await harness.Store.ListPendingImageGroupReceiptsAsync(10));
+        Assert.Equal(1, statements.CountContaining("OFFSET"));
+    }
+
+    [Fact]
     public async Task ANonTransientReplayFailureIsNotRetriedOnTheNextSweep()
     {
         await using var harness = await Harness.CreateAsync();
@@ -258,7 +289,7 @@ public sealed class DiscardIntakeSubmissionGroupTests
         private int nextDocumentOrdinal = 1;
         private int nextCaseSequence = 1;
 
-        public static async Task<Harness> CreateAsync(SaveChangesInterceptor? interceptor = null)
+        public static async Task<Harness> CreateAsync(IInterceptor? interceptor = null)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             var options = new DbContextOptionsBuilder<PegasusDbContext>()

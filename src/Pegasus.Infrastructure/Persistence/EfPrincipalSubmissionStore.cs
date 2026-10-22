@@ -76,30 +76,28 @@ internal sealed class EfPrincipalSubmissionStore(
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         var channel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.PrincipalApi);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The staged-receipt join is an inner join on purpose: a submission
-        // whose retention never happened is a bare reservation, which the sweep
+        // The staged-receipt test is required on purpose: a submission whose
+        // retention never happened is a bare reservation, which the sweep
         // cannot complete and nothing deletes, so admitting it to a bounded
         // oldest-first window would let one outage's worth of them occupy that
-        // window for good.
+        // window for good. Both tests are correlated lookups on the outer
+        // submission, so each is an index seek per row of the oldest-first
+        // window rather than a join of whole tables.
         return await (
                 from submission in context.PrincipalSubmissions.AsNoTracking()
-                join staged in context.IntakeStagedReceipts
-                        .AsNoTracking()
-                        .Where(item => item.SourceChannel == channel)
+                where submission.ReceivedAtUtc <= receivedAtOrBeforeUtc
                     // The token the accept path writes is the submission id in
                     // "N" form, matched under the database's own collation
-                    // exactly as the history join below matches the "D" form.
-                    on submission.Id.ToString().Replace("-", string.Empty)
-                        equals staged.ExternalReceiptToken
-                join acceptedHistory in context.ActionHistory
-                        .AsNoTracking()
-                        .Where(item =>
-                            item.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
-                            && item.Outcome == "Accepted")
-                    on submission.Id.ToString() equals acceptedHistory.AggregateId into acceptedHistories
-                from acceptedHistory in acceptedHistories.DefaultIfEmpty()
-                where acceptedHistory == null
-                    && submission.ReceivedAtUtc <= receivedAtOrBeforeUtc
+                    // exactly as the history test below matches the "D" form.
+                    // (SourceChannel, ExternalReceiptToken) is unique, so at
+                    // most one staged receipt answers.
+                    && context.IntakeStagedReceipts.Any(staged =>
+                        staged.SourceChannel == channel
+                        && staged.ExternalReceiptToken == submission.Id.ToString().Replace("-", string.Empty))
+                    && !context.ActionHistory.Any(acceptedHistory =>
+                        acceptedHistory.AggregateType == PrincipalSubmissionPolicy.ActionHistoryAggregateType
+                        && acceptedHistory.Outcome == "Accepted"
+                        && acceptedHistory.AggregateId == submission.Id.ToString())
                 orderby submission.ReceivedAtUtc, submission.Id
                 select new PrincipalSubmissionAcceptCandidate(
                     submission.Id,
