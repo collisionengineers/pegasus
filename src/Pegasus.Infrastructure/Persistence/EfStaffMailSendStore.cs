@@ -403,8 +403,77 @@ internal sealed class EfStaffMailSendStore(
         await CaseQueryLedger.ResolveForObservedReplyAsync(db, entity, observedAtUtc, cancellationToken);
         await RecordCorrespondenceSentAsync(db, entity, cancellationToken);
         await RecordSentChaserAsync(db, entity, providerSentAtUtc, observedAtUtc, cancellationToken);
+        await RecordManagementEventAsync(db, entity, observedAtUtc, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The management event of a report send whose Sent item is observed
+    /// (FRD-21; operator ruling R205, 22 October 2026): one row on the Case,
+    /// credited to the sender the send recorded (a member of staff, with the
+    /// roles their prepared send recorded, or the Automation Actor). It
+    /// carries the generated documents the send attached (a filed estimate is
+    /// not one), its reports and its distinct recipients. The lock and the
+    /// early return for a Sent row make it once only, and it commits with the
+    /// observation or not at all. The Case comes from the statement that reads
+    /// the documents' kinds.
+    /// </summary>
+    private static async Task RecordManagementEventAsync(
+        PegasusDbContext db,
+        StaffMailSendOperationEntity mail,
+        DateTimeOffset observedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (!ManagementEventPolicy.IsManagementEvent(mail.Purpose))
+        {
+            return;
+        }
+
+        Guid[] carried = mail.SecondContextId is { } secondContextId
+            ? [mail.ContextId, secondContextId]
+            : [mail.ContextId];
+        var generated = await (
+                from artifact in db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
+                join generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
+                    on artifact.GenerationId equals generation.Id
+                where carried.Contains(artifact.GenerationId) && artifact.VersionId != null
+                select new { artifact.VersionId, artifact.Kind, generation.CaseId })
+            .ToArrayAsync(cancellationToken);
+        if (generated.Select(item => item.CaseId).Distinct().ToArray() is not [var caseId])
+        {
+            throw new InvalidOperationException("The sent report's Case is unavailable.");
+        }
+
+        var attachments = JsonSerializer.Deserialize<StaffMailAttachment[]>(mail.AttachmentsJson)
+            ?? throw new InvalidDataException("The frozen staff mail attachments are invalid.");
+        var recipients = JsonSerializer.Deserialize<Recipients>(mail.RecipientsJson)
+            ?? throw new InvalidDataException("The frozen staff mail recipients are invalid.");
+        var payload = ManagementEventPolicy.ForSend(
+            attachments.Join(generated, attachment => attachment.VersionId, item => item.VersionId,
+                (_, item) => Enum.Parse<CaseReportArtifactKind>(item.Kind)),
+            recipients.To,
+            recipients.Cc);
+        // The Automation Actor holds no staff roles, so only a staff send reads them.
+        var roles = mail.ActorKind == ActorKind.Staff
+            ? await PreparedRolesAsync(db, mail.Id, cancellationToken)
+            : [];
+        db.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = ManagementEventPolicy.AggregateType,
+            AggregateId = caseId.ToString("D"),
+            EventKind = ManagementEventPolicy.EventKind,
+            ActorKind = mail.ActorKind.ToString(),
+            ActorSubjectId = mail.ActorSubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(
+                roles.Select(role => role.ToString()).Order(StringComparer.Ordinal)),
+            OccurredAtUtc = observedAtUtc,
+            Outcome = "Succeeded",
+            CorrelationId = ManagementEventPolicy.CorrelationId(mail.Id),
+            AfterJson = ManagementEventPolicy.Serialize(payload),
+            PolicyVersion = ManagementEventPolicy.PolicyVersion
+        });
     }
 
     /// <summary>

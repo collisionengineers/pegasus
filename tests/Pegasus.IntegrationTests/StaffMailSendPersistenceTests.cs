@@ -57,103 +57,11 @@ public sealed class StaffMailSendPersistenceTests
         await using var database = await CreateDatabaseAsync();
         var fixture = await SeedReportSentCaseAsync(
             database, Guid.NewGuid(), Guid.NewGuid(), isQueryReceipt: false, isAssociated: false);
-        var generationId = Guid.NewGuid();
-        var reportDocumentId = Guid.NewGuid();
-        var reportVersionId = Guid.NewGuid();
-        var reportSha256 = new string('A', 64);
-        var companionDocumentId = Guid.NewGuid();
-        var companionVersionId = Guid.NewGuid();
-        var companionSha256 = new string('B', 64);
         var nowUtc = new DateTimeOffset(2026, 9, 10, 8, 0, 0, TimeSpan.Zero);
-        var input = AssessmentReportDraftWebTests.ReadyInput(fixture.CaseId);
-        var estimate = input.CurrentEstimate!;
-        var report = AssessmentReportProjection.Project(input).Snapshot!;
-        var frozenGeneration = new CaseReportGenerationSnapshot(
-            fixture.CaseId, 0, "report-case", "report-subset", CaseReportActor.None, nowUtc,
-            Guid.Empty, new string('0', 64), "image/png",
-            estimate.SpecificationId, estimate.Version, report.Costs, report.EngineerValue,
-            Guid.Empty, report.Content, report.Guides, report.ReportDate,
-            report.AgreedFee, report.FeeDescriptionLines,
-            [], [], report.PayloadVersion, "renderer/test", report with { Photos = [] })
-        {
-            CurrentEstimate = estimate
-        };
-
-        await using (var scope = database.CreateAsyncScope())
-        {
-            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            await using var db = await factory.CreateDbContextAsync();
-            db.Set<CaseDocumentEntity>().AddRange(
-                new()
-                {
-                    Id = reportDocumentId, CaseId = fixture.CaseId, Ordinal = 1,
-                    SourceOccurrenceIdentity = "report-document"
-                },
-                new()
-                {
-                    Id = companionDocumentId, CaseId = fixture.CaseId, Ordinal = 2,
-                    SourceOccurrenceIdentity = "companion-document"
-                });
-            db.Set<DocumentVersionEntity>().AddRange(
-                new()
-                {
-                    Id = reportVersionId, DocumentId = reportDocumentId, Version = 1,
-                    FileName = "AssessmentReport.pdf", MediaType = "application/pdf",
-                    ContentLength = 10, Sha256 = reportSha256,
-                    CustodyStatus = DocumentCustodyStatus.Confirmed,
-                    CreatedAtUtc = nowUtc, CreatedBy = "test", IsCurrent = true
-                },
-                new()
-                {
-                    Id = companionVersionId, DocumentId = companionDocumentId, Version = 1,
-                    FileName = "images.pdf", MediaType = "application/pdf",
-                    ContentLength = 11, Sha256 = companionSha256,
-                    CustodyStatus = DocumentCustodyStatus.Confirmed,
-                    CreatedAtUtc = nowUtc, CreatedBy = "test", IsCurrent = true
-                });
-            db.Set<CaseReportGenerationEntity>().Add(new()
-            {
-                Id = generationId, CaseId = fixture.CaseId, WorkId = fixture.CaseId, CaseVersion = 0,
-                SnapshotHash = new string('C', 64), SnapshotJson = JsonSerializer.Serialize(
-                    frozenGeneration, ReportSnapshotJson),
-                TemplateVersion = "test", RendererVersion = "test",
-                State = nameof(CaseReportGenerationState.Confirmed),
-                GeneratedAtUtc = nowUtc, Version = 1
-            });
-            db.CaseRepairSpecifications.Add(new()
-            {
-                Id = estimate.SpecificationId,
-                WorkId = fixture.CaseId,
-                Version = estimate.Version,
-                State = nameof(RepairSpecificationState.Draft),
-                SourceRoute = nameof(RepairSpecificationSourceRoute.Manual),
-                CreatedBy = "Staff:test",
-                CreationOperationKey = "mail-snapshot-estimate",
-                CreatedAtUtc = nowUtc,
-                Name = estimate.Details.Name,
-                VatPercent = estimate.Details.VatPercent
-            });
-            db.Set<GeneratedCaseArtifactEntity>().AddRange(
-                new()
-                {
-                    Id = Guid.NewGuid(), GenerationId = generationId,
-                    VersionId = reportVersionId,
-                    Kind = nameof(CaseReportArtifactKind.AssessmentReport),
-                    Sha256 = reportSha256,
-                    State = nameof(CaseReportArtifactStatus.Confirmed),
-                    OperationKey = "report-artifact"
-                },
-                new()
-                {
-                    Id = Guid.NewGuid(), GenerationId = generationId,
-                    VersionId = companionVersionId,
-                    Kind = nameof(CaseReportArtifactKind.ImagePack),
-                    Sha256 = companionSha256,
-                    State = nameof(CaseReportArtifactStatus.Confirmed),
-                    OperationKey = "companion-artifact"
-                });
-            await db.SaveChangesAsync();
-        }
+        var seeded = await SeedReportGenerationAsync(database, fixture.CaseId, nowUtc);
+        var generationId = seeded.GenerationId;
+        var frozenGeneration = seeded.Snapshot;
+        var estimate = frozenGeneration.CurrentEstimate!;
 
         await using var sendScope = database.CreateAsyncScope();
         var store = sendScope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
@@ -161,10 +69,7 @@ public sealed class StaffMailSendPersistenceTests
         var command = new StaffMailSendCommand(
             actor, Guid.NewGuid(), 1, StaffMailPurpose.CaseReport, generationId, 1,
             StaffMailComposeMode.New, null, [new("recipient@example.invalid", null)], [],
-            "Subject", "Body",
-            [new(reportDocumentId, reportVersionId, reportSha256, 10,
-                "AssessmentReport.pdf", "application/pdf")],
-            "report-subset");
+            "Subject", "Body", [seeded.Report], "report-subset");
 
         var operation = await store.PrepareAsync(
             command, new string('A', 64), nowUtc, CancellationToken.None);
@@ -225,6 +130,23 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Contains(submitted.Id.ToString("N"), sentSnapshot.Origin, StringComparison.Ordinal);
         Assert.Equal(estimate.Details.Name,
             EfRepairSpecificationSnapshotStore.Map(sentSnapshot).Details.Name);
+        // R205: one management event on the Case, credited to the sender at
+        // the observation, carrying only the document the send attached. One
+        // row after the rolled-back, concurrent and replayed observations means
+        // only the observation that committed wrote it, once.
+        var managementEvent = Assert.Single(await ManagementEventsAsync(verified));
+        Assert.Equal("case", managementEvent.AggregateType);
+        Assert.Equal(fixture.CaseId.ToString("D"), managementEvent.AggregateId);
+        Assert.Equal(nameof(ActorKind.Staff), managementEvent.ActorKind);
+        Assert.Equal(actor.SubjectId, managementEvent.ActorSubjectId);
+        Assert.Equal("""["User"]""", managementEvent.ActorRolesJson);
+        Assert.Equal(observedAtUtc, managementEvent.OccurredAtUtc);
+        Assert.Equal("Succeeded", managementEvent.Outcome);
+        Assert.Equal($"management-event:{submitted.Id:N}", managementEvent.CorrelationId);
+        Assert.Equal("management_event/v1", managementEvent.PolicyVersion);
+        Assert.Equal(
+            """{"documents":["AssessmentReport"],"reports":1,"recipients":1}""",
+            managementEvent.AfterJson);
 
         var failedCommand = command with { OperationKey = "report-subset-failed" };
         var failed = await store.PrepareAsync(failedCommand, new string('D', 64), nowUtc, CancellationToken.None);
@@ -243,6 +165,49 @@ public sealed class StaffMailSendPersistenceTests
         await using var afterFailed = await sendScope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
         Assert.Single(await afterFailed.CaseRepairSpecificationSnapshots.ToListAsync());
+        // The Failed send is never observed Sent, so the one event stays the only one.
+        Assert.Single(await ManagementEventsAsync(afterFailed));
+    }
+
+    /// <summary>
+    /// R205: the Automation Actor's report send records its management event
+    /// in the Automation Actor's name, with no staff roles, and counts each
+    /// recipient once however often To and Cc name it.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationReportSendRecordsTheAutomationActorOnItsManagementEvent()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var fixture = await SeedReportSentCaseAsync(
+            database, Guid.NewGuid(), Guid.NewGuid(), isQueryReceipt: false, isAssociated: false);
+        var nowUtc = new DateTimeOffset(2026, 10, 7, 9, 0, 0, TimeSpan.Zero);
+        var seeded = await SeedReportGenerationAsync(database, fixture.CaseId, nowUtc);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var command = new StaffMailSendCommand(
+            ActionActor.Automation("pegasus-automation"), Guid.NewGuid(), 1,
+            StaffMailPurpose.CaseReport, seeded.GenerationId, 1,
+            StaffMailComposeMode.New, null,
+            [new("handler@insurer.example", null), new("claims@insurer.example", null)],
+            [new("Handler@Insurer.example", null)],
+            "Subject", "Body", [seeded.Report], "mcp:automation-report");
+        var operation = await MoveToSubmittedAsync(store, command, nowUtc);
+        var observedAtUtc = nowUtc.AddMinutes(2);
+
+        await store.TransitionObservedSentAsync(
+            ActionActor.SystemWorker("sent-evidence-poll"), operation.Id, operation.Version,
+            "automation-report-item", observedAtUtc.AddMinutes(-1), observedAtUtc, CancellationToken.None);
+
+        await using var db = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        var managementEvent = Assert.Single(await ManagementEventsAsync(db));
+        Assert.Equal(fixture.CaseId.ToString("D"), managementEvent.AggregateId);
+        Assert.Equal(nameof(ActorKind.Automation), managementEvent.ActorKind);
+        Assert.Equal("pegasus-automation", managementEvent.ActorSubjectId);
+        Assert.Equal("[]", managementEvent.ActorRolesJson);
+        Assert.Equal(
+            """{"documents":["AssessmentReport"],"reports":1,"recipients":2}""",
+            managementEvent.AfterJson);
     }
 
     [Fact]
@@ -1797,6 +1762,122 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     private sealed record QueryReplyFixture(Guid CaseId, Guid ReceiptId, long WorkflowVersion);
+
+    private sealed record ReportGenerationFixture(
+        Guid GenerationId, CaseReportGenerationSnapshot Snapshot, StaffMailAttachment Report);
+
+    // A confirmed generation of the Case holding its assessment report and an
+    // image pack, with the repair specification its snapshot froze. The
+    // returned attachment is the report alone, as a send that left the image
+    // pack out carries it.
+    private static async Task<ReportGenerationFixture> SeedReportGenerationAsync(
+        LocalDbTestDatabase database, Guid caseId, DateTimeOffset nowUtc)
+    {
+        var generationId = Guid.NewGuid();
+        var reportDocumentId = Guid.NewGuid();
+        var reportVersionId = Guid.NewGuid();
+        var reportSha256 = new string('A', 64);
+        var companionDocumentId = Guid.NewGuid();
+        var companionVersionId = Guid.NewGuid();
+        var companionSha256 = new string('B', 64);
+        var input = AssessmentReportDraftWebTests.ReadyInput(caseId);
+        var estimate = input.CurrentEstimate!;
+        var report = AssessmentReportProjection.Project(input).Snapshot!;
+        var frozenGeneration = new CaseReportGenerationSnapshot(
+            caseId, 0, "report-case", "report-subset", CaseReportActor.None, nowUtc,
+            Guid.Empty, new string('0', 64), "image/png",
+            estimate.SpecificationId, estimate.Version, report.Costs, report.EngineerValue,
+            Guid.Empty, report.Content, report.Guides, report.ReportDate,
+            report.AgreedFee, report.FeeDescriptionLines,
+            [], [], report.PayloadVersion, "renderer/test", report with { Photos = [] })
+        {
+            CurrentEstimate = estimate
+        };
+
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+        db.Set<CaseDocumentEntity>().AddRange(
+            new()
+            {
+                Id = reportDocumentId, CaseId = caseId, Ordinal = 1,
+                SourceOccurrenceIdentity = "report-document"
+            },
+            new()
+            {
+                Id = companionDocumentId, CaseId = caseId, Ordinal = 2,
+                SourceOccurrenceIdentity = "companion-document"
+            });
+        db.Set<DocumentVersionEntity>().AddRange(
+            new()
+            {
+                Id = reportVersionId, DocumentId = reportDocumentId, Version = 1,
+                FileName = "AssessmentReport.pdf", MediaType = "application/pdf",
+                ContentLength = 10, Sha256 = reportSha256,
+                CustodyStatus = DocumentCustodyStatus.Confirmed,
+                CreatedAtUtc = nowUtc, CreatedBy = "test", IsCurrent = true
+            },
+            new()
+            {
+                Id = companionVersionId, DocumentId = companionDocumentId, Version = 1,
+                FileName = "images.pdf", MediaType = "application/pdf",
+                ContentLength = 11, Sha256 = companionSha256,
+                CustodyStatus = DocumentCustodyStatus.Confirmed,
+                CreatedAtUtc = nowUtc, CreatedBy = "test", IsCurrent = true
+            });
+        db.Set<CaseReportGenerationEntity>().Add(new()
+        {
+            Id = generationId, CaseId = caseId, WorkId = caseId, CaseVersion = 0,
+            SnapshotHash = new string('C', 64), SnapshotJson = JsonSerializer.Serialize(
+                frozenGeneration, ReportSnapshotJson),
+            TemplateVersion = "test", RendererVersion = "test",
+            State = nameof(CaseReportGenerationState.Confirmed),
+            GeneratedAtUtc = nowUtc, Version = 1
+        });
+        db.CaseRepairSpecifications.Add(new()
+        {
+            Id = estimate.SpecificationId,
+            WorkId = caseId,
+            Version = estimate.Version,
+            State = nameof(RepairSpecificationState.Draft),
+            SourceRoute = nameof(RepairSpecificationSourceRoute.Manual),
+            CreatedBy = "Staff:test",
+            CreationOperationKey = "mail-snapshot-estimate",
+            CreatedAtUtc = nowUtc,
+            Name = estimate.Details.Name,
+            VatPercent = estimate.Details.VatPercent
+        });
+        db.Set<GeneratedCaseArtifactEntity>().AddRange(
+            new()
+            {
+                Id = Guid.NewGuid(), GenerationId = generationId,
+                VersionId = reportVersionId,
+                Kind = nameof(CaseReportArtifactKind.AssessmentReport),
+                Sha256 = reportSha256,
+                State = nameof(CaseReportArtifactStatus.Confirmed),
+                OperationKey = "report-artifact"
+            },
+            new()
+            {
+                Id = Guid.NewGuid(), GenerationId = generationId,
+                VersionId = companionVersionId,
+                Kind = nameof(CaseReportArtifactKind.ImagePack),
+                Sha256 = companionSha256,
+                State = nameof(CaseReportArtifactStatus.Confirmed),
+                OperationKey = "companion-artifact"
+            });
+        await db.SaveChangesAsync();
+        return new(
+            generationId,
+            frozenGeneration,
+            new(reportDocumentId, reportVersionId, reportSha256, 10,
+                "AssessmentReport.pdf", "application/pdf"));
+    }
+
+    private static Task<List<ActionHistoryEntity>> ManagementEventsAsync(PegasusDbContext db) =>
+        db.ActionHistory.AsNoTracking()
+            .Where(item => item.EventKind == "management_event")
+            .ToListAsync();
 
     // A Case in the given state with scheduled due work and nothing linked.
     private static async Task<Guid> SeedChaserCaseAsync(
