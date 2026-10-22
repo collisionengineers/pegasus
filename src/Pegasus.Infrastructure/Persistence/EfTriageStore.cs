@@ -1260,7 +1260,7 @@ public sealed class EfTriageStore(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.Triage.AsNoTracking()
-            .Include(item => item.Case).ThenInclude(item => item.Principal)
+            .Include(item => item.Case).ThenInclude(item => item.Principal).ThenInclude(item => item.Organization)
             .Include(item => item.Findings)
             .Include(item => item.ResponseEvidenceLinks)
             .Include(item => item.History)
@@ -1296,7 +1296,8 @@ public sealed class EfTriageStore(
             entity.ResponseEvidenceLinks.OrderBy(item => item.LinkedAtUtc).ThenBy(item => item.SentEvidenceId).Select(Map).ToArray(),
             entity.History.OrderBy(item => item.AfterVersion).ThenBy(item => item.Id).Select(Map).ToArray(),
             Array.Empty<TriageResponseEvidenceCandidate>(),
-            entity.Case.Principal.Code)
+            entity.Case.Principal.Code,
+            entity.Case.Principal.Organization.NotesOnEveryCase)
         {
             ClaimantName = claimantName,
             Documents = documents,

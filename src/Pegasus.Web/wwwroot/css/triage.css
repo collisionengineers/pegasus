@@ -19,7 +19,11 @@
 .triage-finding dd.is-empty { color: var(--muted); font-weight: 500; }
 
 /* Without script the three panels follow one another under their headings. */
-.triage-record .record-body > section + section { margin-top: 16px; }
+.triage-record .record-body > section + section,
+.triage-record .record-body > .fc + section { margin-top: 16px; }
+/* The Principal's standing note keeps its lines; case-workspace.css, which
+   holds this rule for a Case, is not loaded here. */
+.triage-record .fc .fv.multi { white-space: pre-wrap; }
 .triage-record .tab-panel-title { margin: 4px 0 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .triage-images .gallery { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .triage-images .gallery-caption { font-size: 11px; }
