@@ -33,6 +33,17 @@ public sealed record IntakeOfferedActions(
 public interface IGetIntakeOfferedActions
 {
     Task<IntakeOfferedActions> ExecuteAsync(ActionActor actor, IntakeReceipt receipt, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <see cref="ExecuteAsync"/> for several receipts: one entry per receipt, in
+    /// the order given, each equal to what <see cref="ExecuteAsync"/> answers
+    /// for that receipt alone. The registration readings of the image-eligible
+    /// receipts are read together, in one read, and not at all when none is.
+    /// </summary>
+    Task<IReadOnlyList<IntakeOfferedActions>> ExecuteManyAsync(
+        ActionActor actor,
+        IReadOnlyList<IntakeReceipt> receipts,
+        CancellationToken cancellationToken);
 }
 
 public sealed class GetIntakeOfferedActions(
@@ -56,6 +67,50 @@ public sealed class GetIntakeOfferedActions(
         ArgumentNullException.ThrowIfNull(receipt);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
 
+        var readings = ImageIntakeLifecycleRules.IsImageRegistrationEligible(receipt)
+            ? await _vrmSuggestions.ListForReceiptAsync(receipt.Id, cancellationToken)
+            : [];
+        return await OfferAsync(receipt, readings, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<IntakeOfferedActions>> ExecuteManyAsync(
+        ActionActor actor,
+        IReadOnlyList<IntakeReceipt> receipts,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(receipts);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+
+        var eligibleIds = receipts
+            .Where(ImageIntakeLifecycleRules.IsImageRegistrationEligible)
+            .Select(receipt => receipt.Id)
+            .Distinct()
+            .ToArray();
+        var readingsByReceipt = eligibleIds.Length == 0
+            ? null
+            : await _vrmSuggestions.ListForReceiptsAsync(eligibleIds, cancellationToken);
+
+        var offers = new List<IntakeOfferedActions>(receipts.Count);
+        foreach (var receipt in receipts)
+        {
+            IReadOnlyList<ImageVrmSuggestion> readings =
+                readingsByReceipt is not null && readingsByReceipt.TryGetValue(receipt.Id, out var found)
+                    ? found
+                    : [];
+            offers.Add(await OfferAsync(receipt, readings, cancellationToken));
+        }
+
+        return offers;
+    }
+
+    // The one rule both entry points share: the readings are read by the caller,
+    // everything else is read here, so a receipt offers the same alone or in a set.
+    private async Task<IntakeOfferedActions> OfferAsync(
+        IntakeReceipt receipt,
+        IReadOnlyList<ImageVrmSuggestion> readings,
+        CancellationToken cancellationToken)
+    {
         // Create case: material awaiting sorting that no Case has taken.
         var canCreateCase = receipt.AcceptedCaseId is null
             && receipt.AllocationState is null
@@ -63,11 +118,7 @@ public sealed class GetIntakeOfferedActions(
 
         // Register images: the staff route for image-only material (the
         // automatic route, or a message classified as images received).
-        var isImageEligible = ImageIntakeLifecycleRules.IsImageRegistrationEligible(receipt);
-        var readings = isImageEligible
-            ? await _vrmSuggestions.ListForReceiptAsync(receipt.Id, cancellationToken)
-            : [];
-        var canRegisterImages = isImageEligible
+        var canRegisterImages = ImageIntakeLifecycleRules.IsImageRegistrationEligible(receipt)
             && receipt.Decision == IntakeDecision.NeedsSorting
             && await _imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken) is null;
 

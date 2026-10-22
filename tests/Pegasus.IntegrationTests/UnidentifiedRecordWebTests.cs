@@ -246,6 +246,38 @@ public sealed class UnidentifiedRecordWebTests
     }
 
     [Fact]
+    public async Task AGroupItemPageReadsItsMemberReceiptsOnce()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: false, commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (itemId, first, second) = await SeedGroupedPdfItemAsync(factory);
+
+        counter.Reset();
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+
+        Assert.Contains(first.Source.FileName, html, StringComparison.Ordinal);
+        Assert.Contains(second.Source.FileName, html, StringComparison.Ordinal);
+        // A whole-receipt read is a receipt statement and an Assets statement:
+        // count the receipt statements. The context reads the members once and
+        // the page draws from that read.
+        Assert.Equal(
+            1,
+            counter.CountContaining(
+                "[IntakeReceipts]",
+                "[InstructionDrafts]",
+                "[IntakeMailRouteDecisions]",
+                "[IntakeManualAssociations]")
+            - counter.CountContaining(
+                "[IntakeReceipts]",
+                "[IntakeAssets]",
+                "[InstructionDrafts]",
+                "[IntakeMailRouteDecisions]",
+                "[IntakeManualAssociations]"));
+    }
+
+    [Fact]
     public async Task ListingSeveralReceiptsReadsTheirSuggestionsInOneCommand()
     {
         var counter = new CommandCountingInterceptor();

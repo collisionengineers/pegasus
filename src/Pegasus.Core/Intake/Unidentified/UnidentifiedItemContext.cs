@@ -24,6 +24,12 @@ public sealed record UnidentifiedItemContext(
     IntakeSubmissionGroup? SubmissionGroup = null,
     IntakeReceipt? GroupRegistrationReceipt = null)
 {
+    /// <summary>
+    /// A submission-group item's processed member receipts that exist, in member
+    /// ordinal order, each once. Empty for any other item.
+    /// </summary>
+    public IReadOnlyList<IntakeReceipt> MemberReceipts { get; init; } = [];
+
     /// <summary>The Inbox message to open, when the material came by e-mail.</summary>
     public Guid? SourceMessageId => Item.SourceMessageId;
 
@@ -126,14 +132,24 @@ public sealed class GetUnidentifiedItemContext(
         var complete = group.Discard is null
             && group.Members.Count > 0
             && group.Members.Count == group.ExpectedMemberCount;
+        var members = group.Members.OrderBy(member => member.Ordinal).ToArray();
+        var memberReceipts = await _receipts.GetManyAsync(
+            members.Select(member => member.ProcessedReceiptId).OfType<Guid>().Distinct().ToArray(),
+            cancellationToken);
+        var receiptsById = memberReceipts.ToDictionary(receipt => receipt.Id);
+        var offers = await _offers.ExecuteManyAsync(actor, memberReceipts, cancellationToken);
+        var offersById = memberReceipts
+            .Zip(offers, (receipt, offered) => (receipt.Id, offered))
+            .ToDictionary(pair => pair.Id, pair => pair.offered);
+
         var readings = new List<ImageVrmSuggestion>();
         ImageIntakeDetail? imageIntake = null;
         IntakeReceipt? registrationReceipt = null;
         var undecided = true;
-        foreach (var member in group.Members.OrderBy(member => member.Ordinal))
+        foreach (var member in members)
         {
             if (member.ProcessedReceiptId is not { } receiptId
-                || await _receipts.GetAsync(receiptId, cancellationToken) is not { } receipt)
+                || !receiptsById.TryGetValue(receiptId, out var receipt))
             {
                 complete = false;
                 continue;
@@ -145,7 +161,7 @@ public sealed class GetUnidentifiedItemContext(
             }
 
             imageIntake ??= await _imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
-            var offered = await _offers.ExecuteAsync(actor, receipt, cancellationToken);
+            var offered = offersById[receipt.Id];
             readings.AddRange(offered.RegistrationReadings);
             if (offered.CanRegisterImages)
             {
@@ -167,6 +183,9 @@ public sealed class GetUnidentifiedItemContext(
             CanRegisterImages: canRegister,
             CanOpenTriage: false,
             group,
-            canRegister ? registrationReceipt : null);
+            canRegister ? registrationReceipt : null)
+        {
+            MemberReceipts = memberReceipts,
+        };
     }
 }
