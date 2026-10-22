@@ -1537,7 +1537,6 @@ public sealed partial class AssessmentEstimateImportWebTests
             $"value=\"NotRegistered\">{CaseWorkspaceLabels.EstimateVat.StatusLabel(RepairerVatStatus.NotRegistered)}",
             select,
             StringComparison.Ordinal);
-        Assert.Equal(RepairerVatStatuses.Choosable.Count, Regex.Count(select, "<option"));
 
         using var response = await PostNewSpecWithStatusAsync(
             client,

@@ -438,8 +438,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
-    /// Remove scaling restores the version frozen before scaling; one frozen
-    /// as Unknown comes back as Registered (R199).
+    /// Scale freezes the live row as it stands, here Unknown, and writes the
+    /// scaled figures as Registered; Remove scaling restores the version
+    /// frozen as Unknown and it comes back as Registered (R199).
     /// </summary>
     [Fact]
     public async Task RemovingScalingFromAVersionFrozenAsUnknownRecordsRegistered()
@@ -454,26 +455,40 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             new(caseId, lease.Version, engineer, "spec-scale-unknown-save", "Recorded the estimate.",
                 lease.Token, null,
                 new("Repairer", 80m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-                [new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "official", null, Quantity: 1)],
+                [
+                    new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "official", null, Quantity: 1),
+                    new("repair", null, "Repair door", 4m, null, false, null, null, "judgement", null),
+                ],
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
         await SetLiveVatAsync(harness, specification.SpecificationId, "Unknown", true);
-        var before = await snapshots.FreezeAsync(
-            new(caseId, specification.SpecificationId, engineer, RepairSpecificationSnapshotKind.BeforeScaling, "Before scaling"),
-            CancellationToken.None);
-        await SetLiveVatAsync(harness, specification.SpecificationId, "Registered", false);
-        await snapshots.FreezeAsync(
-            new(caseId, specification.SpecificationId, engineer, RepairSpecificationSnapshotKind.Scaled, "Scaled"),
+
+        // The store scales the live row as it stands (the act only reads the
+        // Engineer's Value, which this test supplies): Scale freezes the
+        // Unknown row as BeforeScaling through the real Freeze, then writes
+        // the scaled figures through ApplyDetails.
+        var scaleLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "spec-scale-unknown-lease-2");
+        var scaled = await harness.RepairSpecifications.ScaleAsync(
+            new(caseId, scaleLease.Version, engineer, "spec-scale-unknown-apply", scaleLease.Token,
+                specification.SpecificationId, 15m, ScalingFloors.Default, 5000m),
             CancellationToken.None);
 
-        var removeLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "spec-scale-unknown-lease-2");
+        Assert.Equal(RepairerVatStatus.Registered, scaled.Details.VatPolicy.RepairerStatus);
+        await AssertLiveRegisteredAsync(harness, specification.SpecificationId, true);
+        var versions = await snapshots.ListAsync(caseId, specification.SpecificationId, CancellationToken.None);
+        Assert.Equal(
+            [RepairSpecificationSnapshotKind.BeforeScaling, RepairSpecificationSnapshotKind.Scaled],
+            versions.Select(version => version.Kind));
+        await AssertFrozenAsUnknownAsync(harness, versions[0].Id);
+
+        var removeLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "spec-scale-unknown-lease-3");
         var restored = await new RemoveRepairSpecificationScaling(harness.RepairSpecifications).ExecuteAsync(
             new(caseId, removeLease.Version, engineer, "spec-scale-unknown-remove", removeLease.Token, specification.SpecificationId),
             CancellationToken.None);
 
         Assert.Equal(RepairerVatStatus.Registered, restored.Details.VatPolicy.RepairerStatus);
         await AssertLiveRegisteredAsync(harness, specification.SpecificationId, true);
-        await AssertFrozenAsUnknownAsync(harness, before.Id);
+        await AssertFrozenAsUnknownAsync(harness, versions[0].Id);
     }
 
     /// <summary>The live row's status, and the four category flags: Parts only when hand-picked, else none.</summary>
