@@ -2669,6 +2669,9 @@ public sealed class CustodyOutboxIntegrationTests
 
         public Task FailProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset failedAtUtc, string failureCode, string failureReason, CancellationToken cancellationToken) =>
             inner.FailProcessingAsync(workItemId, leaseToken, failedAtUtc, failureCode, failureReason, cancellationToken);
+
+        public Task DeferProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) =>
+            inner.DeferProcessingAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
     }
 
     private sealed class ExpireLeaseOnCheckStore(
@@ -2697,6 +2700,8 @@ public sealed class CustodyOutboxIntegrationTests
         }
         public Task FailProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset failedAtUtc, string failureCode, string failureReason, CancellationToken cancellationToken) =>
             inner.FailProcessingAsync(workItemId, leaseToken, failedAtUtc, failureCode, failureReason, cancellationToken);
+        public Task DeferProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) =>
+            inner.DeferProcessingAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
     }
 
     private class CountingCustody(ICaseCustody inner) : ICaseCustody

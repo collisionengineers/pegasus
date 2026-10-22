@@ -45,7 +45,7 @@ internal static class ReportPhotoPreparation
     /// </summary>
     internal const long ScanlineFromPixels = (long)FullPagePixels * FullPagePixels;
 
-    private const int PhotoJpegQuality = 85;
+    internal const int PhotoJpegQuality = 85;
     private const int CancellationRowInterval = 64;
 
     /// <summary>The prepared JPEG for one image, ready to embed.</summary>

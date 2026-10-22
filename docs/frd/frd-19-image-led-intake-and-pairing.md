@@ -111,9 +111,8 @@ come with it, and one tagged Third party or Reflection arrives out of the
 report. A Triage Case takes them the same way. The record keeps its
 reference, its page and its photographs. The fold files them as the system
 worker and holds no staff lease
-([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). It yields to a
-member of staff editing the Case: it records nothing, leaves their lease,
-and retries after they finish
+([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). System work
+keeps the session
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). A replayed fold
 files nothing twice.
 
@@ -428,9 +427,9 @@ word "intake" appears only on the Administrator's Intake log tab
   waits for staff.
 - A manual group staff have started: gains no automatic link.
 - Merge meets a live Case edit lease: yields and retries.
-- The fold meets a live Case edit lease: records nothing, leaves the lease,
-  and retries after the editor finishes. Files it had already moved stay in
-  the Case folder.
+- The fold meets a live Case edit lease: advances the Case version and
+  leaves the editor's lease standing
+  ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)).
 - A photograph the record's folder never held: not filed by the fold.
 - The fold is replayed: each photograph is a Case image once.
 - Origin decision changed since a member's completion was authorised: the
@@ -444,9 +443,10 @@ per group; the four precedence rows; the group-level fail-closed rule; the
 manual-upload confirmation exception, and a manual upload pairing with a Case
 created after it on acceptance and on the timer; both arrival orders and
 replays resuming one pairing operation; the merge on the Case timeline; the
-Vehicle images paired item appearing and leaving; merge and the fold each yielding to a live
-lease; a merged record's photographs as Case images with their crop and
-tags, on a Case and on a Triage Case; those photographs completing the
+Vehicle images paired item appearing and leaving; merge yielding to a live
+lease and the fold leaving it standing; a merged record's photographs as
+Case images with their crop and tags, on a Case and on a Triage Case;
+those photographs completing the
 Case's images; the derived chase-due read; and the three named states in
 search. Deployment and live
 evidence are separate tiers

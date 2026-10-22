@@ -38,11 +38,14 @@ images, MP4 and MOV video evidence, and route metadata. Support is proved
 only by the actual application caller and current evidence, never by an
 imported workspace or plan.
 
-One engine owns each readable format. PDF uses PdfPig, the only live PDF
-implementation (ADR-0040, ADR-0003). DOCX uses OpenXml. EML uses MimeKit.
-DOC and MSG use the CollisionDocNet-derived compound-file readers brought in
-by ADR-0025, and those readers handle only those two formats. Video is kept
-and labelled for review; it is never treated as readable text.
+One engine owns each readable format. PDF uses PdfPig (ADR-0040, ADR-0003).
+For photo PDFs only, when a stream is not JPEG or PNG, PDFtoImage over
+PDFium renders that full page to a raster image, which is treated as the
+photograph; scans and text PDFs are untouched (ADR-0081). DOCX uses OpenXml.
+EML uses MimeKit. DOC and MSG use the CollisionDocNet-derived compound-file
+readers brought in by ADR-0025, and those readers handle only those two
+formats. Video is kept and labelled for review; it is never treated as
+readable text.
 
 Pegasus must:
 
@@ -208,8 +211,8 @@ document under that identity (operator, 27 September 2026), and each other
 file it moved that the record was registered from, such as the PDF the
 photographs came in, as a Case document (operator, 28 September 2026), which
 staff may then mark as an Audit's original report. Nothing is
-uploaded again, and a replay records nothing twice. The fold yields to a
-member of staff editing the Case and retries after they finish
+uploaded again, and a replay records nothing twice. The fold is system
+work, which keeps the session
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). The record's
 lifecycle state and merge or closure history stay in SQL whatever happens to
 custody.

@@ -23,6 +23,8 @@ import subprocess
 import sys
 
 PATH_PATTERN = re.compile(r"`?((?:[\w.-]+/)+[\w.-]+\.\w{1,10})`?")
+# A backticked span may hold spaces; it is a path only when the base tip tracks it.
+SPACED_PATH_PATTERN = re.compile(r"`((?:[\w. -]+/)+[\w. -]+\.\w{1,10})`")
 BARE_FILE_PATTERN = re.compile(r"\b([A-Z]\w+\.(?:cs|cshtml|csproj|ps1|py|ts|js|css|json|md|bicep|sql))\b")
 IDENTIFIER_PATTERN = re.compile(r"`([A-Z][A-Za-z0-9]{7,})`")
 SOURCE_GLOBS = ["*.cs", "*.cshtml", "*.ps1", "*.py", "*.ts", "*.js", "*.bicep"]
@@ -37,6 +39,13 @@ def run(args: list[str], check: bool = True) -> str:
 
 def gh_json(args: list[str]):
     return json.loads(run(["gh", *args]))
+
+
+def named_paths(text: str, tree: list[str]) -> list[str]:
+    """The paths the text names: dir/file.ext anywhere, and a backticked span that holds spaces and is tracked."""
+    spaced = {m.group(1) for m in SPACED_PATH_PATTERN.finditer(text) if " " in m.group(1) and m.group(1) in tree}
+    rest = SPACED_PATH_PATTERN.sub(lambda m: " " if m.group(1) in spaced else m.group(0), text)
+    return sorted({m.group(1) for m in PATH_PATTERN.finditer(rest)} | spaced)
 
 
 def main() -> int:
@@ -115,8 +124,9 @@ def main() -> int:
         out.append(f"- {x['kind']} #{x['number']} ({x['state']}): {x['title']} {x['url']}")
 
     text = (issue.get("body") or "") + "\n" + "\n".join(c.get("body") or "" for c in comments)
-    paths = sorted({m.group(1) for m in PATH_PATTERN.finditer(text)})
-    tree = run(["git", "ls-tree", "-r", "--name-only", base_ref], check=False).split() if base_sha else []
+    listing = run(["git", "ls-tree", "-r", "--name-only", "-z", base_ref], check=False) if base_sha else ""
+    tree = [p for p in listing.split("\0") if p]
+    paths = named_paths(text, tree)
     existing = [p for p in paths if p in tree]
     missing = [p for p in paths if p not in tree]
 
@@ -129,7 +139,7 @@ def main() -> int:
             resolved[name] = hits[:5]
     for ident in sorted({m.group(1) for m in IDENTIFIER_PATTERN.finditer(text)})[:15]:
         if base_sha:
-            hits = run(["git", "grep", "-l", "-w", ident, base_ref, "--", *SOURCE_GLOBS], check=False).split()
+            hits = run(["git", "grep", "-l", "-z", "-w", ident, base_ref, "--", *SOURCE_GLOBS], check=False).split("\0")
             hits = [h.split(":", 1)[1] for h in hits if ":" in h]
             if hits:
                 resolved[ident] = hits[:8]

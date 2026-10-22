@@ -48,7 +48,7 @@ internal static class ScanPageClassifier
     /// <summary>A channel at or above this is "paper": the white of a scan, not the grey of a photograph.</summary>
     public const byte NearWhiteChannel = 216;
 
-    private const int SampleLongestSide = 128;
+    internal const int SampleLongestSide = 128;
 
     /// <summary>The same declared-pixel bound the VRM engine refuses above.</summary>
     private const long MaximumDeclaredPixels = 100_000_000;

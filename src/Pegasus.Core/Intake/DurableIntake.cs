@@ -1429,13 +1429,18 @@ public sealed class ProcessQueuedIntake(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
-        if (automaticMailCaseAssociation is null || receipt.CurrentCaseId is not null)
+        // Only mailbox receipts are retained mail; the evidence read finds
+        // nothing for any other channel, so it is not asked.
+        if (automaticMailCaseAssociation is null
+            || receipt.CurrentCaseId is not null
+            || receipt.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
         {
             return false;
         }
 
         var outcome = await automaticMailCaseAssociation.ExecuteAsync(
             receipt.Id,
+            receipt.CaseMatchDecision,
             cancellationToken);
         return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
     }

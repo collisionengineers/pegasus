@@ -673,6 +673,13 @@ Addenda are not activated
 deferred
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction)).
 
+| Consumer | State | Owner |
+| --- | --- | --- |
+| Addenda | Future | [Initial renderer activation](#initial-renderer-activation) |
+| Query documents | Future | None; the Query response is draft reply text ([AI Job List](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)) |
+| Invoice inputs | Existing | [Management Reports](frd-17-administration-workspace.md#management-reports): By month and the Case list |
+| Statistics | Existing | [Management Reports](frd-17-administration-workspace.md#management-reports) |
+
 Report sent is the exact approved-mailbox Sent-item evidence in
 [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence).
 Report sent is the Case's last stage; it does not close the Case.

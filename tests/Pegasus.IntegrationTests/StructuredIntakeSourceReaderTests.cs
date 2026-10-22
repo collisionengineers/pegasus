@@ -122,11 +122,13 @@ public sealed class StructuredIntakeSourceReaderTests
 
     /// <summary>
     /// The same page in paper white is a scanned document page: the recovered
-    /// raster is measured, the page goes to OCR and keeps no image.
+    /// raster, or as JPEG 2000 the page drawn small, is measured, and the page
+    /// goes to OCR and keeps no image.
     /// </summary>
     [Theory]
     [InlineData(FallbackJpeg)]
     [InlineData(FallbackPng)]
+    [InlineData(FallbackJpx)]
     public async Task AScannedPageOnlyTheFallbackCanDecodeStillGoesToOcrWithAMeasurement(string fallback)
     {
         var result = await ReadAsync(new TestEmail(
@@ -185,6 +187,161 @@ public sealed class StructuredIntakeSourceReaderTests
         Assert.Equal(
             "uploaded letter.pdf, page 1, image 2 could not be converted to a reviewable image stream.",
             failure.Reason);
+    }
+
+    /// <summary>
+    /// R194 and R209: a photograph filling the page as JPEG 2000, which no
+    /// decode path hands over, is drawn as its page at the raster's own size,
+    /// kept as a JPEG and not sent to OCR. The reader version names the
+    /// engine that drew it.
+    /// </summary>
+    [Fact]
+    public async Task AFullPageJpeg2000PhotographIsDrawnAsItsPageAndKept()
+    {
+        var result = await ReadAsync(new TestEmail(
+            "photographs.pdf",
+            "application/pdf",
+            BuildPdf(new PdfFixturePage(null, Jpeg2000Photograph(FullPage)))));
+
+        var photograph = Assert.Single(result.AssetCandidates);
+        Assert.Equal(IntakeAssetKind.EmbeddedImage, photograph.Kind);
+        Assert.Equal("image/jpeg", photograph.MediaType);
+        Assert.Equal(Jpeg2000PhotoWidth, photograph.WidthPixels);
+        Assert.Equal(Jpeg2000PhotoHeight, photograph.HeightPixels);
+        using var decoded = SKBitmap.Decode(photograph.Content.Span);
+        Assert.NotNull(decoded);
+        Assert.Equal(Jpeg2000PhotoWidth, decoded.Width);
+        Assert.Equal(Jpeg2000PhotoHeight, decoded.Height);
+        Assert.True(photograph.Content.Length >= InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
+        Assert.Empty(result.ScannedPdfPages);
+        Assert.False(result.RequiresOcr);
+        Assert.Contains(result.Issues, issue => issue.Code == "scan-page-photograph");
+        Assert.DoesNotContain(result.Issues, issue => issue.Code == "pdf-image-decode-failure");
+        Assert.Contains(PdfPageRasteriser.Version, result.ReaderVersion, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A JPEG 2000 raster that PDFium is not given, because its own header
+    /// declares a size other than its image dictionary's, or that draws
+    /// nothing, because its data is cut off after the header, keeps today's
+    /// path: an unmeasured document page that goes to OCR (ADR-0061).
+    /// </summary>
+    [Theory]
+    [InlineData("other-size")]
+    [InlineData("cut-off")]
+    public async Task AFullPageJpeg2000RasterThatIsNotDrawnStaysAnUnmeasuredDocumentPage(string stream)
+    {
+        var photograph = Convert.FromBase64String(Jpeg2000PhotographFile);
+        var image = stream == "other-size"
+            ? Jpeg2000Image(PhotoWidth, PhotoHeight, photograph, FullPage)
+            : Jpeg2000Image(Jpeg2000PhotoWidth, Jpeg2000PhotoHeight, photograph[..160], FullPage);
+        var result = await ReadAsync(new TestEmail(
+            "scan.pdf",
+            "application/pdf",
+            BuildPdf(new PdfFixturePage(null, image))));
+
+        Assert.Single(result.ScannedPdfPages);
+        Assert.Empty(result.AssetCandidates);
+        var verdict = Assert.Single(result.Issues, issue => issue.Code == "scan-page-document");
+        Assert.Equal(
+            "uploaded scan.pdf, page 1 is a full-page raster read as a scanned document page "
+            + "(raster not decodable, read as a document page); it keeps no image and goes to OCR.",
+            verdict.Reason);
+    }
+
+    /// <summary>
+    /// OQ-207, answered by R194 (text PDFs untouched): a JPEG 2000 photograph
+    /// on a page with readable text is not drawn; it is named in its own
+    /// issue as before.
+    /// </summary>
+    [Fact]
+    public async Task AJpeg2000ImageOnAReadablePageFollowsTheScopeRuling()
+    {
+        var result = await ReadAsync(new TestEmail(
+            "letter.pdf",
+            "application/pdf",
+            BuildPdf(new PdfFixturePage(
+                "This instruction letter carries a photograph of the damage and a second picture beneath its text.",
+                Jpeg2000Photograph("100 0 0 100 20 20")))));
+
+        Assert.Empty(result.ScannedPdfPages);
+        Assert.Empty(result.AssetCandidates);
+        var failure = Assert.Single(result.Issues, issue => issue.Code == "pdf-image-decode-failure");
+        Assert.Equal(
+            "uploaded letter.pdf, page 1, image 1 could not be converted to a reviewable image stream.",
+            failure.Reason);
+    }
+
+    /// <summary>
+    /// A drawn photograph page whose raster the sample-pixel budget stops
+    /// keeps its photograph verdict, and the budget stops images as it does
+    /// for any image: page one charges all but 500,000 of the budget, so page
+    /// two's 840 by 1188 photograph is classified and then over the budget.
+    /// </summary>
+    [Fact]
+    public async Task AJpeg2000PhotographPastThePixelBudgetKeepsItsVerdictAndStopsImages()
+    {
+        var result = await ReadAsync(new TestEmail(
+            "report.pdf",
+            "application/pdf",
+            BuildPdf(
+                new PdfFixturePage(
+                    "First page of the report",
+                    Jpeg2000Image(10_000, 9_950, new byte[64], "100 0 0 100 20 20")),
+                new PdfFixturePage(null, Jpeg2000Photograph(FullPage)))));
+
+        Assert.True(result.IsIncomplete);
+        var verdict = Assert.Single(result.Issues, issue => issue.Code == "scan-page-photograph");
+        Assert.StartsWith(
+            "uploaded report.pdf, page 2 is a full-page raster read as a photograph (near-white ",
+            verdict.Reason,
+            StringComparison.Ordinal);
+        var limit = Assert.Single(result.Issues, issue => issue.Code == "intake_limit_exceeded");
+        Assert.Equal("uploaded report.pdf expands beyond the safe decoded-image pixel limit.", limit.Reason);
+        var issues = result.Issues.ToList();
+        Assert.True(issues.IndexOf(verdict) < issues.IndexOf(limit));
+    }
+
+    /// <summary>
+    /// A full-page JBIG2 raster is not given to PDFium, which decodes every
+    /// region the stream declares: a black page that would draw as a
+    /// photograph keeps today's path, an unmeasured document page that goes
+    /// to OCR (ADR-0061).
+    /// </summary>
+    [Fact]
+    public async Task AFullPageJbig2RasterIsNotDrawnAndStaysAnUnmeasuredDocumentPage()
+    {
+        var result = await ReadAsync(new TestEmail(
+            "scan.pdf",
+            "application/pdf",
+            BuildPdf(new PdfFixturePage(null, new PdfFixtureImage(
+                PhotoWidth,
+                PhotoHeight,
+                "/ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /JBIG2Decode",
+                Jbig2BlackPage,
+                FullPage)))));
+
+        var candidate = Assert.Single(result.ScannedPdfPages);
+        Assert.Equal(1, candidate.PageNumber);
+        var verdict = Assert.Single(result.Issues, issue => issue.Code == "scan-page-document");
+        Assert.Equal(
+            "uploaded scan.pdf, page 1 is a full-page raster read as a scanned document page "
+            + "(raster not decodable, read as a document page); it keeps no image and goes to OCR.",
+            verdict.Reason);
+    }
+
+    /// <summary>
+    /// The full-size drawing proves its own page: where it draws nothing, as
+    /// the page with no content here, it returns no JPEG rather than a blank
+    /// white page, which the reader reads as an unmeasured document page that
+    /// goes to OCR (ADR-0081).
+    /// </summary>
+    [Fact]
+    public void AFullSizeRenderThatDrawsNothingReturnsNoJpeg()
+    {
+        var blank = BuildPdf(new PdfFixturePage(null));
+
+        Assert.Null(PdfPageRasteriser.RenderJpeg(blank, 0, 612, 792, 85));
     }
 
     private const string ForwardedBody =
@@ -583,14 +740,22 @@ public sealed class StructuredIntakeSourceReaderTests
     private const string FullPage = "612 0 0 792 0 0";
     private const string FallbackJpeg = "wrapped-jpeg";
     private const string FallbackPng = "long-samples";
+    private const string FallbackJpx = "jpx";
 
     /// <summary>
     /// A raster PdfPig hands over as neither a JPEG nor a PNG: a JPEG behind
-    /// <c>/FlateDecode</c>, which has no decoded samples, or samples one row
-    /// longer than the declared size, which PdfPig refuses as a PNG.
+    /// <c>/FlateDecode</c>, which has no decoded samples, samples one row
+    /// longer than the declared size, which PdfPig refuses as a PNG, or, for
+    /// the paper-white page only, a JPEG 2000 codestream, which is drawn as
+    /// its page.
     /// </summary>
     private static PdfFixtureImage FallbackOnlyImage(string fallback, byte[] rgb, string placement) => fallback switch
     {
+        FallbackJpx when !rgb.AsSpan().ContainsAnyExcept((byte)0xff) => Jpeg2000Image(
+            PhotoWidth,
+            PhotoHeight,
+            Convert.FromBase64String(Jpeg2000PaperWhiteCodestream),
+            placement),
         FallbackJpeg => new(
             PhotoWidth,
             PhotoHeight,
@@ -613,6 +778,60 @@ public sealed class StructuredIntakeSourceReaderTests
         "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode",
         new byte[64],
         placement);
+
+    private const int Jpeg2000PhotoWidth = 840;
+    private const int Jpeg2000PhotoHeight = 1188;
+
+    /// <summary>
+    /// A JP2 file, written once with OpenJPEG 2.5.4 from a synthetic colour
+    /// wave at 840 by 1188: small as JPEG 2000, and over the photograph
+    /// threshold once drawn and kept as a JPEG.
+    /// </summary>
+    private const string Jpeg2000PhotographFile =
+        "AAAADGpQICANCocKAAAAFGZ0eXBqcDIgAAAAAGpwMiAAAAAtanAyaAAAABZpaGRyAAAEpAAAA0gAAwcHAAAAAAAPY29scgEA"
+        + "AAAAABAAAAN2anAyY/9P/1EALwAAAAADSAAABKQAAAAAAAAAAAAAA0gAAASkAAAAAAAAAAAAAwcBAQcBAQcBAf9SAAwAAAAB"
+        + "AAUEBAAA/1wAI0J3IHbwdvB2wG8AbwBu4GdQZ1BnaFAFUAVQR1fTV9NXYv9kACUAAUNyZWF0ZWQgYnkgT3BlbkpQRUcgdmVy"
+        + "c2lvbiAyLjUuNP+QAAoAAAAAAt8AAf+Tw5oQDB2eOYXDwtI9Ca9GGLLJ4Hl2C/8ilNyDml5DX3HTu8MawbogDCCxFXBTkPlU"
+        + "b0f+hod9lfzUQUV84hGxbC5ES1j0c/w02PMNY821GdyFNfyrznC8RGJSArrFTIqhB7fuApRI+Qp8NjXD1GAUMm8iM1bZCfHp"
+        + "rYvez7+Bd7xDKDlRsaMNdmibvj3UPlxl/sPbGg51MBzMkZcfSqlrMEEzMIvrX1Xo1pNY/bYmmKeylFblrjtJ4fd0wi9AfbDB"
+        + "sY2yIeT3RKwSJijTw5v9SmQdfJ/YiC+dEly1NNQRKTFn9+sdFOPGL3Pgoy8ZLHAkjCoeCG6dxgIXDIhNcMYWbxbx0CC7XzjP"
+        + "ngeT/M4VIDo2Y1JquJkpRnJWUQKsAc3ayt6eR6XgqSdiRmIL+UMt7aIkkN3DuU2qXtykw32IpNGSLcf+fjaBJSllrknAw9sa"
+        + "DnUwHMyRlx9KqWswQTMwi+tfVejWk1j9tiaYp7KUVuWuO0nh93TCL0B9sMGxjbIh5PdErBImKNPDm/1KZB18n9iIL50SXLU0"
+        + "1BEpMWf36x0U48Yvc+CjLxkscCSMKh4Ibp3GAhcMiE1wxhZvFvHQILtfOM+eB5P8zhUgOjZjUmq4mSlGclZRAqwBzdrK3p5H"
+        + "peCpJ2JGYgv5Qy3toiSQ3cO5Tape3KTDfYik0ZItx/5+NoElKWWuScDD2xoOdTAczJGXH0qpazBBMzCL619V6NaTWP22Jpin"
+        + "spRW5a47SeH3dMIvQH2wwbGNsiHk90SsEiYo08Ob/UpkHXyf2IgvnRJctTTUESkxZ/frHRTjxi9z4KMvGSxwJIwqHghuncYC"
+        + "FwyITXDGFm8W8dAgu184z54Hk/zOFSA6NmNSariZKUZyVlECrAHN2srenkel4KknYkZiC/lDLe2iJJDdw7lNql7cpMN9iKTR"
+        + "ki3H/n42gSUpZa5JwICAgICAgICAgICAgP/Z";
+
+    /// <summary>A bare JPEG 2000 codestream, written the same way, of a 210 by 297 paper-white page.</summary>
+    private const string Jpeg2000PaperWhiteCodestream =
+        "/0//UQAvAAAAAADSAAABKQAAAAAAAAAAAAAA0gAAASkAAAAAAAAAAAADBwEBBwEBBwEB/1IADAAAAAEABQQEAAH/XAATQEBI"
+        + "SFBISFBISFBISFBISFD/ZAAlAAFDcmVhdGVkIGJ5IE9wZW5KUEVHIHZlcnNpb24gMi41LjT/kAAKAAAAAAA1AAH/k8+0FBQA"
+        + "XKcqz7QUFABcpyrPtBQUAFynKoCAgICAgICAgICAgICAgP/Z";
+
+    private static PdfFixtureImage Jpeg2000Photograph(string placement) => Jpeg2000Image(
+        Jpeg2000PhotoWidth,
+        Jpeg2000PhotoHeight,
+        Convert.FromBase64String(Jpeg2000PhotographFile),
+        placement);
+
+    private static PdfFixtureImage Jpeg2000Image(int width, int height, byte[] stream, string placement) => new(
+        width,
+        height,
+        "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode",
+        stream,
+        placement);
+
+    /// <summary>
+    /// An embedded JBIG2 stream that is only a black 210 by 297 page: a page
+    /// information segment (default pixel black), then end of page.
+    /// </summary>
+    private static readonly byte[] Jbig2BlackPage =
+    [
+        0, 0, 0, 0, 48, 0, 1, 0, 0, 0, 19,
+        0, 0, 0, 210, 0, 0, 1, 41, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0,
+        0, 0, 0, 1, 49, 0, 1, 0, 0, 0, 0
+    ];
 
     private static byte[] PhotographPixels(int seed)
     {

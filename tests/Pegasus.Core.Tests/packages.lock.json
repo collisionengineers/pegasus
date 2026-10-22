@@ -78,6 +78,21 @@
           "Azure.Storage.Common": "12.25.0"
         }
       },
+      "bblanchon.PDFium.Linux": {
+        "type": "Transitive",
+        "resolved": "147.0.7690",
+        "contentHash": "VnH5sYEI1/gd1t0h3TQMsbGnicdYKfzfDjKBGfRX8MqjSFcWgHdFL1MGvyB7HBvQzZtDWspSn2qY6mehGRSw9g=="
+      },
+      "bblanchon.PDFium.macOS": {
+        "type": "Transitive",
+        "resolved": "147.0.7690",
+        "contentHash": "P6b05GVUhbcfzO54W3rKTTWX/lac3CzZ+5TZnqMhJMqSJrtTGawCXsw+4GiFfC2imnbU7EPabFARzvtPvNp0sw=="
+      },
+      "bblanchon.PDFium.Win32": {
+        "type": "Transitive",
+        "resolved": "147.0.7690",
+        "contentHash": "vPUlS9LklHm59lcBc9f6loggGgezogOoMdRYbUfTvum1Ndlr7u7KrAq3ZTuTdPF0ijHjhtfjNafZvyyTbmB4mg=="
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.6.2",
@@ -543,6 +558,20 @@
         "resolved": "0.1.15",
         "contentHash": "Bf0NO4o2ZSVnemMyj21KDU1sfSgmamFC0pD4aAv19CDNXQsoO1Z6O99gNqpiK/XWWZ5d5i7JkQoT7PUBxEPz5g=="
       },
+      "PDFtoImage": {
+        "type": "Transitive",
+        "resolved": "5.2.1",
+        "contentHash": "tqCcLRuEc517UJeKy+gHmhjtLcvpE9/UXWgDtU8t4GR+2NQx0SimBDVKkFxGsLlMUHEHuy58dlyfXlo5Sf1jjw==",
+        "dependencies": {
+          "SkiaSharp": "3.119.2",
+          "SkiaSharp.NativeAssets.Linux.NoDependencies": "3.119.2",
+          "SkiaSharp.NativeAssets.Win32": "3.119.2",
+          "SkiaSharp.NativeAssets.macOS": "3.119.2",
+          "bblanchon.PDFium.Linux": "147.0.7690",
+          "bblanchon.PDFium.Win32": "147.0.7690",
+          "bblanchon.PDFium.macOS": "147.0.7690"
+        }
+      },
       "QuestPDF": {
         "type": "Transitive",
         "resolved": "2026.8.0",
@@ -550,27 +579,27 @@
       },
       "SkiaSharp": {
         "type": "Transitive",
-        "resolved": "3.116.1",
-        "contentHash": "DNDwbRjP+aMo27dV2h/uHCVTcWubWWxHnPLiePNyl24f4Pv43mQ8AQQeseOrKR+J3AOCEs6t0sUjo0aa3j3RWQ==",
+        "resolved": "3.119.2",
+        "contentHash": "nmy2dOFWPvQKMglfpjz8+/xQQcSrL9jzul3cUyzCJVSwrmSAw+6B1sEgU7jt6NZBptwGq2k/V0kjyu2GizMFtg==",
         "dependencies": {
-          "SkiaSharp.NativeAssets.Win32": "3.116.1",
-          "SkiaSharp.NativeAssets.macOS": "3.116.1"
+          "SkiaSharp.NativeAssets.Win32": "3.119.2",
+          "SkiaSharp.NativeAssets.macOS": "3.119.2"
         }
       },
       "SkiaSharp.NativeAssets.Linux.NoDependencies": {
         "type": "Transitive",
-        "resolved": "3.116.1",
-        "contentHash": "yER+zmZzK4G642j0fbOBg3ZfLUs93o1kmHEXEOPZgMCzGVSmLvGmsFYIIlIQaMEpWY/TktFiZGqEKkT1RJ/YjQ=="
+        "resolved": "3.119.2",
+        "contentHash": "1rmveKZ8Cz7k4QJQdtKV6RFXYIEqYBiX450Bm0Bk41EE50MMPUyF81cRnASsuV0qCwdZuzjZTaFvoqS0Q2zVfA=="
       },
       "SkiaSharp.NativeAssets.macOS": {
         "type": "Transitive",
-        "resolved": "3.116.1",
-        "contentHash": "3KPvpKysDmEMt0NnAZPX5U6KFk0LmG/72/IjAIJemIksIZ0Tjs9pGpr3L+zboVCv1MLVoJLKl3nJDXUG6Jda6A=="
+        "resolved": "3.119.2",
+        "contentHash": "I2jMGQ/26KOnc6iAoR+Mxh9vSJJ2vioJyj9aJ9OL5yEZyXothXJxf4vBMqnSaiXMqiiU1scG7KqtT0CLkmMmWA=="
       },
       "SkiaSharp.NativeAssets.Win32": {
         "type": "Transitive",
-        "resolved": "3.116.1",
-        "contentHash": "dRQ75MCI8oz6zAs2Y1w6pq6ARs4MhdNG+gf3doOxOxdnueDXffQLGQIxON54GDoxc0WjKOoHMKBR4DhaduwwQw=="
+        "resolved": "3.119.2",
+        "contentHash": "uYe+da6+GXVgPKkCopzvIZ83DmC8SXXKeUAPrNcztJNsg0SjPQAxfKMOPZqmVjbzznrq/QUIjLUlJSZV/e0IPA=="
       },
       "System.ClientModel": {
         "type": "Transitive",
@@ -689,11 +718,12 @@
           "Microsoft.ML.OnnxRuntime": "[1.20.1, )",
           "MimeKit": "[4.17.0, )",
           "OpenIddict.EntityFrameworkCore": "[7.6.0, )",
+          "PDFtoImage": "[5.2.1, )",
           "PdfPig": "[0.1.15, )",
           "Pegasus.Core": "[0.1.0-alpha.1, )",
           "QuestPDF": "[2026.8.0, )",
-          "SkiaSharp": "[3.116.1, )",
-          "SkiaSharp.NativeAssets.Linux.NoDependencies": "[3.116.1, )",
+          "SkiaSharp": "[3.119.2, )",
+          "SkiaSharp.NativeAssets.Linux.NoDependencies": "[3.119.2, )",
           "System.IdentityModel.Tokens.Jwt": "[8.18.0, )",
           "System.Security.Cryptography.Pkcs": "[10.0.13, )"
         }
