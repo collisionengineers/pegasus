@@ -1334,6 +1334,7 @@ public static class OperatorLabels
         "audit_custody_confirmed" => "Audit evidence stored",
         "audit_custody_failed" => "Audit evidence storage failed",
         "case_document_removed" => "File removed",
+        "case_document_type_set" => "Document type changed",
         "custody_confirmed" => "Document stored",
         "custody_failed" => "Document storage failed",
         "principal_inspection_mode_applied" => "Inspection mode taken from the principal",
