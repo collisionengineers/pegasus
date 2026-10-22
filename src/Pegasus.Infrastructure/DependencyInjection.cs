@@ -938,9 +938,12 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(accountFactory);
 
+        // Each call is bounded once, headers and body together, by
+        // CazanaCompanionClient.CallTimeout; a second timer here would only
+        // end at the headers.
         services.AddHttpClient(
             CazanaGuideValuationProvider.HttpClientName,
-            client => client.Timeout = TimeSpan.FromSeconds(30));
+            client => client.Timeout = Timeout.InfiniteTimeSpan);
         services.AddSingleton<IGuideValuationProvider>(provider => new CazanaGuideValuationProvider(
             provider.GetRequiredService<IHttpClientFactory>(),
             () => accountFactory(provider),

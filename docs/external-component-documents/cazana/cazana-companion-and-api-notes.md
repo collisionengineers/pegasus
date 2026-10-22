@@ -609,7 +609,7 @@ partials `h`, `x`, `b`, `y`, `w`, `C`, `D`, `k`):
   - Top banner: `For internal use only, not to be shared with any 3rd party`.
   - Header (`h`): Cazana dark logotype and title `Companion Report`.
   - Vehicle Information Card (`b`, left column): primary vehicle image from
-    `GET /cz/image/2.0` (`image[0]`, or dark placeholder logo if absent),
+    `GET /cz/image/2.0` (`image[0]`, or Cazana's white logotype on a dark tile if absent),
     `Mileage`, `Valuation date` (`DD/MM/YYYY`), and `Condition` (`namaGrade === 4 ? "Poor" : "Good"`).
   - Vehicle Overview Card (`y`, right column): `Vehicle overview` description,
     optional `Historical value for <valuationDate>` badge when `valuationDate`

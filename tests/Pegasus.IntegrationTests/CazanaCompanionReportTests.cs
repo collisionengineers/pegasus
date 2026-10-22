@@ -159,7 +159,7 @@ public sealed class CazanaCompanionReportTests
     }
 
     [Fact]
-    public async Task AFailedImageLookupFallsBackToTheDarkPlaceholderLogo()
+    public async Task AFailedImageLookupFallsBackToTheWhiteLogotypeOnTheDarkTile()
     {
         var (report, requests) = CreateReport(path => path == "/cz/image/2.0"
             ? CazanaGuideValuationProviderTests.Json(HttpStatusCode.InternalServerError, "{}")
@@ -170,6 +170,40 @@ public sealed class CazanaCompanionReportTests
         var html = PostedHtml(RequestTo(requests, "/app/pdf/create"));
         Assert.Contains("cazana-logotype-white.svg", html, StringComparison.Ordinal);
         Assert.Contains("justify-center bg-tertiary border-transparent", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A connection that drops while the image answer is being read is the
+    /// same silent fallback as a refused image lookup: only the image is lost.
+    /// </summary>
+    [Fact]
+    public async Task AnImageAnswerThatDropsMidBodyFallsBackToTheWhiteLogotypeOnTheDarkTile()
+    {
+        var (report, requests) = CreateReport(path => path == "/cz/image/2.0"
+            ? CazanaGuideValuationProviderTests.Dropped(HttpStatusCode.OK, """{"image":["https://""")
+            : null);
+
+        var pdf = await report.FetchPdfAsync(default);
+
+        Assert.Equal(PdfBytes, pdf);
+        var html = PostedHtml(RequestTo(requests, "/app/pdf/create"));
+        Assert.Contains("cazana-logotype-white.svg", html, StringComparison.Ordinal);
+        Assert.Contains("justify-center bg-tertiary border-transparent", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ATimelineAnswerThatDropsMidBodyIsNamedByItsStageAndNothingIsPosted()
+    {
+        var (report, requests) = CreateReport(path => path.EndsWith("/timeline", StringComparison.Ordinal)
+            ? CazanaGuideValuationProviderTests.Dropped(HttpStatusCode.OK, """{"response":{"vrm":""")
+            : null);
+
+        var failed = await Assert.ThrowsAsync<CazanaCompanionFailure>(() => report.FetchPdfAsync(default));
+
+        Assert.Equal("timeline", failed.Stage);
+        Assert.Null(failed.Status);
+        Assert.Equal("body=unreadable", failed.Detail);
+        Assert.DoesNotContain(requests, request => request.Uri.AbsolutePath == "/app/pdf/create");
     }
 
     [Fact]

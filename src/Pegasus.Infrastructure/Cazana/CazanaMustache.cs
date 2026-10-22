@@ -27,12 +27,19 @@ namespace Pegasus.Infrastructure.Cazana;
 /// </summary>
 internal static class CazanaMustache
 {
-    public static string Render(Template template, object? view, IReadOnlyDictionary<string, Template>? partials = null)
+    public static string Render(Template template, object? view, IReadOnlyDictionary<string, Template>? partials = null) =>
+        Build(template, view, partials).ToString();
+
+    /// <summary>
+    /// The page as the builder it was written into, for a caller that encodes
+    /// it chunk by chunk and so never copies the whole page into a string.
+    /// </summary>
+    public static StringBuilder Build(Template template, object? view, IReadOnlyDictionary<string, Template>? partials = null)
     {
         ArgumentNullException.ThrowIfNull(template);
         var output = new StringBuilder(template.Length);
         RenderNodes(template.Nodes, [view], partials, output);
-        return output.ToString();
+        return output;
     }
 
     public static Template Parse(string template)

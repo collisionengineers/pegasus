@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -18,6 +19,9 @@ namespace Pegasus.Infrastructure.Cazana;
 internal sealed class CazanaCompanionClient(HttpClient http)
 {
     internal static readonly Uri BaseUri = new("https://api.cazana.com/");
+
+    /// <summary>How long one Companion call may take, from the request to the last byte of its answer.</summary>
+    internal static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(30);
 
     private const string Environment = "production";
     private const string Client = "cazana";
@@ -168,20 +172,45 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     }
 
     /// <summary>
-    /// Cazana's PDF service: rendered HTML in, the PDF out. The HTML travels
-    /// as bytes, which the serializer writes as Base64, and the PDF is decoded
-    /// from the answer's own bytes.
+    /// Cazana's PDF service: rendered HTML in, the PDF out. The page is
+    /// encoded once, chunk by chunk, into a pooled buffer that the serializer
+    /// writes as Base64 (no string and no exact-size array of the whole page),
+    /// and the PDF is decoded from the answer's own bytes.
     /// </summary>
-    public async Task<byte[]> CreatePdfAsync(string jwt, string html, CancellationToken cancellationToken)
+    public async Task<byte[]> CreatePdfAsync(string jwt, StringBuilder html, CancellationToken cancellationToken)
     {
-        var request = new { html = Encoding.UTF8.GetBytes(html) };
-        using var answer = await ExchangeAsync(
-            "pdf", App(HttpMethod.Post, "app/pdf/create", jwt, request), cancellationToken);
-        return CazanaJson.Get(answer.RootElement, "data") is { ValueKind: JsonValueKind.String } data
-            && data.TryGetBytesFromBase64(out var pdf)
-            && pdf.Length > 0
-                ? pdf
-                : throw new CazanaCompanionFailure("pdf", null, "pdf=absent");
+        var buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(html.Length));
+        try
+        {
+            var request = new { html = new ReadOnlyMemory<byte>(buffer, 0, Utf8(html, buffer)) };
+            using var answer = await ExchangeAsync(
+                "pdf", App(HttpMethod.Post, "app/pdf/create", jwt, request), cancellationToken);
+            return CazanaJson.Get(answer.RootElement, "data") is { ValueKind: JsonValueKind.String } data
+                && data.TryGetBytesFromBase64(out var pdf)
+                && pdf.Length > 0
+                    ? pdf
+                    : throw new CazanaCompanionFailure("pdf", null, "pdf=absent");
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// The builder's chunks as UTF-8 through one encoder, so a surrogate pair
+    /// split across two chunks still encodes as one character.
+    /// </summary>
+    private static int Utf8(StringBuilder text, byte[] destination)
+    {
+        var encoder = Encoding.UTF8.GetEncoder();
+        var written = 0;
+        foreach (var chunk in text.GetChunks())
+        {
+            written += encoder.GetBytes(chunk.Span, destination.AsSpan(written), flush: false);
+        }
+
+        return written + encoder.GetBytes(ReadOnlySpan<char>.Empty, destination.AsSpan(written), flush: true);
     }
 
     private static HttpRequestMessage Guest(string path, object body)
@@ -213,9 +242,12 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     /// One call, named by its stage: the answer parsed from the network stream
     /// (the PDF answer is megabytes of Base64 and is never buffered whole
     /// first), or a stage-named failure. Only a refusal is read as text, for
-    /// its detail. <see cref="HttpClient.Timeout"/> ends at the response
-    /// headers once the body streams, so the same bound is linked over the
-    /// body read.
+    /// its detail. <see cref="CallTimeout"/> bounds the headers and the body
+    /// together, as the one timer of the call: the named client sets no timeout
+    /// of its own (<c>AddCazanaGuideValuation</c>). A connection that drops
+    /// while an answer streams is an <see cref="IOException"/>, not an
+    /// <see cref="HttpRequestException"/> (which only the buffered read of a
+    /// refusal throws), and is the stage's failure too.
     /// </summary>
     private async Task<JsonDocument> ExchangeAsync(
         string stage,
@@ -225,7 +257,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         using (message)
         using (var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
-            bounded.CancelAfter(http.Timeout);
+            bounded.CancelAfter(CallTimeout);
             using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, bounded.Token);
             if (!Succeeded(response.StatusCode))
             {
@@ -243,6 +275,10 @@ internal sealed class CazanaCompanionClient(HttpClient http)
             catch (JsonException)
             {
                 throw new CazanaCompanionFailure(stage, null, "json=invalid");
+            }
+            catch (IOException)
+            {
+                throw new CazanaCompanionFailure(stage, null, "body=unreadable");
             }
         }
     }

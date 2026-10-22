@@ -194,6 +194,42 @@ public sealed class CazanaGuideValuationProviderTests
             "cazana.valuation.transport TaskCanceledException");
     }
 
+    /// <summary>
+    /// The headers arrive and the connection then drops while the body is
+    /// read: that is an <see cref="IOException"/>, not a request exception, and
+    /// still ends the valuation as unavailable with its code and stage, after
+    /// the calls made so far and no more.
+    /// </summary>
+    [Theory]
+    [InlineData("sign_in", "/guest/onboard/branch", 1)]
+    [InlineData("confirm", "/guest/onboard/confirm", 2)]
+    [InlineData("lookup", "/app/companion", 3)]
+    [InlineData("read", "/app/companion/" + Uuid, 4)]
+    public async Task AnAnswerThatDropsMidBodyIsUnavailableAtItsStageAndStopsTheCalls(
+        string stage, string failingPath, int calls)
+    {
+        var harness = Harness.Create(path => path == failingPath ? Dropped(HttpStatusCode.OK, """{"jwt":""") : null);
+
+        await AssertUnavailableAsync(harness, $"cazana.valuation.unreadable stage={stage} body=unreadable");
+
+        Assert.Equal(calls, harness.Requests.Count);
+    }
+
+    /// <summary>
+    /// A refusal's body is read whole, and a drop there reaches the provider as
+    /// the request exception that buffering throws: unavailable as transport.
+    /// </summary>
+    [Fact]
+    public async Task ARefusalWhoseBodyDropsIsUnavailableAsTransport()
+    {
+        var harness = Harness.Create(path => path == "/app/companion"
+            ? Dropped(HttpStatusCode.InternalServerError, """{"error":""")
+            : null);
+
+        await AssertUnavailableAsync(harness, "cazana.valuation.transport HttpRequestException");
+        Assert.Equal(3, harness.Requests.Count);
+    }
+
     [Fact]
     public async Task TheCallerGivingUpIsTheCallersOwnOutcome()
     {
@@ -352,6 +388,69 @@ public sealed class CazanaGuideValuationProviderTests
 
     internal static HttpResponseMessage Json(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+
+    /// <summary>
+    /// An answer whose headers arrive and whose body is cut off after
+    /// <paramref name="readable"/>, as a connection reset mid-body is.
+    /// </summary>
+    internal static HttpResponseMessage Dropped(HttpStatusCode status, string readable) =>
+        new(status) { Content = new StreamContent(new DroppingStream(Encoding.UTF8.GetBytes(readable))) };
+
+    private sealed class DroppingStream(byte[] readable) : Stream
+    {
+        private int _position;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            if (_position >= readable.Length)
+            {
+                throw new IOException("The response ended prematurely.");
+            }
+
+            var count = Math.Min(buffer.Length, readable.Length - _position);
+            readable.AsSpan(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return ValueTask.FromResult(Read(buffer.Span));
+            }
+            catch (IOException exception)
+            {
+                return ValueTask.FromException<int>(exception);
+            }
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
 
     internal sealed record RecordedRequest(
         HttpMethod Method,

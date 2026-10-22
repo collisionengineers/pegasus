@@ -1,5 +1,7 @@
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using Pegasus.Core;
 using Pegasus.Core.Assessment;
@@ -32,6 +34,18 @@ internal sealed class CazanaCompanionReport(
 
     private static readonly CultureInfo EnGb = CultureInfo.GetCultureInfo("en-GB");
 
+    /// <summary>The filters of a lookup that applied none: seven empty strings, the same in every report.</summary>
+    private static readonly FrozenDictionary<string, object?> SimilarListingFilters = new Dictionary<string, object?>
+    {
+        ["listingTypes"] = "",
+        ["sellerTypes"] = "",
+        ["registrations"] = "",
+        ["mileages"] = "",
+        ["colours"] = "",
+        ["distance"] = "",
+        ["options"] = "",
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+
     private static readonly Lazy<Page> Pages = new(LoadPage);
 
     public string Identity => "cazana-companion:" + uuid;
@@ -53,9 +67,11 @@ internal sealed class CazanaCompanionReport(
 
     /// <summary>
     /// Companion's <c>getCompanionPDF</c> page: the report around its sections,
-    /// each section rendered in place into the page with the one view.
+    /// each section rendered in place into the page with the one view. The
+    /// page stays the builder it was written into, so it is encoded once for
+    /// the PDF service and never copied into a string.
     /// </summary>
-    internal static string RenderHtml(
+    internal static StringBuilder RenderHtml(
         JsonElement response,
         string? vrm,
         JsonElement? timeline,
@@ -64,7 +80,7 @@ internal sealed class CazanaCompanionReport(
         DateTimeOffset now)
     {
         var page = Pages.Value;
-        return CazanaMustache.Render(page.Template, View(response, vrm, timeline, similar, image, now), page.Partials);
+        return CazanaMustache.Build(page.Template, View(response, vrm, timeline, similar, image, now), page.Partials);
     }
 
     private static Dictionary<string, object?> View(
@@ -111,21 +127,12 @@ internal sealed class CazanaCompanionReport(
             ["currentColour"] = Capitalise(CazanaJson.String(specs, "currentColour")),
             ["vehicleSeats"] = Scalar(CazanaJson.Get(specs, "seats")),
             ["containsSalesEvents"] = events.Any(
-                item => CazanaJson.Get(item, "type") is { ValueKind: JsonValueKind.String } type && type.ValueEquals("Sale")),
+                item => CazanaJson.Get(item, "type") is { ValueKind: JsonValueKind.String } type && type.ValueEquals("Sale"u8)),
             ["isHistoricalValuationDate"] = valuedOn
                 != LondonCalendar.DateAt(now).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["sortBy"] = "Newest",
             ["listings"] = similar.Listings.Select(SimilarListing).ToList<object?>(),
-            ["similarListingFilters"] = new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["listingTypes"] = "",
-                ["sellerTypes"] = "",
-                ["registrations"] = "",
-                ["mileages"] = "",
-                ["colours"] = "",
-                ["distance"] = "",
-                ["options"] = "",
-            },
+            ["similarListingFilters"] = SimilarListingFilters,
             ["totalSimilarListings"] = Scalar(similar.Total),
             ["customerReference"] = null,
             ["placeholderLogo"] = PlaceholderLogo,
@@ -177,41 +184,52 @@ internal sealed class CazanaCompanionReport(
     /// <summary>One timeline entry as Companion maps it; a type Companion does not map is dropped.</summary>
     private static Dictionary<string, object?>? TimelineEvent(JsonElement item)
     {
-        var date = Ordinal(CazanaJson.String(item, "date"));
-        switch (CazanaJson.String(item, "type"))
+        // The type is compared where it lies in the answer, as bytes: no string per event.
+        if (CazanaJson.Get(item, "type") is not { ValueKind: JsonValueKind.String } type)
         {
-            case "Mot":
-                var passed = CazanaJson.Get(item, "passed") is { ValueKind: JsonValueKind.True };
-                return new(StringComparer.Ordinal)
-                {
-                    ["motDate"] = date,
-                    ["motStatus"] = passed ? "Passed" : "Failed",
-                    ["motStatusColour"] = passed
-                        ? "fa-solid fa-circle-check text-green-600"
-                        : "fa-solid fa-circle-xmark text-red-600",
-                    ["motMileage"] = Number(CazanaJson.Get(item, "odometer", "value")),
-                    ["motComments"] = CazanaJson.Items(item, "rfcAndComments")
-                        .Select(comment => CazanaJson.String(comment, "text"))
-                        .ToList<object?>(),
-                };
-            case "Sale":
-                return new(StringComparer.Ordinal)
-                {
-                    ["advertisementDateRange"] = $"{date} - {Ordinal(CazanaJson.String(item, "lastSeen"))}",
-                    ["saleListings"] = CazanaJson.Items(item, "listings").Select(SaleListing).ToList<object?>(),
-                };
-            case "PlateChange":
-                return new(StringComparer.Ordinal)
-                {
-                    ["plateChangeDate"] = date,
-                    ["plateChangePrevious"] = CazanaJson.String(item, "previousVRM"),
-                    ["plateChangeCurrent"] = CazanaJson.String(item, "currentVRM"),
-                };
-            case "KeeperChange":
-                return new(StringComparer.Ordinal) { ["keeperChangeDate"] = date };
-            default:
-                return null;
+            return null;
         }
+
+        if (type.ValueEquals("Mot"u8))
+        {
+            var passed = CazanaJson.Get(item, "passed") is { ValueKind: JsonValueKind.True };
+            return new(StringComparer.Ordinal)
+            {
+                ["motDate"] = Ordinal(CazanaJson.String(item, "date")),
+                ["motStatus"] = passed ? "Passed" : "Failed",
+                ["motStatusColour"] = passed
+                    ? "fa-solid fa-circle-check text-green-600"
+                    : "fa-solid fa-circle-xmark text-red-600",
+                ["motMileage"] = Number(CazanaJson.Get(item, "odometer", "value")),
+                ["motComments"] = CazanaJson.Items(item, "rfcAndComments")
+                    .Select(comment => CazanaJson.String(comment, "text"))
+                    .ToList<object?>(),
+            };
+        }
+
+        if (type.ValueEquals("Sale"u8))
+        {
+            return new(StringComparer.Ordinal)
+            {
+                ["advertisementDateRange"] =
+                    $"{Ordinal(CazanaJson.String(item, "date"))} - {Ordinal(CazanaJson.String(item, "lastSeen"))}",
+                ["saleListings"] = CazanaJson.Items(item, "listings").Select(SaleListing).ToList<object?>(),
+            };
+        }
+
+        if (type.ValueEquals("PlateChange"u8))
+        {
+            return new(StringComparer.Ordinal)
+            {
+                ["plateChangeDate"] = Ordinal(CazanaJson.String(item, "date")),
+                ["plateChangePrevious"] = CazanaJson.String(item, "previousVRM"),
+                ["plateChangeCurrent"] = CazanaJson.String(item, "currentVRM"),
+            };
+        }
+
+        return type.ValueEquals("KeeperChange"u8)
+            ? new(StringComparer.Ordinal) { ["keeperChangeDate"] = Ordinal(CazanaJson.String(item, "date")) }
+            : null;
     }
 
     private static Dictionary<string, object?> SaleListing(JsonElement listing)

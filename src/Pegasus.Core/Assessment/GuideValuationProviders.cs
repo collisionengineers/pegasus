@@ -317,8 +317,7 @@ public sealed class FileGuideValuationReport(ICaseArtifactCustody custody, IExtr
             MaximumTextCharacters,
             cancellationToken,
             text => named = namesRegistration(text));
-        var pages = extraction?.Pages.Where(page => !string.IsNullOrWhiteSpace(page.Text)).ToArray() ?? [];
-        if (pages.Length == 0)
+        if (extraction?.Pages.Any(page => !string.IsNullOrWhiteSpace(page.Text)) != true)
         {
             throw new InvalidOperationException(
                 "The provider's valuation report names no registration (registration=absent).");
