@@ -58,7 +58,10 @@ it, and a message linked to a closed or Triage Case kept no category.
    caller's deferred registration in `ProcessQueuedIntake`. An e-mail with no
    Case is registered only when it is image-only material (photographs with
    no instruction fields); any other is not registered and is refused by
-   Dismiss; a manual-upload document
+   Dismiss. An e-mail carrying a PDF is a document carrier: its loose
+   photograph attachments open no Image Intake or Unidentified item and are
+   filed with it once the Case is matched; with no Case the e-mail waits in
+   No Case Found (operator, 22 October 2026). A manual-upload document
    that cannot become a Case keeps its upload outcome and is refused by its
    upload; non-image material from the Principal API or Automation that
    cannot be placed gets no item. An emailed Triage request without a
