@@ -809,13 +809,22 @@ public sealed class EfImageIntakeStore(
             CaseReference = caseReference
         });
         Guid? mergeWorkId = null;
+        var foldWaitsForAFolder = false;
         if (caseId is { } linkedCaseId)
         {
             // Fold the image-case Box folder into the paired case through the
             // same durable outbox that created it: the transition commits here
             // regardless of Box availability, and the queued work moves the
-            // contents and removes the emptied folder.
+            // contents and removes the emptied folder. A fold whose folder is
+            // still being stored is created already waiting, as its first
+            // attempt would leave it; the custody that stores the folder
+            // makes it due.
             mergeWorkId = Guid.NewGuid();
+            foldWaitsForAFolder = EfQueuedCustodyProcessor.FoldWaitsForAFolder(
+                entity.CustodyState,
+                entity.CustodyRootRemoteId,
+                mergeAuthority!.Case.CustodyState,
+                mergeAuthority.Case.CustodyRootRemoteId);
             context.ExternalWorkItems.Add(new ExternalWorkItemEntity
             {
                 Id = mergeWorkId.Value,
@@ -826,11 +835,11 @@ public sealed class EfImageIntakeStore(
                 OperationKey = $"image-case-custody-merge:{entity.Id:N}",
                 State = "pending",
                 AttemptCount = 0,
-                DueAtUtc = now
+                DueAtUtc = foldWaitsForAFolder ? now.Add(ImageCustodyRetryPolicy.FolderWait) : now
             });
             var formalCaseReason =
                 $"Image-initiated case {entity.ImageIntakeReference} merged into {caseReference}: {reason.Trim()}";
-            if (mergeAuthority!.Workflow is { } workflow)
+            if (mergeAuthority.Workflow is { } workflow)
             {
                 // On the Case timeline, which reads the workflow events. The
                 // merge is a system completion, so it advances the version a
@@ -870,7 +879,9 @@ public sealed class EfImageIntakeStore(
         }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Map(entity) with { PendingExternalWorkId = mergeWorkId };
+        // A waiting fold is not handed back to publish: its claim would find
+        // nothing due.
+        return Map(entity) with { PendingExternalWorkId = foldWaitsForAFolder ? null : mergeWorkId };
     }
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(

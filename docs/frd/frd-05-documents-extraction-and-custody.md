@@ -208,8 +208,8 @@ document under that identity (operator, 27 September 2026), and each other
 file it moved that the record was registered from, such as the PDF the
 photographs came in, as a Case document (operator, 28 September 2026), which
 staff may then mark as an Audit's original report. Nothing is
-uploaded again, and a replay records nothing twice. The fold yields to a
-member of staff editing the Case and retries after they finish
+uploaded again, and a replay records nothing twice. The fold is system
+work, which keeps the session
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). The record's
 lifecycle state and merge or closure history stay in SQL whatever happens to
 custody.

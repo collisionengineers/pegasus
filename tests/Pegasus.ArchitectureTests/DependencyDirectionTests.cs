@@ -390,6 +390,13 @@ public sealed class DependencyDirectionTests
             string failureReason,
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
+
+        public Task DeferProcessingAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dueAtUtc,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     [Fact]
