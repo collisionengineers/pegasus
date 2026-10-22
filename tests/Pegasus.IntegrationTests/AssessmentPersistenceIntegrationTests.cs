@@ -20,8 +20,15 @@ using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
+/// <summary>
+/// The class shares one database (<see cref="AssessmentDatabase"/>) and every
+/// test makes a Case of its own in it; the tests that change something every
+/// Case reads (the sign-off Engineer, the labour rate cards, a database user,
+/// the count of active AI jobs) make a database of their own.
+/// </summary>
 [Trait("Category", "SqlServer")]
-public sealed partial class AssessmentPersistenceIntegrationTests
+public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentDatabase shared)
+    : IClassFixture<AssessmentDatabase>
 {
     private static readonly DateTimeOffset StartUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
@@ -29,7 +36,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task DamageImpactsPersistAndClearTheirCoreDerivedHeadlineRows()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var outcome = await harness.AcceptAsync("assessment-damage-derivation");
         var caseId = outcome.Identity.CaseId;
         var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.AutomationActor, "damage-lease-1");
@@ -59,7 +66,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     public async Task AssessmentWorkspaceLoadsInAtMostFiveReaderCommands()
     {
         var counter = new ReaderCommandCounter();
-        await using var harness = await Harness.CreateAsync(counter);
+        await using var harness = await Harness.CreateAsync(shared, counter);
         var outcome = await harness.AcceptAsync("assessment-workspace-query-count");
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
         counter.Reset();
@@ -76,6 +83,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task ReportDraftGenerationThroughProductionProjectionResolvesSignOffAndFailsClosedWithoutIt()
     {
+        // A database of its own: the sign-off Engineer and the Principal's address reach every Case.
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-report-photo-batch");
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
@@ -385,13 +393,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         bool canOpen,
         bool isReadOnly)
     {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("assessment-access-review-cycle");
+        await using var harness = await Harness.CreateAsync(shared);
+        // An operation key is unique in the database, so each row of this theory has its own.
+        var outcome = await harness.AcceptAsync($"assessment-access-review-cycle-{state}");
         var lease = await harness.AcquireLeaseAsync(
-            outcome.Identity.CaseId, 0, harness.AutomationActor, "retained-assessment-lease");
+            outcome.Identity.CaseId, 0, harness.AutomationActor, $"retained-assessment-lease-{state}");
         await harness.SaveAssessment.ExecuteAsync(new(
             outcome.Identity.CaseId, lease.Version, harness.AutomationActor,
-            "retained-assessment-value", "Record vehicle condition.", lease.Token,
+            $"retained-assessment-value-{state}", "Record vehicle condition.", lease.Token,
             new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 ["vehicle.condition"] = "good"
@@ -419,7 +428,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task AutomationSaveIsAttributedAndParityLoggedWithAStaffSave()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var outcome = await harness.AcceptAsync("assessment-accept-1");
         var caseId = outcome.Identity.CaseId;
 
@@ -499,7 +508,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         var history = await context.ActionHistory.AsNoTracking()
-            .Where(item => item.EventKind == "case_assessment_saved")
+            .Where(item => item.AggregateId == caseId.ToString("D") && item.EventKind == "case_assessment_saved")
             .OrderBy(item => item.OccurredAtUtc)
             .ToArrayAsync();
         Assert.Equal(2, history.Length);
@@ -527,7 +536,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task OperationKeyReplayReturnsTheOriginalResultAndConflictsOnDifferentMaterial()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var outcome = await harness.AcceptAsync("assessment-accept-2");
         var caseId = outcome.Identity.CaseId;
         var lease = await harness.AcquireLeaseAsync(
@@ -570,7 +579,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task StaleVersionsAndMissingLeasesFailClosed()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var outcome = await harness.AcceptAsync("assessment-accept-3");
         var caseId = outcome.Identity.CaseId;
 
@@ -613,6 +622,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task EarlierEstimateUpdateReplaysItsRecordedIdentityWithoutRevertingLaterEdits()
     {
+        // A database of its own: it adds a database user.
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("estimate-replay-case")).Identity.CaseId;
         var actor = harness.EngineerActor;
@@ -684,7 +694,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task APrimaryEstimateActOnAnAuditedCaseChangesTheInspectionSpecificationOnly()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("primary-estimate-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var save = new SaveEstimate(
@@ -730,7 +740,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task NamedEstimatesUseReportsFreshnessWhenReselectingOrChangingCurrent()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var outcome = await harness.AcceptAsync("estimate-accept-case");
         var caseId = outcome.Identity.CaseId;
         var engineer = harness.UserActor;
@@ -932,7 +942,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task AHeldCaseRejectsGuideValuationsAndOrdinaryEstimates()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("assessment-read-only-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         await using (var setup = await harness.Factory.CreateDbContextAsync())
@@ -992,6 +1002,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task ImportedDocumentStorePreservesAuthorityOnReplayAndPutsAStaffImportInUse()
     {
+        // A database of its own: it adds a database user.
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("import-store-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
@@ -1114,7 +1125,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task SourceHashReplayRejectsOperationKeyUsedToSetCurrentEstimate()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("import-store-collision-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "import-store-collision-lease");
@@ -1169,6 +1180,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task AnEstimatesCanonicalHeaderAndLinesRoundTrip()
     {
+        // A database of its own: it changes the labour rate cards every Case prices from.
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("estimate-canonical-accept");
         var caseId = outcome.Identity.CaseId;
@@ -1305,6 +1317,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task AStaffImportIsInUseAtOnceOnTheSelectedRateCard()
     {
+        // A database of its own: it changes the labour rate cards every Case prices from.
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("import-in-use-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
@@ -1347,7 +1360,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task AnImportFillsTheWorksEmptyVinAfterTheImport()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("import-vin-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var xml = System.Text.Encoding.UTF8.GetBytes(
@@ -1384,7 +1397,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task ANewTypedSpecReplacesTheCurrentOneInOneCaseSave()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("typed-replaces-current-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var workspace = new EfCaseWorkspaceStore(harness.Factory, harness.Clock);
@@ -1438,7 +1451,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task EditingTheSpecInUseKeepsItCurrentAndStalesTheReport()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("edit-in-use-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
@@ -1494,7 +1507,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task ReimportingADiscardedSourceMakesAFreshCurrentSpec()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("reimport-discarded-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
@@ -1567,6 +1580,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task TheWebRuntimeRoleCanDiscardANonCurrentRepairSpec()
     {
+        // A database of its own: it adds a database user.
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("web-role-discard-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
@@ -1634,7 +1648,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task AGlassReturnForItsSpecUpdatesItInPlaceAndPutsItBackInUse()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("glass-update-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
@@ -1705,7 +1719,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task AdoptingAValuationThroughTheCaseSaveStalesOnlyTheCurrentGeneration()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var outcome = await harness.AcceptAsync("valuation-stale-accept");
         var caseId = outcome.Identity.CaseId;
         var engineer = harness.EngineerActor;
@@ -1882,6 +1896,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task MarketResearchCompletionAtomicallyRetainsEvidenceValuationAndCompletedJob()
     {
+        // A database of its own: it counts the active AI jobs of every Case.
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("market-research-accept-case");
         var caseId = outcome.Identity.CaseId;
@@ -2000,7 +2015,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task MarketResearchCompletionTreatsALapsedLeaseAsQueuedAndWritesNothing()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var outcome = await harness.AcceptAsync("market-research-lapsed-lease-accept");
         var caseId = outcome.Identity.CaseId;
         await SetReportPreparationAsync(harness.Factory, caseId);
@@ -2067,7 +2082,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task MarketResearchCompletionWithAStaleJobVersionWritesNothing()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var outcome = await harness.AcceptAsync("market-research-stale-job-accept");
         var caseId = outcome.Identity.CaseId;
         await SetReportPreparationAsync(harness.Factory, caseId);
@@ -2131,7 +2146,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     public async Task MarketResearchCompletionCompensatesAFailedContentWriteByRemovingTheOrphan()
     {
         var interceptor = new ThrowingCommandInterceptor("[CaseValuations]");
-        await using var harness = await Harness.CreateAsync(interceptor);
+        await using var harness = await Harness.CreateAsync(shared, interceptor);
         var outcome = await harness.AcceptAsync("market-research-content-compensation-accept");
         var caseId = outcome.Identity.CaseId;
         await SetReportPreparationAsync(harness.Factory, caseId);
@@ -2218,12 +2233,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     private sealed class Harness : IAsyncDisposable
     {
         private readonly LocalDbTestDatabase database;
+        private readonly bool ownsDatabase;
         private readonly AcquireCaseEditLease acquireLease;
         private readonly AcceptIntake acceptIntake;
         private readonly CaseDataCompletenessPersistenceTests.MutableTimeProvider timeProvider;
 
         private Harness(
             LocalDbTestDatabase database,
+            bool ownsDatabase,
             PooledDbContextFactory<PegasusDbContext> factory,
             Guid receiptId,
             AcceptIntake acceptIntake,
@@ -2234,6 +2251,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CaseDataCompletenessPersistenceTests.MutableTimeProvider timeProvider)
         {
             this.database = database;
+            this.ownsDatabase = ownsDatabase;
             Factory = factory;
             ReceiptId = receiptId;
             this.acceptIntake = acceptIntake;
@@ -2257,9 +2275,21 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         public ActionActor UserActor { get; } =
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
-        public static async Task<Harness> CreateAsync(DbCommandInterceptor? interceptor = null)
+        /// <summary>A Case of its own in the class's shared database.</summary>
+        public static Task<Harness> CreateAsync(
+            AssessmentDatabase shared,
+            DbCommandInterceptor? interceptor = null) =>
+            CreateAsync(shared.Database, ownsDatabase: false, interceptor);
+
+        /// <summary>A Case of its own in a database of its own, dropped with the harness.</summary>
+        public static async Task<Harness> CreateAsync(DbCommandInterceptor? interceptor = null) =>
+            await CreateAsync(await LocalDbTestDatabase.CreateAsync(), ownsDatabase: true, interceptor);
+
+        private static async Task<Harness> CreateAsync(
+            LocalDbTestDatabase database,
+            bool ownsDatabase,
+            DbCommandInterceptor? interceptor)
         {
-            var database = await LocalDbTestDatabase.CreateAsync();
             try
             {
                 var optionsBuilder = new DbContextOptionsBuilder<PegasusDbContext>()
@@ -2280,6 +2310,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 var valuations = new EfValuationStore(factory);
                 return new(
                     database,
+                    ownsDatabase,
                     factory,
                     receiptId,
                     new AcceptIntake(
@@ -2298,7 +2329,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             }
             catch
             {
-                await database.DisposeAsync();
+                if (ownsDatabase)
+                {
+                    await database.DisposeAsync();
+                }
+
                 throw;
             }
         }
@@ -2337,7 +2372,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             new(caseId, actor, operationKey, leaseToken),
             CancellationToken.None);
 
-        public async ValueTask DisposeAsync() => await database.DisposeAsync();
+        public async ValueTask DisposeAsync()
+        {
+            if (ownsDatabase)
+            {
+                await database.DisposeAsync();
+            }
+        }
 
         private static async Task SeedAsync(
             IDbContextFactory<PegasusDbContext> factory,
@@ -2349,12 +2390,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             var lineageId = principal.SequenceLineageId;
             var principalId = principal.Id;
             var sourceHash = new string('d', 64);
+            // One receipt token to a Case, so Cases made in one database never share it.
+            var receiptToken = $"assessment-item-{receiptId:N}";
             var fieldsJson =
                 """{"version":1,"data":[{"name":"Claimant name","suggestedValue":"Mrs Jane Example","candidates":[{"value":"Mrs Jane Example","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Claim number","suggestedValue":"ABC/DEF/12345/1","candidates":[{"value":"ABC/DEF/12345/1","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Vehicle registration","suggestedValue":"AB12 CDE","candidates":[{"value":"AB12 CDE","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Date of incident","suggestedValue":"2031-04-01","candidates":[{"value":"2031-04-01","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection address","suggestedValue":"1 Test Street, London","candidates":[{"value":"1 Test Street, London","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false},{"name":"Inspection date","suggestedValue":"2031-05-20","candidates":[{"value":"2031-05-20","source":"pdf_content","sourceLabel":"instructions.pdf"}],"isDefaulted":false,"hasConflict":false}]}""";
             var emptyEnvelope = """{"version":1,"data":[]}""";
 
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"assessment.eml"}, {"message/rfc822"}, {100L}, {sourceHash}, {"mailbox"}, {"assessment-item-1"}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
+                $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"assessment.eml"}, {"message/rfc822"}, {100L}, {sourceHash}, {"mailbox"}, {receiptToken}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"case_created"}, {"Ready fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, DateOfIncident, InspectionAddress, InspectionDate) VALUES ({receiptId}, {"QDOS"}, {"Mrs Jane Example"}, {"ABC/DEF/12345/1"}, {"AB12CDE"}, {new DateOnly(2031, 4, 1)}, {"1 Test Street, London"}, {new DateOnly(2031, 5, 20)})");
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -2603,6 +2646,31 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         {
             Interlocked.Increment(ref executedReaderCommands);
             return ValueTask.FromResult(result);
+        }
+    }
+}
+
+/// <summary>
+/// The one database a class of assessment tests shares: restored and migrated
+/// once. A test makes a Case of its own in it, through its own receipt and its
+/// own operation keys (an operation key is unique in the database), and reads
+/// only that Case. A test that changes what every Case reads, or counts across
+/// Cases, makes a database of its own with <c>Harness.CreateAsync()</c>.
+/// </summary>
+public sealed class AssessmentDatabase : IAsyncLifetime
+{
+    private LocalDbTestDatabase? database;
+
+    internal LocalDbTestDatabase Database =>
+        database ?? throw new InvalidOperationException("The database has not been created.");
+
+    public async Task InitializeAsync() => database = await LocalDbTestDatabase.CreateAsync();
+
+    public async Task DisposeAsync()
+    {
+        if (database is not null)
+        {
+            await database.DisposeAsync();
         }
     }
 }

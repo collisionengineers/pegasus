@@ -19,7 +19,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task RepairSpecificationVersionsAreNumberedAndReuseAnUnchangedDraft()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("spec-snapshot-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
@@ -93,7 +93,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     public async Task ListingSeveralSpecificationsReadsTheirVersionsInOneCommand()
     {
         var counter = new ReaderCommandCounter();
-        await using var harness = await Harness.CreateAsync(counter);
+        await using var harness = await Harness.CreateAsync(shared, counter);
         var caseId = (await harness.AcceptAsync("spec-snapshot-batch-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var workspace = new EfCaseWorkspaceStore(harness.Factory, harness.Clock);
@@ -157,7 +157,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task RestoreIsAtomicAndRecordsTheBeforeAndRestoredVersions()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("spec-restore-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
@@ -231,6 +231,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task ScalingARepairSpecificationIsFrozenAndReversible()
     {
+        // A database of its own: it changes the labour rate cards every Case prices from.
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("spec-scale-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
