@@ -408,7 +408,7 @@ public sealed partial class AutomationAdministrationWebTests
 
     /// <summary>How many facts the Automation panel draws.</summary>
     private static int FactCount(string html) =>
-        Regex.Matches(html, "<dl class=\"fact\">", RegexOptions.CultureInvariant).Count;
+        Regex.Count(html, "<dl class=\"fact\">", RegexOptions.CultureInvariant);
 
     /// <summary>The state chip beside one panel heading.</summary>
     private static string ChipText(string html, string headingId)
