@@ -94,8 +94,11 @@ blocker as the step is drawn in full (what is missing, its source and reason)
 with one full-width control to where it is cleared, and no sentence on how
 to resolve it: the control is the how (v36 item AB, 9 October 2026); a step
 whose control says what the step says, such as Assign Engineer or Create
-audit, is that control alone, and any other step names itself above its
-section's control.
+audit, is that control alone, except that while the Case is Unassigned
+Assign Engineer has **Take** beside it (#1213, v41 K9, operator,
+19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
+and any other step names itself above its section's control.
 **Report not ready** is a card of its own below Next action, folded until
 the browser opens it and remembered per browser like the section folds. It
 lists everything outstanding, the step's own item included: every
@@ -878,8 +881,10 @@ link opens it without script.
 
 An open task offers **Complete**, **Cancel task** and **Assign**, a choice of
 the enabled named staff, and the head of the list has an **Add task** field,
-in and out of an edit session (operator, 13 October 2026). In a session each
-posts under the session's lease and the session carries on; outside one each
+in and out of an edit session (operator, 13 October 2026). A task held by an
+account that is no longer enabled reads Unassigned and has no option of its
+own (operator, 22 October 2026). In a session each posts under the
+session's lease and the session carries on; outside one each
 claims the Case's lease for that one command, as the other Actions-menu
 dialogs do. Each records one fixed reason, so there is no reason box. The
 Add task field takes the field style the other Case inputs use, and an open

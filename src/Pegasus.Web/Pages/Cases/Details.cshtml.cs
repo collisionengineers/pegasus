@@ -1663,10 +1663,6 @@ public sealed partial class DetailsModel(
             {
                 await LoadValuationSectionAsync(id, actor, cancellationToken);
             }
-            if (key == "tasks" && !ColleagueIsEditing)
-            {
-                TaskAssigneeChoices = await caseEngineerChoices.GetAsync(actor, cancellationToken);
-            }
             return Partial(view, this);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -1759,13 +1755,9 @@ public sealed partial class DetailsModel(
             : null;
         // The Tasks dialog's body is drawn with the page only when the page
         // draws the dialog open; otherwise it is fetched as the dialog opens.
+        // It carries the enabled staff an open task's Assign offers.
         var tasks = readsTasks
             ? reads.Start(token => getCaseTasksSection.ExecuteAsync(query, token))
-            : null;
-        // An open task's Assign offers the enabled staff only while the Tasks
-        // body is rendered here and can be changed (in or out of a session).
-        var taskAssignees = readsTasks && !ColleagueIsEditing
-            ? reads.Start(token => caseEngineerChoices.GetAsync(actor, token))
             : null;
         var queries = rendered.Contains("queries")
             ? reads.Start(token => getCaseQueriesSection.ExecuteAsync(query, token))
@@ -1804,10 +1796,6 @@ public sealed partial class DetailsModel(
         {
             TasksSection = await tasks
                 ?? throw new InvalidOperationException("The Case tasks section is unavailable.");
-        }
-        if (taskAssignees is not null)
-        {
-            TaskAssigneeChoices = await taskAssignees;
         }
         if (queries is not null)
         {

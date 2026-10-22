@@ -200,12 +200,14 @@
                     <div class="fc" data-estimate-name-cell><label for="estimate-name">@EngineerLabels.EstimateName</label><input id="estimate-name" class="fi" name="estimateName" form="case-edit-form" maxlength="100" required value="@(Model.PostedEstimateValue("estimateName") ?? d.Name)" /></div>
                     <div class="fc"><label for="estimate-other">@EngineerLabels.OtherCostsPounds</label><input id="estimate-other" class="fi mono" name="estimateOtherCosts" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateOtherCosts") ?? d.OtherCosts?.ToString(CultureInfo.InvariantCulture))" /></div>
                     <div class="fc"><label for="estimate-vat">@EngineerLabels.VatPercent</label><input id="estimate-vat" class="fi mono" name="estimateVatPercent" form="case-edit-form" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateVatPercent") ?? d.VatPercent.ToString(CultureInfo.InvariantCulture))" /></div>
+                    var postedVatStatus = Model.PostedEstimateValue("estimateVatStatus");
                     <div class="fc">
                         <label for="estimate-vat-status">@VatLabels.RepairerStatus</label>
                         <select id="estimate-vat-status" class="fi" name="estimateVatStatus" form="case-edit-form" data-vat-status>
                             @foreach (var status in RepairerVatStatuses.Choosable)
                             {
-                                <option value="@status" selected="@((Model.PostedEstimateValue("estimateVatStatus") is { } postedStatus ? postedStatus == status.ToString() : vatPolicy.RepairerStatus == status) ? "selected" : null)">@VatLabels.StatusLabel(status)</option>
+                                var statusValue = status.ToString();
+                                <option value="@statusValue" selected="@((postedVatStatus is not null ? postedVatStatus == statusValue : vatPolicy.RepairerStatus == status) ? "selected" : null)">@VatLabels.StatusLabel(status)</option>
                             }
                         </select>
                     </div>
