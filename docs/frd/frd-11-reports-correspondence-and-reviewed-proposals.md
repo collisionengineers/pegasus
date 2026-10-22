@@ -590,13 +590,9 @@ Engineer sections stay viewable in other states; edits follow
 ### Report readiness
 
 Readiness names every fact the report prints and cannot print without, and
-nothing else (operator, 24 September 2026); a With Engineer Case with no
-Engineer is the one more, "Report preparation requires an assigned Engineer.",
-which an Engineer clears by taking the Case (#1213, operator, 15 October 2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-Each is one blocker: what is
+nothing else (operator, 24 September 2026). Each is one blocker: what is
 missing, where it comes from, why, what clears it, and a link to the section
-that records it, except that one, which links none
+that records it
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)). The
 Case page and Generate evaluate the whole list before a generation is
 recorded. The preview refuses on the same printed facts, sign-off Engineer,
@@ -614,7 +610,6 @@ Each fact is recorded in one section of the Case record
 | Claimant name | Claim |
 | Claim reference, incident date | Case details |
 | A Sign-off Engineer chosen for the Case | Case details |
-| An assigned Engineer on a With Engineer Case | Assign Engineer, no section |
 | The Sign-off Engineer's name and signature on file | Accounts |
 | Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |

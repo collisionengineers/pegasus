@@ -2951,8 +2951,8 @@ public sealed class CaseWorkflowPersistenceTests
 
     /// <summary>
     /// The Work Centre reads With Engineer's Unassigned Cases, and on Mine the
-    /// viewer's own, without reading every With Engineer Case (#1213): the
-    /// Engineer filters select over real SQL.
+    /// viewer's with them in one read, without reading every With Engineer
+    /// Case (#1213): the Engineer filters select over real SQL.
     /// </summary>
     [Fact]
     public async Task TheEngineerFiltersSelectUnassignedAndAssignedWithEngineerCases()
@@ -2974,9 +2974,11 @@ public sealed class CaseWorkflowPersistenceTests
             [.. (await harness.QueryStore.SearchAsync(new(actor, filters), default)).Items.Select(item => item.CaseId)];
 
         var withEngineer = new CaseSearchFilters(States: [CaseLifecycleState.ReportPreparation]);
-        Assert.Equal([harness.SecondCaseId], await SearchAsync(withEngineer with { HasEngineer = false }));
-        Assert.Equal([harness.CaseId], await SearchAsync(withEngineer with { HasEngineer = true }));
+        Assert.Equal([harness.SecondCaseId], await SearchAsync(withEngineer with { Unassigned = true }));
         Assert.Equal([harness.CaseId], await SearchAsync(withEngineer with { EngineerId = engineerId }));
+        Assert.Equal(
+            new[] { harness.CaseId, harness.SecondCaseId }.Order().ToArray(),
+            (await SearchAsync(withEngineer with { EngineerId = engineerId, Unassigned = true })).Order().ToArray());
     }
 
     [Fact]

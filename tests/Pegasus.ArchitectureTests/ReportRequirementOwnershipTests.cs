@@ -272,7 +272,6 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(AssessmentVocabulary.VehicleFuel, null, "vehicle")]
     [InlineData(AssessmentVocabulary.VehicleTransmission, null, "vehicle")]
     [InlineData(null, CaseReportReadiness.SignatoryRequirement, null)]
-    [InlineData(null, CaseReportReadiness.EngineerRequirement, null)]
     [InlineData(null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.LabourRateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.RepairerVatRequirement, "estimate")]

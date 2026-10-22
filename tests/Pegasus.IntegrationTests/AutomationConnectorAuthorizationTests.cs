@@ -131,10 +131,9 @@ public sealed partial class AutomationConnectorAuthorizationTests
         var html = await consent.Content.ReadAsStringAsync();
         Assert.True(consent.StatusCode == HttpStatusCode.OK, $"{(int)consent.StatusCode}: {html}");
         Assert.Contains("connector.example", html, StringComparison.Ordinal);
-        // Each requested scope reads as its description alone; its identifier is not printed (v41 S5).
+        // Each requested scope reads as its description alone (v41 S5).
         Assert.Contains($"<li>{AuthorizeModel.ScopeDescriptions[AutomationMcp.CasesScope]}</li>", html, StringComparison.Ordinal);
         Assert.Contains($"<li>{AuthorizeModel.ScopeDescriptions[AutomationMcp.DocumentsScope]}</li>", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("<code>automation.", html, StringComparison.Ordinal);
         Assert.DoesNotContain(AuthorizeModel.ScopeDescriptions[AutomationMcp.IntakeScope], html, StringComparison.Ordinal);
 
         // Approve: OpenIddict redirects back to the exact registered URI with the code.

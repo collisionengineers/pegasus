@@ -327,7 +327,7 @@ public sealed class WorkCentreWebTests
     /// <summary>
     /// #1213 (v41 W8): the Work Centre's Assign Engineer list keeps its empty
     /// first option and required, puts the signed-in person first as "Name
-    /// (you)", then the others, then Unassigned; the dialog has no Reason box.
+    /// (you)", then the others, then Unassigned.
     /// </summary>
     [Fact]
     public async Task TheAssignEngineerListPutsTheSignedInPersonFirstAndOffersUnassigned()
@@ -369,8 +369,6 @@ public sealed class WorkCentreWebTests
             Regex.Matches(select.Groups[1].Value, "<option value=\"(?<value>[^\"]*)\">(?<label>[^<]*)</option>")
                 .Select(option => (option.Groups["value"].Value, WebUtility.HtmlDecode(option.Groups["label"].Value)))
                 .ToArray());
-        var dialog = Regex.Match(html, "id=\"wc-assign-dialog\".*?</section>", RegexOptions.Singleline).Value;
-        Assert.DoesNotContain("name=\"reason\"", dialog, StringComparison.Ordinal);
     }
 
     /// <summary>

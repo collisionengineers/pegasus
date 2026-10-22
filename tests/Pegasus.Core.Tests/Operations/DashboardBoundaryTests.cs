@@ -344,7 +344,7 @@ public sealed class DashboardBoundaryTests
         var withEngineer = Assert.Single(
             searchCases.Requests,
             filters => filters.States!.Contains(CaseLifecycleState.ReportPreparation));
-        Assert.True(withEngineer.HasEngineer is false);
+        Assert.True(withEngineer.Unassigned);
         Assert.Null(withEngineer.EngineerId);
     }
 
@@ -403,13 +403,13 @@ public sealed class DashboardBoundaryTests
         Assert.Null(mine.NeedsAttention[1].Due);
         Assert.Equal(NeedsAttentionPriority.Normal, mine.NeedsAttention[1].Priority);
         Assert.Equal(2, mine.Attention.KindCounts[NeedsAttentionKind.WithEngineer]);
-        // Mine reads Held and Review, then only the viewer's With Engineer
-        // Cases and the Unassigned ones: no colleague's row is read to be dropped.
-        Assert.Equal(3, mineReads.Length);
+        // Mine reads Held and Review, then in one read only the viewer's With
+        // Engineer Cases and the Unassigned ones: no colleague's row is read to be dropped.
+        Assert.Equal(2, mineReads.Length);
         Assert.Contains(mineReads, filters =>
-            filters.States!.Contains(CaseLifecycleState.ReportPreparation) && filters.EngineerId == engineerId);
-        Assert.Contains(mineReads, filters =>
-            filters.States!.Contains(CaseLifecycleState.ReportPreparation) && filters.HasEngineer is false);
+            filters.States!.Contains(CaseLifecycleState.ReportPreparation)
+            && filters.EngineerId == engineerId
+            && filters.Unassigned);
 
         Assert.Empty(office.NeedsAttention);
         Assert.Equal(0, office.Attention.KindCounts[NeedsAttentionKind.WithEngineer]);
@@ -1377,8 +1377,9 @@ public sealed class DashboardBoundaryTests
             RequestedStates.AddRange(filters.States ?? []);
             var matching = Items
                 .Where(item => filters.States is not { Count: > 0 } states || states.Contains(item.State))
-                .Where(item => filters.EngineerId is not { } engineer || item.EngineerId == engineer)
-                .Where(item => filters.HasEngineer is not { } hasEngineer || (item.EngineerId is not null) == hasEngineer)
+                .Where(item => (filters.EngineerId is null && !filters.Unassigned)
+                    || (filters.EngineerId is { } engineer && item.EngineerId == engineer)
+                    || (filters.Unassigned && item.EngineerId is null))
                 .ToArray();
             return Task.FromResult(new SearchCasesResult(
                 matching.Skip((query.Page - 1) * query.PageSize)

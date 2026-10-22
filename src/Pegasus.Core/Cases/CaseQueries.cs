@@ -18,9 +18,11 @@ namespace Pegasus.Core.Cases;
 /// More than one lets a caller find an operator stage that spans Core states,
 /// such as With Engineer (operator decision D3), in one paged search.
 /// </param>
-/// <param name="HasEngineer">
-/// Whether the Case has an assigned Engineer; null matches either. False finds
-/// the Unassigned Cases the Work Centre lists for an Engineer to take (#1213).
+/// <param name="Unassigned">
+/// True matches the Cases with no assigned Engineer: alone, only those; beside
+/// <paramref name="EngineerId"/>, those and that Engineer's. The Work Centre
+/// reads With Engineer's Unassigned Cases, and on Mine the viewer's with them,
+/// in one read (#1213).
 /// </param>
 public sealed record CaseSearchFilters(
     string? CaseReference = null,
@@ -37,7 +39,7 @@ public sealed record CaseSearchFilters(
     string? Query = null,
     bool IncludeTriage = false,
     bool? HasOpenQuery = null,
-    bool? HasEngineer = null);
+    bool Unassigned = false);
 
 /// <summary>
 /// The sort a case list renders in. Newest received first is the default

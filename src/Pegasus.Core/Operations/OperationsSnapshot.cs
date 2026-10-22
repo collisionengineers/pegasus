@@ -373,15 +373,15 @@ public sealed class GetOperationsSnapshot(
             actor, new(States: [CaseLifecycleState.Held, CaseLifecycleState.Review]), cancellationToken);
         // With Engineer (#1213): an Unassigned Case is every scope's, for an
         // Engineer to take; an assigned one is in its Engineer's Mine only, so
-        // only Mine reads those, and only the viewer's. No scope reads a With
-        // Engineer Case it would not list.
-        var unassignedWithEngineerRead = ReadCasesAsync(
-            actor, new(States: [CaseLifecycleState.ReportPreparation], HasEngineer: false), cancellationToken);
-        var mineWithEngineerRead = scope == NeedsAttentionScope.Mine
-            && StaffNotificationPolicy.StaffId(actor) is { } viewer
-                ? ReadCasesAsync(
-                    actor, new(States: [CaseLifecycleState.ReportPreparation], EngineerId: viewer), cancellationToken)
-                : Task.FromResult<IReadOnlyList<CaseSearchItem>>([]);
+        // Office reads the Unassigned ones and Mine those and the viewer's, in
+        // one read. No scope reads a With Engineer Case it would not list.
+        var withEngineerRead = ReadCasesAsync(
+            actor,
+            new(
+                States: [CaseLifecycleState.ReportPreparation],
+                EngineerId: scope == NeedsAttentionScope.Mine ? StaffNotificationPolicy.StaffId(actor) : null,
+                Unassigned: true),
+            cancellationToken);
         var configurationRead = preloadedConfiguration is { } handed
             ? Task.FromResult(handed)
             : workflowConfiguration.GetCurrentAsync(cancellationToken);
@@ -393,7 +393,7 @@ public sealed class GetOperationsSnapshot(
                 : aiJobs.ListOpenAsync(cancellationToken);
         var pairedRead = dashboardQueries.ListPairedVehicleImagesAwaitingStaffAsync(cancellationToken);
         var openTasksRead = dashboardQueries.ListOpenCaseTasksAsync(cancellationToken);
-        await Task.WhenAll(triageRead, dueRead, heldAndReviewRead, unassignedWithEngineerRead, mineWithEngineerRead,
+        await Task.WhenAll(triageRead, dueRead, heldAndReviewRead, withEngineerRead,
             configurationRead, unidentifiedRead, openJobsRead, pairedRead, openTasksRead);
         var triage = await triageRead;
         var openTriage = triage.Where(item => item.State == TriageState.Open).ToArray();
@@ -402,8 +402,9 @@ public sealed class GetOperationsSnapshot(
         var heldAndReview = await heldAndReviewRead;
         var held = heldAndReview.Where(item => item.State == CaseLifecycleState.Held).ToArray();
         var review = heldAndReview.Where(item => item.State == CaseLifecycleState.Review).ToArray();
-        var unassignedWithEngineer = await unassignedWithEngineerRead;
-        var mineWithEngineer = await mineWithEngineerRead;
+        var withEngineer = await withEngineerRead;
+        var unassignedWithEngineer = withEngineer.Where(item => item.EngineerId is null).ToArray();
+        var mineWithEngineer = withEngineer.Where(item => item.EngineerId is not null).ToArray();
         var configuration = await configurationRead;
         var unidentified = await unidentifiedRead;
         var drafts = AiDraftPolicy.Drafts(await openJobsRead, configuration.AiDraftTargetDays);

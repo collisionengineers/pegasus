@@ -100,8 +100,8 @@ undated when its Case has none (#1213, v41 sign-off, 19 October 2026,
 | Case | A missing-material chase | The next chase time, else the end of its Due by date |
 | Held | A held Case awaiting its decision | The end of the hold's Review on date, else Held decision target after the hold was placed |
 | Review | A Case in Review | Review target after it entered Review |
-| Unassigned | A Case in Review, or With Engineer, with no Engineer (#1213) | Review target after it entered that state |
-| With Engineer | A With Engineer Case its Engineer holds, in that Engineer's Mine only (#1213) | The Case's due: the next chase time, else the end of its Due by date; none, and Later, when it has neither |
+| Unassigned | A Case in Review, or With Engineer, with no Engineer (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) | Review target after it entered that state |
+| With Engineer | A With Engineer Case its Engineer holds, in that Engineer's Mine only (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) | The Case's due: the next chase time, else the end of its Due by date; none, and Later, when it has neither |
 | Vehicle images paired | A pre-report Case its early vehicle images paired into, not changed by staff since ([FRD-19](frd-19-image-led-intake-and-pairing.md#age-and-chase-state)) | The pairing |
 | Unidentified | An open Unidentified item | Unidentified target after it was received |
 | Triage | A Triage Case without a finding | Triage target after it opened |
@@ -156,9 +156,10 @@ except the open row's own, and **Dismiss**, an icon-only control named
 [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Owner is the person's name; an Open tasks row's person is its oldest open
 task's assignee, else the staff member who created that task, and a With
-Engineer row's is the Case's Engineer (#1213). A Held, Review,
-Unassigned, Vehicle images paired, Triage or Open tasks row with an empty
-person slot says **Unassigned**. A Case
+Engineer row's is the Case's Engineer (#1213, operator, 15 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+A Held, Review, Unassigned, Vehicle images paired, Triage or Open tasks row
+with an empty person slot says **Unassigned**. A Case
 chase, an Unidentified item, or an AI draft with no person says **No owner**.
 Find matches that word. Below 980px Owner and Received fold into the task
 cell. Rows are grouped under **Overdue (n)**, **Due today
@@ -218,7 +219,7 @@ dismissal shows again:
 | Case | Its chase fell due (each chase is a new row) |
 | Held | The hold was placed |
 | Review, Unassigned | The Case entered Review |
-| Unassigned With Engineer, With Engineer | The Case entered With Engineer (#1213) |
+| Unassigned With Engineer, With Engineer | The Case entered With Engineer (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | Vehicle images paired | The images were paired |
 | Unidentified | The item was opened or reopened |
 | Triage | The Triage changed state, or opened |
