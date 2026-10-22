@@ -368,6 +368,9 @@ builder.Services.AddRazorPages()
 // Every page draws its glyphs from the one sprite file; IconSprite owns its
 // fingerprinted address and reads the request it is rendered in.
 builder.Services.AddHttpContextAccessor();
+// A caller that hangs up mid-request is answered with a quiet 499 before the
+// error page runs (ClientAbort), not logged as an unhandled exception.
+builder.Services.AddExceptionHandler<ClientAbortExceptionHandler>();
 builder.Services.AddScoped<Pegasus.Web.Presentation.IconSprite>();
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>

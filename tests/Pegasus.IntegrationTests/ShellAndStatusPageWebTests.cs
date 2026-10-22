@@ -1,13 +1,20 @@
 ﻿using System.Net;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.RazorPages.Infrastructure;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
+using Pegasus.Core.ReleaseNotes;
 using Pegasus.Web.Pages;
 using Pegasus.Web.Presentation;
 
@@ -472,6 +479,81 @@ public sealed class ShellAndStatusPageWebTests
         Assert.DoesNotContain(nameof(InvalidOperationException), html, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("bell")]
+    [InlineData("release note")]
+    public async Task ACommandCancelledByTheCallerLeavingPropagatesFromAShellReadAndLogsNothing(string read)
+    {
+        using var aborted = new CancellationTokenSource();
+        aborted.Cancel();
+        var logger = new RecordingLogger<ShellPageFilter>();
+        IMyStaffNotifications notifications = read == "bell"
+            ? new CancelledCommandNotifications()
+            : new StubNotifications([]);
+        IMyReleaseNotes releaseNotes = read == "bell"
+            ? new NoReleaseNotes()
+            : new CancelledCommandReleaseNotes();
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            RunShellFilterAsync(notifications, releaseNotes, logger, aborted.Token));
+
+        Assert.Equal(CancelledCommandWording, thrown.Message);
+        Assert.Empty(logger.Messages);
+    }
+
+    [Fact]
+    public async Task TheSameCancelledCommandOnALiveRequestIsStillAnUnavailableBell()
+    {
+        var logger = new RecordingLogger<ShellPageFilter>();
+
+        var page = await RunShellFilterAsync(
+            new CancelledCommandNotifications(), new NoReleaseNotes(), logger, CancellationToken.None);
+
+        Assert.True(page.ViewData.ContainsKey("NotificationsUnavailable"));
+        Assert.Equal(["The notification query is unavailable."], logger.Messages);
+    }
+
+    /// <summary>
+    /// Runs the shell filter around a handler that returns its page, for a
+    /// signed-in person whose request token is <paramref name="requestAborted"/>.
+    /// </summary>
+    private static async Task<ShellProbePage> RunShellFilterAsync(
+        IMyStaffNotifications notifications,
+        IMyReleaseNotes releaseNotes,
+        ILogger<ShellPageFilter> logger,
+        CancellationToken requestAborted)
+    {
+        var person = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+                new Claim(ClaimTypes.Role, nameof(StaffRole.User))
+            ],
+            authenticationType: "Test"));
+        var http = new DefaultHttpContext { User = person, RequestAborted = requestAborted };
+        var pageContext = new PageContext(new Microsoft.AspNetCore.Mvc.ActionContext(
+            http, new Microsoft.AspNetCore.Routing.RouteData(), new CompiledPageActionDescriptor()))
+        {
+            ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
+        };
+        var page = new ShellProbePage { PageContext = pageContext };
+        var filter = new ShellPageFilter(notifications, releaseNotes, TimeProvider.System, logger);
+        var executing = new PageHandlerExecutingContext(
+            pageContext,
+            [],
+            new HandlerMethodDescriptor(),
+            new Dictionary<string, object?>(),
+            page);
+
+        await filter.OnPageHandlerExecutionAsync(
+            executing,
+            () => Task.FromResult(new PageHandlerExecutedContext(
+                pageContext, [], new HandlerMethodDescriptor(), page)
+            {
+                Result = new PageResult()
+            }));
+        return page;
+    }
+
     private static BellHost FactoryWith(IMyStaffNotifications notifications) => new(notifications);
 
     /// <summary>
@@ -517,6 +599,69 @@ public sealed class ShellAndStatusPageWebTests
 
         public Task<int> MarkAllReadAsync(ActionActor actor, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("sensitive store failure");
+    }
+
+    /// <summary>What SqlClient's cancelled command says, as the exception a store raises.</summary>
+    private const string CancelledCommandWording = "Operation cancelled by user.";
+
+    private sealed class ShellProbePage : PageModel;
+
+    private sealed class CancelledCommandNotifications : IMyStaffNotifications
+    {
+        public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(CancelledCommandWording);
+
+        public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<int> MarkAllReadAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class CancelledCommandReleaseNotes : IMyReleaseNotes
+    {
+        public Task<ReleaseNote?> GetUnacknowledgedAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(CancelledCommandWording);
+
+        public Task AcknowledgeAsync(ActionActor actor, Guid noteId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ReleaseNote>> ListPublishedAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        private readonly List<string> messages = [];
+
+        public string[] Messages
+        {
+            get
+            {
+                lock (messages)
+                {
+                    return messages.ToArray();
+                }
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (messages)
+            {
+                messages.Add(formatter(state, exception));
+            }
+        }
     }
 
     private sealed class StubNotifications(IReadOnlyList<StaffNotification> rows) : IMyStaffNotifications

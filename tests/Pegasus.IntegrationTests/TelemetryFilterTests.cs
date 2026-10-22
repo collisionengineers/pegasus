@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Globalization;
 using Microsoft.ApplicationInsights.Channel;
 using Microsoft.ApplicationInsights.DataContracts;
@@ -116,6 +117,53 @@ public sealed class TelemetryFilterTests
     }
 
     [Fact]
+    public void ACancellationRaisedOnAnAbortedRequestIsDropped()
+    {
+        using var aborted = new CancellationTokenSource();
+        aborted.Cancel();
+        var context = new DefaultHttpContext { RequestAborted = aborted.Token };
+
+        var kept = RunOn(
+            context,
+            new ExceptionTelemetry(new OperationCanceledException()),
+            new ExceptionTelemetry(new TaskCanceledException()),
+            new ExceptionTelemetry(new InvalidOperationException("Operation cancelled by user.")),
+            new ExceptionTelemetry(new DatabaseException(
+                "A severe error occurred on the current command.  The results, if any, should be discarded.\r\nOperation cancelled by user.")));
+
+        Assert.Empty(kept);
+    }
+
+    [Fact]
+    public void AnotherExceptionOnAnAbortedRequestIsKept()
+    {
+        using var aborted = new CancellationTokenSource();
+        aborted.Cancel();
+        var context = new DefaultHttpContext { RequestAborted = aborted.Token };
+
+        var kept = RunOn(
+            context,
+            new ExceptionTelemetry(new KeyNotFoundException()),
+            new ExceptionTelemetry(new InvalidOperationException("The sequence contains no elements.")),
+            new ExceptionTelemetry(new DatabaseException("The login failed.")));
+
+        Assert.Equal(3, kept.Count);
+    }
+
+    [Fact]
+    public void ACancellationOnALiveRequestOrOutsideARequestIsKept()
+    {
+        var live = new DefaultHttpContext();
+        var cancellation = new ExceptionTelemetry(new OperationCanceledException());
+        var cancelledCommand = new ExceptionTelemetry(new InvalidOperationException("Operation cancelled by user."));
+
+        Assert.Equal(2, RunOn(live, cancellation, cancelledCommand).Count);
+        Assert.Equal(2, RunOn(null, cancellation, cancelledCommand).Count);
+        // Built without the accessor, as the other facts here build it.
+        Assert.Equal(2, Run(cancellation, cancelledCommand).Count);
+    }
+
+    [Fact]
     public void TheStampsMiddlewareSkipsTheSamePaths()
     {
         foreach (var path in new[] { "/health/ready", "/css/x.css", "/js/x.js", "/fonts/x.woff2", "/images/x.png", "/diagnostics/version" })
@@ -198,6 +246,20 @@ public sealed class TelemetryFilterTests
         return kept;
     }
 
+    /// <summary>The filter as production composes it: it can ask which request the item was raised on.</summary>
+    private static List<ITelemetry> RunOn(HttpContext? httpContext, params ITelemetry[] items)
+    {
+        var kept = new List<ITelemetry>();
+        var filter = new QuietRequestTelemetryFilter(
+            new Collector(kept), new HttpContextAccessor { HttpContext = httpContext });
+        foreach (var item in items)
+        {
+            filter.Process(item);
+        }
+
+        return kept;
+    }
+
     private static RequestTelemetry Request(string method, string path, string responseCode)
     {
         var request = new RequestTelemetry
@@ -227,4 +289,7 @@ public sealed class TelemetryFilterTests
     {
         public void Process(ITelemetry item) => kept.Add(item);
     }
+
+    /// <summary>A database error carrying the message SqlClient gives it.</summary>
+    private sealed class DatabaseException(string message) : DbException(message);
 }

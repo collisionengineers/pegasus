@@ -53,6 +53,12 @@ internal sealed class StartupWarmupState
     /// </summary>
     public TimeSpan KeepWarmInterval { get; }
 
+    /// <summary>
+    /// The longest one step of a keep-warm pass, or the report renderer's first
+    /// warm-up, may take. Only a test sets it.
+    /// </summary>
+    internal TimeSpan KeepWarmStepBound { get; init; } = TimeSpan.FromSeconds(15);
+
     public bool IsReady =>
         Volatile.Read(ref completed) == 1 || Stopwatch.GetElapsedTime(startedAt) >= ReadyAfter;
 
@@ -138,16 +144,14 @@ internal sealed partial class StartupWarmup(
     /// <summary>The name of the activity a keep-warm pass runs under.</summary>
     internal const string PassActivityName = "Pegasus.Warmup";
 
-    /// <summary>The longest one step of a keep-warm pass may take.</summary>
-    private static readonly TimeSpan KeepWarmStepBound = TimeSpan.FromSeconds(15);
-
     // A staff identity no account holds. The reads it drives are the ones a
     // signed-in page makes; nothing here writes.
     private readonly ActionActor actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
-    // The steps that have failed in a keep-warm pass. The first failure of a step
-    // is a warning; later ones are debug lines, so a broken step does not write
-    // a warning every three minutes. Only the keep-warm loop touches it.
+    // The steps that have failed or run past their bound in a keep-warm pass. The
+    // first of either for a step is a warning; later ones are debug lines, so a
+    // broken step does not write a warning every three minutes. Only the
+    // keep-warm loop touches it.
     private readonly HashSet<string> failedSteps = [];
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -203,7 +207,7 @@ internal sealed partial class StartupWarmup(
     private async Task WarmRendererAsync(CancellationToken stoppingToken)
     {
         using var bound = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-        bound.CancelAfter(KeepWarmStepBound);
+        bound.CancelAfter(state.KeepWarmStepBound);
         await StepAsync("report-renderer", async () =>
         {
             await using var scope = scopes.CreateAsyncScope();
@@ -304,8 +308,11 @@ internal sealed partial class StartupWarmup(
     }
 
     /// <summary>
-    /// One best-effort step of a keep-warm pass, bounded at 15 s. A failure is
-    /// logged and the next step runs; only the host stopping ends it quietly.
+    /// One best-effort step of a keep-warm pass, bounded at
+    /// <see cref="StartupWarmupState.KeepWarmStepBound"/> (15 s). A step that
+    /// runs past its bound is left, and the line says so without an exception;
+    /// any other failure is logged with its exception. The next step runs
+    /// either way; only the host stopping ends it quietly.
     /// </summary>
     private async Task KeepWarmStepAsync(
         string step,
@@ -318,27 +325,39 @@ internal sealed partial class StartupWarmup(
         }
 
         var started = Stopwatch.GetTimestamp();
+        using var bound = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        bound.CancelAfter(state.KeepWarmStepBound);
         try
         {
-            using var bound = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-            bound.CancelAfter(KeepWarmStepBound);
             await read(bound.Token);
         }
         catch (Exception exception)
         {
             // A cancelled SQL command surfaces as a database error, not as a
-            // cancellation, so the bound is not asked about the exception type.
+            // cancellation, so the bound is asked about, not the exception type.
             if (!stoppingToken.IsCancellationRequested)
             {
-                LogKeepWarmFailure(step, exception, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                LogKeepWarmFailure(
+                    step, exception, Stopwatch.GetElapsedTime(started).TotalMilliseconds, bound.IsCancellationRequested);
             }
         }
     }
 
-    private void LogKeepWarmFailure(string step, Exception exception, double elapsedMs)
+    /// <summary>
+    /// Warning for a step's first failure or bound expiry in the process, Debug
+    /// after. A step past its bound is logged without its exception.
+    /// </summary>
+    private void LogKeepWarmFailure(string step, Exception exception, double elapsedMs, bool pastBound = false)
     {
         var level = failedSteps.Add(step) ? LogLevel.Warning : LogLevel.Debug;
-        LogKeepWarmStepFailed(logger, level, step, elapsedMs, exception);
+        if (pastBound)
+        {
+            LogWarmupStepBounded(logger, level, step, elapsedMs);
+        }
+        else
+        {
+            LogKeepWarmStepFailed(logger, level, step, elapsedMs, exception);
+        }
     }
 
     /// <summary>
@@ -500,7 +519,8 @@ internal sealed partial class StartupWarmup(
         {
             if (!stoppingToken.IsCancellationRequested)
             {
-                LogWarmupStepBounded(logger, step, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                LogWarmupStepBounded(
+                    logger, LogLevel.Warning, step, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             }
         }
         catch (Exception exception)
@@ -515,8 +535,8 @@ internal sealed partial class StartupWarmup(
     [LoggerMessage(Level = LogLevel.Information, Message = "Startup warm-up step {Step} finished in {ElapsedMs} ms{Detail}")]
     private static partial void LogWarmupStepFinished(ILogger logger, string step, double elapsedMs, string detail);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Startup warm-up step {Step} was still running after {ElapsedMs} ms and was left")]
-    private static partial void LogWarmupStepBounded(ILogger logger, string step, double elapsedMs);
+    [LoggerMessage(Message = "Startup warm-up step {Step} was still running after {ElapsedMs} ms and was left")]
+    private static partial void LogWarmupStepBounded(ILogger logger, LogLevel level, string step, double elapsedMs);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Startup warm-up finished in {ElapsedMs} ms")]
     private static partial void LogWarmupFinished(ILogger logger, double elapsedMs);
