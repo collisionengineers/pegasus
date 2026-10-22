@@ -32,7 +32,9 @@ public enum NeedsAttentionScope
 /// <see cref="OpenAiJobs"/> and <see cref="Configuration"/> are what a caller
 /// that already read them hands over so the snapshot does not read them again
 /// (the Work Centre's AI jobs section needs the same two reads). Absent, the
-/// snapshot reads them itself.
+/// snapshot reads them itself. <see cref="Dismissals"/> is the section's handle
+/// on a dismissal lookup shared with the AI jobs section; absent, the snapshot
+/// reads its own.
 /// </remarks>
 public sealed record NeedsAttentionQuery(
     ActionActor Actor,
@@ -42,7 +44,8 @@ public sealed record NeedsAttentionQuery(
     DateTimeOffset? AsOfUtc = null,
     string? Search = null,
     IReadOnlyList<AiJobRecord>? OpenAiJobs = null,
-    CaseWorkflowConfiguration? Configuration = null);
+    CaseWorkflowConfiguration? Configuration = null,
+    IWorkCentreDismissalLookup? Dismissals = null);
 
 public sealed record NeedsAttentionPage(
     IReadOnlyList<NeedsAttentionItem> Items,
@@ -295,7 +298,7 @@ public sealed class GetOperationsSnapshot(
         var inputs = await attentionRead;
         var caseStages = await stagesRead;
         var findingRecordedTriageCount = await findingRecordedRead;
-        var all = await ComposeNeedsAttentionAsync(asOfUtc, inputs, cancellationToken);
+        var all = await ComposeNeedsAttentionAsync(asOfUtc, inputs, query.Dismissals ?? dismissals, cancellationToken);
         var page = Page(all, query, asOfUtc);
         if (page.Items.Count == 0 && query.Page > page.TotalPages)
         {
@@ -500,6 +503,7 @@ public sealed class GetOperationsSnapshot(
     private async Task<IReadOnlyList<NeedsAttentionItem>> ComposeNeedsAttentionAsync(
         DateTimeOffset asOfUtc,
         AttentionInputs inputs,
+        IWorkCentreDismissalLookup dismissalLookup,
         CancellationToken cancellationToken)
     {
         var (_, dayEndUtc, _) = LondonCalendar.DayAndWeekBoundariesAt(asOfUtc);
@@ -781,7 +785,7 @@ public sealed class GetOperationsSnapshot(
 
         // Dismissed rows leave before the chips, counts and pages are taken.
         var shown = await WorkCentreDismissalPolicy.WithoutDismissedAsync(
-            dismissals,
+            dismissalLookup,
             items.GroupBy(item => (item.Kind, item.Id)).Select(group => group.First()).ToArray(),
             item => item.Id,
             item => item.QualifiedAtUtc,
