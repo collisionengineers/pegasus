@@ -103,6 +103,65 @@ public sealed class RuntimeHeartbeatTests
         Assert.Null(ProcFs.ReadText(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "missing")));
     }
 
+    [Theory]
+    [InlineData("4242 (dotnet) S 1 4242 4242 0 -1 4194560 2000 0 17 0 300", 17)]
+    [InlineData("4242 (dotnet) S 1 4242 4242 0 -1 4194560 2000 0 17", 17)]
+    [InlineData("77 (my (odd) app) R 1 77 77 0 -1 0 5 0 9\n", 9)]
+    [InlineData("1 (x) S 1 1 1 0 -1 0 5 0 notanumber 0", null)]
+    [InlineData("1 (short) S 1 1", null)]
+    [InlineData("no closing bracket here", null)]
+    [InlineData("", null)]
+    public void MajorFaultsAreParsedFromBytesAsFromText(string stat, int? expected)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(stat);
+
+        Assert.Equal(expected, ProcFs.ParseMajorFaults(bytes));
+        Assert.Equal(expected, ProcFs.ParseMajorFaults(stat));
+    }
+
+    [Fact]
+    public void TheMajorFaultReaderOpensTheFileOnceAndEveryReadSeesTheCurrentFigure()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            File.WriteAllText(path, "4242 (dotnet) S 1 4242 4242 0 -1 4194560 2000 0 17 0 300 40 0 0 20 0 30 0 100");
+            var reader = new ProcFs.MajorFaultReader(path);
+
+            Assert.Equal(17, reader.Read());
+
+            // The same handle reads the file's new content, so a delta is exact.
+            File.WriteAllText(path, "4242 (dotnet) S 1 4242 4242 0 -1 4194560 2000 0 20 0 300");
+            Assert.Equal(20, reader.Read());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void TheMajorFaultReaderRemembersAMissingFileAndNeverOpensItAgain()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "stat");
+        var reader = new ProcFs.MajorFaultReader(path);
+
+        Assert.Null(reader.Read());
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        try
+        {
+            File.WriteAllText(path, "1 (x) S 1 1 1 0 -1 0 5 0 12 0");
+
+            // Absence was remembered at the first read, so the file now there is not looked for.
+            Assert.Null(reader.Read());
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(path)!, recursive: true);
+        }
+    }
+
     [Fact]
     public void TheHeartbeatNamesEveryFigureItsSourcesProvide()
     {

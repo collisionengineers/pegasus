@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace Pegasus.Web.Health;
 
@@ -8,14 +10,22 @@ namespace Pegasus.Web.Health;
 /// the load average. Every read is best effort. A file that does not exist
 /// (Windows, or a cgroup layout the container lacks) or does not parse gives
 /// <c>null</c>, so a caller omits that figure and never fails. The parsers
-/// take the file's text so they can be tested against samples.
+/// take the file's text (or bytes) so they can be tested against samples.
 /// </summary>
 internal static class ProcFs
 {
     private const int MajorFaultFieldAfterComm = 9;
 
-    /// <summary>Major page faults of this process so far, or null when the file is absent.</summary>
-    public static long? ReadMajorFaults() => ParseMajorFaults(ReadText("/proc/self/stat"));
+    // One reader for the life of the process: a request reads the figure twice
+    // (before and after), so the file is opened once, not twice per request.
+    private static readonly MajorFaultReader SelfStat = new("/proc/self/stat");
+
+    /// <summary>
+    /// Major page faults of this process so far, or null when the file is
+    /// absent. The file is opened once and every later read is a positional read
+    /// of that handle, so the delta over a request is exact and costs no open.
+    /// </summary>
+    public static long? ReadMajorFaults() => SelfStat.Read();
 
     /// <summary>
     /// The <c>majflt</c> field of <c>/proc/self/stat</c>. The second field is the
@@ -23,25 +33,49 @@ internal static class ProcFs
     /// so the fields are counted from after the last closing parenthesis: state,
     /// ppid, pgrp, session, tty_nr, tpgid, flags, minflt, cminflt, majflt.
     /// </summary>
-    public static long? ParseMajorFaults(string? stat)
-    {
-        if (stat is null)
-        {
-            return null;
-        }
+    public static long? ParseMajorFaults(string? stat) =>
+        stat is null ? null : ParseMajorFaults(Encoding.UTF8.GetBytes(stat));
 
-        var closing = stat.LastIndexOf(')');
+    /// <summary>The same field from the file's bytes, which may end part way through a later field.</summary>
+    public static long? ParseMajorFaults(ReadOnlySpan<byte> stat)
+    {
+        var closing = stat.LastIndexOf((byte)')');
         if (closing < 0)
         {
             return null;
         }
 
-        var fields = stat[(closing + 1)..].Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return fields.Length > MajorFaultFieldAfterComm
-            && long.TryParse(fields[MajorFaultFieldAfterComm], NumberStyles.None, CultureInfo.InvariantCulture, out var faults)
-                ? faults
-                : null;
+        var rest = stat[(closing + 1)..];
+        for (var field = 0; ; field++)
+        {
+            while (!rest.IsEmpty && IsSeparator(rest[0]))
+            {
+                rest = rest[1..];
+            }
+
+            if (rest.IsEmpty)
+            {
+                return null;
+            }
+
+            var end = 0;
+            while (end < rest.Length && !IsSeparator(rest[end]))
+            {
+                end++;
+            }
+
+            if (field == MajorFaultFieldAfterComm)
+            {
+                return long.TryParse(rest[..end], NumberStyles.None, CultureInfo.InvariantCulture, out var faults)
+                    ? faults
+                    : null;
+            }
+
+            rest = rest[end..];
+        }
     }
+
+    private static bool IsSeparator(byte value) => value is (byte)' ' or (byte)'\t' or (byte)'\n' or (byte)'\r';
 
     /// <summary>
     /// A <c>Key:   value kB</c> line of <c>/proc/self/status</c> or
@@ -120,6 +154,51 @@ internal static class ProcFs
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads one <c>/proc</c> stat file through a handle opened on the first read
+    /// and kept for the life of the process. A file that cannot be opened is
+    /// remembered as absent (Windows has none), so later reads make no call. Each
+    /// read is positional at offset 0 into its own stack buffer, so concurrent
+    /// requests share the handle and never a buffer.
+    /// </summary>
+    internal sealed class MajorFaultReader(string path)
+    {
+        // Far more than the fields up to majflt need.
+        private const int BufferBytes = 1024;
+
+        private readonly Lazy<SafeFileHandle?> handle = new(() => Open(path), LazyThreadSafetyMode.ExecutionAndPublication);
+
+        public long? Read()
+        {
+            if (handle.Value is not { } file)
+            {
+                return null;
+            }
+
+            try
+            {
+                Span<byte> buffer = stackalloc byte[BufferBytes];
+                return ParseMajorFaults(buffer[..RandomAccess.Read(file, buffer, 0)]);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+                return null;
+            }
+        }
+
+        private static SafeFileHandle? Open(string path)
+        {
+            try
+            {
+                return File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
         }
     }
 

@@ -175,6 +175,57 @@ public sealed class StartupWarmupTests
     }
 
     [Fact]
+    public async Task APageRequestSinceTheLastTickSkipsThatPassAndOnlyThat()
+    {
+        var reads = new RecordingReads();
+        await using var run = new KeepWarmRun(reads, TimeSpan.FromMinutes(3));
+        await run.StartAsync();
+        Assert.Equal(1, reads.Calls("snapshot"));
+
+        run.State.NotePageRequest();
+        await run.PassAsync(TimeSpan.FromMinutes(3));
+
+        // The tick found the signal, cleared it and ran no pass.
+        Assert.Equal(1, reads.Calls("snapshot"));
+        Assert.Equal(0, reads.Calls("mailboxes"));
+        Assert.False(run.State.PageRequestSeen);
+
+        // An idle wait follows with no signal, so the next tick runs its pass.
+        await run.PassAsync(TimeSpan.FromMinutes(3));
+        Assert.Equal(2, reads.Calls("snapshot"));
+        Assert.Equal(1, reads.Calls("mailboxes"));
+    }
+
+    [Fact]
+    public async Task APageRequestIsNotedButAQuietPathIsNot()
+    {
+        var state = new StartupWarmupState(warms: true);
+        var nexts = 0;
+        Microsoft.AspNetCore.Http.RequestDelegate next = _ =>
+        {
+            nexts++;
+            return Task.CompletedTask;
+        };
+
+        foreach (var quiet in new[] { "/health/ready", "/css/site.css", "/js/app.js", "/fonts/a.woff2", "/images/a.png", "/diagnostics/x" })
+        {
+            var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+            context.Request.Path = quiet;
+            await PageRequestSignal.InvokeAsync(context, next, state);
+            Assert.False(state.PageRequestSeen, quiet);
+        }
+
+        var page = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        page.Request.Path = "/Cases";
+        await PageRequestSignal.InvokeAsync(page, next, state);
+
+        Assert.True(state.PageRequestSeen);
+        Assert.Equal(7, nexts);
+        Assert.True(state.TakePageRequestSignal());
+        Assert.False(state.TakePageRequestSignal());
+    }
+
+    [Fact]
     public async Task AnIntervalOfZeroRunsTheFirstPassOnly()
     {
         var reads = new RecordingReads();

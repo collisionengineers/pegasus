@@ -850,7 +850,7 @@ bounds.
   `tp.pending` (thread-pool threads and queued work when the request began),
   `gc.gen2.delta` and `gc.pause.ms.delta` (second-generation collections and
   milliseconds paused during it) and `majflt.delta` (major page faults during
-  it; absent where `/proc` is). The deltas are the process's, not the
+  it; absent where `/proc` is, read through one handle kept open). The deltas are the process's, not the
   request's alone. Query:
   `AppRequests | where TimeGenerated > ago(1d) and isnotempty(tostring(Properties["tp.threads"])) | project TimeGenerated, Name, DurationMs, threads=toint(Properties["tp.threads"]), pending=toint(Properties["tp.pending"]), gen2=toint(Properties["gc.gen2.delta"]), pauseMs=todouble(Properties["gc.pause.ms.delta"]), majflt=toint(Properties["majflt.delta"]) | order by DurationMs desc`.
 - **Memory heartbeat.** Every five minutes (`Diagnostics:HeartbeatInterval`;
@@ -1062,7 +1062,9 @@ A slow start shows there which phase took the time. The start limit
 `WEBSITES_CONTAINER_START_TIME_LIMIT` is not part of this design.
 
 After its first pass the warm-up repeats its reads every three minutes for the
-life of the process. `Startup:WarmupInterval` sets the wait (default
+life of the process, except that a tick skips its pass when a page request
+ran since the previous tick (a Debug line, "Warm-up pass skipped", says so;
+health probes and static files do not count). `Startup:WarmupInterval` sets the wait (default
 `00:03:00`). Write it with colons, such as `00:05:00`. `00:00:00` restores the
 once-only behaviour, and `Startup:Warmup` `false` still turns the whole warm-up
 off. Some values keep the default instead, and the warm-up logs one warning

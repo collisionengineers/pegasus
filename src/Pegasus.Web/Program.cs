@@ -656,7 +656,8 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompress
 // /health/warm answers the platform's start-up ping from the warm-up alone, so
 // a database outage never keeps a new instance from starting. The warm-up then
 // repeats its reads every Startup:WarmupInterval (three minutes; 00:00:00 runs
-// it once) so no staff request is the first to touch a cold path.
+// it once) so no staff request is the first to touch a cold path; a tick
+// is skipped when a page request ran since the last (PageRequestSignal).
 builder.Services.AddSingleton(provider =>
 {
     var configuration = provider.GetRequiredService<IConfiguration>();
@@ -1084,6 +1085,8 @@ if (applicationInsightsConfigured)
 {
     app.Use(RequestRuntimeStamps.InvokeAsync);
 }
+var keepWarmState = app.Services.GetRequiredService<StartupWarmupState>();
+app.Use((HttpContext context, RequestDelegate next) => PageRequestSignal.InvokeAsync(context, next, keepWarmState));
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method)
