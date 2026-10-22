@@ -295,6 +295,15 @@ public sealed class MessageModel(
     public IntakeAssociationDestination? CurrentDestination { get; private set; }
 
     /// <summary>
+    /// Whether Link to Case is drawn, with its reason dialog and the Case / PO
+    /// picker: the message is not linked and its decision leaves a Case to link
+    /// it to (Core's <see cref="IntakeAssociationDestinationPolicy.CanOffer"/>).
+    /// </summary>
+    public bool OffersLinkToCase =>
+        AssociationReceipt is { } receipt
+        && IntakeAssociationDestinationPolicy.CanOffer(receipt);
+
+    /// <summary>
     /// Whether Change linked Case is drawn: the message is linked and its
     /// decision leaves a Case to link it to (Core's
     /// <see cref="IntakeAssociationDestinationPolicy.CanOfferToChange"/>).
@@ -746,13 +755,21 @@ public sealed class MessageModel(
                 throw new IntakeVersionConflictException();
             }
 
+            // A message the policy does not let be linked is refused before any
+            // Case is searched or claimed.
+            if (!IntakeAssociationDestinationPolicy.CanOffer(binding))
+            {
+                ModelState.AddModelError(
+                    string.Empty, OperatorLabels.IntakeCannotBecomeCaseReason(binding.Decision));
+                return await ReloadAsync(actor, id, cancellationToken);
+            }
+
             // Only the destination's authority row is read: the claim needs its
             // version and the post shows none of its facts.
             var targetCaseId = await ResolveCaseIdAsync(actor, caseReference, cancellationToken);
             var destination = targetCaseId is { } caseId
-                && IntakeAssociationDestinationPolicy.CanOffer(binding)
-                    ? await destinations.GetAuthorityAsync(caseId, actor, cancellationToken)
-                    : null;
+                ? await destinations.GetAuthorityAsync(caseId, actor, cancellationToken)
+                : null;
             if (destination is null)
             {
                 ModelState.AddModelError(string.Empty, ChooseOneCaseMessage);

@@ -7,9 +7,10 @@
     // The Case / PO field joins the reason dialog it opens by form="…", so it sits
     // in the Decision column and the confirmation stays in a dialog.
     var linkFormId = Model.CurrentDestination is null ? "linkCaseForm" : "changeLinkedCaseForm";
-    // A linked message whose decision leaves no Case to change to has no form for the picker to join.
-    var picksCase = Model.AssociationReceipt is not null
-        && (Model.CurrentDestination is null || Model.OffersChangeLinkedCase);
+    // A message whose decision leaves no Case to link or change to has no form for the picker to join.
+    var picksCase = Model.OffersLinkToCase || Model.OffersChangeLinkedCase;
+    // A Triage the message opened is its Case until staff link it to an instruction Case.
+    var opensTriage = summary.IsTriageCase && summary.CaseId is not null;
     var workTypeRefused = ViewData.ModelState["WorkType"]?.Errors.Count > 0;
 }
 
@@ -109,13 +110,13 @@
                     }
                 </div>
             }
-            @if (Model.AssociationReceipt is not null)
+            @if (Model.AssociationReceipt is not null
+                && (opensTriage || Model.CurrentDestination is not null || Model.OffersLinkToCase))
             {
                 <div class="mail-decision-actions">
-                    @* A Triage the message opened is its Case until staff link it to an instruction Case. *@
-                    @if (summary.IsTriageCase && summary.CaseId is { } triageId)
+                    @if (opensTriage)
                     {
-                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@triageId">@OperatorLabels.Inbox.OpenTriage</a>
+                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@summary.CaseId">@OperatorLabels.Inbox.OpenTriage</a>
                     }
                     @if (Model.CurrentDestination is not null)
                     {
@@ -125,7 +126,7 @@
                         }
                         <button class="btn btn--small" type="button" data-dialog-open="unlinkCaseDialog">@OperatorLabels.Inbox.Unlink</button>
                     }
-                    else
+                    else if (Model.OffersLinkToCase)
                     {
                         <button class="btn btn--small" type="button" data-dialog-open="linkCaseDialog">@OperatorLabels.Inbox.LinkToCase</button>
                     }

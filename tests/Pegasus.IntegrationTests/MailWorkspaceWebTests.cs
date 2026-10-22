@@ -767,6 +767,69 @@ public sealed class MailWorkspaceWebTests
         Assert.Null(await CaseLeaseTokenAsync(factory, otherCaseId));
     }
 
+    /// <summary>
+    /// The same decision on a message no Case holds: Link to Case, its reason
+    /// dialog and the Case / PO picker are not drawn, and a post that names a
+    /// Case anyway is refused with Core's sentence before any Case is searched
+    /// or claimed, leaving the message unlinked.
+    /// </summary>
+    [Fact]
+    public async Task AnUnlinkedMessageWhoseDecisionCannotBeLinkedOffersNoLinkAndARefusedPostWritesNothing()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreOutcomeReceiptAsync(
+            factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.Unsupported);
+        _ = Assert.Single(await SeedAsync(
+            factory, SecondMailboxId, SecondMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var otherOriginId = await ReceiptIdAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var otherCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, otherOriginId, "MAIL36001", nameof(CaseLifecycleState.Review));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.DoesNotContain($">{OperatorLabels.Inbox.LinkToCase}</button>", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("linkCaseDialog", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("linkCaseForm", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"mailLinkCaseReference\"", page, StringComparison.Ordinal);
+
+        // A stale page or another client can still post it: the dialog's keys, with the Case typed.
+        long receiptVersion;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            receiptVersion = await context.IntakeReceipts
+                .Where(item => item.Id == receiptId)
+                .Select(item => item.Version)
+                .SingleAsync();
+        }
+        using (var refused = await client.PostAsync(
+            $"/Inbox/{messageId:D}?handler=LinkCase",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(page),
+                ["expectedIntakeVersion"] = receiptVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["leaseOperationKey"] = Guid.NewGuid().ToString("N"),
+                ["operationKey"] = Guid.NewGuid().ToString("D"),
+                ["Reason"] = "The message names this Case/PO.",
+                ["caseReference"] = "MAIL36001"
+            })))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            Assert.Contains(
+                OperatorLabels.IntakeCannotBecomeCaseReason(IntakeDecision.Unsupported),
+                await refused.Content.ReadAsStringAsync(),
+                StringComparison.Ordinal);
+        }
+
+        await AssertAssociationStateAsync(factory, receiptId, expectedCaseId: null, expectedHistoryCount: 0);
+        Assert.Null(await CaseLeaseTokenAsync(factory, otherCaseId));
+    }
+
     [Fact]
     public async Task LinkedPostReportMessageCreatesAQueryResponseJobFromTheRecord()
     {
