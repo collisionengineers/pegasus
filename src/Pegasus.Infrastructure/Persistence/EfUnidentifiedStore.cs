@@ -112,6 +112,7 @@ public sealed class EfUnidentifiedStore(
         var operationKey = request.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var locked = await LockItemAsync(context, request.UnidentifiedItemId, cancellationToken);
 
         var replay = await context.Set<UnidentifiedHistoryEntity>().SingleOrDefaultAsync(
             item => item.OperationKey == operationKey, cancellationToken);
@@ -126,14 +127,10 @@ public sealed class EfUnidentifiedStore(
                 throw new UnidentifiedOperationConflictException();
             }
 
-            var replayItem = await context.Set<UnidentifiedItemEntity>().AsNoTracking()
-                .SingleAsync(item => item.Id == request.UnidentifiedItemId, cancellationToken);
-            return new(Map(replayItem), Map(replay), true);
+            return new(Map(locked!), Map(replay), true);
         }
 
-        var entity = await context.Set<UnidentifiedItemEntity>().SingleOrDefaultAsync(
-            item => item.Id == request.UnidentifiedItemId, cancellationToken)
-            ?? throw new KeyNotFoundException("The Unidentified item does not exist.");
+        var entity = locked ?? throw new KeyNotFoundException("The Unidentified item does not exist.");
         if (entity.Version != request.ExpectedVersion || entity.State != UnidentifiedState.Open.ToString())
         {
             throw new UnidentifiedVersionConflictException();
@@ -179,6 +176,7 @@ public sealed class EfUnidentifiedStore(
         var operationKey = request.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var locked = await LockItemAsync(context, request.UnidentifiedItemId, cancellationToken);
 
         var replay = await context.Set<UnidentifiedHistoryEntity>().SingleOrDefaultAsync(
             item => item.OperationKey == operationKey, cancellationToken);
@@ -199,9 +197,7 @@ public sealed class EfUnidentifiedStore(
             // fresher pass needs. The expected version is the one the reopen
             // applied at, so the reopen left the item one past it, open, with
             // every resolution field cleared.
-            var replayItem = await context.Set<UnidentifiedItemEntity>().AsNoTracking()
-                .SingleAsync(item => item.Id == request.UnidentifiedItemId, cancellationToken);
-            var reopenedState = Map(replayItem) with
+            var reopenedState = Map(locked!) with
             {
                 State = UnidentifiedState.Open,
                 ResolvedAtUtc = null,
@@ -215,9 +211,7 @@ public sealed class EfUnidentifiedStore(
             return new(reopenedState, Map(replay), true);
         }
 
-        var entity = await context.Set<UnidentifiedItemEntity>().SingleOrDefaultAsync(
-            item => item.Id == request.UnidentifiedItemId, cancellationToken)
-            ?? throw new KeyNotFoundException("The Unidentified item does not exist.");
+        var entity = locked ?? throw new KeyNotFoundException("The Unidentified item does not exist.");
         if (entity.Version != request.ExpectedVersion || entity.State != UnidentifiedState.Resolved.ToString())
         {
             throw new UnidentifiedVersionConflictException();
@@ -769,6 +763,23 @@ public sealed class EfUnidentifiedStore(
             throw new UnidentifiedOperationConflictException();
         }
     }
+
+    /// <summary>
+    /// The item, read <c>UPDLOCK, HOLDLOCK</c> as the transaction's first
+    /// statement (ADR-0074), before the operation-key probe. Parallel resolves
+    /// or reopens of one item, such as the members of one grouped upload each
+    /// reconciling its item, queue on its row: the later one's probe then finds
+    /// the earlier one's history row and replays it, instead of failing on the
+    /// version or on the unique key. A replay's history row names the item
+    /// through its foreign key, so a replay always finds it here.
+    /// </summary>
+    private static Task<UnidentifiedItemEntity?> LockItemAsync(
+        PegasusDbContext context,
+        Guid itemId,
+        CancellationToken cancellationToken) =>
+        context.Set<UnidentifiedItemEntity>()
+            .FromSqlInterpolated($"SELECT * FROM [UnidentifiedItems] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {itemId}")
+            .SingleOrDefaultAsync(cancellationToken);
 
     private static string TruncateForHistory(string reason) =>
         reason.Length > UnidentifiedValidation.MaximumReasonLength

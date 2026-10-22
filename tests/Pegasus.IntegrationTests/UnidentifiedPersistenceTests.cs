@@ -1,9 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -94,6 +96,124 @@ public sealed class UnidentifiedPersistenceTests
                     "target-1",
                     null,
                     CreatedAtUtc)));
+    }
+
+    /// <summary>
+    /// #1484: two resolves, or two reopens, of one item under one key that
+    /// arrive together are one transition. The item lock comes before the key
+    /// probe, so the second waits for the first and replays it: one history
+    /// row for the key, one version, and neither a version conflict nor a
+    /// failed save. A stale version under another key still conflicts.
+    /// </summary>
+    [Theory]
+    [InlineData("resolve")]
+    [InlineData("reopen")]
+    public async Task ATransitionWaitsForTheItemLockThenReplays(string transition)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var item = await RegisterAsync(
+            scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>(),
+            Guid.NewGuid());
+        if (transition == "reopen")
+        {
+            item = (await TransitionAsync(store, "resolve", item, "unidentified-resolve-test:first")).Item;
+        }
+
+        // A held item lock stops both transitions at their first statement,
+        // so they meet the key probe together once it is released.
+        await using var blocker = await database.CreateContextAsync();
+        await using var blocking = await blocker.Database.BeginTransactionAsync();
+        await blocker.Database.ExecuteSqlAsync(
+            $"SELECT 1 FROM [UnidentifiedItems] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {item.Id}");
+        var gate = new LockStatementGate(expected: 2);
+        var gated = new EfUnidentifiedStore(
+            new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
+                .UseSqlServer(database.ConnectionString)
+                .AddInterceptors(gate)
+                .Options));
+        var operationKey = $"unidentified-{transition}-test:{Guid.NewGuid():N}";
+        var transitions = new[]
+        {
+            Task.Run(() => TransitionAsync(gated, transition, item, operationKey)),
+            Task.Run(() => TransitionAsync(gated, transition, item, operationKey))
+        };
+        var first = await Task.WhenAny(gate.Reached.Task, Task.WhenAny(transitions), Task.Delay(TimeSpan.FromMinutes(2)));
+        if (first != gate.Reached.Task)
+        {
+            // A transition that ended before it reached the lock reports its own failure.
+            await Task.WhenAll(transitions);
+        }
+        Assert.True(gate.Reached.Task.IsCompleted, "The transitions never reached the item lock.");
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+        await blocking.CommitAsync();
+
+        var results = await Task.WhenAll(transitions);
+
+        Assert.Single(results, result => !result.IsReplay);
+        Assert.Single(results, result => result.IsReplay);
+        Assert.All(results, result => Assert.Equal(item.Version + 1, result.Item.Version));
+        Assert.Single(await store.HistoryAsync(item.Id), entry => entry.OperationKey == operationKey);
+        await Assert.ThrowsAsync<UnidentifiedVersionConflictException>(() =>
+            TransitionAsync(store, transition, item, $"unidentified-{transition}-test:stale"));
+    }
+
+    /// <summary>
+    /// #1484's incident: eight resolves of one item under one key in the same
+    /// second. Whatever the interleaving, all eight succeed, one writes and
+    /// seven replay, and the key has one history row.
+    /// </summary>
+    [Fact]
+    public async Task EightParallelResolvesWithOneKeyWriteOneHistoryRow()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var item = await RegisterAsync(
+            scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>(),
+            Guid.NewGuid());
+        var operationKey = $"unidentified-resolve-test:{Guid.NewGuid():N}";
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ =>
+            Task.Run(() => TransitionAsync(store, "resolve", item, operationKey))));
+
+        Assert.Single(results, result => !result.IsReplay);
+        Assert.All(results, result => Assert.Equal(item.Version + 1, result.Item.Version));
+        Assert.Single(await store.HistoryAsync(item.Id), entry => entry.OperationKey == operationKey);
+    }
+
+    /// <summary>
+    /// One resolve to an external reference, or one reopen, of
+    /// <paramref name="item"/> at its version under
+    /// <paramref name="operationKey"/>.
+    /// </summary>
+    private static async Task<(UnidentifiedItem Item, bool IsReplay)> TransitionAsync(
+        IUnidentifiedStore store,
+        string transition,
+        UnidentifiedItem item,
+        string operationKey)
+    {
+        var actor = ActionActor.Automation("test-worker");
+        if (transition == "resolve")
+        {
+            var resolved = await store.ResolveAsync(
+                new(
+                    item.Id,
+                    item.Version,
+                    actor,
+                    operationKey,
+                    "resolved",
+                    UnidentifiedResolutionTargetKind.ExternalReference,
+                    "target-1",
+                    null,
+                    CreatedAtUtc));
+            return (resolved.Item, resolved.IsReplay);
+        }
+
+        var reopened = await store.ReopenAsync(
+            new(item.Id, item.Version, actor, operationKey, "reopened", CreatedAtUtc));
+        return (reopened.Item, reopened.IsReplay);
     }
 
     [Fact]
