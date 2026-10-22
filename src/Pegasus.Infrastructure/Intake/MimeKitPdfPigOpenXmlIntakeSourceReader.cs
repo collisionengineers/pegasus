@@ -523,7 +523,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             else if (CanRenderPageOf(dominant))
             {
                 classification = ClassifyRenderedPage(
-                    pdf, page.Number - 1, visible, images, dominant, limits, chargedImageObjects, out dominantRead);
+                    pdf, page.Number - 1, visible, images, dominant, dominantKey, limits, chargedImageObjects,
+                    out dominantRead);
             }
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
@@ -561,6 +562,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         PdfRectangle visible,
         IReadOnlyList<IPdfImage> images,
         IPdfImage dominant,
+        string dominantKey,
         PdfLimitState limits,
         IReadOnlySet<string> chargedImageObjects,
         out PdfImageRead? rendered)
@@ -584,8 +586,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return verdict;
         }
 
-        var (dominantKey, samplePixels) = SamplePixelsChargedThrough(images, dominant, chargedImageObjects);
-        if (samplePixels > limits.RemainingImageSamplePixels)
+        if (SamplePixelsChargedThrough(images, dominant, dominantKey, chargedImageObjects)
+            > limits.RemainingImageSamplePixels)
         {
             return verdict;
         }
@@ -604,33 +606,34 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     /// <summary>
     /// The sample pixels the page loop charges on this page up to and
     /// including the dominant raster, by the loop's own rule (each distinct
-    /// object once, none already charged on an earlier page), with the
-    /// dominant raster's object key. The loop stops at the first object over
-    /// the budget, so the raster is kept only when these fit what is left.
+    /// object once, none already charged on an earlier page). The loop stops
+    /// at the first object over the budget, so the raster is kept only when
+    /// these fit what is left. The dominant raster's key is already known.
     /// </summary>
-    private static (string DominantKey, long Pixels) SamplePixelsChargedThrough(
+    private static long SamplePixelsChargedThrough(
         IReadOnlyList<IPdfImage> images,
         IPdfImage dominant,
+        string dominantKey,
         IReadOnlySet<string> chargedImageObjects)
     {
         var counted = new HashSet<string>(StringComparer.Ordinal);
         long pixels = 0;
-        var key = string.Empty;
         foreach (var image in images)
         {
-            key = ImageObjectKey(image);
+            var isDominant = ReferenceEquals(image, dominant);
+            var key = isDominant ? dominantKey : ImageObjectKey(image);
             if (!chargedImageObjects.Contains(key) && counted.Add(key))
             {
                 pixels += (long)image.WidthInSamples * image.HeightInSamples;
             }
 
-            if (ReferenceEquals(image, dominant))
+            if (isDominant)
             {
                 break;
             }
         }
 
-        return (key, pixels);
+        return pixels;
     }
 
     /// <summary>
