@@ -14,8 +14,10 @@ namespace Pegasus.Infrastructure.Custody;
 /// <remarks>
 /// The source is decoded once, at the scale the first edge needs, and every
 /// smaller attempt resizes that bitmap, so a 6 MB photograph is read once.
-/// The smallest rendering is tried first, so an image that no rendering fits
-/// is refused after one draw and one encode rather than every one.
+/// When no quality fits at the first edge, the smallest rendering is probed
+/// before the edges between, so an image that no rendering fits is refused
+/// after one more draw and one more encode rather than every one; an image
+/// that fits at the first edge pays nothing for the probe.
 /// The codec reads the caller's bytes where they lie rather than a copy.
 /// Nothing here throws at the caller: bytes that are not a decodable image,
 /// an image past the decode bound, or a budget no quality fits mean "no
@@ -115,11 +117,34 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
                 smallestEdge /= 2;
             }
 
-            // The smallest rendering first, the smallest edge at the lowest
-            // quality: when it does not fit, no rendering does, so the image
-            // is refused after one draw and one encode. When it fits, the
-            // search runs from the largest, and the smallest edge reuses this
-            // drawing and this encoding.
+            // The first edge, every quality, largest first: a render that fits
+            // here draws and encodes nothing else.
+            cancellationToken.ThrowIfCancellationRequested();
+            var (firstWidth, firstHeight) = TargetSize(
+                displayedWidth, displayedHeight, displayedLongest, firstEdge);
+            using (var first = Draw(decoded, origin, transposed, firstWidth, firstHeight))
+            {
+                if (first is null)
+                {
+                    return Undecodable;
+                }
+                if (FirstFit(first, Qualities, maximumBytes, firstWidth, firstHeight, displayedWidth, displayedHeight)
+                    is { } rendering)
+                {
+                    return rendering;
+                }
+            }
+            if (smallestEdge == firstEdge)
+            {
+                return NoQualityFits;
+            }
+
+            // Every quality failed at the first edge, so the smallest
+            // rendering, the smallest edge at the lowest quality, is probed
+            // before the edges between: when it does not fit, no rendering
+            // does, and the image is refused after one more draw and one more
+            // encode. When it fits, the smallest edge reuses this drawing and
+            // this encoding.
             cancellationToken.ThrowIfCancellationRequested();
             var (smallestWidth, smallestHeight) = TargetSize(
                 displayedWidth, displayedHeight, displayedLongest, smallestEdge);
@@ -138,7 +163,7 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
                 return NoQualityFits;
             }
 
-            for (var edge = firstEdge; edge > smallestEdge; edge /= 2)
+            for (var edge = firstEdge / 2; edge > smallestEdge; edge /= 2)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var (targetWidth, targetHeight) = TargetSize(displayedWidth, displayedHeight, displayedLongest, edge);
