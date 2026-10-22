@@ -1277,11 +1277,12 @@ public sealed class DocumentCustodyDurabilityTests
             var reading = new OriginalReportReading(
                 new string('a', 64), "Laird Assessors", "2026-09-01", "roadworthy", "repairable", false);
             const string reason = "The original report arrived as an instruction.";
+            CaseEditLease lease;
 
             await using (var scope = database.CreateAsyncScope())
             {
                 var store = scope.ServiceProvider.GetRequiredService<ISetDocumentTypeStore>();
-                var lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+                lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
                 await store.SetDocumentTypeAsync(
                     new(caseId, report, await VersionIdAsync(database, report), DocumentSemanticRole.AuditReport,
                         actor, reason, $"document-type-audit:{Guid.NewGuid():N}", lease.Version, lease.Token),
@@ -1309,9 +1310,9 @@ public sealed class DocumentCustodyDurabilityTests
                 Assert.Equal("Laird Assessors", cells[AssessmentVocabulary.OriginalReportAssessor]);
             }
 
+            // The refused second Audit report wrote nothing, so the lease it ran under is still live.
             await using (var scope = database.CreateAsyncScope())
             {
-                var lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
                 await scope.ServiceProvider.GetRequiredService<ISetDocumentType>().ExecuteAsync(
                     new(caseId, report, await VersionIdAsync(database, report), DocumentSemanticRole.Other,
                         actor, "Not the original report after all.", $"document-type-away:{Guid.NewGuid():N}",
