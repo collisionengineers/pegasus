@@ -164,8 +164,7 @@ public sealed partial class ShellPageFilter(
             using var timing = DocumentReadTelemetry.Start("web.shell.notifications");
             return await myNotifications.ListAsync(actor, cancellationToken);
         }
-        catch (Exception exception) when (exception is not
-            (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+        catch (Exception exception) when (IsUnavailable(exception, cancellationToken))
         {
             LogNotificationsUnavailable(logger, exception);
             return null;
@@ -185,13 +184,22 @@ public sealed partial class ShellPageFilter(
         {
             return await myReleaseNotes.GetUnacknowledgedAsync(actor, cancellationToken);
         }
-        catch (Exception exception) when (exception is not
-            (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+        catch (Exception exception) when (IsUnavailable(exception, cancellationToken))
         {
             LogReleaseNoteUnavailable(logger, exception);
             return null;
         }
     }
+
+    /// <summary>
+    /// Whether a failed shell read is logged as unavailable. A cancellation and
+    /// a failed authorisation propagate, and so does the cancelled command
+    /// SqlClient reports in its own wording once the request has been aborted
+    /// (<see cref="ClientAbort"/>): that is the caller leaving, not a fault.
+    /// </summary>
+    private static bool IsUnavailable(Exception exception, CancellationToken cancellationToken) =>
+        exception is not (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException)
+        && !(cancellationToken.IsCancellationRequested && ClientAbort.IsCancellation(exception));
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The notification query is unavailable.")]
     private static partial void LogNotificationsUnavailable(

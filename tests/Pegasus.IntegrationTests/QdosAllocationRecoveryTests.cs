@@ -1075,6 +1075,111 @@ public sealed class QdosAllocationRecoveryTests
     public Task CompletedQueuedReplayRunsMailAssociationBeforeAllocation() =>
         ProveQueuedMailAssociationCallerAsync(completedReplay: true);
 
+    /// <summary>
+    /// #1470: a second instruction shares the first Case's registration and
+    /// claimant, but its claim reference eliminates that Case, so mail
+    /// association leaves it to allocation, live and on a completed replay.
+    /// </summary>
+    [Theory]
+    [InlineData("live")]
+    [InlineData("replay")]
+    public async Task ADifferingClaimReferenceAllocatesItsOwnCase(string pass)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            initializeDevelopmentOffline: false,
+            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var clock = services.GetRequiredService<TimeProvider>();
+        var workStore = new RetainingWorkStore(
+            services.GetRequiredService<IIntakeWorkStore>(),
+            factory.Services);
+        var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
+        var processor = CreateMailAssociationProcessor(
+            services,
+            workStore,
+            artifactStore,
+            services.GetRequiredService<ProcessIntake>(),
+            services.GetRequiredService<IAutomaticCaseAssociationStore>(),
+            services.GetRequiredService<IAllocateIntake>(),
+            clock,
+            services.GetRequiredService<AssociateRetainedMailWithCase>());
+
+        async Task<Guid> ReceiveAsync(string claimNumber)
+        {
+            var email = IntakeTestEvidence.CreateEmail(
+                $"claim-{claimNumber.Replace('/', '-')}.eml",
+                $"QDOS instruction\r\nClaimant Name: Mr Shared Claimant\r\nClaim Number: {claimNumber}\r\nVehicle Registration: AB12 CDE");
+            var received = await new ReceiveIntake(artifactStore, workStore, clock, new DiscardingCommittedWorkPublisher()).ExecuteAsync(
+                new(
+                    email.FileName,
+                    email.MediaType,
+                    email.Content,
+                    clock.GetUtcNow(),
+                    "system-worker:approved-inbox-poller",
+                    new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
+                $"mailbox-submit:{Guid.NewGuid():N}");
+            var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+                received.StagedReceiptId,
+                clock.GetUtcNow(),
+                TimeSpan.FromMinutes(1),
+                CancellationToken.None));
+            await workStore.MarkDispatchedAsync(
+                dispatch.Id,
+                Assert.IsType<string>(dispatch.LeaseToken),
+                clock.GetUtcNow(),
+                CancellationToken.None);
+            return received.StagedReceiptId;
+        }
+
+        async Task<IntakeReceipt> ProcessedAsync(Guid stagedReceiptId)
+        {
+            var evaluation = Assert.IsType<IntakeEvaluationRevision>(
+                await workStore.GetCompletedEvaluationAsync(stagedReceiptId, CancellationToken.None));
+            return Assert.IsType<IntakeReceipt>(await services.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(evaluation.ProcessedReceiptId, CancellationToken.None));
+        }
+
+        var first = await ReceiveAsync("39569/1");
+        await processor.ExecuteAsync(first);
+        var firstCaseId = Assert.IsType<Guid>((await ProcessedAsync(first)).CurrentCaseId);
+
+        var second = await ReceiveAsync("49569/1");
+        if (pass == "replay")
+        {
+            // This pass records the evaluation and stops, so the completed
+            // redelivery below is the pass that associates or allocates.
+            await CreateMailAssociationProcessor(
+                services,
+                workStore,
+                artifactStore,
+                services.GetRequiredService<ProcessIntake>(),
+                services.GetRequiredService<IAutomaticCaseAssociationStore>(),
+                new NoOpAllocateIntake(),
+                clock,
+                automaticMailCaseAssociation: null).ExecuteAsync(second);
+        }
+        await processor.ExecuteAsync(second);
+
+        var receipt = await ProcessedAsync(second);
+        var decision = Assert.IsType<CaseMatchEvaluationResult>(receipt.CaseMatchDecision);
+        Assert.Equal(CaseMatchOutcome.NoMatch, decision.Outcome);
+        var eliminated = Assert.Single(decision.Candidates);
+        Assert.Equal(firstCaseId, eliminated.CaseId);
+        Assert.NotEmpty(eliminated.Eliminations);
+        var secondCaseId = Assert.IsType<Guid>(receipt.AcceptedCaseId);
+        Assert.NotEqual(firstCaseId, secondCaseId);
+        Assert.Equal(secondCaseId, receipt.CurrentCaseId);
+        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+
+        await processor.ExecuteAsync(second);
+        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+    }
+
     private static async Task ProveQueuedMailAssociationCallerAsync(bool completedReplay)
     {
         using var factory = new IntakeWebApplicationFactory(

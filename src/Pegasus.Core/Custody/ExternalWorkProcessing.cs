@@ -35,6 +35,13 @@ public static class ImageCustodyRetryPolicy
 
     public static int MaximumAttempts => RetryDelays.Length + 1;
 
+    /// <summary>
+    /// How long a fold waits when a folder it moves from or into is still
+    /// being stored. It spends no attempt: the custody that stores the folder
+    /// makes the fold due when it lands, and this wait is the fallback.
+    /// </summary>
+    public static TimeSpan FolderWait { get; } = TimeSpan.FromSeconds(30);
+
     public static TimeSpan? NextAttemptDelay(int attemptCount, string failureCode) =>
         attemptCount < 1
         || attemptCount >= MaximumAttempts

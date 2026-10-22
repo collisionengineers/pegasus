@@ -75,9 +75,14 @@ viewing, copying or acknowledging a chaser or any other message is not
 evidence of sending. A staff note that says "sent" stays an assertion unless
 the exact external evidence is retained.
 
-A management event is recorded after each report or fee-note send. This is
-`MAIL-17`'s management-event clause, a ruling awaiting delivery (operator
-ruling, 15 October 2026).
+A management event is recorded after each report or fee-note send: when the
+send's Sent item is observed, one action history row on the Case,
+`management_event`, records the sender, the documents the send carried by
+kind (one report, or two) and how many distinct recipients it had. A send
+that ends Failed, Cancelled or Unknown records none. It is read in Action
+logs alone ([FRD-17](frd-17-administration-workspace.md#logs)), which only
+an Administrator sees. This is `MAIL-17`'s management-event clause (operator
+rulings, 15 and 22 October 2026).
 
 **Tidying the answered instruction.** A report send that replied to a retained
 instruction is due for one move once its Sent item is confirmed. The Worker

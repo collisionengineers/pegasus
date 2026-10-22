@@ -98,9 +98,10 @@ class Delta:
             if line.startswith("diff --git "):
                 header, path = True, None
             elif header and line.startswith("--- "):
-                path = line[6:] if line.startswith("--- a/") else path
+                # git ends the ---/+++ line of a path that holds a space with a tab.
+                path = line[6:].rstrip("\t") if line.startswith("--- a/") else path
             elif header and line.startswith("+++ "):
-                path = line[6:] if line.startswith("+++ b/") else path
+                path = line[6:].rstrip("\t") if line.startswith("+++ b/") else path
             elif line.startswith("@@"):
                 header = False
             elif not header and path is not None and line[:1] in "+-":

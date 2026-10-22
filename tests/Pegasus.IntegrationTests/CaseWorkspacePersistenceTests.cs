@@ -2535,32 +2535,6 @@ public sealed class CaseWorkspacePersistenceTests
         null,
         null);
 
-    /// <summary>
-    /// Completes once <paramref name="expected"/> lock statements have been
-    /// sent, so a test knows its saves are waiting on the workflow lock.
-    /// </summary>
-    private sealed class LockStatementGate(int expected) : DbCommandInterceptor
-    {
-        private int sent;
-
-        public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            if (command.CommandText.Contains("UPDLOCK", StringComparison.Ordinal)
-                && Interlocked.Increment(ref sent) == expected)
-            {
-                Reached.TrySetResult();
-            }
-
-            return ValueTask.FromResult(result);
-        }
-    }
-
     private static SaveCaseWorkspaceRequest Request(
         Harness harness,
         long expectedVersion,

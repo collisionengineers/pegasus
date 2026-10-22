@@ -543,16 +543,17 @@ public sealed class ImageCaseCustodyIntegrationTests
     }
 
     /// <summary>
-    /// The fold holds no staff lease and yields to a member of staff editing
-    /// the Case (FRD-14): it writes nothing, leaves their lease, and files the
-    /// photographs on the retry after they finish. An editor already there
-    /// stops the fold before anything moves; one arriving while the files
-    /// move stops its completion, and the retry files from where they are.
+    /// The fold is system work, which keeps the session (FRD-14): under a
+    /// member of staff's edit lease it files the photographs on its first
+    /// attempt and completes the Case's images, the editor keeps the lease,
+    /// their heartbeat answers the version the fold moved the Case to, and
+    /// their save at the version they loaded lands. The same holds for an
+    /// editor already there and for one arriving while the files move.
     /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AFoldYieldsToAStaffEditorAndFilesThePhotographsAfterTheyFinish(
+    public async Task AFoldCompletesUnderAStaffEditLeaseAndTheEditorsSaveAtTheReadVersionLands(
         bool editorArrivesWhileTheFilesMove)
     {
         using var factory = new IntakeWebApplicationFactory(
@@ -566,7 +567,8 @@ public sealed class ImageCaseCustodyIntegrationTests
         await processor.ExecuteAsync(
             await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
             CancellationToken.None);
-        var (caseId, _) = await SeedCaseWithFolderAsync(services, memberReceiptIds[0], "IMG26003");
+        var (caseId, _) = await SeedCaseWithFolderAsync(
+            services, memberReceiptIds[0], "IMG26003", imagesComplete: false);
         var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
 
         var leases = services.GetRequiredService<ILeaseCaseForEdit>();
@@ -580,10 +582,10 @@ public sealed class ImageCaseCustodyIntegrationTests
                 CancellationToken.None);
         }
 
-        IProcessQueuedCustody firstAttempt = processor;
+        IProcessQueuedCustody fold = processor;
         if (editorArrivesWhileTheFilesMove)
         {
-            firstAttempt = new EfQueuedCustodyProcessor(
+            fold = new EfQueuedCustodyProcessor(
                 contextFactory,
                 services.GetRequiredService<IExternalWorkStore>(),
                 new CustodyWithAnArrivingEditor(services.GetRequiredService<ICaseCustody>(), EditorArrivesAsync),
@@ -594,59 +596,326 @@ public sealed class ImageCaseCustodyIntegrationTests
             await EditorArrivesAsync();
         }
 
-        await Assert.ThrowsAsync<IOException>(() =>
-            firstAttempt.ExecuteAsync(mergeWorkId, CancellationToken.None));
+        await fold.ExecuteAsync(mergeWorkId, CancellationToken.None);
 
-        // An editor already there stopped the fold before anything moved.
-        var imageFolder = Path.Combine(
-            factory.ArtifactDirectory, "custody", "cases", record.Id.ToString("N"));
-        Assert.Equal(!editorArrivesWhileTheFilesMove, Directory.Exists(imageFolder));
+        Assert.False(Directory.Exists(Path.Combine(
+            factory.ArtifactDirectory, "custody", "cases", record.Id.ToString("N"))));
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
             var work = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == mergeWorkId);
-            Assert.Equal("pending", work.State);
-            Assert.Equal("custody_dependency_failure", work.FailureCode);
-            Assert.Equal("confirmed", await ReadImageCustodyStateAsync(context, record.Id));
-            Assert.False(await context.Set<CaseDocumentEntity>().AnyAsync(item => item.CaseId == caseId));
-            Assert.False(await context.CaseHistory.AnyAsync(item =>
-                item.CaseId == caseId && item.EventType == "image_custody_merged"));
-            var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
-            Assert.Equal(editor!.Version, workflow.Version);
+            Assert.Equal("completed", work.State);
+            Assert.Equal(1, work.AttemptCount);
+            Assert.Equal("merged", await ReadImageCustodyStateAsync(context, record.Id));
+            // The fold moved the Case one version on and left the editor's lease standing.
+            var workflow = await context.CaseWorkflows.AsNoTracking()
+                .Include(item => item.Case)
+                .SingleAsync(item => item.CaseId == caseId);
+            Assert.True(workflow.Case.ImagesComplete);
+            Assert.Equal(editor!.Version + 1, workflow.Version);
+            Assert.Equal(StaffActor().SubjectId, workflow.EditLeaseHolder);
+            Assert.False(string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash));
             Assert.Equal(editor.ExpiresAtUtc, workflow.EditLeaseExpiresAtUtc);
+            var images = await context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                .Where(item => item.CaseId == caseId && item.SemanticRole == DocumentSemanticRole.Image)
+                .ToListAsync();
+            Assert.Equal(2, images.Count);
+            foreach (var image in images)
+            {
+                await using var download = Assert.IsType<DocumentDownload>(
+                    await services.GetRequiredService<IDownloadCaseDocument>().ExecuteAsync(
+                        new(caseId, image.Id, image.VersionId, StaffActor(), $"read-folded:{Guid.NewGuid():N}"),
+                        CancellationToken.None));
+                using var buffer = new MemoryStream();
+                await download.Content.CopyToAsync(buffer);
+                Assert.Equal(PngBytes, buffer.ToArray());
+            }
         }
-        // The editor still holds the lease they claimed.
-        await leases.HeartbeatAsync(new(caseId, StaffActor(), editor!.Token), CancellationToken.None);
 
-        await leases.ReleaseAsync(
-            new(caseId, StaffActor(), $"editor-release:{Guid.NewGuid():N}", editor.Token),
+        var beat = await leases.HeartbeatAsync(new(caseId, StaffActor(), editor!.Token), CancellationToken.None);
+        Assert.Equal(editor.Token, beat.Token);
+        Assert.Equal(editor.Version + 1, beat.Version);
+        var saved = await services.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                caseId,
+                editor.Version,
+                StaffActor(),
+                $"fold-editor-save:{Guid.NewGuid():N}",
+                "Recorded the damage",
+                editor.Token)
+            {
+                Damage = new([new(["front"], "light", "Scuffed")], null)
+            },
             CancellationToken.None);
-        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        Assert.False(saved.WasReplay);
+        Assert.Equal(editor.Version + 2, saved.Version);
+    }
 
-        Assert.False(Directory.Exists(imageFolder));
-        await using var filed = await contextFactory.CreateDbContextAsync();
-        Assert.Equal(
-            "completed",
-            (await filed.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == mergeWorkId)).State);
-        Assert.Equal("merged", await ReadImageCustodyStateAsync(filed, record.Id));
-        var images = await (
-                from occurrence in filed.Set<DocumentOccurrenceEntity>().AsNoTracking()
-                join version in filed.Set<DocumentVersionEntity>().AsNoTracking()
-                    on occurrence.VersionId equals version.Id
-                where occurrence.CaseId == caseId
-                orderby occurrence.Ordinal
-                select new { OccurrenceId = occurrence.Id, VersionId = version.Id })
-            .ToListAsync();
-        Assert.Equal(2, images.Count);
-        foreach (var image in images)
+    /// <summary>
+    /// A record merged into an accepted Case before the Case's folder is
+    /// stored (a.QDOS26108): the merge creates the fold already waiting, and
+    /// a run before the folder lands spends no attempt and records no
+    /// failure. With the Case's create not yet running the fold waits
+    /// FolderWait; with it running the fold waits out that create's lease.
+    /// </summary>
+    [Fact]
+    public async Task AFoldBeforeTheCaseFolderDefersWithoutSpendingAnAttempt()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "FOLD-DEFER-01");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        await processor.ExecuteAsync(
+            await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
+            CancellationToken.None);
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        await AssertDueAsync(contextFactory, mergeWorkId, now + ImageCustodyRetryPolicy.FolderWait);
+
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await AssertTheFoldWaitedAsync(
+            contextFactory, mergeWorkId, record.Id, "confirmed", now + ImageCustodyRetryPolicy.FolderWait);
+
+        var createLeaseExpiresAtUtc = now.AddMinutes(4);
+        await using (var context = await contextFactory.CreateDbContextAsync())
         {
-            await using var download = Assert.IsType<DocumentDownload>(
-                await services.GetRequiredService<IDownloadCaseDocument>().ExecuteAsync(
-                    new(caseId, image.OccurrenceId, image.VersionId, StaffActor(), $"read-folded:{Guid.NewGuid():N}"),
-                    CancellationToken.None));
-            using var buffer = new MemoryStream();
-            await download.Content.CopyToAsync(buffer);
-            Assert.Equal(PngBytes, buffer.ToArray());
+            await context.ExternalWorkItems
+                .Where(item => item.CaseId == caseId && item.Kind == ExternalWorkKinds.CreateCaseCustody)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.State, "processing")
+                    .SetProperty(item => item.LeaseToken, "a-worker-is-storing-the-case-folder")
+                    .SetProperty(item => item.LeaseExpiresAtUtc, createLeaseExpiresAtUtc));
         }
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await AssertTheFoldWaitedAsync(contextFactory, mergeWorkId, record.Id, "confirmed", createLeaseExpiresAtUtc);
+    }
+
+    /// <summary>
+    /// The Case custody that stores the Case's folder makes the waiting fold
+    /// due and publishes it, and the fold then files the photographs on its
+    /// first attempt.
+    /// </summary>
+    [Fact]
+    public async Task CaseCustodyConfirmationWakesAPendingFold()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "FOLD-WAKE-01");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        await processor.ExecuteAsync(
+            await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
+            CancellationToken.None);
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        await AssertDueAsync(contextFactory, mergeWorkId, now + ImageCustodyRetryPolicy.FolderWait);
+        Guid caseCustodyWorkId;
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            caseCustodyWorkId = await context.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.CaseId == caseId && item.Kind == ExternalWorkKinds.CreateCaseCustody)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+
+        var publisher = new RecordingWorkPublisher();
+        await ProcessorWith(services, services.GetRequiredService<ICaseCustody>(), publisher)
+            .ExecuteAsync(caseCustodyWorkId, CancellationToken.None);
+        Assert.Equal(mergeWorkId, Assert.Single(publisher.Published));
+        await AssertDueAsync(contextFactory, mergeWorkId, now);
+
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await AssertTheFoldFiledOnItsFirstAttemptAsync(contextFactory, mergeWorkId, record.Id, caseId);
+    }
+
+    /// <summary>
+    /// A record merged before its own folder is stored, whose create a Box
+    /// failure put off for an hour: the fold waits until that create's next
+    /// attempt and spends no attempt, and the record's custody makes the fold
+    /// due and publishes it when it stores the folder.
+    /// </summary>
+    [Fact]
+    public async Task TheRecordsCustodyWakesAFoldThatWaitedForTheRecordsFolder()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var createWorkId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        var createDueAtUtc = now.AddHours(1);
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            await context.ExternalWorkItems
+                .Where(item => item.Id == createWorkId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.DueAtUtc, createDueAtUtc));
+        }
+        var (caseId, _) = await SeedCaseWithFolderAsync(services, memberReceiptIds[0], "IMG26010");
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        await AssertDueAsync(contextFactory, mergeWorkId, now + ImageCustodyRetryPolicy.FolderWait);
+
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await AssertTheFoldWaitedAsync(contextFactory, mergeWorkId, record.Id, "pending", createDueAtUtc);
+
+        var publisher = new RecordingWorkPublisher();
+        await ProcessorWith(services, services.GetRequiredService<ICaseCustody>(), publisher)
+            .ExecuteAsync(createWorkId, CancellationToken.None);
+        Assert.Equal(mergeWorkId, Assert.Single(publisher.Published));
+        await AssertDueAsync(contextFactory, mergeWorkId, now);
+
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await AssertTheFoldFiledOnItsFirstAttemptAsync(contextFactory, mergeWorkId, record.Id, caseId);
+    }
+
+    /// <summary>
+    /// A record merged before either folder is stored: the custody that
+    /// stores the first folder leaves the fold waiting, and the custody that
+    /// stores the second makes it due and publishes it, so the fold files on
+    /// its first run.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheSecondFolderStoredWakesAFoldThatWaitedForBoth(bool caseFolderFirst)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", caseFolderFirst ? "FOLD-BOTH-01" : "FOLD-BOTH-02");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var recordCreateWorkId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        Guid caseCreateWorkId;
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            caseCreateWorkId = await context.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.CaseId == caseId && item.Kind == ExternalWorkKinds.CreateCaseCustody)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+        var (firstCreate, secondCreate) = caseFolderFirst
+            ? (caseCreateWorkId, recordCreateWorkId)
+            : (recordCreateWorkId, caseCreateWorkId);
+        var publisher = new RecordingWorkPublisher();
+        var custody = ProcessorWith(services, services.GetRequiredService<ICaseCustody>(), publisher);
+
+        await custody.ExecuteAsync(firstCreate, CancellationToken.None);
+        await AssertDueAsync(contextFactory, mergeWorkId, now + ImageCustodyRetryPolicy.FolderWait);
+
+        await custody.ExecuteAsync(secondCreate, CancellationToken.None);
+        Assert.Equal(mergeWorkId, Assert.Single(publisher.Published));
+        await AssertDueAsync(contextFactory, mergeWorkId, now);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await AssertTheFoldFiledOnItsFirstAttemptAsync(contextFactory, mergeWorkId, record.Id, caseId);
+    }
+
+    /// <summary>
+    /// A record whose own custody failed for good has no folder coming, so
+    /// its fold keeps the failure path: the attempt counts and the fold
+    /// re-arms with the image custody backoff.
+    /// </summary>
+    [Fact]
+    public async Task AFoldWhoseImageCustodyFailedKeepsItsFailurePath()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var createWorkId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        await Assert.ThrowsAsync<InvalidDataException>(() => ProcessorWith(
+                services,
+                new FailingCustody(() => new InvalidDataException("The retained source failed its integrity check.")))
+            .ExecuteAsync(createWorkId, CancellationToken.None));
+        var (caseId, _) = await SeedCaseWithFolderAsync(services, memberReceiptIds[0], "IMG26011");
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+
+        await Assert.ThrowsAsync<IOException>(() => services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(mergeWorkId, CancellationToken.None));
+
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal("failed", await ReadImageCustodyStateAsync(context, record.Id));
+        var fold = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == mergeWorkId);
+        Assert.Equal("pending", fold.State);
+        Assert.Equal(1, fold.AttemptCount);
+        Assert.Equal("custody_dependency_failure", fold.FailureCode);
+        Assert.Equal(
+            now + ImageCustodyRetryPolicy.NextAttemptDelay(1, "custody_dependency_failure")!.Value,
+            fold.DueAtUtc);
+    }
+
+    /// <summary>
+    /// A member of staff's save that commits between the fold's read and its
+    /// save wins the version race. The fold reads the Case again and files on
+    /// the same attempt, one version after the editor's save.
+    /// </summary>
+    [Fact]
+    public async Task AFoldThatLosesTheVersionRaceToAStaffSaveRetriesAndFiles()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        await services.GetRequiredService<IProcessQueuedCustody>().ExecuteAsync(
+            await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
+            CancellationToken.None);
+        var (caseId, _) = await SeedCaseWithFolderAsync(services, memberReceiptIds[0], "IMG26012");
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        long versionBeforeTheFold;
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            versionBeforeTheFold = await context.CaseWorkflows.AsNoTracking()
+                .Where(item => item.CaseId == caseId)
+                .Select(item => item.Version)
+                .SingleAsync();
+        }
+
+        var raced = new StaffSaveDuringTheFoldsCompletion(contextFactory, caseId);
+        await new EfQueuedCustodyProcessor(
+                raced,
+                services.GetRequiredService<IExternalWorkStore>(),
+                services.GetRequiredService<ICaseCustody>(),
+                services.GetRequiredService<TimeProvider>())
+            .ExecuteAsync(mergeWorkId, CancellationToken.None);
+
+        Assert.Equal(1, raced.Saves);
+        await AssertTheFoldFiledOnItsFirstAttemptAsync(contextFactory, mergeWorkId, record.Id, caseId);
+        await using var after = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(
+            versionBeforeTheFold + 2,
+            await after.CaseWorkflows.AsNoTracking()
+                .Where(item => item.CaseId == caseId)
+                .Select(item => item.Version)
+                .SingleAsync());
+        Assert.Equal(1, await after.CaseHistory.CountAsync(item =>
+            item.CaseId == caseId && item.EventType == "image_custody_merged"));
     }
 
     /// <summary>
@@ -1371,17 +1640,120 @@ public sealed class ImageCaseCustodyIntegrationTests
         }
     }
 
-    private static EfQueuedCustodyProcessor ProcessorWith(IServiceProvider services, ICaseCustody custody) =>
-        ProcessorWith(services, services.GetRequiredService<IExternalWorkStore>(), custody);
+    private static EfQueuedCustodyProcessor ProcessorWith(
+        IServiceProvider services,
+        ICaseCustody custody,
+        ICommittedExternalWorkPublisher? committedPublisher = null) =>
+        ProcessorWith(services, services.GetRequiredService<IExternalWorkStore>(), custody, committedPublisher);
 
     private static EfQueuedCustodyProcessor ProcessorWith(
         IServiceProvider services,
         IExternalWorkStore workStore,
-        ICaseCustody custody) => new(
+        ICaseCustody custody,
+        ICommittedExternalWorkPublisher? committedPublisher = null) => new(
         services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
         workStore,
         custody,
-        services.GetRequiredService<TimeProvider>());
+        services.GetRequiredService<TimeProvider>(),
+        committedPublisher: committedPublisher);
+
+    private static async Task AssertDueAsync(
+        IDbContextFactory<PegasusDbContext> contextFactory,
+        Guid workId,
+        DateTimeOffset dueAtUtc)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var work = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == workId);
+        Assert.Equal("pending", work.State);
+        Assert.Equal(dueAtUtc, work.DueAtUtc);
+    }
+
+    /// <summary>
+    /// The fold ran and went back to waiting for a folder: pending, due at
+    /// <paramref name="dueAtUtc"/>, with no attempt spent and no failure
+    /// recorded, and the record's custody left as it was.
+    /// </summary>
+    private static async Task AssertTheFoldWaitedAsync(
+        IDbContextFactory<PegasusDbContext> contextFactory,
+        Guid mergeWorkId,
+        Guid imageIntakeId,
+        string imageCustodyState,
+        DateTimeOffset dueAtUtc)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var fold = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == mergeWorkId);
+        Assert.Equal("pending", fold.State);
+        Assert.Equal(0, fold.AttemptCount);
+        Assert.Null(fold.FailureCode);
+        Assert.Equal(dueAtUtc, fold.DueAtUtc);
+        Assert.Equal(imageCustodyState, await ReadImageCustodyStateAsync(context, imageIntakeId));
+    }
+
+    /// <summary>
+    /// The fold completed on its first counted attempt: the record is merged
+    /// and its two photographs are Case images.
+    /// </summary>
+    private static async Task AssertTheFoldFiledOnItsFirstAttemptAsync(
+        IDbContextFactory<PegasusDbContext> contextFactory,
+        Guid mergeWorkId,
+        Guid imageIntakeId,
+        Guid caseId)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var fold = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == mergeWorkId);
+        Assert.Equal("completed", fold.State);
+        Assert.Equal(1, fold.AttemptCount);
+        Assert.Equal("merged", await ReadImageCustodyStateAsync(context, imageIntakeId));
+        var photographKeys = $"image-case-custody-merge:{imageIntakeId:N}:photograph:";
+        Assert.Equal(2, await context.Set<DocumentOccurrenceEntity>().CountAsync(item =>
+            item.CaseId == caseId
+            && item.SemanticRole == DocumentSemanticRole.Image
+            && item.OperationKey.StartsWith(photographKeys)));
+    }
+
+    /// <summary>The committed-work publisher, recording each work item it is given.</summary>
+    private sealed class RecordingWorkPublisher : ICommittedExternalWorkPublisher
+    {
+        public List<Guid> Published { get; } = [];
+
+        public Task PublishAsync(Guid workItemId, CancellationToken cancellationToken)
+        {
+            Published.Add(workItemId);
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// The database, with a member of staff whose save of the Case commits,
+    /// once, after the fold's completion has read the Case and before it saves.
+    /// </summary>
+    private sealed class StaffSaveDuringTheFoldsCompletion(
+        IDbContextFactory<PegasusDbContext> inner,
+        Guid caseId) : IDbContextFactory<PegasusDbContext>
+    {
+        private int saves;
+
+        public int Saves => saves;
+
+        public PegasusDbContext CreateDbContext()
+        {
+            var context = inner.CreateDbContext();
+            context.SavingChanges += (_, _) =>
+            {
+                if (context.ChangeTracker.Entries<ExternalWorkItemEntity>().Any(entry =>
+                        entry.State == EntityState.Modified
+                        && entry.Entity.Kind == ExternalWorkKinds.MergeImageCaseCustody
+                        && entry.Entity.State == "completed")
+                    && Interlocked.Exchange(ref saves, 1) == 0)
+                {
+                    using var staff = inner.CreateDbContext();
+                    staff.Database.ExecuteSqlInterpolated(
+                        $"UPDATE CaseWorkflows SET Version = Version + 1 WHERE CaseId = {caseId}");
+                }
+            };
+            return context;
+        }
+    }
 
     /// <summary>
     /// The work store, writing each lease check's answer into a timeline in the
@@ -1443,6 +1815,13 @@ public sealed class ImageCaseCustodyIntegrationTests
             CancellationToken cancellationToken) =>
             inner.FailProcessingAsync(
                 workItemId, leaseToken, failedAtUtc, failureCode, failureReason, cancellationToken);
+
+        public Task DeferProcessingAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dueAtUtc,
+            CancellationToken cancellationToken) =>
+            inner.DeferProcessingAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
     }
 
     private static async Task<string?> ReadImageCustodyStateAsync(
@@ -1591,7 +1970,9 @@ public sealed class ImageCaseCustodyIntegrationTests
 
     /// <summary>
     /// Staff link every member to the Case and merge the record into it. The
-    /// merge enqueues the fold, whose work item is returned.
+    /// merge enqueues the fold, whose work item is returned. It hands the
+    /// fold back to publish only when the fold is due, not when it was
+    /// created waiting for a folder.
     /// </summary>
     private static async Task<Guid> LinkAndMergeAsync(
         IServiceProvider services,
@@ -1624,7 +2005,7 @@ public sealed class ImageCaseCustodyIntegrationTests
                 StaffActor(),
                 $"image-intake-merge-lease:{record.Origin.ReceiptId:N}"),
             CancellationToken.None);
-        await store.MergeAsync(
+        var merged = await store.MergeAsync(
             new(
                 record.Id,
                 caseId,
@@ -1646,6 +2027,9 @@ public sealed class ImageCaseCustodyIntegrationTests
                 && item.Kind == ExternalWorkKinds.MergeImageCaseCustody);
         Assert.Equal("pending", work.State);
         Assert.Equal(caseId, work.CaseId);
+        Assert.Equal(
+            work.DueAtUtc > services.GetRequiredService<TimeProvider>().GetUtcNow() ? (Guid?)null : work.Id,
+            merged.PendingExternalWorkId);
         return work.Id;
     }
 

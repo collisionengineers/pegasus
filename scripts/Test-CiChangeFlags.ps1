@@ -16,7 +16,8 @@ function Assert-Flags {
         # pattern that widens accidentally fails here rather than buying runners.
         [bool] $LocalDevelopment = $false,
         [bool] $ReferenceData = $false,
-        [bool] $Classifier = $false
+        [bool] $Classifier = $false,
+        [bool] $SkillScripts = $false
     )
 
     $expected = [ordered]@{
@@ -25,6 +26,7 @@ function Assert-Flags {
         LocalDevelopment = $LocalDevelopment
         ReferenceData = $ReferenceData
         Classifier = $Classifier
+        SkillScripts = $SkillScripts
     }
 
     $actual = & $flagScript -ChangedPath $ChangedPath
@@ -66,6 +68,12 @@ Assert-Flags -Case 'LocalDB lifecycle classifier tests' -ChangedPath 'scripts/Te
 # The principal-identification corpus component and its wrapper.
 Assert-Flags -Case 'principal-corpus wrapper' -ChangedPath 'scripts/Build-PrincipalIdentificationCorpus.ps1' -Build $false -Infrastructure $false -ReferenceData $true
 
+# The imported skills, their helper scripts and the tests beside the scripts
+# folder: their own lane, never the build.
+Assert-Flags -Case 'skill description' -ChangedPath '.agents/skills/resolve-issue/SKILL.md' -Build $false -Infrastructure $false -SkillScripts $true
+Assert-Flags -Case 'skill helper script' -ChangedPath '.agents/skills/combine-prs/scripts/inventory.py' -Build $false -Infrastructure $false -SkillScripts $true
+Assert-Flags -Case 'skill helper script test' -ChangedPath 'scripts/skill_scripts/tests/test_issue_context.py' -Build $false -Infrastructure $false -SkillScripts $true
+
 # Refreshing the shard duration table changes the partition, so a real run has
 # to validate it.
 Assert-Flags -Case 'shard duration table' -ChangedPath 'scripts/test-shard-durations.json' -Build $true -Infrastructure $false
@@ -99,7 +107,7 @@ Assert-Flags -Case 'reference-data loader source' -ChangedPath 'scripts/referenc
 Assert-Flags -Case 'no-lane path beside a build input' -ChangedPath @('scripts/Invoke-LocalDevelopment.ps1', 'src/Pegasus.Worker/local.settings.example.json') -Build $true -Infrastructure $false
 
 $forced = & $flagScript -ChangedPath 'docs/index.md' -ForceAll
-foreach ($lane in 'Build', 'Infrastructure', 'LocalDevelopment', 'ReferenceData', 'Classifier') {
+foreach ($lane in 'Build', 'Infrastructure', 'LocalDevelopment', 'ReferenceData', 'Classifier', 'SkillScripts') {
     if (-not $forced.$lane) {
         throw "ForceAll must enable every conditional lane when a reliable diff is unavailable; $lane stayed off."
     }

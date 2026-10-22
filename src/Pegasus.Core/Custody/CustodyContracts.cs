@@ -524,6 +524,18 @@ public interface IExternalWorkStore
         string failureCode,
         string failureReason,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Returns a work item this attempt leases to pending, due at
+    /// <paramref name="dueAtUtc"/>, with the attempt uncounted and no failure
+    /// recorded: the work waits for other work to land, and nothing failed.
+    /// An attempt that no longer holds the lease changes nothing.
+    /// </summary>
+    Task DeferProcessingAsync(
+        Guid workItemId,
+        string leaseToken,
+        DateTimeOffset dueAtUtc,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>

@@ -194,6 +194,13 @@ public sealed class ExternalWorkDispatchTests
             string failureReason,
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
+
+        public Task DeferProcessingAsync(
+            Guid workItemId,
+            string leaseToken,
+            DateTimeOffset dueAtUtc,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

@@ -4,6 +4,55 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Operations record corrections - 22 October 2026 (addendum)
+
+This section adds dated observations to three statements below that lean on
+rows the intake data wipes deleted. No dated record is edited: each statement
+is quoted as written and its record is linked. The sources are this file, the
+wipe [skill](../.agents/skills/pegasus-wipe-intake-data/SKILL.md) and
+[script](../scripts/Invoke-IntakeDataWipe.ps1), the retained Query Store files
+named below, and one read-only count of 22 October 2026 posted on
+[issue 1510](https://github.com/collisionengineers/pegasus/issues/1510#issuecomment-6334098599).
+
+| Record | Observation |
+| --- | --- |
+| [Classifier agent status](#classifier-agent-status---21-october-2026-read-only-observation) | Four statements: "it has never called the model"; "no `result`, `classify`, `link` or `closed as failed` line has ever been written"; "`ActionHistory` holds no row whose reason begins `Classifier agent: `"; and, in the last row, "The Function App has never called Anthropic. No mail has been eligible since Release 116". The wipe skill lists `ActionHistory` among the tables a wipe clears and the wipe script's preserve list omits it. The agent had run in write mode since the switch read back at 08:18:28Z on 19 October ([Release 116](#release-116---19-october-2026-classifier-activation-live)). Four wipes are recorded after it; their committed mail cutoffs are `2026-10-19T08:31:22.0176414+00:00`, `2026-10-19T13:29:39.9462093+00:00` and `2026-10-19T13:36:30.1217128+00:00` ([19 October](#intake-data-wipe---19-october-2026)) and `2026-10-21T10:24:58.9788633+00:00` ([21 October](#intake-data-wipe---21-october-2026)); a cutoff is a mail time and no record gives the time the SQL commit landed. Those wipes found 4 retained mails (13:29Z), 3 (13:36Z) and 4 (21 October); the 08:31Z record gives none. The ticks the records list are the dry tick at 08:15:00Z and the first write tick at 08:30:00Z on 19 October, and the six from 11:30:00Z to 12:45:00Z on 21 October; no tick between them is recorded. Release 116 read the `Classifier agent: ` rows at 0 at 08:15:50Z and 08:30:39Z, before the first cutoff. The zero in the status record was read in the pass of 12:00Z to 13:15Z on 21 October, after that day's wipe. The log statement rests on Application Insights, which "answered for about one hour of the classifier's traces on 21 October", and the `reviewed` table was unreadable (403). Whether the Function App called the model before 11:30Z on 21 October is not shown by these records. |
+| [Release 117](#release-117---21-october-2026-deployment-live), Query Store row | Statement: "the one Case on the estate means the registration lookup (PR 1440) and the Open tasks statement (PR 1454) were not exercised, as Release 115's record anticipated". The wipe records give the Case count at four times: 1 Case at the 19 October wipe with mail cutoff 08:31:22Z (`CaseSequences` 104), 4 Cases with 54 documents at 13:29Z (108), 1 Case with 12 documents at 13:36Z (109) and, on 21 October, 2 Cases with 28 documents at 10:24Z (111). Release 117's containment read found 2 `CaseRepairSpecifications` rows at 09:23:34Z. The counts between those times are not recorded. The retained after snapshot (`artifacts/performance/query-store-release-115-after-20261021T0941Z.csv`, 48 h, 357 statements) reads: the Open tasks statement without `ActionHistory` (PR 1454) 1,003 executions, average 289.87 microseconds, total 290,742 microseconds; the candidate-page read that compares `VehicleLookupRequests.Registration` with `NormalizedRegistration` (PR 1440) 2,812 executions, average 144.52 microseconds, total 406,403 microseconds. The file holds no `INSERT` into `VehicleLookupRequests`. Executions count runs and do not show how many rows the tables held. For the earlier Open tasks text, [Release 115](#release-115---19-october-2026-deployment-live) names a baseline of 485 executions at 31.1 ms; the retained Release 114 after snapshot (`query-store-release-114-after-20261019T0739Z.csv`, 24 h to 07:39Z on 19 October) reads 459 executions, average 112.17 microseconds, total 51,487 microseconds. |
+| [Reference-data load (REF-04)](#reference-data-load-ref-04---17-october-2026-production-applied), read-back row | Statement: "`ActionHistory` rows of batch `ref04:prod-20261017`: 329 `contact_created`, 39 `contact_saved` and 1328 `inspection_location_created`, 1696 in all", with "`OrganizationAdministrationOperations` holds 1696 `ref04` rows", read at 20:07:31Z on 17 October. A read-only count at 06:11:57Z on 22 October returned 0 `ActionHistory` rows where `CorrelationId` starts `ref04:prod-20261017:` and 1,696 `OrganizationAdministrationOperations` rows where `OperationKey` starts `ref04:prod-20261017:`. The 17 October `ActionHistory` count no longer reproduces; the operations table still holds 1,696 rows for the batch. The wipe skill lists `ActionHistory` among the tables a wipe clears and the wipe script's preserve list names `OrganizationAdministrationOperations`. The wipes this file records after that read are the three of 19 October and the one of 21 October. |
+
+## Release 120 - 22 October 2026 (deployment live)
+
+Release 120 deployed [PR 1483](https://github.com/collisionengineers/pegasus/pull/1483) (Cazana's
+Get valuation signs in to Cazana Companion through the Companion account and files the Companion
+Report on the Case; closes #1478), which
+[ADR-0079](adr/0079-cazana-companion-account-and-companion-report.md) records and which supersedes
+[ADR-0066](adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md). The range from Release
+119's `main` `7ac5be926` is 13 commits and 49 files: the ten commits of PR 1483 and its merge, and
+the Release 119 record ([PR 1514](https://github.com/collisionengineers/pegasus/pull/1514)) with its
+merge. PR 1495 was already in Release 119.
+
+The route was the normal one (release skill section 8) with that section's exception for a package
+that needs a new setting to start. The Release 119 package requires `Cazana:ApiKey`, which this
+provision removes, and the new package requires the two `Cazana:CompanionAccount:*` references it
+adds. So the Web App was stopped, `web.zip` was staged on the stopped site with
+`--clean true --restart false --track-status false`, the provision ran, and the Web App was then
+started (as section 9 stages a package). The migration identity was unchanged at
+`20261021120000_GrantWebRepairSpecDiscardDelete` (SQL head read before the stage: 232 applied), and
+no migration ran. The Web outage ran 14:28:13Z to 14:34:38Z (6 min 25 s). Web and Worker are Running
+on the approved release and the full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `09c8673ec7b2b938d4447e3b86d209e1d6bc0fc7`, the merge of PR 1483 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `545991C0749203229B4564D8A8FA83C3FA127750FA7968E82EBA9CC96D4FA2D1` (schema 3, Windows x64: `efbundle.exe`, rid `win-x64`); `web.zip` `8785916B241052143D1EE01DB31561B7ED366A48205523381E02EADEF7F2A4C6`. Built in a detached worktree at `../pegasus-worktrees/release-09c8673e`, finished 14:26:36Z; Local and Artifact plan validations passed. |
+| Review and promotion | PR 1483 merged into `dev` as `09c8673ec` with an ordinary merge commit at 14:14:44Z on 22 October, after eleven review passes, on top of Release 119's `main` `7ac5be926` (rulings referenced: D5 of 21 October, R187 for the ordinary merge, and R188). One atomic leased promotion at 14:18:49Z; `main` and `dev` both read `09c8673ec7b2b938d4447e3b86d209e1d6bc0fc7`. #1478 closed at the promotion (14:18:47Z). |
+| Secrets and grants | Made at the operator's instruction between 14:10Z and 14:20Z, before the release. Key Vault `pegasusprodkv252ow37g` gained `cazana-companion-email` (version `014f31956baf4c3e9e470e9d085d5f07`) and `cazana-companion-password` (version `47f675b4138e4b25aeca3cb3eacb2ae7`). The Web user-assigned identity `pegasus-prod-web-id-252ow37gij` holds Key Vault Secrets User at each secret's scope, mirroring the `cazana-api-key` grant. The azd environment carries `CAZANA_COMPANION_EMAIL_SECRET_URI` and `CAZANA_COMPANION_PASSWORD_SECRET_URI` with those versioned URIs. Secret values are not recorded. `cazana-api-key` stays in Key Vault and `CAZANA_API_KEY_SECRET_URI` stays in the azd environment, for rollback to Release 119 until the live Companion press is proven. |
+| Migration | None ran. Identity unchanged at `20261021120000_GrantWebRepairSpecDiscardDelete`; SQL head read before the stage: 232 applied. |
+| Deployment | Azure CLI account `digital@collisionengineers.co.uk` 14:27:32Z. Serving Web before: `7ac5be926`, `0.1.0-alpha.1`; Web Running and Worker Running, 14:27:44Z. PreDeploy passed 14:27:55Z; PreProvision passed 14:28:13Z. Web App stopped 14:28:21Z; the public origin answered 403 on `/health/live` 14:28:22Z. `web.zip` staged on the stopped site 14:29:20Z. Provision succeeded 14:31:04Z: `Cazana__ApiKey` removed, and `Cazana__CompanionAccount__Email` and `Cazana__CompanionAccount__Password` added as Key Vault references. Web App start requested 14:31:13Z; Web ready at `09c8673ec`, `0.1.0-alpha.1`, 14:34:38Z. `worker.zip` deployed 14:36:16Z; `classifier.zip` deployed 14:38:22Z. The classifier was Running before and after. |
+| Smoke | Full smoke passed 14:39:09Z. Worker disabled census all `false` (`PendingWorkRecoveryFunction`, `UnifiedWorkFunction`, `UnifiedWorkPoisonFunction`, `StagedArtifactReconciliationFunction`, `SentEvidencePollFunction`). Web `Cazana__*` settings afterwards: `Cazana__CompanionAccount__Email` and `Cazana__CompanionAccount__Password` only. |
+| Still owed | Live proofs for PR 1483 (P15):<br>• One live Get valuation press on a real Case through the Companion account: sign-in, lookup, and the Companion Report filed as `cazana-companion:{uuid}` evidence.<br>• The Release 96 Cazana proof's changed meaning (sc-02).<br>• After that press, deleting `cazana-api-key` and `CAZANA_API_KEY_SECRET_URI` under their own approval.<br>The reusable migration drivers under `artifacts/releases` still set `Cazana__ApiKey` for the migration host; they switch to the two Companion placeholders at the next release with a migration.<br>Release 108 to 119 owed items otherwise stand. |
+| PR states | PR 1483 reads Merged with its head in `main` and `dev`; #1478 closed at the promotion. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-120-09c8673e`; the driver scripts at `artifacts/releases/release-120-driver`. |
+
 ## Release 119 - 22 October 2026 (deployment live)
 
 Release 119 deployed [PR 1481](https://github.com/collisionengineers/pegasus/pull/1481) (the Web

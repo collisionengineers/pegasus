@@ -57,6 +57,8 @@ public sealed class ApplicationTelemetryVolumeContractTests
         Assert.Contains(
             "AddApplicationInsightsTelemetryProcessor<QuietRequestTelemetryFilter>", program, StringComparison.Ordinal);
         Assert.Contains("AddHostedService<RuntimeHeartbeat>", program, StringComparison.Ordinal);
+        Assert.Contains(
+            "AddExceptionHandler<ClientAbortExceptionHandler>", program, StringComparison.Ordinal);
     }
 
     [Fact]
