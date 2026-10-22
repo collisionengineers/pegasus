@@ -147,13 +147,14 @@ is on its way to Box. Once the report is stored, the Next action is
 **Create audit** on an Inspection + Audit Case that has no Audit yet, whether
 or not the report is sent, with the Actions menu's own control (greyed with
 its reason where Core refuses it). On any other Case delivery is the Next
-action once the report is stored (operator, 27 September 2026), and it is
-**None** once a send of the report is accepted: the step follows Pegasus's
-own send record, not the Sent poll, while the Case state still moves to
-Report sent when the Sent item is observed (operator, 11 and 12 October
-2026). Once Report sent is recorded and the Case has an open task, the
-Case's open tasks are the step in place of None ([Tasks](#tasks); operator,
-6 October 2026).
+action once the report is stored (operator, 27 September 2026). Once a send
+of the report is accepted there is no step: that follows Pegasus's own send
+record, not the Sent poll, while the Case state still moves to Report sent
+when the Sent item is observed (operator, 11 and 12 October 2026). Once
+Report sent is recorded and the Case has an open task, the Case's open tasks
+are the step ([Tasks](#tasks); operator, 6 October 2026). When no step
+remains, as on a closed or archived Case, the Next action is not drawn
+(operator, 19 October 2026).
 On an open Case with an open query the step is **Resolve query**,
 before any report step: when the oldest open query came by e-mail and staff
 mail is available, its control is **Reply**, which opens that message's
@@ -302,9 +303,9 @@ report may be generated and sent again when needed (operator, 2 October
 2026). The Next action is the viewed work's (operator, 2 October 2026): in
 the Inspection view it states the Inspection report's own step, lists that
 report's blockers while it is not ready, and its links stay in the
-Inspection view; once a send of the Inspection report is accepted it states
-nothing (operator, 12 October 2026), unless a later change made that report
-stale.
+Inspection view; once a send of the Inspection report is accepted it is not
+drawn (operator, 12 and 19 October 2026), unless a later change made that
+report stale.
 
 ### Actions menu
 

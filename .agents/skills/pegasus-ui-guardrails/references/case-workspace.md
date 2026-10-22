@@ -339,7 +339,7 @@ Next action is one step (operator, 8 October 2026): the first outstanding Case r
 the state's step, else the report's first blocker, drawn in full with one full-width control. Do not
 list anything else in it, except that while the Case is Unassigned Take sits beside Assign Engineer
 (#1213, v41 K9, operator, 19 October 2026), and that once Report sent is recorded the Case's open
-tasks are the step (in place of None) or follow it, in the blocker style, each opening the Tasks dialog (operator, 6 and 13 October 2026). Everything outstanding is the **Report not ready** card below, folded
+tasks are the step or follow it, in the blocker style, each opening the Tasks dialog (operator, 6 and 13 October 2026). When no step remains, as on a closed or archived Case, the Next action is not drawn (operator, 19 October 2026). Everything outstanding is the **Report not ready** card below, folded
 until opened and remembered per browser (`data-collapse-folded`): the Case requirements (in any state), then every
 report blocker under its section's name, the requirement as its link to the section that owns the
 fact rather than repeating it. A stale generation's warning notice sits at the top of Next action;

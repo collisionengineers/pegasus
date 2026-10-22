@@ -185,8 +185,8 @@ unavailable**. Report in the Audit view shows the Audit report alone
 sent, the Inspection view's Report keeps the generation and delivery
 controls for that report alone (operator, 1 October 2026), and Next action
 there states that report's own step and blockers, with links that stay in
-the view; once it is sent, Next action states nothing (operator, 2 October
-2026). A Triage Case
+the view; once it is sent, Next action is not drawn (operator, 2 and 19
+October 2026). A Triage Case
 at `/Cases/{id}` keeps the Triage page's own layout (v31 C, operator,
 5 October 2026): the ribbon's next step and one Actions menu, then sticky
 Images, Files (Documents and Correspondence) and Notes tabs with the finding

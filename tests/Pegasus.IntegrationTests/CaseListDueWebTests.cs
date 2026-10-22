@@ -2,8 +2,11 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.IntegrationTests.Reports;
+using Pegasus.Web.Authentication;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
@@ -80,6 +83,44 @@ public sealed class CaseListDueWebTests
         Assert.Contains(
             $"<td class=\"nowrap cases-late\">{OperatorLabels.DueDate(now)}</td>", late, StringComparison.Ordinal);
         Assert.DoesNotContain("<td class=\"nowrap\">18 Jun 2040</td>", late, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A With Engineer Case whose report send was accepted before its Sent
+    /// evidence is the one queued Case with no step: its quick detail lists no
+    /// Current work row (R306), and its other facts remain.
+    /// </summary>
+    [Fact]
+    public async Task AQueuedCaseWithNoStepListsNoCurrentWork()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "AB12 CDE", "LIST-DUE-02");
+        await using (var context = await baseFactory.Database.CreateContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+            workflow.State = nameof(Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation);
+            workflow.AssignedEngineerId = DevelopmentOfflineIdentity.AdministratorId;
+            await context.SaveChangesAsync();
+        }
+        var reports = new CaseViewsWebTests.ReportsPerWork(caseId);
+        var sends = new CaseViewsWebTests.SendsPerWork { Inspection = 1, Audit = 1 };
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            CaseWebTestSupport.Substitute<ICaseReportGenerationStore>(services, reports);
+            CaseWebTestSupport.Substitute<ICaseReportSendHistoryQueries>(services, sends);
+            CaseWebTestSupport.Substitute<ICaseReportSnapshotSource>(
+                services,
+                new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(caseId)));
+        }));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var list = await GetAsync(client, $"/Cases?tab=with_engineer&selected={caseId:D}");
+
+        Assert.Contains("<dt>Engineer</dt>", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("<dt>Current work</dt>", list, StringComparison.Ordinal);
     }
 
     private static async Task<string> GetAsync(HttpClient client, string path)

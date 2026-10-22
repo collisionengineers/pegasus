@@ -275,11 +275,12 @@ public sealed partial class DetailsModel
     /// The Case requirement the Next action's one step names, drawn in full
     /// with a control to the section that clears it: the first outstanding
     /// one while the Case is Not ready or Held, the states whose step it is
-    /// (<see cref="CaseNextAction"/>); null otherwise.
+    /// (<see cref="CaseNextAction"/>); null otherwise. The aside passes the
+    /// step it already holds, so the step is worked out once per render.
     /// </summary>
-    public CaseRequirement? NextActionRequirement =>
+    public CaseRequirement? NextActionRequirement(CaseNextActionStep next) =>
         CaseNextAction.ReadsTheRequirements(Case!.Workflow)
-        && NextAction is { Blocker: null }
+        && next.Blocker is null
         && ReportNotReadyRequirements is [var first, ..]
             ? first
             : null;
@@ -318,7 +319,7 @@ public sealed partial class DetailsModel
                 CurrentReportGeneration,
                 ReportSendHistory.Accepted,
                 OpenTasks.Count > 0);
-            return next.Blocker is not null && AssessmentIsReadOnly
+            return next is { Blocker: not null } && AssessmentIsReadOnly
                 ? new(CaseWorkspaceLabels.Report.NotReady, "report")
                 : next;
         }
