@@ -286,7 +286,7 @@ public sealed class RetainedMailTests
             ],
             true));
 
-        var page = await new SearchDeletedMail(source).ExecuteAsync(
+        var page = await new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System)).ExecuteAsync(
             Caseworker(),
             Guid.Parse("11111111-1111-1111-1111-111111111111"),
             " estimate ",
@@ -308,7 +308,7 @@ public sealed class RetainedMailTests
         var source = new DeletedSource(new([], false));
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new SearchDeletedMail(source).ExecuteAsync(
+            new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System)).ExecuteAsync(
                 ActionActor.Principal(Guid.NewGuid()),
                 null,
                 "estimate",
@@ -316,6 +316,77 @@ public sealed class RetainedMailTests
                 25));
 
         Assert.Null(source.SearchTerm);
+    }
+
+    [Fact]
+    public async Task DeletedSearchKeepsAnAvailableResultFiveMinutesPerStaffMailboxAndTerm()
+    {
+        var clock = new SteppedTimeProvider(NowUtc);
+        var source = new DeletedSource(new(
+            [Deleted("a", NowUtc), Deleted("b", NowUtc.AddMinutes(-1)), Deleted("c", NowUtc.AddMinutes(-2))],
+            true));
+        var search = new SearchDeletedMail(source, new DeletedMailSearchKeep(clock));
+        var staff = Caseworker();
+
+        var first = await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2);
+        var next = await search.ExecuteAsync(staff, MailboxA, " estimate ", 2, 2);
+        var previous = await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2);
+
+        Assert.Equal(1, source.SearchCount);
+        Assert.Equal(["a", "b"], first.Items.Select(item => item.ImmutableMessageId));
+        Assert.Equal(["c"], next.Items.Select(item => item.ImmutableMessageId));
+        Assert.Equal(first.Items, previous.Items);
+        Assert.True(next.IsTruncated);
+        Assert.Equal(3, next.TotalCount);
+
+        await search.ExecuteAsync(staff, MailboxA, "other", 1, 2);
+        await search.ExecuteAsync(staff, MailboxB, "estimate", 1, 2);
+        await search.ExecuteAsync(Caseworker(), MailboxA, "estimate", 1, 2);
+        Assert.Equal(4, source.SearchCount);
+
+        clock.Advance(TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(1));
+        await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2);
+        Assert.Equal(4, source.SearchCount);
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2);
+        Assert.Equal(5, source.SearchCount);
+    }
+
+    [Fact]
+    public async Task DeletedSearchNeverKeepsAnUnavailableResult()
+    {
+        var source = new DeletedSource(new([], false, DeletedMailSearchState.Unavailable));
+        var search = new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System));
+        var staff = Caseworker();
+
+        var first = await search.ExecuteAsync(staff, null, "estimate", 1, 25);
+        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, first.State);
+        Assert.Equal(2, source.SearchCount);
+    }
+
+    [Fact]
+    public async Task DeletedSearchAuthorizesBeforeReadingTheKeep()
+    {
+        var source = new DeletedSource(new([Deleted("a", NowUtc)], false));
+        var search = new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System));
+        var staff = Caseworker();
+        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            search.ExecuteAsync(ActionActor.Principal(Guid.NewGuid()), null, "estimate", 1, 25));
+        Assert.Equal(1, source.SearchCount);
+    }
+
+    private sealed class SteppedTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        private DateTimeOffset current = now;
+
+        internal void Advance(TimeSpan by) => current += by;
+
+        public override DateTimeOffset GetUtcNow() => current;
     }
 
     private static DeletedMailSearchItem Deleted(string id, DateTimeOffset receivedAtUtc) => new(
@@ -906,6 +977,7 @@ public sealed class RetainedMailTests
         internal Guid? MailboxId { get; private set; }
         internal string? SearchTerm { get; private set; }
         internal int MaximumMessages { get; private set; }
+        internal int SearchCount { get; private set; }
 
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
             CancellationToken cancellationToken) =>
@@ -920,6 +992,7 @@ public sealed class RetainedMailTests
             MailboxId = mailboxId;
             SearchTerm = searchTerm;
             MaximumMessages = maximumMessages;
+            SearchCount++;
             return Task.FromResult(result);
         }
     }

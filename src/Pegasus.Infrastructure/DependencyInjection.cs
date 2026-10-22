@@ -122,6 +122,7 @@ public static class DependencyInjection
         services.AddScoped<IRestoreRetainedMail, RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
         services.TryAddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
+        services.AddSingleton<DeletedMailSearchKeep>();
         services.AddScoped<SearchDeletedMail>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
