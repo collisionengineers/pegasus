@@ -28,6 +28,7 @@ SPACED_PATH_PATTERN = re.compile(r"`((?:[\w. -]+/)+[\w. -]+\.\w{1,10})`")
 BARE_FILE_PATTERN = re.compile(r"\b([A-Z]\w+\.(?:cs|cshtml|csproj|ps1|py|ts|js|css|json|md|bicep|sql))\b")
 IDENTIFIER_PATTERN = re.compile(r"`([A-Z][A-Za-z0-9]{7,})`")
 SOURCE_GLOBS = ["*.cs", "*.cshtml", "*.ps1", "*.py", "*.ts", "*.js", "*.bicep"]
+GREP_HIT = re.compile(r"([^\0]*)\0([^\n]*)\n")
 
 
 def run(args: list[str], check: bool = True) -> str:
@@ -41,11 +42,21 @@ def gh_json(args: list[str]):
     return json.loads(run(["gh", *args]))
 
 
-def named_paths(text: str, tree: list[str]) -> list[str]:
+def named_paths(text: str, tree: set[str]) -> list[str]:
     """The paths the text names: dir/file.ext anywhere, and a backticked span that holds spaces and is tracked."""
     spaced = {m.group(1) for m in SPACED_PATH_PATTERN.finditer(text) if " " in m.group(1) and m.group(1) in tree}
     rest = SPACED_PATH_PATTERN.sub(lambda m: " " if m.group(1) in spaced else m.group(0), text)
     return sorted({m.group(1) for m in PATH_PATTERN.finditer(rest)} | spaced)
+
+
+def identifier_files(identifiers: list[str], base_ref: str) -> dict[str, list[str]]:
+    """Identifier -> the source files at base_ref that hold it as a whole word, in tree order, from one git grep."""
+    patterns = [arg for ident in identifiers for arg in ("-e", ident)]
+    output = run(["git", "grep", "-o", "-z", "-w", *patterns, base_ref, "--", *SOURCE_GLOBS], check=False)
+    files: dict[str, dict[str, None]] = {}
+    for hit, ident in GREP_HIT.findall(output):  # each hit is `<ref>:<path>`, NUL, the match, newline
+        files.setdefault(ident, {})[hit.split(":", 1)[1]] = None
+    return {ident: list(paths) for ident, paths in files.items()}
 
 
 def main() -> int:
@@ -126,25 +137,27 @@ def main() -> int:
     text = (issue.get("body") or "") + "\n" + "\n".join(c.get("body") or "" for c in comments)
     listing = run(["git", "ls-tree", "-r", "--name-only", "-z", base_ref], check=False) if base_sha else ""
     tree = [p for p in listing.split("\0") if p]
-    paths = named_paths(text, tree)
-    existing = [p for p in paths if p in tree]
-    missing = [p for p in paths if p not in tree]
+    tracked = set(tree)
+    by_name: dict[str, list[str]] = {}
+    for path in tree:
+        by_name.setdefault(path.rpartition("/")[2], []).append(path)
+    paths = named_paths(text, tracked)
+    existing = [p for p in paths if p in tracked]
+    missing = [p for p in paths if p not in tracked]
 
     # Issues often name a bare file (`Foo.cs`) or a type (`FooQueries`) rather than a path.
     # Resolve those at the base tip so the commit log below covers them too.
     resolved: dict[str, list[str]] = {}
     for name in sorted({m.group(1) for m in BARE_FILE_PATTERN.finditer(text)} - set(paths)):
-        hits = [p for p in tree if p.endswith("/" + name) or p == name]
-        if hits:
-            resolved[name] = hits[:5]
-    for ident in sorted({m.group(1) for m in IDENTIFIER_PATTERN.finditer(text)})[:15]:
-        if base_sha:
-            hits = run(["git", "grep", "-l", "-z", "-w", ident, base_ref, "--", *SOURCE_GLOBS], check=False).split("\0")
-            hits = [h.split(":", 1)[1] for h in hits if ":" in h]
-            if hits:
-                resolved[ident] = hits[:8]
-    for hits in resolved.values():
-        existing.extend(h for h in hits if h not in existing)
+        if name in by_name:
+            resolved[name] = by_name[name][:5]
+    identifiers = sorted({m.group(1) for m in IDENTIFIER_PATTERN.finditer(text)})[:15]
+    if identifiers and base_sha:
+        found = identifier_files(identifiers, base_ref)
+        for ident in identifiers:
+            if ident in found:
+                resolved[ident] = found[ident][:8]
+    existing = list(dict.fromkeys([*existing, *(hit for hits in resolved.values() for hit in hits)]))
 
     out.append(f"\n## Paths the issue names, and commits on `{base_ref}` since it was opened\n")
     if not paths and not resolved:

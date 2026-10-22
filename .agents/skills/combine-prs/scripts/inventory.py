@@ -21,27 +21,29 @@ import re
 import subprocess
 import sys
 
-PR_FIELDS = ",".join([
-    "number", "title", "url", "state", "isDraft", "baseRefName", "headRefName",
-    "headRefOid", "isCrossRepository", "headRepositoryOwner", "mergeable",
-    "mergeStateStatus", "reviewDecision", "labels", "closingIssuesReferences",
-    "statusCheckRollup", "author",
-])
-
-FEEDBACK_QUERY = """
-query($owner: String!, $name: String!, $n: Int!) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $n) {
-      reviewThreads(first: 100) {
-        nodes { isResolved isOutdated path line
-                comments(first: 1) { nodes { author { login } body } } }
-      }
-      reviews(first: 100) { nodes { author { login } state body } }
-      comments(first: 100) { nodes { author { login } body } }
-    }
+# Every field the report reads, for all the pull requests in one request.
+PULL_REQUEST_FIELDS = """
+fragment PullRequestFields on PullRequest {
+  number title url state isDraft baseRefName headRefName headRefOid isCrossRepository
+  headRepositoryOwner { login } mergeable mergeStateStatus reviewDecision author { login }
+  labels(first: 100) { nodes { name } }
+  closingIssuesReferences(first: 100) { nodes { number } }
+  commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
+    ... on CheckRun { name status conclusion }
+    ... on StatusContext { context state }
+  } } } } } }
+  reviewThreads(first: 100) {
+    nodes { isResolved isOutdated path line
+            comments(first: 1) { nodes { author { login } body } } }
   }
+  reviews(first: 100) { nodes { author { login } state body } }
+  comments(first: 100) { nodes { author { login } body } }
 }
 """
+FEEDBACK_KEYS = ("reviewThreads", "reviews", "comments")
+
+# A FETCH_HEAD line: <oid> TAB <not-for-merge or empty> TAB <branch 'x' | 'ref'> of <url>.
+FETCH_HEAD_LINE = re.compile(r"(?P<oid>\w+)\t[^\t]*\t(?P<branch>branch )?'(?P<ref>[^']+)' of ")
 
 HOLD_PATTERN = re.compile(r"\b(hold|do[ -]?not[ -]?merge|dnm|wip|blocked)\b", re.IGNORECASE)
 FAILED = {"FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR"}
@@ -80,6 +82,48 @@ def summarize_checks(rollup: list[dict]) -> tuple[str, list[str]]:
     return f"{passed} ok / {pending} pending / {len(failed)} failed", failed
 
 
+def pull_requests_query(numbers: list[int]) -> str:
+    """One query that answers for every pull request, each under the alias `pr<number>`."""
+    aliases = "\n".join(f"    pr{n}: pullRequest(number: {n}) {{ ...PullRequestFields }}" for n in dict.fromkeys(numbers))
+    return ("query($owner: String!, $name: String!) {\n"
+            f"  repository(owner: $owner, name: $name) {{\n{aliases}\n  }}\n}}\n{PULL_REQUEST_FIELDS}")
+
+
+def flatten(node: dict) -> dict:
+    """A pull request as the report reads it: the connections as lists, the review feedback under `feedback`."""
+    commit = (node["commits"]["nodes"] or [{}])[0].get("commit") or {}
+    contexts = ((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes") or []
+    pr = {key: value for key, value in node.items() if key != "commits" and key not in FEEDBACK_KEYS}
+    pr["labels"] = node["labels"]["nodes"]
+    pr["closingIssuesReferences"] = node["closingIssuesReferences"]["nodes"]
+    pr["statusCheckRollup"] = contexts
+    pr["feedback"] = {key: node[key] for key in FEEDBACK_KEYS}
+    return pr
+
+
+def fetched_oids() -> dict[str, str]:
+    """Ref name -> object id for everything the last `git fetch` brought, read by name from FETCH_HEAD."""
+    path = run(["git", "rev-parse", "--git-path", "FETCH_HEAD"]).strip()
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        matches = [m for m in map(FETCH_HEAD_LINE.match, handle) if m]
+    return {("refs/heads/" if m["branch"] else "") + m["ref"]: m["oid"] for m in matches}
+
+
+def containment(prs: list[dict]) -> list[str]:
+    """One line for each pull request whose head contains the different head of another.
+
+    One `git merge-base --independent` over the distinct heads names the ones no other head contains;
+    only the rest can be contained, so only they are put to `--is-ancestor`, against the other heads.
+    """
+    heads = list(dict.fromkeys(pr["headRefOid"] for pr in prs))
+    independent = set(run(["git", "merge-base", "--independent", *heads]).split())
+    inside = {a: {b for b in heads if b != a
+                  and subprocess.run(["git", "merge-base", "--is-ancestor", a, b]).returncode == 0}
+              for a in heads if a not in independent}
+    return [f"#{b['number']} already contains #{a['number']}'s head" for a in prs for b in prs
+            if b["headRefOid"] in inside.get(a["headRefOid"], ())]
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -90,23 +134,24 @@ def main() -> int:
     parser.add_argument("--json-out", help="also write the full inventory as JSON to this path")
     opts = parser.parse_args()
 
-    repo_args = ["--repo", opts.repo] if opts.repo else []
     repo = gh_json(["repo", "view", *([opts.repo] if opts.repo else []), "--json", "owner,name,defaultBranchRef"])
     owner, name = repo["owner"]["login"], repo["name"]
     default_branch = (repo.get("defaultBranchRef") or {}).get("name")
 
-    target_line = run(["git", "ls-remote", opts.remote, f"refs/heads/{opts.target}"]).split()
-    if not target_line:
-        raise SystemExit(f"error: {opts.remote} has no branch {opts.target}")
-    target_sha = target_line[0]
-    run(["git", "fetch", "--quiet", opts.remote, f"refs/heads/{opts.target}"])
+    # Two network calls whatever the number of pull requests: one query for all of them, taken
+    # first so the fetch shows a head that moved after it, then one fetch of the target and every head.
+    nodes = gh_json(["api", "graphql", "-F", f"owner={owner}", "-F", f"name={name}",
+                     "-f", f"query={pull_requests_query(opts.prs)}"])["data"]["repository"]
+    target_ref = f"refs/heads/{opts.target}"
+    run(["git", "fetch", "--quiet", opts.remote, target_ref, *(f"refs/pull/{n}/head" for n in opts.prs)])
+    oids = fetched_oids()
+    target_sha = oids[target_ref]
 
     prs: list[dict] = []
     blockers: list[str] = []
     for number in opts.prs:
-        pr = gh_json(["pr", "view", str(number), *repo_args, "--json", PR_FIELDS])
-        run(["git", "fetch", "--quiet", opts.remote, f"refs/pull/{number}/head"])
-        fetched = run(["git", "rev-parse", "FETCH_HEAD"]).strip()
+        pr = flatten(nodes[f"pr{number}"])
+        fetched = oids[f"refs/pull/{number}/head"]
         if fetched != pr["headRefOid"]:
             blockers.append(f"#{number}: head moved during inventory ({pr['headRefOid'][:12]} -> {fetched[:12]}); rerun")
         head = pr["headRefOid"]
@@ -115,10 +160,7 @@ def main() -> int:
         pr["mergeBase"] = merge_base
         pr["ahead"], pr["behind"] = int(ahead), int(behind)
         pr["changedFiles"] = [f for f in run(["git", "diff", "--name-only", "--no-renames", merge_base, head]).splitlines() if f]
-        pr["checkSummary"], pr["failedChecks"] = summarize_checks(pr.get("statusCheckRollup"))
-        feedback = gh_json(["api", "graphql", "-F", f"owner={owner}", "-F", f"name={name}",
-                            "-F", f"n={number}", "-f", f"query={FEEDBACK_QUERY}"])
-        pr["feedback"] = feedback["data"]["repository"]["pullRequest"]
+        pr["checkSummary"], pr["failedChecks"] = summarize_checks(pr["statusCheckRollup"])
         prs.append(pr)
 
     by_head_ref = {pr["headRefName"]: pr for pr in prs if not pr["isCrossRepository"]}
@@ -166,11 +208,7 @@ def main() -> int:
     for pr in prs:
         place(pr)
 
-    contains = []
-    for a, b in itertools.permutations(prs, 2):
-        if a["headRefOid"] != b["headRefOid"] and subprocess.run(
-                ["git", "merge-base", "--is-ancestor", a["headRefOid"], b["headRefOid"]]).returncode == 0:
-            contains.append(f"#{b['number']} already contains #{a['number']}'s head")
+    contains = containment(prs)
 
     out = []
     out.append(f"# PR inventory for `{opts.target}`\n")

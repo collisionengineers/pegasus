@@ -17,6 +17,8 @@ branch (for example `dev`), investigate against that, not the default branch.
 
 ## Authority
 
+This repository's AGENTS.md governs every write; invoking this skill authorises none.
+
 Invoking this skill authorises:
 - read-only inventory of the repo, GitHub and any branch;
 - `git fetch`, and a throwaway detached worktree to read the tip cleanly;

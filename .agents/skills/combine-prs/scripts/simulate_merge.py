@@ -92,18 +92,23 @@ def main() -> int:
     any_conflict = conflicted_once
     if opts.pairwise:
         print("\n## Each PR against the target alone\n")
+        alone = []
         for label, sha in heads:
-            _, files, _ = merge(target, sha)
+            tree, files, _ = merge(target, sha)
+            alone.append((tree, files))
             any_conflict |= bool(files)
             print(f"- #{label}: {'conflicts in ' + ', '.join(files) if files else 'clean'}")
         print("\n## Pairs (each pair merged onto the target)\n")
-        for (la, a), (lb, b) in itertools.combinations(heads, 2):
-            tree_a, files_a, _ = merge(target, a)
+        bases: dict[int, str] = {}
+        for i, j in itertools.combinations(range(len(heads)), 2):
+            (la, a), (lb, b) = heads[i], heads[j]
+            tree_a, files_a = alone[i]
             if files_a:
                 print(f"- #{la} × #{lb}: skipped (#{la} conflicts with the target alone)")
                 continue
-            base = git("commit-tree", tree_a, "-p", target, "-p", a, "-m", "pair").stdout.strip()
-            _, files, _ = merge(base, b)
+            if i not in bases:
+                bases[i] = git("commit-tree", tree_a, "-p", target, "-p", a, "-m", "pair").stdout.strip()
+            _, files, _ = merge(bases[i], b)
             if files:
                 print(f"- #{la} × #{lb}: conflicts in {', '.join(files)}")
         print("(pairs not listed merge cleanly)")

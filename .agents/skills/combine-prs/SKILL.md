@@ -21,6 +21,8 @@ repo (`owner/name`). Ask for the target if it is missing; do not guess `main`.
 
 ## Authority
 
+This repository's AGENTS.md governs every write; invoking this skill authorises none.
+
 Invoking this skill authorises:
 - read-only inventory;
 - fetching objects;
@@ -156,7 +158,7 @@ PRs were each green, but once both landed the target did not compile, because
 one PR deleted an interface member the other had started using.
 
 - For each PR that deletes or renames a symbol, file, route, option or setting, grep the tip for remaining uses, especially uses added by the other PRs.
-- Build, compile, typecheck or lint the combined tip **once**. If several agents are involved, one build at the tip replaces their per-branch builds.
+- Build, compile, typecheck or lint the combined tip **once**. If several agents are involved, one build at the tip replaces their per-branch builds. Pegasus: CI is the build; no local test that CI runs.
 - Leave the test suites to CI when the target's CI runs on PRs, unless the repo says otherwise or the user asks. Running locally what CI is about to run wastes the user's time.
 
 ### 7. Audit for lost work

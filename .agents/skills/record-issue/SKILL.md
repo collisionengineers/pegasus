@@ -17,6 +17,8 @@ Optionally the repo (`owner/name`) and labels.
 
 ## Authority
 
+This repository's AGENTS.md governs every write; invoking this skill authorises none.
+
 Invoking this skill authorises a duplicate search and creating **one**
 issue in the repository (the write is implied by the invocation; do not ask
 again). It does not authorise editing or closing other issues, assigning,
