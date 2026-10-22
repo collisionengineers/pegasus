@@ -25,8 +25,8 @@ namespace Pegasus.Web.Presentation;
 /// text at all renders the same form, empty, for a person to key.
 /// </param>
 /// <param name="ExtractedFields">
-/// What extraction proposed, shown beneath each input so the operator can see
-/// what they are agreeing with or overruling. Empty for a hand-keyed item.
+/// What extraction proposed, which gives each value it found the Extracted
+/// tag. Empty for a hand-keyed item.
 /// </param>
 /// <param name="IncludePrincipalCode">
 /// Whether to render the suggested principal here. The create screen asks for
@@ -45,20 +45,11 @@ public sealed record InstructionDraftFieldsView(
     bool IncludeInspectionAddress)
 {
     /// <summary>
-    /// The candidate values extraction offered for a named field, in the
-    /// operator's own field names.
+    /// Whether extraction offered a value for a named field, in the operator's
+    /// own field names: that value carries the Extracted tag, and anything
+    /// else on the screen is what a person put there and carries none (v41 U4).
     /// </summary>
-    public IReadOnlyList<InstructionFieldCandidate> CandidatesFor(string fieldName) =>
-        ExtractedFields
-            .Where(field => string.Equals(field.Name, fieldName, StringComparison.Ordinal))
-            .SelectMany(field => field.Candidates)
-            .ToArray();
-
-    /// <summary>
-    /// Where the value in the box came from, in one word, per the operator
-    /// notes' provenance rule. A value extraction proposed reads "Extracted";
-    /// anything else on the screen is what a person put there.
-    /// </summary>
-    public string ProvenanceWord(string fieldName) =>
-        CandidatesFor(fieldName).Count > 0 ? "Extracted" : "Staff";
+    public bool IsExtracted(string fieldName) =>
+        ExtractedFields.Any(field =>
+            string.Equals(field.Name, fieldName, StringComparison.Ordinal) && field.Candidates.Count > 0);
 }

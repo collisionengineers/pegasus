@@ -13,7 +13,7 @@
     var draft = Model.Draft;
 
     Microsoft.AspNetCore.Html.IHtmlContent Tag(string fieldName) =>
-        Model.ProvenanceWord(fieldName) == "Extracted"
+        Model.IsExtracted(fieldName)
             ? Pegasus.Web.Presentation.OperatorLabels.SourceTagWord.Extracted.Render()
             : Microsoft.AspNetCore.Html.HtmlString.Empty;
 }

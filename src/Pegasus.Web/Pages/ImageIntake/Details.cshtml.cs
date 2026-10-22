@@ -121,6 +121,9 @@ public sealed class DetailsModel(
     /// <summary>The record as the operator reading an ownership sentence names it.</summary>
     private const string RecordName = "Vehicle images record";
 
+    /// <summary>What a Principal, Close or Edit post says when the record changed underneath it.</summary>
+    private const string ChangedWhileWorking = "This Vehicle images changed while you were working. Reload and try again.";
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         var detail = await imageIntakeStore.GetAsync(id, cancellationToken);
@@ -243,7 +246,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Vehicle images changed while you were working. Reload and try again.");
+                ChangedWhileWorking);
             return await OnGetAsync(id, cancellationToken);
         }
         catch (EditScopeConflictException)
@@ -264,7 +267,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Vehicle images changed while you were working. Reload and try again.");
+                ChangedWhileWorking);
             return await OnGetAsync(id, cancellationToken);
         }
         catch (InvalidOperationException exception)
@@ -310,7 +313,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Vehicle images changed while you were working. Reload and try again.");
+                ChangedWhileWorking);
             return await OnGetAsync(id, cancellationToken);
         }
         catch (EditScopeConflictException)
@@ -331,7 +334,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Vehicle images changed while you were working. Reload and try again.");
+                ChangedWhileWorking);
             return await OnGetAsync(id, cancellationToken);
         }
         catch (InvalidOperationException exception)
@@ -378,7 +381,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Vehicle images changed while you were working. Reload and try again.");
+                ChangedWhileWorking);
         }
         catch (InvalidOperationException exception)
         {

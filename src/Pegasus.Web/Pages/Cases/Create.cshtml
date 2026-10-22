@@ -22,7 +22,7 @@
 @{
     void Row(string label, string? value, string fieldName)
     {
-        var extracted = Model.DraftFields.ProvenanceWord(fieldName) == "Extracted";
+        var extracted = Model.DraftFields.IsExtracted(fieldName);
         var recorded = !string.IsNullOrWhiteSpace(value);
         <dl class="definition">
             <dt>@label</dt>
