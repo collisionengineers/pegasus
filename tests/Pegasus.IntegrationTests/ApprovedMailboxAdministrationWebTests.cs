@@ -61,7 +61,17 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<th scope=\"col\">Used for</th>", page, StringComparison.Ordinal);
         Assert.Contains("<th scope=\"col\">Last checked</th>", page, StringComparison.Ordinal);
         Assert.Contains("<th scope=\"col\">State</th>", page, StringComparison.Ordinal);
-        Assert.Matches("<p class=\"panel-title-meta\">\\d+ mailbox(es)?</p>", page);
+        await using (var countScope = factory.Services.CreateAsyncScope())
+        {
+            var countFactory = countScope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var countContext = await countFactory.CreateDbContextAsync();
+            var mailboxCount = await countContext.ApprovedMailboxes.CountAsync();
+            Assert.Contains(
+                $"<p class=\"panel-title-meta\">{OperatorLabels.MailSettings.MailboxCount(mailboxCount)}</p>",
+                page,
+                StringComparison.Ordinal);
+        }
+
         Assert.Contains("?mailboxId=", page, StringComparison.Ordinal);
         Assert.Contains("data-dialog=\"new-mailbox-dialog\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("default-sender", page, StringComparison.Ordinal);
@@ -546,7 +556,10 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.DoesNotContain("mailFolders", editing, StringComparison.Ordinal);
         Assert.Contains("<dt>Last success</dt><dd>06 May 2031 11:20</dd>", normalizedEditing, StringComparison.Ordinal);
         Assert.Contains("<dt>Freshness</dt><dd>Fresh</dd>", normalizedEditing, StringComparison.Ordinal);
-        Assert.Contains("<dt>Last error</dt><dd>Graph unavailable</dd>", normalizedEditing, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<dt>Last error</dt><dd>{OperatorLabels.MailSettings.LastError("graph_unavailable")}</dd>",
+            normalizedEditing,
+            StringComparison.Ordinal);
         var health = await client.GetStringAsync("/Administration/Health");
         Assert.Contains("instructions@collisionengineers.co.uk", health, StringComparison.Ordinal);
         Assert.Contains("Needs attention", health, StringComparison.Ordinal);

@@ -621,7 +621,7 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `shield` | `shield` | `DC47E83DA00C351F99CB71550D9C473778E5B9ED77EA53C5C6363E6DB5797572` | Roles, access |
 | — | `trash-2` | `BDC20CCC528299464BC8852314626B17A8247752FB07181C8E4472CD55BF3211` | Delete estimate, remove line, Delete message |
 | — | `rotate-cw` | `D716E6418C8814CA369A43E86BF60C03D0D7F2C85B9C53309F62063532B0BB3E` | Rotate view right (paired with `rotate-ccw`) |
-| `spark` (undefined) | `sparkles` | `08C2C4D0FF60EACA5067A5BE176C844952C55FC81B9047CF1FB105C80C0CE6D4` | Administration nav and hub: AI jobs; AI job rows |
+| `spark` (undefined) | `sparkles` | `08C2C4D0FF60EACA5067A5BE176C844952C55FC81B9047CF1FB105C80C0CE6D4` | Administration nav and hub: AI jobs; Send to AI, Send Unidentified to AI, Reply with AI draft, Draft reply with AI, the AI draft notice |
 | `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
