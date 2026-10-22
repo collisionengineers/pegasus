@@ -198,7 +198,8 @@ public static class AutomationMcpExtensions
     /// <summary>
     /// Maps the bearer-only automation surface: the token endpoint (client
     /// credentials, authorization code, refresh), the streamable-HTTP MCP
-    /// endpoint and the two original-bytes routes the download tools name as
+    /// endpoint, whose GET and DELETE answer 405 because the transport is
+    /// stateless, and the two original-bytes routes the download tools name as
     /// <c>contentUrl</c>. The Administrator consent page at <c>/authorize</c> is a
     /// Razor Page (staff cookie), not mapped here. A staff browser cookie is
     /// never accepted on <c>/mcp</c>: the endpoint policy authenticates
@@ -212,6 +213,19 @@ public static class AutomationMcpExtensions
             .AllowAnonymous()
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
         app.MapMcp(AutomationMcp.McpEndpointPath)
+            .RequireAuthorization(AutomationMcp.EndpointPolicy)
+            .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
+        // A stateless MapMcp maps POST only; without these, GET and DELETE
+        // fall to the staff fallback policy and its sign-in redirect.
+        app.MapMethods(
+                AutomationMcp.McpEndpointPath,
+                [HttpMethods.Get, HttpMethods.Delete],
+                context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed;
+                    context.Response.Headers.Allow = HttpMethods.Post;
+                    return Task.CompletedTask;
+                })
             .RequireAuthorization(AutomationMcp.EndpointPolicy)
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
         app.MapGet(

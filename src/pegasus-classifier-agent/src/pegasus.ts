@@ -73,6 +73,12 @@ export class PegasusMail {
   async connect(): Promise<void> {
     const transport = new StreamableHTTPClientTransport(new URL(this.config.mcpUrl), {
       fetch: async (url, init) => {
+        // The transport's only GET opens the server stream, which the
+        // stateless /mcp never offers; it answers 405, which the transport
+        // reads as "no stream". Answering here saves the request and token.
+        if (init?.method === "GET") {
+          return new Response(null, { status: 405 });
+        }
         const headers = new Headers(init?.headers);
         headers.set("Authorization", `Bearer ${await this.accessToken()}`);
         return fetch(url, { ...init, headers });
