@@ -6,7 +6,6 @@
     ViewData["Title"] = OperatorLabels.Admin.Mail;
     ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "mail";
-    ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
 }
 
 <partial name="Shared/_PageHeader" />
@@ -25,31 +24,34 @@
 
         <section class="panel" aria-labelledby="approved-mailboxes-title">
             <div class="panel-head">
-                <h2 id="approved-mailboxes-title">@OperatorLabels.MailSettings.ApprovedMailboxes</h2>
-                <button type="button" class="btn btn--small btn--dark" data-dialog-open="new-mailbox-dialog">
+                <div>
+                    <h2 id="approved-mailboxes-title">@OperatorLabels.MailSettings.ApprovedMailboxes</h2>
+                    <p class="panel-title-meta">@OperatorLabels.MailSettings.MailboxCount(Model.Mailboxes.Count)</p>
+                </div>
+                <button type="button" class="btn btn--small btn--primary" data-dialog-open="new-mailbox-dialog">
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
                     <span>@OperatorLabels.MailSettings.AddMailbox</span>
                 </button>
             </div>
-            <div class="table-wrap no-border">
-                <table class="table table--compact mailbox-table">
-                    <caption class="sr-only">@OperatorLabels.MailSettings.ApprovedMailboxes</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">@OperatorLabels.MailSettings.Mailbox</th>
-                            <th scope="col">@OperatorLabels.MailSettings.RouteScope</th>
-                            <th scope="col">Last checked</th>
-                            <th scope="col">@OperatorLabels.MailSettings.State</th>
-                            <th scope="col"><span class="sr-only">Settings</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @if (Model.Mailboxes.Count == 0)
-                    {
-                        <tr><td colspan="5">@OperatorLabels.MailSettings.NoApprovedMailboxes</td></tr>
-                    }
-                    else
-                    {
+            @if (Model.Mailboxes.Count == 0)
+            {
+                <div class="empty"><p>@OperatorLabels.MailSettings.NoApprovedMailboxes</p></div>
+            }
+            else
+            {
+                <div class="table-wrap no-border">
+                    <table class="table table--compact mailbox-table">
+                        <caption class="sr-only">@OperatorLabels.MailSettings.ApprovedMailboxes</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">@OperatorLabels.MailSettings.Mailbox</th>
+                                <th scope="col">@OperatorLabels.MailSettings.RouteScope</th>
+                                <th scope="col">Last checked</th>
+                                <th scope="col">@OperatorLabels.MailSettings.State</th>
+                                <th scope="col"><span class="sr-only">Settings</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
                         @foreach (var mailbox in Model.Mailboxes)
                         {
                             <tr>
@@ -62,10 +64,10 @@
                                 </td>
                             </tr>
                         }
-                    }
-                    </tbody>
-                </table>
-            </div>
+                        </tbody>
+                    </table>
+                </div>
+            }
         </section>
     </div>
 </div>
@@ -73,14 +75,14 @@
 <div class="dialog-backdrop" data-dialog="new-mailbox-dialog"
      data-dialog-open-on-load="@(Model.IsNewMailboxEditorOpen ? "true" : null)"
      hidden="@(Model.IsNewMailboxEditorOpen ? null : "hidden")">
-    <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="new-mailbox-dialog-title">
+    <section class="dialog dialog--contact" role="dialog" aria-modal="true" aria-labelledby="new-mailbox-dialog-title">
         <form method="post" asp-page-handler="Update">
-            <div class="dialog-head"><h2 id="new-mailbox-dialog-title" tabindex="-1">@OperatorLabels.MailSettings.AddMailbox</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">×</button></div>
-            <div class="dialog-body">
+            <div class="dialog-head"><h2 id="new-mailbox-dialog-title" tabindex="-1">@OperatorLabels.MailSettings.AddMailbox</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
+            <div class="dialog-body stack">
                 <partial name="Shared/_ErrorSummary" />
                 <input type="hidden" name="MailboxForm.MailboxId" value="@Model.NewMailboxId" /><input type="hidden" name="MailboxForm.ExpectedVersion" value="0" /><input type="hidden" name="MailboxForm.OperationKey" value="@Model.NewMailboxOperationKey" />
                 <div class="field"><label class="req" for="new-mailbox-address">@OperatorLabels.MailSettings.ApprovedAddress</label><input id="new-mailbox-address" name="MailboxForm.Address" value="@Model.NewAddress" required maxlength="320" inputmode="email" /></div>
-                <fieldset class="stack"><legend>@OperatorLabels.MailSettings.RouteScope</legend><label class="cluster"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="Incoming" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.Incoming)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.Incoming)</span></label><label class="cluster"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="Outgoing" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.Outgoing)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.Outgoing)</span></label></fieldset>
+                <fieldset class="stack fieldset-plain fieldset-plain--label"><legend>@OperatorLabels.MailSettings.RouteScope</legend><label class="choice"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="Incoming" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.Incoming)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.Incoming)</span></label><label class="choice"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="Outgoing" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.Outgoing)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.Outgoing)</span></label></fieldset>
                 <div class="field"><label for="new-mailbox-state">@OperatorLabels.MailSettings.State</label><select id="new-mailbox-state" name="MailboxForm.SelectedState"><option value="Approved" selected="@Model.IsNewStateSelected(ApprovedMailboxState.Approved)">@OperatorLabels.MailSettings.MailboxState(ApprovedMailboxState.Approved)</option><option value="Disabled" selected="@Model.IsNewStateSelected(ApprovedMailboxState.Disabled)">@OperatorLabels.MailSettings.MailboxState(ApprovedMailboxState.Disabled)</option></select></div>
             </div>
             <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">@OperatorLabels.MailSettings.AddMailbox</button></div>
@@ -96,14 +98,14 @@
     <div class="dialog-backdrop" data-dialog="@dialogId" data-dialog-open-on-load="true">
         <section class="dialog dialog--contact" role="dialog" aria-modal="true" aria-labelledby="@dialogId-title">
             <form id="mailbox-settings-form-@mailbox.Id" method="post" asp-page-handler="Update">
-                <div class="dialog-head"><h2 id="@dialogId-title" tabindex="-1">Mailbox settings</h2><button type="reset" class="dialog-close" data-dialog-close aria-label="Close dialog">×</button></div>
+                <div class="dialog-head"><h2 id="@dialogId-title" tabindex="-1">Mailbox settings</h2><button type="reset" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
                 <div class="dialog-body stack">
                     <partial name="Shared/_ErrorSummary" />
                     <input type="hidden" name="MailboxForm.MailboxId" value="@mailbox.Id" /><input type="hidden" name="MailboxForm.ExpectedVersion" value="@Model.ExpectedVersionFor(mailbox)" /><input type="hidden" name="MailboxForm.OperationKey" value="@Model.OperationKeyFor(mailbox)" />
                     <div class="field"><label class="req" for="@addressId">@OperatorLabels.MailSettings.ApprovedAddress</label><input id="@addressId" name="MailboxForm.Address" value="@Model.AddressFor(mailbox)" required maxlength="320" inputmode="email" readonly="@(mailbox.IdentityIsBound && mailbox.State != ApprovedMailboxState.Disabled)" /></div>
-                    <fieldset class="stack"><legend>@OperatorLabels.MailSettings.RouteScope</legend><label class="cluster"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="Incoming" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.Incoming)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.Incoming)</span></label><label class="cluster"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="Outgoing" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.Outgoing)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.Outgoing)</span></label></fieldset>
+                    <fieldset class="stack fieldset-plain fieldset-plain--label"><legend>@OperatorLabels.MailSettings.RouteScope</legend><label class="choice"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="Incoming" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.Incoming)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.Incoming)</span></label><label class="choice"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="Outgoing" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.Outgoing)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.Outgoing)</span></label></fieldset>
                     <div class="field"><label for="@stateId">@OperatorLabels.MailSettings.State</label><select id="@stateId" name="MailboxForm.SelectedState"><option value="Approved" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Approved)">@OperatorLabels.MailSettings.MailboxState(ApprovedMailboxState.Approved)</option><option value="Disabled" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Disabled)">@OperatorLabels.MailSettings.MailboxState(ApprovedMailboxState.Disabled)</option></select></div>
-                    <section class="contact-section" aria-labelledby="@dialogId-access"><h3 id="@dialogId-access">Access and polling</h3><dl class="definition-list"><div class="definition"><dt>Activation</dt><dd>@OperatorLabels.OfficeTime(mailbox.ActivatedAtUtc, OperatorLabels.MailSettings.NotActivated)</dd></div><div class="definition"><dt>@OperatorLabels.MailSettings.Subscription</dt><dd>@Model.SubscriptionStatusFor(mailbox)</dd></div>@if (Model.PollStatusForMailbox(mailbox) is { } poll) { <div class="definition"><dt>Last success</dt><dd>@OperatorLabels.OfficeTime(poll.LastCompletedAtUtc, "Not yet polled")</dd></div><div class="definition"><dt>Freshness</dt><dd>@Model.PollFreshnessFor(poll)</dd></div><div class="definition"><dt>Last error</dt><dd>@(poll.LastFailureCode ?? "None")</dd></div> }</dl></section>
+                    <section class="contact-section" aria-labelledby="@dialogId-access"><h3 id="@dialogId-access">Access and polling</h3><dl class="definition-list"><div class="definition"><dt>Activation</dt><dd>@OperatorLabels.OfficeTime(mailbox.ActivatedAtUtc, OperatorLabels.MailSettings.NotActivated)</dd></div><div class="definition"><dt>@OperatorLabels.MailSettings.Subscription</dt><dd>@Model.SubscriptionStatusFor(mailbox)</dd></div>@if (Model.PollStatusForMailbox(mailbox) is { } poll) { <div class="definition"><dt>Last success</dt><dd>@OperatorLabels.OfficeTime(poll.LastCompletedAtUtc, "Not yet polled")</dd></div><div class="definition"><dt>Freshness</dt><dd>@Model.PollFreshnessFor(poll)</dd></div><div class="definition"><dt>Last error</dt><dd>@OperatorLabels.MailSettings.LastError(poll.LastFailureCode)</dd></div> }</dl></section>
                 </div>
                 <div class="dialog-foot"><button type="reset" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "Update")" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.MailSettings.SaveMailbox</button></div>
             </form>

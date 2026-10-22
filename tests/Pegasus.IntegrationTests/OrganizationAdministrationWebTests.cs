@@ -646,8 +646,12 @@ public sealed partial class OrganizationAdministrationWebTests
         var title = decoded.IndexOf($"id=\"{titleId}\"", StringComparison.Ordinal);
         var at = decoded.IndexOf(text, StringComparison.Ordinal);
         Assert.True(title >= 0 && at > title, $"'{text}' must show inside the panel '{titleId}'.");
-        Assert.True(decoded.IndexOf("<fieldset", title, StringComparison.Ordinal) > at, $"'{text}' must show at the top of the panel '{titleId}'.");
+        var firstField = FirstFieldRegex().Match(decoded, title);
+        Assert.True(firstField.Success && firstField.Index > at, $"'{text}' must show at the top of the panel '{titleId}'.");
     }
+
+    [GeneratedRegex("<(?:input\\b(?![^>]*\\btype=\"hidden\")|select\\b|textarea\\b)", RegexOptions.CultureInvariant)]
+    private static partial Regex FirstFieldRegex();
 
     private static string InputValue(string html, string name)
     {

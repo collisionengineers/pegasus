@@ -41,8 +41,10 @@ public sealed class EmailTemplateAdministrationWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var hub = await GetHtmlAsync(client, "/Administration");
+        var page = await GetHtmlAsync(client, Page);
 
-        var nav = hub[hub.IndexOf("class=\"admin-nav panel\"", StringComparison.Ordinal)..];
+        // The hub's cards are its navigation, so the rail is read on a sibling page.
+        var nav = page[page.IndexOf("class=\"admin-nav panel\"", StringComparison.Ordinal)..];
         var mailEntry = nav.IndexOf("href=\"/Administration/Mailboxes\"", StringComparison.Ordinal);
         var templatesEntry = nav.IndexOf($"href=\"{Page}\"", StringComparison.Ordinal);
         Assert.True(mailEntry >= 0 && templatesEntry > mailEntry, "The nav entry must follow Mail settings.");
@@ -64,6 +66,8 @@ public sealed class EmailTemplateAdministrationWebTests
         var html = await GetHtmlAsync(client, Page);
 
         Assert.Contains(OperatorLabels.EmailTemplates.Name(Purpose), html, StringComparison.Ordinal);
+        // A template nobody has saved reads its built-in wording where the list names who changed it.
+        Assert.Contains(OperatorLabels.EmailTemplates.BuiltInWording, html, StringComparison.Ordinal);
         Assert.Contains("value=\"0\"", Dialog(html), StringComparison.Ordinal);
         Assert.Contains(
             EmailTemplates.DefaultBody(Purpose),

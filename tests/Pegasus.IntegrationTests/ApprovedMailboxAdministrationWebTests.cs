@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -60,6 +61,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<th scope=\"col\">Used for</th>", page, StringComparison.Ordinal);
         Assert.Contains("<th scope=\"col\">Last checked</th>", page, StringComparison.Ordinal);
         Assert.Contains("<th scope=\"col\">State</th>", page, StringComparison.Ordinal);
+        Assert.Matches("<p class=\"panel-title-meta\">\\d+ mailbox(es)?</p>", page);
         Assert.Contains("?mailboxId=", page, StringComparison.Ordinal);
         Assert.Contains("data-dialog=\"new-mailbox-dialog\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("default-sender", page, StringComparison.Ordinal);
@@ -112,8 +114,8 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         // Discovery and the read-access check both passed, so this mailbox really
         // is waiting for its first poll — unlike the seeded row beside it, which
         // has neither and says so.
-        Assert.Contains("Not yet polled.", reloaded, StringComparison.Ordinal);
-        Assert.Contains("Not activated.", reloaded, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.MailSettings.NotYetPolled, reloaded, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.MailSettings.NotActivated, reloaded, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -461,8 +463,8 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         // The per-mailbox polling column is present for the seeded mailbox and
         // reports the stored evidence: nothing has resolved this address, so no
         // poll is pending for it and none can be.
-        Assert.Contains("Not activated.", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("Not yet polled.", page, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.MailSettings.NotActivated, page, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.MailSettings.NotYetPolled, page, StringComparison.Ordinal);
         // Per-mailbox access state is disclosed in Settings without a mutation.
         var mailboxId = TestMailboxId.From("instructions").ToString("D");
         var editing = await OpenMailboxEditAsync(client, mailboxId, MailboxVersion(page, mailboxId), page);
@@ -525,9 +527,9 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
         var page = await GetPageAsync(client);
 
-        // The compact row retains the current polling summary; full access and
+        // The compact row shows the last completed poll's time; full access and
         // subscription details require the mailbox Settings dialog.
-        Assert.Contains("Last completed 06 May 2031 11:20.", page, StringComparison.Ordinal);
+        Assert.Contains("<td class=\"nowrap\">06 May 2031 11:20</td>", page, StringComparison.Ordinal);
         var mailboxIdValue = mailboxId.ToString("D");
         var editing = await OpenMailboxEditAsync(client, mailboxIdValue, MailboxVersion(page, mailboxIdValue), page);
         var normalizedEditing = BetweenTagsWhitespaceRegex().Replace(editing, "><");
@@ -542,7 +544,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.DoesNotContain("mailFolders", editing, StringComparison.Ordinal);
         Assert.Contains("<dt>Last success</dt><dd>06 May 2031 11:20</dd>", normalizedEditing, StringComparison.Ordinal);
         Assert.Contains("<dt>Freshness</dt><dd>Fresh</dd>", normalizedEditing, StringComparison.Ordinal);
-        Assert.Contains("<dt>Last error</dt><dd>graph_unavailable</dd>", normalizedEditing, StringComparison.Ordinal);
+        Assert.Contains("<dt>Last error</dt><dd>Graph unavailable</dd>", normalizedEditing, StringComparison.Ordinal);
         var health = await client.GetStringAsync("/Administration/Health");
         Assert.Contains("instructions@collisionengineers.co.uk", health, StringComparison.Ordinal);
         Assert.Contains("Needs attention", health, StringComparison.Ordinal);

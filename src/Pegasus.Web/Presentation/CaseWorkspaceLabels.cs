@@ -1433,14 +1433,12 @@ public static class CaseWorkspaceLabels
         public const string Account = "Account";
         public const string Username = "Username";
         public const string Password = "Password";
-        public const string Generation = "Generation";
-        public const string Version = "Version";
         public const string Updated = "Updated";
         public const string Save = "Save credential";
         public const string Clear = "Clear credential";
         public const string Enabled = "Enabled";
         public const string DisabledState = "Disabled";
-        public const string NotConfigured = "Not configured";
+        public const string NotSet = "Not set";
         public const string Saved = "The credential was saved.";
         public const string Cleared = "The credential was cleared.";
         public const string UsernameRequired = "Enter a username.";

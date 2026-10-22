@@ -644,46 +644,6 @@
     bindPasswordReveal(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindPasswordReveal);
 
-    // Native <dialog> openers ([data-dialog-open]) and closers
-    // ([data-dialog-close]); showModal supplies the focus containment.
-    function bindNativeDialogs(root) {
-        // Buttons that open their own dialog, so an action can carry its fields
-        // without the page shipping a permanently open form for every action.
-        root.querySelectorAll('[data-dialog-open]').forEach(function (trigger) {
-            var dialog = document.getElementById(trigger.getAttribute('data-dialog-open'));
-            if (!dialog || typeof dialog.showModal !== 'function' || trigger.dataset.nativeDialogBound === 'true') {
-                return;
-            }
-            trigger.dataset.nativeDialogBound = 'true';
-
-            trigger.addEventListener('click', function (event) {
-                event.preventDefault();
-                dialog.showModal();
-                var initial = dialog.querySelector('[data-dialog-initial-focus]')
-                    || dialog.querySelector('input, select, textarea, button');
-                if (initial) {
-                    initial.focus();
-                }
-            });
-        });
-
-        root.querySelectorAll('dialog [data-dialog-close]').forEach(function (button) {
-            if (button.dataset.nativeDialogBound === 'true') {
-                return;
-            }
-            button.dataset.nativeDialogBound = 'true';
-            button.addEventListener('click', function (event) {
-                event.preventDefault();
-                var dialog = button.closest('dialog');
-                if (dialog) {
-                    dialog.close();
-                }
-            });
-        });
-    }
-    bindNativeDialogs(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindNativeDialogs);
-
     // Scoped edits expire unless the operator is actively keeping the edit
     // session open. Each marked form carries only its existing antiforgery
     // value and opaque lease token; the server owns the record and actor
@@ -1146,22 +1106,19 @@
     // rendered anywhere in the page (a Case page's reason dialogs live inside
     // the shell), so inert is set on the siblings of each of its ancestors up
     // to body - never on an ancestor - and exactly those elements are
-    // released on close. Other [data-dialog] elements
-    // and native <dialog> elements are never inerted by this: a dialog that
-    // auto-opens on load (a settings dialog) is commonly a sibling of further
-    // action dialogs it triggers (the Accounts Delete confirmation is a
-    // native dialog), and marking a closed sibling inert would leave it
+    // released on close. Other [data-dialog] elements are never inerted by
+    // this: a dialog that auto-opens on load (a settings dialog) is commonly a
+    // sibling of further action dialogs it triggers (the Accounts Delete
+    // confirmation), and marking a closed sibling inert would leave it
     // unusable the moment it opens on top; `hidden` already keeps a closed
-    // backdrop dialog out of the tab order and off screen, a closed native
-    // dialog is not rendered, and showModal() makes the rest of the page
-    // inert itself. A
+    // backdrop dialog out of the tab order and off screen. A
     // module-level stack of currently-open dialogs tracks which one is
     // topmost, so a stacked open (a confirm dialog nested inside settings,
     // or an action dialog opened from a sibling settings dialog) leaves the
     // dialog beneath it open but unresponsive to Escape/Tab until the one on
     // top closes.
     function inertOutside(dialog) {
-        return window.pegasusUi.inertOutside(dialog, '[data-dialog], dialog');
+        return window.pegasusUi.inertOutside(dialog, '[data-dialog]');
     }
 
     var dialogOpeners = {};
@@ -1264,12 +1221,6 @@
                 // trap Tab; a dialog further down waits until it is on top
                 // again.
                 if (openDialogStack[openDialogStack.length - 1] !== dialog) {
-                    return;
-                }
-                // A native modal dialog opened from this one (the Accounts
-                // Delete confirmation) is not on the stack; its keys are its
-                // own, so Escape closes it rather than this dialog behind it.
-                if (event.target instanceof Element && event.target.closest('dialog[open]')) {
                     return;
                 }
                 if (event.key === 'Escape') {

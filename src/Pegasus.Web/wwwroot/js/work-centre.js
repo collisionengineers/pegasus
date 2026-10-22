@@ -108,7 +108,7 @@
     var refreshing = false;
 
     function openDialog() {
-        return document.querySelector('[data-dialog]:not([hidden]), dialog[open]');
+        return document.querySelector('[data-dialog]:not([hidden])');
     }
 
     function operatorIsWorking(current) {

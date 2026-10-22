@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
-using Pegasus.Web.Mcp;
 
 namespace Pegasus.Web.Pages.Administration;
 
@@ -16,7 +14,6 @@ public sealed class ConfigurationModel(
 {
     public CaseWorkflowConfiguration Configuration { get; private set; } = null!;
     public IReadOnlyList<LabourRateCard> RateCards { get; private set; } = [];
-    public bool AutomationComposed { get; private set; }
     public bool CardPostFailed { get; private set; }
     public string HourlyRateInput { get; private set; } = string.Empty;
 
@@ -35,7 +32,6 @@ public sealed class ConfigurationModel(
     [BindProperty] public long CardExpectedVersion { get; set; }
     [BindProperty] public string CardOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public decimal HourlyRate { get; set; }
-    [BindProperty] public string? Reason { get; set; }
 
     /// <summary>One workflow setting: its posted field, label, range, the saved value and the value the form carries.</summary>
     public sealed record WorkflowSetting(string Field, string Label, int Minimum, int Maximum, int Current, int Posted);
@@ -151,7 +147,7 @@ public sealed class ConfigurationModel(
                     HourlyRate,
                     CardExpectedVersion,
                     actor,
-                    Reason,
+                    Reason: null,
                     CardOperationKey), cancellationToken);
                 TempData["Confirmation"] = "The labour-rate card was saved.";
                 return RedirectToPage();
@@ -173,7 +169,6 @@ public sealed class ConfigurationModel(
 
     private async Task LoadAsync(ActionActor actor, bool initializeWorkflowSettings, CancellationToken cancellationToken)
     {
-        AutomationComposed = HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         Configuration = await getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
         RateCards = await rateCards.ListAsync(actor, cancellationToken);
         if (!initializeWorkflowSettings) return;

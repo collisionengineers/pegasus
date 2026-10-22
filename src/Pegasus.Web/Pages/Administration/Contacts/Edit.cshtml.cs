@@ -100,10 +100,8 @@ public sealed class EditModel(
     [BindProperty] public string? LocationOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public long CredentialVersion { get; set; }
     [BindProperty] public string? CredentialOperationKey { get; set; } = NewOperationKey();
-    [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)] public string? CredentialReason { get; set; }
     [BindProperty] public long ReplacementExpectedVersion { get; set; }
     [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength)] public string SuccessorCode { get; set; } = string.Empty;
-    [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)] public string? ReplacementReason { get; set; }
     [BindProperty] public string? ReplacementOperationKey { get; set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -131,7 +129,6 @@ public sealed class EditModel(
         if (Contact is null) return NotFound();
         // These fields belong to separate consequential Principal actions.
         ModelState.Remove(nameof(SuccessorCode));
-        ModelState.Remove(nameof(ReplacementReason));
         if (!IsOperationKeyValid(OperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Open the contact again.");
         if (!Enum.IsDefined(PrincipalInspectionMode)) ModelState.AddModelError(nameof(PrincipalInspectionMode), "Select an inspection mode.");
         if (ModelState.IsValid)
@@ -321,7 +318,6 @@ public sealed class EditModel(
         ContactId = id;
         ClearModelStatePreservingErrors(
             nameof(SuccessorCode),
-            nameof(ReplacementReason),
             nameof(ReplacementExpectedVersion),
             nameof(ExpectedVersion),
             nameof(ReplacementOperationKey));
@@ -333,7 +329,7 @@ public sealed class EditModel(
         {
             try
             {
-                await replacePrincipal.ExecuteAsync(new(Principal!.Id, expectedVersion, SuccessorCode, actor, ReplacementOperationKey!, ReplacementReason,
+                await replacePrincipal.ExecuteAsync(new(Principal!.Id, expectedVersion, SuccessorCode, actor, ReplacementOperationKey!, Reason: null,
                     ExpectedVersion), cancellationToken);
                 TempData["AdministrationStatus"] = "The predecessor was disabled and its linked successor was created.";
                 return RedirectToPage("Index");
@@ -354,7 +350,6 @@ public sealed class EditModel(
         ContactId = id;
         Tab = ApiTab;
         ClearModelStatePreservingErrors(
-            nameof(CredentialReason),
             nameof(CredentialVersion),
             nameof(ExpectedVersion),
             nameof(CredentialOperationKey));
@@ -365,7 +360,7 @@ public sealed class EditModel(
         {
             try
             {
-                var request = new PrincipalCredentialCommandRequest(Principal!.Id, submittedVersion, actor, CredentialOperationKey!, CredentialReason,
+                var request = new PrincipalCredentialCommandRequest(Principal!.Id, submittedVersion, actor, CredentialOperationKey!, Reason: null,
                     ExpectedVersion);
                 if (action == "issue")
                 {

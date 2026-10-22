@@ -313,10 +313,10 @@ public static class OperatorLabels
     public static class EmailTemplates
     {
         public const string Area = "E-mail templates";
-        public const string Card = "Edit the wording of staff replies.";
         public const string ActionLogArea = "E-mail template";
         public const string Template = "Template";
         public const string LastChanged = "Last changed";
+        public const string BuiltInWording = "Built-in wording";
         public const string Actions = "Actions";
         public const string Edit = "Edit";
         public const string Body = "Body";
@@ -1967,6 +1967,7 @@ public static class OperatorLabels
         public const string ContactTab = "Contact";
         public const string ReportGeneration = "Report generation";
         public const string DefaultInspectionLocation = "Default inspection location";
+        public const string InspectionMode = "Inspection mode";
         public const string AcceptedIdentities = "Accepted e-mail identities";
         /// <summary>A Principal with no accepted route (operator, 13 October 2026).</summary>
         public const string NoAcceptedRoute = "No accepted e-mail route. Instructions arrive by upload, Triage or the Principal API.";
@@ -2107,10 +2108,19 @@ public static class OperatorLabels
         public const string NoApprovedMailboxes = "No approved mailboxes";
         public const string NotActivated = "Not activated";
         public const string NoSubscription = "None.";
+        public const string NotPolled = "Not polled";
+        public const string NotYetPolled = "Not yet polled";
+        public const string NoCompletedPoll = "No completed poll yet";
+        public const string NoError = "None";
 
         public static string MailboxState(ApprovedMailboxState state) =>
             Humanise(state.ToString());
 
+        /// <summary>The mailbox count the panel head shows under the title.</summary>
+        public static string MailboxCount(int count) =>
+            count == 1 ? "1 mailbox" : $"{count} mailboxes";
+
+        /// <summary>The Last checked cell: the last completed poll's time, or why there is none.</summary>
         public static string PollStatus(
             ApprovedMailbox mailbox,
             ApprovedMailboxPollStatus? status)
@@ -2120,7 +2130,7 @@ public static class OperatorLabels
                 if (mailbox.State != ApprovedMailboxState.Approved
                     || !mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.Incoming))
                 {
-                    return "Not polled.";
+                    return NotPolled;
                 }
 
                 // Polling starts from the recorded identity and activation the
@@ -2128,25 +2138,25 @@ public static class OperatorLabels
                 // mailbox, so "not yet polled" would promise a poll that cannot
                 // happen; the stored evidence says only that it is not activated.
                 return mailbox.IdentityIsBound && mailbox.ActivatedAtUtc is not null
-                    ? "Not yet polled."
-                    : $"{NotActivated}.";
+                    ? NotYetPolled
+                    : NotActivated;
             }
 
-            var completed = status.LastCompletedAtUtc is { } lastCompletedAtUtc
-                ? $"Last completed {OfficeTime(lastCompletedAtUtc)}."
-                : "No completed poll yet.";
-            var due = $" Next due {OfficeTime(status.DueAtUtc)}.";
-            var failure = status.LastFailureCode switch
-            {
-                null => string.Empty,
-                "mailbox_access_denied" =>
-                    " The tenant has not granted this application access to this mailbox.",
-                "mailbox_not_approved" =>
-                    " The last attempt stopped because this mailbox was no longer approved.",
-                var code => $" Last failure: {Humanise(code)}."
-            };
-            return $"{completed}{due}{failure}";
+            return status.LastCompletedAtUtc is { } lastCompletedAtUtc
+                ? OfficeTime(lastCompletedAtUtc)
+                : NoCompletedPoll;
         }
+
+        /// <summary>The Settings dialog's Last error, in words rather than the stored failure code.</summary>
+        public static string LastError(string? failureCode) => failureCode switch
+        {
+            null => NoError,
+            "mailbox_access_denied" =>
+                "The tenant has not granted this application access to this mailbox.",
+            "mailbox_not_approved" =>
+                "The last attempt stopped because this mailbox was no longer approved.",
+            var code => Humanise(code)
+        };
 
         public static string SubscriptionStatus(ApprovedMailboxSubscription? subscription)
         {
@@ -2189,6 +2199,7 @@ public static class OperatorLabels
         public const string ReplaceSignature = "Replace signature";
         public const string DefaultSignOffEngineer = "Default sign-off Engineer";
         public const string Settings = "Settings";
+        public const string Account = "Account";
         public const string Cancel = "Cancel";
         public const string SignatureMissing = "Signature missing";
         public const string QualificationsMissing = "Yes · qualifications missing";

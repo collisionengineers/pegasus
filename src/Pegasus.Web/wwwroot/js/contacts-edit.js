@@ -1,5 +1,5 @@
-// Contacts edit enhancements. The form and native dialog remain fully usable
-// without this asset; site.js owns the shared data-dialog-open/close contract.
+// Contacts edit enhancements. The form remains fully usable without this
+// asset; site.js owns the shared data-dialog-open/close contract.
 (function () {
     'use strict';
 
@@ -59,6 +59,13 @@
             sendingEditor.querySelectorAll('[data-rs-condition]').forEach(syncCondition);
         };
         syncRules();
+        // Each rule's legend reads its place in the list ("Rule 1", "Rule 2", ...).
+        var numberRules = function () {
+            if (!rulesHost) { return; }
+            rulesHost.querySelectorAll('[data-rs-rule] > legend').forEach(function (legend, index) {
+                legend.textContent = legend.textContent.replace(/[0-9]+\s*$/, String(index + 1));
+            });
+        };
 
         var blankRule = null;
         var nextRule = 0;
@@ -100,6 +107,7 @@
                     });
                     row.querySelector('input[name="RuleIndex"]').value = String(number);
                     rulesHost.appendChild(row);
+                    numberRules();
                     syncRules();
                     row.querySelector('select, input:not([type="hidden"])').focus();
                 }
@@ -108,6 +116,7 @@
             var remove = event.target.closest('[data-remove-rs-rule]');
             if (remove) {
                 remove.closest('[data-rs-rule]').remove();
+                numberRules();
                 var addRule = sendingEditor.querySelector('[data-add-rs-rule]');
                 if (addRule) { addRule.focus(); }
             }

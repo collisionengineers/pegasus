@@ -239,8 +239,9 @@ The Principal section of a Contact carries:
   delivery behaviour is owned by
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md);
 - the Principal API credential (API-04): issue, reset, revoke, pause and
-  resume. Each acts on the click and goes into permanent history with an
-  optional reason. The secret is shown once, at issue or reset, and never
+  resume. Each acts on the click and goes into permanent history
+  ([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  The secret is shown once, at issue or reset, and never
   again, even on an exact replay. The response is non-cacheable. The secret
   is never put in TempData, URLs or history; only its hash is kept. The
   credential is handed over with the submission endpoint it authenticates

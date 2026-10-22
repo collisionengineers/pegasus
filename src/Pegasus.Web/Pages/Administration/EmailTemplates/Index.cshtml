@@ -7,7 +7,6 @@
     ViewData["Title"] = Labels.Area;
     ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "email-templates";
-    ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
 }
 
 <partial name="Shared/_PageHeader" />
@@ -15,15 +14,7 @@
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
-        @if (TempData["Confirmation"] is string confirmation)
-        {
-            <div class="notice notice--success" role="status">@confirmation</div>
-        }
-
-        <section class="panel" aria-labelledby="email-templates-title">
-            <div class="panel-head">
-                <h2 id="email-templates-title">@Labels.Area</h2>
-            </div>
+        <section class="panel" aria-label="@Labels.Area">
             <div class="table-wrap no-border">
                 <table class="table table--compact">
                     <caption class="sr-only">@Labels.Area</caption>
@@ -46,10 +37,10 @@
                                 }
                                 else
                                 {
-                                    <span class="muted">@OperatorLabels.CaseWorkspace.AbsentValue</span>
+                                    <span class="muted">@Labels.BuiltInWording</span>
                                 }
                             </td>
-                            <td class="num">
+                            <td class="right">
                                 <button type="button" class="btn btn--small" data-dialog-open="email-template-@template.Purpose">@Labels.Edit</button>
                             </td>
                         </tr>
@@ -88,6 +79,7 @@
                         <textarea id="@bodyId" name="body" rows="12" required maxlength="@Templates.MaximumBodyLength" data-dialog-initial-focus>@(refused ? Model.RefusedBody : template.Body)</textarea>
                     </div>
                     <div class="button-row" role="group" aria-label="@Labels.Placeholders">
+                        <span class="field-hint">@Labels.Placeholders</span>
                         @foreach (var placeholder in Templates.Placeholders(template.Purpose))
                         {
                             var token = "{" + placeholder + "}";
