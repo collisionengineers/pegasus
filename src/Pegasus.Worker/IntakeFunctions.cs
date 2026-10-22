@@ -579,9 +579,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
             var caseFilings = await replayCaseFilings.ExecuteAsync(50, cancellationToken);
             if (caseFilings.Candidates > 0)
             {
+                var caseFilingsLevel = FailureLevel(caseFilings.Failures);
                 LogCaseFilingReplay(
                     logger,
-                    FailureLevel(caseFilings.Failures),
+                    caseFilingsLevel,
                     caseFilings.Candidates,
                     caseFilings.Filed,
                     caseFilings.Deferred,
