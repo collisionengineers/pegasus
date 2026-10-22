@@ -1,9 +1,12 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -174,6 +177,74 @@ public sealed class AutomationMcpIngressTests
         var properties = updateDetails.GetProperty("inputSchema").GetProperty("properties");
         Assert.True(properties.TryGetProperty("inspectionDate", out _));
         Assert.False(properties.TryGetProperty("instructionDate", out _));
+    }
+
+    [Fact]
+    public async Task ABearerGetOnMcpAnswers405InsteadOfTheStaffSignInRedirect()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = CreateCookielessClient(mcpFactory);
+        var accessToken = await RequestTokenAsync(client, AutomationMcp.MailScope);
+
+        // The stream GET an MCP client sends after initialize, repeated past
+        // the staff sign-in limit as the classifier's reconnect loop did, and
+        // a DELETE: the stateless endpoint offers neither, so each is a 405.
+        HttpMethod[] methods =
+        [
+            .. Enumerable.Repeat(HttpMethod.Get, StaffSessionPolicy.SignInAttemptsPerClientPerMinute + 1),
+            HttpMethod.Delete
+        ];
+        foreach (var method in methods)
+        {
+            using var request = new HttpRequestMessage(method, "/mcp");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            using var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
+            Assert.Equal("POST", Assert.Single(response.Content.Headers.Allow));
+        }
+    }
+
+    [Fact]
+    public async Task AnUnauthenticatedGetOnMcpIsChallengedForTheBearerNotRedirected()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = CreateCookielessClient(mcpFactory);
+
+        // The same challenge and transport-denial row as an unauthenticated
+        // POST, not the staff sign-in redirect.
+        using var response = await client.GetAsync("/mcp");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var challenge = string.Join(
+            " ",
+            response.Headers.WwwAuthenticate.Select(value => value.ToString()));
+        Assert.Contains("resource_metadata", challenge, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_access_denied' AND Outcome = N'Denied'
+            """));
+    }
+
+    [Fact]
+    public async Task AnUnauthenticatedBrowserIsStillSentToStaffSignInWithMcpMapped()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = CreateCookielessClient(mcpFactory);
+
+        // The 405 belongs to /mcp alone: a staff page and an unmapped path
+        // still meet the fallback policy and its sign-in redirect.
+        foreach (var path in new[] { "/Cases", "/no-such-route" })
+        {
+            using var response = await client.GetAsync(path);
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.StartsWith(
+                "/Account/SignIn",
+                response.Headers.Location!.OriginalString,
+                StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -578,6 +649,19 @@ public sealed class AutomationMcpIngressTests
               AND EventKind = N'pegasus_document_add'
               AND Outcome = N'Failed'
             """));
+    }
+
+    /// <summary>
+    /// A caller with no staff cookie, as the classifier is: the integration
+    /// scheme answers anonymous and challenges with the sign-in redirect, which
+    /// the client reports rather than follows.
+    /// </summary>
+    private static HttpClient CreateCookielessClient(WebApplicationFactory<Program> factory)
+    {
+        var client = factory.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("X-Test-Anonymous", "1");
+        return client;
     }
 
     private sealed class RefusingDocumentStore(Guid caseId) : IAddCaseDocument
