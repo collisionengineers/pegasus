@@ -271,10 +271,12 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         CaseWebTestSupport.Substitute<IMyReleaseNotes>(services, new NoReleaseNotes());
         // After offline initialisation the directory holds the one
         // Administrator, so the stand-in names that account.
-        CaseWebTestSupport.Substitute<IStaffAccountQueries>(services, new CaseWebTestSupport.StubStaffAccounts(
+        var staff = new CaseWebTestSupport.StubStaffAccounts(
             DevelopmentOfflineIdentity.AdministratorId,
             DevelopmentOfflineIdentity.UserName,
-            StaffRole.Administrator));
+            StaffRole.Administrator);
+        CaseWebTestSupport.Substitute<IStaffAccountQueries>(services, staff);
+        CaseWebTestSupport.Substitute<ICaseEngineerChoices>(services, staff);
         var reads = new DatabaseLessCaseReads();
         CaseWebTestSupport.Substitute<ICaseKindQueries>(services, reads);
         CaseWebTestSupport.Substitute<ICaseAssetPreparationQueries>(services, reads);

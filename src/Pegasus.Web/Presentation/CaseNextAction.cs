@@ -32,8 +32,9 @@ public static class CaseNextAction
 {
     /// <summary>
     /// The next permitted lifecycle action and the section it links to. In
-    /// Review it is Assign Engineer, which opens the Actions menu's dialog
-    /// (issue 1025). A Report sent Case with an open query resolves it
+    /// Review, and With Engineer while the Case has no Engineer (#1213), it is
+    /// Assign Engineer, which opens the Actions menu's dialog (issue 1025).
+    /// A Report sent Case with an open query resolves it
     /// (operator, 11 October 2026). With Engineer, while the report is not
     /// ready, it names the first blocker at the section that clears it, and
     /// at the Report section when that blocker has none, and carries that
@@ -133,7 +134,10 @@ public static class CaseNextAction
         {
             return new("None", "notes");
         }
-        if (workflow.State == CaseLifecycleState.Review)
+        // A With Engineer Case with no Engineer is handed on before its report
+        // is anyone's concern (#1213, v41 K9).
+        if (workflow.State == CaseLifecycleState.Review
+            || workflow is { State: CaseLifecycleState.ReportPreparation, AssignedEngineerId: null })
         {
             return new(CaseWorkspaceLabels.AssignEngineer, "overview", OpensAssignEngineer: true);
         }

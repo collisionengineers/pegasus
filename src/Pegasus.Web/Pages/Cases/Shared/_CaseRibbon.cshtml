@@ -89,7 +89,7 @@
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonEngineer</div>
-            <div class="ribbon-value"><span>@(Model.EngineerDisplayName ?? OperatorLabels.CaseWorkspace.AbsentValue)</span></div>
+            <div class="ribbon-value"><span>@Model.RibbonEngineer</span></div>
         </div>
         <div class="ribbon-chips" aria-label="@OperatorLabels.CaseWorkspace.RibbonState" data-case-ribbon-chips>
             <partial name="Shared/_StatusChip" model="@Model.StateChipText" />

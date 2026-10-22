@@ -46,7 +46,9 @@ Case at the same route renders as the Triage Case page instead
 
 - the Case/PO as the page heading, under "Case workspace";
 - registration, claimant, principal and Engineer (the registration has its
-  own cell, operator, 8 October 2026);
+  own cell, operator, 8 October 2026); before the report a Case with no
+  Engineer reads Unassigned (#1213, operator, 16 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
 - chips for state, Case type (Audit, Inspection + Audit) and, while someone
   else holds the edit lease, "{name} is editing" with a lock. A held Case
   reads "Held · review on {date}" when the hold has a review date;
@@ -129,9 +131,13 @@ second stale notice in Report (operator, 28 September 2026).
 While a linked message is currently classified a cancellation and the Case
 is open, the Next action also carries **Cancellation received** with **Open
 message** ([FRD-13](frd-13-case-lifecycle-and-workflow.md#cancellation-messages)).
-In Review the Next action is **Assign Engineer**, with the Actions menu's own
-control that opens its dialog; where the menu does not offer it, the step is
-named without a control (issue 1025).
+In Review, and With Engineer while the Case has no Engineer, the Next action
+is **Assign Engineer**, with the Actions menu's own control that opens its
+dialog and, while the Case is Unassigned, **Take** beside it (#1213, v41 K9,
+operator, 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
+where the menu does not offer it, the step is named without a control
+(issue 1025).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Once the report is stored, the Next action is
@@ -315,10 +321,14 @@ sent Case offers Edit Case like With Engineer (operator, 11 October 2026);
 Return to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
-- **Assign Engineer**, in Review. Its dialog selects an
-  eligible enabled staff account. The one handoff assigns them and
-  enters With Engineer. There is no reviewed checkbox and no separate start
-  action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)).
+- **Assign Engineer**, in Review or With Engineer. Its dialog selects an
+  eligible enabled staff account, the signed-in person listed first as
+  "Name (you)", or Unassigned, and asks no reason (#1213, v41 K9, operator,
+  19 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  The one handoff assigns them, or none, and moves a Review Case to With
+  Engineer. There is no reviewed checkbox and no separate start action
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)).
 - **Export case**, on every standard Case in every state. It downloads the
   Case export, needs no lease and never changes the Case
   ([FRD-07](frd-07-case-export.md#export-case)).

@@ -100,12 +100,18 @@ public sealed class WorkflowModel(
                 cancellationToken),
             "The case returned to Review.");
 
+    /// <summary>
+    /// Assign Engineer, and Take, which posts the signed-in person's staff id
+    /// (#1213): the Engineer is read through the Work Centre's shared parse,
+    /// whose Unassigned value hands the Case to nobody, and Core composes the
+    /// history reason.
+    /// </summary>
     public Task<IActionResult> OnPostAssignEngineerAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string? editLeaseToken,
-        Guid engineerId,
+        string? engineerId,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandUnderLeaseAsync(
             id,
@@ -118,9 +124,9 @@ public sealed class WorkflowModel(
                     expectedVersion,
                     actor,
                     operationKey,
-                    Pegasus.Web.Presentation.CaseWorkspaceLabels.AssignEngineer,
+                    string.Empty,
                     lease,
-                    engineerId),
+                    Pegasus.Web.Presentation.AssignEngineerChoice.Parse(engineerId)),
                 cancellationToken),
             Pegasus.Web.Presentation.OperatorLabels.WorkCentre.Assigned);
 

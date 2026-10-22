@@ -49,11 +49,12 @@ public sealed class CaseWorkflowWebTests
     {
         var engineerId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
+        var staff = new StubStaffAccounts(engineerId, "User", StaffRole.User);
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<IAssignCaseEngineer>(services, store);
-            Substitute<IStaffAccountQueries>(services,
-                new StubStaffAccounts(engineerId, "User", StaffRole.User));
+            Substitute<IStaffAccountQueries>(services, staff);
+            Substitute<ICaseEngineerChoices>(services, staff);
         }, StaffRole.User);
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains("Assign Engineer", RecordBar(html), StringComparison.Ordinal);
@@ -77,7 +78,8 @@ public sealed class CaseWorkflowWebTests
                 ("engineerId", engineerId.ToString("D"))));
         AssertPrg(response, store.CaseId);
         var handoff = Assert.Single(store.EngineerAssignments);
-        AssertLeasedMutation(workspace, handoff, InputValue(dialog, "operationKey"), "Assign Engineer");
+        // Core composes the history reason (#1213), so the page sends none.
+        AssertLeasedMutation(workspace, handoff, InputValue(dialog, "operationKey"), string.Empty);
         Assert.Equal(engineerId, handoff.EngineerId);
         Assert.Empty(store.Transitions);
 
@@ -125,7 +127,7 @@ public sealed class CaseWorkflowWebTests
         Assert.Equal(CaseTransitionDestination.Review, transition.Destination);
 
         var assignment = Assert.Single(store.EngineerAssignments);
-        AssertLeasedMutation(workspace, assignment, "assign-engineer", "Assign Engineer");
+        AssertLeasedMutation(workspace, assignment, "assign-engineer", string.Empty);
         Assert.Equal(engineerId, assignment.EngineerId);
 
         var replacement = Assert.Single(store.LinkedReplacements);
@@ -279,8 +281,44 @@ public sealed class CaseWorkflowWebTests
         Assert.Equal("hold-case", hold.OperationKey);
         Assert.Equal("release-case", release.OperationKey);
         Assert.Equal("native-handoff", handoff.OperationKey);
-        Assert.Equal("Assign Engineer", handoff.Reason);
+        Assert.Equal(string.Empty, handoff.Reason);
         Assert.Equal(engineerId, handoff.EngineerId);
         Assert.Empty(store.Transitions);
+    }
+
+    /// <summary>
+    /// #1213 (v41 K9): the Case's Assign Engineer handler reads the Engineer
+    /// through the Work Centre's shared parse, so the Unassigned option hands
+    /// the Case to nobody, and a value that names neither is refused before
+    /// Core; the page sends no reason.
+    /// </summary>
+    [Fact]
+    public async Task AssignEngineerPostsUnassignedAndRefusesAValueThatNamesNoEngineer()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IAssignCaseEngineer>(services, store));
+
+        using var handed = await workspace.PostAsync(
+            "Workflow?handler=AssignEngineer",
+            workspace.MutationForm(
+                "hand-to-unassigned",
+                string.Empty,
+                ("engineerId", Pegasus.Web.Presentation.AssignEngineerChoice.UnassignedValue)));
+        AssertPrg(handed, store.CaseId);
+        var handoff = Assert.Single(store.EngineerAssignments);
+        AssertLeasedMutation(workspace, handoff, "hand-to-unassigned", string.Empty);
+        Assert.Null(handoff.EngineerId);
+
+        // The list's empty first option names no Engineer: refused, editing kept.
+        store.HoldLease(workspace.Claimant);
+        using var refused = await workspace.PostAsync(
+            "Workflow?handler=AssignEngineer",
+            workspace.MutationForm("hand-to-nobody", string.Empty, ("engineerId", string.Empty)));
+        AssertPrg(refused, store.CaseId);
+        Assert.Single(store.EngineerAssignments);
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
     }
 }

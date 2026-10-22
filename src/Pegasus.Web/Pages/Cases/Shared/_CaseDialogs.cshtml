@@ -295,14 +295,17 @@
                     @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
                     <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <input type="hidden" name="section" value="@Model.Section" />
+                    @* The signed-in person first as "Name (you)", the other
+                       Engineers, then Unassigned (#1213, v41 K9). *@
                     <div class="field">
                         <label class="req" for="case-handoff-engineer">@OperatorLabels.CaseWorkspace.RibbonEngineer</label>
                         <select id="case-handoff-engineer" name="engineerId" required data-dialog-initial-focus>
                             <option value=""></option>
-                            @foreach (var engineer in Model.AssignEngineerChoices!.EngineerOptions)
+                            @foreach (var engineer in Model.AssignEngineerChoices!.Engineers)
                             {
-                                <option value="@engineer.Id">@engineer.Name</option>
+                                <option value="@engineer.StaffId">@Model.AssignEngineerChoices.Label(engineer)</option>
                             }
+                            <option value="@AssignEngineerChoice.UnassignedValue">@OperatorLabels.CaseWorkspace.Unassigned</option>
                         </select>
                     </div>
                 </form>
