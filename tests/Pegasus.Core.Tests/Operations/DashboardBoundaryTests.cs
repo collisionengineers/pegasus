@@ -340,10 +340,122 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(
             1,
             searchCases.RequestedStates.Count(state => state == CaseLifecycleState.Review));
-        Assert.DoesNotContain(
-            searchCases.RequestedStates,
-            state => state == CaseLifecycleState.ReportPreparation);
+        // Office reads With Engineer only for its Unassigned Cases (#1213).
+        var withEngineer = Assert.Single(
+            searchCases.Requests,
+            filters => filters.States!.Contains(CaseLifecycleState.ReportPreparation));
+        Assert.True(withEngineer.Unassigned);
+        Assert.Null(withEngineer.EngineerId);
     }
+
+    /// <summary>
+    /// #1213 ruling 2 (operator, 15 October 2026): an assigned With Engineer
+    /// Case is a With Engineer row in its Engineer's Mine only, owned and
+    /// named by them, due at the Case's one due instant, and opening the
+    /// Case. A Case with no due instant is undated, last in Later (v41 W8).
+    /// </summary>
+    [Fact]
+    public async Task AnAssignedWithEngineerCaseIsInItsEngineersMineOnly()
+    {
+        var engineerId = Guid.NewGuid();
+        var dated = Guid.NewGuid();
+        var undated = Guid.NewGuid();
+        var colleagues = Guid.NewGuid();
+        var entered = NowUtc.AddDays(-3);
+        var dueAt = NowUtc.AddDays(2);
+        var searchCases = new StubSearchCases
+        {
+            Items =
+            [
+                WithEngineerCase(dated, "C/2026/DATED", engineerId, entered) with { DueAtUtc = dueAt },
+                WithEngineerCase(undated, "C/2026/UNDATED", engineerId, entered),
+                WithEngineerCase(colleagues, "C/2026/THEIRS", Guid.NewGuid(), entered),
+            ]
+        };
+        GetOperationsSnapshot Snapshot() => new(
+            new StubListTriage(),
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries(),
+            searchCases,
+            new StubUnidentifiedQueue(),
+            new NamedStaffAccounts(engineerId, "Alex"),
+            new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new InMemoryWorkCentreDismissals(),
+            new FixedTimeProvider(NowUtc));
+        var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
+
+        var mine = await Snapshot().ExecuteAsync(new NeedsAttentionQuery(engineer, NeedsAttentionScope.Mine));
+        var mineReads = searchCases.Requests.ToArray();
+        searchCases.Requests.Clear();
+        var office = await Snapshot().ExecuteAsync(new NeedsAttentionQuery(engineer, NeedsAttentionScope.Office));
+
+        Assert.Equal([dated, undated], mine.NeedsAttention.Select(item => item.Id).ToArray());
+        Assert.All(mine.NeedsAttention, row =>
+        {
+            Assert.Equal(NeedsAttentionKind.WithEngineer, row.Kind);
+            Assert.Equal(engineerId, row.OwnerStaffId);
+            Assert.Equal("Alex", row.Owner);
+            Assert.Equal($"/Cases/{row.Id:D}", row.Route);
+            Assert.Equal($"/Cases/{row.Id:D}", row.RecordRoute);
+            Assert.Equal(entered, row.QualifiedAtUtc);
+        });
+        Assert.Equal(dueAt, mine.NeedsAttention[0].Due);
+        Assert.Null(mine.NeedsAttention[1].Due);
+        Assert.Equal(NeedsAttentionPriority.Normal, mine.NeedsAttention[1].Priority);
+        Assert.Equal(2, mine.Attention.KindCounts[NeedsAttentionKind.WithEngineer]);
+        // Mine reads Held and Review, then in one read only the viewer's With
+        // Engineer Cases and the Unassigned ones: no colleague's row is read to be dropped.
+        Assert.Equal(2, mineReads.Length);
+        Assert.Contains(mineReads, filters =>
+            filters.States!.Contains(CaseLifecycleState.ReportPreparation)
+            && filters.EngineerId == engineerId
+            && filters.Unassigned);
+
+        Assert.Empty(office.NeedsAttention);
+        Assert.Equal(0, office.Attention.KindCounts[NeedsAttentionKind.WithEngineer]);
+    }
+
+    /// <summary>
+    /// A With Engineer Case with no Engineer is an Unassigned row, for anyone
+    /// to take, in Office and Mine alike, due the Review target after it
+    /// entered With Engineer (#1213 ruling 2).
+    /// </summary>
+    [Fact]
+    public async Task AnUnassignedWithEngineerCaseIsUnassignedInOfficeAndMine()
+    {
+        var caseId = Guid.NewGuid();
+        var entered = NowUtc.AddDays(-1);
+        var searchCases = new StubSearchCases
+        {
+            Items = [WithEngineerCase(caseId, "C/2026/NOBODY", engineerId: null, entered)]
+        };
+        var configuration = new CaseWorkflowConfiguration("case-workflow", 1) { ReviewTargetDays = 2 };
+        var viewer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        foreach (var scope in new[] { NeedsAttentionScope.Office, NeedsAttentionScope.Mine })
+        {
+            var snapshot = await BuildSnapshot(
+                    new RecordingDashboardQueries(), NowUtc, searchCases, null, null, null, null, configuration)
+                .ExecuteAsync(new NeedsAttentionQuery(viewer, scope));
+
+            var row = Assert.Single(snapshot.NeedsAttention);
+            Assert.Equal(NeedsAttentionKind.UnassignedEngineer, row.Kind);
+            Assert.Equal(caseId, row.Id);
+            Assert.Null(row.OwnerStaffId);
+            Assert.Equal("Unassigned", row.Owner);
+            Assert.Equal(WorkTargets.DueAt(entered, 2), row.Due);
+            Assert.Equal(entered, row.QualifiedAtUtc);
+        }
+    }
+
+    private static CaseSearchItem WithEngineerCase(
+        Guid caseId, string reference, Guid? engineerId, DateTimeOffset enteredAtUtc) =>
+        NewHeldCase(caseId, reference) with
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            EngineerId = engineerId,
+            StateEnteredAtUtc = enteredAtUtc
+        };
 
     /// <summary>
     /// The Triage kind is work without a finding, and the External work kind
@@ -434,7 +546,8 @@ public sealed class DashboardBoundaryTests
 
     /// <summary>
     /// The two no-finding Triage states and the Held and Review Cases are each
-    /// one read, then split back by state in the order the store returned them.
+    /// one read, then split back by state in the order the store returned them;
+    /// Office reads With Engineer once more, for its Unassigned Cases (#1213).
     /// </summary>
     [Fact]
     public async Task TriageAndHeldReviewCasesAreEachOneReadSplitByState()
@@ -458,7 +571,9 @@ public sealed class DashboardBoundaryTests
             new RecordingDashboardQueries(), NowUtc, searchCases: searchCases, triage: triage);
 
         Assert.Equal(1, triage.ListAllCalls);
-        Assert.Equal(1, searchCases.Calls);
+        Assert.Equal(2, searchCases.Calls);
+        Assert.Single(searchCases.Requests, filters =>
+            filters.States is [CaseLifecycleState.Held, CaseLifecycleState.Review]);
         Assert.Equal(3, snapshot.TriageCount);
         Assert.Equal(1, snapshot.Attention.KindCounts[NeedsAttentionKind.HeldDecision]);
         Assert.Equal(1, snapshot.Attention.KindCounts[NeedsAttentionKind.ReviewCase]);
@@ -1244,10 +1359,12 @@ public sealed class DashboardBoundaryTests
             Task.FromResult<IReadOnlyList<CaseDueWork>>(Due.Skip((page - 1) * pageSize).Take(pageSize).ToArray());
     }
 
+    /// <summary>Filters by state and Engineer as the Case search store does.</summary>
     private sealed class StubSearchCases : ISearchCases
     {
         public IReadOnlyList<CaseSearchItem> Items { get; init; } = [];
         public List<CaseLifecycleState> RequestedStates { get; } = [];
+        public List<CaseSearchFilters> Requests { get; } = [];
         public int Calls { get; private set; }
 
         public Task<SearchCasesResult> ExecuteAsync(
@@ -1255,8 +1372,14 @@ public sealed class DashboardBoundaryTests
             CancellationToken cancellationToken)
         {
             Calls++;
-            RequestedStates.AddRange(query.Filters.States ?? []);
-            var matching = Items.Where(item => query.Filters.States is not { Count: > 0 } states || states.Contains(item.State))
+            var filters = query.Filters;
+            Requests.Add(filters);
+            RequestedStates.AddRange(filters.States ?? []);
+            var matching = Items
+                .Where(item => filters.States is not { Count: > 0 } states || states.Contains(item.State))
+                .Where(item => (filters.EngineerId is null && !filters.Unassigned)
+                    || (filters.EngineerId is { } engineer && item.EngineerId == engineer)
+                    || (filters.Unassigned && item.EngineerId is null))
                 .ToArray();
             return Task.FromResult(new SearchCasesResult(
                 matching.Skip((query.Page - 1) * query.PageSize)

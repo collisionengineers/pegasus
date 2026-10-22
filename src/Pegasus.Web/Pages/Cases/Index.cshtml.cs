@@ -741,9 +741,10 @@ public sealed class IndexModel(
         var last = Queue switch
         {
             "not_ready" => new Cell(MissingText(item), CellKind.Chip, MissingText(item) == "Review pending" ? "neutral" : "amber"),
+            // A With Engineer Case with no Engineer reads Unassigned (#1213, v41 W8).
             "with_engineer" => Cell.Of(item.EngineerId is { } engineerId
                 ? ActorDisplayNames.Resolve(ActorKind.Staff, engineerId.ToString("D"), engineers)
-                : null),
+                : OperatorLabels.CaseWorkspace.Unassigned),
             _ => new Cell(chip, CellKind.Chip)
         };
         return new QueueRow(

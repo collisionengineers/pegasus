@@ -73,6 +73,35 @@ public sealed class AdministrationSearchAccountWebTests
         }
     }
 
+    /// <summary>
+    /// Change password: each password field carries the Show / Hide control the
+    /// sign-in page has, and the submit button sits directly in the form
+    /// (v41 S6, signed off 19 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task PasswordChangeFieldsCarryShowHideAndTheSubmitButtonSitsInTheForm()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Account/PasswordChange");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+
+        foreach (var field in new[] { "CurrentPassword", "NewPassword", "ConfirmPassword" })
+        {
+            Assert.Contains(
+                $"data-password-reveal aria-controls=\"{field}\" aria-pressed=\"false\" aria-label=\"Show password\" hidden>Show</button>",
+                html,
+                StringComparison.Ordinal);
+        }
+
+        // The form tag helper closes the form with the request verification token.
+        Assert.Matches(
+            "</div>\\s*<button type=\"submit\" class=\"btn btn--primary\"[^>]*>Change password</button>\\s*(<input[^>]*>\\s*)?</form>",
+            html);
+    }
+
     [Theory]
     [InlineData("", "NewPassword123", "NewPassword123", "Enter your current password.")]
     [InlineData("ShortCurrent", "Sh0rt!", "Sh0rt!", "The new password must be at least 8 characters.")]

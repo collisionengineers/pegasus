@@ -254,13 +254,46 @@ public sealed class TriageQueuesWebTests
             $"/Search?state={CaseLifecycleState.ReportSent}");
         var searchHtml = await searchResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
-        Assert.Contains(sentReference, searchHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(queryReference, searchHtml, StringComparison.Ordinal);
+        // The fixture names each Principal by its Case's reference, so the
+        // Principal filter lists them all; a listed Case is its row link.
+        Assert.Contains($">{sentReference}</a>", searchHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{queryReference}</a>", searchHtml, StringComparison.Ordinal);
         using var querySearchResponse = await client.GetAsync("/Search?state=Query");
         var querySearchHtml = await querySearchResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, querySearchResponse.StatusCode);
-        Assert.Contains(queryReference, querySearchHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(sentReference, querySearchHtml, StringComparison.Ordinal);
+        Assert.Contains($">{queryReference}</a>", querySearchHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{sentReference}</a>", querySearchHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// #1213 (v41 W8, signed off 19 October 2026): a With Engineer Case with
+    /// no Engineer is listed With Engineer, its Engineer cell reading Unassigned.
+    /// </summary>
+    [Fact]
+    public async Task TheWithEngineerQueueReadsUnassignedForACaseWithNoEngineer()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var reference = $"QDOSW{DateTime.UtcNow.Ticks % 1_000_000}";
+        var caseId = await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "with-engineer-unassigned.pdf"),
+            reference);
+        await SetWorkflowStateAsync(services, caseId, CaseLifecycleState.ReportPreparation);
+
+        using var response = await client.GetAsync("/Cases?tab=with_engineer");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var start = html.IndexOf($">{reference}</a>", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"{reference} is not listed With Engineer.");
+        var row = html[start..html.IndexOf("</tr>", start, StringComparison.Ordinal)];
+        Assert.Contains(
+            $"<td>{Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.Unassigned}</td>",
+            row,
+            StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
@@ -83,7 +84,17 @@ public partial class IndexModel(
 
     public NeedsAttentionItem? Selected { get; private set; }
 
+    /// <summary>The signed-in person's staff id: Take posts it, and the Assign Engineer list marks it "(you)".</summary>
+    public Guid? ViewerStaffId { get; private set; }
+
     public WorkCentreAssignment? Assignment { get; private set; }
+
+    /// <summary>An Assign Engineer option's words: the signed-in person reads "Name (you)" (#1213).</summary>
+    public string EngineerChoiceLabel(WorkCentreEngineer engineer)
+    {
+        ArgumentNullException.ThrowIfNull(engineer);
+        return engineer.Id == ViewerStaffId ? OperatorLabels.Triage.You(engineer.Name) : engineer.Name;
+    }
 
     public bool OpenAssignment { get; private set; }
 
@@ -218,14 +229,15 @@ public partial class IndexModel(
     }
 
     /// <summary>
-    /// Assign Engineer from the expanded row (P4). The Work Centre holds no edit
-    /// session, so the handler claims the Case's lease, runs the same Core
-    /// assignment the Case record's dialog runs, and returns here; a refused
-    /// assignment releases the lease it claimed.
+    /// Assign Engineer from the expanded row (P4), and Take, which posts the
+    /// viewer's own staff id (#1213). The Work Centre holds no edit session, so
+    /// the handler claims the Case's lease, runs the same Core assignment the
+    /// Case record's dialog runs, and returns here; a refused assignment
+    /// releases the lease it claimed. Core composes the history reason.
     /// </summary>
     public Task<IActionResult> OnPostAssignEngineerAsync(
         Guid caseId,
-        Guid engineerId,
+        string? engineerId,
         string operationKey,
         string? returnUrl,
         CancellationToken cancellationToken) =>
@@ -235,20 +247,15 @@ public partial class IndexModel(
             "assign_engineer",
             async (actor, lease) =>
             {
-                if (engineerId == Guid.Empty)
-                {
-                    throw new ArgumentException("An Engineer is required.", nameof(engineerId));
-                }
-
                 await assignEngineer.ExecuteAsync(
                     new AssignCaseEngineerRequest(
                         caseId,
                         lease.Version,
                         actor,
                         operationKey,
-                        CaseWorkspaceLabels.AssignEngineer,
+                        string.Empty,
                         lease.Token,
-                        engineerId),
+                        AssignEngineerChoice.Parse(engineerId)),
                     cancellationToken);
             },
             Labels.Assigned,
@@ -437,6 +444,7 @@ public partial class IndexModel(
         }
 
         NowUtc = timeProvider.GetUtcNow();
+        ViewerStaffId = StaffNotificationPolicy.StaffId(actor);
         var namedScope = ParseScope(scope);
         ScopeNamed = namedScope is not null;
         Scope = namedScope ?? DefaultScope();
@@ -623,8 +631,10 @@ public partial class IndexModel(
             }
 
             var accounts = await staffAccounts.ListAsync(0, 100, cancellationToken);
+            // The signed-in person first, as the Triage Assign list (#1213).
             var engineers = accounts.Accounts
                 .Where(account => account.IsEnabled)
+                .OrderBy(account => account.Id == ViewerStaffId ? 0 : 1)
                 .Select(account => new WorkCentreEngineer(account.Id, account.UserName))
                 .ToArray();
             var current = header.Workflow.AssignedEngineerId is { } engineerId

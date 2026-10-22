@@ -254,7 +254,13 @@ public sealed class EfCaseQueryStore(
         }
         if (filters.EngineerId is { } engineerId)
         {
-            rows = rows.Where(item => item.EngineerId == engineerId);
+            rows = filters.Unassigned
+                ? rows.Where(item => item.EngineerId == engineerId || item.EngineerId == null)
+                : rows.Where(item => item.EngineerId == engineerId);
+        }
+        else if (filters.Unassigned)
+        {
+            rows = rows.Where(item => item.EngineerId == null);
         }
         if (filters.ReceivedDate is { } receivedDate)
         {

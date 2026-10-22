@@ -79,6 +79,42 @@ public sealed class WorkCentreLabelTests
         Assert.Equal(new WorkCentreFact("Principal", "QDOS"), facts[2]);
     }
 
+    /// <summary>
+    /// #1213 (v41 W8, signed off 19 October 2026): a With Engineer row reads
+    /// the stage's own word as its kind, chip and bold line, opens the Case,
+    /// and its chip sits beside Unassigned, drawn on Mine only.
+    /// </summary>
+    [Fact]
+    public void AWithEngineerRowReadsItsStageAndOpensTheCase()
+    {
+        var item = NewItem(
+            NeedsAttentionKind.WithEngineer,
+            title: "Ford Focus GJ13EVC",
+            attempts: null,
+            detail: "QDOS",
+            reason: "ReportPreparation");
+
+        Assert.Equal(
+            OperatorLabels.CaseStage(Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation),
+            OperatorLabels.WorkCentre.WithEngineer);
+        Assert.Equal(OperatorLabels.WorkCentre.WithEngineer, OperatorLabels.NeedsAttentionKind(item.Kind));
+        Assert.Equal(OperatorLabels.WorkCentre.WithEngineer, OperatorLabels.WorkCentre.KindChip(item.Kind));
+        Assert.Equal(OperatorLabels.WorkCentre.WithEngineer, NeedsAttentionPresentation.RowTitle(item));
+        Assert.Equal(OperatorLabels.WorkCentre.OpenCase, NeedsAttentionPresentation.ActionLabel(item));
+        Assert.Equal("with-engineer", NeedsAttentionPresentation.KindSlug(item.Kind));
+        Assert.Equal(NeedsAttentionKind.WithEngineer, Assert.Single(NeedsAttentionPresentation.ParseKinds(["with-engineer"])));
+        var chips = NeedsAttentionPresentation.ChipOrder.ToList();
+        Assert.Equal(chips.IndexOf(NeedsAttentionKind.UnassignedEngineer) + 1, chips.IndexOf(NeedsAttentionKind.WithEngineer));
+        Assert.Contains(NeedsAttentionKind.WithEngineer, NeedsAttentionPresentation.ChipsFor(NeedsAttentionScope.Mine));
+        Assert.Equal(
+            chips.Where(kind => kind != NeedsAttentionKind.WithEngineer),
+            NeedsAttentionPresentation.ChipsFor(NeedsAttentionScope.Office));
+        var facts = NeedsAttentionPresentation.Facts(item, DateTimeOffset.UtcNow);
+        Assert.Equal(new WorkCentreFact("Vehicle", "Ford Focus GJ13EVC"), facts[1]);
+        Assert.Equal(new WorkCentreFact("Principal", "QDOS"), facts[2]);
+        Assert.Equal(new WorkCentreFact("Due", "No due date"), facts[4]);
+    }
+
     private static NeedsAttentionItem NewItem(
         NeedsAttentionKind kind,
         string title,

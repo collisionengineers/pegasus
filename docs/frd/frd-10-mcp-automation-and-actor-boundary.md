@@ -210,7 +210,10 @@ one; it changes no Case value and needs no version or lease.
 **Case lifecycle.** <a id="case-lifecycle"></a> `pegasus_case_action` takes
 one Actions-menu act through the same Core command as the staff Case page:
 place on Hold, with an optional review date, and release it; return to
-Review; assign the Engineer; return to Engineer; close with a named outcome;
+Review; assign the Engineer, or, with no `engineerId`, hand the Case to
+Unassigned (#1213, operator, 15 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
+return to Engineer; close with a named outcome;
 reopen to a named destination; archive; create the linked replacement of a
 Case created in error; Create audit; request the vehicle lookup; record a
 manual chase; log a query (its channel, with the reason as its details) on a
@@ -480,8 +483,10 @@ the Administrator consent page; a token without it cannot see the ledger.
 sends nothing, whatever casework it may do. The estimate tools stay under `automation.assessment` because they write
 assessment values. `pegasus_estimate_import` names a retained PDF, XML or
 JSON file for shared extraction. Every scope has a consent
-description on the Administrator consent page. Every tool is proven under the
-tranche rule above.
+description on the Administrator consent page, which prints it without the
+scope's identifier (v41 S5, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Every tool is proven under the tranche rule above.
 
 ### Tool inventory
 

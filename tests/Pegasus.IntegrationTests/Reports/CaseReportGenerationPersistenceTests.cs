@@ -2850,10 +2850,12 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                     : null);
         }
 
+        // The signatory is also the Case's assigned Engineer, which a ready
+        // report needs (#1213 ruling 3).
         private CaseReportReadinessInput Readiness(CaseAssessmentProjection current) => new(
             current,
             signatoryId,
-            null,
+            signatoryId,
             [new SignOffEngineerProfile(
                 signatoryId, "Ed Mawdsley", "ATA VDA AQP", IsDefault: true)],
             estimate,

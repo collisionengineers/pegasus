@@ -28,16 +28,17 @@
             <div>
                 <dt>Requested access</dt>
                 <dd>
-                    @if (Model.RequestedScopes.Count == 0)
+                    @if (Model.RequestedAccess.Count == 0)
                     {
                         <span>No granted scope was requested; the connector would be unable to call any tool.</span>
                     }
                     else
                     {
                         <ul class="plain">
-                            @foreach (var (scope, description) in Model.RequestedScopes)
+                            @* The description alone (v41 S5): the scope identifier is not printed. *@
+                            @foreach (var description in Model.RequestedAccess)
                             {
-                                <li><code>@scope</code> — @description</li>
+                                <li>@description</li>
                             }
                         </ul>
                     }

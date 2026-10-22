@@ -11,19 +11,27 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public static class NeedsAttentionPresentation
 {
-    /// <summary>The kind chips in the mockup's order (P3).</summary>
+    /// <summary>The kind chips in the mockup's order (P3); With Engineer beside Unassigned (v41 W8).</summary>
     public static readonly IReadOnlyList<NeedsAttentionKind> ChipOrder =
     [
         NeedsAttentionKind.CaseChase,
         NeedsAttentionKind.HeldDecision,
         NeedsAttentionKind.ReviewCase,
         NeedsAttentionKind.UnassignedEngineer,
+        NeedsAttentionKind.WithEngineer,
         NeedsAttentionKind.VehicleImagesPaired,
         NeedsAttentionKind.Unidentified,
         NeedsAttentionKind.Triage,
         NeedsAttentionKind.OpenTasks,
         NeedsAttentionKind.AiDraft
     ];
+
+    /// <summary>
+    /// The chips a scope draws: those of the kinds it lists, so the With
+    /// Engineer chip is Mine's alone (#1213, v41 W8).
+    /// </summary>
+    public static IEnumerable<NeedsAttentionKind> ChipsFor(NeedsAttentionScope scope) =>
+        ChipOrder.Where(kind => NeedsAttentionPolicy.Holds(scope, kind));
 
     /// <summary>The due-day groups in list order (P1).</summary>
     public static readonly IReadOnlyList<NeedsAttentionPriority> Groups =
@@ -39,6 +47,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.HeldDecision => "held",
         NeedsAttentionKind.ReviewCase => "review",
         NeedsAttentionKind.UnassignedEngineer => "unassigned",
+        NeedsAttentionKind.WithEngineer => "with-engineer",
         NeedsAttentionKind.VehicleImagesPaired => "images",
         NeedsAttentionKind.Unidentified => "unidentified",
         NeedsAttentionKind.Triage => "triage",
@@ -96,6 +105,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.HeldDecision => "Held decision",
         NeedsAttentionKind.ReviewCase => "Review Case",
         NeedsAttentionKind.UnassignedEngineer => Labels.AssignEngineer,
+        NeedsAttentionKind.WithEngineer => Labels.WithEngineer,
         NeedsAttentionKind.VehicleImagesPaired => Labels.VehicleImagesPaired,
         NeedsAttentionKind.Unidentified => OperatorLabels.UnidentifiedReason(item.Reason),
         NeedsAttentionKind.Triage => Labels.TriageTitle(item.Reason),
@@ -138,7 +148,8 @@ public static class NeedsAttentionPresentation
         var subject = item.Kind switch
         {
             NeedsAttentionKind.HeldDecision => new WorkCentreFact("Claimant", item.Title),
-            NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer or NeedsAttentionKind.OpenTasks =>
+            NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer or NeedsAttentionKind.OpenTasks
+                or NeedsAttentionKind.WithEngineer =>
                 new WorkCentreFact("Vehicle", item.Title),
             NeedsAttentionKind.Unidentified => new WorkCentreFact("Source", item.Title),
             NeedsAttentionKind.Triage => new WorkCentreFact("Registration", item.Title, Mono: true),
@@ -149,7 +160,8 @@ public static class NeedsAttentionPresentation
         var second = item.Kind switch
         {
             NeedsAttentionKind.HeldDecision or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer
-                or NeedsAttentionKind.VehicleImagesPaired or NeedsAttentionKind.OpenTasks =>
+                or NeedsAttentionKind.VehicleImagesPaired or NeedsAttentionKind.OpenTasks
+                or NeedsAttentionKind.WithEngineer =>
                 new WorkCentreFact("Principal", item.Detail),
             NeedsAttentionKind.Unidentified => new WorkCentreFact("Sender", item.Detail),
             NeedsAttentionKind.AiDraft => new WorkCentreFact("Instruction", item.Detail),

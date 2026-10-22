@@ -43,21 +43,25 @@
                 <dl class="definition"><dt>Role</dt><dd>@role</dd></dl>
                 <dl class="definition"><dt>Idle lock</dt><dd>@OperatorLabels.Duration(Pegasus.Core.Actors.StaffSessionPolicy.IdleLifetime)</dd></dl>
             </div>
+            @* Release notes, Report a problem and Change password sit in the
+               body (v41 S1); the foot keeps Close and Sign out. *@
+            <div class="button-row section-gap">
+                <a class="btn" asp-page="/ReleaseNotes">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-flag")" /></svg>
+                    <span>@OperatorLabels.Shell.ReleaseNotes</span>
+                </a>
+                <button type="button" class="btn" data-dialog-open="problem-dialog">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+                    <span>@OperatorLabels.Shell.ReportProblem</span>
+                </button>
+                <a class="btn" asp-page="/Account/PasswordChange">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-key")" /></svg>
+                    <span>Change password</span>
+                </a>
+            </div>
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>
-            <a class="btn" asp-page="/ReleaseNotes">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-flag")" /></svg>
-                <span>@OperatorLabels.Shell.ReleaseNotes</span>
-            </a>
-            <button type="button" class="btn" data-dialog-open="problem-dialog">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
-                <span>@OperatorLabels.Shell.ReportProblem</span>
-            </button>
-            <a class="btn" asp-page="/Account/PasswordChange">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-key")" /></svg>
-                <span>Change password</span>
-            </a>
             <form method="post" asp-page="/Account/SignOut">
                 <button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.SigningOut">
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-log-out")" /></svg>
@@ -72,6 +76,14 @@
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
         <div class="dialog-head">
             <h2 id="notifications-dialog-title" tabindex="-1">@OperatorLabels.Shell.Notifications</h2>
+            @* Mark all read sits in the head (v41 S2); the foot keeps Close. *@
+            @if (anyUnread)
+            {
+                <form method="post" asp-page="/Notifications" asp-page-handler="MarkAllRead">
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Marking">@OperatorLabels.Shell.MarkAllRead</button>
+                </form>
+            }
             <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
             </button>
@@ -109,13 +121,6 @@
             }
         </div>
         <div class="dialog-foot">
-            @if (anyUnread)
-            {
-                <form method="post" asp-page="/Notifications" asp-page-handler="MarkAllRead" class="left">
-                    <input type="hidden" name="returnUrl" value="@returnUrl" />
-                    <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Marking">@OperatorLabels.Shell.MarkAllRead</button>
-                </form>
-            }
             <button type="button" class="btn btn--dark" data-dialog-close>Close</button>
         </div>
     </section>
@@ -150,7 +155,7 @@
                 </button>
             }
             <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Cases">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-list")" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-list-checks")" /></svg>
                 <span><strong>@OperatorLabels.Nav.Cases</strong></span>
             </button>
             <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search">

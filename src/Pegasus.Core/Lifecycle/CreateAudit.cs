@@ -121,7 +121,7 @@ public static class AuditPolicy
         AuditRefusal.AuditAlreadyExists => "This case already has its audit.",
         AuditRefusal.Held => "A held case cannot have an audit created from it.",
         AuditRefusal.Closed => "A closed case cannot have an audit created from it.",
-        AuditRefusal.NoAssignedEngineer => "Report preparation requires an assigned Engineer.",
+        AuditRefusal.NoAssignedEngineer => CaseLifecycleRules.AssignedEngineerRequired,
         _ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null)
     };
 

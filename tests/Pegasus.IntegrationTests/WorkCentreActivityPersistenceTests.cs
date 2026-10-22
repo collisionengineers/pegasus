@@ -39,8 +39,10 @@ public sealed class WorkCentreActivityPersistenceTests
 
             // Sent to Engineer: a Case's first entry into With Engineer, once
             // per Case (item E): one today, one earlier this week, one last
-            // week. A later return to the Engineer is not a second send, so
-            // the second entries below count for nothing.
+            // week. A later return to the Engineer, or a With Engineer Case
+            // handed to another Engineer or to Unassigned (#1213, the same
+            // state event), is not a second send, so the second entries below
+            // count for nothing.
             context.AddRange(
                 Event(today.Id, "state_ReportPreparation", DayStart.AddHours(3), version: 4),
                 Event(today.Id, "state_ReportPreparation", DayStart.AddHours(9), version: 5),

@@ -593,7 +593,10 @@ Readiness names every fact the report prints and cannot print without, and
 nothing else (operator, 24 September 2026). Each is one blocker: what is
 missing, where it comes from, why, what clears it, and a link to the section
 that records it
-([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)). The
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)).
+The one exception is the Engineer blocker: the assigned or Sign-off Engineer's
+signature and qualifications print on the report, so it names no section and
+links the ribbon's Assign Engineer action (operator, 22 October 2026). The
 Case page and Generate evaluate the whole list before a generation is
 recorded. The preview refuses on the same printed facts, sign-off Engineer,
 Current repair spec, labour rate and repairer VAT status before anything is

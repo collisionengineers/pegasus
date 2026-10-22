@@ -644,6 +644,17 @@ public sealed class EfImageIntakeStore(
         return principals.Select(EfOrganizationAdministration.ToPrincipal).ToArray();
     }
 
+    public async Task<IReadOnlyList<string>> ListActivePrincipalCodesAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Principals.AsNoTracking()
+            .Where(principal => principal.IsActive)
+            .OrderBy(principal => principal.Code)
+            .Select(principal => principal.Code)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
         Guid imageIntakeId,
         CancellationToken cancellationToken)

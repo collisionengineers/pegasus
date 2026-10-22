@@ -798,6 +798,7 @@ public static class OperatorLabels
         Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
         Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => WorkCentre.VehicleImagesPaired,
         Pegasus.Core.Operations.NeedsAttentionKind.OpenTasks => WorkCentre.OpenTasks,
+        Pegasus.Core.Operations.NeedsAttentionKind.WithEngineer => WorkCentre.WithEngineer,
         _ => Humanise(kind.ToString())
     };
 
@@ -845,6 +846,12 @@ public static class OperatorLabels
         public const string Due = "Due";
         public const string Received = "Received";
         public const string AssignEngineer = "Assign Engineer";
+
+        /// <summary>
+        /// Take (#1213, v41 W8 and K9, signed off 19 October 2026): an
+        /// Unassigned Case assigned to the person taking it, in one step.
+        /// </summary>
+        public const string Take = "Take";
         public const string Assign = "Assign";
         public const string Reassign = "Reassign";
         public const string ChooseEngineer = "Choose an Engineer";
@@ -930,6 +937,12 @@ public static class OperatorLabels
         /// </summary>
         public const string OpenTasks = "Open tasks";
 
+        /// <summary>
+        /// A With Engineer Case its Engineer holds (#1213, v41 W8): the row's
+        /// kind, its kind chip and its bold line, the stage's own word.
+        /// </summary>
+        public static readonly string WithEngineer = CaseStage(CaseLifecycleState.ReportPreparation);
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -942,6 +955,7 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
             Pegasus.Core.Operations.NeedsAttentionKind.OpenTasks => "Tasks",
             Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
+            Pegasus.Core.Operations.NeedsAttentionKind.WithEngineer => WithEngineer,
             _ => Humanise(kind.ToString())
         };
 
@@ -2091,6 +2105,20 @@ public static class OperatorLabels
             Pegasus.Core.Reports.CaseListColumnGroup.PartiesAndActivity => "Parties and activity",
             _ => Humanise(group.ToString())
         };
+    }
+
+    /// <summary>
+    /// Search's filter and results words that v41 W2 and W3 gave (signed off
+    /// 19 October 2026): the stage filter's name, the two lists' empty choice,
+    /// the results' Type column and the preview's copy button.
+    /// </summary>
+    public static class Search
+    {
+        public const string CaseStage = "Case stage";
+        public const string AllPrincipals = "All principals";
+        public const string AllEngineers = "All engineers";
+        public const string TypeColumn = "Type";
+        public const string CopyCaseReference = "Copy Case/PO";
     }
 
     /// <summary>The Mail settings area labels and status values — one list.</summary>

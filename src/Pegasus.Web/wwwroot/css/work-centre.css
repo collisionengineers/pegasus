@@ -22,14 +22,14 @@
 .wc-activity { margin-bottom: 18px; overflow: hidden; }
 .wc-activity .panel-head h2 { font-size: 13px; font-weight: 650; }
 .wc-activity-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
-.wc-activity-table th, .wc-activity-table td { border-left: 1px solid var(--line); padding: 8px 16px; }
+.wc-activity-table th, .wc-activity-table td { border-left: 1px solid var(--line); padding: 5px 16px; }
 .wc-activity-table th:first-child, .wc-activity-table td:first-child { border-left: 0; width: 110px; }
-.wc-activity-table thead th { height: 36px; text-align: left; font-size: 12px; font-weight: 650; color: var(--ink); background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-activity-table thead th { height: 30px; padding-top: 4px; padding-bottom: 4px; text-align: left; font-size: 12px; font-weight: 650; color: var(--ink); background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wc-activity-table thead th a { color: inherit; text-decoration: none; }
 .wc-activity-table thead th a:hover { text-decoration: underline; }
 .wc-activity-table tbody th { text-align: left; font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .wc-activity-table tbody tr:first-child td, .wc-activity-table tbody tr:first-child th { border-bottom: 1px solid var(--line); }
-.wc-activity-table td { height: 44px; text-align: left; font-size: 22px; font-weight: 650; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.wc-activity-table td { height: auto; text-align: left; font-size: 16px; font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .wc-activity .notice { margin: 12px; }
 
 .wc-nothing { margin: 28px 0; color: var(--muted); font-size: 13px; }
@@ -52,8 +52,8 @@
 .wc-toolbar-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .wc-toolbar h2 { font-size: 14px; font-weight: 650; }
 .wc-toolbar .meta { font-size: 11px; color: var(--muted); }
-.wc-switch { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: var(--radius); padding: 2px; background: var(--surface-2); }
-.wc-switch a { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 2px; font-size: 11px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.wc-switch { display: inline-flex; align-items: center; gap: 2px; box-sizing: border-box; height: var(--control); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px; background: var(--surface-2); }
+.wc-switch a { display: inline-flex; align-items: center; height: 100%; padding: 0 12px; border-radius: 2px; font-size: 11px; font-weight: 600; color: var(--muted); text-decoration: none; }
 .wc-switch a:hover { color: var(--ink); text-decoration: none; }
 .wc-switch a[aria-current="true"] { background: var(--nav); color: var(--nav-text); }
 .wc-search { position: relative; display: flex; align-items: center; width: 235px; min-width: 160px; }
@@ -67,7 +67,7 @@
    B): the action, then the Dismiss. */
 .wc-table { overflow: auto; }
 .wc-ledger-table { table-layout: fixed; font-size: 12px; }
-.wc-ledger-table th { position: static; font-size: 9px; letter-spacing: .06em; padding: 10px 14px; height: auto; }
+.wc-ledger-table th { position: static; font-size: 11px; letter-spacing: .06em; padding: 10px 14px; height: auto; }
 .wc-ledger-table td { padding: 10px 14px; height: 54px; vertical-align: top; }
 .wc-col-task { width: 24%; }
 .wc-col-record { width: 26%; }
@@ -79,10 +79,14 @@
 .wc-ledger-table td.wc-col-action, .wc-ledger-table td.wc-col-dismiss { vertical-align: middle; text-align: right; padding-left: 0; }
 .wc-ledger-table td.wc-col-action > .btn { width: 100%; justify-content: flex-start; }
 .wc-dismiss { margin: 0; display: inline-flex; }
-.wc-dismiss .btn--icon { min-width: 32px; min-height: 32px; padding: 0; }
+.wc-dismiss .btn--icon { min-width: 32px; min-height: 32px; padding: 0; border-color: transparent; background: transparent; box-shadow: none; color: var(--muted); }
+.wc-dismiss .btn--icon:hover { background: var(--surface-3); border-color: var(--line-strong); color: var(--ink); }
 .wc-dismiss .btn--icon .icon { width: 15px; height: 15px; }
 .wc-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
 .wc-row-actions form { margin: 0; }
+/* An Unassigned row's Assign Engineer and Take share the action cell (v41 W8). */
+.wc-table--fold:has(.wc-row-actions) .wc-col-action { width: 196px; }
+.wc-table--fold .wc-row-actions > .btn { flex: 1 1 auto; justify-content: flex-start; white-space: nowrap; }
 .wc-ledger-table tr[aria-selected="true"] td { background: var(--navy-bg); }
 .wc-ledger-table tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--red); }
 .wc-ledger-table small { display: block; color: var(--muted); font-size: 10px; line-height: 1.6; margin-top: 3px; }
@@ -133,8 +137,6 @@
     .work-centre .wc-metrics .metric { padding: 14px 10px; grid-template-columns: 1fr; gap: 10px; border-bottom: 0; }
     .work-centre .wc-metrics .metric:last-child { grid-column: auto; }
     .work-centre .wc-metrics .metric-value { font-size: 25px; }
-    .wc-activity-table th, .wc-activity-table td { padding: 6px 10px; }
-    .wc-activity-table td { font-size: 18px; }
     .wc-activity-table th:first-child, .wc-activity-table td:first-child { width: 80px; }
     .wc-toolbar { padding: 12px; }
     .wc-filters { padding: 9px 12px; }
@@ -142,6 +144,7 @@
     .wc-col-record { width: 28%; }
     .wc-col-owner { width: 15%; }
     .wc-col-action { width: 120px; }
+    .wc-table--fold:has(.wc-row-actions) .wc-col-action { width: 186px; }
     .wc-jobs-table .wc-col-action { width: 180px; }
     /* Owner and Received fold into the task cell (v32 A). */
     .wc-table--fold .wc-col-owner, .wc-table--fold .wc-col-received { display: none; }

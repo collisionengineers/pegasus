@@ -23,11 +23,11 @@ namespace Pegasus.Web.Pages.Connect;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class AuthorizeModel : AdministrationPageModel
 {
-    private static readonly IReadOnlyDictionary<string, string> ScopeDescriptions =
+    internal static readonly IReadOnlyDictionary<string, string> ScopeDescriptions =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [AutomationMcp.CasesScope] = "Search and read cases, take and renew edit leases, update case details.",
-            [AutomationMcp.IntakeScope] = "List the intake queue, submit intake, and work Unidentified and Triage records.",
+            [AutomationMcp.IntakeScope] = "List the queue, submit, and work Unidentified and Triage records.",
             [AutomationMcp.DocumentsScope] = "Add and download case documents.",
             [AutomationMcp.AssessmentScope] = "Read and update assessment values under an edit lease.",
             [AutomationMcp.MailScope] = "List and read retained mail and correct a message's classification.",
@@ -39,7 +39,8 @@ public sealed class AuthorizeModel : AdministrationPageModel
 
     public string ConnectorOrigin { get; private set; } = string.Empty;
 
-    public IReadOnlyList<(string Scope, string Description)> RequestedScopes { get; private set; } = [];
+    /// <summary>The words for each requested scope; the identifier is not printed (v41 S5).</summary>
+    public IReadOnlyList<string> RequestedAccess { get; private set; } = [];
 
     public IReadOnlyList<KeyValuePair<string, string>> RequestParameters { get; private set; } = [];
 
@@ -69,8 +70,8 @@ public sealed class AuthorizeModel : AdministrationPageModel
         var status = await registry.GetStatusAsync(actor, cancellationToken);
         ClientDisplayName = status.DisplayName ?? status.ClientId;
         ConnectorOrigin = RedirectUri(request).GetLeftPart(UriPartial.Authority);
-        RequestedScopes = GrantedScopes(request, status)
-            .Select(scope => (scope, ScopeDescriptions.GetValueOrDefault(scope, scope)))
+        RequestedAccess = GrantedScopes(request, status)
+            .Select(scope => ScopeDescriptions.GetValueOrDefault(scope, scope))
             .ToArray();
         RequestParameters = request.GetParameters()
             .Where(parameter => !string.Equals(parameter.Key, "__RequestVerificationToken", StringComparison.Ordinal)
