@@ -14,14 +14,59 @@ public sealed record DeliveryImage(
     bool Downscaled);
 
 /// <summary>
-/// Renders an image for delivery. Answers <c>null</c> when the bytes cannot be
-/// rendered within the bounds (not a decodable image, too many pixels, or no
-/// quality fits the budget), so the caller falls back to the metadata and the
-/// authenticated content URL. A failed rendering is never an error.
+/// Why <see cref="IRenderImageForDelivery"/> rendered no image. Only
+/// <see cref="NoQualityFits"/> is a question of the byte budget.
+/// </summary>
+public enum DeliveryImageRefusal
+{
+    /// <summary>The bytes are not a decodable image.</summary>
+    Undecodable,
+
+    /// <summary>The image has more pixels than <see cref="DeliveryImageRendering.MaximumPixels"/>.</summary>
+    Oversized,
+
+    /// <summary>No size and quality down to the renderer's floor fits the byte budget.</summary>
+    NoQualityFits
+}
+
+/// <summary>
+/// What a rendering answered: the image, or why there is none.
+/// </summary>
+public sealed record DeliveryImageRendering
+{
+    /// <summary>The decoded-pixel bound past which an image is not rendered.</summary>
+    public const long MaximumPixels = 40_000_000;
+
+    private DeliveryImageRendering(DeliveryImage? image, DeliveryImageRefusal? refusal)
+    {
+        Image = image;
+        Refusal = refusal;
+    }
+
+    /// <summary>The rendered image; null when the rendering was refused.</summary>
+    public DeliveryImage? Image { get; }
+
+    /// <summary>Why there is no image; null when there is one.</summary>
+    public DeliveryImageRefusal? Refusal { get; }
+
+    public static DeliveryImageRendering Rendered(DeliveryImage image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        return new(image, null);
+    }
+
+    public static DeliveryImageRendering Refused(DeliveryImageRefusal refusal) => new(null, refusal);
+}
+
+/// <summary>
+/// Renders an image for delivery. When the bytes cannot be rendered within
+/// the bounds it answers why (<see cref="DeliveryImageRefusal"/>), so the
+/// caller falls back to the metadata and the authenticated content URL with
+/// that reason. A failed rendering is never an error.
 /// </summary>
 public interface IRenderImageForDelivery
 {
-    Task<DeliveryImage?> RenderAsync(
+    Task<DeliveryImageRendering> RenderAsync(
         ReadOnlyMemory<byte> content,
         int longestEdge,
         int maximumBytes,

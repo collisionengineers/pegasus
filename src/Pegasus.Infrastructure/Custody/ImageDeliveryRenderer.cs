@@ -14,14 +14,12 @@ namespace Pegasus.Infrastructure.Custody;
 /// The source is decoded once, at the scale the first edge needs, and every
 /// smaller attempt resizes that bitmap, so a 6 MB photograph is read once.
 /// Nothing here throws at the caller: bytes that are not a decodable image,
-/// or an image past the decode bound, mean "no rendering", and the caller
-/// serves the metadata and the content URL instead.
+/// an image past the decode bound, or a budget no quality fits mean "no
+/// rendering" with that reason, and the caller serves the metadata and the
+/// content URL instead.
 /// </remarks>
 internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
 {
-    /// <summary>The decoded-pixel bound, matching the thumbnail renderer's.</summary>
-    private const long MaximumDecodedPixels = 40_000_000;
-
     /// <summary>Below this edge a photograph stops being evidence; give up instead.</summary>
     private const int MinimumEdge = 256;
 
@@ -29,15 +27,28 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
 
     private static readonly SemaphoreSlim DecodeGate = new(2, 2);
 
-    public async Task<DeliveryImage?> RenderAsync(
+    private static readonly DeliveryImageRendering Undecodable =
+        DeliveryImageRendering.Refused(DeliveryImageRefusal.Undecodable);
+
+    private static readonly DeliveryImageRendering Oversized =
+        DeliveryImageRendering.Refused(DeliveryImageRefusal.Oversized);
+
+    private static readonly DeliveryImageRendering NoQualityFits =
+        DeliveryImageRendering.Refused(DeliveryImageRefusal.NoQualityFits);
+
+    public async Task<DeliveryImageRendering> RenderAsync(
         ReadOnlyMemory<byte> content,
         int longestEdge,
         int maximumBytes,
         CancellationToken cancellationToken)
     {
-        if (content.IsEmpty || longestEdge <= 0 || maximumBytes <= 0)
+        if (content.IsEmpty)
         {
-            return null;
+            return Undecodable;
+        }
+        if (longestEdge <= 0 || maximumBytes <= 0)
+        {
+            return NoQualityFits;
         }
 
         await DecodeGate.WaitAsync(cancellationToken);
@@ -45,10 +56,14 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
         {
             using var data = SKData.CreateCopy(content.Span);
             using var codec = SKCodec.Create(data);
-            if (codec is null
-                || (long)codec.Info.Width * codec.Info.Height is <= 0 or > MaximumDecodedPixels)
+            if (codec is null || (long)codec.Info.Width * codec.Info.Height <= 0)
             {
-                return null;
+                return Undecodable;
+            }
+            // The decoded-pixel bound, matching the thumbnail renderer's.
+            if ((long)codec.Info.Width * codec.Info.Height > DeliveryImageRendering.MaximumPixels)
+            {
+                return Oversized;
             }
 
             var origin = codec.EncodedOrigin;
@@ -64,7 +79,7 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
                 new SKImageInfo(decodedSize.Width, decodedSize.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
             if (decoded is null)
             {
-                return null;
+                return Undecodable;
             }
 
             for (var edge = firstEdge; edge >= MinimumEdge; edge /= 2)
@@ -76,7 +91,7 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
                 using var image = Draw(decoded, origin, transposed, targetWidth, targetHeight);
                 if (image is null)
                 {
-                    return null;
+                    return Undecodable;
                 }
 
                 foreach (var quality in Qualities)
@@ -84,25 +99,25 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
                     using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, quality);
                     if (encoded is null)
                     {
-                        return null;
+                        return Undecodable;
                     }
                     if (encoded.Size <= maximumBytes)
                     {
-                        return new DeliveryImage(
+                        return DeliveryImageRendering.Rendered(new DeliveryImage(
                             encoded.ToArray(),
                             "image/jpeg",
                             targetWidth,
                             targetHeight,
-                            Downscaled: targetWidth < displayedWidth || targetHeight < displayedHeight);
+                            Downscaled: targetWidth < displayedWidth || targetHeight < displayedHeight));
                     }
                 }
             }
 
-            return null;
+            return NoQualityFits;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            return null;
+            return Undecodable;
         }
         finally
         {

@@ -21,6 +21,7 @@ internal sealed class EfDocumentCustodyStore(
     IAddCaseDocument,
     IDownloadCaseDocument,
     IGetCaseDocumentMetadata,
+    IOpenCaseDocumentBatch,
     IReadCaseDocumentPreview,
     ILogicallyRemoveDocument,
     IMarkAsOriginalReportStore,
@@ -154,6 +155,83 @@ internal sealed class EfDocumentCustodyStore(
                 version.ContentLength,
                 version.Sha256))
             .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The batch download's versions in one read: the metadata query's rule
+    /// (the Case's own occurrence at its current, confirmed, not-removed
+    /// version) for the whole set, with the Case identity and each document's
+    /// custody folder joined in, so the opens that follow need no SQL. Any
+    /// item that does not pass refuses the batch before anything is opened.
+    /// </summary>
+    async Task<ICaseDocumentBatch?> IOpenCaseDocumentBatch.ExecuteAsync(
+        OpenCaseDocumentBatchQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(query.Items);
+        ValidateActor(query.Actor);
+        var operationKey = ValidateOperationKey(query.OperationKey);
+        // The longest row key the batch can write must fit as well.
+        ValidateOperationKey(OpenCaseDocumentBatchQuery.ItemOperationKey(operationKey, query.Items.Count));
+        var occurrenceIds = query.Items.Select(item => item.OccurrenceId).ToArray();
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await (
+            from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                on occurrence.VersionId equals version.Id
+            join document in context.Set<CaseDocumentEntity>().AsNoTracking()
+                on occurrence.DocumentId equals document.Id
+            join caseEntity in context.Cases.AsNoTracking()
+                on occurrence.CaseId equals caseEntity.Id
+            where occurrence.CaseId == query.CaseId
+                && occurrenceIds.Contains(occurrence.Id)
+                && version.DocumentId == occurrence.DocumentId
+                && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && !version.IsLogicallyRemoved
+            select new
+            {
+                Occurrence = occurrence,
+                Version = version,
+                document.CustodyFolder,
+                caseEntity.Reference,
+                caseEntity.CustodyRootRemoteId,
+                caseEntity.AuditCustodyRemoteId
+            })
+            .ToDictionaryAsync(row => row.Occurrence.Id, cancellationToken);
+
+        var metadata = new CaseDocumentMetadata[query.Items.Count];
+        var reads = new ManagedDocumentContentRead[query.Items.Count];
+        for (var index = 0; index < metadata.Length; index++)
+        {
+            var item = query.Items[index];
+            if (!rows.TryGetValue(item.OccurrenceId, out var row) || row.Version.Id != item.VersionId)
+            {
+                return null;
+            }
+
+            metadata[index] = new(
+                query.CaseId,
+                row.Occurrence.Id,
+                row.Occurrence.DocumentId,
+                row.Version.Id,
+                row.Version.FileName,
+                row.Version.MediaType,
+                row.Version.ContentLength,
+                row.Version.Sha256);
+            reads[index] = new(
+                Address(
+                    query.CaseId,
+                    row.Reference,
+                    CaseCustodyFolders.RootOf(row.CustodyFolder, row.CustodyRootRemoteId, row.AuditCustodyRemoteId),
+                    row.Occurrence,
+                    row.Version),
+                row.Version.Sha256,
+                row.Version.ContentLength);
+        }
+
+        return new OpenedDocumentBatch(
+            dbContextFactory, contentStore, timeProvider, query.Actor, operationKey, metadata, reads);
     }
 
     /// <summary>
@@ -1415,6 +1493,60 @@ internal sealed class EfDocumentCustodyStore(
         Guid OccurrenceId,
         Guid VersionId,
         string Sha256);
+
+    /// <summary>
+    /// An opened batch: its reads go straight to custody, verified against
+    /// each version's hash and length, and its download rows, the audited
+    /// download's shape under <see cref="OpenCaseDocumentBatchQuery.ItemOperationKey"/>,
+    /// are written together in one save.
+    /// </summary>
+    private sealed class OpenedDocumentBatch(
+        IDbContextFactory<PegasusDbContext> dbContextFactory,
+        IDocumentContentStore contentStore,
+        TimeProvider timeProvider,
+        ActionActor actor,
+        string operationKey,
+        CaseDocumentMetadata[] metadata,
+        ManagedDocumentContentRead[] reads) : ICaseDocumentBatch
+    {
+        public IReadOnlyList<CaseDocumentMetadata> Metadata => metadata;
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadContentAsync(
+            int index,
+            CancellationToken cancellationToken) =>
+            ManagedVersionBytes.ReadAsync(contentStore, cachedVersions: null, reads[index], cancellationToken);
+
+        public async Task RecordDownloadedAsync(
+            IReadOnlyCollection<int> indexes,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(indexes);
+            if (indexes.Count == 0)
+            {
+                return;
+            }
+
+            await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            var now = timeProvider.GetUtcNow();
+            foreach (var index in indexes)
+            {
+                var item = metadata[index];
+                context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+                    "case_document",
+                    item.VersionId.ToString("D"),
+                    "document_downloaded",
+                    actor,
+                    now,
+                    OpenCaseDocumentBatchQuery.ItemOperationKey(operationKey, index),
+                    afterJson: DocumentActionHistory.Serialize(new DocumentDownloadHistoryValue(
+                        item.CaseId,
+                        item.OccurrenceId,
+                        item.VersionId,
+                        item.Sha256))));
+            }
+            await context.SaveChangesAsync(cancellationToken);
+        }
+    }
 
     private sealed record ImageTagHistoryValue(
         Guid OccurrenceId,
