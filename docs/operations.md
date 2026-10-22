@@ -4,6 +4,33 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 119 - 22 October 2026 (deployment live)
+
+Release 119 deployed [PR 1481](https://github.com/collisionengineers/pegasus/pull/1481) (the Web
+runtime role may DELETE `CaseRepairSpecifications` and `CaseRepairSpecificationSnapshots`, so Discard
+on a repair specification no longer fails with "The server could not confirm the action"; closes
+#1479) and the documentation [PR 1495](https://github.com/collisionengineers/pegasus/pull/1495)
+(`AGENTS.md` names the eighteen skills and the worktree conventions). The operator's decision of
+21 October was that PR 1481 ships alone.
+
+The route was the additive one. The candidate's one migration,
+`20261021120000_GrantWebRepairSpecDiscardDelete`, is GRANT and REVOKE only, with no schema or data
+change, so it was applied while Release 118's bytes served: until the grant applied those bytes
+kept refusing Discard exactly as before, and nothing else about them changed. The normal
+deployment stage followed. No containment, no outage.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `7ac5be926c2881e0ab12a4aaaeed22435e9a1f88`, the merge of PR 1481 into `dev`; `main` and `dev` both read it back. Manifest SHA-256 `C193B0DD356C0D6F486C3EFA07FA013A7CA934FA7F37367FAC1EAA80BE778ADB` (schema 3, clean, `win-x64`/`efbundle.exe`, created 00:16:16Z); `web.zip` `AA768C0E5EB03D317E8027E9277A0F4C89361AEA7F2CC32EE3B444F4A4D6FB5A`; `worker.zip` `B1ACCE7AD0DDA0A818F78C9C7A2151BF5D1D71B29F21E36B1649E5FFDFEA4DF9`; `classifier.zip` `56D01CE5C296B7D795BFAD921AEBC32424AC847C0B922034D715DEE447304C65`; `efbundle.exe` `751F7DA522432E37A4369665738D0DE83108D7CD89A2EE07D72270649AF48E5E`. Built 00:09-00:17Z in a detached worktree at the release SHA; Local and Artifact plan validations passed. Tools: .NET SDK 10.0.302, Node v24.15.0, npm 11.14.1, az 2.88.0, azd 1.34.1. |
+| Review and promotion | PR 1481 was reviewed on 21 October by an independent review (one finding: the body did not state the release route; the body was corrected, the code unchanged at `44a46a6a9`) and CI passed at that head (changes, invariants, infrastructure, unit, six `sql-integration` shards and coverage). Merged to `dev` with a merge commit at 23:56:48Z on 21 October. The operator's standing `MERGE AUTH GRANTED` and `DEPLOY AUTH GRANTED` of 21 October covered the landing and the release; one atomic leased promotion from `main` `1bea4e943` at 00:08:58Z. |
+| Migration | Live head before: `20261019120000_RepairerVatStatusDefaultsToRegistered`, 231 applied; Web `79131ad81` and Worker both Running throughout. PreMigration validation passed 00:29:20Z; the bundle applied the one migration 00:29:21-00:29:27Z; the bootstrap verified 689 catalogued permission and denial rows and 485 effective runtime DML rows (Release 115 read 689 and 483: the two Web DELETE rows moved from denial to grant); head after `20261021120000_GrantWebRepairSpecDiscardDelete`, 232 applied, read back 00:29:48Z. |
+| Deployment | PreDeploy passed 00:30:12Z; `PEGASUS_WEB_ACTIVATION=approved` and `PEGASUS_WORKER_ACTIVATION=approved-live-worker`; PreProvision passed (B1 quota in `uksouth` 3; live Worker `approved-live-worker`); `azd provision` found no changes (00:30:40Z). `web.zip` deployed with `--clean true --restart true` (deployment record `5d5c8eeb-a5de-458c-ba3a-9a3fd9aa433e`, OneDeploy, started 00:31:06Z); the exact release read back on the first attempt at 00:34:52Z. `worker.zip` deployed 00:36:40Z; `classifier.zip` deployed to the existing classifier Function App. |
+| Smoke | Full smoke passed 00:39:38Z: Worker activation `approved-live-worker`; Web Running on `DOTNETCORE\|10.0`; active package `20261022003048.zip` SHA-256 equals the approved `web.zip`; intake liveness passed (last poll 00:36:00Z; Graph subscription expires 2026-10-27 08:20:00Z); Worker disabled census all `false`. |
+| Query Store | Before: 00:18Z, 24-hour window, 421 statements (`artifacts/performance/query-store-release-119-before-20261022T0018Z.csv`). After: 00:41Z, 3-hour window, 102 statements (`query-store-release-119-after-20261022T0041Z.csv`). The release changes no data access, so the pair is a baseline for the later efficiency work. |
+| Still owed | Live evidence for PR 1481: a Discard on a running Case's repair specification that completes and leaves its history row. The per-Discard read-and-delete cost the review noted (register row A1-26) awaits the operator's efficiency ruling. Release 108 to 118 owed items otherwise stand. |
+| PR states | PR 1481 and PR 1495 read Merged with their heads in `main` and `dev`; #1479 closed at the promotion. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-119-7ac5be92`; the driver scripts and logs at `artifacts/releases/release-119-driver` (`common.ps1`, `promote-and-build.ps1` and its log, `stage-migrate-additive.ps1`, `stage-normal.ps1`, `run-chain.ps1` with `release-chain.log`, `query-store-snapshot.ps1`). |
+
 ## Classifier agent status - 21 October 2026 (read-only observation)
 
 A read-only status pass over the live mail classifier ran on 21 October 2026,
