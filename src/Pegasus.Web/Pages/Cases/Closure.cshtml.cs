@@ -110,26 +110,31 @@ public sealed class ClosureModel(
                 cancellationToken),
             "The query was resolved.");
 
+    /// <summary>
+    /// Return to work (R157): the closed Case's dialog posts the stage to
+    /// return to and a reason, in or out of an edit session, as Archive does.
+    /// </summary>
     public Task<IActionResult> OnPostReopenAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CaseReopenDestination destination,
         CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        ExecuteCaseCommandUnderLeaseAsync(
             id,
+            expectedVersion,
             editLeaseToken,
             "reopen",
-            actor => reopenCase.ExecuteAsync(
+            (actor, lease) => reopenCase.ExecuteAsync(
                 new(
                     id,
                     expectedVersion,
                     actor,
                     operationKey,
                     reason,
-                    editLeaseToken,
+                    lease,
                     destination),
                 cancellationToken),
             "The case was reopened through the selected destination gates.");

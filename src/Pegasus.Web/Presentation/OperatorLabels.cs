@@ -2485,6 +2485,9 @@ public static class OperatorLabels
         public const string Unassigned = "Unassigned";
         public const string ReasonForAction = "Reason for action";
 
+        /// <summary>The reason dialog's confirming button.</summary>
+        public const string ConfirmAction = "Confirm Action";
+
         // Review point 12: the adverse disposition, named apart from the
         // progression actions it must never sit among.
         public const string CloseCase = "Close case";

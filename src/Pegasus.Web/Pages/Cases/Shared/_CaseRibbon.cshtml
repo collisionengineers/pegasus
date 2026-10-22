@@ -274,6 +274,14 @@
                         <span>@Frame.ReturnToEngineer</span>
                     </button>
                 }
+                @if (Model.CanReturnToWork)
+                {
+                    @* Return to work on a closed Case (R157, v41 K10), before Archive. *@
+                    <button type="button" class="btn" data-dialog-open="case-return-to-work-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
+                        <span>@Frame.ReturnToWork</span>
+                    </button>
+                }
                 @if (canArchive)
                 {
                     @if (openTasksCondition is not null)

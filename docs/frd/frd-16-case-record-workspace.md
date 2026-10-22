@@ -351,6 +351,12 @@ Return to Engineer needs no session. The rules behind each action are in
 - **Return to Review**, in With Engineer or Report sent, and **Return to
   Engineer**, in Report sent, when engineering changes are needed. Both
   record a reason.
+- **Return to work**, on a closed Case other than Created in error, before
+  Archive (operator, 16 October 2026; v41 K10, 19 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  Its dialog takes the Case stage to return to and a reason, and the Case
+  returns through the destination gates
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-transitions)).
 - **Archive**, on a closed Case
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)). While the Case
   has an open task it is greyed with the reason "Complete or cancel every

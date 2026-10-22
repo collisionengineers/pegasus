@@ -103,6 +103,17 @@ public sealed partial class DetailsModel
             : OperatorLabels.CaseWorkspace.Unassigned);
 
     /// <summary>
+    /// Return to work is live (R157): a closed Case other than Created in
+    /// error, not archived, that no colleague is editing. Its dialog renders
+    /// and the Actions menu opens it.
+    /// </summary>
+    public bool CanReturnToWork =>
+        Case is { } details
+        && CaseLifecycleRules.CanBeReopened(details.Workflow.State)
+        && details.Workflow.Archive is null
+        && !ColleagueIsEditing;
+
+    /// <summary>
     /// Place on Hold is live: a Case Core allows to be held (Not ready, Review
     /// or With Engineer) that no colleague is editing. Its dialog renders and
     /// the Actions menu opens it.
