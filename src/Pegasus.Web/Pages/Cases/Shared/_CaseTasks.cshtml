@@ -141,7 +141,7 @@
                                                 @foreach (var action in new[] { "CompleteCaseTask", "CancelCaseTask" })
                                                 {
                                                     var completing = action == "CompleteCaseTask";
-                                                    <form method="post" asp-page="/Cases/Details" asp-page-handler="@action" asp-route-id="@workflow.CaseId">
+                                                    <form method="post" asp-page="/Cases/Details" asp-page-handler="@action" asp-route-id="@workflow.CaseId" class="@(completing ? null : "task-cancel")">
                                                         <input type="hidden" name="id" value="@workflow.CaseId" />
                                                         <input type="hidden" name="taskId" value="@task.Id" />
                                                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />

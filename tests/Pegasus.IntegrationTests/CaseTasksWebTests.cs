@@ -419,11 +419,10 @@ public sealed class CaseTasksWebTests
             RegexOptions.Singleline | RegexOptions.CultureInvariant);
         Assert.True(openRow.Success, "The open task's row is not rendered.");
         Assert.Contains("class=\"row-actions\"", openRow.Value, StringComparison.Ordinal);
-        // Complete then Cancel task share one wrapper, which is what the gap before
-        // Cancel task is written against.
-        Assert.Matches(
-            "(?s)<div class=\"task-outcomes\">\\s*<form [^>]*handler=CompleteCaseTask[^>]*>.*?</form>\\s*<form [^>]*handler=CancelCaseTask[^>]*>",
-            openRow.Value);
+        // The gap before Cancel task is written against task-cancel: only the Cancel form carries it.
+        var cancelTagged = Assert.Single(
+            Regex.Matches(openRow.Value, "<form\\b[^>]*\\bclass=\"task-cancel\"[^>]*>", RegexOptions.CultureInvariant).Cast<Match>());
+        Assert.Contains("handler=CancelCaseTask", cancelTagged.Value, StringComparison.Ordinal);
         Assert.Contains("handler=AssignCaseTask", openRow.Value, StringComparison.Ordinal);
         Assert.Contains("name=\"assigneeId\"", openRow.Value, StringComparison.Ordinal);
         Assert.Contains($"<option value=\"\" selected=\"selected\">{TaskLabels.Unassigned}</option>", openRow.Value, StringComparison.Ordinal);
