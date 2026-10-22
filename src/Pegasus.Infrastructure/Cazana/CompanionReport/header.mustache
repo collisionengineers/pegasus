@@ -1,0 +1,21 @@
+<div class="flex flex-row w-full justify-between items-center">
+  <img src="{{mainLogo}}" alt="Percayso" class="{{logoClass}}" />
+
+  {{#companyLogo}}
+  <div class="flex flex-col items-center gap-2 h-24 justify-center">
+    <img
+      src="{{companyLogo}}"
+      alt="company-logo"
+      class="object-contain h-4/6"
+      style="max-width: 13rem"
+    />
+    <h1 class="text-2xl font-semibold text-gray-900 text-center">{{title}}</h1>
+  </div>
+  {{/companyLogo}} {{^companyLogo}}
+  <div class="flex my-8 items-center">
+    <h1 class="text-2xl font-semibold text-gray-900 text-center ml-4">
+      {{title}}
+    </h1>
+  </div>
+  {{/companyLogo}}
+</div>

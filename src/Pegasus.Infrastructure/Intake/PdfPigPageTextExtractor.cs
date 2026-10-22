@@ -19,7 +19,8 @@ internal sealed class PdfPigPageTextExtractor : IExtractPdfPageText
     public Task<PdfTextExtraction?> ExtractAsync(
         ReadOnlyMemory<byte> content,
         int maximumCharacters,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<string, bool>? stopAfterPage = null)
     {
         if (content.IsEmpty || maximumCharacters <= 0)
         {
@@ -36,14 +37,18 @@ internal sealed class PdfPigPageTextExtractor : IExtractPdfPageText
                 cancellationToken.ThrowIfCancellationRequested();
                 var page = document.GetPage(number);
                 var text = ContentOrderTextExtractor.GetText(page) ?? string.Empty;
-                var readable = text.Count(character => !char.IsWhiteSpace(character));
+                var needsOcr = !HasReadableCharacters(text);
                 var truncated = text.Length > remaining;
                 if (truncated)
                 {
                     text = text[..remaining];
                 }
                 remaining -= text.Length;
-                pages.Add(new PdfPageText(number, text, readable < MinimumReadableCharacters, truncated));
+                pages.Add(new PdfPageText(number, text, needsOcr, truncated));
+                if (stopAfterPage?.Invoke(text) == true)
+                {
+                    break;
+                }
             }
 
             return Task.FromResult<PdfTextExtraction?>(
@@ -53,5 +58,23 @@ internal sealed class PdfPigPageTextExtractor : IExtractPdfPageText
         {
             return Task.FromResult<PdfTextExtraction?>(null);
         }
+    }
+
+    /// <summary>
+    /// Whether the page text holds the readable-text floor, counted by a plain
+    /// loop that stops at the floor: no enumerator and no delegate per character.
+    /// </summary>
+    private static bool HasReadableCharacters(string text)
+    {
+        var readable = 0;
+        foreach (var character in text)
+        {
+            if (!char.IsWhiteSpace(character) && ++readable >= MinimumReadableCharacters)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

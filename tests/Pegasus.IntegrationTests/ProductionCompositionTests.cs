@@ -498,7 +498,7 @@ public sealed class ProductionCompositionTests
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
             initializer => initializer is GlassCallbackTelemetryInitializer);
-        // The same host connects Glass's (ADR-0060) and Cazana (ADR-0066) as
+        // The same host connects Glass's (ADR-0060) and Cazana (ADR-0079) as
         // guide valuation sources, one provider each.
         Assert.Equal(
             [ValuationSource.Glasses, ValuationSource.Cazana],

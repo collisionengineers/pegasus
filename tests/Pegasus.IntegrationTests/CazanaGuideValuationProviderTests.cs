@@ -10,40 +10,76 @@ using Pegasus.Infrastructure.Cazana;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// Cazana as a guide valuation source (ADR-0066) against a scripted valuation
-/// API: the figures, the date a month is valued on, the key kept out of every
-/// URL and log, the info answer for a registration Cazana holds no data for,
-/// and the one answer — unavailable — every other failure gives the card.
+/// Cazana as a guide valuation source through the Companion account
+/// (ADR-0079): the guest sign-in, the one metered lookup, the retail and
+/// trade (<c>remarket</c>) figures, the Companion Report and VIN carried on
+/// the quote, the date a month is valued on, the credentials and JWT kept out
+/// of every URL and log, the info answer when Cazana holds no data for a
+/// registration, and the one answer — unavailable — every other failure gives
+/// the card.
 /// </summary>
 public sealed class CazanaGuideValuationProviderTests
 {
-    private const string Key = "synthetic-cazana-key-0123456789";
+    private const string Email = "companion@collisionengineers.test";
+    private const string Password = "synthetic-cazana-password";
+    private const string OnboardingToken = "synthetic-onboarding-token";
+    private const string Jwt = "synthetic-jwt";
+    private const string Uuid = "8e3e5efb-6539-434c-b5f1-c1180d09e7f1";
+    private const string Vin = "SB1ZB3AE40E045642";
+
     private static readonly DateTimeOffset Now = new(2031, 4, 15, 10, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly April = new(2031, 4, 1);
 
-    private const string Figures =
-        """{"cid":1234567,"make":"Ford","model":"Fiesta","mileage":{"value":33000,"estimate":false},"valuation":{"retail":10450,"trade":8725,"independent":10100,"date":"2031-04-15"}}""";
+    private const string Branches =
+        $$$"""{"id":274424,"token":"{{{OnboardingToken}}}","branches":[{"id":6910,"name":"Collision Engineers","active":1}]}""";
+
+    private const string Confirmed = $$$"""{"jwt":"{{{Jwt}}}"}""";
+
+    private const string Created = $$$"""{"uuid":"{{{Uuid}}}"}""";
 
     [Fact]
-    public async Task TheFiguresAreCazanasRetailAndTradeValuedTodayForTheCurrentMonth()
+    public async Task TheFiguresVinAndReportComeFromOneCompanionLookupInTheSignedInSession()
     {
-        var harness = Harness.Create(_ => Json(HttpStatusCode.OK, Figures));
+        var harness = Harness.Create();
 
         var quote = await harness.Provider.GetAsync(Request(" ab12 cde ", April), default);
 
-        Assert.Equal(10450m, quote.RetailValue);
-        Assert.Equal(8725m, quote.TradeValue);
+        Assert.Equal(13657m, quote.RetailValue);
+        Assert.Equal(11062m, quote.TradeValue);
         Assert.Equal(April, quote.GuideMonth);
         Assert.Equal(33000, quote.Mileage);
-        Assert.Null(quote.Report);
-        Assert.Null(quote.Vin);
+        Assert.Equal(Vin, quote.Vin);
+        Assert.Equal("cazana-companion:" + Uuid, quote.Report!.Identity);
 
-        var sent = Assert.Single(harness.Requests);
-        Assert.Equal(HttpMethod.Get, sent.Method);
-        Assert.Equal("https://api.cazana.com/valuation/1.0?vrm=AB12CDE&mileage=33000", sent.RequestUri!.AbsoluteUri);
-        Assert.Equal("Bearer", sent.Headers.Authorization!.Scheme);
-        Assert.Equal(Key, sent.Headers.Authorization.Parameter);
-        Assert.DoesNotContain(Key, sent.RequestUri.AbsoluteUri, StringComparison.Ordinal);
+        Assert.Equal(
+            [
+                "POST https://api.cazana.com/guest/onboard/branch",
+                "POST https://api.cazana.com/guest/onboard/confirm",
+                "POST https://api.cazana.com/app/companion",
+                "GET https://api.cazana.com/app/companion/" + Uuid,
+            ],
+            harness.Requests.Select(request => $"{request.Method} {request.Uri}").ToArray());
+
+        foreach (var guest in harness.Requests.Take(2))
+        {
+            Assert.Contains("5ab3cc97a8d11a00017332a7a609b760ad0147e0a12295c85fabe703", guest.Headers["X-CZN"]);
+            Assert.Null(guest.Authorization);
+        }
+
+        foreach (var app in harness.Requests.Skip(2))
+        {
+            Assert.Equal("Bearer " + Jwt, app.Authorization);
+        }
+
+        var lookupBody = harness.Requests[2].Body!;
+        Assert.Contains("\"vrm\":\"AB12CDE\"", lookupBody, StringComparison.Ordinal);
+        Assert.Contains("\"mileage\":33000", lookupBody, StringComparison.Ordinal);
+        Assert.Contains("\"date\":\"2031-04-15\"", lookupBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            harness.Requests,
+            request => request.Uri.AbsoluteUri.Contains(Password, StringComparison.Ordinal)
+                || request.Uri.AbsoluteUri.Contains(Jwt, StringComparison.Ordinal));
+        Assert.Empty(harness.Logger.Messages);
     }
 
     /// <summary>
@@ -51,28 +87,28 @@ public sealed class CazanaGuideValuationProviderTests
     /// today as the current month (operator, 9 October 2026).
     /// </summary>
     [Theory]
-    [InlineData("2031-02", "&date=2031-02-28", "2031-02")]
-    [InlineData("2028-02", "&date=2028-02-29", "2028-02")]
-    [InlineData("2030-12", "&date=2030-12-31", "2030-12")]
-    [InlineData("2031-06", "", "2031-04")]
-    public async Task AMonthIsValuedOnItsLastDayOrTodayAndNeverAhead(string month, string dateQuery, string answeredMonth)
+    [InlineData("2031-02", "2031-02-28", "2031-02")]
+    [InlineData("2028-02", "2028-02-29", "2028-02")]
+    [InlineData("2030-12", "2030-12-31", "2030-12")]
+    [InlineData("2031-06", "2031-04-15", "2031-04")]
+    public async Task AMonthIsValuedOnItsLastDayOrTodayAndNeverAhead(string month, string valuationDate, string answeredMonth)
     {
-        var harness = Harness.Create(_ => Json(HttpStatusCode.OK, Figures));
+        var harness = Harness.Create();
 
         var quote = await harness.Provider.GetAsync(Request("AB12CDE", Month(month)), default);
 
         Assert.Equal(Month(answeredMonth), quote.GuideMonth);
-        Assert.EndsWith("mileage=33000" + dateQuery, Assert.Single(harness.Requests).RequestUri!.AbsoluteUri, StringComparison.Ordinal);
+        Assert.Contains($"\"date\":\"{valuationDate}\"", harness.Requests[2].Body!, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task AKilometreReadingIsSentInWholeMiles()
     {
-        var harness = Harness.Create(_ => Json(HttpStatusCode.OK, Figures));
+        var harness = Harness.Create();
 
         var quote = await harness.Provider.GetAsync(Request("AB12CDE", April, 53108, "km"), default);
 
-        Assert.Contains("mileage=33000", Assert.Single(harness.Requests).RequestUri!.Query, StringComparison.Ordinal);
+        Assert.Contains("\"mileage\":33000", harness.Requests[2].Body!, StringComparison.Ordinal);
         Assert.Equal(53108, quote.Mileage);
     }
 
@@ -83,8 +119,9 @@ public sealed class CazanaGuideValuationProviderTests
     [Fact]
     public async Task ARegistrationCazanaHoldsNoDataForIsNotValuedRatherThanUnavailable()
     {
-        var harness = Harness.Create(_ => Json(
-            HttpStatusCode.NotFound, """{"error":{"code":404,"message":"VRM unavailable"}}"""));
+        var harness = Harness.Create(path => path == "/app/companion"
+            ? Json(HttpStatusCode.NotFound, """{"error":{"code":404,"message":"VRM unavailable"}}""")
+            : null);
 
         var refused = await Assert.ThrowsAsync<GuideValuationNotValuedException>(() =>
             harness.Provider.GetAsync(Request("AB12CDE", April), default));
@@ -92,54 +129,163 @@ public sealed class CazanaGuideValuationProviderTests
         Assert.Equal(GuideValuationNotValuedReason.NoVehicleData, refused.Reason);
         Assert.Equal(ValuationSource.Cazana, refused.ValuationSource);
         Assert.Contains(harness.Logger.Messages, message =>
-            message.Contains("cazana.valuation.not_found status=404 error=VRM unavailable", StringComparison.Ordinal));
+            message.Contains("cazana.valuation.not_found stage=lookup status=404 error=VRM unavailable", StringComparison.Ordinal));
     }
 
     [Theory]
-    [InlineData(400, """{"error":{"code":400,"message":"Bad Request","data":["mileage must be less than or equal to 500000"]}}""", "cazana.valuation.rejected status=400 error=Bad Request; mileage must be less than or equal to 500000")]
-    [InlineData(401, """{"error":"Authorization field missing"}""", "cazana.valuation.forbidden status=401 error=Authorization field missing")]
-    [InlineData(403, """{"error":"Access to this API has been disallowed"}""", "cazana.valuation.forbidden status=403 error=Access to this API has been disallowed")]
-    [InlineData(429, "", "cazana.valuation.throttled status=429 error=unreadable")]
-    [InlineData(500, """{"error":{"code":500,"message":"Server Error"}}""", "cazana.valuation.provider_failed status=500 error=Server Error")]
-    [InlineData(503, "<html>down</html>", "cazana.valuation.provider_failed status=503 error=unreadable")]
-    public async Task EveryOtherRefusalIsUnavailableAndLoggedByItsCode(int status, string body, string logged)
+    [InlineData(401, "/guest/onboard/branch", """{"error":"Bad credentials"}""", "cazana.valuation.forbidden stage=sign_in status=401 error=Bad credentials")]
+    [InlineData(404, "/guest/onboard/branch", """{"error":"Not Found"}""", "cazana.valuation.provider_failed stage=sign_in status=404 error=Not Found")]
+    [InlineData(400, "/app/companion", """{"error":{"code":400,"message":"Bad Request","data":["mileage must be less than or equal to 500000"]}}""", "cazana.valuation.rejected stage=lookup status=400 error=Bad Request; mileage must be less than or equal to 500000")]
+    [InlineData(429, "/app/companion", "", "cazana.valuation.throttled stage=lookup status=429 error=unreadable")]
+    [InlineData(500, "/app/companion/" + Uuid, """{"error":{"code":500,"message":"Server Error"}}""", "cazana.valuation.provider_failed stage=read status=500 error=Server Error")]
+    public async Task EveryOtherRefusalIsUnavailableAndLoggedByItsCodeAndStage(
+        int status, string failingPath, string body, string logged)
     {
-        var harness = Harness.Create(_ => Json((HttpStatusCode)status, body));
+        var harness = Harness.Create(path => path == failingPath ? Json((HttpStatusCode)status, body) : null);
 
         await AssertUnavailableAsync(harness, logged);
     }
 
+    [Fact]
+    public async Task AnAccountWithNoActiveBranchIsUnavailableAndNamedAsBranch()
+    {
+        var harness = Harness.Create(path => path == "/guest/onboard/branch"
+            ? Json(HttpStatusCode.OK, """{"id":274424,"token":"t","branches":[{"id":6910,"active":0}]}""")
+            : null);
+
+        await AssertUnavailableAsync(harness, "cazana.valuation.branch stage=branch branches=none_active");
+    }
+
     [Theory]
-    [InlineData("trade", """{"valuation":{"retail":10450}}""")]
-    [InlineData("null", """{"valuation":{"retail":null,"trade":8725}}""")]
-    [InlineData("zero", """{"valuation":{"retail":0,"trade":8725}}""")]
-    [InlineData("text", """{"valuation":{"retail":"10450","trade":8725}}""")]
-    [InlineData("shape", """[]""")]
-    public async Task AnAnswerWithoutBothFiguresIsUnavailable(string row, string body)
+    [InlineData("remarket missing", """{"response":{"valuation":{"retail":13657}}}""")]
+    [InlineData("remarket zero", """{"response":{"valuation":{"retail":13657,"remarket":0}}}""")]
+    [InlineData("retail text", """{"response":{"valuation":{"retail":"13657","remarket":11062}}}""")]
+    public async Task AnAnswerWithoutBothPositiveFiguresIsUnavailable(string row, string body)
     {
         Assert.NotEmpty(row);
-        var harness = Harness.Create(_ => Json(HttpStatusCode.OK, body));
+        var harness = Harness.Create(path => path == "/app/companion/" + Uuid ? Json(HttpStatusCode.OK, body) : null);
 
-        await AssertUnavailableAsync(harness, "cazana.valuation.unreadable figures=absent");
+        await AssertUnavailableAsync(harness, "cazana.valuation.unreadable stage=read figures=absent");
+    }
+
+    [Theory]
+    [InlineData("SB1ZB3AE4********")]
+    [InlineData("SHORT")]
+    [InlineData("")]
+    public async Task AMaskedOrIncompleteVinIsNotCarriedOnTheQuote(string vin)
+    {
+        var harness = Harness.Create(path => path == "/app/companion/" + Uuid
+            ? Json(HttpStatusCode.OK, LookupJson(vin))
+            : null);
+
+        var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+
+        Assert.Null(quote.Vin);
     }
 
     [Fact]
     public async Task AnAnswerThatIsNotJsonIsUnavailable()
     {
-        var harness = Harness.Create(_ => Json(HttpStatusCode.OK, "<html>maintenance</html>"));
+        var harness = Harness.Create(path => path == "/app/companion"
+            ? Json(HttpStatusCode.OK, "<html>maintenance</html>")
+            : null);
 
-        await AssertUnavailableAsync(harness, "cazana.valuation.unreadable json=invalid");
+        await AssertUnavailableAsync(harness, "cazana.valuation.unreadable stage=lookup json=invalid");
     }
 
-    [Fact]
-    public async Task TheNetworkAndATimeoutAreUnavailable()
+    /// <summary>
+    /// A request that fails, or a call that runs past its bound (an
+    /// <see cref="OperationCanceledException"/> while the caller has not asked
+    /// to stop), at any stage ends the valuation as unavailable by the
+    /// transport code, the log naming the stage and carrying the exception, and
+    /// asks for nothing after that call. At <c>lookup</c> the log names the
+    /// metered call as the one that was sent and got no answer.
+    /// </summary>
+    [Theory]
+    [InlineData("sign_in", "/guest/onboard/branch", 1)]
+    [InlineData("confirm", "/guest/onboard/confirm", 2)]
+    [InlineData("lookup", "/app/companion", 3)]
+    [InlineData("read", "/app/companion/" + Uuid, 4)]
+    public async Task ATransportFailureOrATimeoutIsUnavailableAtItsStageAndStopsTheCalls(
+        string stage, string failingPath, int calls)
     {
-        await AssertUnavailableAsync(
-            Harness.Create(_ => throw new HttpRequestException("connection refused")),
-            "cazana.valuation.transport HttpRequestException");
-        await AssertUnavailableAsync(
-            Harness.Create(_ => throw new TaskCanceledException("timed out")),
-            "cazana.valuation.transport TaskCanceledException");
+        foreach (Exception failure in new Exception[]
+        {
+            new HttpRequestException("connection refused"),
+            new TaskCanceledException("timed out"),
+        })
+        {
+            var harness = Harness.Create(path =>
+            {
+                if (path == failingPath)
+                {
+                    throw failure;
+                }
+
+                return null;
+            });
+
+            await AssertUnavailableAsync(
+                harness, $"cazana.valuation.transport stage={stage} transport={failure.GetType().Name}");
+
+            Assert.Equal(calls, harness.Requests.Count);
+            var logged = Assert.Single(harness.Logger.Exceptions);
+            Assert.IsType<CazanaCompanionFailure>(logged);
+            Assert.IsType(failure.GetType(), logged.InnerException);
+        }
+    }
+
+    /// <summary>
+    /// Only a transport failure carries its exception to the log: a refusal or
+    /// an unreadable answer is already named by its code, stage and detail.
+    /// </summary>
+    [Fact]
+    public async Task ARefusalLogsItsCodeAndStageWithoutAnException()
+    {
+        var harness = Harness.Create(path => path == "/app/companion"
+            ? Json(HttpStatusCode.InternalServerError, """{"error":"Server Error"}""")
+            : null);
+
+        await AssertUnavailableAsync(harness, "cazana.valuation.provider_failed stage=lookup status=500 error=Server Error");
+
+        Assert.Empty(harness.Logger.Exceptions);
+    }
+
+    /// <summary>
+    /// The headers arrive and the connection then drops while the body is
+    /// read: that is an <see cref="IOException"/>, not a request exception, and
+    /// still ends the valuation as unavailable with its code and stage, after
+    /// the calls made so far and no more.
+    /// </summary>
+    [Theory]
+    [InlineData("sign_in", "/guest/onboard/branch", 1)]
+    [InlineData("confirm", "/guest/onboard/confirm", 2)]
+    [InlineData("lookup", "/app/companion", 3)]
+    [InlineData("read", "/app/companion/" + Uuid, 4)]
+    public async Task AnAnswerThatDropsMidBodyIsUnavailableAtItsStageAndStopsTheCalls(
+        string stage, string failingPath, int calls)
+    {
+        var harness = Harness.Create(path => path == failingPath ? Dropped(HttpStatusCode.OK, """{"jwt":""") : null);
+
+        await AssertUnavailableAsync(harness, $"cazana.valuation.unreadable stage={stage} body=unreadable");
+
+        Assert.Equal(calls, harness.Requests.Count);
+    }
+
+    /// <summary>
+    /// A refusal's body is read whole, and a drop there is the request
+    /// exception that buffering throws: unavailable as transport at the stage
+    /// that was refused.
+    /// </summary>
+    [Fact]
+    public async Task ARefusalWhoseBodyDropsIsUnavailableAsTransport()
+    {
+        var harness = Harness.Create(path => path == "/app/companion"
+            ? Dropped(HttpStatusCode.InternalServerError, """{"error":""")
+            : null);
+
+        await AssertUnavailableAsync(harness, "cazana.valuation.transport stage=lookup transport=HttpRequestException");
+        Assert.Equal(3, harness.Requests.Count);
     }
 
     [Fact]
@@ -156,54 +302,60 @@ public sealed class CazanaGuideValuationProviderTests
     [Fact]
     public async Task AnUnreadableMileageUnitIsUnavailableAndAsksNothing()
     {
-        var harness = Harness.Create(_ => Json(HttpStatusCode.OK, Figures));
+        var harness = Harness.Create();
 
         await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
             harness.Provider.GetAsync(Request("AB12CDE", April, 33000, "furlongs"), default));
 
         Assert.Empty(harness.Requests);
         Assert.Contains(harness.Logger.Messages, message =>
-            message.Contains("cazana.valuation.mileage_unit unit=unreadable", StringComparison.Ordinal));
+            message.Contains("cazana.valuation.mileage_unit stage=mileage unit=unreadable", StringComparison.Ordinal));
     }
 
     /// <summary>
     /// An unresolved Key Vault reference fails only the valuation: the card
     /// is unavailable, the log names the key, and Cazana is never asked.
     /// </summary>
-    [Fact]
-    public async Task AnUnresolvedKeyIsUnavailableAndNamesTheKeyNotItsValue()
+    [Theory]
+    [InlineData("Cazana:CompanionAccount:Email")]
+    [InlineData("Cazana:CompanionAccount:Password")]
+    public async Task AnUnresolvedAccountSettingIsUnavailableAndNamesTheKeyNotItsValue(string unresolvedKey)
     {
-        var reference = "@Microsoft.KeyVault(SecretUri=https://vault.test/secrets/cazana-api-key/1)";
+        var reference = "@Microsoft.KeyVault(SecretUri=https://vault.test/secrets/cazana-companion/1)";
         var harness = Harness.Create(
-            _ => Json(HttpStatusCode.OK, Figures),
-            () => CazanaApiKey.Create(_ => reference));
+            account: () => CazanaCompanionAccount.Create(key => key == unresolvedKey ? reference : "configured"));
 
         await AssertUnavailableAsync(
             harness,
-            "cazana.valuation.configuration Cazana:ApiKey is an unresolved Key Vault reference");
+            $"cazana.valuation.configuration {unresolvedKey} is an unresolved Key Vault reference");
         Assert.Empty(harness.Requests);
     }
 
     [Fact]
-    public void TheKeyIsOneUnbrokenTokenAndNeverPrinted()
+    public void TheCompanionAccountRefusesBlankControlAndUnresolvedValuesAndNeverPrintsItsPassword()
     {
-        Assert.Throws<InvalidOperationException>(() => CazanaApiKey.Create(_ => null));
-        Assert.Throws<InvalidOperationException>(() => CazanaApiKey.Create(_ => "  "));
-        Assert.Throws<InvalidOperationException>(() => CazanaApiKey.Create(_ => "two words"));
-        Assert.Throws<InvalidOperationException>(() => CazanaApiKey.Create(_ => "line\nbreak"));
+        static Func<string, string?> Read(string? email, string? password) =>
+            key => key == "Cazana:CompanionAccount:Email" ? email : password;
 
-        var key = CazanaApiKey.Create(name => name == "Cazana:ApiKey" ? $" {Key} " : null);
+        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(Read(" ", "secret")));
+        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(Read(Email, null)));
+        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(Read(Email, "sec\nret")));
+        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(
+            Read("@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/cazana-companion-email)", "secret")));
 
-        Assert.Equal(Key, key.Value);
-        Assert.DoesNotContain(Key, key.ToString(), StringComparison.Ordinal);
+        var account = CazanaCompanionAccount.Create(Read($" {Email} ", " spaced secret "));
+        Assert.Equal(Email, account.Email);
+        Assert.Equal(" spaced secret ", account.Password);
+        Assert.DoesNotContain("secret", account.ToString(), StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Composing and resolving the provider reads no key: it is read on each
-    /// valuation, so an unresolved Key Vault reference never stops a Case page.
+    /// Composing and resolving the provider reads no account: it is read on
+    /// each valuation, so an unresolved Key Vault reference never stops a
+    /// Case page.
     /// </summary>
     [Fact]
-    public void AddCazanaGuideValuationComposesOneProviderAndReadsTheKeyOnlyWhenValuing()
+    public void AddCazanaGuideValuationComposesOneProviderAndReadsTheAccountOnlyWhenValuing()
     {
         var reads = 0;
         var services = new ServiceCollection();
@@ -212,7 +364,7 @@ public sealed class CazanaGuideValuationProviderTests
         services.AddCazanaGuideValuation(_ =>
         {
             reads++;
-            return CazanaApiKey.Create(static _ => null);
+            return CazanaCompanionAccount.Create(static _ => null);
         });
         using var provider = services.BuildServiceProvider();
 
@@ -223,6 +375,52 @@ public sealed class CazanaGuideValuationProviderTests
         Assert.Equal(0, reads);
     }
 
+    internal static string LookupJson(string vin = Vin) => $$$"""
+        {
+          "response": {
+            "valuation": {
+              "cid": 9946663,
+              "ocn": null,
+              "date": "2031-04-15",
+              "retail": 13657,
+              "mileage": { "value": 33000, "isEstimated": false },
+              "remarket": 11062,
+              "namaGrade": 1,
+              "valuation": { "pooled": 13657, "private": 11900, "franchise": 14026 },
+              "description": "2024 Toyota Corolla Hybrid HEV Icon",
+              "searchMethod": { "method": "vrm", "identifier": "AB12CDE" },
+              "vin": "{{{vin}}}"
+            },
+            "specs": {
+              "year": 2024,
+              "firstRegistration": "2024-01-04T00:00:00.000000Z",
+              "make": "Toyota",
+              "model": "Corolla Hybrid HEV",
+              "type": "Car",
+              "trim": "Icon",
+              "bodyStyle": "Estate",
+              "transmission": "CVT",
+              "gears": 1,
+              "doors": 5,
+              "seats": 5,
+              "fuelType": "Petrol/Hybrid Electric",
+              "engineNumber": "2ZR6C86014",
+              "engineSizeCc": 1798,
+              "numberValves": 16,
+              "numberCylinders": 4,
+              "powerOutputBhp": 97,
+              "powerOutputKw": 72,
+              "onTheRoadPrice": 27950,
+              "cid": 291493,
+              "currentColour": "silver"
+            },
+            "listing": {},
+            "options": null,
+            "insights": null
+          }
+        }
+        """;
+
     private static async Task AssertUnavailableAsync(Harness harness, string logged)
     {
         var refused = await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
@@ -230,7 +428,8 @@ public sealed class CazanaGuideValuationProviderTests
 
         Assert.NotNull(refused.InnerException);
         Assert.Contains(harness.Logger.Messages, message => message.Contains(logged, StringComparison.Ordinal));
-        Assert.DoesNotContain(harness.Logger.Messages, message => message.Contains(Key, StringComparison.Ordinal));
+        Assert.DoesNotContain(harness.Logger.Messages, message =>
+            message.Contains(Password, StringComparison.Ordinal) || message.Contains(Jwt, StringComparison.Ordinal));
     }
 
     private static DateOnly Month(string month) =>
@@ -245,38 +444,124 @@ public sealed class CazanaGuideValuationProviderTests
         unit,
         month);
 
-    private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
+    internal static HttpResponseMessage Json(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
-    private sealed class Harness
+    /// <summary>
+    /// An answer whose headers arrive and whose body is cut off after
+    /// <paramref name="readable"/>, as a connection reset mid-body is.
+    /// </summary>
+    internal static HttpResponseMessage Dropped(HttpStatusCode status, string readable) =>
+        new(status) { Content = new StreamContent(new DroppingStream(Encoding.UTF8.GetBytes(readable))) };
+
+    private sealed class DroppingStream(byte[] readable) : Stream
     {
-        private Harness(CazanaGuideValuationProvider provider, CapturingLogger logger, List<HttpRequestMessage> requests)
+        private int _position;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
         {
-            Provider = provider;
-            Logger = logger;
-            Requests = requests;
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
         }
 
-        public CazanaGuideValuationProvider Provider { get; }
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
 
-        public CapturingLogger Logger { get; }
+        public override int Read(Span<byte> buffer)
+        {
+            if (_position >= readable.Length)
+            {
+                throw new IOException("The response ended prematurely.");
+            }
 
-        public List<HttpRequestMessage> Requests { get; }
+            var count = Math.Min(buffer.Length, readable.Length - _position);
+            readable.AsSpan(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return ValueTask.FromResult(Read(buffer.Span));
+            }
+            catch (IOException exception)
+            {
+                return ValueTask.FromException<int>(exception);
+            }
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    internal sealed record RecordedRequest(
+        HttpMethod Method,
+        Uri Uri,
+        string? Authorization,
+        IReadOnlyDictionary<string, string[]> Headers,
+        string? Body);
+
+    private sealed class Harness(
+        CazanaGuideValuationProvider provider,
+        CapturingLogger logger,
+        List<RecordedRequest> requests)
+    {
+        public CazanaGuideValuationProvider Provider { get; } = provider;
+
+        public CapturingLogger Logger { get; } = logger;
+
+        public List<RecordedRequest> Requests { get; } = requests;
 
         public static Harness Create(
-            Func<HttpRequestMessage, HttpResponseMessage> answer,
-            Func<CazanaApiKey>? apiKey = null)
+            Func<string, HttpResponseMessage?>? overridePath = null,
+            Func<CazanaCompanionAccount>? account = null)
         {
-            var requests = new List<HttpRequestMessage>();
+            var requests = new List<RecordedRequest>();
             var logger = new CapturingLogger();
             return new(
                 new CazanaGuideValuationProvider(
-                    new ScriptedClientFactory(new Answering(request =>
+                    new ScriptedClientFactory(new Answering(async request =>
                     {
-                        requests.Add(request);
-                        return answer(request);
+                        var body = request.Content is null ? null : await request.Content.ReadAsStringAsync();
+                        requests.Add(new(
+                            request.Method,
+                            request.RequestUri!,
+                            request.Headers.Authorization?.ToString(),
+                            request.Headers.ToDictionary(header => header.Key, header => header.Value.ToArray(), StringComparer.OrdinalIgnoreCase),
+                            body));
+                        var path = request.RequestUri!.AbsolutePath;
+                        if (overridePath?.Invoke(path) is { } overridden)
+                        {
+                            return overridden;
+                        }
+
+                        return path switch
+                        {
+                            "/guest/onboard/branch" => Json(HttpStatusCode.OK, Branches),
+                            "/guest/onboard/confirm" => Json(HttpStatusCode.OK, Confirmed),
+                            "/app/companion" => Json(HttpStatusCode.OK, Created),
+                            "/app/companion/" + Uuid => Json(HttpStatusCode.OK, LookupJson()),
+                            _ => Json(HttpStatusCode.NotFound, "{}"),
+                        };
                     })),
-                    apiKey ?? (() => CazanaApiKey.Create(_ => Key)),
+                    account ?? (() => CazanaCompanionAccount.Create(
+                        key => key == "Cazana:CompanionAccount:Email" ? Email : Password)),
                     new FixedClock(Now),
                     logger),
                 logger,
@@ -284,16 +569,18 @@ public sealed class CazanaGuideValuationProviderTests
         }
     }
 
-    private sealed class Answering(Func<HttpRequestMessage, HttpResponseMessage> answer) : HttpMessageHandler
+    internal sealed class Answering(Func<HttpRequestMessage, Task<HttpResponseMessage>> answer) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(answer(request));
+            return await answer(request);
         }
     }
 
-    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
+    internal sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
     }
@@ -302,12 +589,20 @@ public sealed class CazanaGuideValuationProviderTests
     {
         public List<string> Messages { get; } = [];
 
+        public List<Exception> Exceptions { get; } = [];
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
         public void Log<TState>(
-            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
             Messages.Add(formatter(state, exception));
+            if (exception is not null)
+            {
+                Exceptions.Add(exception);
+            }
+        }
     }
 }

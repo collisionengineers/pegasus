@@ -53,6 +53,24 @@
       <Link>Reports\Assets\brand\logo.png</Link>
       <LogicalName>Pegasus.Infrastructure.Reports.Assets.brand.logo.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Cazana\CompanionReport\companion-report.mustache"
+                      LogicalName="Pegasus.Infrastructure.Cazana.CompanionReport.companion-report.mustache" />
+    <EmbeddedResource Include="Cazana\CompanionReport\header.mustache"
+                      LogicalName="Pegasus.Infrastructure.Cazana.CompanionReport.header.mustache" />
+    <EmbeddedResource Include="Cazana\CompanionReport\market-overview.mustache"
+                      LogicalName="Pegasus.Infrastructure.Cazana.CompanionReport.market-overview.mustache" />
+    <EmbeddedResource Include="Cazana\CompanionReport\vehicle-information-card.mustache"
+                      LogicalName="Pegasus.Infrastructure.Cazana.CompanionReport.vehicle-information-card.mustache" />
+    <EmbeddedResource Include="Cazana\CompanionReport\vehicle-overview-card.mustache"
+                      LogicalName="Pegasus.Infrastructure.Cazana.CompanionReport.vehicle-overview-card.mustache" />
+    <EmbeddedResource Include="Cazana\CompanionReport\vehicle-specification.mustache"
+                      LogicalName="Pegasus.Infrastructure.Cazana.CompanionReport.vehicle-specification.mustache" />
+    <EmbeddedResource Include="Cazana\CompanionReport\vehicle-timeline.mustache"
+                      LogicalName="Pegasus.Infrastructure.Cazana.CompanionReport.vehicle-timeline.mustache" />
+    <EmbeddedResource Include="Cazana\CompanionReport\vehicle-advert-full-details.mustache"
+                      LogicalName="Pegasus.Infrastructure.Cazana.CompanionReport.vehicle-advert-full-details.mustache" />
+    <EmbeddedResource Include="Cazana\CompanionReport\recent-listing.mustache"
+                      LogicalName="Pegasus.Infrastructure.Cazana.CompanionReport.recent-listing.mustache" />
   </ItemGroup>
 
   <ItemGroup>

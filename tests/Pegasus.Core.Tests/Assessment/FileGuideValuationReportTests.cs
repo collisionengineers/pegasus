@@ -75,6 +75,36 @@ public sealed class FileGuideValuationReportTests
     }
 
     /// <summary>
+    /// A page longer than the stack buffer the text is compacted into is read
+    /// the same way: the plate is found at its end in any spacing, and a long
+    /// page that does not name it is refused.
+    /// </summary>
+    [Theory]
+    [InlineData("KY12 cab", true)]
+    [InlineData("MP23 KTV", false)]
+    public async Task ALongPageIsTestedForTheRegistrationLikeAShortOne(string endsWith, bool filed)
+    {
+        var custody = new RecordingCustody();
+        var printed = string.Concat(Enumerable.Repeat("Market overview of the vehicle\n", 100)) + endsWith;
+        var filing = Filing(custody, printed).ExecuteAsync(
+            new(Engineer, Guid.NewGuid(), ValuationSource.Cazana, "KY12CAB", new DateOnly(2026, 10, 1),
+                new StubReport(Pdf)),
+            default);
+
+        if (filed)
+        {
+            await filing;
+            Assert.Single(custody.Requests);
+        }
+        else
+        {
+            var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => filing);
+            Assert.Contains("registration=different", refused.Message, StringComparison.Ordinal);
+            Assert.Empty(custody.Requests);
+        }
+    }
+
+    /// <summary>
     /// The provider's shared account can hand back another vehicle's print. It
     /// is refused with a flags-only reason that never carries a plate.
     /// </summary>
@@ -114,14 +144,49 @@ public sealed class FileGuideValuationReportTests
         Assert.Empty(custody.Requests);
     }
 
-    /// <summary>Answers one page of the given text, or an unreadable PDF for null.</summary>
+    /// <summary>
+    /// A report longer than one page is read only as far as the page that
+    /// names the registration: the extractor is asked to stop there.
+    /// </summary>
+    [Fact]
+    public async Task TheReadStopsAtTheFirstPageThatNamesTheRegistration()
+    {
+        var text = new StubText("Companion Report KY12CAB");
+
+        await new FileGuideValuationReport(new RecordingCustody(), text).ExecuteAsync(
+            new(Engineer, Guid.NewGuid(), ValuationSource.Cazana, "KY12CAB", new DateOnly(2026, 10, 1),
+                new StubReport(Pdf)),
+            default);
+
+        Assert.NotNull(text.StopAfterPage);
+        Assert.True(text.StopAfterPage!("Companion Report ky12 cab"));
+        Assert.False(text.StopAfterPage!("Market overview"));
+    }
+
+    /// <summary>
+    /// Answers one page of the given text, or an unreadable PDF for null, and
+    /// asks the stop predicate of that page as an extractor does.
+    /// </summary>
     private sealed class StubText(string? printed) : IExtractPdfPageText
     {
+        public Func<string, bool>? StopAfterPage { get; private set; }
+
         public Task<PdfTextExtraction?> ExtractAsync(
-            ReadOnlyMemory<byte> content, int maximumCharacters, CancellationToken cancellationToken) =>
-            Task.FromResult<PdfTextExtraction?>(printed is null
+            ReadOnlyMemory<byte> content,
+            int maximumCharacters,
+            CancellationToken cancellationToken,
+            Func<string, bool>? stopAfterPage = null)
+        {
+            StopAfterPage = stopAfterPage;
+            if (printed is not null)
+            {
+                stopAfterPage?.Invoke(printed);
+            }
+
+            return Task.FromResult<PdfTextExtraction?>(printed is null
                 ? null
                 : new PdfTextExtraction(1, [new PdfPageText(1, printed, NeedsOcr: false, Truncated: false)]));
+        }
     }
 
     private sealed class StubReport(byte[] content) : IGuideValuationReport
