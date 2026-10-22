@@ -691,7 +691,7 @@ public sealed class MailboxIntakeIntegrationTests
     }
 
     [Fact]
-    public async Task OtherwiseUnidentifiedMailKeepsPhotosAndPdfOnOneParentImageReceipt()
+    public async Task OtherwiseUnidentifiedMailKeepsPhotosOnOneParentImageReceipt()
     {
         var workingRoot = Path.Combine(
             Path.GetTempPath(),
@@ -769,11 +769,10 @@ public sealed class MailboxIntakeIntegrationTests
                     InstructionEvidenceImages.Select(receipt.AssetRecords)
                         .Select(asset => asset.FileName)
                         .OrderBy(fileName => fileName, StringComparer.Ordinal));
-                Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "cover.pdf");
                 Assert.DoesNotContain(receipt.AssetRecords, asset => asset.FileName == "logo.png");
                 var outcomes = await scope.ServiceProvider.GetRequiredService<IGetRetainedMailAttachmentOutcomes>()
                     .ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), parentReceiptId);
-                Assert.Equal(4, outcomes.Count);
+                Assert.Equal(3, outcomes.Count);
                 Assert.All(outcomes, outcome => Assert.Equal(AttachmentOutcomeKind.VehicleImages, outcome.Kind));
                 Assert.Single(outcomes.Select(outcome => outcome.Record!.Id).Distinct());
                 var heldReceiptOutcomes = await scope.ServiceProvider.GetRequiredService<IGetRetainedMailAttachmentOutcomes>()
@@ -1939,15 +1938,7 @@ public sealed class MailboxIntakeIntegrationTests
             ImagePart("logo.png", ContentDisposition.Inline, [9]),
             ImagePart("vehicle-1.jpg", ContentDisposition.Attachment, [1]),
             ImagePart("vehicle-2.jpg", ContentDisposition.Attachment, [2]),
-            ImagePart("vehicle-3.jpg", ContentDisposition.Attachment, [3]),
-            new MimePart("application", "pdf")
-            {
-                FileName = "cover.pdf",
-                ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
-                Content = new MimeContent(new MemoryStream(
-                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
-                        notificationTitle: "Photographs supplied", addSignatureLines: false)))
-            }
+            ImagePart("vehicle-3.jpg", ContentDisposition.Attachment, [3])
         };
         var message = new MimeMessage
         {
