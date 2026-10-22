@@ -11,27 +11,31 @@ namespace Pegasus.Web.Presentation;
 
 /// <summary>
 /// Supplies the shell's own data on each authenticated full page result —
-/// <c>ViewData["ShellRenderedAtUtc"]</c>, the bell's
-/// <c>ViewData["Notifications"]</c> and the What's new
+/// <c>ViewData["ShellRenderedAtUtc"]</c>, the bell's unread figure
+/// <c>ViewData["NotificationsUnread"]</c> and the What's new
 /// <c>ViewData["ReleaseNote"]</c> — so <c>_Layout.cshtml</c> never carries a
 /// shell-invented figure.
 /// </summary>
 /// <remarks>
-/// The bell is the person's own notifications (Work Centre D10), newest first,
-/// read once here; the unread count is derived from the same list rather than
-/// read a second time. A failed read sets <c>NotificationsUnavailable</c> so the
-/// dialog states it, and the page still renders (FRD-12). The notifications and
-/// the release note start together.
+/// The bell is the person's own notifications (Work Centre D10). The page
+/// carries the exact unread count, counted without reading a row; the list
+/// loads when the bell opens (<c>/Notifications?handler=List</c>). Only a page
+/// requested with <c>?notifications=1</c>, which opens the dialog on load,
+/// reads the list here (<c>ViewData["Notifications"]</c>) and counts its unread
+/// rows. A failed read sets <c>NotificationsUnavailable</c> so the dialog states
+/// it, and the page still renders (FRD-12). The bell and the release note start
+/// together.
 ///
 /// A global <c>IAsyncPageFilter</c> is the direct ASP.NET Core mechanism for
-/// shared page <c>ViewData</c>. It waits for the selected handler's result:
-/// redirects, file responses, heartbeat responses and lazy section partials do
-/// not render the shell, so they do not issue its database reads. A
-/// <see cref="PageResult"/> still receives the data, including an invalid form
-/// that returns its page with validation errors. The one exception is the Case
-/// page's own full-page GET, whose shell reads start before the handler and
-/// overlap it (operator ruling, 10 Oct 2026); a POST never pre-reads, so its
-/// figures are never read ahead of what it changes.
+/// shared page <c>ViewData</c>. It gives a <see cref="PageResult"/> the data,
+/// including an invalid form that returns its page with validation errors.
+/// Every unnamed GET handler starts the reads before the handler and awaits
+/// them when the page renders (operator rulings, 10 and 22 Oct 2026), except a
+/// page marked <see cref="IShellFreeGet"/>, whose GET is a redirect, a file or a
+/// page with no layout. Other results drain the reads unused. Named handlers
+/// (heartbeats, polls, lazy section partials) and every POST never pre-read
+/// and read after their result only if it is a page, so a POST's figures are
+/// never read ahead of what it changes.
 /// </remarks>
 public sealed partial class ShellPageFilter(
     IMyStaffNotifications myNotifications,
@@ -58,10 +62,11 @@ public sealed partial class ShellPageFilter(
             user.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
             out var actor);
         var authenticated = user.Identity?.IsAuthenticated == true && hasActor;
-        // The Case page's own GET renders the shell on every result but a
-        // refusal, and reads no figure the shell needs first, so its shell
-        // reads start before the handler and run beside it.
-        var early = authenticated && IsCaseFullPageGet(context)
+        // A full-page GET renders the shell on every result but a refusal, and
+        // reads no figure the shell needs first (no GET writes the bell or the
+        // release note), so its shell reads start before the handler and run
+        // beside it.
+        var early = authenticated && IsFullPageGet(context)
             ? StartShellReads(context.HttpContext, actor!)
             : null;
         PageHandlerExecutedContext result;
@@ -81,13 +86,17 @@ public sealed partial class ShellPageFilter(
         {
             var shell = early ?? StartShellReads(context.HttpContext, actor!);
             await shell.WhenAllAsync();
-            var notificationsTask = shell.Notifications;
+            var bellTask = shell.Bell;
             var releaseNoteTask = shell.ReleaseNote;
 
             pageModel.ViewData["ShellRenderedAtUtc"] = timeProvider.GetUtcNow();
-            if (notificationsTask.Result is { } notifications)
+            if (bellTask.Result is { } bell)
             {
-                pageModel.ViewData["Notifications"] = notifications;
+                pageModel.ViewData["NotificationsUnread"] = bell.Unread;
+                if (bell.Rows is { } rows)
+                {
+                    pageModel.ViewData["Notifications"] = rows;
+                }
             }
             else
             {
@@ -106,16 +115,17 @@ public sealed partial class ShellPageFilter(
     }
 
     /// <summary>
-    /// The Case workspace's unnamed GET handler, the full page. Its sections,
-    /// refreshes and every POST are other handlers and keep reading the shell
-    /// after their result.
+    /// A page's unnamed GET handler, the full page, or a GET to a page with no
+    /// handler at all, which renders. Its sections, refreshes, polls and every
+    /// POST are other handlers and keep reading the shell after their result,
+    /// as does a page whose GET never renders the shell
+    /// (<see cref="IShellFreeGet"/>).
     /// </summary>
-    // Razor Pages names the handler's method from the method name ("Get" for
-    // OnGetAsync), so the method is compared without regard to case.
-    private static bool IsCaseFullPageGet(PageHandlerExecutingContext context) =>
-        context.HandlerInstance is Pegasus.Web.Pages.Cases.DetailsModel
-        && context.HandlerMethod is { Name: null or "" } handler
-        && HttpMethods.IsGet(handler.HttpMethod);
+    private static bool IsFullPageGet(PageHandlerExecutingContext context) =>
+        context.HandlerInstance is not IShellFreeGet
+        && (context.HandlerMethod is null
+            ? HttpMethods.IsGet(context.HttpContext.Request.Method)
+            : context.HandlerMethod is { Name: null or "" } handler && HttpMethods.IsGet(handler.HttpMethod));
 
     /// <summary>
     /// The bell and the release note share nothing and each reads on its own
@@ -124,8 +134,10 @@ public sealed partial class ShellPageFilter(
     private ShellReads StartShellReads(HttpContext httpContext, ActionActor actor)
     {
         var cancellationToken = httpContext.RequestAborted;
+        // ?notifications=1 opens the bell on load, so that one page reads the list.
+        var listRows = string.Equals(httpContext.Request.Query["notifications"], "1", StringComparison.Ordinal);
         return new(
-            ReadNotificationsAsync(actor, cancellationToken),
+            ReadBellAsync(actor, listRows, cancellationToken),
             ReadReleaseNoteAsync(actor, cancellationToken));
     }
 
@@ -148,21 +160,31 @@ public sealed partial class ShellPageFilter(
     }
 
     private sealed record ShellReads(
-        Task<IReadOnlyList<StaffNotification>?> Notifications,
+        Task<BellRead?> Bell,
         Task<ReleaseNote?> ReleaseNote)
     {
-        public Task WhenAllAsync() => Task.WhenAll(Notifications, ReleaseNote);
+        public Task WhenAllAsync() => Task.WhenAll(Bell, ReleaseNote);
     }
 
-    /// <summary>The bell's notifications, or null when the read failed and the dialog must say so.</summary>
-    private async Task<IReadOnlyList<StaffNotification>?> ReadNotificationsAsync(
+    /// <summary>The bell's unread figure and, only when the dialog opens on load, its rows.</summary>
+    private sealed record BellRead(int Unread, IReadOnlyList<StaffNotification>? Rows);
+
+    /// <summary>The bell, or null when the read failed and the dialog must say so.</summary>
+    private async Task<BellRead?> ReadBellAsync(
         ActionActor actor,
+        bool listRows,
         CancellationToken cancellationToken)
     {
         try
         {
             using var timing = DocumentReadTelemetry.Start("web.shell.notifications");
-            return await myNotifications.ListAsync(actor, cancellationToken);
+            if (!listRows)
+            {
+                return new(await myNotifications.UnreadCountAsync(actor, cancellationToken), null);
+            }
+
+            var rows = await myNotifications.ListAsync(actor, cancellationToken);
+            return new(rows.Count(notification => notification.IsUnread), rows);
         }
         catch (Exception exception) when (IsUnavailable(exception, cancellationToken))
         {

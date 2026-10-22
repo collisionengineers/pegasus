@@ -212,6 +212,27 @@ public sealed class StaffNotificationTests
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => bell.ListAsync(ActionActor.Automation("client"), default));
     }
 
+    [Fact]
+    public async Task TheUnreadFigureCountsThePersonsUnreadRowsInTheThirtyDayWindow()
+    {
+        var store = new FakeStore();
+        var raise = new RaiseStaffNotification(store);
+        var engineer = ActionActor.Staff(EngineerId, [StaffRole.Engineer]);
+        var bell = new MyStaffNotifications(store, new FixedTime(Now));
+        await raise.ExecuteAsync(new(StaffNotificationCause.CaseAssigned, CaseId, "QDOS260001", null, "/Cases/x", EngineerId, null), default);
+        await raise.ExecuteAsync(new(StaffNotificationCause.EmailReceived, CaseId, "QDOS260002", null, "/Cases/y", EngineerId, null), default);
+        await raise.ExecuteAsync(new(StaffNotificationCause.CaseAssigned, CaseId, "QDOS260003", null, "/Cases/z", OtherId, null), default);
+        store.Rows[1] = store.Rows[1] with { RaisedAtUtc = Now.AddDays(-31) };
+
+        // Another person's row and a row past the window are not counted.
+        Assert.Equal(1, await bell.UnreadCountAsync(engineer, default));
+        Assert.Equal((await bell.ListAsync(engineer, default)).Count(row => row.IsUnread), await bell.UnreadCountAsync(engineer, default));
+
+        await bell.OpenAsync(engineer, store.Rows[0].Id, default);
+        Assert.Equal(0, await bell.UnreadCountAsync(engineer, default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => bell.UnreadCountAsync(ActionActor.Automation("client"), default));
+    }
+
     private static CaseWorkflowRecord Workflow(CaseLifecycleState state, Guid? engineerId, bool hasOpenQuery = false) => new(
         CaseId, new(CaseId, "QDOS", 2026, 1, "QDOS260001"), state, engineerId,
         null, null, null, null, null, null, 1)
@@ -285,6 +306,9 @@ public sealed class StaffNotificationTests
         public Task<IReadOnlyList<StaffNotification>> ListAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StaffNotification>>(
                 Rows.Where(row => row.StaffId == staffId && row.RaisedAtUtc >= sinceUtc).OrderByDescending(row => row.RaisedAtUtc).ToArray());
+
+        public Task<int> CountUnreadAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(Rows.Count(row => row.StaffId == staffId && row.RaisedAtUtc >= sinceUtc && row.IsUnread));
 
         public Task<StaffNotification?> MarkReadAsync(Guid staffId, Guid notificationId, DateTimeOffset readAtUtc, CancellationToken cancellationToken)
         {

@@ -15,7 +15,7 @@ namespace Pegasus.Web.Pages.PreCaseImages;
 [Authorize(Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class IndexModel(
     ISavePreCaseImageCrop saveCrop,
-    ITagPreCaseImage tagImage) : StaffPageModel
+    ITagPreCaseImage tagImage) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>Shown above the gallery the post returns to.</summary>
     public const string ErrorKey = "PreCaseImageError";

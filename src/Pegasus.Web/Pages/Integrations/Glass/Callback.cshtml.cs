@@ -63,7 +63,7 @@ public sealed class CallbackModel(
     IGlassRepairEstimateGateway glassEstimates,
     IGlassRepairEstimateSessionReader glassSessions,
     GlassRepairEstimateAvailability glassAvailability,
-    ProviderWorkQueue glassWork) : StaffPageModel
+    ProviderWorkQueue glassWork) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     public Task<IActionResult> OnGetAsync(string correlation, CancellationToken cancellationToken) =>
         DeliverAsync(correlation, cancellationToken);

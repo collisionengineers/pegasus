@@ -24,7 +24,7 @@ public sealed class CustodyModel(
     ICreateImageTag createImageTag,
     ICaseWorkflowQueries workflows,
     IAcquireCaseEditLease acquireLease,
-    ILogger<CustodyModel> logger) : CaseMutationPageModel(logger)
+    ILogger<CustodyModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// Tagging and removing are immediate posts inside the edit

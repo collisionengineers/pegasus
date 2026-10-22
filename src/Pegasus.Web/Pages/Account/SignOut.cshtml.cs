@@ -5,7 +5,7 @@ using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.Web.Pages.Account;
 
-public sealed class SignOutModel(SignInManager<PegasusIdentityUser> signInManager) : PageModel
+public sealed class SignOutModel(SignInManager<PegasusIdentityUser> signInManager) : PageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     public IActionResult OnGet() => RedirectToPage("/Index");
 

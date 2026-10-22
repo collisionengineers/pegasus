@@ -32,9 +32,8 @@
     var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
 
     // The bell is the person's own notifications and nothing else (D10); the
-    // filter reads them once and the unread figure is counted from that list.
-    var notifications = ViewData["Notifications"] as IReadOnlyList<Pegasus.Core.Notifications.StaffNotification>;
-    var unread = notifications?.Count(notification => notification.IsUnread) ?? 0;
+    // filter counts the unread figure and the list loads when the bell opens.
+    var unread = ViewData["NotificationsUnread"] as int? ?? 0;
 
     // The rail's remembered width is served in the first paint (no inline
     // script under the CSP): site.js mirrors the choice into this cookie.

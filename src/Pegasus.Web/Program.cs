@@ -321,7 +321,7 @@ var automationMcpOptions = AutomationMcpOptions.TryCreate(builder.Configuration)
 // without the flag no /api/principal route, scheme or policy exists.
 var principalApiEnabled = builder.Configuration.GetValue<bool>(PrincipalApi.FeatureFlag);
 
-// ShellPageFilter supplies the shell's rendered time, the bell's notifications
+// ShellPageFilter supplies the shell's rendered time, the bell's unread count
 // and the release note on authenticated full page results. RazorPagesOptions
 // has no Filters collection of its own, so the global filter is added through
 // the underlying MvcOptions instead.

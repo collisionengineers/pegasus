@@ -11,17 +11,18 @@
     var isAdministrator = User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator);
     var userName = User.Identity?.Name ?? string.Empty;
     var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
-    // The bell (Work Centre D10): the person's own notifications, newest
-    // first, read once by ShellPageFilter. Each row is a form that opens
-    // the notification (marks it read, lands on its route) so no script is
-    // needed; Mark all read returns here.
+    // The bell (Work Centre D10): the person's own notifications. The page
+    // carries the unread count ShellPageFilter counted; the list is fetched
+    // when the bell opens (/Notifications?handler=List, drawn by
+    // _NotificationList, whose rows are forms that open the notification so
+    // no script is needed to act on one). Mark all read returns here.
     var notifications = ViewData["Notifications"] as IReadOnlyList<Pegasus.Core.Notifications.StaffNotification>;
     var notificationsUnavailable = ViewData["NotificationsUnavailable"] is true;
-    var anyUnread = notifications?.Any(notification => notification.IsUnread) == true;
+    var anyUnread = ViewData["NotificationsUnread"] is int unreadCount && unreadCount > 0;
     var now = ViewData["ShellRenderedAtUtc"] as DateTimeOffset? ?? DateTimeOffset.UtcNow;
     var returnUrl = Context.Request.Path + Context.Request.QueryString;
     // ?notifications=1 opens the dialog on load, so a link (or a screenshot)
-    // can land on it.
+    // can land on it; that page draws the list itself rather than fetching it.
     var openOnLoad = string.Equals(Context.Request.Query["notifications"], "1", StringComparison.Ordinal) ? "true" : null;
     // What's new (FRD-12): the newest published release note this person has
     // not acknowledged, read once by ShellPageFilter. It opens on load
@@ -72,7 +73,7 @@
     </section>
 </div>
 
-<div class="dialog-backdrop" data-dialog="notifications-dialog" data-dialog-open-on-load="@openOnLoad" hidden>
+<div class="dialog-backdrop" data-dialog="notifications-dialog" data-dialog-open-on-load="@openOnLoad" data-notifications-url="@Url.Page("/Notifications", "List")" data-notifications-failed="@OperatorLabels.Shell.NotificationsUnavailable" hidden>
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
         <div class="dialog-head">
             <h2 id="notifications-dialog-title" tabindex="-1">@OperatorLabels.Shell.Notifications</h2>
@@ -88,38 +89,24 @@
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
             </button>
         </div>
-        <div class="dialog-body dialog-body--list">
-            @if (notificationsUnavailable)
-            {
+        @if (notificationsUnavailable)
+        {
+            <div class="dialog-body dialog-body--list">
                 <p class="empty-state" role="status">@OperatorLabels.Shell.NotificationsUnavailable</p>
-            }
-            else if (notifications is { Count: > 0 })
-            {
-                <div class="row-list" data-row-list data-notification-list>
-                    @foreach (var notification in notifications)
-                    {
-                        <form method="post" asp-page="/Notifications" asp-page-handler="Open" asp-route-id="@notification.Id" class="row-form">
-                            <input type="hidden" name="returnUrl" value="@returnUrl" />
-                            <button type="submit" class="row-button@(notification.IsUnread ? " row-button--unread" : "")" data-notification="@notification.Id" data-busy-label="@OperatorLabels.Busy.Opening">
-                                <span class="title">@OperatorLabels.NotificationCause(notification)</span>
-                                <span class="sub"><span class="ref">@notification.Reference</span>@if (!string.IsNullOrWhiteSpace(notification.Registration)){<text> · <span class="mono">@notification.Registration</span></text>}</span>
-                                <span class="side">
-                                    @if (notification.IsUnread)
-                                    {
-                                        <span class="status status--navy">@OperatorLabels.Shell.Unread</span>
-                                    }
-                                    <time datetime="@notification.RaisedAtUtc.ToString("O")" title="@OperatorLabels.OfficeTime(notification.RaisedAtUtc)">@OperatorLabels.RelativeTime(notification.RaisedAtUtc, now)</time>
-                                </span>
-                            </button>
-                        </form>
-                    }
-                </div>
-            }
-            else
-            {
-                <p class="empty-state" role="status">@OperatorLabels.Shell.NoNotifications</p>
-            }
-        </div>
+            </div>
+        }
+        else if (notifications is not null)
+        {
+            <div class="dialog-body dialog-body--list" data-notifications-body>
+                <partial name="Shared/_NotificationList" model="@(new NotificationListView(notifications, returnUrl, now))" />
+            </div>
+        }
+        else
+        {
+            <div class="dialog-body dialog-body--list" data-notifications-body aria-busy="true">
+                <div class="spinner" aria-hidden="true"></div>
+            </div>
+        }
         <div class="dialog-foot">
             <button type="button" class="btn btn--dark" data-dialog-close>Close</button>
         </div>
@@ -212,7 +199,7 @@
 <div class="dialog-backdrop" data-dialog="problem-dialog" hidden>
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="problem-dialog-title">
         <form method="post" asp-page="/ProblemReports" asp-page-handler="Report" data-problem-form
-              data-problem-case-sections="@string.Join(",", OperatorLabels.CaseWorkspace.Sections.Select(section => section.Key))">
+              data-problem-case-sections="@CaseSectionKeys">
             <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
             <div class="dialog-head">
                 <h2 id="problem-dialog-title" tabindex="-1">@OperatorLabels.Shell.ReportProblem</h2>
@@ -241,3 +228,10 @@
         </form>
     </section>
 </div>
+
+@functions {
+    // The Case sections never change while the process runs, so the list the
+    // Report a problem script reads is joined once rather than on every page.
+    private static readonly string CaseSectionKeys =
+        string.Join(",", OperatorLabels.CaseWorkspace.Sections.Select(section => section.Key));
+}
