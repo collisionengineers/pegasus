@@ -86,7 +86,8 @@ internal static class PdfPageRasteriser
     {
         // Alpha is the last byte of each pixel in both 32-bit layouts.
         var pixels = bitmap.GetPixelSpan();
-        for (var alpha = bitmap.BytesPerPixel - 1; alpha < pixels.Length; alpha += bitmap.BytesPerPixel)
+        var stride = bitmap.BytesPerPixel;
+        for (var alpha = stride - 1; alpha < pixels.Length; alpha += stride)
         {
             if (pixels[alpha] != 0)
             {
