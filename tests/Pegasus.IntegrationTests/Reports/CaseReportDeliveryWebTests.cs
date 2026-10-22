@@ -1003,6 +1003,8 @@ public sealed partial class AssessmentReportDraftWebTests
             "<input type=\"checkbox\" name=\"holdsDone\" value=\"Check the images.\" data-report-hold />",
             form,
             StringComparison.Ordinal);
+        // Each hold and its Done tick share one line (v41 K2).
+        Assert.Equal(2, Regex.Count(form, "<div class=\"cluster\" data-report-hold-row>"));
         Assert.Equal(facts.Fingerprint, InputValue(form, "dispatchFingerprint"));
         Assert.Contains(
             $">{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendReport}<",

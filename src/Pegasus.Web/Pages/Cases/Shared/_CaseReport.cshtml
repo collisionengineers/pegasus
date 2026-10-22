@@ -561,14 +561,14 @@
                            not required. *@
                         @foreach (var hold in plan.Holds)
                         {
-                            <div class="stack" data-report-hold-row>
+                            <div class="cluster" data-report-hold-row>
                                 <span>@hold</span>
                                 <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" required data-report-hold /><span>@ReportLabels.HoldDone</span></label>
                             </div>
                         }
                         @foreach (var hold in plan.PossibleHolds)
                         {
-                            <div class="stack" data-report-hold-row>
+                            <div class="cluster" data-report-hold-row>
                                 <span>@hold</span>
                                 <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" data-report-hold /><span>@ReportLabels.HoldDone</span></label>
                             </div>

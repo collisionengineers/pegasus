@@ -158,7 +158,9 @@ reply composer with Also resolve query ticked; otherwise it is the Actions
 menu's own Resolve query (operator, 11 October 2026).
 Once Report sent is recorded, the Next action also lists the Case's open
 tasks after its step, oldest first, each opening the [Tasks](#tasks) dialog
-(operator, 6 and 13 October 2026).
+(operator, 6 and 13 October 2026); the row itself is the control, with no
+Tasks button on it (v41 K3, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 While a Triage Case is linked to the Case, a **Linked cases** card follows
@@ -334,7 +336,9 @@ Return to Engineer needs no session. The rules behind each action are in
   ([FRD-07](frd-07-case-export.md#export-case)).
 - **Tasks**, on every standard Case in every state (operator, 13 October
   2026). It opens the [Tasks](#tasks) dialog; without script its link draws
-  the dialog open.
+  the dialog open. Its icon, and the one on the dialog's empty list, is the
+  sprite's square-check (v41 K1, operator, 15 and 19 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 - **Mark report sent**, in With Engineer. It confirms detected or linked
   Sent evidence and moves the Case to Report sent, except on an Inspection +
   Audit Case with no Audit yet, which stays With Engineer with the
@@ -877,8 +881,12 @@ the enabled named staff, and the head of the list has an **Add task** field,
 in and out of an edit session (operator, 13 October 2026). In a session each
 posts under the session's lease and the session carries on; outside one each
 claims the Case's lease for that one command, as the other Actions-menu
-dialogs do. Each records one fixed reason, so there is no reason box. A
-Held or closed Case, and a Case a colleague is editing, show the list
+dialogs do. Each records one fixed reason, so there is no reason box. The
+Add task field takes the field style the other Case inputs use, and an open
+task's Assign, Complete and Cancel task sit on one line (v41 K4, operator,
+15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+A Held or closed Case, and a Case a colleague is editing, show the list
 without these. There is no due date yet.
 
 Tasks also appear in it without anyone adding them: when Report sent is
@@ -1054,6 +1062,14 @@ The form also shows what the Principal's report sending rules decided
   filed estimates the rules attach, and any warning, appear as hints;
 - the file name, a read-only "After sending" list of what staff still owe, and
   a Done tick for each hold.
+
+The Yes and No answers show their labels, and a hold's Done tick sits on the
+hold's own line (v41 K2, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Reading a Case whose report was sent, To and Cc show the recipients of the
+report last sent, each Not recorded when there are none (v41 K5, operator,
+15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 The layout of this form is as built and awaits its design sign-off.
 

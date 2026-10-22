@@ -239,7 +239,7 @@
                 <a class="btn" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
                    asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
                    data-dialog-open="case-tasks-dialog" data-case-tasks-open>
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-square")" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-square-check")" /></svg>
                     <span>@CaseWorkspaceLabels.Tasks.Title</span>
                 </a>
                 @if (canConfirmReportSent)

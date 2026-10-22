@@ -314,19 +314,17 @@
                 @* Once Report sent is recorded the Case's open tasks follow
                    the step (operator, 6 October 2026), and while any is open
                    Archive is greyed: one row per open task, oldest first, each
-                   opening the Tasks dialog, which owns them. *@
+                   row the link that opens the Tasks dialog, which owns them
+                   (v41 K3). *@
                 <div class="sub-panel blockers" data-open-tasks>
                     <h3>@CaseWorkspaceLabels.Tasks.Title</h3>
                     <ul class="blocker-list">
                         @foreach (var task in openTasks)
                         {
                             <li class="blocker" data-open-task="@task.Id">
-                                <strong>@task.Description</strong>
-                                <div class="blocker-actions">
-                                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
-                                       asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
-                                       data-dialog-open="case-tasks-dialog">@CaseWorkspaceLabels.Tasks.Title</a>
-                                </div>
+                                <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                                   asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
+                                   data-dialog-open="case-tasks-dialog"><strong>@task.Description</strong></a>
                             </li>
                         }
                     </ul>
