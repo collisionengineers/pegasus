@@ -496,7 +496,7 @@ public sealed class ShellAndStatusPageWebTests
         Assert.Contains("href=\"/Account/PasswordChange\"", body, StringComparison.Ordinal);
         Assert.Contains("data-dialog-close", foot, StringComparison.Ordinal);
         Assert.Contains(">Sign out<", foot, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(foot, "<button ").Count);
+        Assert.Equal(2, Regex.Count(foot, "<button "));
     }
 
     /// <summary>

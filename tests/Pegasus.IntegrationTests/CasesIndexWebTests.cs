@@ -449,7 +449,7 @@ public sealed class CasesIndexWebTests
 
         var engineer = Regex.Match(html, "<select id=\"search-engineer\"[^>]*>.*?</select>", RegexOptions.Singleline | RegexOptions.CultureInvariant);
         Assert.True(engineer.Success, "The Engineer filter is not a select.");
-        Assert.Equal(3, Regex.Matches(engineer.Value, "<option ").Count);
+        Assert.Equal(3, Regex.Count(engineer.Value, "<option "));
         Assert.Contains($"<option value=\"{picked.StaffId:D}\" selected=\"selected\">e.mawdsley</option>", engineer.Value, StringComparison.Ordinal);
         Assert.Contains("r.okafor</option>", engineer.Value, StringComparison.Ordinal);
         Assert.Contains(

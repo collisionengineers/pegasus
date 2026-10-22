@@ -296,14 +296,14 @@ public sealed class CaseWorkflowPersistenceTests
             workflow => Assert.Equal(CaseLifecycleState.ReportPreparation, workflow.State));
         Assert.Equal(entered, await harness.StateEnteredAtAsync(harness.CaseId));
         Assert.Equal(
-            ["Set to Unassigned"],
-            (await harness.WorkflowEventsAsync("hand-to-unassigned")).Select(item => item.Reason).ToArray());
+            "Set to Unassigned",
+            Assert.Single(await harness.WorkflowEventsAsync("hand-to-unassigned")).Reason);
         Assert.Equal(
-            [$"Taken by workflow-test-{actorId:N}"],
-            (await harness.WorkflowEventsAsync("take")).Select(item => item.Reason).ToArray());
+            $"Taken by workflow-test-{actorId:N}",
+            Assert.Single(await harness.WorkflowEventsAsync("take")).Reason);
         Assert.Equal(
-            [$"Assigned to workflow-test-{engineerId:N}"],
-            (await harness.WorkflowEventsAsync("hand-to-engineer")).Select(item => item.Reason).ToArray());
+            $"Assigned to workflow-test-{engineerId:N}",
+            Assert.Single(await harness.WorkflowEventsAsync("hand-to-engineer")).Reason);
         // Every hand-off is the With Engineer state event the Sent to Engineer
         // figure counts once, at the Case's first entry.
         Assert.Equal(4L, await harness.WorkflowEventTypeCountAsync(harness.CaseId, "state_ReportPreparation"));
@@ -1303,8 +1303,8 @@ public sealed class CaseWorkflowPersistenceTests
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
             sut.ExecuteAsync(request with { EngineerId = null }, default));
         Assert.Equal(
-            [$"Assigned to workflow-test-{engineerId:N}"],
-            (await harness.WorkflowEventsAsync(request.OperationKey)).Select(item => item.Reason).ToArray());
+            $"Assigned to workflow-test-{engineerId:N}",
+            Assert.Single(await harness.WorkflowEventsAsync(request.OperationKey)).Reason);
 
         // The handoff writes the existing state event used by Sent chronology,
         // not a new assignment-only event or invented external delivery.
