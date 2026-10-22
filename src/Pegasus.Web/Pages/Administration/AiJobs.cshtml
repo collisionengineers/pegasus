@@ -21,6 +21,10 @@
                 <span>@message</span>
             </div>
         }
+        @if (Model.ErrorMessage is { } errorMessage)
+        {
+            <div class="notice notice--danger" role="alert"><span>@errorMessage</span></div>
+        }
         <section class="panel" aria-label="@OperatorLabels.Admin.AiJobs">
             <div class="panel-head">
                 <span class="meta" data-ai-jobs-counts>@counts.Active active · @counts.Failed failed · @OperatorLabels.AiJobs.SendToAiState(Model.Result.SendToAiSwitchEnabled)</span>

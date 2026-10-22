@@ -154,9 +154,8 @@ public sealed class AiJobTests
         Assert.Throws<StaffAuthorizationException>(() =>
             AiJobPolicy.ValidateTransition(new(
                 Guid.NewGuid(), 0, AiJobState.Completed, ActionActor.Principal(Guid.NewGuid()), "op")));
-        Assert.Throws<ArgumentException>(() =>
-            AiJobPolicy.ValidateTransition(new(
-                Guid.NewGuid(), 0, AiJobState.Cancelled, Staff, "op")));
+        AiJobPolicy.ValidateTransition(new(
+            Guid.NewGuid(), 0, AiJobState.Cancelled, Staff, "op"));
         AiJobPolicy.ValidateTransition(new(
             Guid.NewGuid(), 0, AiJobState.Cancelled, Staff, "op", "No longer required"));
         Assert.Throws<ArgumentException>(() =>

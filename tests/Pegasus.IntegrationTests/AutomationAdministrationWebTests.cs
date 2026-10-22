@@ -191,17 +191,64 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.Contains("Page 2", second, StringComparison.Ordinal);
         Assert.Contains("pageNumber=1", second, StringComparison.OrdinalIgnoreCase);
 
+        var stoppedJobId = Guid.Parse(InputValue(second, "jobId"));
         using var stopped = await client.PostAsync(
             "/Administration/AiJobs?handler=Stop",
             Form(
                 AntiforgeryValue(second),
-                ("jobId", InputValue(second, "jobId")),
+                ("jobId", stoppedJobId.ToString()),
                 ("expectedVersion", InputValue(second, "expectedVersion")),
                 ("operationKey", InputValue(second, "operationKey")),
                 ("pageNumber", InputValue(second, "pageNumber"))));
 
         Assert.Equal(HttpStatusCode.Redirect, stopped.StatusCode);
         Assert.Equal("/Administration/AiJobs?pageNumber=2", stopped.Headers.Location?.OriginalString);
+
+        // Stop asks no reason, and an Administrator's Stop cancels the job.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var job = await scope.ServiceProvider
+                .GetRequiredService<IAiJobStore>()
+                .GetAsync(stoppedJobId, CancellationToken.None);
+            Assert.Equal(AiJobState.Cancelled, job?.State);
+            Assert.Null(job?.ClosureReason);
+        }
+
+        var after = await GetHtmlAsync(client, stopped.Headers.Location!.OriginalString);
+        Assert.Contains("The AI job was stopped.", after, StringComparison.Ordinal);
+        Assert.Contains("notice notice--success", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("notice--danger", after, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ARefusedStopReadsAsAFailureNoticeAndLeavesTheJobQueued()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithAutomationMcp(baseFactory);
+        await SeedJobsAsync(factory, liveJobs: 1, failedJobs: 0);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, "/Administration/AiJobs");
+        var jobId = Guid.Parse(InputValue(html, "jobId"));
+
+        using var refused = await client.PostAsync(
+            "/Administration/AiJobs?handler=Stop",
+            Form(
+                AntiforgeryValue(html),
+                ("jobId", jobId.ToString()),
+                ("expectedVersion", "999"),
+                ("operationKey", InputValue(html, "operationKey")),
+                ("pageNumber", InputValue(html, "pageNumber"))));
+
+        Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
+        var after = await GetHtmlAsync(client, refused.Headers.Location!.OriginalString);
+        Assert.Contains("The AI job changed before it could be stopped.", after, StringComparison.Ordinal);
+        Assert.Contains("notice notice--danger", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("notice--success", after, StringComparison.Ordinal);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var job = await scope.ServiceProvider
+            .GetRequiredService<IAiJobStore>()
+            .GetAsync(jobId, CancellationToken.None);
+        Assert.Equal(AiJobState.Queued, job?.State);
     }
 
     [Fact]
