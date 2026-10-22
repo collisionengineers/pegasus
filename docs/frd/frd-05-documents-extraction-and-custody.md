@@ -186,7 +186,15 @@ Each intake asset records the Box folder its confirmed copy is in (holding,
 the Case root or the Vehicle images folder), and reads expect exactly that
 folder. Unknown or pending holding custody is unfinished work, not success.
 The existing bounded retries reuse the same asset and operation identities.
-Exhausted failures stay visible for staff recovery. Re-evaluation reads the
+Exhausted failures stay visible for staff recovery. A Case-filing replay has
+five attempts, then record and keep completed: the existing
+transient-failure class count, spaced like the live filing path, from 30
+seconds out to two hours, so a short Box or SQL outage does not exhaust
+them; a non-transient fault still stops at once; then a `replay_exhausted`
+history row is recorded and the work item keeps its completed state so
+later replays still run (operator, 22 October 2026; R190, R378;
+[FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
+Re-evaluation reads the
 retained source bytes after checking their hash and length. Missing or
 corrupt bytes fail closed.
 

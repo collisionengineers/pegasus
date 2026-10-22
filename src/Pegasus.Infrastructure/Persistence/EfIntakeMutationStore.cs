@@ -60,7 +60,7 @@ internal sealed class EfIntakeMutationStore(
         // where automatic association is accepted.
         var target = await IntakePromotionTarget.EvaluateAsync(
             context, request.CaseId, request.IntakeReceiptId, timeProvider.GetUtcNow(), cancellationToken);
-        if (target.Disposition == PromotionTargetDisposition.NotApplicable)
+        if (target.Disposition == CaseFilingTargetDisposition.NotApplicable)
         {
             return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
         }
@@ -85,7 +85,7 @@ internal sealed class EfIntakeMutationStore(
             }
         }
 
-        if (target.Disposition == PromotionTargetDisposition.Deferred)
+        if (target.Disposition == CaseFilingTargetDisposition.Deferred)
         {
             return new(AutomaticCaseEvidencePromotionPreparationDisposition.Deferred);
         }

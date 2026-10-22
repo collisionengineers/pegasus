@@ -301,20 +301,6 @@ public interface IIntakeWorkStore
     Task<Guid?> FindStagedReceiptIdForReceiptAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Records a terminal failure on an already-completed work item, the same
-    /// <see cref="IntakeWorkState.Failed"/> outcome
-    /// <see cref="RetryProcessingAsync"/> records on the live path. A
-    /// completed-evaluation replay holds no lease, so it cannot call that
-    /// method; this does not make the item claimable again. An item that is
-    /// not completed is left unchanged.
-    /// </summary>
-    Task RecordTerminalReplayFailureAsync(
-        Guid stagedReceiptId,
-        string failureCode,
-        DateTimeOffset failedAtUtc,
-        CancellationToken cancellationToken);
 }
 
 public interface IIntakeWorkEnqueuer
@@ -781,7 +767,14 @@ public sealed class ProcessQueuedIntake(
 
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan[] RetryDelays =
+
+    /// <summary>
+    /// The live path's bounded retry: an attempt that fails transiently is due
+    /// again after its delay, and the attempt numbered by the length is the
+    /// last. <see cref="ReplayCaseFilings"/> spaces and bounds its Case-filing
+    /// attempts by the same schedule.
+    /// </summary>
+    internal static readonly TimeSpan[] RetryDelays =
     [
         TimeSpan.FromSeconds(30),
         TimeSpan.FromMinutes(2),
@@ -1045,7 +1038,7 @@ public sealed class ProcessQueuedIntake(
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            await FailProcessingAsync(workItem, terminal: true, TerminalReplayFailureCode(exception), cancellationToken);
+            await FailProcessingAsync(workItem, terminal: true, "unexpected_intake_processing_failure", cancellationToken);
             throw;
         }
 
@@ -1458,9 +1451,12 @@ public sealed class ProcessQueuedIntake(
         var outcome = await promoteAssociatedCaseEvidence.ExecuteAsync(receipt, cancellationToken);
         if (outcome == AutomaticCaseEvidencePromotionOutcome.Deferred && throwOnDeferred)
         {
-            // An active staff edit is a temporary Case-target guard. Keep the
-            // existing intake work owner so the same receipt is retried after
-            // its ordinary bounded delay instead of filing against a moving Case.
+            // The live path only: an active staff edit is a temporary
+            // Case-target guard, so the claimed work item keeps the receipt
+            // and retries it after its ordinary bounded delay instead of
+            // filing against a moving Case. A completed-evaluation replay
+            // passes throwOnDeferred: false and returns RetryScheduled; its
+            // later attempts belong to ReplayCaseFilings.
             throw new IntakeDependencyUnavailableException(
                 "Automatic Case evidence promotion is waiting for the Case editor.");
         }
@@ -1516,19 +1512,11 @@ public sealed class ProcessQueuedIntake(
     }
 
     /// <summary>
-    /// The failure code a completed-evaluation replay records when the fault
-    /// will not clear on retry. A known bad input keeps the live path's own
-    /// code; anything else is the unexpected processing failure.
-    /// </summary>
-    internal static string TerminalReplayFailureCode(Exception exception) =>
-        TerminalInputFailureCode(exception) ?? "unexpected_intake_processing_failure";
-
-    /// <summary>
     /// The failure code for a fault that says the input itself is wrong, or
     /// null when the fault is not one of those. Retrying cannot change these,
     /// so they fail on the first attempt under their own code.
     /// </summary>
-    private static string? TerminalInputFailureCode(Exception exception) => exception switch
+    internal static string? TerminalInputFailureCode(Exception exception) => exception switch
     {
         IntakeArtifactIntegrityException => "staged_artifact_integrity_failure",
         InvalidDataException => "invalid_intake_data",
@@ -1540,7 +1528,7 @@ public sealed class ProcessQueuedIntake(
         _ => null
     };
 
-    private static string TransientFailureCode(Exception exception) =>
+    internal static string TransientFailureCode(Exception exception) =>
         exception is IntakeArtifactRetentionException
             ? "artifact_retention_failure"
             : "intake_processing_failure";

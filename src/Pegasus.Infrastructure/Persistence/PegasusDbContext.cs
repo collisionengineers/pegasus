@@ -450,6 +450,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.OperationKey).IsUnique();
             entity.HasIndex(item => item.StagedReceiptId).IsUnique();
             entity.HasIndex(item => new { item.State, item.DueAtUtc });
+            // The Case-filing replay joins each association to its receipt's
+            // work item (R367).
+            entity.HasIndex(item => item.ProcessedReceiptId)
+                .IncludeProperties(item => new { item.State, item.StagedReceiptId });
             entity.HasOne(item => item.StagedReceipt)
                 .WithOne(item => item.WorkItem)
                 .HasForeignKey<IntakeWorkItemEntity>(item => item.StagedReceiptId)
@@ -687,6 +691,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.MatchPolicyKey).HasMaxLength(100);
             entity.HasIndex(item => item.CaseId);
             entity.HasIndex(item => item.LastOperationKey).IsUnique();
+            // The Case-filing replay reads active associations by kind, the
+            // pipeline's from the start of its window, in link order (R367).
+            entity.HasIndex(item => new { item.ActorKind, item.LinkedAtUtc, item.IntakeReceiptId })
+                .HasFilter("[IsActive] = 1")
+                .IncludeProperties(item => new { item.CaseId, item.Version });
             entity.HasOne(item => item.IntakeReceipt)
                 .WithOne(item => item.ManualAssociation)
                 .HasForeignKey<IntakeManualAssociationEntity>(item => item.IntakeReceiptId)

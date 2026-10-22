@@ -287,9 +287,8 @@ internal sealed class EfCaseArtifactCustody(
                 await initialWriteTransaction.CommitAsync(cancellationToken);
                 return new(null, null, null, null, Confirmed(existing.Version, existing.Occurrence.Id));
             }
-            // Pending stays with reconciliation. A Failed version is re-driven:
-            // replay uploads it again, and confirmation below accepts Failed.
-            if (existing.Version.CustodyStatus == DocumentCustodyStatus.Pending)
+            if (existing.Version.CustodyStatus is DocumentCustodyStatus.Pending
+                or DocumentCustodyStatus.Failed)
             {
                 await initialWriteTransaction.CommitAsync(cancellationToken);
                 return new(null, null, null, null, Status(existing.Version, existing.Occurrence.Id));
@@ -362,15 +361,7 @@ internal sealed class EfCaseArtifactCustody(
         {
             db.Attach(version);
         }
-        // A Failed version is re-driven under this replay's pending key, so a
-        // stale non-blank key is overwritten before commit. Otherwise only a
-        // blank key is filled; a non-blank Pending key is left as it is.
-        if (version.CustodyStatus == DocumentCustodyStatus.Failed)
-        {
-            version.PendingContentStorageKey = pendingContentStorageKey;
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        else if (string.IsNullOrWhiteSpace(version.PendingContentStorageKey))
+        if (string.IsNullOrWhiteSpace(version.PendingContentStorageKey))
         {
             version.PendingContentStorageKey = pendingContentStorageKey;
             await db.SaveChangesAsync(cancellationToken);
@@ -407,8 +398,7 @@ internal sealed class EfCaseArtifactCustody(
                 request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
         var changed = await db.Set<DocumentVersionEntity>()
             .Where(value => value.Id == version.Id
-                && (value.CustodyStatus == DocumentCustodyStatus.Pending
-                    || value.CustodyStatus == DocumentCustodyStatus.Failed)
+                && value.CustodyStatus == DocumentCustodyStatus.Pending
                 && value.PendingContentStorageKey == pendingContentStorageKey
                 && db.Cases.Any(caseValue => caseValue.Id == caseId
                     && (auditFolder
@@ -1328,7 +1318,7 @@ public sealed partial class ReconcilePendingArtifactCustody
         }
         var target = await IntakePromotionTarget.EvaluateAsync(
             db, caseId, receiptId, timeProvider.GetUtcNow(), cancellationToken);
-        return target.Disposition == PromotionTargetDisposition.Current
+        return target.Disposition == CaseFilingTargetDisposition.Current
             ? new(receiptId, target.Version, true)
             : new(receiptId, 0, false);
     }

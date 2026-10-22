@@ -4894,6 +4894,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("LastOperationKey")
                         .IsUnique();
 
+                    b.HasIndex("ActorKind", "LinkedAtUtc", "IntakeReceiptId")
+                        .HasFilter("[IsActive] = 1");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ActorKind", "LinkedAtUtc", "IntakeReceiptId"), new[] { "CaseId", "Version" });
+
                     b.ToTable("IntakeManualAssociations", null, t =>
                         {
                             t.HasCheckConstraint("CK_IntakeManualAssociations_Version", "[Version] >= 0");
@@ -5601,6 +5606,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperationKey")
                         .IsUnique();
+
+                    b.HasIndex("ProcessedReceiptId");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ProcessedReceiptId"), new[] { "State", "StagedReceiptId" });
 
                     b.HasIndex("StagedReceiptId")
                         .IsUnique();

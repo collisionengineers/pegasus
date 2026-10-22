@@ -22,7 +22,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 propertyCount: 13,
                 navigationCount: 2,
                 foreignKeyCount: 2,
-                unnamedIndexCount: 2,
+                unnamedIndexCount: 3,
                 keyCount: 1);
 
             var intakeReceiptId = runtimeEntityType.AddProperty(
@@ -142,6 +142,10 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var index0 = runtimeEntityType.AddIndex(
                 new[] { lastOperationKey },
                 unique: true);
+
+            var index1 = runtimeEntityType.AddIndex(
+                new[] { actorKind, linkedAtUtc, intakeReceiptId });
+            index1.AddAnnotation("Relational:Filter", "[IsActive] = 1");
 
             return runtimeEntityType;
         }

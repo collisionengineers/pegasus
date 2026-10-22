@@ -600,12 +600,13 @@ public sealed class AssociatedMailEvidenceIntegrationTests
     /// <summary>
     /// A linked receipt replayed while its Case holds an active edit lease
     /// returns <see cref="QueuedIntakeProcessingOutcome.RetryScheduled"/>
-    /// without faulting or copying its files into Box holding. Once the edit
-    /// lease clears, the grouped-image reconcile sweep re-drives the receipt
-    /// and files its evidence on the Case (#1462).
+    /// without faulting or copying its files into Box holding, and the
+    /// Case-filing replay does not list it while the lease is live. Once the
+    /// edit lease clears, the replay files its evidence on the Case (#1462,
+    /// #1498).
     /// </summary>
     [Fact]
-    public async Task AnEditedCaseDefersReplayFilingWithoutHoldingAndGroupedImageReconcileCompletesItAfterTheLeaseClears()
+    public async Task AnEditedCaseDefersReplayFilingWithoutHoldingAndTheCaseFilingReplayCompletesItAfterTheLeaseClears()
     {
         using var factory = new IntakeWebApplicationFactory();
         var caseId = await SeedCaseAsync(factory);
@@ -631,9 +632,13 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             QueuedIntakeProcessingOutcome.RetryScheduled,
             await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(stagedReceiptId, default));
         Assert.DoesNotContain(
-            receipt.Id,
-            await services.GetRequiredService<IIntakeSubmissionGroupStore>()
-                .ListPendingImageGroupReceiptsAsync(20, default));
+            await services.GetRequiredService<ICaseFilingReplayStore>().ListDueAsync(
+                null,
+                ReplayCaseFilings.SystemAssociationWindow,
+                services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                20,
+                default),
+            candidate => candidate.ReceiptId == receipt.Id);
 
         await using (var whileEdited = await factory.Database.CreateContextAsync())
         {
