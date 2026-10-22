@@ -217,7 +217,9 @@ public sealed class CaseActionsMenuWebTests
     /// menu's own dialog rather than jumping to a section (issue 1025) with
     /// Take beside it, which posts the signed-in person's staff id, the value
     /// the dialog's "Name (you)" option posts. The dialog lists the signed-in
-    /// person first, then the other Engineers, then Unassigned.
+    /// person first, then the other Engineers, then Unassigned; the colleague's
+    /// username sorts before the viewer's, so the directory's order alone
+    /// would list the colleague first.
     /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.Review)]
@@ -225,7 +227,7 @@ public sealed class CaseActionsMenuWebTests
     public async Task AnUnassignedCaseOffersAssignEngineerAndTakeBesideIt(CaseLifecycleState state)
     {
         var viewer = Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId;
-        var colleague = new StaffAccountSummary(Guid.NewGuid(), "colleague", true, false, StaffRole.Engineer);
+        var colleague = new StaffAccountSummary(Guid.NewGuid(), "aaron", true, false, StaffRole.Engineer);
         var staff = new StubStaffAccounts(viewer, "alex", StaffRole.Administrator, colleague);
         var store = new RecordingCaseDetailsStore { State = state };
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
@@ -242,7 +244,7 @@ public sealed class CaseActionsMenuWebTests
             [
                 ("", ""),
                 (viewer.ToString("D"), OperatorLabels.Triage.You("alex")),
-                (colleague.Id.ToString("D"), "colleague"),
+                (colleague.Id.ToString("D"), "aaron"),
                 (AssignEngineerChoice.UnassignedValue, OperatorLabels.CaseWorkspace.Unassigned)
             ],
             Regex.Matches(dialog, "<option value=\"(?<value>[^\"]*)\">(?<label>[^<]*)</option>")
