@@ -70,7 +70,6 @@ public sealed class ProductionCompositionTests
         "web.workcentre.activity",
         "report.photos.prepare",
         "report.pdf.generate",
-        "report.pdf.pagecount",
         "db.connection.open"
     ];
 

@@ -60,6 +60,7 @@ public sealed class ReportLogoTests(ITestOutputHelper output)
                 shared,
                 AssessmentReportWording.CompanyBlock(feeNote: false),
                 "footer",
+                new PageCountProbe(),
                 ReportChrome.ReportBodyTop,
                 column => column.Item().Height(1, Unit.Millimetre))))
             .GeneratePdf());

@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Reports;
 using QuestPDF.Fluent;
-using UglyToad.PdfPig;
 
 namespace Pegasus.Infrastructure.Reports;
 
@@ -21,15 +20,16 @@ internal sealed class QuestPdfEstimateDocumentRenderer(ReportRenderGate gate) : 
         ArgumentNullException.ThrowIfNull(snapshot);
         snapshot.Validate();
         ReportResources.RegisterFonts();
+        var pageCount = new PageCountProbe();
         var pdf = await gate.RunAsync(
-            _ => Task.FromResult(EstimateDocumentLayout.Compose(snapshot, ReportResources.Logo()).GeneratePdf()),
+            _ => Task.FromResult(EstimateDocumentLayout.Compose(snapshot, ReportResources.Logo(), pageCount).GeneratePdf()),
             cancellationToken).ConfigureAwait(false);
         if (pdf.Length > MaximumPdfBytes)
         {
             throw new ReportRenderRejectedException("The estimate document is too large to return.");
         }
-        using var document = PdfDocument.Open(pdf);
-        if (document.NumberOfPages > MaximumPages)
+        var pages = pageCount.Count;
+        if (pages > MaximumPages)
         {
             throw new ReportRenderRejectedException("The estimate document has too many pages to return.");
         }
@@ -47,7 +47,7 @@ internal sealed class QuestPdfEstimateDocumentRenderer(ReportRenderGate gate) : 
         return new(
             fileName,
             pdf,
-            document.NumberOfPages,
+            pages,
             Convert.ToHexStringLower(SHA256.HashData(pdf)),
             EstimateDocumentContract.TemplateVersion,
             EngineVersion);

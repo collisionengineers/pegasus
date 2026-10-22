@@ -41,7 +41,6 @@ public static class DocumentReadTelemetry
         "report.renderer.initialize",
         "report.photos.prepare",
         "report.pdf.generate",
-        "report.pdf.pagecount",
         "db.connection.open",
         "web.case.fragment.vehicle",
         "web.case.fragment.valuation",

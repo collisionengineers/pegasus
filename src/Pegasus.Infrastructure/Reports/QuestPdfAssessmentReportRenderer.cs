@@ -4,7 +4,6 @@ using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Custody;
 using QuestPDF.Fluent;
 using SkiaSharp;
-using UglyToad.PdfPig;
 
 namespace Pegasus.Infrastructure.Reports;
 
@@ -40,9 +39,10 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
         };
         var fileName = $"{ReportChrome.Slug(snapshot.OurReference)}_{suffix}.pdf";
-        var pdf = await gate.RunAsync(token => RenderPdfAsync(snapshot, kind, token), cancellationToken)
+        var pageCount = new PageCountProbe();
+        var pdf = await gate.RunAsync(token => RenderPdfAsync(snapshot, kind, pageCount, token), cancellationToken)
             .ConfigureAwait(false);
-        return Artifact(fileName, pdf);
+        return Artifact(fileName, pdf, pageCount.Count);
     }
 
     /// <summary>
@@ -52,7 +52,10 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
     /// instead of running on.
     /// </summary>
     private static async Task<byte[]> RenderPdfAsync(
-        AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
+        AssessmentReportSnapshot snapshot,
+        CaseReportArtifactKind kind,
+        PageCountProbe pageCount,
+        CancellationToken cancellationToken)
     {
         PreparedReportImages images;
         using (DocumentReadTelemetry.Start("report.photos.prepare"))
@@ -61,7 +64,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var document = AssessmentReportLayout.Compose(snapshot, kind, images);
+        var document = AssessmentReportLayout.Compose(snapshot, kind, images, pageCount);
         using var generating = DocumentReadTelemetry.Start("report.pdf.generate");
         return document.GeneratePdf();
     }
@@ -116,23 +119,14 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             content, photo.CustodyReference, photo.Rotation, photo.AppliedCrop, slotHeight, cancellationToken);
     }
 
-    private RenderedReportArtifact Artifact(string fileName, byte[] pdf)
-    {
-        int pageCount;
-        using (DocumentReadTelemetry.Start("report.pdf.pagecount"))
-        {
-            using var document = PdfDocument.Open(pdf);
-            pageCount = document.NumberOfPages;
-        }
-
-        return new RenderedReportArtifact(
+    private RenderedReportArtifact Artifact(string fileName, byte[] pdf, int pageCount) =>
+        new(
             fileName,
             pdf,
             pageCount,
             Convert.ToHexStringLower(SHA256.HashData(pdf)),
             AssessmentReportContract.TemplateVersion,
             EngineVersion);
-    }
 
     private static byte[] SignatureFor(ReportSignatory signatory) =>
         Signatures.GetOrPrepare(signatory.SignatureContent, PrepareSignature);

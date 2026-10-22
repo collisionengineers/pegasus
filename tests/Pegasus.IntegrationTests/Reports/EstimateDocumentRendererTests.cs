@@ -76,6 +76,7 @@ public sealed partial class EstimateDocumentRendererTests
         Assert.Equal("estimate-v2", artifact.TemplateVersion);
         var pages = Read(artifact.Pdf);
         Assert.True(pages.Count > 1);
+        Assert.Equal(pages.Count, artifact.PageCount);
         for (var index = 0; index < pages.Count; index++)
         {
             var page = pages[index];
