@@ -119,6 +119,13 @@ public sealed record FetchGuideValuationRequest(
 {
     /// <summary>The work whose registration and mileage are valued (operator, 2 October 2026).</summary>
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
+
+    /// <summary>
+    /// Whether the VIN the source names is filled before the figures are
+    /// answered, for a caller whose next write follows the fill. Otherwise the
+    /// fill is handed on and runs after the answer.
+    /// </summary>
+    public bool AwaitVinFill { get; init; }
 }
 
 /// <summary>
@@ -146,7 +153,8 @@ public sealed class FetchGuideValuation(
     IEnumerable<IGuideValuationProvider> providers,
     ICaseDataQueries caseData,
     IScheduleGuideValuationReport reports,
-    IFillGlassVin vins) : IFetchGuideValuation
+    IFillGlassVin vins,
+    IScheduleGlassVinFill vinSchedule) : IFetchGuideValuation
 {
     private readonly IReadOnlyList<IGuideValuationProvider> _providers =
         [.. providers ?? throw new ArgumentNullException(nameof(providers))];
@@ -156,6 +164,8 @@ public sealed class FetchGuideValuation(
         reports ?? throw new ArgumentNullException(nameof(reports));
     private readonly IFillGlassVin _vins =
         vins ?? throw new ArgumentNullException(nameof(vins));
+    private readonly IScheduleGlassVinFill _vinSchedule =
+        vinSchedule ?? throw new ArgumentNullException(nameof(vinSchedule));
 
     public bool IsConnected(ValuationSource source) =>
         ValuationSources.IsGuide(source) && _providers.Any(candidate => candidate.Source == source);
@@ -220,10 +230,18 @@ public sealed class FetchGuideValuation(
         }
 
         // The valued vehicle's VIN fills the work's empty VIN (operator,
-        // 7 October 2026); the figures are answered either way.
+        // 7 October 2026); the figures are answered either way, and the fill
+        // follows the answer unless the caller's next write needs it first.
         if (quote.Vin is { } vin)
         {
-            await _vins.FillAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
+            if (request.AwaitVinFill)
+            {
+                await _vins.FillAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
+            }
+            else
+            {
+                await _vinSchedule.ScheduleAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
+            }
         }
 
         return quote;

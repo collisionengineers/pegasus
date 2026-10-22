@@ -126,7 +126,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
     /// the row is found by the fingerprint its launch recorded — minted by the
     /// gateway that owns that derivation, never a second time here.
     /// </summary>
-    public async Task<GlassRepairEstimateSession?> FindByCallbackAsync(
+    public async Task<GlassRepairEstimateSessionMaterial?> FindByCallbackAsync(
         string correlation, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(correlation))
@@ -139,7 +139,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         var entity = await context.Set<GlassRepairEstimateSessionEntity>()
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.CallbackDigest == digest, cancellationToken);
-        return entity is null ? null : ToSession(entity);
+        return entity is null ? null : ToMaterial(entity);
     }
 
     public async Task<GlassRepairEstimateSessionCreation> CreateAsync(
@@ -394,6 +394,16 @@ public sealed class EfGlassRepairEstimateSessionStore(
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == sessionId && item.UserId == pegasusUserId, cancellationToken);
         return entity is null ? null : ToSession(entity);
+    }
+
+    public async Task<GlassRepairEstimateSessionMaterial?> GetOwnMaterialAsync(
+        Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == sessionId && item.UserId == pegasusUserId, cancellationToken);
+        return entity is null ? null : ToMaterial(entity);
     }
 
     public async Task<GlassRepairEstimateSessionState?> GetOwnStateAsync(

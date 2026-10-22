@@ -763,8 +763,13 @@ builder.Services.AddScoped<Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork
 builder.Services.AddScoped<
     Pegasus.Core.Assessment.IScheduleGuideValuationReport,
     Pegasus.Web.Background.GuideValuationReportScheduler>();
-// Get valuation files its report through that scheduler, so the fetch use
-// case is composed here, beside it.
+// The VIN a guide names fills the Case after the figures have answered, on
+// the same queue.
+builder.Services.AddScoped<
+    Pegasus.Core.Assessment.IScheduleGlassVinFill,
+    Pegasus.Web.Background.GlassVinFillScheduler>();
+// Get valuation files its report and its VIN through those schedulers, so the
+// fetch use case is composed here, beside them.
 builder.Services.AddScoped<
     Pegasus.Core.Assessment.IFetchGuideValuation,
     Pegasus.Core.Assessment.FetchGuideValuation>();

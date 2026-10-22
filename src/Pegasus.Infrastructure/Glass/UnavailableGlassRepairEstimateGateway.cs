@@ -45,6 +45,11 @@ public sealed class UnavailableGlassRepairEstimateGateway : IGlassRepairEstimate
         return Task.FromException<GlassRepairEstimateStep>(Unavailable());
     }
 
+    public Task<GlassRepairEstimateStep> AcceptCallbackAsync(
+        GlassRepairEstimateCallback callback, GlassRepairEstimateSessionMaterial material,
+        CancellationToken cancellationToken) =>
+        AcceptCallbackAsync(callback, cancellationToken);
+
     public Task<GlassRepairEstimateSession> ContinueImportAsync(
         GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
     {
@@ -61,6 +66,10 @@ public sealed class UnavailableGlassRepairEstimateGateway : IGlassRepairEstimate
         return Task.FromException<GlassRepairEstimateSession>(Unavailable());
     }
 
+    public Task<GlassRepairEstimateSession> SettleInterruptedAsync(
+        ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
+        SettleInterruptedAsync(actor, material.Session.Id, cancellationToken);
+
     public Task<GlassRepairEstimateSession> CloseAsync(
         GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken)
     {
@@ -76,6 +85,10 @@ public sealed class UnavailableGlassRepairEstimateGateway : IGlassRepairEstimate
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromException<Uri?>(Unavailable());
     }
+
+    public Task<Uri?> GetEstimatorUrlAsync(
+        ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
+        GetEstimatorUrlAsync(actor, material.Session.Id, cancellationToken);
 
     private static InvalidOperationException Unavailable() => new(UnavailableMessage);
 }

@@ -124,6 +124,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         Assert.Equal(GlassProviderFixture.Registration, facts.Registration);
         Assert.Equal(GlassProviderFixture.MileageMiles, facts.MileageMiles);
+        // The Case has no Audit work: its current work is the primary work, whose id is the Case id.
+        Assert.Equal(workspace.CaseId, facts.WorkId);
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
             workspace.RequireCaseAuthorityAsync(version + 1, lease));
 
@@ -1158,6 +1160,13 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 ? throw new InvalidOperationException("An unrelated failure inside the gateway.")
                 : inner.AcceptCallbackAsync(callback, cancellationToken);
 
+        public Task<GlassRepairEstimateStep> AcceptCallbackAsync(
+            GlassRepairEstimateCallback callback, GlassRepairEstimateSessionMaterial material,
+            CancellationToken cancellationToken) =>
+            fault.OnComplete
+                ? throw new InvalidOperationException("An unrelated failure inside the gateway.")
+                : inner.AcceptCallbackAsync(callback, material, cancellationToken);
+
         public async Task<GlassRepairEstimateSession> ContinueImportAsync(
             GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
         {
@@ -1173,6 +1182,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
             ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
             inner.SettleInterruptedAsync(actor, sessionId, cancellationToken);
 
+        public Task<GlassRepairEstimateSession> SettleInterruptedAsync(
+            ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
+            inner.SettleInterruptedAsync(actor, material, cancellationToken);
+
         public Task<GlassRepairEstimateSession> CloseAsync(
             GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken) =>
             inner.CloseAsync(request, cancellationToken);
@@ -1180,6 +1193,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public Task<Uri?> GetEstimatorUrlAsync(
             ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
             inner.GetEstimatorUrlAsync(actor, sessionId, cancellationToken);
+
+        public Task<Uri?> GetEstimatorUrlAsync(
+            ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
+            inner.GetEstimatorUrlAsync(actor, material, cancellationToken);
     }
 
     /// <summary>
@@ -1480,9 +1497,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public async Task<GlassRepairEstimateSession> AcceptReturnWithoutWorkAsync(string correlation)
         {
             await using var scope = factory.Services.CreateAsyncScope();
-            var session = await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionReader>()
+            var read = await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionReader>()
                 .FindByCallbackAsync(correlation, CancellationToken.None);
-            Assert.NotNull(session);
+            Assert.NotNull(read);
+            var session = read.Session;
             var step = await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateGateway>()
                 .AcceptCallbackAsync(
                     new GlassRepairEstimateCallback(

@@ -270,6 +270,7 @@ public sealed class ProductionCompositionTests
             services =>
             {
                 services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>();
+                services.AddScoped<IScheduleGlassVinFill, NothingScheduled>();
                 services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
             });
         using (var scope = bare.CreateScope())
@@ -282,6 +283,7 @@ public sealed class ProductionCompositionTests
         using var connected = BuildGlassProduction(GlassConfiguration(), services =>
         {
             services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>();
+            services.AddScoped<IScheduleGlassVinFill, NothingScheduled>();
             services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
             services.AddGlassGuideValuation(_ =>
             {
@@ -299,9 +301,13 @@ public sealed class ProductionCompositionTests
         Assert.Equal(0, reads);
     }
 
-    private sealed class NothingScheduled : IScheduleGuideValuationReport
+    private sealed class NothingScheduled : IScheduleGuideValuationReport, IScheduleGlassVinFill
     {
         public Task ScheduleAsync(FileGuideValuationReportRequest request, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task ScheduleAsync(
+            ActionActor actor, Guid caseId, CaseWorkSelector work, string vin, CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }
 

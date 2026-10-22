@@ -80,20 +80,29 @@ public sealed class OpeningModel(
         [FromServices] IGlassRepairEstimateGateway glassEstimates,
         CancellationToken cancellationToken)
     {
-        if (await OwnSessionAsync(sessionId, cancellationToken) is not { } session
+        // The session is read once; the gateway is handed what was read.
+        if (!TryGetOwnerId(out var staffId)
+            || await glassSessions.GetOwnMaterialAsync(sessionId, staffId, cancellationToken) is not { } read
             || !TryGetActor(out var actor))
         {
             return NotFound();
         }
+        var session = read.Session;
+        var current = (GlassRepairEstimateSessionMaterial?)read;
         if (glassWork.IsInFlight(session.Id))
         {
             return RedirectToPage("/Integrations/Glass/Opening", new { sessionId });
         }
         if (GlassRepairEstimateSessionPolicy.AwaitsProviderWork(session.State))
         {
-            session = await glassEstimates.SettleInterruptedAsync(actor, session.Id, cancellationToken);
+            // Settling writes the session, so what was read is no longer
+            // current and the estimator is read afresh.
+            session = await glassEstimates.SettleInterruptedAsync(actor, read, cancellationToken);
+            current = null;
         }
-        if (await glassEstimates.GetEstimatorUrlAsync(actor, session.Id, cancellationToken) is { } estimator)
+        if ((current is null
+                ? await glassEstimates.GetEstimatorUrlAsync(actor, session.Id, cancellationToken)
+                : await glassEstimates.GetEstimatorUrlAsync(actor, current, cancellationToken)) is { } estimator)
         {
             // The Case keeps its edit authority: the operator is inside the
             // provider now and the result lands back on it.

@@ -8,10 +8,11 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
-/// The two Case facts a Glass's launch is made of: the vehicle it is about and
-/// how far it has run, in the whole miles the provider asks for.
+/// The Case facts a Glass's launch is made of: the vehicle it is about, how far
+/// it has run, in the whole miles the provider asks for, and the Case's current
+/// work they were read from, so the launch asks which work it is on only once.
 /// </summary>
-public sealed record GlassRepairEstimateCaseFacts(string Registration, long MileageMiles);
+public sealed record GlassRepairEstimateCaseFacts(string Registration, long MileageMiles, Guid WorkId);
 
 /// <summary>
 /// Proves the Engineer holds the Case's edit authority and hands back the
@@ -36,13 +37,13 @@ public interface IGlassRepairEstimateCaseAuthority
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// The Glass's estimate a repair spec belongs to: a live spec of the
-    /// Case's current work that a Glass's return recorded its vehicle on. Any
-    /// other spec, or one of another Case, answers null and starts a new
-    /// estimate.
+    /// The Glass's estimate a repair spec belongs to: a live spec of the work
+    /// (the one <see cref="GlassRepairEstimateCaseFacts.WorkId"/> names) that a
+    /// Glass's return recorded its vehicle on. Any other spec, or one of another
+    /// work, answers null and starts a new estimate.
     /// </summary>
     Task<GlassEstimateLink?> FindEstimateAsync(
-        Guid caseId, Guid specificationId, CancellationToken cancellationToken);
+        Guid workId, Guid specificationId, CancellationToken cancellationToken);
 
     /// <summary>
     /// The live spec of the Case's current work that belongs to the estimate
@@ -93,14 +94,13 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
             .AsNoTracking()
             .Where(item => item.WorkId == workId && LaunchFieldNames.Contains(item.FieldName))
             .ToArrayAsync(cancellationToken);
-        return new(RequireRegistration(fields), RequireMileageMiles(fields));
+        return new(RequireRegistration(fields), RequireMileageMiles(fields), workId);
     }
 
     public async Task<GlassEstimateLink?> FindEstimateAsync(
-        Guid caseId, Guid specificationId, CancellationToken cancellationToken)
+        Guid workId, Guid specificationId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var specification = await LiveSpecifications(context, workId)
             .SingleOrDefaultAsync(item => item.Id == specificationId, cancellationToken);
         return specification is

@@ -161,7 +161,7 @@ public sealed partial class GlassRepairEstimateGateway(
         // one Glass's login share its one live slot, and that session may be
         // the one holding it.
         var link = request.SpecificationId is { } specificationId
-            ? await caseAuthority.FindEstimateAsync(request.CaseId, specificationId, cancellationToken)
+            ? await caseAuthority.FindEstimateAsync(facts.WorkId, specificationId, cancellationToken)
             : null;
         var vehicle = (facts.Registration, facts.MileageMiles);
         if (link is not null)
@@ -547,18 +547,23 @@ public sealed partial class GlassRepairEstimateGateway(
         ActionActor actor, Guid sessionId, CancellationToken cancellationToken)
     {
         RepairSpecificationPolicy.RequireStaffAuthor(actor);
-        var material = await store.GetAsync(sessionId, cancellationToken);
-        if (material is null)
-        {
-            return null;
-        }
+        return await store.GetAsync(sessionId, cancellationToken) is { } material
+            ? await GetEstimatorUrlAsync(actor, material, cancellationToken)
+            : null;
+    }
 
+    public Task<Uri?> GetEstimatorUrlAsync(
+        ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken)
+    {
+        RepairSpecificationPolicy.RequireStaffAuthor(actor);
+        ArgumentNullException.ThrowIfNull(material);
         RequireOwner(actor, material.Session);
         var provider = Unprotect(material.ProtectedProviderState);
-        return material.Session.State == GlassRepairEstimateSessionState.Active
+        return Task.FromResult<Uri?>(
+            material.Session.State == GlassRepairEstimateSessionState.Active
             && provider.EstimatorUrl is { } url
                 ? new Uri(url, UriKind.Absolute)
-                : null;
+                : null);
     }
 
     /// <summary>
@@ -667,7 +672,26 @@ public sealed partial class GlassRepairEstimateGateway(
         ArgumentNullException.ThrowIfNull(callback);
         ArgumentNullException.ThrowIfNull(callback.RawQuery);
         RepairSpecificationPolicy.RequireStaffAuthor(callback.Actor);
-        var material = await RequireCorrelatedAsync(callback, cancellationToken);
+        return await AcceptReadAsync(
+            callback, await store.GetAsync(callback.SessionId, cancellationToken), cancellationToken);
+    }
+
+    public async Task<GlassRepairEstimateStep> AcceptCallbackAsync(
+        GlassRepairEstimateCallback callback, GlassRepairEstimateSessionMaterial material,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        ArgumentNullException.ThrowIfNull(callback.RawQuery);
+        ArgumentNullException.ThrowIfNull(material);
+        RepairSpecificationPolicy.RequireStaffAuthor(callback.Actor);
+        return await AcceptReadAsync(callback, material, cancellationToken);
+    }
+
+    private async Task<GlassRepairEstimateStep> AcceptReadAsync(
+        GlassRepairEstimateCallback callback, GlassRepairEstimateSessionMaterial? read,
+        CancellationToken cancellationToken)
+    {
+        var material = RequireCorrelated(callback, read);
         var session = material.Session;
         var provider = Unprotect(material.ProtectedProviderState);
         var results = Deserialize(material.ResultArtifactsJson);
@@ -917,8 +941,19 @@ public sealed partial class GlassRepairEstimateGateway(
         ActionActor actor, Guid sessionId, CancellationToken cancellationToken)
     {
         RepairSpecificationPolicy.RequireStaffAuthor(actor);
-        var material = await store.GetAsync(sessionId, cancellationToken)
-            ?? throw new KeyNotFoundException($"There is no Glass's session {sessionId}.");
+        return await SettleInterruptedAsync(
+            actor,
+            await store.GetAsync(sessionId, cancellationToken)
+                ?? throw new KeyNotFoundException($"There is no Glass's session {sessionId}."),
+            cancellationToken);
+    }
+
+    public async Task<GlassRepairEstimateSession> SettleInterruptedAsync(
+        ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken)
+    {
+        RepairSpecificationPolicy.RequireStaffAuthor(actor);
+        ArgumentNullException.ThrowIfNull(material);
+        var sessionId = material.Session.Id;
         var session = material.Session;
         RequireOwner(actor, session);
         if (!GlassRepairEstimateSessionPolicy.AwaitsProviderWork(session.State)
@@ -1438,10 +1473,9 @@ public sealed partial class GlassRepairEstimateGateway(
     /// session and a token that does not fingerprint to the recorded digest are
     /// one refusal, so a caller learns nothing by trying either.
     /// </summary>
-    private async Task<GlassRepairEstimateSessionMaterial> RequireCorrelatedAsync(
-        GlassRepairEstimateCallback callback, CancellationToken cancellationToken)
+    private static GlassRepairEstimateSessionMaterial RequireCorrelated(
+        GlassRepairEstimateCallback callback, GlassRepairEstimateSessionMaterial? material)
     {
-        var material = await store.GetAsync(callback.SessionId, cancellationToken);
         if (material is null
             || string.IsNullOrWhiteSpace(callback.Correlation)
             || !CryptographicOperations.FixedTimeEquals(

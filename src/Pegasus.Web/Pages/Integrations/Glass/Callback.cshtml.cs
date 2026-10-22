@@ -94,11 +94,13 @@ public sealed class CallbackModel(
             return Forbid();
         }
 
-        var session = await glassSessions.FindByCallbackAsync(correlation, cancellationToken);
-        if (session is null)
+        // The session is read once; the gateway is handed what was read.
+        var read = await glassSessions.FindByCallbackAsync(correlation, cancellationToken);
+        if (read is null)
         {
             return NotFound();
         }
+        var session = read.Session;
         if (!Guid.TryParse(actor.SubjectId, out var staffId) || staffId != session.PegasusUserId)
         {
             // Another staff member's session, refused before its one-use token is
@@ -117,6 +119,7 @@ public sealed class CallbackModel(
             var step = await glassEstimates.AcceptCallbackAsync(
                 new GlassRepairEstimateCallback(
                     actor, session.Id, session.Version, correlation, Request.QueryString.Value ?? string.Empty),
+                read,
                 cancellationToken);
             if (step.Continuation != GlassRepairEstimateContinuation.None)
             {

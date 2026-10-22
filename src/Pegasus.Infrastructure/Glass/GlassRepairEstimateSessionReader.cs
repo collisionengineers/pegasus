@@ -17,12 +17,14 @@ namespace Pegasus.Infrastructure.Glass;
 /// read model in Core would be a second owner of the same row.
 /// </para>
 /// <para>
-/// No read carries provider material: the answer is the same
-/// <see cref="GlassRepairEstimateSession"/> the store already projects, so the
-/// protected state, the cookie jar and the callback fingerprint stay where they
-/// are written. A caller that means to act on a session still goes through
-/// <see cref="GlassRepairEstimateGateway"/>, which re-proves the correlation
-/// itself.
+/// A read answers the same <see cref="GlassRepairEstimateSession"/> the store
+/// already projects, except the two a caller acts on straight away
+/// (<see cref="FindByCallbackAsync"/> and <see cref="GetOwnMaterialAsync"/>),
+/// which answer the session's whole <see cref="GlassRepairEstimateSessionMaterial"/>
+/// so the gateway is handed what was read instead of reading it again. The
+/// material opens to nobody but the gateway: its protected state, cookie jar
+/// and callback fingerprint stay sealed, and the gateway re-proves the
+/// correlation itself.
 /// </para>
 /// </remarks>
 public interface IGlassRepairEstimateSessionReader
@@ -40,7 +42,7 @@ public interface IGlassRepairEstimateSessionReader
     /// launch recorded rather than by the token itself — the token is never
     /// stored. Null when nothing was launched under it.
     /// </summary>
-    Task<GlassRepairEstimateSession?> FindByCallbackAsync(
+    Task<GlassRepairEstimateSessionMaterial?> FindByCallbackAsync(
         string correlation, CancellationToken cancellationToken);
 
     /// <summary>
@@ -58,6 +60,13 @@ public interface IGlassRepairEstimateSessionReader
     /// that watches a session cannot tell it from one that does not exist.
     /// </summary>
     Task<GlassRepairEstimateSession?> GetOwnAsync(
+        Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <see cref="GetOwnAsync"/>'s session with its material, for the Glass's
+    /// window's Go, which hands it on to the gateway; null under the same rule.
+    /// </summary>
+    Task<GlassRepairEstimateSessionMaterial?> GetOwnMaterialAsync(
         Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken);
 
     /// <summary>
