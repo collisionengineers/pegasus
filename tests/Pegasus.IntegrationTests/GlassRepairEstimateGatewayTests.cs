@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Glass;
@@ -1356,6 +1357,7 @@ public sealed class GlassRepairEstimateGatewayTests
             },
             harness.Custody.Retained.Select(item => item.OccurrenceIdentity));
         Assert.Equal(RetainedMediaTypes, harness.Custody.Retained.Select(item => item.MediaType));
+        Assert.All(harness.Custody.Retained, item => Assert.Equal(DocumentSemanticRole.Estimate, item.SemanticRole));
 
         var import = Assert.Single(harness.Import.Requests);
         Assert.Equal(harness.CaseId, import.CaseId);
@@ -1754,6 +1756,7 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateGateway.RejectedXmlOccurrenceIdentity(session.Id), kept.OccurrenceIdentity);
         Assert.EndsWith("-rejected.xml", kept.FileName, StringComparison.Ordinal);
         Assert.Equal("application/xml", kept.MediaType);
+        Assert.Equal(DocumentSemanticRole.Estimate, kept.SemanticRole);
         Assert.Equal(Encoding.UTF8.GetBytes(rejected), kept.Content);
         Assert.Contains("\"rejectedXml\":{", harness.Store.ResultsOf(session.Id)!, StringComparison.Ordinal);
         var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Failed", StringComparison.Ordinal));
@@ -3421,7 +3424,8 @@ public sealed class GlassRepairEstimateGatewayTests
                 request.MediaType,
                 request.Sha256,
                 request.ContentLength,
-                buffer.ToArray()));
+                buffer.ToArray(),
+                request.SemanticRole));
 
             var kind = request.OccurrenceIdentity[(request.OccurrenceIdentity.LastIndexOf(':') + 1)..];
             var identity = identities.TryGetValue(kind, out var existing)
@@ -3476,7 +3480,8 @@ public sealed class GlassRepairEstimateGatewayTests
             string MediaType,
             string Sha256,
             long ContentLength,
-            byte[] Content);
+            byte[] Content,
+            DocumentSemanticRole SemanticRole);
     }
 
     private sealed class ImportDouble : IImportRawEstimate

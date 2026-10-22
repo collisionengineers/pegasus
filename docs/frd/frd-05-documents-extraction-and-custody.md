@@ -385,6 +385,32 @@ Third party tag on the same occurrence, keeping its original moment, actor
 and operation key, then dropped the three flag columns and their index.
 There is no way back from a tag to the flag.
 
+### Document types
+
+A Case document's type is one of Original source, Instruction, Image,
+Correspondence, Engineer report, Audit report, Estimate, Valuation Evidence
+and Other. Estimate and Valuation Evidence are the operator's words (22
+October 2026; R215): "Estimates (retrieved from Glass's) should be tagged as
+estimates. Valuation from Glass's (and cazana, and market research) all go
+under a "Valuation Evidence" type of document".
+
+Estimate is the estimate import's stored file in any format, Audatex
+included, and a Glass's session's XML export, calculation-sheet PDF and
+rejected XML. A file imported from where it already sits in Case Files keeps
+its type, as does an intake file the Worker recognised as an estimate
+(operator, 22 October 2026; R221). Valuation Evidence is a Glass's guide
+valuation report and the findings a Market research job files: Market
+research is part of Valuation Evidence and is no longer a type of its own
+(operator, 22 October 2026; R220). There are no staff-added custom types, and
+`pegasus_document_add` takes every type (operator, 22 October 2026; R222).
+
+The migration that introduced the two types re-tagged the documents already
+filed by their source identity (operator, 22 October 2026; R219): an estimate
+import still Other and a Glass's session file still Original source became
+Estimate; a guide valuation report still Other and every Market research
+document became Valuation Evidence. A document staff marked as the original
+report kept Audit report. The re-tag is forward-only.
+
 ## States and transitions
 
 | Thing | States | Notes |

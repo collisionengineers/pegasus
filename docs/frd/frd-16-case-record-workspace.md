@@ -731,8 +731,11 @@ confirmed**, **Box audit folder: preparing** while it is being created, or
 
 **Documents** lists every live file as a row: filename, role, size, origin,
 recorded time and custody-state chip, with Preview, Save as and, while
-editing, delete. A market research findings file carries the Market research
-role ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
+editing, delete. A market research findings file carries the Valuation
+Evidence role ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)),
+and Valuation Evidence the Automation Actor filed wears the AI tint
+([FRD-05](frd-05-documents-extraction-and-custody.md#document-types);
+operator, 22 October 2026).
 When an Audit lists **Original report missing**, each
 non-image row also offers **Mark as original report** while editing: the
 route for a report Pegasus did not recognise when it was filed. That action

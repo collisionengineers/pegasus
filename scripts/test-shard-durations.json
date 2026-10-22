@@ -104,6 +104,7 @@
   "Pegasus.IntegrationTests.DocumentExtraction.MsgReaderTests": 0.08,
   "Pegasus.IntegrationTests.DocumentExtraction.RtfCompressionTests": 0.01,
   "Pegasus.IntegrationTests.DocumentExtraction.WordBinaryExtractorTests": 0.1,
+  "Pegasus.IntegrationTests.DocumentTypeRetagMigrationTests": 20.0,
   "Pegasus.IntegrationTests.DropAiJobMarketResearchIndexesMigrationTests": 20.57,
   "Pegasus.IntegrationTests.DueChaserSweepPersistenceTests": 34.07,
   "Pegasus.IntegrationTests.EmailTemplateAdministrationWebTests": 92.55,

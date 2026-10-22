@@ -35,7 +35,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             command.FileName,
             command.MediaType,
             command.Content,
-            DocumentSemanticRole.MarketResearch,
+            DocumentSemanticRole.ValuationEvidence,
             DocumentSource.Automation,
             $"ai-market-research:{command.JobId:D}",
             command.Actor,

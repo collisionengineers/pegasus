@@ -777,7 +777,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal("Glass's valuation AB12CDE 2031-04.pdf", version.FileName);
         Assert.Equal("application/pdf", version.MediaType);
         var occurrence = Assert.Single(await context.Set<DocumentOccurrenceEntity>().ToArrayAsync());
-        Assert.Equal(DocumentSemanticRole.Other, occurrence.SemanticRole);
+        Assert.Equal(DocumentSemanticRole.ValuationEvidence, occurrence.SemanticRole);
         Assert.Equal("guide-valuation-report:Glasses:glass-stock:33636950", occurrence.OperationKey);
         var workflow = await context.CaseWorkflows.SingleAsync();
         Assert.Equal(0, workflow.Version);

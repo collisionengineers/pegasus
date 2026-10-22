@@ -182,8 +182,11 @@ Each valuation also saves the vehicle to the account's Glass's stock list, as
 the portal does, and once the figures have answered, files that stocked
 vehicle's "Vehicle Valuation Report – Glass's Values Only" PDF on the Case's
 Documents as `Glass's valuation {registration} {yyyy-MM}.pdf` (operator, 1
-October 2026), only when the report's own text names the Case registration
-(operator, 5 October 2026). Whatever else stops a Glass's valuation, the card shows its notice.
+October 2026), a Valuation Evidence document
+([FRD-05](frd-05-documents-extraction-and-custody.md#document-types);
+operator, 22 October 2026), only when the report's own text names the Case
+registration (operator, 5 October 2026).
+Whatever else stops a Glass's valuation, the card shows its notice.
 Cazana's Get valuation values the Case's accepted registration at its accepted
 mileage and fills the card with Cazana's retail and trade (operator, 9 October
 2026). Cazana values on a day: a card in the current month is valued today,
@@ -355,9 +358,11 @@ when those inputs are incomplete, never a made-up zero.
 Choosing **Market Research** on the Valuation screen creates a ledger job.
 External Claude Cowork, using the Pegasus connector and its own research
 tools, does the research and produces files. The connector files the findings
-document, with the Market research document type, and the AI market research
-card, and the job becomes Completed. Market research is a document type, not
-an image tag (operator, 7 October 2026).
+document, with the Valuation Evidence document type, and the AI market
+research card, and the job becomes Completed. Market research is part of
+Valuation Evidence, a document type, not an image tag (operator, 7 and 22
+October 2026;
+[FRD-05](frd-05-documents-extraction-and-custody.md#document-types)).
 The tools and the research run outside this repository. Research evidence and
 any source-labelled valuation proposal never become the Engineer's Value on
 their own.

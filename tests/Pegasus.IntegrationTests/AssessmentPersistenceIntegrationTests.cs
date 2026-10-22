@@ -1966,8 +1966,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         var findings = await context.Set<DocumentOccurrenceEntity>().AsNoTracking().SingleAsync(item => item.CaseId == caseId);
-        // Market research is a document type, not an image tag.
-        Assert.Equal(DocumentSemanticRole.MarketResearch, findings.SemanticRole);
+        // Market research findings are Valuation Evidence, a document type, not an image tag.
+        Assert.Equal(DocumentSemanticRole.ValuationEvidence, findings.SemanticRole);
         Assert.False(await context.Set<DocumentOccurrenceTagEntity>().AnyAsync(item => item.OccurrenceId == findings.Id));
         var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
         Assert.Equal(engineerLease.Version, workflow.Version);

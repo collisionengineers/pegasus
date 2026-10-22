@@ -76,7 +76,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var document = Assert.Single(store.AddedDocuments);
         Assert.Equal("estimate.pdf", document.FileName);
         Assert.Equal("application/pdf", document.MediaType);
-        Assert.Equal(DocumentSemanticRole.Other, document.SemanticRole);
+        Assert.Equal(DocumentSemanticRole.Estimate, document.SemanticRole);
         Assert.Equal(DocumentSource.StaffUpload, document.Source);
         Assert.Equal($"estimate-import:{operationKey}", document.SourceOccurrenceIdentity);
         Assert.Equal(fixture, document.Content.ToArray());

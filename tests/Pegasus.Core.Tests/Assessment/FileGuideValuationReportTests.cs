@@ -34,7 +34,7 @@ public sealed class FileGuideValuationReportTests
         Assert.Null(retained.IntakeReceiptId);
         Assert.Equal("Glass's valuation KY12CAB 2026-10.pdf", retained.FileName);
         Assert.Equal("application/pdf", retained.MediaType);
-        Assert.Equal(DocumentSemanticRole.Other, retained.SemanticRole);
+        Assert.Equal(DocumentSemanticRole.ValuationEvidence, retained.SemanticRole);
         Assert.Equal(DocumentSource.Generated, retained.Source);
         Assert.Null(retained.ExpectedCaseVersion);
         Assert.Equal("guide-valuation-report:Glasses:glass-stock:33636950", retained.OperationKey);

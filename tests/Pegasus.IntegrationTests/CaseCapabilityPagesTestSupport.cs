@@ -418,7 +418,8 @@ internal static partial class CaseWebTestSupport
         string mediaType,
         DocumentSemanticRole role = DocumentSemanticRole.Instruction,
         IReadOnlyList<ImageTagAssignment>? tags = null,
-        DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed)
+        DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed,
+        DocumentSource source = DocumentSource.Intake)
     {
         var documentId = Guid.NewGuid();
         var recordedAtUtc = new DateTimeOffset(2031, 5, 5, 9, 0, 0, TimeSpan.Zero);
@@ -432,7 +433,7 @@ internal static partial class CaseWebTestSupport
                     documentId,
                     versionId,
                     role,
-                    DocumentSource.Intake,
+                    source,
                     "source-1",
                     recordedAtUtc,
                     tags ?? [])
