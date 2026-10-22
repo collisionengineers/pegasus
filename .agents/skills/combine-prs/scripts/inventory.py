@@ -109,6 +109,21 @@ def fetched_oids() -> dict[str, str]:
     return {("refs/heads/" if m["branch"] else "") + m["ref"]: m["oid"] for m in matches}
 
 
+def containment(prs: list[dict]) -> list[str]:
+    """One line for each pull request whose head contains the different head of another.
+
+    One `git merge-base --independent` over the distinct heads names the ones no other head contains;
+    only the rest can be contained, so only they are put to `--is-ancestor`, against the other heads.
+    """
+    heads = list(dict.fromkeys(pr["headRefOid"] for pr in prs))
+    independent = set(run(["git", "merge-base", "--independent", *heads]).split())
+    inside = {a: {b for b in heads if b != a
+                  and subprocess.run(["git", "merge-base", "--is-ancestor", a, b]).returncode == 0}
+              for a in heads if a not in independent}
+    return [f"#{b['number']} already contains #{a['number']}'s head" for a in prs for b in prs
+            if b["headRefOid"] in inside.get(a["headRefOid"], ())]
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -193,11 +208,7 @@ def main() -> int:
     for pr in prs:
         place(pr)
 
-    contains = []
-    for a, b in itertools.permutations(prs, 2):
-        if a["headRefOid"] != b["headRefOid"] and subprocess.run(
-                ["git", "merge-base", "--is-ancestor", a["headRefOid"], b["headRefOid"]]).returncode == 0:
-            contains.append(f"#{b['number']} already contains #{a['number']}'s head")
+    contains = containment(prs)
 
     out = []
     out.append(f"# PR inventory for `{opts.target}`\n")

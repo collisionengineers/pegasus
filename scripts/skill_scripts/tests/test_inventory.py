@@ -2,11 +2,13 @@
 import hashlib
 import json
 import re
+import subprocess
 import types
 import unittest
+from collections import Counter
 from unittest import mock
 
-from skill_scripts_support import IsolatedGitCase, load_script, run_main
+from skill_scripts_support import IsolatedGitCase, Repository, load_script, run_main, working_directory
 
 inventory = load_script("combine-prs", "inventory")
 
@@ -117,6 +119,10 @@ class World:
             return ""
         if args == ["git", "rev-parse", "--git-path", "FETCH_HEAD"]:
             return f"{self.fetch_head}\n"
+        if args[:3] == ["git", "merge-base", "--independent"]:
+            heads = args[3:]
+            return "".join(f"{head}\n" for head in heads
+                           if not any((head, other) in self.contained for other in heads))
         if args[:2] == ["git", "merge-base"]:
             return sha(f"merge-base {args[3]}") + "\n"
         if args[:3] == ["git", "rev-list", "--left-right"]:
@@ -137,6 +143,7 @@ class World:
         raise AssertionError(f"unexpected gh {args}")
 
     def is_ancestor(self, args):
+        self.commands.append(list(args))
         return types.SimpleNamespace(returncode=0 if (args[-2], args[-1]) in self.contained else 1)
 
 
@@ -325,6 +332,85 @@ class InventoryNetworkCalls(InventoryCase):
         pr = inventory.flatten(node)
         self.assertEqual([], pr["statusCheckRollup"])
         self.assertEqual(("none", []), inventory.summarize_checks(pr["statusCheckRollup"]))
+
+
+class InventoryAncestryCalls(InventoryCase):
+    @staticmethod
+    def ancestry(world):
+        return Counter(call[2] for call in world.commands if call[:2] == ["git", "merge-base"] and len(call) > 3
+                       and call[2] in ("--independent", "--is-ancestor"))
+
+    def test_one_independent_call_over_the_heads_and_is_ancestor_only_for_the_head_it_leaves_out(self):
+        # 1016 is contained in 1018, so it is the one head --independent does not return: it is asked
+        # about the two other heads, 2 calls where every ordered pair cost 6.
+        world = World(self.tmp)
+        code, out, _ = self.inventory(world)
+        self.assertEqual(0, code)
+        self.assertEqual({"--independent": 1, "--is-ancestor": 2}, dict(self.ancestry(world)))
+        independent = next(call for call in world.commands if call[:3] == ["git", "merge-base", "--independent"])
+        self.assertEqual([world.head(1018), world.head(1016), world.head(1019)], independent[3:])
+        asked = [call[3:] for call in world.commands if call[:3] == ["git", "merge-base", "--is-ancestor"]]
+        self.assertEqual([[world.head(1016), world.head(1018)], [world.head(1016), world.head(1019)]], asked)
+        self.assertIn("- #1018 already contains #1016's head\n", out)
+
+    def test_no_is_ancestor_call_when_every_head_is_returned(self):
+        world = World(self.tmp)
+        world.contained.clear()
+        code, out, _ = self.inventory(world)
+        self.assertEqual(0, code)
+        self.assertEqual({"--independent": 1}, dict(self.ancestry(world)))
+        self.assertEqual("- #1018 is stacked on #1016 (base `task/widget`)\n",
+                         out.split("## Stacks and ancestry\n\n", 1)[1].split("\n## Review", 1)[0])
+
+
+class ContainmentOnARepository(IsolatedGitCase):
+    """containment() with real git on a temporary repository: the lines, and the calls that find them."""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = Repository(self.tmp / "repo")
+        self.repo.commit("base", {"base.txt": "base\n"})
+        # A stack 1 <- 2 <- 3, then 4 and 5 each on its own branch from the base.
+        self.heads = {}
+        for number, start in ((1, "main"), (2, "pr1"), (3, "pr2"), (4, "main"), (5, "main")):
+            self.repo.branch(f"pr{number}", start)
+            self.heads[number] = self.repo.commit(f"pr{number}", {f"{number}.txt": f"{number}\n"})
+
+    def containment(self, *numbers):
+        prs = [{"number": number, "headRefOid": self.heads[number]} for number in numbers]
+        real, calls = subprocess.run, []
+
+        def counting(args, *rest, **options):
+            calls.append(args[2])
+            return real(args, *rest, **options)
+
+        with working_directory(self.repo.root), mock.patch.object(inventory.subprocess, "run", counting):
+            lines = inventory.containment(prs)
+        return lines, dict(Counter(calls))
+
+    def test_the_lines_follow_the_order_of_the_pull_requests_and_the_two_contained_heads_are_asked_about_the_rest(self):
+        lines, calls = self.containment(3, 1, 2, 4, 5)
+        self.assertEqual(["#3 already contains #1's head", "#2 already contains #1's head",
+                          "#3 already contains #2's head"], lines)
+        # Heads 3, 4 and 5 are returned; 1 and 2 are asked about the four other heads: 8 calls, where
+        # every ordered pair of five pull requests cost 20.
+        self.assertEqual({"--independent": 1, "--is-ancestor": 8}, calls)
+
+    def test_no_is_ancestor_call_when_the_independent_call_returns_every_head(self):
+        lines, calls = self.containment(4, 5, 3)
+        self.assertEqual([], lines)
+        self.assertEqual({"--independent": 1}, calls)
+
+    def test_one_pull_request_is_one_independent_call(self):
+        lines, calls = self.containment(2)
+        self.assertEqual([], lines)
+        self.assertEqual({"--independent": 1}, calls)
+
+    def test_two_pull_requests_on_one_head_are_one_head_and_neither_contains_the_other(self):
+        self.heads[11] = self.heads[1]
+        lines, calls = self.containment(1, 11, 2)
+        self.assertEqual(["#2 already contains #1's head", "#2 already contains #11's head"], lines)
+        self.assertEqual({"--independent": 1, "--is-ancestor": 1}, calls)
 
 
 class FetchedOids(InventoryCase):
