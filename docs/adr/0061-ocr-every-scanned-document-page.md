@@ -16,8 +16,15 @@ A PDF page with fewer than 80 embedded text characters and one raster covering
 at least 80 percent of the visible page is a full-page raster. The reader
 decodes that raster at a reduced size and measures its near-white share. At or
 above the calibrated threshold the page is a scanned document page; below it,
-a photograph that fills the page. A raster that does not decode is a document
-page.
+a photograph that fills the page.
+<!-- Proposed for the operator's approval (R209): the next two sentences
+restate R194 and replace "A raster that does not decode is a document
+page." -->
+When the raster's stream is not JPEG or PNG, that full page is rendered to a
+raster image, measured the same way, and treated as the photograph when it is
+one ([ADR-0081](0081-render-a-refused-full-page-raster-with-pdfium.md);
+operator ruling R194, 22 October 2026). A raster that neither decodes nor
+renders is a document page.
 
 A scanned document page produces no image asset. Its raster is the page, so it
 stays inside the retained PDF and never reaches a gallery, Box, plate

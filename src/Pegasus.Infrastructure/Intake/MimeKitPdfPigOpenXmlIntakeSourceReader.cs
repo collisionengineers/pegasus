@@ -1,9 +1,12 @@
+using System.Buffers.Binary;
 using System.Net;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Reports;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -28,7 +31,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 {
     private const string ReaderKey = "mimekit_pdfpig_openxml";
     private const string ReaderVersion =
-        "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1;collisiondocnet-doc-msg-0.1;" + ScanPageClassifier.Version;
+        "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1;collisiondocnet-doc-msg-0.1;" + ScanPageClassifier.Version
+        + ";" + PdfPageRasteriser.Version;
     private const int MinimumReadablePdfCharacters = 80;
     private const double ScannedPageImageCoverage = 0.8;
     private const int MaximumPdfTextCharacters = 5 * 1024 * 1024;
@@ -363,7 +367,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             // reads it — while a photograph page is an ordinary image page.
             PdfImageRead? dominantRead = null;
             ScanPageClassification? fullPageRaster = hasInsufficientText && hasDominantRaster
-                ? ClassifyFullPageRaster(page, images, sourceLabel, result, out dominantRead)
+                ? ClassifyFullPageRaster(bytes, page, images, sourceLabel, result, out dominantRead)
                 : null;
             var isDocumentPage = fullPageRaster?.Kind == ScanPageKind.Document;
             IPdfImage[] pageImages = isDocumentPage ? [] : images;
@@ -391,11 +395,12 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 ReadOnlyMemory<byte> imageBytes = default;
                 var mediaType = string.Empty;
                 var extension = string.Empty;
+                var (width, height) = (image.WidthInSamples, image.HeightInSamples);
                 if (dominantRead is { } carried && ReferenceEquals(carried.Image, image))
                 {
-                    // The classification already extracted this raster.
-                    (extracted, imageBytes, mediaType, extension) =
-                        (true, carried.Bytes, carried.MediaType, carried.Extension);
+                    // The classification already extracted this raster, or drew its page.
+                    (extracted, imageBytes, mediaType, extension, width, height) =
+                        (true, carried.Bytes, carried.MediaType, carried.Extension, carried.Width, carried.Height);
                 }
                 else
                 {
@@ -436,8 +441,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                         image.BoundingBox.Bottom,
                         image.BoundingBox.Right,
                         image.BoundingBox.Top),
-                    image.WidthInSamples,
-                    image.HeightInSamples));
+                    width,
+                    height));
             }
 
             pages.Add(new(
@@ -463,11 +468,14 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
     /// <summary>
     /// Reads the dominant raster of a full-page-raster page and says what the
-    /// page is. A raster that cannot be read is a document page: it goes to
-    /// OCR and never to a gallery. The verdict and its measurement are issues
-    /// on the receipt, so a wrong call is visible rather than silent.
+    /// page is. A raster the reader cannot hand over is drawn as its page
+    /// instead (R194). A raster that can be neither read nor drawn is a
+    /// document page: it goes to OCR and never to a gallery. The verdict and
+    /// its measurement are issues on the receipt, so a wrong call is visible
+    /// rather than silent.
     /// </summary>
     private static ScanPageClassification ClassifyFullPageRaster(
+        ReadOnlyMemory<byte> pdf,
         Page page,
         IReadOnlyList<IPdfImage> images,
         string sourceLabel,
@@ -482,8 +490,18 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         {
             if (TryReadPdfImage(dominant, out var bytes, out var dominantMediaType, out var dominantExtension))
             {
-                dominantRead = new(dominant, bytes, dominantMediaType, dominantExtension);
+                dominantRead = new(
+                    dominant,
+                    bytes,
+                    dominantMediaType,
+                    dominantExtension,
+                    dominant.WidthInSamples,
+                    dominant.HeightInSamples);
                 classification = ScanPageClassifier.Classify(bytes.Span);
+            }
+            else if (CanRenderPageOf(dominant))
+            {
+                classification = ClassifyRenderedPage(pdf, page.Number - 1, visible, dominant, out dominantRead);
             }
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
@@ -506,6 +524,124 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         return classification;
     }
 
+    /// <summary>
+    /// R194 and R209: the page around a raster the reader cannot hand over is
+    /// drawn small and classified first, so a scanned page costs one small
+    /// drawing; only a photograph is drawn again at the raster's own size and
+    /// kept as a JPEG at the report-photo quality. A page that draws nothing
+    /// stays an unmeasured document page.
+    /// </summary>
+    private static ScanPageClassification ClassifyRenderedPage(
+        ReadOnlyMemory<byte> pdf,
+        int pageIndex,
+        PdfRectangle visible,
+        IPdfImage dominant,
+        out PdfImageRead? rendered)
+    {
+        rendered = null;
+        var undecodable = new ScanPageClassification(ScanPageKind.Document, null);
+        var sampleScale = ScanPageClassifier.SampleLongestSide / Math.Max(visible.Width, visible.Height);
+        var sample = PdfPageRasteriser.RenderSample(
+            pdf,
+            pageIndex,
+            Math.Max(1, (int)Math.Round(visible.Width * sampleScale)),
+            Math.Max(1, (int)Math.Round(visible.Height * sampleScale)));
+        if (sample is null)
+        {
+            return undecodable;
+        }
+
+        var verdict = ScanPageClassifier.Classify(sample);
+        if (verdict.Kind == ScanPageKind.Document)
+        {
+            return verdict;
+        }
+
+        var (width, height) = RenderedSize(visible, dominant);
+        var jpeg = PdfPageRasteriser.RenderJpeg(pdf, pageIndex, width, height, ReportPhotoPreparation.PhotoJpegQuality);
+        if (jpeg is null)
+        {
+            return undecodable;
+        }
+
+        rendered = new(dominant, jpeg, "image/jpeg", ".jpg", width, height);
+        return verdict;
+    }
+
+    /// <summary>
+    /// The size a photograph page is drawn at: the raster's own samples across
+    /// the visible page, so a raster that fills the page comes out at its
+    /// declared size, turned with the page and scaled down to stay inside the
+    /// thumbnail renderer's decode bound.
+    /// </summary>
+    private static (int Width, int Height) RenderedSize(PdfRectangle visible, IPdfImage dominant)
+    {
+        var bounds = dominant.BoundingBox.Normalise();
+        var turned = bounds.Width >= bounds.Height != dominant.WidthInSamples >= dominant.HeightInSamples;
+        var (across, down) = turned
+            ? (dominant.HeightInSamples, dominant.WidthInSamples)
+            : (dominant.WidthInSamples, dominant.HeightInSamples);
+        var width = visible.Width * across / bounds.Width;
+        var height = visible.Height * down / bounds.Height;
+        var scale = Math.Min(1, Math.Sqrt(ImageThumbnailRendering.MaximumDecodedPixels / (width * height)));
+        return (Math.Max(1, (int)(width * scale)), Math.Max(1, (int)(height * scale)));
+    }
+
+    /// <summary>
+    /// Whether PDFium may draw the page around this raster: within the same
+    /// declared-pixel bound as the reader's own decode. PDFium decodes a
+    /// JPEG 2000 stream at the size and colour count its own header declares,
+    /// whatever the image dictionary says, so that header must declare the
+    /// dictionary's width, height and colour components.
+    /// </summary>
+    private static bool CanRenderPageOf(IPdfImage image)
+    {
+        if ((long)image.WidthInSamples * image.HeightInSamples > MaximumPdfImageSamplePixels)
+        {
+            return false;
+        }
+
+        var filters = DefaultFilterProvider.Instance.GetFilters(image.ImageDictionary);
+        if (!filters.Any(filter => filter is JpxDecodeFilter))
+        {
+            return true;
+        }
+
+        return filters is [JpxDecodeFilter]
+            && image.ColorSpaceDetails is { } colourSpace
+            && JpxDeclaredSize(image.RawMemory.Span) is { } declared
+            && declared == (image.WidthInSamples, image.HeightInSamples, colourSpace.NumberOfColorComponents);
+    }
+
+    /// <summary>
+    /// The width, height and component count in a JPEG 2000 stream's SIZ
+    /// marker, read from a bare codestream or from a JP2 file's codestream
+    /// box; null when there is none.
+    /// </summary>
+    private static (long Width, long Height, int Components)? JpxDeclaredSize(ReadOnlySpan<byte> stream)
+    {
+        var codestream = stream;
+        while (!codestream.StartsWith((ReadOnlySpan<byte>)[0xff, 0x4f]) && codestream.Length >= 8)
+        {
+            // A JP2 box: its length (0 runs to the end), its type, its payload.
+            long length = BinaryPrimitives.ReadUInt32BigEndian(codestream);
+            var end = length == 0 ? codestream.Length : (int)Math.Clamp(length, 8, codestream.Length);
+            codestream = codestream[4..8].SequenceEqual("jp2c"u8) ? codestream[8..end] : codestream[end..];
+        }
+
+        // SOC, then SIZ: Lsiz, Rsiz, Xsiz, Ysiz, XOsiz, YOsiz, the tile grid, Csiz.
+        if (codestream.Length < 42 || !codestream.StartsWith((ReadOnlySpan<byte>)[0xff, 0x4f, 0xff, 0x51]))
+        {
+            return null;
+        }
+
+        var siz = codestream[4..];
+        return (
+            (long)BinaryPrimitives.ReadUInt32BigEndian(siz[4..]) - BinaryPrimitives.ReadUInt32BigEndian(siz[12..]),
+            (long)BinaryPrimitives.ReadUInt32BigEndian(siz[8..]) - BinaryPrimitives.ReadUInt32BigEndian(siz[16..]),
+            BinaryPrimitives.ReadUInt16BigEndian(siz[36..]));
+    }
+
     internal static double Coverage(PdfRectangle imageBounds, PdfRectangle visiblePage)
     {
         var pageArea = visiblePage.Area;
@@ -521,12 +657,14 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         return (intersection?.Area ?? 0) / pageArea;
     }
 
-    /// <summary>A PDF image already extracted, with the media type and extension it was kept as.</summary>
+    /// <summary>A PDF image already extracted or drawn, with the media type, extension and size it was kept as.</summary>
     private readonly record struct PdfImageRead(
         IPdfImage Image,
         ReadOnlyMemory<byte> Bytes,
         string MediaType,
-        string Extension);
+        string Extension,
+        int Width,
+        int Height);
 
     private static bool TryReadPdfImage(
         IPdfImage image,

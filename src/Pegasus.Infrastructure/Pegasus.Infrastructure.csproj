@@ -25,9 +25,11 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.6.0" />
     <PackageReference Include="PdfPig" Version="0.1.15" />
+    <!-- PDFtoImage 5.2.1 over PDFium 147.0.7690 needs SkiaSharp 3.119.2 or later (ADR-0081). -->
+    <PackageReference Include="PDFtoImage" Version="5.2.1" />
     <PackageReference Include="QuestPDF" Version="2026.8.0" />
-    <PackageReference Include="SkiaSharp" Version="3.116.1" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.116.1" />
+    <PackageReference Include="SkiaSharp" Version="3.119.2" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.119.2" />
   </ItemGroup>
 
   <ItemGroup>

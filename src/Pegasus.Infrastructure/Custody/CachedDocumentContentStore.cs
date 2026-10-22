@@ -1809,7 +1809,7 @@ internal static class ImageThumbnailRendering
     /// The decoded-pixel bound, matching the recognition engine's: past it the
     /// decode is refused rather than attempted.
     /// </summary>
-    private const long MaximumDecodedPixels = 40_000_000;
+    internal const long MaximumDecodedPixels = 40_000_000;
 
     /// <summary>
     /// The largest source a thumbnail is derived from. A larger file is served
