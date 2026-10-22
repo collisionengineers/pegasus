@@ -27,6 +27,15 @@ internal static class AutomationMcpTestSupport
     public const string AllScopes =
         "automation.cases automation.intake automation.documents automation.assessment automation.mail";
 
+    // One server per scope (ADR-0080), each at its own path.
+    public const string CasesServer = "/mcp/cases";
+    public const string IntakeServer = "/mcp/intake";
+    public const string DocumentsServer = "/mcp/documents";
+    public const string AssessmentServer = "/mcp/assessment";
+    public const string MailServer = "/mcp/mail";
+    public const string JobsServer = "/mcp/jobs";
+    public const string SendServer = "/mcp/send";
+
     public static readonly DateTimeOffset SeedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     public static WebApplicationFactory<Program> WithAutomationMcp(
@@ -64,10 +73,11 @@ internal static class AutomationMcpTestSupport
 
     public static async Task<HttpResponseMessage> PostMcpAsync(
         HttpClient client,
+        string server,
         string? accessToken,
         string payload)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp");
+        using var request = new HttpRequestMessage(HttpMethod.Post, server);
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Accept.ParseAdd("text/event-stream");
@@ -78,6 +88,18 @@ internal static class AutomationMcpTestSupport
 
         return await client.SendAsync(request);
     }
+
+    /// <summary>
+    /// A server refuses a token without one of its scopes in its endpoint
+    /// policy, with 403 before any tool runs (ADR-0080 decision 4): the
+    /// transport denial is recorded, and no refusal names the missing scope.
+    /// </summary>
+    public static Task<int> CountServerRefusalsAsync(IntakeWebApplicationFactory factory) =>
+        factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_access_denied' AND Outcome = N'Denied'
+            """);
 
     public static async Task<JsonDocument> ReadJsonRpcAsync(HttpResponseMessage response)
     {
@@ -185,6 +207,7 @@ internal static class AutomationMcpTestSupport
     {
         using var response = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 rpcId,

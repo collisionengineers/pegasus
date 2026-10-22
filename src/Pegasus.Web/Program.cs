@@ -397,7 +397,7 @@ builder.Services.AddRateLimiter(options =>
             "/Account/SignIn",
             StringComparison.OrdinalIgnoreCase)
             ? "sign_in_rate_limited"
-            : rejectedPath.StartsWithSegments(AutomationMcp.McpEndpointPath)
+            : rejectedPath.StartsWithSegments(AutomationMcp.McpPathPrefix)
                 || rejectedPath.Equals(
                     AutomationMcp.TokenEndpointPath,
                     StringComparison.OrdinalIgnoreCase)
@@ -1116,7 +1116,7 @@ if (automationMcpOptions is not null)
             AutomationMcp.TokenEndpointPath,
             StringComparison.OrdinalIgnoreCase);
         var isMcpEndpoint = automationPath.StartsWithSegments(
-            AutomationMcp.McpEndpointPath);
+            AutomationMcp.McpPathPrefix);
         var isAuthorizationEndpoint = automationPath.Equals(
             AutomationMcp.AuthorizationEndpointPath,
             StringComparison.OrdinalIgnoreCase);
@@ -1280,7 +1280,7 @@ app.Run();
 static bool IsMachineSurface(PathString path) =>
     path.StartsWithSegments("/health")
     || path.StartsWithSegments("/diagnostics")
-    || path.StartsWithSegments(AutomationMcp.McpEndpointPath)
+    || path.StartsWithSegments(AutomationMcp.McpPathPrefix)
     || path.Equals(AutomationMcp.TokenEndpointPath, StringComparison.OrdinalIgnoreCase)
     || path.StartsWithSegments(PrincipalApi.BasePath);
 
