@@ -35,9 +35,25 @@ internal static class CazanaJson
     public static JsonElement.ArrayEnumerator Items(JsonElement? element, params ReadOnlySpan<string> path) =>
         Get(element, path) is { ValueKind: JsonValueKind.Array } items ? items.EnumerateArray() : default;
 
-    /// <summary>How many items the array at the path holds; none when the path meets no array.</summary>
-    public static int Length(JsonElement? element, params ReadOnlySpan<string> path) =>
-        Get(element, path) is { ValueKind: JsonValueKind.Array } items ? items.GetArrayLength() : 0;
+    /// <summary>
+    /// The array at the path as above, with the number of items it will yield,
+    /// both read from the one walk down the path, so a list can be sized for
+    /// them without walking the path twice.
+    /// </summary>
+    public static JsonElement.ArrayEnumerator Items(
+        JsonElement? element,
+        out int length,
+        params ReadOnlySpan<string> path)
+    {
+        if (Get(element, path) is { ValueKind: JsonValueKind.Array } items)
+        {
+            length = items.GetArrayLength();
+            return items.EnumerateArray();
+        }
+
+        length = 0;
+        return default;
+    }
 
     /// <summary>The first item of the array at the path, or none.</summary>
     public static JsonElement? First(JsonElement? element, params ReadOnlySpan<string> path)

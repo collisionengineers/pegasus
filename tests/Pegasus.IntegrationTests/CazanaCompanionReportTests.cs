@@ -556,7 +556,7 @@ public sealed class CazanaCompanionReportTests
         }));
         var report = new CazanaCompanionReport(
             new CazanaCompanionClient(http),
-            Jwt,
+            "Bearer " + Jwt,
             Uuid,
             response,
             new CazanaGuideValuationProviderTests.FixedClock(Now));

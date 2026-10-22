@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Globalization;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -35,6 +34,11 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     /// <summary>The Companion portal's own client identifier for guest requests.</summary>
     private const string Czn = "5ab3cc97a8d11a00017332a7a609b760ad0147e0a12295c85fabe703";
 
+    /// <summary>
+    /// The guest sign-in. It answers the session's Authorization header value,
+    /// "Bearer" and the branch JWT, built once here: each later call adds that
+    /// text as it stands, with no header object or text built per call.
+    /// </summary>
     public async Task<string> SignInAsync(string email, string password, CancellationToken cancellationToken)
     {
         string token;
@@ -50,12 +54,12 @@ internal sealed class CazanaCompanionClient(HttpClient http)
 
         using var confirmed = await ExchangeAsync(
             "confirm", Guest("guest/onboard/confirm", new { token, orgId = branchId }), cancellationToken);
-        return CazanaJson.String(confirmed.RootElement, "jwt")
-            ?? throw new CazanaCompanionFailure("confirm", null, "jwt=absent");
+        return "Bearer " + (CazanaJson.String(confirmed.RootElement, "jwt")
+            ?? throw new CazanaCompanionFailure("confirm", null, "jwt=absent"));
     }
 
     /// <summary>The one metered call: a Companion lookup of the plate on the day at the mileage.</summary>
-    public async Task<string> LookupAsync(string jwt, string vrm, DateOnly date, long miles, CancellationToken cancellationToken)
+    public async Task<string> LookupAsync(string authorization, string vrm, DateOnly date, long miles, CancellationToken cancellationToken)
     {
         var search = new
         {
@@ -68,16 +72,16 @@ internal sealed class CazanaCompanionClient(HttpClient http)
             },
         };
         using var answer = await ExchangeAsync(
-            "lookup", App(HttpMethod.Post, "app/companion", jwt, search), cancellationToken);
+            "lookup", App(HttpMethod.Post, "app/companion", authorization, search), cancellationToken);
         return CazanaJson.String(answer.RootElement, "uuid")
             ?? throw new CazanaCompanionFailure("lookup", null, "uuid=absent");
     }
 
     /// <summary>The lookup's <c>response</c>: valuation, unmasked VIN, specification and any listing.</summary>
-    public async Task<JsonElement> ReadAsync(string jwt, string uuid, CancellationToken cancellationToken)
+    public async Task<JsonElement> ReadAsync(string authorization, string uuid, CancellationToken cancellationToken)
     {
         using var answer = await ExchangeAsync(
-            "read", App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid), jwt), cancellationToken);
+            "read", App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid), authorization), cancellationToken);
         if (CazanaJson.Get(answer.RootElement, "response") is { } response
             && CazanaJson.Get(response, "valuation") is { ValueKind: JsonValueKind.Object })
         {
@@ -94,13 +98,13 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     /// over, not a copy of its <c>response</c>: the caller reads it while it
     /// renders the page and disposes it straight after.
     /// </summary>
-    public async Task<JsonDocument?> TimelineAsync(string jwt, string uuid, CancellationToken cancellationToken)
+    public async Task<JsonDocument?> TimelineAsync(string authorization, string uuid, CancellationToken cancellationToken)
     {
         try
         {
             var answer = await ExchangeAsync(
                 "timeline",
-                App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid) + "/timeline", jwt),
+                App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid) + "/timeline", authorization),
                 cancellationToken);
             if (CazanaJson.Get(answer.RootElement, "response", "vin") is { ValueKind: JsonValueKind.String } vin
                 && !vin.ValueEquals(""u8))
@@ -123,7 +127,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     /// leave the answer. The listing cid is the valuation's, not the
     /// specification's: Cazana answers 500 for the latter.
     /// </summary>
-    public async Task<SimilarListings> SimilarListingsAsync(string jwt, JsonElement response, CancellationToken cancellationToken)
+    public async Task<SimilarListings> SimilarListingsAsync(string authorization, JsonElement response, CancellationToken cancellationToken)
     {
         var valuation = CazanaJson.Get(response, "valuation");
         var request = new
@@ -152,7 +156,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
             limit = 10,
         };
         using var answer = await ExchangeAsync(
-            "listings", App(HttpMethod.Post, "app/listings/similar", jwt, request), cancellationToken);
+            "listings", App(HttpMethod.Post, "app/listings/similar", authorization, request), cancellationToken);
 
         // The total is a count, read as the number it is while the answer is open (no copy of it
         // is kept); the first eight listings are cloned out into a list sized for them.
@@ -178,10 +182,10 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     /// The vehicle's first stock image. Companion shows its placeholder when
     /// this fails for any reason, so no failure here stops the report.
     /// </summary>
-    public async Task<string?> ImageAsync(string jwt, string vrm, CancellationToken cancellationToken)
+    public async Task<string?> ImageAsync(string authorization, string vrm, CancellationToken cancellationToken)
     {
         var message = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUri, "cz/image/2.0?vrm=" + Uri.EscapeDataString(vrm)));
-        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+        message.Headers.TryAddWithoutValidation("Authorization", authorization);
         try
         {
             using var answer = await ExchangeAsync("image", message, cancellationToken);
@@ -207,14 +211,14 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     /// writes as Base64 (no string and no exact-size array of the whole page),
     /// and the PDF is decoded from the answer's own bytes.
     /// </summary>
-    public async Task<byte[]> CreatePdfAsync(string jwt, StringBuilder html, CancellationToken cancellationToken)
+    public async Task<byte[]> CreatePdfAsync(string authorization, StringBuilder html, CancellationToken cancellationToken)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(html.Length));
         try
         {
             var request = new { html = new ReadOnlyMemory<byte>(buffer, 0, Utf8(html, buffer)) };
             using var answer = await ExchangeAsync(
-                "pdf", App(HttpMethod.Post, "app/pdf/create", jwt, request), cancellationToken);
+                "pdf", App(HttpMethod.Post, "app/pdf/create", authorization, request), cancellationToken);
             return CazanaJson.Get(answer.RootElement, "data") is { ValueKind: JsonValueKind.String } data
                 && data.TryGetBytesFromBase64(out var pdf)
                 && pdf.Length > 0
@@ -253,7 +257,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         return message;
     }
 
-    private static HttpRequestMessage App(HttpMethod method, string path, string jwt, object? body = null)
+    private static HttpRequestMessage App(HttpMethod method, string path, string authorization, object? body = null)
     {
         var message = new HttpRequestMessage(method, new Uri(BaseUri, path));
         if (body is not null)
@@ -261,7 +265,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
             message.Content = JsonContent.Create(body);
         }
 
-        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
+        message.Headers.TryAddWithoutValidation("Authorization", authorization);
         message.Headers.TryAddWithoutValidation("X-ENVIRONMENT", Environment);
         message.Headers.TryAddWithoutValidation("X-CLIENT", Client);
         message.Headers.TryAddWithoutValidation("Accept", JsonMediaType);

@@ -18,7 +18,7 @@ namespace Pegasus.Infrastructure.Cazana;
 /// </summary>
 internal sealed class CazanaCompanionReport(
     CazanaCompanionClient client,
-    string jwt,
+    string authorization,
     string uuid,
     JsonElement response,
     TimeProvider timeProvider) : IGuideValuationReport
@@ -32,7 +32,7 @@ internal sealed class CazanaCompanionReport(
     private const string SecondaryColour = "#211527";
     private const string PriceColour = "#581c87";
 
-    /// <summary>Room for the longest ordinal date, "31st September 9999" (19 characters).</summary>
+    /// <summary>Room for the longest ordinal date, "30th September 9999" (19 characters).</summary>
     private const int OrdinalLength = 24;
 
     private const string RangeSeparator = " - ";
@@ -64,9 +64,9 @@ internal sealed class CazanaCompanionReport(
     public async Task<byte[]> FetchPdfAsync(CancellationToken cancellationToken)
     {
         var vrm = CazanaJson.String(response, "valuation", "searchMethod", "identifier");
-        var timeline = client.TimelineAsync(jwt, uuid, cancellationToken);
-        var similar = client.SimilarListingsAsync(jwt, response, cancellationToken);
-        var image = client.ImageAsync(jwt, vrm ?? "", cancellationToken);
+        var timeline = client.TimelineAsync(authorization, uuid, cancellationToken);
+        var similar = client.SimilarListingsAsync(authorization, response, cancellationToken);
+        var image = client.ImageAsync(authorization, vrm ?? "", cancellationToken);
         StringBuilder html;
         try
         {
@@ -83,7 +83,7 @@ internal sealed class CazanaCompanionReport(
             }
         }
 
-        return await client.CreatePdfAsync(jwt, html, cancellationToken);
+        return await client.CreatePdfAsync(authorization, html, cancellationToken);
     }
 
     /// <summary>
@@ -116,13 +116,17 @@ internal sealed class CazanaCompanionReport(
         var specs = CazanaJson.Get(response, "specs");
         var valuedOn = CazanaJson.String(valuation, "date");
 
+        // The London calendar day is worked out once, for the valuation date and any listing.
+        var today = LondonCalendar.DateAt(now);
+
         // The events are read once: each is mapped as it is met, and a Sale is noted on the way.
         List<object?>? carHistory = null;
         var containsSalesEvents = false;
         if (timeline is not null)
         {
-            carHistory = new List<object?>(CazanaJson.Length(timeline, "events"));
-            foreach (var item in CazanaJson.Items(timeline, "events"))
+            var events = CazanaJson.Items(timeline, out var eventCount, "events");
+            carHistory = new List<object?>(eventCount);
+            foreach (var item in events)
             {
                 if (TimelineEvent(item, out var sale) is { } entry)
                 {
@@ -166,7 +170,7 @@ internal sealed class CazanaCompanionReport(
             ["currentColour"] = Capitalise(CazanaJson.String(specs, "currentColour")),
             ["vehicleSeats"] = Scalar(CazanaJson.Get(specs, "seats")),
             ["containsSalesEvents"] = containsSalesEvents,
-            ["isHistoricalValuationDate"] = !IsToday(valuedOn, now),
+            ["isHistoricalValuationDate"] = !IsToday(valuedOn, today),
             ["sortBy"] = "Newest",
             ["listings"] = SimilarListingViews(similar.Listings),
             ["similarListingFilters"] = SimilarListingFilters,
@@ -194,7 +198,7 @@ internal sealed class CazanaCompanionReport(
         {
             view["listing"] = new Dictionary<string, object?>(8, StringComparer.Ordinal)
             {
-                ["listinglastSeen"] = MonthsAgo(CazanaJson.String(listing, "soldDate"), now),
+                ["listinglastSeen"] = MonthsAgo(CazanaJson.String(listing, "soldDate"), today),
                 ["listingOriginalPrice"] = Number(CazanaJson.Get(listing, "listingOriginalPrice")),
                 ["listinglastPrice"] = Number(CazanaJson.Get(listing, "listingPrice")),
                 ["listingDaysonMarket"] = Scalar(CazanaJson.Get(listing, "daysOnSale")),
@@ -284,14 +288,14 @@ internal sealed class CazanaCompanionReport(
     }
 
     /// <summary>
-    /// A MOT's advisory texts. The list is left unsized: an empty one holds no
-    /// array, its first array holds four, and a count would cost a second walk
-    /// down the path for the few texts a test has.
+    /// A MOT's advisory texts, in a list sized for them by the one walk that
+    /// reads them: an empty one allocates no array and a longer one never regrows.
     /// </summary>
     private static List<object?> CommentTexts(JsonElement item)
     {
-        var comments = new List<object?>();
-        foreach (var comment in CazanaJson.Items(item, "rfcAndComments"))
+        var texts = CazanaJson.Items(item, out var count, "rfcAndComments");
+        var comments = new List<object?>(count);
+        foreach (var comment in texts)
         {
             comments.Add(CazanaJson.String(comment, "text"));
         }
@@ -299,11 +303,12 @@ internal sealed class CazanaCompanionReport(
         return comments;
     }
 
-    /// <summary>A Sale's adverts, left unsized for the reason <see cref="CommentTexts"/> gives.</summary>
+    /// <summary>A Sale's adverts, sized as <see cref="CommentTexts"/> sizes its list.</summary>
     private static List<object?> SaleListings(JsonElement item)
     {
-        var adverts = new List<object?>();
-        foreach (var listing in CazanaJson.Items(item, "listings"))
+        var listings = CazanaJson.Items(item, out var count, "listings");
+        var adverts = new List<object?>(count);
+        foreach (var listing in listings)
         {
             adverts.Add(SaleListing(listing));
         }
@@ -440,22 +445,21 @@ internal sealed class CazanaCompanionReport(
         return written;
     }
 
-    /// <summary>Whether a "yyyy-MM-dd" date text is the London calendar day of <paramref name="now"/>, compared without building today's text.</summary>
-    private static bool IsToday(string? valuedOn, DateTimeOffset now)
+    /// <summary>Whether a "yyyy-MM-dd" date text is <paramref name="today"/>, the London calendar day, compared without building today's text.</summary>
+    private static bool IsToday(string? valuedOn, DateOnly today)
     {
-        Span<char> today = stackalloc char[10];
-        return LondonCalendar.DateAt(now).TryFormat(today, out var written, "yyyy-MM-dd", CultureInfo.InvariantCulture)
-            && today[..written].SequenceEqual(valuedOn.AsSpan());
+        Span<char> text = stackalloc char[10];
+        return today.TryFormat(text, out var written, "yyyy-MM-dd", CultureInfo.InvariantCulture)
+            && text[..written].SequenceEqual(valuedOn.AsSpan());
     }
 
-    private static string MonthsAgo(string? value, DateTimeOffset now)
+    private static string MonthsAgo(string? value, DateOnly today)
     {
         if (!TryDate(value, out var date))
         {
             return NotAvailable;
         }
 
-        var today = LondonCalendar.DateAt(now);
         return (12 * (today.Year - date.Year) + today.Month - date.Month).ToString(CultureInfo.InvariantCulture);
     }
 

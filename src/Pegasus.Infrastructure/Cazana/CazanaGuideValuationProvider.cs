@@ -62,9 +62,9 @@ public sealed partial class CazanaGuideValuationProvider(
 
             var signIn = account();
             var client = new CazanaCompanionClient(httpClientFactory.CreateClient(HttpClientName));
-            var jwt = await client.SignInAsync(signIn.Email, signIn.Password, cancellationToken);
-            var uuid = await client.LookupAsync(jwt, Vrm(request.Registration), valuationDate, miles, cancellationToken);
-            var response = await client.ReadAsync(jwt, uuid, cancellationToken);
+            var authorization = await client.SignInAsync(signIn.Email, signIn.Password, cancellationToken);
+            var uuid = await client.LookupAsync(authorization, Vrm(request.Registration), valuationDate, miles, cancellationToken);
+            var response = await client.ReadAsync(authorization, uuid, cancellationToken);
             var valuation = CazanaJson.Get(response, "valuation");
             if (Figure(valuation, "retail") is not { } retail
                 || Figure(valuation, "remarket") is not { } trade)
@@ -76,7 +76,7 @@ public sealed partial class CazanaGuideValuationProvider(
             // short VIN carries as none and never opens the fill.
             return new GuideValuationQuote(retail, trade, guideMonth, request.Mileage)
             {
-                Report = new CazanaCompanionReport(client, jwt, uuid, response, timeProvider),
+                Report = new CazanaCompanionReport(client, authorization, uuid, response, timeProvider),
                 Vin = GlassVinFillPolicy.Carried(CazanaJson.String(valuation, "vin")),
             };
         }
@@ -99,9 +99,30 @@ public sealed partial class CazanaGuideValuationProvider(
         }
     }
 
-    /// <summary>A registration as Cazana looks it up: upper case, no spaces.</summary>
-    internal static string Vrm(string registration) =>
-        string.Concat(registration.Where(character => !char.IsWhiteSpace(character))).ToUpperInvariant();
+    /// <summary>
+    /// A registration as Cazana looks it up: upper case, no spaces. One pass
+    /// into a stack buffer and one new string, or the registration itself
+    /// when it is already compact and upper case.
+    /// </summary>
+    internal static string Vrm(string registration)
+    {
+        Span<char> compact = registration.Length <= StackBufferLength
+            ? stackalloc char[registration.Length]
+            : new char[registration.Length];
+        var length = 0;
+        foreach (var character in registration)
+        {
+            if (!char.IsWhiteSpace(character))
+            {
+                compact[length++] = char.ToUpperInvariant(character);
+            }
+        }
+
+        compact = compact[..length];
+        return compact.SequenceEqual(registration.AsSpan()) ? registration : new string(compact);
+    }
+
+    private const int StackBufferLength = 128;
 
     private static decimal? Figure(JsonElement? valuation, string name) =>
         CazanaJson.Get(valuation, name) is { ValueKind: JsonValueKind.Number } value

@@ -15,10 +15,31 @@ public static class GlassRepairEstimateSessionPolicy
 
     /// <summary>
     /// The registration with its whitespace left out: compacted once, however
-    /// many texts <see cref="NamesCompactedRegistration"/> then tests.
+    /// many texts <see cref="NamesCompactedRegistration"/> then tests. One
+    /// pass into a stack buffer and one new string, or the registration itself
+    /// when it has no whitespace.
     /// </summary>
-    public static string CompactRegistration(string? registration) =>
-        new((registration ?? string.Empty).Where(character => !char.IsWhiteSpace(character)).ToArray());
+    public static string CompactRegistration(string? registration)
+    {
+        if (string.IsNullOrEmpty(registration))
+        {
+            return string.Empty;
+        }
+
+        Span<char> compact = registration.Length <= StackBufferLength
+            ? stackalloc char[registration.Length]
+            : new char[registration.Length];
+        var length = 0;
+        foreach (var character in registration)
+        {
+            if (!char.IsWhiteSpace(character))
+            {
+                compact[length++] = character;
+            }
+        }
+
+        return length == registration.Length ? registration : new string(compact[..length]);
+    }
 
     /// <summary>
     /// Whether printed text names the registration, ignoring case and any
