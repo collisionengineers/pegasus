@@ -1967,8 +1967,10 @@ public sealed class CaseWorkspacePersistenceTests
         var blockers = AssessmentPolicy.EvaluatePostReviewReadiness(saved.Assessment);
         Assert.DoesNotContain(blockers, item => item.Field == AssessmentVocabulary.ValueTrade);
 
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var again = await harness.AcquireLeaseAsync(saved.Version, engineer, "lease-research-basis-2");
         var second = await harness.WorkspaceStore.SaveAsync(
-            Request(harness, saved.Version, lease.Token, "research-basis-save-2", engineer) with
+            Request(harness, saved.Version, again.Token, "research-basis-save-2", engineer) with
             {
                 Valuation = new(
                     [GuideCard(ValuationSource.Glasses, new DateOnly(2030, 4, 1), 13_000m)],
