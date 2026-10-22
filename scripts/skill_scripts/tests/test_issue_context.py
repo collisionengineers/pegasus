@@ -48,8 +48,10 @@ def cross_reference(number, state="open", merged=False, pull_request=True):
 class Canned:
     """gh and git as one issue sees them; records the git commands it was asked."""
 
-    def __init__(self, body, timeline=(), tree=TREE, log="abc1234 2026-10-05 Change the widget\n", **overrides):
+    def __init__(self, body, timeline=(), tree=TREE, log="abc1234 2026-10-05 Change the widget\n", grep=GREP,
+                 **overrides):
         self.issue, self.timeline, self.tree, self.log = issue(body, **overrides), list(timeline), tree, log
+        self.grep = grep
         self.commands = []
 
     def run(self, args, check=True):
@@ -61,8 +63,11 @@ class Canned:
         if args[:2] == ["git", "ls-tree"]:
             return "".join(path + "\0" for path in self.tree)
         if args[:2] == ["git", "grep"]:
-            identifier = args[args.index("-w") + 1]
-            return "".join(f"origin/dev:{path}\0" for path in GREP.get(identifier, []))
+            # One pass over the tree: for each file in tree order, each match of each pattern, twice
+            # over because a file with two matches prints both.
+            identifiers = [args[i + 1] for i, arg in enumerate(args) if arg == "-e"]
+            return "".join(f"origin/dev:{path}\0{identifier}\n" * 2
+                           for path in self.tree for identifier in identifiers if path in self.grep.get(identifier, []))
         if args[:2] == ["git", "log"]:
             return self.log
         raise AssertionError(f"unexpected command {args}")
@@ -167,6 +172,50 @@ class IssueContextGolden(unittest.TestCase):
         run_context(canned)
         self.assertIn("-z", canned.command("ls-tree"))
         self.assertIn("-z", canned.command("grep"))
+
+
+def git_greps(canned):
+    return [args for args in canned.commands if args[:2] == ["git", "grep"]]
+
+
+def resolved_lines(out):
+    return [line for line in out.splitlines() if "` resolves to: " in line]
+
+
+class IssueContextOneGrep(unittest.TestCase):
+    def test_fifteen_identifiers_cost_one_git_grep_and_a_sixteenth_is_not_searched(self):
+        names = [f"Identifier{n:02d}" for n in range(16)]
+        canned = Canned("Names: " + " ".join(f"`{name}`" for name in names))
+        code, _, _ = run_context(canned)
+        greps = git_greps(canned)
+        self.assertEqual(0, code)
+        self.assertEqual(1, len(greps))
+        self.assertEqual(names[:15], [greps[0][i + 1] for i, arg in enumerate(greps[0]) if arg == "-e"])
+
+    def test_no_identifier_means_no_git_grep(self):
+        canned = Canned("See `src/app/Widget.cs` and Helper.cs.")
+        code, _, _ = run_context(canned)
+        self.assertEqual(0, code)
+        self.assertEqual([], git_greps(canned))
+
+    def test_each_identifier_lists_the_files_that_hold_it_once_in_tree_order(self):
+        grep = {"WidgetFactory": ["src/other/WidgetFactory.cs", "src/app/Widget.cs"],
+                "HelperBuilder": ["src/app/Widget.cs", "src/app/Helper.cs"],
+                "NeverFound": []}
+        code, out, _ = run_context(Canned("`WidgetFactory`, `HelperBuilder` and `NeverFound`", grep=grep))
+        self.assertEqual(0, code)
+        self.assertEqual(["- `HelperBuilder` resolves to: `src/app/Helper.cs`, `src/app/Widget.cs`",
+                          "- `WidgetFactory` resolves to: `src/app/Widget.cs`, `src/other/WidgetFactory.cs`"],
+                         resolved_lines(out))
+
+    def test_an_identifier_lists_at_most_eight_files_and_a_bare_name_five(self):
+        tree = [f"src/part{n}/Common.cs" for n in range(10)] + [f"src/part{n}/Util.cs" for n in range(7)]
+        grep = {"CommonWidget": [path for path in tree if path.endswith("Common.cs")]}
+        code, out, _ = run_context(Canned("`CommonWidget` is used by Util.cs.", tree=tree, grep=grep))
+        self.assertEqual(0, code)
+        self.assertEqual(["- `Util.cs` resolves to: " + ", ".join(f"`src/part{n}/Util.cs`" for n in range(5)),
+                          "- `CommonWidget` resolves to: " + ", ".join(f"`src/part{n}/Common.cs`" for n in range(8))],
+                         resolved_lines(out))
 
 
 def paths_section(out):
