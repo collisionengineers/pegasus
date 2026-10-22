@@ -702,6 +702,35 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         await transaction.CommitAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// One guarded update: it changes the row only while this attempt holds
+    /// the processing lease, and takes back the attempt its claim counted.
+    /// </summary>
+    public async Task DeferProcessingAsync(
+        Guid workItemId,
+        string leaseToken,
+        DateTimeOffset dueAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ValidateLease(workItemId, leaseToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        await context.ExternalWorkItems
+            .Where(item => item.Id == workItemId
+                && item.State == ExternalWorkStatePersistence.Processing
+                && item.LeaseToken == leaseToken
+                && item.LeaseExpiresAtUtc > now)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.State, ExternalWorkStatePersistence.Pending)
+                .SetProperty(item => item.DueAtUtc, dueAtUtc)
+                .SetProperty(item => item.AttemptCount, item => item.AttemptCount - 1)
+                .SetProperty(item => item.LeaseToken, (string?)null)
+                .SetProperty(item => item.LeaseExpiresAtUtc, (DateTimeOffset?)null)
+                .SetProperty(item => item.FailureCode, (string?)null)
+                .SetProperty(item => item.FailureReason, (string?)null),
+                cancellationToken);
+    }
+
     private static async Task FailOcrAsync(
         PegasusDbContext context,
         ExternalWorkItemEntity work,
