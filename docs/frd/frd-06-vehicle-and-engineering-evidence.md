@@ -372,9 +372,7 @@ When DVSA history must estimate a Case mileage, Pegasus:
   its sample checks;
 - returns the exact observation on an exact MOT date, interpolates only
   inside a compatible segment, forecasts only within a validated horizon, and
-  gives calibrated intervals only with eligible chronological holdouts;
-- otherwise shows a wider, explicitly non-probabilistic range and never
-  writes it into the Case by default.
+  gives calibrated intervals only with eligible chronological holdouts.
 
 The rule prefers a reviewable abstention or a qualified range over a
 plausible but unsupported number. It applies only after the DVSA/DVLA route,

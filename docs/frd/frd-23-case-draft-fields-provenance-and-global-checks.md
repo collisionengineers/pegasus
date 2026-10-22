@@ -9,8 +9,7 @@
 - A value is a Fact, a Suggestion, or Confirmed. A Confirmed value wins for
   current use, and the earlier value stays in history.
 - Mileage evidence has a fixed order. DVSA runs for every Case, fills the
-  mileage only when nothing better exists, and a difference is shown as a
-  discrepancy.
+  mileage only when nothing better exists.
 - The instruction field table says what each captured field means.
 
 ## Purpose
@@ -76,9 +75,7 @@ applicable DVLA or MOT source. Mileage evidence ranks as:
 4. a DVSA-derived estimate.
 
 DVSA runs for every Case. Its estimate fills the Case mileage only when no
-higher-tier value exists. A difference between the DVSA mileage and any
-accepted staff-entered, instruction-extracted, Document Intelligence, or
-odometer value is shown on the Case as a discrepancy. The odometer-vision
+higher-tier value exists. The odometer-vision
 capability does not imply an activated AI caller before its own accepted
 evaluation and integration contract. The estimate method is owned by
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#conservative-mot-mileage-estimation).
@@ -127,7 +124,7 @@ print it.
 ## Edge cases and fail-closed behaviour
 
 - A higher-tier mileage value exists: the DVSA estimate never overwrites
-  it. The difference is shown on the Case as a discrepancy.
+  it.
 - Mileage evidence is used in tier order: staff-entered, extracted from the
   instruction, Document Intelligence or odometer vision, then the DVSA
   estimate.
@@ -140,8 +137,8 @@ print it.
 ## Acceptance evidence
 
 Acceptance proves the value kinds and source kinds, the mileage tier order,
-the DVSA discrepancy display, and that the instruction date the Case export
-and the report print is the Case's Received date. Deployment and live
+and that the instruction date the Case export and the report print is the
+Case's Received date. Deployment and live
 evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
