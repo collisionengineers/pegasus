@@ -293,6 +293,64 @@ public sealed class StructuredIntakeSourceReaderTests
             failure.Reason);
     }
 
+    /// <summary>
+    /// A drawn photograph page whose raster the sample-pixel budget stops
+    /// keeps its photograph verdict, and the budget stops images as it does
+    /// for any image: page one charges all but 500,000 of the budget, so page
+    /// two's 840 by 1188 photograph is classified and then over the budget.
+    /// </summary>
+    [Fact]
+    public async Task AJpeg2000PhotographPastThePixelBudgetKeepsItsVerdictAndStopsImages()
+    {
+        var result = await ReadAsync(new TestEmail(
+            "report.pdf",
+            "application/pdf",
+            BuildPdf(
+                new PdfFixturePage(
+                    "First page of the report",
+                    Jpeg2000Image(10_000, 9_950, new byte[64], "100 0 0 100 20 20")),
+                new PdfFixturePage(null, Jpeg2000Photograph(FullPage)))));
+
+        Assert.True(result.IsIncomplete);
+        var verdict = Assert.Single(result.Issues, issue => issue.Code == "scan-page-photograph");
+        Assert.StartsWith(
+            "uploaded report.pdf, page 2 is a full-page raster read as a photograph (near-white ",
+            verdict.Reason,
+            StringComparison.Ordinal);
+        var limit = Assert.Single(result.Issues, issue => issue.Code == "intake_limit_exceeded");
+        Assert.Equal("uploaded report.pdf expands beyond the safe decoded-image pixel limit.", limit.Reason);
+        var issues = result.Issues.ToList();
+        Assert.True(issues.IndexOf(verdict) < issues.IndexOf(limit));
+    }
+
+    /// <summary>
+    /// A full-page JBIG2 raster is not given to PDFium, which decodes every
+    /// region the stream declares: a black page that would draw as a
+    /// photograph keeps today's path, an unmeasured document page that goes
+    /// to OCR (ADR-0061).
+    /// </summary>
+    [Fact]
+    public async Task AFullPageJbig2RasterIsNotDrawnAndStaysAnUnmeasuredDocumentPage()
+    {
+        var result = await ReadAsync(new TestEmail(
+            "scan.pdf",
+            "application/pdf",
+            BuildPdf(new PdfFixturePage(null, new PdfFixtureImage(
+                PhotoWidth,
+                PhotoHeight,
+                "/ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /JBIG2Decode",
+                Jbig2BlackPage,
+                FullPage)))));
+
+        var candidate = Assert.Single(result.ScannedPdfPages);
+        Assert.Equal(1, candidate.PageNumber);
+        var verdict = Assert.Single(result.Issues, issue => issue.Code == "scan-page-document");
+        Assert.Equal(
+            "uploaded scan.pdf, page 1 is a full-page raster read as a scanned document page "
+            + "(raster not decodable, read as a document page); it keeps no image and goes to OCR.",
+            verdict.Reason);
+    }
+
     private const string ForwardedBody =
         "Please see the instruction below.\r\n"
         + "\r\n"
@@ -762,6 +820,17 @@ public sealed class StructuredIntakeSourceReaderTests
         "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode",
         stream,
         placement);
+
+    /// <summary>
+    /// An embedded JBIG2 stream that is only a black 210 by 297 page: a page
+    /// information segment (default pixel black), then end of page.
+    /// </summary>
+    private static readonly byte[] Jbig2BlackPage =
+    [
+        0, 0, 0, 0, 48, 0, 1, 0, 0, 0, 19,
+        0, 0, 0, 210, 0, 0, 1, 41, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0,
+        0, 0, 0, 1, 49, 0, 1, 0, 0, 0, 0
+    ];
 
     private static byte[] PhotographPixels(int seed)
     {
