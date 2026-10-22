@@ -47,6 +47,7 @@
   "Pegasus.IntegrationTests.CaseDamageAndViewerWebTests": 66.63,
   "Pegasus.IntegrationTests.CaseDataCompletenessPersistenceTests": 47.47,
   "Pegasus.IntegrationTests.CaseDetailsWebTests": 394.01,
+  "Pegasus.IntegrationTests.CaseDocumentBatchCustodyTests": 25.0,
   "Pegasus.IntegrationTests.CaseDocumentDownloadWebTests": 125.61,
   "Pegasus.IntegrationTests.CaseEditModeWebTests": 424.73,
   "Pegasus.IntegrationTests.CaseEngineerChoicesPersistenceTests": 6.75,

@@ -98,20 +98,26 @@ embedded resource
 - anything else, or any file over 10 MiB, as metadata only.
 
 `pegasus_document_download_batch` downloads 1 to 25 exact Case document
-versions in one call, checking every version's metadata before any bytes are
-read and sharing `maxInlineBytes` across the batch: PDFs and text files draw
-from the budget first, and the remaining budget is divided across the images
-(operator, 19 October 2026). Every result carries the file's identity, size,
-media type, SHA-256 and an authenticated URL for the original bytes:
+versions in one call, failing closed before reading blob bytes if any item is
+invalid, duplicated, unconfirmed, or removed (operator, 19 October 2026). It
+charges `maxInlineBytes` at the encoded size, items in request order, and
+stops at the first item that does not fit whole: one owner
+(`AutomationFileContent`) counts what is sent, and a whole file either fits
+or is withheld with its reason (operator, 22 October 2026). Only "no quality
+fits" stops it at an image; an undecodable or oversized image is withheld
+with its reason and the batch continues (operator, 22 October 2026). Every
+result carries the file's identity, size, media type, SHA-256 and an
+authenticated URL for the original bytes:
 `/automation/documents/{occurrence}/versions/{version}` for a Case document
 (Documents scope) and `/automation/intake-sources/{receipt}` for a retained
 intake source (Intake scope). Each endpoint needs the same bearer audience and
 its scope, checks the casework right, and answers with the exact SHA-256 as
 ETag. The document route resolves the document inside the Case it names; the
 intake-source route rechecks no Case or receipt membership. The document route
-supports ranges. A metadata-only answer fetches zero content bytes. There are
-no public signed links, no document export archive, and no fetches of
-arbitrary URLs.
+supports ranges. A metadata-only answer fetches zero content bytes, except a
+PDF, an image or a text file read once to learn that it does not fit whole or
+cannot be read. There are no public signed links, no document export archive,
+and no fetches of arbitrary URLs.
 
 **Edit leases.** <a id="edit-leases"></a> A write tool presented without an
 edit lease token claims the record's lease through the same Core port as

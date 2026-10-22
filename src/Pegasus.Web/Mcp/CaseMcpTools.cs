@@ -153,7 +153,7 @@ internal sealed class CaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns one case as a bounded projection with independently paged document inventory and history. Document content is retrieved with pegasus_document_download.")]
+    [Description("Returns one case as a bounded projection with independently paged document inventory and history. Document content is retrieved with pegasus_document_download, or with pegasus_document_download_batch for 1 to 25 documents in one call.")]
     public async Task<CaseGetToolResult> GetAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("Opaque document cursor returned by the previous response.")] string? documentCursor = null,

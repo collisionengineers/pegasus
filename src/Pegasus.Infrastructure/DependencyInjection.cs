@@ -657,6 +657,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IGetCaseDocumentMetadata>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<IOpenCaseDocumentBatch>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IReadCaseDocumentPreview>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             // The gallery's derived rendering. The cache variant is

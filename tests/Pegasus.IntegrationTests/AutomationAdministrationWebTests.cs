@@ -283,6 +283,18 @@ public sealed partial class AutomationAdministrationWebTests
             await history.AppendAsync(
                 new(
                     Guid.NewGuid(),
+                    "automation_mcp",
+                    caseId.ToString("D"),
+                    "pegasus_document_download_batch",
+                    AutomationClient,
+                    now,
+                    "Succeeded",
+                    "automation-admin-batch-reference",
+                    null),
+                CancellationToken.None);
+            await history.AppendAsync(
+                new(
+                    Guid.NewGuid(),
                     "case",
                     caseId.ToString("D"),
                     "case_reviewed",
@@ -306,6 +318,10 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.Contains(AutomationMcp.ClientDisplayName, automationRow, StringComparison.Ordinal);
         Assert.DoesNotContain(caseId.ToString("D"), automationRow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(ClientId, automationRow, StringComparison.Ordinal);
+
+        // The batch download is recorded against the Case it names, too.
+        var batchRow = TableRow(html, "pegasus_document_download_batch");
+        Assert.Contains(caseReference, batchRow, StringComparison.Ordinal);
 
         var staffRow = TableRow(html, "case_reviewed");
         Assert.Contains(caseReference, staffRow, StringComparison.Ordinal);
