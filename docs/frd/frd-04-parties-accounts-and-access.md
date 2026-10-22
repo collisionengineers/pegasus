@@ -13,7 +13,9 @@
   Every enabled staff role may perform ordinary casework; Administrator alone
   manages the application.
 - Administrators manage accounts from one Settings dialog. No account action
-  asks for confirmation or a reason.
+  asks for a reason, and none asks for confirmation except Delete, which
+  confirms in the shared dialog (operator, 15 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 - Every change is written to permanent action history with who, when and
   the before and after values.
 
@@ -268,14 +270,17 @@ reason. A reason is kept only where the action's rule requires one.
 
 ### Staff accounts
 
-The staff accounts table lists Name, Username, Role and State in compact
-rows. Each row opens a Settings dialog for its one role and its account
+The staff accounts table lists Username, Role, Sign-off, Glass's and State
+in compact rows
+([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/pages/administration/README.md)). Each row opens a Settings dialog for its one role and its account
 actions. Create opens its own dialog. If a settings change is refused, the
 entered values and the validation message stay visible inside Settings.
 Saving Settings posts on the click and records the
 `staff_account_settings_updated` history event. No Administration action
-opens a confirmation dialog or asks for a reason, and `Reason` is optional on
-every staff-account command in Core.
+asks for a reason, and none opens a confirmation dialog except Delete
+(operator, 15 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
+`Reason` is optional on every staff-account command in Core.
 
 The account actions are Create, Enable, Disable, Delete access, Force logout
 and Reset password. Each acts on its click from the Settings dialog.
@@ -309,8 +314,10 @@ the account had when the render was queued. A session is never refreshed into
 new authority: it is refused and signs in again. Delete
 removes active access, the role and credential material, but keeps the
 minimal actor identity that business history and printed reports need. It
-never deletes a Case. Disable and Delete act at once from the Settings
-dialog, with no confirmation. Force logout also clears the account's Triage
+never deletes a Case. Disable acts at once from the Settings dialog; Delete
+confirms first in the shared dialog (operator, 15 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
+Force logout also clears the account's Triage
 and Image Intake edit scopes
 ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)), so an old token
 cannot later change either record type. Administration saves use

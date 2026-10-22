@@ -92,8 +92,9 @@ bar and the page content.
 **Administration** (`/Administration`). No rail item carries a count
 (operator, 15 October 2026). The current route is marked by more than
 colour. The rail foot shows the freshness line and the signed-in account
-(name, role, and an account dialog with session start, idle lock and sign
-out).
+(name, role, and an account dialog with idle lock and sign out; session start is
+not required, operator, 15 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 
 The rail foot also carries **Collapse**, which folds the rail to icons
 (labels become titles) and back. The choice is remembered per browser

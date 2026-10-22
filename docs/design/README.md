@@ -95,8 +95,10 @@ whose functions move to the utility bar and account dialog.
 
 No rail item carries a count (operator, 15 October 2026).
 
-The **account dialog** opens from the rail-foot button and shows Name, Role,
-Session started (an `auth_time` claim) and Idle lock, with Close and Sign out.
+The **account dialog** opens from the rail-foot button and shows Name, Role
+and Idle lock, with Close and Sign out. Session started is not required
+(operator, 15 October 2026,
+[v41 plan](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 
 **Rail collapse.** A Collapse control at the rail foot folds the rail to 64px:
 icons stay, labels become each link's `title`, and the control's
@@ -375,7 +377,7 @@ design-dev` bundle, the 2026-07 warm palette) are superseded and not retained.
 | `--red-dark` | `#9e1720` | Pressed primary |
 | `--amber` / `--amber-bg` | `#975b07` / `#fff4dc` | Incomplete, pending, Held, exceptions |
 | `--navy` / `--navy-bg` | `#274f70` / `#eaf1f6` | Review |
-| `--green` / `--green-bg` | `#2b643d` / `#e9f4ec` | Confirmed completion |
+| `--green` / `--green-bg` | `#2b643d` / `#e9f4ec` | Confirmed completion; Service health Working ([v41 A22](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | `--blue` / `--blue-bg` | `#285f88` / `#eaf3f8` | Informational, With Engineer, external work in progress |
 | `--danger` / `--danger-bg` | `#98272c` / `#fff0f1` | Danger actions, blocked, failed |
 | `--purple` / `--purple-bg` | `#5b3f8f` / `#f1ecf9` | A Case with an open query (operator, 11 October 2026) |
@@ -937,7 +939,7 @@ deleted in wave 5.
 | `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
 | `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Overview and Close-up their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
-| `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it |
+| `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it; the Engineer blocker is the one exception and links the ribbon's Assign Engineer action, not a section (operator, 22 October 2026) |
 | `next-step`, `next-step-go` | The Next action's one step and its full-width control, which shares its row with Take while the Case is Unassigned ([v41 K9](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
@@ -1087,7 +1089,7 @@ this section holds the cross-cutting rules every page is held to.
 | Field provenance | Every source-derived Case datum shows its current source tag; a staff value carries none. Origin and status remain distinct. |
 | Supporting detail navigation | Opening evidence or supporting detail preserves list/detail position, the current context, and every unsaved edit; returning never silently discards or replaces proposed values. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
-| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record the aside's Report not ready card lists each report blocker with a link to the section that clears it; no opaque aggregate blocker. |
+| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record the aside's Report not ready card lists each report blocker with a link to the section that clears it, except the Engineer blocker, which links the ribbon's Assign Engineer action (operator, 22 October 2026); no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
 | Inspection address | Principal-determined default; reasoned per-Case override; previous values selectable. |
 | Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. The default repairer VAT status is Registered (19 October 2026). A status still stored as Unknown does not block Use repair spec; it does block the report (27 September 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
