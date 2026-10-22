@@ -161,9 +161,12 @@ the Inbox", as Tag as query records its fixed reason; no reason is typed. A
 correction to New instruction asks for the Case type in the Case picker row
 (operator, 22 October 2026, R179,
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-On the list, **Correct classification**
-opens a dialog once for every ticked row, with Classification, Case type and
-Reason for correction. Once a classification
+On the list, **Correct classification** opens a dialog once for every ticked
+row, with Classification, Case type and Reason for correction (v41 item I18,
+signed off 19 October 2026, with the shared reason of operator ruling R140 (c),
+16 October 2026,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Once a classification
 is saved, the message record offers the one next action it calls for:
 **Create case** for a New instruction, **Open the Triage** for a Triage
 request, **Register images** for images received, each only while the

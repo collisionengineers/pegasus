@@ -59,7 +59,7 @@ public sealed class IntakeAssociationDestinationTests
     }
 
     /// <summary>
-    /// Staff "Link to case" reaches every Case in any lifecycle state (operator,
+    /// Staff "Link to Case" reaches every Case in any lifecycle state (operator,
     /// 24 September 2026); only an archived Case is refused.
     /// </summary>
     [Theory]

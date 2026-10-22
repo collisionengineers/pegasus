@@ -140,8 +140,10 @@ Actor's `pegasus_report_send`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).
 
 **Where the controls are.** Reply, Reply all and Forward appear on the Inbox
-message, which opens as a dialog over the Inbox and composes inside it
-([FRD-20](frd-20-mailbox-workspace.md#message-dialog-and-message-detail)), and
+message, which opens as a dialog over the Inbox and composes inside it (v41
+items I2 and I15, signed off 19 October 2026,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md);
+[FRD-20](frd-20-mailbox-workspace.md#message-dialog-and-message-detail)), and
 on the Case correspondence surface. Reply also appears on Inbox
 list rows and on a closed Unidentified item's record, where Request again is
 that same reply while the item is open

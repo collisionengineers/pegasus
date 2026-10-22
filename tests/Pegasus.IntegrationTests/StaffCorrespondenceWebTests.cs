@@ -530,6 +530,47 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>
+    /// The Inbox's dialog composes inside itself (v41 I15): its Case / PO picker
+    /// only fills the field, so choosing an option never posts
+    /// SelectCorrespondenceCase and leaves the dialog for the record page, and
+    /// the send lands back on the Inbox with the message open.
+    /// </summary>
+    [Fact]
+    public async Task TheDialogComposerFillsTheCaseReferenceAndSendsBackToTheInbox()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var selectedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 DIALOG", "SC08-MSG-DIALOG");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId: null);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var get = await client.GetAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Dialog&compose=reply");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.Matches(
+            "<div class=\"field case-picker\" data-case-picker data-case-picker-fill\\s+data-case-picker-url=\"[^\"]*handler=CorrespondenceCaseOptions",
+            html);
+        var action = FormAction(html, "Reply");
+        Assert.Contains("dialog=true", action, StringComparison.Ordinal);
+
+        var form = RetainedReplyForm(
+            html,
+            InputValue(html, "CorrespondenceOperationKey"),
+            "Reply from the dialog.");
+        form["CorrespondenceCaseReference"] = await CaseReferenceAsync(factory, selectedCaseId);
+        using var sent = await client.PostAsync(action, new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+        var location = sent.Headers.Location!.OriginalString;
+        Assert.StartsWith("/Inbox?", location, StringComparison.Ordinal);
+        Assert.Contains($"open={seeded.MessageId:D}", location, StringComparison.Ordinal);
+        Assert.Equal(selectedCaseId, Assert.Single(send.Commands).ContextId);
+    }
+
+    /// <summary>
     /// A message on a Triage Case: Reply, Reply all and Forward leave the
     /// composer's Case empty rather than defaulting the Triage's t. reference,
     /// which never resolves to an instruction Case and would fail the send.

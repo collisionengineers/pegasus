@@ -36,9 +36,11 @@
             <input type="hidden" asp-for="ExpectedCorrespondenceCaseVersion" />
             <input type="hidden" asp-for="FixedCorrespondenceCaseReference" />
             @* From, To and the Case sit on one line (v41 I15). Case / PO
-               searches as staff type: choosing an option posts
-               SelectCorrespondenceCase, which fixes the Case and its
-               version. A reference typed in full is sent as it is. *@
+               searches as staff type: on the record page choosing an option
+               posts SelectCorrespondenceCase, which fixes the Case and its
+               version. In the dialog an option only fills the field, so the
+               reply never leaves the dialog; a reference typed in full is
+               sent as it is. *@
             <div class="mail-compose-route">
                 @if (correspondenceMode == "forward")
                 {
@@ -58,7 +60,7 @@
                     var copied = string.IsNullOrWhiteSpace(Model.CorrespondenceCc) ? string.Empty : $" · Cc {Model.CorrespondenceCc}";
                     <p class="mail-route">@($"From {Model.CorrespondenceMailbox!.Address} · To {Model.CorrespondenceTo}{copied}")</p>
                 }
-                <div class="field case-picker" data-case-picker
+                <div class="field case-picker" data-case-picker @(Model.InDialog ? Html.Raw("data-case-picker-fill") : null)
                      data-case-picker-url="@Url.Page("/Mail/Message", "CorrespondenceCaseOptions", new { id = summary.Id })">
                     <label asp-for="CorrespondenceCaseReference">@OperatorLabels.Inbox.CasePo</label>
                     <input asp-for="CorrespondenceCaseReference" type="text" maxlength="100" autocomplete="off"

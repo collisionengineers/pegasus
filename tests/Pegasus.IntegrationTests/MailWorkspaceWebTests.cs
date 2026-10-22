@@ -1878,6 +1878,20 @@ public sealed class MailWorkspaceWebTests
         {
             Assert.Contains($"Message {unlinked} from instructions", noCaseFound, StringComparison.Ordinal);
         }
+        // The Category select is drawn enabled in No Case Found (v41 inbox-no-case-found):
+        // its All categories option holds the scope's own key, so a search stays in the
+        // scope, and the eleven categories follow.
+        Assert.Contains("<select id=\"queue-filter\" name=\"queue\">", noCaseFound, StringComparison.Ordinal);
+        string[] noCaseFoundValues = ["no_case_found", .. CategoryFilterValues.Skip(1)];
+        Assert.Equal(
+            noCaseFoundValues,
+            Regex.Matches(Between(noCaseFound, "<select id=\"queue-filter\"", "</select>"), "<option value=\"(?<value>[^\"]*)\"")
+                .Select(match => match.Groups["value"].Value)
+                .ToArray());
+        Assert.Contains(
+            $"<option value=\"no_case_found\" selected=\"selected\">{OperatorLabels.Inbox.AllCategories}</option>",
+            noCaseFound,
+            StringComparison.Ordinal);
 
         var detail = await GetHtmlAsync(
             client,

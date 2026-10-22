@@ -70,10 +70,6 @@
             {
                 <input type="hidden" name="folder" value="@folderCode" />
             }
-            @if (Model.NoCaseFoundFilter)
-            {
-                <input type="hidden" name="queue" value="@Pegasus.Web.Pages.Mail.IndexModel.NoCaseFoundQueueKey" />
-            }
             <div class="field">
                 <label for="mailbox-filter">Mailbox</label>
                 <select id="mailbox-filter" name="mailbox">
@@ -89,13 +85,14 @@
             </div>
             <div class="field">
                 @* Sent and Deleted Items views have no categories: nothing there was
-                   classified as received work. The No Case Found scope is a scope, not
-                   a category, so its select stands aside and the scope rides in a
-                   hidden field. The select stays so switching scopes never submits a
-                   category those views refuse. *@
+                   classified as received work. The select stays so switching scopes
+                   never submits a category those views refuse. In No Case Found it
+                   stays enabled, as drawn: a category and the scope are one queue
+                   key, so All categories carries the scope's own key and a search
+                   stays inside it, while a category replaces the scope. *@
                 <label for="queue-filter">@OperatorLabels.Inbox.Category</label>
-                <select id="queue-filter" name="queue" disabled="@(Model.Folder is MailFolderScope.DeletedItems or MailFolderScope.Sent || Model.NoCaseFoundFilter)">
-                    <option value="" selected="@(Model.QueueFilter is null)">@OperatorLabels.Inbox.AllCategories</option>
+                <select id="queue-filter" name="queue" disabled="@(Model.Folder is MailFolderScope.DeletedItems or MailFolderScope.Sent)">
+                    <option value="@(Model.NoCaseFoundFilter ? Pegasus.Web.Pages.Mail.IndexModel.NoCaseFoundQueueKey : string.Empty)" selected="@(Model.QueueFilter is null || Model.NoCaseFoundFilter)">@OperatorLabels.Inbox.AllCategories</option>
                     @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.CategoryViews)
                     {
                         <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>

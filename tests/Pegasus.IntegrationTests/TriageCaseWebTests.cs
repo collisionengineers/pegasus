@@ -288,7 +288,7 @@ public sealed partial class TriageCaseWebTests
     }
 
     /// <summary>
-    /// Staff "Link to case" reaches every Triage Case and every Case in any
+    /// Staff "Link to Case" reaches every Triage Case and every Case in any
     /// state (operator, 24 September 2026). A Triage Case answers through its
     /// Triage version and edit scope, and the link reopens nothing.
     /// </summary>

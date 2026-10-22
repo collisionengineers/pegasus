@@ -345,7 +345,7 @@ public static class OperatorLabels
     }
 
     /// <summary>
-    /// The state a staff "Link to case" destination shows: a Case's stage, or
+    /// The state a staff "Link to Case" destination shows: a Case's stage, or
     /// a Triage Case's Triage state.
     /// </summary>
     public static string AssociationDestinationState(IntakeAssociationDestination destination)

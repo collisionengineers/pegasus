@@ -616,7 +616,9 @@ public sealed class MessageModel(
 
     /// <summary>
     /// The Case / PO field's option list for Reply/Forward, fetched as staff
-    /// type. Choosing an option posts <c>SelectCorrespondenceCase</c>.
+    /// type. On the record page choosing an option posts
+    /// <c>SelectCorrespondenceCase</c>; the dialog's picker only fills the
+    /// field, so a reply never leaves the dialog for the record page.
     /// </summary>
     public async Task<IActionResult> OnGetCorrespondenceCaseOptionsAsync(
         Guid id,

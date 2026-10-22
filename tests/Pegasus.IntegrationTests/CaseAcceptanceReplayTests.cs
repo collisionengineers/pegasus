@@ -230,7 +230,7 @@ public sealed partial class CaseAcceptanceReplayTests
                 unlinkRequest with { Reason = "A conflicting replay reason." },
                 CancellationToken.None));
 
-        // Staff "Link to case" reaches a Case in any lifecycle state (operator,
+        // Staff "Link to Case" reaches a Case in any lifecycle state (operator,
         // 24 September 2026): the relink is accepted, and it is only a link —
         // it does not reopen the cancelled Case.
         var relinkLease = await acquireLease.ExecuteAsync(

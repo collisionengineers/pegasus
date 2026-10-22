@@ -87,7 +87,7 @@ with a Case. Automatic association needs exactly one eligible, pre-report,
 instructed Case, an unambiguous normalised registration match and no
 contradictory identity evidence; a Case that has delivered its report is not
 eligible for it. Otherwise an authorised staff member makes the decision.
-Staff "Link to case" reaches every Case in any state and every Triage Case,
+Staff "Link to Case" reaches every Case in any state and every Triage Case,
 refusing only an archived Case (operator, 24 September 2026), and the merge
 completes there.
 
