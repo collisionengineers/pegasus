@@ -245,7 +245,9 @@ public sealed class WorkerSpanTelemetryTests
         {
             Environment.SetEnvironmentVariable(SiteNameVariable, previousSiteName);
         }
+    }
 
+    /// <summary>
     /// A conditional blob write whose blob already exists is the by-design replay path
     /// (the store verifies the blob that is there), so its failed dependency row is
     /// dropped for an upload and for a server-side copy alike.
