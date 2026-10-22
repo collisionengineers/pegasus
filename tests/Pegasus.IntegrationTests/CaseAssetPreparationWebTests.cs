@@ -436,9 +436,18 @@ public sealed class CaseAssetPreparationWebTests
             Assert.All(forms, form => Assert.Contains("data-document-action", form.Value, StringComparison.Ordinal));
         }
 
+        // One form holds every tag row of the tile: each row is a button whose
+        // value is the tag, an applied row removing it by its own formaction.
+        Assert.Single(Regex.Matches(card, "<form[^>]*handler=TagImage[^>]*>", RegexOptions.CultureInvariant));
+        Assert.DoesNotContain("type=\"hidden\" name=\"tagId\"", card, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*>", RegexOptions.CultureInvariant));
+        Assert.Equal(
+            Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*aria-pressed=\"true\"", RegexOptions.CultureInvariant),
+            Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*formaction=\"[^\"]*handler=UntagImage", RegexOptions.CultureInvariant));
+
         var occurrence = fixture.OverviewOccurrenceId.ToString("D");
         var version = store.CaseVersion.ToString(CultureInfo.InvariantCulture);
-        using var tagged = await workspace.Client.PostAsync(
+        using var tagged =await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}/Custody?handler=TagImage",
             Form(
                 workspace.AntiforgeryToken,

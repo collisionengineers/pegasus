@@ -8,8 +8,9 @@ namespace Pegasus.Web.Pages.Cases;
 /// the view of the Case record it was drawn in among it.
 /// </summary>
 /// <remarks>
-/// Each row is a real form posting to the Case's Custody handlers, so the
-/// picker works with script off exactly as it does with script on; the
+/// The rows are buttons of one real form posting to the Case's Custody
+/// handlers, so the picker works with script off exactly as it does with
+/// script on; the
 /// disclosure that hides it is the browser's own.
 /// </remarks>
 public sealed record CaseImageTagPickerView(

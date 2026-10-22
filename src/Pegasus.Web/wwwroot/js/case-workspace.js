@@ -1557,8 +1557,9 @@
         if (id && document.getElementById(id)) { return document.getElementById(id); }
         var action = form.getAttribute('action');
         // Every image tile's In report and tag forms share their actions, so
-        // the form found again names the same image and tag: the first match
-        // by action alone would act on another image.
+        // the form found again names the same image: the first match by
+        // action alone would act on another image. The tag is the pressed
+        // button's value, which proceed() finds again in the form.
         function names(candidate, field) {
             var own = form.elements.namedItem(field);
             var theirs = candidate.elements.namedItem(field);
@@ -1568,7 +1569,7 @@
         var candidates = Array.prototype.slice.call(record.querySelectorAll('form[action]'))
             .concat(dialogs ? Array.prototype.slice.call(dialogs.querySelectorAll('form[action]')) : []);
         return candidates.find(function (candidate) {
-            return candidate.getAttribute('action') === action && names(candidate, 'occurrenceId') && names(candidate, 'tagId');
+            return candidate.getAttribute('action') === action && names(candidate, 'occurrenceId');
         }) || null;
     }
 
