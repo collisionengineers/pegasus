@@ -473,7 +473,8 @@ public sealed class AutomationFileContentBatchTests
         public Task<PdfTextExtraction?> ExtractAsync(
             ReadOnlyMemory<byte> content,
             int maximumCharacters,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Func<string, bool>? stopAfterPage = null)
         {
             var fileName = Encoding.UTF8.GetString(content.Span);
             Calls.Add((fileName, maximumCharacters));
