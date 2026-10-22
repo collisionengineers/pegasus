@@ -254,7 +254,7 @@ public sealed class IndexModel(
 
     public bool HasNextPage { get; private set; }
 
-    /// <summary>The principals present in the loaded Case rows, for the Principal select.</summary>
+    /// <summary>The Principal select's options, on the Case queues.</summary>
     public IReadOnlyList<string> Principals { get; private set; } = [];
 
     /// <summary>
@@ -476,17 +476,20 @@ public sealed class IndexModel(
             "query" => OperatorLabels.QueryStage,
             _ => nameof(CaseLifecycleState.Held)
         })!;
-        var result = await _searchCases.ExecuteAsync(
+        var activePrincipals = _imageIntakeQueries.ListActivePrincipalCodesAsync(cancellationToken);
+        var search = _searchCases.ExecuteAsync(
             new(
                 actor,
                 new(States: stage.States, Principal: PrincipalFilter, HasOpenQuery: stage.HasOpenQuery),
                 CurrentPage,
                 PageSize),
             cancellationToken);
+        await Task.WhenAll(activePrincipals, search);
+        var result = search.Result;
         HasPreviousPage = CurrentPage > 1;
         HasNextPage = result.HasNextPage;
         var items = result.Items.ToArray();
-        Principals = PrincipalOptions(items);
+        Principals = PrincipalOptions(items, activePrincipals.Result);
         _engineerNames = await EngineerNamesAsync(items, cancellationToken);
         return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
@@ -496,16 +499,18 @@ public sealed class IndexModel(
     /// </summary>
     private async Task<IReadOnlyList<QueueRow>> LoadNotReadyAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        var result = await _searchCases.ExecuteAsync(
+        var activePrincipals = _imageIntakeQueries.ListActivePrincipalCodesAsync(cancellationToken);
+        var search = _searchCases.ExecuteAsync(
             new(
                 actor,
                 new(States: [CaseLifecycleState.NotReady], Principal: PrincipalFilter),
                 Page: 1,
                 PageSize: MergedPageSize),
             cancellationToken);
+        await Task.WhenAll(activePrincipals, search);
 
-        var items = result.Items.ToArray();
-        Principals = PrincipalOptions(items);
+        var items = search.Result.Items.ToArray();
+        Principals = PrincipalOptions(items, activePrincipals.Result);
         _engineerNames = await EngineerNamesAsync(items, cancellationToken);
         return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
@@ -896,20 +901,21 @@ public sealed class IndexModel(
         .ToArray();
 
     /// <summary>
-    /// The Principal select's options: the principals of the rows the
-    /// filters still show — a sample of the queue, not a census — plus the
-    /// active principal when no shown row carries it, so the choice that is
-    /// filtering the list is never invisible in the control that made it.
+    /// The Principal select's options (v41 U3): every active Principal,
+    /// whatever page of rows the queue shows, plus the Principals of the rows
+    /// shown (an inactive Principal's Cases are still listed) and the Principal
+    /// filtering the list, so the choice that is filtering is never invisible in
+    /// the control that made it.
     /// </summary>
-    private string[] PrincipalOptions(CaseSearchItem[] items)
+    private string[] PrincipalOptions(CaseSearchItem[] items, IReadOnlyList<string> activePrincipals)
     {
-        var options = PrincipalsOf(items).ToList();
-        if (PrincipalFilter is not null && !options.Contains(PrincipalFilter))
+        var options = new HashSet<string>(activePrincipals, StringComparer.Ordinal);
+        options.UnionWith(PrincipalsOf(items));
+        if (PrincipalFilter is not null)
         {
             options.Add(PrincipalFilter);
-            options.Sort(StringComparer.Ordinal);
         }
-        return [.. options];
+        return [.. options.Order(StringComparer.Ordinal)];
     }
 
     private static string? EmptyToNull(string? value) =>

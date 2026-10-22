@@ -7,6 +7,9 @@
 
 .cases-filters { margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .cases-list .pane-head .meta { font-size: 12px; color: var(--muted); margin-left: auto; }
+.cases-list .pane-head .cases-filters { margin: 0 0 0 12px; padding: 0; border: 0; background: none; }
+.cases-list .pane-head .cases-filters .field { min-width: 0; }
+.cases-list .pane-head .cases-filters select { width: auto; min-height: 32px; font-size: 12px; }
 
 .cases-table { overflow-x: auto; }
 .cases-table .table td { overflow-wrap: anywhere; }
