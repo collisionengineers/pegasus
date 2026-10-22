@@ -482,7 +482,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
     [Function(nameof(StagedArtifactReconciliationFunction))]
     public async Task RunAsync(
-        [TimerTrigger("%IntakeStagedArtifactReconciliationSchedule%", RunOnStartup = false)] TimerInfo timer,
+        [TimerTrigger("%IntakeStagedArtifactReconciliationSchedule%", RunOnStartup = false, UseMonitor = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
         // Steps 1 to 3 and 5 to 11 each run under RunStepAsync: a step that throws
