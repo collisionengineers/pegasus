@@ -3506,6 +3506,9 @@ public sealed class GlassRepairEstimateGatewayTests
             Landed?.Invoke(request, landed);
             return new EstimateImportResult(landed);
         }
+
+        public Task<EstimateImportCheck> CheckAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>

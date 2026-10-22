@@ -1224,6 +1224,19 @@ public interface IListCaseEstimates
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// The listing for a caller that already holds one version with its lines
+    /// (<paramref name="held"/>, as read a moment ago): the list carries it
+    /// as held and its lines are not read again. The default is the plain
+    /// listing.
+    /// </summary>
+    Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        RepairSpecificationVersion? held,
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(caseId, work, cancellationToken);
+
+    /// <summary>
     /// One estimate on the selected work, or null when the id is not one of
     /// them. The default lists and picks.
     /// </summary>
@@ -1354,6 +1367,19 @@ public sealed class ListCaseEstimates(IRepairSpecificationStore store) : IListCa
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
         return store.ListEstimatesAsync(caseId, work, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        RepairSpecificationVersion? held,
+        CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+        return store.ListEstimatesAsync(caseId, work, held, cancellationToken);
     }
 
     public Task<RepairSpecificationVersion?> FindAsync(

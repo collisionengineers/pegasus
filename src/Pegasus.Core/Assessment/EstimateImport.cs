@@ -56,11 +56,64 @@ public sealed record ImportRawEstimateRequest(
     /// is gone, so the import lands as a new one. Null creates a spec.
     /// </summary>
     public Guid? EstimateId { get; init; }
+
+    /// <summary>
+    /// The check <see cref="IImportRawEstimate.CheckAsync"/> already made for
+    /// this call. The import trusts it only for what it covers: a version, lease
+    /// and actor that differ from the checked ones are checked again.
+    /// </summary>
+    public EstimateImportCheck? Checked { get; init; }
+}
+
+/// <summary>
+/// What <see cref="IImportRawEstimate.CheckAsync"/> established before any
+/// source was retained: the staff member's persisted edit authority at the
+/// version and lease the import named, and that its operation key and source
+/// hash have no earlier replay (<see cref="Replay"/> is the earlier import's
+/// result when they do). Only the check makes one, so a caller cannot claim a
+/// check it did not run.
+/// </summary>
+public sealed class EstimateImportCheck
+{
+    private readonly ImportRawEstimateRequest _request;
+    private readonly string _sha256;
+
+    internal EstimateImportCheck(ImportRawEstimateRequest request, string sha256, EstimateImportResult? replay)
+    {
+        _request = request;
+        _sha256 = sha256;
+        Replay = replay;
+    }
+
+    /// <summary>The estimate an earlier import of this source under this operation key made, else null.</summary>
+    public EstimateImportResult? Replay { get; }
+
+    internal bool ProvesAuthorityFor(ImportRawEstimateRequest request) =>
+        request.CaseId == _request.CaseId
+        && request.ExpectedVersion == _request.ExpectedVersion
+        && string.Equals(request.EditLeaseToken, _request.EditLeaseToken, StringComparison.Ordinal)
+        && request.Actor.Kind == _request.Actor.Kind
+        && string.Equals(request.Actor.SubjectId, _request.Actor.SubjectId, StringComparison.Ordinal);
+
+    internal bool ProvesNoReplayFor(ImportRawEstimateRequest request, string sha256) =>
+        Replay is null
+        && request.CaseId == _request.CaseId
+        && string.Equals(request.OperationKey, _request.OperationKey, StringComparison.Ordinal)
+        && string.Equals(sha256, _sha256, StringComparison.Ordinal);
 }
 
 public interface IImportRawEstimate
 {
     Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The one authority-and-replay check an import makes. A caller that must
+    /// refuse, or answer a replay, before it retains a source runs it first and
+    /// hands the result on in <see cref="ImportRawEstimateRequest.Checked"/>,
+    /// so <see cref="ExecuteAsync"/> does not repeat what it covers. It refuses
+    /// in Core's words.
+    /// </summary>
+    Task<EstimateImportCheck> CheckAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken);
 }
 
 public sealed record EstimateImportResult(Guid EstimateId);
@@ -256,13 +309,30 @@ public sealed class ImportRawEstimate(
     /// <summary>An estimate document beyond this size is refused unread.</summary>
     public const int MaximumDocumentBytes = 32 * 1024 * 1024;
 
-    public async Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+    public async Task<EstimateImportCheck> CheckAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
         EstimatePolicy.RequireImportActor(request.Actor);
         var sha256 = NormalizeSha256(request.Sha256);
         await store.RequireImportAuthorityAsync(request, cancellationToken);
-        if (await store.ProbeSourceHashReplayAsync(
+        var replay = await store.ProbeSourceHashReplayAsync(
+            request.CaseId, request.OperationKey, sha256, cancellationToken);
+        return new(request, sha256, replay);
+    }
+
+    public async Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+    {
+        CaseLifecycleRules.ValidateMutation(request);
+        EstimatePolicy.RequireImportActor(request.Actor);
+        var sha256 = NormalizeSha256(request.Sha256);
+        // What a check made just before already established is not read again.
+        var checkedBefore = request.Checked;
+        if (checkedBefore?.ProvesAuthorityFor(request) != true)
+        {
+            await store.RequireImportAuthorityAsync(request, cancellationToken);
+        }
+        if (checkedBefore?.ProvesNoReplayFor(request, sha256) != true
+            && await store.ProbeSourceHashReplayAsync(
                 request.CaseId, request.OperationKey, sha256, cancellationToken)
             is { } boundReplay)
         {

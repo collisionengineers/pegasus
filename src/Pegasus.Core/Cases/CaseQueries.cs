@@ -758,13 +758,13 @@ public sealed class GetCaseVehicleSection(
     public async Task<CaseVehicleSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var (frame, workspace) = await CaseSectionQueries.FrameAndWorkspaceAsync(
+            query, store, workspaces, cancellationToken);
         if (frame is null)
         {
             return null;
         }
 
-        var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
         var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         // The workspace reads the Case's latest observation, so a workspace
@@ -784,13 +784,13 @@ public sealed class GetCaseValuationSection(
     public async Task<CaseValuationSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var (frame, workspace) = await CaseSectionQueries.FrameAndWorkspaceAsync(
+            query, store, workspaces, cancellationToken);
         if (frame is null)
         {
             return null;
         }
 
-        var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
         var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(frame, data, workspace?.Assessment);
@@ -1062,6 +1062,40 @@ internal static class CaseSectionQueries
             ? Task.FromResult(query.AssessmentWorkspace)
             : workspaces.ExecuteAsync(new(query.CaseId, query.Actor, query.Work), cancellationToken);
 
+    /// <summary>
+    /// The section frame and the workspace, for a section that reads both. A
+    /// frame the page supplied is used as it is; otherwise the two reads need
+    /// only the Case id and work and each opens its own context, so they run
+    /// together. A missing Case is a quiet null whatever the workspace read
+    /// returned or faulted with; any other fault is the frame's, then the
+    /// workspace's.
+    /// </summary>
+    public static async Task<(CaseSectionFrame? Frame, AssessmentWorkspace? Workspace)> FrameAndWorkspaceAsync(
+        GetCaseSectionQuery query,
+        ICaseQueryStore store,
+        IGetAssessmentWorkspace workspaces,
+        CancellationToken cancellationToken)
+    {
+        if (query.Frame is { } supplied)
+        {
+            return (supplied, await WorkspaceAsync(query, workspaces, cancellationToken));
+        }
+
+        var frameRead = store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var workspaceRead = WorkspaceAsync(query, workspaces, cancellationToken);
+        try
+        {
+            // Both reads end before this method does, so neither outlives the
+            // request or faults unobserved.
+            await Task.WhenAll(frameRead, workspaceRead);
+        }
+        catch (Exception) when (frameRead.IsCompletedSuccessfully && frameRead.Result is null)
+        {
+            return (null, null);
+        }
+
+        return (frameRead.Result, workspaceRead.Result);
+    }
 }
 
 /// <summary>

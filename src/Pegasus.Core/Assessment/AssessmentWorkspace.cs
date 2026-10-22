@@ -128,6 +128,17 @@ public interface IAssessmentWorkspaceSource
     Task<long?> GetVersionAsync(
         Guid caseId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The recorded values of the named assessment fields of the selected
+    /// work, keyed by path (a field with no record is absent): one narrow
+    /// read for a caller that needs those values and not the workspace.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetFieldValuesAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        IReadOnlyCollection<string> paths,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IGetAssessmentWorkspace
@@ -135,6 +146,23 @@ public interface IGetAssessmentWorkspace
     Task<AssessmentWorkspace?> ExecuteAsync(
         GetAssessmentWorkspaceQuery query,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The recorded values of the named assessment fields of the selected
+    /// work, keyed by path (a field with no record is absent): what the
+    /// workspace's <see cref="CaseAssessmentProjection.Fields"/> hold for
+    /// those paths. A save that keeps three values it did not post reads only
+    /// these; the workspace read is the definition and
+    /// <see cref="GetAssessmentWorkspace"/> answers from one narrow read.
+    /// </summary>
+    async Task<IReadOnlyDictionary<string, string>> FieldValuesAsync(
+        GetAssessmentWorkspaceQuery query,
+        IReadOnlyCollection<string> paths,
+        CancellationToken cancellationToken = default) =>
+        (await ExecuteAsync(query, cancellationToken))?.Assessment.Fields
+            .Where(field => paths.Contains(field.Path))
+            .ToDictionary(field => field.Path, field => field.Value, StringComparer.Ordinal)
+        ?? new Dictionary<string, string>();
 }
 
 public sealed class GetAssessmentWorkspace(IAssessmentWorkspaceSource source)
@@ -152,6 +180,22 @@ public sealed class GetAssessmentWorkspace(IAssessmentWorkspaceSource source)
         }
 
         return source.GetAsync(query.CaseId, query.Work, cancellationToken);
+    }
+
+    public Task<IReadOnlyDictionary<string, string>> FieldValuesAsync(
+        GetAssessmentWorkspaceQuery query,
+        IReadOnlyCollection<string> paths,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(paths);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+
+        return source.GetFieldValuesAsync(query.CaseId, query.Work, paths, cancellationToken);
     }
 }
 

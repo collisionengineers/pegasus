@@ -928,7 +928,12 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(HttpStatusCode.Redirect, stale.StatusCode);
 
         var refusedHtml = await GetHtmlAsync(client, stale.Headers.Location!.OriginalString);
-        Assert.Contains("The Case cannot be edited right now.", refusedHtml, StringComparison.Ordinal);
+        // The refusal is Core's: the page shows the sentence the check raised.
+        Assert.Contains(
+            System.Text.Encodings.Web.HtmlEncoder.Default.Encode(
+                new CaseEditLeaseExpiredException(caseId, workflowVersion).Message),
+            refusedHtml,
+            StringComparison.Ordinal);
         Assert.DoesNotContain(CaseWorkspaceLabels.EstimateImport.Imported, refusedHtml, StringComparison.Ordinal);
         Assert.Equal(documentCalls, store.DocumentCalls.Count);
         Assert.Equal(savedEstimates, store.SavedEstimates.Count);
