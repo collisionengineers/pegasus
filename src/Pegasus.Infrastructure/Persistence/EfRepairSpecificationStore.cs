@@ -201,8 +201,7 @@ public sealed class EfRepairSpecificationStore(
             context, workId, edited, request.Actor, RepairSpecificationSnapshotKind.BeforeScaling,
             "Before scaling", now, latest);
 
-        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
-        entity.Lines.Clear();
+        await DeleteLinesAsync(context, entity, cancellationToken);
         ApplyDetails(entity, result.Details);
         AddLines(context, entity, result.Lines, request.Actor, now);
         var scaled = Map(entity);
@@ -279,8 +278,7 @@ public sealed class EfRepairSpecificationStore(
             now,
             latest);
 
-        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
-        entity.Lines.Clear();
+        await DeleteLinesAsync(context, entity, cancellationToken);
         ApplyDetails(entity, version.Details);
         ApplySupplementary(entity, version.Supplementary);
         AddLines(
@@ -370,8 +368,7 @@ public sealed class EfRepairSpecificationStore(
         var entity = await RequiredEstimateAsync(context, workId, request.SpecificationId, cancellationToken);
         var before = EfRepairSpecificationSnapshotStore.Map(beforeRow);
 
-        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
-        entity.Lines.Clear();
+        await DeleteLinesAsync(context, entity, cancellationToken);
         ApplyDetails(entity, before.Details);
         ApplySupplementary(entity, before.Supplementary);
         AddLines(
@@ -616,8 +613,7 @@ public sealed class EfRepairSpecificationStore(
         var beforeLines = entity.Lines.OrderBy(line => line.Position).Select(EstimateLineWriter.Evidence).ToArray();
         if (existing is not null)
         {
-            context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
-            entity.Lines.Clear();
+            await DeleteLinesAsync(context, entity, cancellationToken);
         }
         entity.SourceRoute = request.Source.Route.ToString();
         entity.SourceArtifactReference = request.Source.ArtifactReference;
@@ -735,17 +731,22 @@ public sealed class EfRepairSpecificationStore(
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
-        var entity = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
+        // The rule reads the specification alone: its lines and numbered
+        // versions are deleted below without being read.
+        var entity = await context.CaseRepairSpecifications
+            .SingleOrDefaultAsync(item => item.Id == request.EstimateId && item.WorkId == workId, cancellationToken)
+            ?? throw new InvalidOperationException("The estimate was not found on this case.");
         EstimatePolicy.ValidateDiscard(Map(entity));
         // Discard deletes the spec with its lines and numbered versions
         // (operator, 11 October 2026); the history below keeps who, when and
         // why. The Current spec cannot be discarded, so no report it feeds
         // changes.
-        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
-        context.CaseRepairSpecificationSnapshots.RemoveRange(
-            await context.CaseRepairSpecificationSnapshots
-                .Where(item => item.WorkId == workId && item.SpecificationId == entity.Id)
-                .ToListAsync(cancellationToken));
+        await context.CaseEstimateLines
+            .Where(line => line.RepairSpecificationId == entity.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+        await context.CaseRepairSpecificationSnapshots
+            .Where(item => item.WorkId == workId && item.SpecificationId == entity.Id)
+            .ExecuteDeleteAsync(cancellationToken);
         context.CaseRepairSpecifications.Remove(entity);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_discarded", requestHash, new { entity.Id, entity.Version, entity.Name }, now);
@@ -940,6 +941,26 @@ public sealed class EfRepairSpecificationStore(
             }
         }
         entity.IsCurrent = true;
+    }
+
+    /// <summary>
+    /// Replaces a specification's lines: one DELETE in the caller's open
+    /// transaction, then the tracked rows are detached so the caller's
+    /// <c>SaveChanges</c> neither deletes them again nor nulls their key.
+    /// The caller adds the new lines and saves.
+    /// </summary>
+    private static async Task DeleteLinesAsync(
+        PegasusDbContext context, CaseRepairSpecificationEntity entity, CancellationToken cancellationToken)
+    {
+        await context.CaseEstimateLines
+            .Where(line => line.RepairSpecificationId == entity.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+        foreach (var line in entity.Lines.ToArray())
+        {
+            context.Entry(line).State = EntityState.Detached;
+        }
+
+        entity.Lines.Clear();
     }
 
     internal static async Task<int> NextVersionAsync(

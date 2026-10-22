@@ -837,28 +837,53 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
+        // The set is read for the history rows alone (its snapshot names the
+        // operation each row correlates with); the state change is one UPDATE
+        // over the same set, as MakeCurrentAsync does for the Current estimate.
         var current = await context.Set<CaseReportGenerationEntity>()
+            .AsNoTracking()
             .Where(item => item.WorkId == workId
                 && item.SupersededById == null
                 && item.State != nameof(CaseReportGenerationState.Stale))
+            .Select(item => new { item.Id, item.SnapshotHash, item.SnapshotJson })
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
+        if (current.Length == 0)
+        {
+            return 0;
+        }
+
+        // History first: an unreadable snapshot throws before any row is written.
         foreach (var generation in current)
         {
-            MarkGenerationStale(context, caseId, generation, reasonCode, nowUtc);
+            AddStaleHistory(context, caseId, generation.Id, generation.SnapshotHash, generation.SnapshotJson, reasonCode, nowUtc);
+        }
+
+        var ids = current.Select(item => item.Id).ToArray();
+        await context.Set<CaseReportGenerationEntity>()
+            .Where(item => ids.Contains(item.Id))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(item => item.State, nameof(CaseReportGenerationState.Stale)),
+                cancellationToken)
+            .ConfigureAwait(false);
+        foreach (var tracked in context.Set<CaseReportGenerationEntity>().Local.Where(item => ids.Contains(item.Id)))
+        {
+            tracked.State = nameof(CaseReportGenerationState.Stale);
+            context.Entry(tracked).Property(item => item.State).IsModified = false;
         }
 
         return current.Length;
     }
 
-    private static void MarkGenerationStale(
+    private static void AddStaleHistory(
         PegasusDbContext context,
         Guid caseId,
-        CaseReportGenerationEntity generation,
+        Guid generationId,
+        string snapshotHash,
+        string snapshotJson,
         string reasonCode,
         DateTimeOffset nowUtc)
     {
-        generation.State = nameof(CaseReportGenerationState.Stale);
         context.ActionHistory.Add(new ActionHistoryEntity
         {
             Id = Guid.NewGuid(),
@@ -870,12 +895,12 @@ public sealed class EfCaseReportGenerationStore(
             ActorRolesJson = "[]",
             OccurredAtUtc = nowUtc,
             Outcome = "Succeeded",
-            CorrelationId = DeserializeSnapshot(generation).OperationKey,
+            CorrelationId = DeserializeSnapshot(generationId, snapshotJson).OperationKey,
             Reason = reasonCode,
             AfterJson = DocumentActionHistory.Serialize(new
             {
-                GenerationId = generation.Id,
-                generation.SnapshotHash,
+                GenerationId = generationId,
+                SnapshotHash = snapshotHash,
                 ReasonCode = reasonCode,
             }),
             PolicyVersion = PolicyVersion,
@@ -1330,10 +1355,13 @@ public sealed class EfCaseReportGenerationStore(
         };
 
     private static CaseReportGenerationSnapshot DeserializeSnapshot(CaseReportGenerationEntity generation) =>
+        DeserializeSnapshot(generation.Id, generation.SnapshotJson);
+
+    private static CaseReportGenerationSnapshot DeserializeSnapshot(Guid generationId, string snapshotJson) =>
         JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(
-            generation.SnapshotJson, SnapshotJsonOptions)
+            snapshotJson, SnapshotJsonOptions)
         ?? throw new InvalidDataException(
-            $"The frozen snapshot of case report generation '{generation.Id}' is unreadable.");
+            $"The frozen snapshot of case report generation '{generationId}' is unreadable.");
 
     private static void RequireHash(string sha256)
     {
