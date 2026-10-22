@@ -264,6 +264,37 @@ public sealed class TriageQueuesWebTests
     }
 
     /// <summary>
+    /// #1213 (v41 W8, signed off 19 October 2026): a With Engineer Case with
+    /// no Engineer is listed With Engineer, its Engineer cell reading Unassigned.
+    /// </summary>
+    [Fact]
+    public async Task TheWithEngineerQueueReadsUnassignedForACaseWithNoEngineer()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var reference = $"QDOSW{DateTime.UtcNow.Ticks % 1_000_000}";
+        var caseId = await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "with-engineer-unassigned.pdf"),
+            reference);
+        await SetWorkflowStateAsync(services, caseId, CaseLifecycleState.ReportPreparation);
+
+        using var response = await client.GetAsync("/Cases?tab=with_engineer");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var start = html.IndexOf($">{reference}</a>", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"{reference} is not listed With Engineer.");
+        var row = html[start..html.IndexOf("</tr>", start, StringComparison.Ordinal)];
+        Assert.Contains(
+            $"<td>{Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.Unassigned}</td>",
+            row,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Issue 1044: the Triage queue holds the active Triage states only. A
     /// Completed or Cancelled Triage leaves it and is found through Search,
     /// which shows its Triage state.

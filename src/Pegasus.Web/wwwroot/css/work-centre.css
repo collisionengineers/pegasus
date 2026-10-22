@@ -83,6 +83,9 @@
 .wc-dismiss .btn--icon .icon { width: 15px; height: 15px; }
 .wc-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
 .wc-row-actions form { margin: 0; }
+/* An Unassigned row's Assign Engineer and Take share the action cell (v41 W8). */
+.wc-table--fold:has(.wc-row-actions) .wc-col-action { width: 196px; }
+.wc-table--fold .wc-row-actions > .btn { flex: 1 1 auto; justify-content: flex-start; white-space: nowrap; }
 .wc-ledger-table tr[aria-selected="true"] td { background: var(--navy-bg); }
 .wc-ledger-table tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--red); }
 .wc-ledger-table small { display: block; color: var(--muted); font-size: 10px; line-height: 1.6; margin-top: 3px; }
@@ -142,6 +145,7 @@
     .wc-col-record { width: 28%; }
     .wc-col-owner { width: 15%; }
     .wc-col-action { width: 120px; }
+    .wc-table--fold:has(.wc-row-actions) .wc-col-action { width: 186px; }
     .wc-jobs-table .wc-col-action { width: 180px; }
     /* Owner and Received fold into the task cell (v32 A). */
     .wc-table--fold .wc-col-owner, .wc-table--fold .wc-col-received { display: none; }
