@@ -42,7 +42,7 @@ internal static class CazanaMustache
     {
         ArgumentNullException.ThrowIfNull(template);
         var output = new StringBuilder(template.Length);
-        RenderNodes(template.Nodes, [view], partials, output);
+        RenderNodes(template.Nodes, new List<object?>(4) { view }, partials, output);
         return output;
     }
 

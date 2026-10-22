@@ -103,8 +103,10 @@ work holds none, through `IFillGlassVin` (operator, 21 October 2026).
 `NoVehicleData` (`cazana.valuation.not_found`). Every other failure answers
 the card's "unavailable" sentence and logs `cazana.valuation.rejected`,
 `forbidden`, `throttled`, `provider_failed`, `unreadable`, `branch` (no active
-branch on the account), `transport`, `configuration` or `mileage_unit`, with
-`stage=<sign_in|branch|confirm|lookup|read|mileage>`.
+branch on the account), `transport` or `mileage_unit`, with
+`stage=<sign_in|branch|confirm|lookup|read|mileage>`. The `configuration`
+failure (a missing or unresolved account setting) logs no stage; it names the
+setting's key instead.
 
 ## Consequences
 

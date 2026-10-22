@@ -143,6 +143,21 @@ public sealed class CazanaCompanionReportTests
         Assert.DoesNotContain("Vehicle advert full details", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The timeline, listings, image and PDF calls each carry the session's
+    /// Authorization header as the plain "Bearer" token.
+    /// </summary>
+    [Fact]
+    public async Task EveryReportCallCarriesTheSessionsAuthorizationAsThePlainToken()
+    {
+        var (report, requests) = CreateReport();
+
+        await report.FetchPdfAsync(default);
+
+        Assert.Equal(4, requests.Count);
+        Assert.All(requests, request => Assert.Equal("Bearer " + Jwt, request.Authorization));
+    }
+
     private const string SaleTimelineJson = """
         {
           "response": {

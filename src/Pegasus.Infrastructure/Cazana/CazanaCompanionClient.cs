@@ -19,6 +19,13 @@ internal sealed class CazanaCompanionClient(HttpClient http)
 {
     internal static readonly Uri BaseUri = new("https://api.cazana.com/");
 
+    // The five endpoints whose path is fixed, each parsed once; only the calls that carry a plate or a uuid build their address per call.
+    private static readonly Uri BranchUri = new(BaseUri, "guest/onboard/branch");
+    private static readonly Uri ConfirmUri = new(BaseUri, "guest/onboard/confirm");
+    private static readonly Uri LookupUri = new(BaseUri, "app/companion");
+    private static readonly Uri ListingsUri = new(BaseUri, "app/listings/similar");
+    private static readonly Uri PdfUri = new(BaseUri, "app/pdf/create");
+
     /// <summary>How long one Companion call may take, from the request to the last byte of its answer.</summary>
     internal static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(30);
 
@@ -27,9 +34,6 @@ internal sealed class CazanaCompanionClient(HttpClient http)
 
     /// <summary>The constant headers are set as the strings they are: nothing parsed, validated or built per call.</summary>
     private const string JsonMediaType = "application/json";
-
-    /// <summary>How many of the ten comparable listings Companion's market overview prints.</summary>
-    private const int ListingsShown = 8;
 
     /// <summary>The Companion portal's own client identifier for guest requests.</summary>
     private const string Czn = "5ab3cc97a8d11a00017332a7a609b760ad0147e0a12295c85fabe703";
@@ -44,7 +48,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         string token;
         long branchId;
         using (var answer = await ExchangeAsync(
-            "sign_in", Guest("guest/onboard/branch", new { credentials = new { email, password } }), cancellationToken))
+            "sign_in", Guest(BranchUri, new { credentials = new { email, password } }), cancellationToken))
         {
             token = CazanaJson.String(answer.RootElement, "token")
                 ?? throw new CazanaCompanionFailure("sign_in", null, "token=absent");
@@ -53,7 +57,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         }
 
         using var confirmed = await ExchangeAsync(
-            "confirm", Guest("guest/onboard/confirm", new { token, orgId = branchId }), cancellationToken);
+            "confirm", Guest(ConfirmUri, new { token, orgId = branchId }), cancellationToken);
         return "Bearer " + (CazanaJson.String(confirmed.RootElement, "jwt")
             ?? throw new CazanaCompanionFailure("confirm", null, "jwt=absent"));
     }
@@ -72,7 +76,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
             },
         };
         using var answer = await ExchangeAsync(
-            "lookup", App(HttpMethod.Post, "app/companion", authorization, search), cancellationToken);
+            "lookup", App(HttpMethod.Post, LookupUri, authorization, search), cancellationToken);
         return CazanaJson.String(answer.RootElement, "uuid")
             ?? throw new CazanaCompanionFailure("lookup", null, "uuid=absent");
     }
@@ -81,7 +85,9 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     public async Task<JsonElement> ReadAsync(string authorization, string uuid, CancellationToken cancellationToken)
     {
         using var answer = await ExchangeAsync(
-            "read", App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid), authorization), cancellationToken);
+            "read",
+            App(HttpMethod.Get, new Uri(BaseUri, "app/companion/" + Uri.EscapeDataString(uuid)), authorization),
+            cancellationToken);
         if (CazanaJson.Get(answer.RootElement, "response") is { } response
             && CazanaJson.Get(response, "valuation") is { ValueKind: JsonValueKind.Object })
         {
@@ -104,7 +110,10 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         {
             var answer = await ExchangeAsync(
                 "timeline",
-                App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid) + "/timeline", authorization),
+                App(
+                    HttpMethod.Get,
+                    new Uri(BaseUri, "app/companion/" + Uri.EscapeDataString(uuid) + "/timeline"),
+                    authorization),
                 cancellationToken);
             if (CazanaJson.Get(answer.RootElement, "response", "vin") is { ValueKind: JsonValueKind.String } vin
                 && !vin.ValueEquals(""u8))
@@ -122,12 +131,13 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     }
 
     /// <summary>
-    /// Comparable listings exactly as Companion asks for them, ten of them,
-    /// of which the report prints the first eight with the total: only those
-    /// leave the answer. The listing cid is the valuation's, not the
-    /// specification's: Cazana answers 500 for the latter.
+    /// Comparable listings exactly as Companion asks for them, ten of them.
+    /// The parsed answer itself is handed over, as the timeline's is: the
+    /// caller reads the total and the listings it prints while it renders the
+    /// page and disposes it straight after. The listing cid is the
+    /// valuation's, not the specification's: Cazana answers 500 for the latter.
     /// </summary>
-    public async Task<SimilarListings> SimilarListingsAsync(string authorization, JsonElement response, CancellationToken cancellationToken)
+    public async Task<JsonDocument> SimilarListingsAsync(string authorization, JsonElement response, CancellationToken cancellationToken)
     {
         var valuation = CazanaJson.Get(response, "valuation");
         var request = new
@@ -155,27 +165,8 @@ internal sealed class CazanaCompanionClient(HttpClient http)
             page = 1,
             limit = 10,
         };
-        using var answer = await ExchangeAsync(
-            "listings", App(HttpMethod.Post, "app/listings/similar", authorization, request), cancellationToken);
-
-        // The total is a count, read as the number it is while the answer is open (no copy of it
-        // is kept); the first eight listings are cloned out into a list sized for them.
-        var listings = new List<JsonElement>(ListingsShown);
-        foreach (var listing in CazanaJson.Items(answer.RootElement, "listings"))
-        {
-            listings.Add(listing.Clone());
-            if (listings.Count == ListingsShown)
-            {
-                break;
-            }
-        }
-
-        return new SimilarListings(
-            CazanaJson.Get(answer.RootElement, "total") is { ValueKind: JsonValueKind.Number } total
-                && total.TryGetInt64(out var count)
-                    ? count
-                    : null,
-            listings);
+        return await ExchangeAsync(
+            "listings", App(HttpMethod.Post, ListingsUri, authorization, request), cancellationToken);
     }
 
     /// <summary>
@@ -218,7 +209,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         {
             var request = new { html = new ReadOnlyMemory<byte>(buffer, 0, Utf8(html, buffer)) };
             using var answer = await ExchangeAsync(
-                "pdf", App(HttpMethod.Post, "app/pdf/create", authorization, request), cancellationToken);
+                "pdf", App(HttpMethod.Post, PdfUri, authorization, request), cancellationToken);
             return CazanaJson.Get(answer.RootElement, "data") is { ValueKind: JsonValueKind.String } data
                 && data.TryGetBytesFromBase64(out var pdf)
                 && pdf.Length > 0
@@ -247,9 +238,9 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         return written + encoder.GetBytes(ReadOnlySpan<char>.Empty, destination.AsSpan(written), flush: true);
     }
 
-    private static HttpRequestMessage Guest(string path, object body)
+    private static HttpRequestMessage Guest(Uri uri, object body)
     {
-        var message = new HttpRequestMessage(HttpMethod.Post, new Uri(BaseUri, path)) { Content = JsonContent.Create(body) };
+        var message = new HttpRequestMessage(HttpMethod.Post, uri) { Content = JsonContent.Create(body) };
         message.Headers.TryAddWithoutValidation("X-ENVIRONMENT", Environment);
         message.Headers.TryAddWithoutValidation("X-CLIENT", Client);
         message.Headers.TryAddWithoutValidation("X-CZN", Czn);
@@ -257,9 +248,9 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         return message;
     }
 
-    private static HttpRequestMessage App(HttpMethod method, string path, string authorization, object? body = null)
+    private static HttpRequestMessage App(HttpMethod method, Uri uri, string authorization, object? body = null)
     {
-        var message = new HttpRequestMessage(method, new Uri(BaseUri, path));
+        var message = new HttpRequestMessage(method, uri);
         if (body is not null)
         {
             message.Content = JsonContent.Create(body);
@@ -401,9 +392,6 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         return detail.Length <= 200 ? detail : detail[..200];
     }
 }
-
-/// <summary>The comparable listings the report prints: the answer's total and its first listings.</summary>
-internal sealed record SimilarListings(long? Total, IReadOnlyList<JsonElement> Listings);
 
 /// <summary>A Companion call that did not answer as Companion answers, named by its stage.</summary>
 internal sealed class CazanaCompanionFailure : Exception

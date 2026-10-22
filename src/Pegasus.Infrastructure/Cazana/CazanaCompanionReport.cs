@@ -24,6 +24,10 @@ internal sealed class CazanaCompanionReport(
     TimeProvider timeProvider) : IGuideValuationReport
 {
     private const string NotAvailable = "N/A";
+
+    /// <summary>How many of the ten comparable listings Companion's market overview prints.</summary>
+    private const int ListingsShown = 8;
+
     private const string Logo = "https://fuel-economy-pdf-images.s3.eu-west-2.amazonaws.com/cazana-logotype-dark.svg";
     private const string LogoClass = "w-auto h-10";
     private const string PlaceholderLogo = "https://fuel-economy-pdf-images.s3.eu-west-2.amazonaws.com/cazana-logotype-white.svg";
@@ -53,13 +57,14 @@ internal sealed class CazanaCompanionReport(
 
     private static readonly Lazy<Page> Pages = new(LoadPage);
 
-    public string Identity => "cazana-companion:" + uuid;
+    public string Identity { get; } = "cazana-companion:" + uuid;
 
     /// <summary>
     /// The timeline, comparable listings and stock image do not depend on each
     /// other, so they are asked for together and the page waits for the slowest.
-    /// The timeline answer is read in place while the page renders and disposed
-    /// before the PDF service is called, whichever way the reads end.
+    /// The timeline and listings answers are read in place while the page
+    /// renders and disposed before the PDF service is called, whichever way the
+    /// reads end.
     /// </summary>
     public async Task<byte[]> FetchPdfAsync(CancellationToken cancellationToken)
     {
@@ -73,13 +78,18 @@ internal sealed class CazanaCompanionReport(
             await Task.WhenAll(timeline, similar, image);
             var timelineAnswer = await timeline;
             var timelineElement = CazanaJson.Get(timelineAnswer?.RootElement, "response");
-            html = RenderHtml(response, vrm, timelineElement, await similar, await image, timeProvider.GetUtcNow());
+            html = RenderHtml(response, vrm, timelineElement, (await similar).RootElement, await image, timeProvider.GetUtcNow());
         }
         finally
         {
             if (timeline.IsCompletedSuccessfully)
             {
                 (await timeline)?.Dispose();
+            }
+
+            if (similar.IsCompletedSuccessfully)
+            {
+                (await similar).Dispose();
             }
         }
 
@@ -96,7 +106,7 @@ internal sealed class CazanaCompanionReport(
         JsonElement response,
         string? vrm,
         JsonElement? timeline,
-        SimilarListings similar,
+        JsonElement similar,
         string? image,
         DateTimeOffset now)
     {
@@ -108,7 +118,7 @@ internal sealed class CazanaCompanionReport(
         JsonElement response,
         string? vrm,
         JsonElement? timeline,
-        SimilarListings similar,
+        JsonElement similar,
         string? image,
         DateTimeOffset now)
     {
@@ -172,9 +182,9 @@ internal sealed class CazanaCompanionReport(
             ["containsSalesEvents"] = containsSalesEvents,
             ["isHistoricalValuationDate"] = !IsToday(valuedOn, today),
             ["sortBy"] = "Newest",
-            ["listings"] = SimilarListingViews(similar.Listings),
+            ["listings"] = SimilarListingViews(similar),
             ["similarListingFilters"] = SimilarListingFilters,
-            ["totalSimilarListings"] = similar.Total,
+            ["totalSimilarListings"] = SimilarListingTotal(similar),
             ["customerReference"] = null,
             ["placeholderLogo"] = PlaceholderLogo,
             ["placeholderBgClass"] = PlaceholderBackground,
@@ -212,16 +222,32 @@ internal sealed class CazanaCompanionReport(
         return view;
     }
 
-    private static List<object?> SimilarListingViews(IReadOnlyList<JsonElement> listings)
+    /// <summary>
+    /// The first <see cref="ListingsShown"/> of the answer's listings, each
+    /// mapped as it is met, in a list sized for them.
+    /// </summary>
+    private static List<object?> SimilarListingViews(JsonElement answer)
     {
-        var views = new List<object?>(listings.Count);
-        for (var index = 0; index < listings.Count; index++)
+        var listings = CazanaJson.Items(answer, out var count, "listings");
+        var views = new List<object?>(Math.Min(count, ListingsShown));
+        foreach (var listing in listings)
         {
-            views.Add(SimilarListing(listings[index]));
+            views.Add(SimilarListing(listing));
+            if (views.Count == ListingsShown)
+            {
+                break;
+            }
         }
 
         return views;
     }
+
+    /// <summary>The answer's total: a count, read as the number it is.</summary>
+    private static long? SimilarListingTotal(JsonElement answer) =>
+        CazanaJson.Get(answer, "total") is { ValueKind: JsonValueKind.Number } total
+        && total.TryGetInt64(out var count)
+            ? count
+            : null;
 
     private static Dictionary<string, object?> SimilarListing(JsonElement listing) => new(6, StringComparer.Ordinal)
     {
