@@ -819,8 +819,9 @@ builder.Services.AddScoped<DispatchPendingIntakeWork>();
 builder.Services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
     serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
 builder.Services.AddScoped<DispatchPendingExternalWork>();
-builder.Services.AddScoped<ICommittedExternalWorkPublisher>(serviceProvider =>
-    serviceProvider.GetRequiredService<DispatchPendingExternalWork>());
+// Web publishes committed external work after the response (R315); the Worker
+// composes the immediate publisher, and the recovery sweep is the fallback.
+builder.Services.AddScoped<ICommittedExternalWorkPublisher, DeferredExternalWorkPublisher>();
 // Presentation-layer read model for the Upload confirmation surface: composes
 // existing Core read ports only, and every action it offers routes to the
 // existing page that performs it (see Pegasus.Web.Presentation.UploadOutcome).

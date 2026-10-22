@@ -1208,6 +1208,16 @@ public interface IDownloadIntakeSource
     Task<IntakeSourceDownload?> ExecuteAsync(
         DownloadIntakeSourceQuery query,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Serves the source of a receipt <see cref="IGetIntakeSourceMetadata"/>
+    /// has already read and authorised, under the same right and checks,
+    /// without reading the receipt graph again.
+    /// </summary>
+    Task<IntakeSourceDownload> ExecuteAsync(
+        AuthorizedIntakeSource authorized,
+        ActionActor actor,
+        CancellationToken cancellationToken = default);
 }
 
 public enum IntakeResolutionKind

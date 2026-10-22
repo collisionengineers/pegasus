@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.IntegrationTests;
@@ -57,6 +58,12 @@ public sealed class IntakePendingCustodyWebTests
     {
         public Task<IntakeSourceDownload?> ExecuteAsync(
             DownloadIntakeSourceQuery query,
+            CancellationToken cancellationToken = default) =>
+            throw new IntakeCustodyUnavailableException("Durable Box custody has not been confirmed.");
+
+        public Task<IntakeSourceDownload> ExecuteAsync(
+            AuthorizedIntakeSource authorized,
+            ActionActor actor,
             CancellationToken cancellationToken = default) =>
             throw new IntakeCustodyUnavailableException("Durable Box custody has not been confirmed.");
 

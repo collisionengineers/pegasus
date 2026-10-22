@@ -232,8 +232,8 @@ public sealed class InstructionEvidenceImagesTests
     {
         var harness = new DownloadHarness();
 
-        var metadata = await new GetIntakeSourceMetadata(harness.Receipts).ExecuteAsync(
-            new(harness.Receipt.Id, StaffActor));
+        var metadata = (await new GetIntakeSourceMetadata(harness.Receipts).ExecuteAsync(
+            new(harness.Receipt.Id, StaffActor)))?.Metadata;
 
         Assert.NotNull(metadata);
         Assert.Equal(harness.Receipt.Id, metadata!.ReceiptId);
@@ -290,6 +290,41 @@ public sealed class InstructionEvidenceImagesTests
         var download = await harness.Download().ExecuteAsync(
             new(harness.Receipt.Id, harness.SourceAsset.Id, connector));
         Assert.Equal(DownloadHarness.SourceHash, download!.Sha256);
+    }
+
+    /// <summary>
+    /// An inline download reads the metadata first. The bytes are then served
+    /// from the receipt that read returned, so the receipt graph is read once.
+    /// </summary>
+    [Fact]
+    public async Task AnAuthorizedSourceIsServedWithoutReadingTheReceiptAgain()
+    {
+        var harness = new DownloadHarness();
+        var reader = new RecordingLogicalReader();
+
+        var authorized = await new GetIntakeSourceMetadata(harness.Receipts).ExecuteAsync(
+            new(harness.Receipt.Id, StaffActor));
+        var download = await new DownloadIntakeSource(harness.Receipts, reader)
+            .ExecuteAsync(authorized!, StaffActor);
+
+        Assert.Equal(1, harness.Receipts.ReceiptReads);
+        Assert.Equal(DownloadHarness.SourceHash, download.Sha256);
+        Assert.Equal(authorized!.Metadata.Sha256, download.Sha256, ignoreCase: true);
+        var request = Assert.Single(reader.Requests);
+        Assert.Equal(harness.SourceAsset.Id, request.IntakeAssetId);
+        Assert.Equal(harness.Receipt.Id, request.IntakeReceiptId);
+    }
+
+    [Fact]
+    public async Task AnAuthorizedSourceIsRefusedToAnActorWithoutTheRight()
+    {
+        var harness = new DownloadHarness();
+        var authorized = await new GetIntakeSourceMetadata(harness.Receipts).ExecuteAsync(
+            new(harness.Receipt.Id, StaffActor));
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new DownloadIntakeSource(harness.Receipts, new RecordingLogicalReader())
+                .ExecuteAsync(authorized!, ActionActor.Principal(Guid.NewGuid())));
     }
 
     [Fact]
