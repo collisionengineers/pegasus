@@ -746,25 +746,22 @@ body.case-images-window{margin:0;background:var(--surface-2)}
 
 /* ==== notes ==== */
 /* ---- Notes ---------------------------------------------------------------- */
-#section-notes .note-form{display:grid;gap:6px}
+#section-notes .note-form,#case-tasks-dialog .note-form{display:grid;gap:6px}
 #section-notes .note-form textarea{min-height:64px;padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;resize:vertical}
-#section-notes .note-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+#section-notes .note-form .lbl,#case-tasks-dialog .note-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
 /* Tasks dialog: Add task shares a row with its field, and an open task's
    Assign, Complete and Cancel stay on one line. The table scrolls when that
    line is wider than the dialog. A full-width table select inside a wrapping
    button row was stacking them under the state chip. */
-#case-tasks-dialog .task-compose{display:grid;gap:6px}
-#case-tasks-dialog .task-compose .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
 #case-tasks-dialog .task-compose-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 #case-tasks-dialog .task-compose-row input{flex:1 1 auto;width:auto;min-width:min(100%,16rem)}
 #case-tasks-dialog .task-compose-row .btn{flex:none}
-#case-tasks-dialog [data-case-tasks]{width:100%;min-width:min-content}
 #case-tasks-dialog [data-case-tasks] td.task-actions{width:1%;white-space:nowrap}
 #case-tasks-dialog [data-case-tasks] .row-actions{flex-wrap:nowrap;align-items:center}
 #case-tasks-dialog [data-case-tasks] .row-actions form,
 #case-tasks-dialog [data-case-tasks] .task-outcomes{display:flex;align-items:center;gap:6px;margin:0;flex:none}
 #case-tasks-dialog [data-case-tasks] .task-assign select{width:12rem;max-width:100%;flex:0 0 auto;height:32px;min-height:32px}
-#case-tasks-dialog [data-case-tasks] .task-cancel{margin-left:8px}
+#case-tasks-dialog [data-case-tasks] .task-outcomes form + form{margin-left:8px}
 .notes-timeline{display:grid}
 .notes-timeline .note{display:grid;grid-template-columns:118px 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px}
 .notes-timeline .note:last-child{border-bottom:0}
