@@ -2574,7 +2574,6 @@ public static class OperatorLabels
     public static class Upload
     {
         public const string Title = "Upload";
-        public const string ReviewSubtitle = "Review your upload and its destination.";
         public const string SelectEyebrow = "Add files to Pegasus";
         public const string ChooseHeading = "Choose the files for this upload";
         public const string DropHeading = "Drop files here";
@@ -2606,8 +2605,6 @@ public static class OperatorLabels
         public const string ChooseTitle = "Which Case do these files belong to?";
         public const string NoMatchEyebrow = "No suggested match";
         public const string NoMatchTitle = "Find the right Case";
-        public const string NoMatchSentence = "Search all Cases and Triage items. The upload is retained while you decide.";
-        public const string SelectHint = "Select a Case to continue.";
         public const string Review = "Review and add to Case";
         public const string FindCase = "Find a Case";
         public const string FindAnotherCase = "Find another Case";
@@ -2620,7 +2617,6 @@ public static class OperatorLabels
         public const string VehicleImages = "Vehicle images";
         public const string RegisteredAutomatically = "Registered automatically";
         public const string Proposal = "Review new Case proposal";
-        public const string ProposalSentence = "Use the extracted instruction details to create a new Case.";
         public const string LeaveUndecided = "Leave undecided";
         public const string Discard = "Discard upload";
         public const string DiscardTitle = "Discard this upload?";
@@ -2674,14 +2670,6 @@ public static class OperatorLabels
         public static string DiscardSentence(int count) => $"Discard all {Files(count)} in this upload. The source files and processing record will be retained.";
 
         public static string OriginalFiles(int count) => count == 1 ? "1 original file" : string.Create(CultureInfo.InvariantCulture, $"{count} original files");
-
-        public static string CandidatesSentence(int count, string? registration) => (count, registration) switch
-        {
-            (1, null) => "One possible Case. Check the details before adding the files.",
-            (1, _) => $"One possible Case for {registration}. Check the details before adding the files.",
-            (_, null) => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases. Choose the correct claimant and Case."),
-            _ => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases for {registration}. Choose the correct claimant and Case.")
-        };
 
         public static string CouldNotBeReadTitle(int count) => count == 1 ? "1 file could not be read" : string.Create(CultureInfo.InvariantCulture, $"{count} files could not be read");
 

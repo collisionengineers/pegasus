@@ -36,7 +36,6 @@
 <header class="page-header up-head">
     <div class="page-title">
         <h1>@Labels.Title</h1>
-        <p class="up-subtitle">@Labels.ReviewSubtitle</p>
     </div>
     <div class="page-actions">
         <span class="up-meta">@Labels.ReceivedAt(Model.ReceivedAtUtc, Model.NowUtc)</span>
@@ -52,200 +51,6 @@
 
 <div class="up-surface" data-upload-review data-auto-refresh="@Model.AutoRefreshMilliseconds" data-status-url="@Model.StatusUrl">
     <div class="up-workspace">
-        <section class="up-decision" aria-labelledby="up-decision-title" data-upload-phase="@Model.Phase.ToString().ToLowerInvariant()">
-            @if (Model.Error is { } error)
-            {
-                <div class="up-alert up-alert--error" role="alert" tabindex="-1" data-upload-error>
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
-                    <div><strong>@error</strong></div>
-                </div>
-            }
-            @if (Model.IsDuplicate)
-            {
-                <div class="up-alert" role="status">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
-                    <div><strong>@Labels.AlreadyReceived</strong></div>
-                </div>
-            }
-            @switch (Model.Phase)
-            {
-                case UploadReviewPhase.Pending:
-                    <div class="up-decision-head">
-                        <p class="up-eyebrow">@Labels.PendingEyebrow</p>
-                        <h2 id="up-decision-title">@Labels.PendingTitle</h2>
-                        <div class="up-progress" role="progressbar" aria-label="@Labels.PendingTitle"></div>
-                        <p class="up-explainer">@Labels.PendingSentence(files.Count)</p>
-                        <div class="up-action-slot">
-                            <partial name="Shared/_RefreshButton" />
-                        </div>
-                    </div>
-                    break;
-                case UploadReviewPhase.Attached:
-                    <div class="up-decision-head">
-                        <div class="up-result-mark"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg></div>
-                        <p class="up-eyebrow">@Labels.CompleteEyebrow</p>
-                        <h2 id="up-decision-title">@Labels.AttachedTitle</h2>
-                        <p class="up-explainer">@Labels.AttachedSentence(files.Count)</p>
-                        @if (Model.Destination is { } destination)
-                        {
-                            <partial name="Shared/_UploadDestinationCard" model="@destination" />
-                            <a class="btn btn--primary" href="@destination.Url">@Labels.OpenCase(destination.Reference)</a>
-                        }
-                    </div>
-                    break;
-                case UploadReviewPhase.Discarded:
-                    <div class="up-decision-head">
-                        <div class="up-result-mark is-neutral"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-archive")" /></svg></div>
-                        <p class="up-eyebrow">@Labels.ClosedEyebrow</p>
-                        <h2 id="up-decision-title">@Labels.DiscardedTitle</h2>
-                        <p class="up-explainer">@Labels.DiscardedSentence</p>
-                        <a class="btn btn--primary" asp-page="/Upload">@Labels.StartAnother</a>
-                    </div>
-                    break;
-                case UploadReviewPhase.Report when Model.Report is { } report:
-                    <div class="up-decision-head">
-                        <p class="up-eyebrow">@report.Eyebrow</p>
-                        <h2 id="up-decision-title">@report.Title</h2>
-                        @if (report.Sentence is { } sentence)
-                        {
-                            <p class="up-explainer">@sentence</p>
-                        }
-                        @if (report.Action is not null || report.OfferRefresh)
-                        {
-                            <div class="up-action-slot">
-                                @if (report.Action is { } action)
-                                {
-                                    <a class="btn btn--primary" href="@action.Url">@action.Label</a>
-                                }
-                                @if (report.OfferRefresh)
-                                {
-                                    <partial name="Shared/_RefreshButton" />
-                                }
-                            </div>
-                        }
-                    </div>
-                    @if (Model.Record is not null || Model.OffersLeave)
-                    {
-                        <div class="up-side-actions">
-                            @if (Model.Record is { } reportRecord)
-                            {
-                                <partial name="Shared/_UploadReviewRecord" model="@reportRecord" />
-                            }
-                            @if (Model.OffersLeave)
-                            {
-                                <partial name="Shared/_UploadReviewLeave" model="@Model" />
-                            }
-                        </div>
-                    }
-                    break;
-                case UploadReviewPhase.Decision:
-                    var hasCandidates = Model.Candidates.Count > 0;
-                    <div class="up-decision-head">
-                        <p class="up-eyebrow">@(hasCandidates ? Labels.ChooseEyebrow : Labels.NoMatchEyebrow)</p>
-                        <h2 id="up-decision-title">@(hasCandidates ? Labels.ChooseTitle : Labels.NoMatchTitle)</h2>
-                        <p class="up-explainer">@(hasCandidates ? Labels.CandidatesSentence(Model.Candidates.Count, Model.Registration) : Labels.NoMatchSentence)</p>
-                    </div>
-                    <div class="up-choice">
-                        @if (Model.CouldNotBeReadCount > 0)
-                        {
-                            <div class="up-alert" role="status" data-could-not-be-read-count>
-                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
-                                <div><strong>@Labels.CouldNotBeReadTitle(Model.CouldNotBeReadCount)</strong><p>@Labels.CouldNotBeReadSentence(files.Count)</p></div>
-                            </div>
-                        }
-                        @* One decision for the whole upload. The chosen Case travels as
-                           the radio's value; the reviewed Case version is filled in by
-                           the review dialog (script) or by the server's confirmation
-                           step (no script). Nothing is written until the rendered
-                           decision is posted. *@
-                        <form method="post" asp-page-handler="@Model.AttachHandler" id="upload-decision-form" class="up-decision-form" data-upload-decision>
-                            <input type="hidden" name="operationId" value="@operationId" />
-                            @if (single)
-                            {
-                                <input type="hidden" name="receiptId" value="@Model.SingleReceiptId" />
-                                <input type="hidden" name="receiptVersion" value="@Model.ReceiptVersions.Values.FirstOrDefault()" />
-                            }
-                            else
-                            {
-                                foreach (var member in Model.ReceiptVersions)
-                                {
-                                    <input type="hidden" name="receiptVersions[@member.Key]" value="@member.Value" />
-                                }
-                            }
-                            @if (hasCandidates)
-                            {
-                                <div class="up-candidates">
-                                    @foreach (var candidate in Model.Candidates)
-                                    {
-                                        <partial name="Shared/_UploadReviewCandidate" model="@candidate" view-data='new ViewDataDictionary(ViewData) { ["Checked"] = target?.CaseId == candidate.CaseId }' />
-                                    }
-                                </div>
-                            }
-                            <div class="up-action-slot">
-                                <button type="submit" class="btn btn--primary up-review" data-upload-review-button>
-                                    <span>@Labels.Review</span>
-                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
-                                </button>
-                                @if (hasCandidates || Model.SearchResults.Count > 0)
-                                {
-                                    <p class="up-choice-hint">@Labels.SelectHint</p>
-                                }
-                            </div>
-                        </form>
-                        <details class="up-search" data-refresh-hold open="@Model.SearchOpen">
-                            <summary>@(hasCandidates ? Labels.FindAnotherCase : Labels.FindCase)<svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-right")" /></svg></summary>
-                            <form class="up-search-form" method="get" action="@Model.PageUrl" role="search">
-                                @if (Model.IsDuplicate)
-                                {
-                                    <input type="hidden" name="duplicate" value="true" />
-                                }
-                                <label class="sr-only" for="up-case-query">@Labels.SearchLabel</label>
-                                <input id="up-case-query" type="search" name="q" value="@Model.SearchTerm" placeholder="@Labels.SearchPlaceholder" autocomplete="off" maxlength="80" data-upload-search />
-                                <button class="btn" type="submit">
-                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-search")" /></svg>
-                                    <span>@Labels.Search</span>
-                                </button>
-                            </form>
-                            <div class="up-search-results" aria-live="polite">
-                                @if (Model.SearchFailed)
-                                {
-                                    <div class="up-search-note" role="alert">
-                                        <strong>@Labels.SearchUnavailable</strong><br />@Labels.SearchUnavailableSentence<br />
-                                        <a class="btn" href="@Model.PageUrl?q=@Uri.EscapeDataString(Model.SearchTerm ?? string.Empty)">@Labels.RetrySearch</a>
-                                    </div>
-                                }
-                                else if (Model.SearchTerm is { } term)
-                                {
-                                    if (Model.SearchResults.Count == 0)
-                                    {
-                                        <p class="up-search-note">@Labels.NoSearchMatches(term)</p>
-                                    }
-                                    foreach (var candidate in Model.SearchResults)
-                                    {
-                                        <partial name="Shared/_UploadReviewCandidate" model="@candidate" view-data='new ViewDataDictionary(ViewData) { ["Checked"] = target?.CaseId == candidate.CaseId, ["Form"] = "upload-decision-form" }' />
-                                    }
-                                }
-                            </div>
-                        </details>
-                        @if (Model.Proposal is { } proposal)
-                        {
-                            <div class="up-search up-proposal">
-                                <a class="up-text-link" href="@proposal.Url">@proposal.Label<svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg></a>
-                                <p class="up-explainer">@Labels.ProposalSentence</p>
-                            </div>
-                        }
-                    </div>
-                    <div class="up-side-actions">
-                        @if (Model.Record is { } decisionRecord)
-                        {
-                            <partial name="Shared/_UploadReviewRecord" model="@decisionRecord" />
-                        }
-                        <partial name="Shared/_UploadReviewLeave" model="@Model" />
-                    </div>
-                    break;
-            }
-        </section>
-
         <section class="up-inspector" aria-label="File inspection" data-upload-inspector data-files="@filesJson">
             <header class="up-inspect-top">
                 <strong>@Labels.FilesInUpload</strong>
@@ -351,6 +156,194 @@
                     }
                 </ul>
             </details>
+        </section>
+
+        <section class="up-decision" aria-labelledby="up-decision-title" data-upload-phase="@Model.Phase.ToString().ToLowerInvariant()">
+            @if (Model.Error is { } error)
+            {
+                <div class="up-alert up-alert--error" role="alert" tabindex="-1" data-upload-error>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
+                    <div><strong>@error</strong></div>
+                </div>
+            }
+            @if (Model.IsDuplicate)
+            {
+                <div class="up-alert" role="status">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
+                    <div><strong>@Labels.AlreadyReceived</strong></div>
+                </div>
+            }
+            @switch (Model.Phase)
+            {
+                case UploadReviewPhase.Pending:
+                    <div class="up-decision-head">
+                        <p class="up-eyebrow">@Labels.PendingEyebrow</p>
+                        <h2 id="up-decision-title">@Labels.PendingTitle</h2>
+                        <div class="up-progress" role="progressbar" aria-label="@Labels.PendingTitle"></div>
+                        <p class="up-explainer">@Labels.PendingSentence(files.Count)</p>
+                        <div class="up-action-slot">
+                            <partial name="Shared/_RefreshButton" />
+                        </div>
+                    </div>
+                    break;
+                case UploadReviewPhase.Attached:
+                    <div class="up-decision-head">
+                        <div class="up-result-mark"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg></div>
+                        <p class="up-eyebrow">@Labels.CompleteEyebrow</p>
+                        <h2 id="up-decision-title">@Labels.AttachedTitle</h2>
+                        <p class="up-explainer">@Labels.AttachedSentence(files.Count)</p>
+                        @if (Model.Destination is { } destination)
+                        {
+                            <partial name="Shared/_UploadDestinationCard" model="@destination" />
+                            <a class="btn btn--primary" href="@destination.Url">@Labels.OpenCase(destination.Reference)</a>
+                        }
+                    </div>
+                    break;
+                case UploadReviewPhase.Discarded:
+                    <div class="up-decision-head">
+                        <div class="up-result-mark is-neutral"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-archive")" /></svg></div>
+                        <p class="up-eyebrow">@Labels.ClosedEyebrow</p>
+                        <h2 id="up-decision-title">@Labels.DiscardedTitle</h2>
+                        <p class="up-explainer">@Labels.DiscardedSentence</p>
+                        <a class="btn btn--primary" asp-page="/Upload">@Labels.StartAnother</a>
+                    </div>
+                    break;
+                case UploadReviewPhase.Report when Model.Report is { } report:
+                    <div class="up-decision-head">
+                        <p class="up-eyebrow">@report.Eyebrow</p>
+                        <h2 id="up-decision-title">@report.Title</h2>
+                        @if (report.Sentence is { } sentence)
+                        {
+                            <p class="up-explainer">@sentence</p>
+                        }
+                        @if (report.Action is not null || report.OfferRefresh)
+                        {
+                            <div class="up-action-slot">
+                                @if (report.Action is { } action)
+                                {
+                                    <a class="btn btn--primary" href="@action.Url">@action.Label</a>
+                                }
+                                @if (report.OfferRefresh)
+                                {
+                                    <partial name="Shared/_RefreshButton" />
+                                }
+                            </div>
+                        }
+                    </div>
+                    @if (Model.Record is not null || Model.OffersLeave)
+                    {
+                        <div class="up-side-actions">
+                            @if (Model.Record is { } reportRecord)
+                            {
+                                <partial name="Shared/_UploadReviewRecord" model="@reportRecord" />
+                            }
+                            @if (Model.OffersLeave)
+                            {
+                                <partial name="Shared/_UploadReviewLeave" model="@Model" />
+                            }
+                        </div>
+                    }
+                    break;
+                case UploadReviewPhase.Decision:
+                    var hasCandidates = Model.Candidates.Count > 0;
+                    <div class="up-decision-head">
+                        <p class="up-eyebrow">@(hasCandidates ? Labels.ChooseEyebrow : Labels.NoMatchEyebrow)</p>
+                        <h2 id="up-decision-title">@(hasCandidates ? Labels.ChooseTitle : Labels.NoMatchTitle)</h2>
+                    </div>
+                    <div class="up-choice">
+                        @if (Model.CouldNotBeReadCount > 0)
+                        {
+                            <div class="up-alert" role="status" data-could-not-be-read-count>
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
+                                <div><strong>@Labels.CouldNotBeReadTitle(Model.CouldNotBeReadCount)</strong><p>@Labels.CouldNotBeReadSentence(files.Count)</p></div>
+                            </div>
+                        }
+                        @* One decision for the whole upload. The chosen Case travels as
+                           the radio's value; the reviewed Case version is filled in by
+                           the review dialog (script) or by the server's confirmation
+                           step (no script). Nothing is written until the rendered
+                           decision is posted. *@
+                        <form method="post" asp-page-handler="@Model.AttachHandler" id="upload-decision-form" class="up-decision-form" data-upload-decision>
+                            <input type="hidden" name="operationId" value="@operationId" />
+                            @if (single)
+                            {
+                                <input type="hidden" name="receiptId" value="@Model.SingleReceiptId" />
+                                <input type="hidden" name="receiptVersion" value="@Model.ReceiptVersions.Values.FirstOrDefault()" />
+                            }
+                            else
+                            {
+                                foreach (var member in Model.ReceiptVersions)
+                                {
+                                    <input type="hidden" name="receiptVersions[@member.Key]" value="@member.Value" />
+                                }
+                            }
+                            @if (hasCandidates)
+                            {
+                                <div class="up-candidates">
+                                    @foreach (var candidate in Model.Candidates)
+                                    {
+                                        <partial name="Shared/_UploadReviewCandidate" model="@candidate" view-data='new ViewDataDictionary(ViewData) { ["Checked"] = target?.CaseId == candidate.CaseId }' />
+                                    }
+                                </div>
+                            }
+                            <div class="up-action-slot">
+                                <button type="submit" class="btn btn--primary up-review" data-upload-review-button>
+                                    <span>@Labels.Review</span>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
+                                </button>
+                            </div>
+                        </form>
+                        @if (Model.Proposal is { } proposal)
+                        {
+                            <div class="up-proposal">
+                                <a class="btn btn--primary" href="@proposal.Url"><span>@proposal.Label</span><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg></a>
+                            </div>
+                        }
+                        <details class="up-search" data-refresh-hold open="@Model.SearchOpen">
+                            <summary>@(hasCandidates ? Labels.FindAnotherCase : Labels.FindCase)<svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-right")" /></svg></summary>
+                            <form class="up-search-form" method="get" action="@Model.PageUrl" role="search">
+                                @if (Model.IsDuplicate)
+                                {
+                                    <input type="hidden" name="duplicate" value="true" />
+                                }
+                                <label class="sr-only" for="up-case-query">@Labels.SearchLabel</label>
+                                <input id="up-case-query" type="search" name="q" value="@Model.SearchTerm" placeholder="@Labels.SearchPlaceholder" autocomplete="off" maxlength="80" data-upload-search />
+                                <button class="btn" type="submit">
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-search")" /></svg>
+                                    <span>@Labels.Search</span>
+                                </button>
+                            </form>
+                            <div class="up-search-results" aria-live="polite">
+                                @if (Model.SearchFailed)
+                                {
+                                    <div class="up-search-note" role="alert">
+                                        <strong>@Labels.SearchUnavailable</strong><br />@Labels.SearchUnavailableSentence<br />
+                                        <a class="btn" href="@Model.PageUrl?q=@Uri.EscapeDataString(Model.SearchTerm ?? string.Empty)">@Labels.RetrySearch</a>
+                                    </div>
+                                }
+                                else if (Model.SearchTerm is { } term)
+                                {
+                                    if (Model.SearchResults.Count == 0)
+                                    {
+                                        <p class="up-search-note">@Labels.NoSearchMatches(term)</p>
+                                    }
+                                    foreach (var candidate in Model.SearchResults)
+                                    {
+                                        <partial name="Shared/_UploadReviewCandidate" model="@candidate" view-data='new ViewDataDictionary(ViewData) { ["Checked"] = target?.CaseId == candidate.CaseId, ["Form"] = "upload-decision-form" }' />
+                                    }
+                                }
+                            </div>
+                        </details>
+                    </div>
+                    <div class="up-side-actions">
+                        @if (Model.Record is { } decisionRecord)
+                        {
+                            <partial name="Shared/_UploadReviewRecord" model="@decisionRecord" />
+                        }
+                        <partial name="Shared/_UploadReviewLeave" model="@Model" />
+                    </div>
+                    break;
+            }
         </section>
     </div>
 </div>
