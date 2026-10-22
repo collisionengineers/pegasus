@@ -346,7 +346,7 @@
                             <option value=""></option>
                             @foreach (var engineer in Model.AssignEngineerChoices!.Engineers)
                             {
-                                <option value="@engineer.StaffId">@Model.AssignEngineerChoices.Label(engineer)</option>
+                                <option value="@engineer.StaffId">@Model.AssignEngineerChoices!.Label(engineer)</option>
                             }
                             <option value="@AssignEngineerChoice.UnassignedValue">@OperatorLabels.CaseWorkspace.Unassigned</option>
                         </select>
