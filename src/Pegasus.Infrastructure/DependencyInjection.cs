@@ -52,10 +52,17 @@ public static class DependencyInjection
                 "A runtime profile supplies either a local artifact root or an external document storage registration, never both.");
         }
 
-        services.AddDbContextFactory<PegasusDbContext>((serviceProvider, options) =>
+        // One pool of contexts: a store's `await using` hands its context back
+        // for the next caller instead of building one (service scope, change
+        // tracker, internal services) per use. The pool registers only the
+        // factory, so the context Identity and OpenIddict take from their own
+        // scope is leased from the same pool and returned when the scope ends.
+        services.AddPooledDbContextFactory<PegasusDbContext>((serviceProvider, options) =>
         {
             configureDatabase(serviceProvider, options);
         });
+        services.AddScoped(serviceProvider =>
+            serviceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContext());
 
         services.AddLogging();
         services.AddScoped<IActionLogQueries, EfActionLogQueries>();
