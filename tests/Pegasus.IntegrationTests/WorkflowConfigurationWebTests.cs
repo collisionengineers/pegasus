@@ -124,7 +124,7 @@ public sealed partial class WorkflowConfigurationWebTests
         return summary.Length == 0 ? "No validation messages were rendered." : summary;
     }
     [Fact]
-    public async Task ComposedAutomationIsListedInThisPageAdministrationRail()
+    public async Task ComposedAutomationIsListedInTheHubAndThisPageAdministrationRail()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var mcpFactory = AutomationMcpTestSupport.WithAutomationMcp(factory);
@@ -135,13 +135,17 @@ public sealed partial class WorkflowConfigurationWebTests
                 BaseAddress = new Uri("https://localhost:7139")
             });
 
-        // The sibling page proves the ingress really is composed in this host,
+        // The hub's cards are its navigation, so it carries no rail of its own.
+        using var hub = await client.GetAsync("/Administration");
+        Assert.Equal(HttpStatusCode.OK, hub.StatusCode);
+        Assert.Contains("href=\"/Administration/Automation\"", await hub.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        // A sibling page proves the ingress really is composed in this host,
         // so the assertion below cannot pass by both rails being short.
-        var siblingRail = await AdminRailAsync(client, "/Administration");
+        var siblingRail = await AdminRailAsync(client, "/Administration/Mailboxes");
         Assert.Contains("Automation &amp; AI", siblingRail, StringComparison.Ordinal);
 
-        // This page must pass the same composition through to _AdminNav, so its
-        // rail lists the same areas as every sibling administration page.
+        // This page's rail lists the same areas as every sibling administration page.
         var rail = await AdminRailAsync(client, Route);
         Assert.Equal(AdminRailLinks(siblingRail), AdminRailLinks(rail));
     }

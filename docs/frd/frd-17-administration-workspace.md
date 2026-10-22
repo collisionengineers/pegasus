@@ -37,10 +37,13 @@ jobs**. Automation appears only when
 its capability is composed. Its Automation & AI page carries the Send to AI
 switch
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)).
-There are no separate Principal or Claim Source areas.
+There are no separate Principal or Claim Source areas. The hub's cards are its
+navigation, so it shows no side navigation and its cards carry no description
+([v41 A1](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 Every consequential change (role, account state, principal credential,
-automation stop or start) enters permanent history with an optional reason.
+automation stop or start) enters permanent history
+([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Administration pages perform Save, Enable, Disable, Delete, Remove, Clear and
 Stop on the click, with no confirmation dialog.
 
@@ -59,9 +62,14 @@ only as a hover title.
 
 ### Accounts
 
-The **Staff accounts & roles** area carries **Reset password** beside the
-other account actions. Pegasus generates a temporary password and reveals it
-once, on the redisplayed page, to the Administrator. The rule is owned by
+The **Staff accounts & roles** area carries **Reset password** with Force
+logout as small actions in the Settings dialog's body, and Disable and Delete
+apart at its foot
+([v41 A10](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Pegasus generates a temporary password and reveals it
+once, on the redisplayed page, in a panel at the top of the right-hand column
+([v41 A2](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
+to the Administrator. The rule is owned by
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts).
 Administrators may configure sign-off flags, qualifications and signature
 images for any staff role; these controls do not make Administration available
@@ -87,7 +95,9 @@ the New dialog, on the contact and in the list. Save contact returns to the
 Contacts list. An active Principal's page is tabs: Contact, Report
 generation, Report sending, Salvage matrix, Default inspection location and
 Principal API, each its own address (`?tab=`) so the tabs work without
-script, with Replace code below them. There is no Principal settings panel.
+script, with Replace code in the head of the Contact tab
+([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+There is no Principal settings panel.
 A panel's save returns to its tab with its notice inside the panel; a refused
 save shows its message at the top of that panel and keeps what was typed
 (operator, 13 October 2026). Principal-specific
@@ -152,7 +162,9 @@ this area; they are not an area of their own.
 **E-mail templates** (`/Administration/EmailTemplates`) holds the text of
 the staff replies an Administrator may change. Only an Administrator may open
 it or save a template. It lists one row per template: its name, who last
-changed it and when, and **Edit**. The templates are the Triage outcome reply
+changed it and when (**Built-in wording** until it is saved,
+[v41 A19](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
+and **Edit**. The templates are the Triage outcome reply
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)), the
 Case report delivery
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)) and the

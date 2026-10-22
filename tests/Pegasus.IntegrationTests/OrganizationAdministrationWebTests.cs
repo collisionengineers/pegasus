@@ -596,6 +596,40 @@ public sealed partial class OrganizationAdministrationWebTests
             (await getCredential.ExecuteAsync(actor, principalId, default))!.Version);
     }
 
+    /// <summary>
+    /// Only the Principal API tab draws the API key's state, so only its load
+    /// reads the credential: the API tab sends one read of the credentials
+    /// table and every other tab sends none.
+    /// </summary>
+    [Fact]
+    public async Task OnlyThePrincipalApiTabReadsThePrincipalCredential()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var contactId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT OrganizationId FROM Principals WHERE Code = 'QDOS';");
+        var path = $"/Administration/Contacts/Edit/{contactId:D}";
+        var settings = await EditContactAsync(client, path, "principal-api");
+        using var issued = await client.PostAsync(
+            $"{path}?handler=IssueCredential", new FormUrlEncodedContent(CredentialForm(settings)));
+        Assert.Equal(HttpStatusCode.OK, issued.StatusCode);
+
+        counter.Reset();
+        var apiTab = await EditContactAsync(client, path, "principal-api");
+        Assert.Equal(1, counter.CountMentioning("PrincipalApiCredentials"));
+        Assert.Equal("1", InputValue(apiTab, "CredentialVersion"));
+
+        foreach (var tab in new string?[] { null, "report-generation", "report-sending", "salvage-matrix", "default-inspection-location" })
+        {
+            counter.Reset();
+            _ = await EditContactAsync(client, path, tab);
+            Assert.True(
+                counter.CountMentioning("PrincipalApiCredentials") == 0,
+                $"The {tab ?? "contact"} tab read the credential." + Environment.NewLine + counter.Describe());
+        }
+    }
+
     private static Dictionary<string, string> CredentialForm(string html) => new()
     {
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
@@ -646,8 +680,12 @@ public sealed partial class OrganizationAdministrationWebTests
         var title = decoded.IndexOf($"id=\"{titleId}\"", StringComparison.Ordinal);
         var at = decoded.IndexOf(text, StringComparison.Ordinal);
         Assert.True(title >= 0 && at > title, $"'{text}' must show inside the panel '{titleId}'.");
-        Assert.True(decoded.IndexOf("<fieldset", title, StringComparison.Ordinal) > at, $"'{text}' must show at the top of the panel '{titleId}'.");
+        var firstField = FirstFieldRegex().Match(decoded, title);
+        Assert.True(firstField.Success && firstField.Index > at, $"'{text}' must show at the top of the panel '{titleId}'.");
     }
+
+    [GeneratedRegex("<(?:input\\b(?![^>]*\\btype=\"hidden\")|select\\b|textarea\\b)", RegexOptions.CultureInvariant)]
+    private static partial Regex FirstFieldRegex();
 
     private static string InputValue(string html, string name)
     {

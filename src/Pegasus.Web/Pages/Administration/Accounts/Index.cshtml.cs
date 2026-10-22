@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
-using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration.Accounts;
@@ -39,7 +37,6 @@ public sealed class IndexModel(
 
     public IReadOnlyList<StaffAccountRow> Rows { get; private set; } = [];
     public bool HasMoreAccounts { get; private set; }
-    public bool AutomationComposed { get; private set; }
     public string NewUserName { get; private set; } = string.Empty;
     public string CreateOperationKey { get; private set; } = NewOperationKey();
     public bool CreatePostSubmitted { get; private set; }
@@ -66,7 +63,7 @@ public sealed class IndexModel(
 
     /// <summary>The chip's word for the stored credential's state.</summary>
     public string GlassStateName => GlassStatus is not { Configured: true }
-        ? CaseWorkspaceLabels.GlassCredential.NotConfigured
+        ? CaseWorkspaceLabels.GlassCredential.NotSet
         : GlassStatus.Enabled
             ? CaseWorkspaceLabels.GlassCredential.Enabled
             : CaseWorkspaceLabels.GlassCredential.DisabledState;
@@ -286,7 +283,6 @@ public sealed class IndexModel(
         bool isDefaultSignOffEngineer,
         IFormFile? signature,
         long expectedVersion,
-        string? reason,
         string? operationKey,
         CancellationToken cancellationToken)
     {
@@ -319,29 +315,28 @@ public sealed class IndexModel(
             await updateStaffAccountSettings.ExecuteAsync(
                 new(
                     actor, staffId, selectedRole, isSignOffEngineer, printedName, qualifications,
-                    signatureBytes, isDefaultSignOffEngineer, operationKey!, expectedVersion,
-                    reason),
+                    signatureBytes, isDefaultSignOffEngineer, operationKey!, expectedVersion),
                 cancellationToken);
             return "Account settings saved.";
         }, cancellationToken);
     }
 
-    public Task<IActionResult> OnPostDisableAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
-        CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, reason, operationKey,
-        (actor, validReason, validKey) => disableStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion), cancellationToken),
+    public Task<IActionResult> OnPostDisableAsync(Guid staffId, long expectedVersion, string? operationKey,
+        CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, operationKey,
+        (actor, validKey) => disableStaffAccount.ExecuteAsync(new(actor, staffId, Reason: null, validKey, expectedVersion), cancellationToken),
         "The account was disabled. Existing browser sessions were revoked.", cancellationToken);
 
-    public Task<IActionResult> OnPostEnableAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
-        CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, reason, operationKey,
-        (actor, validReason, validKey) => enableStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion), cancellationToken),
+    public Task<IActionResult> OnPostEnableAsync(Guid staffId, long expectedVersion, string? operationKey,
+        CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, operationKey,
+        (actor, validKey) => enableStaffAccount.ExecuteAsync(new(actor, staffId, Reason: null, validKey, expectedVersion), cancellationToken),
         "The account was enabled.", cancellationToken);
 
-    public Task<IActionResult> OnPostForceLogoutAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
-        CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, reason, operationKey,
-        (actor, validReason, validKey) => forceStaffLogout.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion), cancellationToken),
+    public Task<IActionResult> OnPostForceLogoutAsync(Guid staffId, long expectedVersion, string? operationKey,
+        CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, operationKey,
+        (actor, validKey) => forceStaffLogout.ExecuteAsync(new(actor, staffId, Reason: null, validKey, expectedVersion), cancellationToken),
         "Existing browser sessions were revoked.", cancellationToken);
 
-    public async Task<IActionResult> OnPostResetPasswordAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
+    public async Task<IActionResult> OnPostResetPasswordAsync(Guid staffId, long expectedVersion, string? operationKey,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
@@ -353,7 +348,7 @@ public sealed class IndexModel(
         try
         {
             ResetTemporaryPassword = (await resetStaffPassword.ExecuteAsync(
-                new(actor, staffId, reason, operationKey!, expectedVersion), cancellationToken)).TemporaryPassword;
+                new(actor, staffId, Reason: null, operationKey!, expectedVersion), cancellationToken)).TemporaryPassword;
             Response.Headers.CacheControl = "no-store, no-cache";
             Response.Headers.Pragma = "no-cache";
         }
@@ -363,9 +358,9 @@ public sealed class IndexModel(
         return Page();
     }
 
-    public Task<IActionResult> OnPostDeleteAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
-        CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, reason, operationKey,
-        (actor, validReason, validKey) => deleteStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion), cancellationToken),
+    public Task<IActionResult> OnPostDeleteAsync(Guid staffId, long expectedVersion, string? operationKey,
+        CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, operationKey,
+        (actor, validKey) => deleteStaffAccount.ExecuteAsync(new(actor, staffId, Reason: null, validKey, expectedVersion), cancellationToken),
         "The account was deleted.", cancellationToken);
 
     private async Task<byte[]?> ReadSignatureAsync(IFormFile? signature, CancellationToken cancellationToken)
@@ -382,11 +377,11 @@ public sealed class IndexModel(
         return content.ToArray();
     }
 
-    private Task<IActionResult> RunAdministrativeActionAsync(Guid staffId, string? reason, string? operationKey,
-        Func<ActionActor, string?, string, Task> action, string confirmation, CancellationToken cancellationToken) => RunAsync(async actor =>
+    private Task<IActionResult> RunAdministrativeActionAsync(Guid staffId, string? operationKey,
+        Func<ActionActor, string, Task> action, string confirmation, CancellationToken cancellationToken) => RunAsync(async actor =>
     {
         if (!ValidateOperationKey(operationKey) | !RequireStaffId(staffId)) return null;
-        await action(actor, reason, operationKey!);
+        await action(actor, operationKey!);
         return confirmation;
     }, cancellationToken);
 
@@ -445,7 +440,6 @@ public sealed class IndexModel(
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        AutomationComposed = HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         var accounts = await listStaffAccounts.ExecuteAsync(new(actor, PageSize: ListStaffAccounts.MaximumPageSize), cancellationToken);
         HasMoreAccounts = accounts.HasMoreAccounts;
         var currentOperatorId = CurrentOperatorId(actor);
@@ -500,7 +494,7 @@ public sealed record StaffAccountRow(
     /// <summary>The Glass's column: Not set, Disabled, or the login username.</summary>
     public string GlassLabel => Glass switch
     {
-        null or { Configured: false } => "Not set",
+        null or { Configured: false } => CaseWorkspaceLabels.GlassCredential.NotSet,
         { Enabled: false } => "Disabled",
         { Username: { Length: > 0 } username } => username,
         _ => "Set"
