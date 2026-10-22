@@ -236,7 +236,7 @@ registration. Once active, DVSA runs for every Case. Until then, approved
 local replay returns its preserved result, and with no replay evidence the
 value is source-labelled `Unavailable`.
 
-The mileage tiers and discrepancy rule are in
+The mileage tiers are in
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence).
 
 **Every lookup is an observation.** Each lookup or refresh keeps its provider
