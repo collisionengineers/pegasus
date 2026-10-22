@@ -849,11 +849,10 @@ public static class CaseLifecycleRules
     public static void ValidateReopen(ReopenCaseRequest request)
     {
         ValidateMutation(request);
-        if (!Enum.IsDefined(request.Destination))
+        if (request.Destination is not { } destination || !Enum.IsDefined(destination))
         {
             throw new ArgumentOutOfRangeException(nameof(request), "The reopen destination is invalid.");
         }
-
     }
 
     /// <summary>

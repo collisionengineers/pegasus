@@ -120,7 +120,7 @@ public sealed class ClosureModel(
         string operationKey,
         string reason,
         string? editLeaseToken,
-        CaseReopenDestination destination,
+        CaseReopenDestination? destination,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandUnderLeaseAsync(
             id,
