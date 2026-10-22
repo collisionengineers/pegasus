@@ -1283,26 +1283,7 @@ td time, .tabular { font-variant-numeric: tabular-nums; }
 input[readonly], input:disabled, select:disabled, textarea:disabled { border-color: var(--line); background: var(--paper); color: var(--muted); }
 input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; accent-color: var(--ce-red); }
 .icon--lg { width: 1.25rem; height: 1.25rem; }
-.icon--sm, .status-chip .icon { width: .875rem; height: .875rem; }
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: 1px var(--sp-2);
-  border: 1px solid var(--state-line);
-  border-radius: 999px;
-  background: var(--state-bg);
-  color: var(--state-fg);
-  font-size: var(--t-eyebrow);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-/* Tones, not states. The state-to-tone decision belongs in _StatusChip.cshtml,
-   which is the single place a business state chooses its treatment. The four
-   legacy state-named classes remain as aliases for pages not yet migrated. */
-.status-chip--neutral { --state-line: var(--line); --state-bg: var(--paper); --state-fg: var(--muted); }
+.icon--sm { width: .875rem; height: .875rem; }
 
 .status-card--error { --state-line: var(--ce-red); --state-bg: var(--ce-red-tint); }
 
@@ -1405,7 +1386,7 @@ table tfoot th {
 }
 
 @media (forced-colors: active) {
-  .queue-card, .metric-tile, .acceptance-boundary, .status-card, .status-chip { border: 1px solid CanvasText; }
+  .queue-card, .metric-tile, .acceptance-boundary, .status-card { border: 1px solid CanvasText; }
 }
 .validation-summary__heading {
   font-size: 1rem;

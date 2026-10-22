@@ -380,7 +380,9 @@ design-dev` bundle, the 2026-07 warm palette) are superseded and not retained.
 | `--shadow` | `0 8px 24px rgba(25,39,45,.09)` | Hover-raised cards, palette dropdown, toast |
 
 Green must not represent progress, availability or a generic positive action;
-it is reserved for confirmed completion. The prototype's `--polish-*`
+it is reserved for confirmed completion. Service health's Working chips take
+the green tone ([v41 A22](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+The prototype's `--polish-*`
 properties are a layered overlay and their names are not carried: the
 `--polish-shadow` and `--polish-shadow-raised` values are written into the
 card rules that use them (resting and hover), and `--polish-red-soft` /
@@ -394,7 +396,7 @@ State chips are `.status` with one tone modifier and always a text label:
 | `.status--amber` | `--amber` on `--amber-bg` | Not ready, Held, Unidentified, pending |
 | `.status--navy` | `--navy` on `--navy-bg` | Review |
 | `.status--blue` | `--blue` on `--blue-bg` | With Engineer, running, sent |
-| `.status--green` | `--green` on `--green-bg` | Report sent, confirmed |
+| `.status--green` | `--green` on `--green-bg` | Report sent, confirmed, Service health Working ([v41 A22](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | `.status--purple` | `--purple` on `--purple-bg` | Query |
 | `.status--red` | `--danger` on `--danger-bg` | Failed, could not be read, correction required |
 | `.status--neutral` | `--muted` on `--surface-3` | Closed, cancelled, unknown |
