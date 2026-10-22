@@ -1046,23 +1046,34 @@ internal sealed class EfQueuedCustodyProcessor(
         // used: the Case/PO of every Case, a standalone Audit's included.
         var caseReference = intake.CaseReference
             ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
-        // A record whose folder is still being stored waits at least until
-        // that create's next attempt, which a Box failure may have put off.
-        var imageCreateDueAtUtc = intake.CustodyRootRemoteId is null
-            && intake.CustodyState == ImageCustodyStates.Pending
-                ? await context.ExternalWorkItems
-                    .AsNoTracking()
-                    .Where(value => value.ImageIntakeId == imageIntakeId
-                        && value.Kind == ExternalWorkKinds.CreateImageCaseCustody)
-                    .Select(value => (DateTimeOffset?)value.DueAtUtc)
-                    .MaxAsync(cancellationToken)
-                : null;
+        // A fold waiting for a folder waits at least until the create storing
+        // that folder can next finish or retry: its lease while it runs, or
+        // its due time when a Box failure put it off. The read runs only on
+        // such a wait (IX_ExternalWorkItems_ImageIntakeId for the record's
+        // folder, IX_ExternalWorkItems_CaseId for the Case's).
+        var folderCreate = !FoldWaitsForAFolder(
+                intake.CustodyState,
+                intake.CustodyRootRemoteId,
+                intake.CaseCustodyState,
+                intake.CaseCustodyRootRemoteId)
+            ? null
+            : intake.CustodyRootRemoteId is null
+                ? context.ExternalWorkItems.Where(value => value.ImageIntakeId == imageIntakeId
+                    && value.Kind == ExternalWorkKinds.CreateImageCaseCustody)
+                : context.ExternalWorkItems.Where(value => value.CaseId == mergedIntoCaseId
+                    && value.Kind == ExternalWorkKinds.CreateCaseCustody);
+        var folderCreateNotBeforeUtc = folderCreate is null
+            ? null
+            : await folderCreate
+                .AsNoTracking()
+                .Select(value => (DateTimeOffset?)(value.LeaseExpiresAtUtc ?? value.DueAtUtc))
+                .MaxAsync(cancellationToken);
         return new(
             imageIntakeId,
             intake.ImageIntakeReference,
             intake.CustodyState,
             intake.CustodyRootRemoteId,
-            imageCreateDueAtUtc,
+            folderCreateNotBeforeUtc,
             mergedIntoCaseId,
             caseReference,
             intake.CaseCustodyState,
@@ -1291,6 +1302,17 @@ internal sealed class EfQueuedCustodyProcessor(
                 workId, leaseToken, payload.CaseId, payload.ImageReference, folded: true, cancellationToken);
             return;
         }
+        if (FoldWaitsForAFolder(
+                payload.ImageCustodyState,
+                payload.ImageCustodyRootRemoteId,
+                payload.CaseCustodyState,
+                payload.CaseCustodyRootRemoteId))
+        {
+            // A folder the fold moves from or into is still being stored:
+            // the fold waits for it without spending an attempt.
+            await DeferForFolderAsync(workId, leaseToken, payload.FolderCreateNotBeforeUtc, cancellationToken);
+            return;
+        }
         if (payload.ImageCustodyRootRemoteId is null)
         {
             if (payload.ImageCustodyState is null)
@@ -1301,13 +1323,6 @@ internal sealed class EfQueuedCustodyProcessor(
                     workId, leaseToken, payload.CaseId, payload.ImageReference, folded: false, cancellationToken);
                 return;
             }
-            if (string.Equals(payload.ImageCustodyState, ImageCustodyStates.Pending, StringComparison.Ordinal))
-            {
-                // The record's folder is still being stored: the fold waits
-                // for it without spending an attempt.
-                await DeferForFolderAsync(workId, leaseToken, payload.ImageCreateDueAtUtc, cancellationToken);
-                return;
-            }
             // The create-side work terminally failed and awaits a reasoned
             // retry; the fold retries after it lands.
             throw new IOException(
@@ -1315,13 +1330,6 @@ internal sealed class EfQueuedCustodyProcessor(
         }
         if (string.IsNullOrWhiteSpace(payload.CaseCustodyRootRemoteId))
         {
-            if (string.Equals(payload.CaseCustodyState, "pending", StringComparison.Ordinal))
-            {
-                // The Case's folder is still being created: the fold waits
-                // for it without spending an attempt.
-                await DeferForFolderAsync(workId, leaseToken, null, cancellationToken);
-                return;
-            }
             throw new IOException(
                 "The formal case evidence folder has not been stored yet; the fold retries after it is.");
         }
@@ -1351,12 +1359,30 @@ internal sealed class EfQueuedCustodyProcessor(
     }
 
     /// <summary>
+    /// Whether a fold has a folder to wait for: the record's, still being
+    /// stored, or, once the record's is stored, the Case's. A folder whose
+    /// create failed is not waited for; the fold keeps its failure path.
+    /// The merge transition reads the same answer to create the fold
+    /// already waiting.
+    /// </summary>
+    internal static bool FoldWaitsForAFolder(
+        string? imageCustodyState,
+        string? imageCustodyRootRemoteId,
+        string? caseCustodyState,
+        string? caseCustodyRootRemoteId) =>
+        imageCustodyRootRemoteId is null
+            ? string.Equals(imageCustodyState, ImageCustodyStates.Pending, StringComparison.Ordinal)
+            : string.IsNullOrWhiteSpace(caseCustodyRootRemoteId)
+                && string.Equals(caseCustodyState, "pending", StringComparison.Ordinal);
+
+    /// <summary>
     /// Returns the fold to pending until the folder it waits for lands: due
     /// <see cref="ImageCustodyRetryPolicy.FolderWait"/> ahead, or at
-    /// <paramref name="notBeforeUtc"/> when that is later. The custody that
-    /// stores the folder makes the fold due as it lands. The call returns
-    /// normally: a thrown wait would come back with each queue redelivery and
-    /// use up the message's dequeues.
+    /// <paramref name="notBeforeUtc"/> when that is later: the end of the
+    /// running create's lease, or the create's own next attempt. The custody
+    /// that stores the folder makes the fold due as it lands. The call
+    /// returns normally: a thrown wait would come back with each queue
+    /// redelivery and use up the message's dequeues.
     /// </summary>
     private Task DeferForFolderAsync(
         Guid workId,
@@ -1439,7 +1465,8 @@ internal sealed class EfQueuedCustodyProcessor(
     /// Makes each fold waiting for the folder this completion stored due now,
     /// in the completion's transaction, and returns them to publish once it
     /// commits. A fold mid-attempt is not pending; the recovery tick picks it
-    /// up after its own wait.
+    /// up after its own wait: FolderWait, or the rest of this create's lease
+    /// when that is longer.
     /// </summary>
     private static async Task<IReadOnlyList<Guid>> WakeWaitingFoldsAsync(
         IQueryable<ExternalWorkItemEntity> owned,
@@ -1805,7 +1832,7 @@ internal sealed class EfQueuedCustodyProcessor(
         string ImageReference,
         string? ImageCustodyState,
         string? ImageCustodyRootRemoteId,
-        DateTimeOffset? ImageCreateDueAtUtc,
+        DateTimeOffset? FolderCreateNotBeforeUtc,
         Guid CaseId,
         string CaseRootReference,
         string? CaseCustodyState,
