@@ -166,7 +166,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
-    public async Task ReturnToEngineerRefusesOtherStatesAndAnUnassignedCase()
+    public async Task ReturnToEngineerRefusesOtherStates()
     {
         await using var stateHarness = await WorkflowHarness.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
@@ -184,30 +184,129 @@ public sealed class CaseWorkflowPersistenceTests
                     "This state is not post-report.",
                     reviewLease.Token),
                 CancellationToken.None));
+    }
 
-        await using var assignmentHarness = await WorkflowHarness.CreateAsync();
-        await using (var context = await assignmentHarness.Factory.CreateDbContextAsync())
+    /// <summary>
+    /// #1213 ruling 3 (operator, 15 October 2026): a Case with no Engineer
+    /// returns to Engineer, or reopens to With Engineer, Unassigned, for an
+    /// Engineer to take.
+    /// </summary>
+    [Fact]
+    public async Task ReturnToEngineerAndReopenLandAnUnassignedCaseUnassigned()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
         {
-            var workflow = await context.CaseWorkflows.SingleAsync(item =>
-                item.CaseId == assignmentHarness.NotReadyCaseId);
-            workflow.State = nameof(CaseLifecycleState.ReportSent);
-            workflow.AssignedEngineerId = null;
+            var returning = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.NotReadyCaseId);
+            returning.State = nameof(CaseLifecycleState.ReportSent);
+            returning.AssignedEngineerId = null;
+            var reopening = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.SecondCaseId);
+            reopening.State = nameof(CaseLifecycleState.PrincipalCancelled);
+            reopening.ClosureOutcome = nameof(CaseClosureOutcome.PrincipalCancelled);
+            reopening.AssignedEngineerId = null;
             await context.SaveChangesAsync();
         }
-        var missingEngineerLease = await assignmentHarness.Store.ClaimAsync(
-            new(assignmentHarness.NotReadyCaseId, 0, actor, "claim-return-unassigned"),
+
+        var returnLease = await harness.Store.ClaimAsync(
+            new(harness.NotReadyCaseId, 0, actor, "claim-return-unassigned"),
             CancellationToken.None);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ReturnCaseToEngineer(
-                assignmentHarness.Store, assignmentHarness.EngineerEligibility).ExecuteAsync(
-                new(
-                    assignmentHarness.NotReadyCaseId,
-                    0,
-                    actor,
-                    "return-unassigned-to-engineer",
-                    "An Engineer must be assigned.",
-                    missingEngineerLease.Token),
-                CancellationToken.None));
+        var returned = await new ReturnCaseToEngineer(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+            new(
+                harness.NotReadyCaseId,
+                0,
+                actor,
+                "return-unassigned-to-engineer",
+                "A query needs the report again.",
+                returnLease.Token),
+            CancellationToken.None);
+        var reopenLease = await harness.Store.ClaimAsync(
+            new(harness.SecondCaseId, 0, actor, "claim-reopen-unassigned"),
+            CancellationToken.None);
+        var reopened = await new ReopenCase(harness.Store).ExecuteAsync(
+            new(
+                harness.SecondCaseId,
+                0,
+                actor,
+                "reopen-unassigned-to-engineer",
+                "The Principal withdrew the cancellation.",
+                reopenLease.Token,
+                CaseReopenDestination.ReportPreparation),
+            CancellationToken.None);
+
+        Assert.Equal(CaseLifecycleState.ReportPreparation, returned.State);
+        Assert.Null(returned.AssignedEngineerId);
+        Assert.Equal(CaseLifecycleState.ReportPreparation, reopened.State);
+        Assert.Null(reopened.AssignedEngineerId);
+    }
+
+    /// <summary>
+    /// #1213 (operator, 15 October 2026): a With Engineer Case is handed to
+    /// Unassigned, taken, and handed to a named Engineer with no typed reason.
+    /// Each hand-off records Core's words, stays in With Engineer without
+    /// meeting the Review gate again (its facts already passed it on entry),
+    /// and leaves the time the Case entered With Engineer as it was.
+    /// </summary>
+    [Fact]
+    public async Task AWithEngineerCaseIsHandedOnWithoutTheReviewGateAndKeepsItsEntryTime()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actorId = Guid.NewGuid();
+        var engineerId = Guid.NewGuid();
+        await harness.SeedStaffAccountAsync(actorId, true, StaffRole.Engineer);
+        await harness.SeedStaffAccountAsync(engineerId, true, StaffRole.Engineer);
+        var actor = ActionActor.Staff(actorId, [StaffRole.Engineer]);
+        var sut = new AssignCaseEngineer(
+            harness.Store,
+            new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
+            harness.EngineerEligibility,
+            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
+
+        async Task<CaseWorkflowRecord> HandAsync(Guid? to, string operationKey)
+        {
+            var current = Assert.IsType<CaseWorkflowRecord>(await harness.Store.GetAsync(harness.CaseId, default));
+            var lease = await harness.Store.ClaimAsync(
+                new(harness.CaseId, current.Version, actor, $"claim-{operationKey}"),
+                default);
+            return await sut.ExecuteAsync(
+                new(harness.CaseId, current.Version, actor, operationKey, string.Empty, lease.Token, to),
+                default);
+        }
+
+        await HandAsync(engineerId, "hand-from-review");
+        var entered = await harness.StateEnteredAtAsync(harness.CaseId);
+        // The persisted facts now fail the Review gate, which a With Engineer
+        // hand-off does not ask again.
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Cases SET InstructionComplete = {false} WHERE Id = {harness.CaseId}");
+        }
+        harness.TimeProvider.Advance(TimeSpan.FromHours(1));
+
+        var unassigned = await HandAsync(null, "hand-to-unassigned");
+        var taken = await HandAsync(actorId, "take");
+        var assigned = await HandAsync(engineerId, "hand-to-engineer");
+
+        Assert.Null(unassigned.AssignedEngineerId);
+        Assert.Equal(actorId, taken.AssignedEngineerId);
+        Assert.Equal(engineerId, assigned.AssignedEngineerId);
+        Assert.All(
+            new[] { unassigned, taken, assigned },
+            workflow => Assert.Equal(CaseLifecycleState.ReportPreparation, workflow.State));
+        Assert.Equal(entered, await harness.StateEnteredAtAsync(harness.CaseId));
+        Assert.Equal(
+            ["Set to Unassigned"],
+            (await harness.WorkflowEventsAsync("hand-to-unassigned")).Select(item => item.Reason).ToArray());
+        Assert.Equal(
+            [$"Taken by workflow-test-{actorId:N}"],
+            (await harness.WorkflowEventsAsync("take")).Select(item => item.Reason).ToArray());
+        Assert.Equal(
+            [$"Assigned to workflow-test-{engineerId:N}"],
+            (await harness.WorkflowEventsAsync("hand-to-engineer")).Select(item => item.Reason).ToArray());
+        // Every hand-off is the With Engineer state event the Sent to Engineer
+        // figure counts once, at the Case's first entry.
+        Assert.Equal(4L, await harness.WorkflowEventTypeCountAsync(harness.CaseId, "state_ReportPreparation"));
     }
 
     /// <summary>
@@ -1198,8 +1297,14 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.False(nativeAccess.IsReadOnly);
         Assert.Null((await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, actor), default))?.ActiveEditLease);
 
+        // Core composes the reason, so a caller's changed words replay; a
+        // changed hand-off is different input under the same key.
+        Assert.Equal(assigned, await sut.ExecuteAsync(request with { Reason = "Changed replay input" }, default));
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
-            sut.ExecuteAsync(request with { Reason = "Changed replay input" }, default));
+            sut.ExecuteAsync(request with { EngineerId = null }, default));
+        Assert.Equal(
+            [$"Assigned to workflow-test-{engineerId:N}"],
+            (await harness.WorkflowEventsAsync(request.OperationKey)).Select(item => item.Reason).ToArray());
 
         // The handoff writes the existing state event used by Sent chronology,
         // not a new assignment-only event or invented external delivery.
@@ -2844,6 +2949,36 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Contains(secondary.Items, item => item.CaseId == harness.CaseId);
     }
 
+    /// <summary>
+    /// The Work Centre reads With Engineer's Unassigned Cases, and on Mine the
+    /// viewer's own, without reading every With Engineer Case (#1213): the
+    /// Engineer filters select over real SQL.
+    /// </summary>
+    [Fact]
+    public async Task TheEngineerFiltersSelectUnassignedAndAssignedWithEngineerCases()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        Guid? engineerId;
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var assigned = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId);
+            assigned.State = nameof(CaseLifecycleState.ReportPreparation);
+            engineerId = assigned.AssignedEngineerId;
+            var unassigned = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.SecondCaseId);
+            unassigned.State = nameof(CaseLifecycleState.ReportPreparation);
+            unassigned.AssignedEngineerId = null;
+            await context.SaveChangesAsync();
+        }
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        async Task<Guid[]> SearchAsync(CaseSearchFilters filters) =>
+            [.. (await harness.QueryStore.SearchAsync(new(actor, filters), default)).Items.Select(item => item.CaseId)];
+
+        var withEngineer = new CaseSearchFilters(States: [CaseLifecycleState.ReportPreparation]);
+        Assert.Equal([harness.SecondCaseId], await SearchAsync(withEngineer with { HasEngineer = false }));
+        Assert.Equal([harness.CaseId], await SearchAsync(withEngineer with { HasEngineer = true }));
+        Assert.Equal([harness.CaseId], await SearchAsync(withEngineer with { EngineerId = engineerId }));
+    }
+
     [Fact]
     public async Task AccidentCircumstancesAreReadForTheOneCaseFromItsConfirmedField()
     {
@@ -3853,6 +3988,16 @@ public sealed class CaseWorkflowPersistenceTests
             await using var context = await factory.CreateDbContextAsync();
             return await context.Database.SqlQuery<long>(
                     $"SELECT COUNT_BIG(*) AS [Value] FROM [CaseWorkflowEvents] WHERE [OperationKey] = {operationKey}")
+                .SingleAsync();
+        }
+
+        /// <summary>When the Case entered its current state.</summary>
+        public async Task<DateTimeOffset?> StateEnteredAtAsync(Guid caseId)
+        {
+            await using var context = await factory.CreateDbContextAsync();
+            return await context.CaseWorkflows.AsNoTracking()
+                .Where(item => item.CaseId == caseId)
+                .Select(item => item.StateEnteredAtUtc)
                 .SingleAsync();
         }
 

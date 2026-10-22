@@ -23,6 +23,27 @@ public sealed class CaseReportGenerationTests
     private static readonly Guid OverviewOccurrence = Guid.Parse("44444444-4444-4444-4444-444444444444");
     private static readonly ActionActor Engineer =
         ActionActor.Staff(Guid.Parse("55555555-5555-5555-5555-555555555555"), [StaffRole.Engineer]);
+    private static readonly Guid AssignedEngineerId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+
+    /// <summary>
+    /// An Unassigned With Engineer Case is not ready for its report until an
+    /// Engineer takes it (operator, 15 October 2026, #1213 ruling 3). The
+    /// blocker reads existing words and names the shared refusal.
+    /// </summary>
+    [Fact]
+    public void NoAssignedEngineerBlocksGeneration()
+    {
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with { AssignedEngineerId = null });
+
+        var reason = AssertBlocked(result, CaseReportReadiness.EngineerRequirement);
+        Assert.Equal(CaseReportReadiness.AssignedEngineerMissing, Assert.Single(result.Reasons));
+        Assert.Equal("Case record", reason.Source);
+        Assert.Equal(CaseLifecycleRules.AssignedEngineerRequired, reason.WhyOutstanding);
+        Assert.Equal("Assign Engineer", reason.HowToResolve);
+        Assert.Null(reason.Field);
+        // The Sign-off Engineer still resolves from the Case's own choice.
+        Assert.Equal(SignatoryId, result.Signatory!.StaffId);
+    }
 
     [Fact]
     public void ACompleteCaseIsReady()
@@ -1087,10 +1108,12 @@ public sealed class CaseReportGenerationTests
     private static string Sha256Of(byte[] content) =>
         Convert.ToHexStringLower(SHA256.HashData(content));
 
+    // A ready report has an assigned Engineer (#1213 ruling 3); not the
+    // signatory, so the Sign-off Engineer cases resolve as they always did.
     private static CaseReportReadinessInput ReadyInput() => new(
         AssessmentReportProjectionTests.ReadyAssessment(),
         SignatoryId,
-        null,
+        AssignedEngineerId,
         [Profile()],
         Estimate(),
         Valuation(),

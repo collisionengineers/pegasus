@@ -13,8 +13,9 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Operations;
 
 /// <summary>
-/// Office or Mine (Work Centre P2): Office is everything; Mine is the rows whose
-/// owner is the signed-in person plus the unowned rows of the kinds they can take.
+/// Office or Mine (Work Centre P2): Office is everything but a With Engineer
+/// Case its Engineer holds (#1213); Mine is the rows whose owner is the
+/// signed-in person plus the unowned rows of the kinds they can take.
 /// </summary>
 public enum NeedsAttentionScope
 {
@@ -109,7 +110,9 @@ public static class NeedsAttentionPolicy
 {
     /// <summary>
     /// Unassigned Case and Triage rows are open to every staff member, so Mine
-    /// lists them (P8). Taking one is an assignment through the Case's dialog.
+    /// lists them (P8). Taking one is an assignment to the person taking it
+    /// (#1213: Take, or the Case's dialog). A With Engineer row is its
+    /// Engineer's, so nobody takes it.
     /// </summary>
     public static bool CanTake(NeedsAttentionKind kind, ActionActor actor)
     {
@@ -142,7 +145,8 @@ public static class NeedsAttentionPolicy
             or NeedsAttentionKind.UnassignedEngineer
             or NeedsAttentionKind.Triage
             or NeedsAttentionKind.VehicleImagesPaired
-            or NeedsAttentionKind.OpenTasks => true,
+            or NeedsAttentionKind.OpenTasks
+            or NeedsAttentionKind.WithEngineer => true,
         NeedsAttentionKind.CaseChase
             or NeedsAttentionKind.Unidentified
             or NeedsAttentionKind.AiDraft => false,
@@ -176,6 +180,22 @@ public static class NeedsAttentionPolicy
         return item.OwnerStaffId is { } owner
             ? owner == me
             : CanTake(item.Kind, actor);
+    }
+
+    /// <summary>
+    /// Whether a scope lists a kind at all: Office lists every kind but With
+    /// Engineer, whose row is its Engineer's Mine only (operator, 15 October
+    /// 2026, #1213 ruling 2).
+    /// </summary>
+    public static bool Holds(NeedsAttentionScope scope, NeedsAttentionKind kind) =>
+        scope == NeedsAttentionScope.Mine || kind != NeedsAttentionKind.WithEngineer;
+
+    /// <summary>Whether a row is in the scope: a kind it <see cref="Holds"/>, and on Mine, <see cref="IsMine"/>.</summary>
+    public static bool InScope(NeedsAttentionItem item, NeedsAttentionScope scope, ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return Holds(scope, item.Kind)
+            && (scope != NeedsAttentionScope.Mine || IsMine(item, actor));
     }
 
     public static NeedsAttentionPriority Priority(
@@ -264,7 +284,7 @@ public sealed class GetOperationsSnapshot(
         // These adapters create independent contexts. The actor-name enrichment
         // below remains sequential because it uses the scoped identity context.
         var attentionRead = FetchAttentionInputsAsync(
-            query.Actor, asOfUtc, query.OpenAiJobs, query.Configuration, cancellationToken);
+            query.Actor, query.Scope, asOfUtc, query.OpenAiJobs, query.Configuration, cancellationToken);
         var stagesRead = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
         // The Triages metric counts every active Triage Case; the attention
         // inputs already hold the two no-finding states, so only the Finding
@@ -304,18 +324,12 @@ public sealed class GetOperationsSnapshot(
         DateTimeOffset asOfUtc)
     {
         var (_, dayEndUtc, _) = LondonCalendar.DayAndWeekBoundariesAt(asOfUtc);
-        IEnumerable<NeedsAttentionItem> filtered = all;
-        if (query.Scope == NeedsAttentionScope.Mine)
-        {
-            filtered = filtered.Where(item => NeedsAttentionPolicy.IsMine(item, query.Actor));
-        }
-
         // The kind chips count the scope's whole list, before the kind filter (P3),
         // so a filtered page still states what every other chip would show.
-        var scoped = filtered.ToArray();
+        var scoped = all.Where(item => NeedsAttentionPolicy.InScope(item, query.Scope, query.Actor)).ToArray();
         var kindCounts = Enum.GetValues<NeedsAttentionKind>()
             .ToDictionary(kind => kind, kind => scoped.Count(item => item.Kind == kind));
-        filtered = scoped;
+        IEnumerable<NeedsAttentionItem> filtered = scoped;
         if (query.Kinds is { Count: > 0 } kinds)
         {
             filtered = filtered.Where(item => kinds.Contains(item.Kind));
@@ -344,6 +358,7 @@ public sealed class GetOperationsSnapshot(
     /// </summary>
     private async Task<AttentionInputs> FetchAttentionInputsAsync(
         ActionActor actor,
+        NeedsAttentionScope scope,
         DateTimeOffset asOfUtc,
         IReadOnlyList<AiJobRecord>? openAiJobs,
         CaseWorkflowConfiguration? preloadedConfiguration,
@@ -355,7 +370,18 @@ public sealed class GetOperationsSnapshot(
             actor, [TriageState.Open, TriageState.AwaitingInformation], cancellationToken);
         var dueRead = ReadDueWorkAsync(asOfUtc, cancellationToken);
         var heldAndReviewRead = ReadCasesAsync(
-            actor, [CaseLifecycleState.Held, CaseLifecycleState.Review], cancellationToken);
+            actor, new(States: [CaseLifecycleState.Held, CaseLifecycleState.Review]), cancellationToken);
+        // With Engineer (#1213): an Unassigned Case is every scope's, for an
+        // Engineer to take; an assigned one is in its Engineer's Mine only, so
+        // only Mine reads those, and only the viewer's. No scope reads a With
+        // Engineer Case it would not list.
+        var unassignedWithEngineerRead = ReadCasesAsync(
+            actor, new(States: [CaseLifecycleState.ReportPreparation], HasEngineer: false), cancellationToken);
+        var mineWithEngineerRead = scope == NeedsAttentionScope.Mine
+            && StaffNotificationPolicy.StaffId(actor) is { } viewer
+                ? ReadCasesAsync(
+                    actor, new(States: [CaseLifecycleState.ReportPreparation], EngineerId: viewer), cancellationToken)
+                : Task.FromResult<IReadOnlyList<CaseSearchItem>>([]);
         var configurationRead = preloadedConfiguration is { } handed
             ? Task.FromResult(handed)
             : workflowConfiguration.GetCurrentAsync(cancellationToken);
@@ -367,7 +393,7 @@ public sealed class GetOperationsSnapshot(
                 : aiJobs.ListOpenAsync(cancellationToken);
         var pairedRead = dashboardQueries.ListPairedVehicleImagesAwaitingStaffAsync(cancellationToken);
         var openTasksRead = dashboardQueries.ListOpenCaseTasksAsync(cancellationToken);
-        await Task.WhenAll(triageRead, dueRead, heldAndReviewRead,
+        await Task.WhenAll(triageRead, dueRead, heldAndReviewRead, unassignedWithEngineerRead, mineWithEngineerRead,
             configurationRead, unidentifiedRead, openJobsRead, pairedRead, openTasksRead);
         var triage = await triageRead;
         var openTriage = triage.Where(item => item.State == TriageState.Open).ToArray();
@@ -376,6 +402,8 @@ public sealed class GetOperationsSnapshot(
         var heldAndReview = await heldAndReviewRead;
         var held = heldAndReview.Where(item => item.State == CaseLifecycleState.Held).ToArray();
         var review = heldAndReview.Where(item => item.State == CaseLifecycleState.Review).ToArray();
+        var unassignedWithEngineer = await unassignedWithEngineerRead;
+        var mineWithEngineer = await mineWithEngineerRead;
         var configuration = await configurationRead;
         var unidentified = await unidentifiedRead;
         var drafts = AiDraftPolicy.Drafts(await openJobsRead, configuration.AiDraftTargetDays);
@@ -398,7 +426,11 @@ public sealed class GetOperationsSnapshot(
             dueWork,
             held,
             reviewPartitions.Where(partition => !partition.IsReadyForEngineerAssignment).Select(partition => partition.Item).ToArray(),
-            reviewPartitions.Where(partition => partition.IsReadyForEngineerAssignment).Select(partition => partition.Item).ToArray(),
+            [
+                .. reviewPartitions.Where(partition => partition.IsReadyForEngineerAssignment).Select(partition => partition.Item),
+                .. unassignedWithEngineer
+            ],
+            mineWithEngineer,
             unidentified,
             [.. openTriage, .. awaitingTriage],
             openTriage.Length + awaitingTriage.Length,
@@ -409,14 +441,14 @@ public sealed class GetOperationsSnapshot(
 
     private async Task<IReadOnlyList<CaseSearchItem>> ReadCasesAsync(
         ActionActor actor,
-        IReadOnlyList<CaseLifecycleState> states,
+        CaseSearchFilters filters,
         CancellationToken cancellationToken)
     {
         List<CaseSearchItem> items = [];
         for (var page = 1; ; page++)
         {
             var result = await searchCases.ExecuteAsync(
-                new(actor, new(States: states), page, SourcePageSize),
+                new(actor, filters, page, SourcePageSize),
                 cancellationToken);
             items.AddRange(result.Items);
             if (!result.HasNextPage)
@@ -451,6 +483,7 @@ public sealed class GetOperationsSnapshot(
         IReadOnlyList<CaseSearchItem> Held,
         IReadOnlyList<CaseSearchItem> Review,
         IReadOnlyList<CaseSearchItem> UnassignedEngineer,
+        IReadOnlyList<CaseSearchItem> WithEngineer,
         IReadOnlyList<UnidentifiedQueueRow> Unidentified,
         IReadOnlyList<TriageSummary> Triage,
         int TriageTotalCount,
@@ -481,6 +514,7 @@ public sealed class GetOperationsSnapshot(
             staffAccounts,
             inputs.Held.Select(item => item.EngineerId ?? Guid.Empty)
                 .Concat(inputs.Review.Select(item => item.EngineerId ?? Guid.Empty))
+                .Concat(inputs.WithEngineer.Select(item => item.EngineerId ?? Guid.Empty))
                 .Concat(inputs.Triage.Select(record => record.AssigneeId ?? Guid.Empty))
                 .Concat(draftOwners.Values.Select(id => id ?? Guid.Empty))
                 .Concat(inputs.PairedVehicleImages.Select(row => row.EngineerId ?? Guid.Empty))
@@ -583,6 +617,32 @@ public sealed class GetOperationsSnapshot(
                 Route = StaffNotificationPolicy.CaseRoute(unassigned.CaseId, "assign"),
                 RecordRoute = StaffNotificationPolicy.CaseRoute(unassigned.CaseId),
                 QualifiedAtUtc = unassigned.StateEnteredAtUtc ?? unassigned.CreatedAtUtc
+            });
+        }
+
+        // A With Engineer Case its Engineer holds (#1213): its Engineer's row,
+        // due at the Case's one due instant (FRD-15), undated when it has none.
+        foreach (var assigned in inputs.WithEngineer)
+        {
+            items.Add(new(
+                NeedsAttentionKind.WithEngineer,
+                assigned.CaseId,
+                assigned.Reference,
+                VehicleLabel(assigned),
+                assigned.Principal,
+                nameof(CaseLifecycleState.ReportPreparation),
+                NeedsAttentionPolicy.Priority(assigned.DueAtUtc, asOfUtc, dayEndUtc),
+                NeedsAttentionPolicy.OwnerText(NeedsAttentionKind.WithEngineer, OwnerName(assigned.EngineerId, staffNames)),
+                assigned.DueAtUtc,
+                LastOutcome: null,
+                assigned.Origin,
+                Attempts: null,
+                Received: assigned.ReceivedAtUtc)
+            {
+                OwnerStaffId = assigned.EngineerId,
+                Route = StaffNotificationPolicy.CaseRoute(assigned.CaseId),
+                RecordRoute = StaffNotificationPolicy.CaseRoute(assigned.CaseId),
+                QualifiedAtUtc = assigned.StateEnteredAtUtc ?? assigned.CreatedAtUtc
             });
         }
 

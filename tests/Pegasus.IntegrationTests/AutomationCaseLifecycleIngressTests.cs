@@ -240,6 +240,11 @@ public sealed class AutomationCaseLifecycleIngressTests
         }
     }
 
+    /// <summary>
+    /// #1213 (operator, 15 October 2026): an omitted engineerId hands the Case
+    /// to Unassigned, With Engineer, and a named one then assigns it there; no
+    /// reason is asked, and Core records who it went to.
+    /// </summary>
     [Fact]
     public async Task AssignEngineerThroughCaseActionMovesTheCaseToWithEngineer()
     {
@@ -252,16 +257,15 @@ public sealed class AutomationCaseLifecycleIngressTests
         var engineerId = await SeedEngineerAsync(mcpFactory, "lifecycle-engineer");
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using (var noEngineer = await PostMcpAsync(client, token, ToolCallPayload(10, "pegasus_case_action",
-            new { caseId, expectedVersion = version, operationKey = "mcp:assign-none", action = "assign_engineer" })))
-        {
-            Assert.Contains("needs engineerId", await ReadErrorTextAsync(noEngineer), StringComparison.Ordinal);
-        }
+        using var unassigned = await PostMcpAsync(client, token, ToolCallPayload(10, "pegasus_case_action",
+            new { caseId, expectedVersion = version, operationKey = "mcp:assign-none", action = "assign_engineer" }));
+        var unassignedResult = await ReadStructuredContentAsync(unassigned);
+        Assert.Equal(nameof(CaseLifecycleState.ReportPreparation), unassignedResult.GetProperty("state").GetString());
 
         using var assigned = await PostMcpAsync(client, token, ToolCallPayload(11, "pegasus_case_action", new
         {
             caseId,
-            expectedVersion = version,
+            expectedVersion = unassignedResult.GetProperty("caseVersion").GetInt64(),
             operationKey = "mcp:assign",
             action = "assign_engineer",
             engineerId,
@@ -275,6 +279,14 @@ public sealed class AutomationCaseLifecycleIngressTests
         Assert.NotNull(workflow);
         Assert.Equal(engineerId, workflow.AssignedEngineerId);
         Assert.Equal(result.GetProperty("caseVersion").GetInt64(), workflow.Version);
+        await using var db = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        var reasons = await db.CaseWorkflowEvents.AsNoTracking()
+            .Where(row => row.CaseId == caseId && row.EventType == "state_ReportPreparation")
+            .OrderBy(row => row.AfterVersion)
+            .Select(row => row.Reason)
+            .ToListAsync();
+        Assert.Equal(["Set to Unassigned", $"Assigned to lifecycle-engineer-{engineerId:N}"], reasons);
     }
 
     /// <summary>

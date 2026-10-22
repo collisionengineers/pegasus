@@ -1,3 +1,4 @@
+using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
@@ -87,23 +88,35 @@ public sealed class AssignCaseEngineer(
     {
         var workflowConfiguration = await _configuration.GetCurrentAsync(cancellationToken);
         CaseLifecycleRules.ValidateAssignment(request, workflowConfiguration);
+        // The history reason is composed here for every caller (operator, 15
+        // October 2026, R41), before the replay check: the operation's hash
+        // covers it, so a replay composes the same words.
+        request = request with
+        {
+            Reason = await CaseEngineerAssignmentHistory.ReasonAsync(
+                _staffAccounts, request.EngineerId, request.Actor, cancellationToken)
+        };
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
         var isReplay = await _store.HasOperationAsync(
             request.CaseId,
             request.OperationKey,
             cancellationToken);
-        if (current.State != CaseLifecycleState.Review && !isReplay)
+        if (current.State is not (CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation) && !isReplay)
         {
-            throw new InvalidOperationException("A staff member can be assigned only while the case is in Review.");
+            throw new InvalidOperationException(
+                "A staff member can be assigned only while the case is in Review or With Engineer.");
         }
 
         Guid? signOffEngineerId = null;
         if (!isReplay)
         {
-            await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
-                _eligibility,
-                request.EngineerId,
-                cancellationToken);
+            if (request.EngineerId is { } engineerId)
+            {
+                await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
+                    _eligibility,
+                    engineerId,
+                    cancellationToken);
+            }
 
             var profiles = await _staffAccounts.ListSignOffEngineersAsync(cancellationToken);
             signOffEngineerId = CaseSignOffEngineerResolver.Resolve(
@@ -129,6 +142,44 @@ public sealed class AssignCaseEngineer(
         }
 
         return assigned;
+    }
+}
+
+/// <summary>
+/// The history reason Assign Engineer records, composed once for every caller
+/// (operator, 15 October 2026, R41; no full stops, R161 a): "Taken by {name}"
+/// when the Engineer is the actor, "Assigned to {name}" for another Engineer,
+/// and "Set to Unassigned" when the Case is handed to nobody.
+/// </summary>
+public static class CaseEngineerAssignmentHistory
+{
+    public const string SetToUnassigned = "Set to Unassigned";
+
+    public static string Reason(Guid? engineerId, ActionActor actor, string engineerName)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return engineerId is not { } id
+            ? SetToUnassigned
+            : id == StaffNotificationPolicy.StaffId(actor)
+                ? $"Taken by {engineerName}"
+                : $"Assigned to {engineerName}";
+    }
+
+    /// <summary>The reason, with the Engineer's name resolved as every history reader names staff.</summary>
+    public static async Task<string> ReasonAsync(
+        IStaffAccountQueries staffAccounts,
+        Guid? engineerId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(staffAccounts);
+        if (engineerId is not { } id)
+        {
+            return SetToUnassigned;
+        }
+
+        var names = await ActorDisplayNames.ResolveStaffNamesAsync(staffAccounts, [id], cancellationToken);
+        return Reason(id, actor, ActorDisplayNames.Resolve(ActorKind.Staff, id.ToString("D"), names));
     }
 }
 
@@ -526,16 +577,13 @@ public sealed class ReturnCaseToEngineer(
                 "A case can return to Engineer only from Report sent.");
         }
 
-        if (!isReplay)
+        // A Case with no Engineer returns Unassigned, for an Engineer to take
+        // (operator, 15 October 2026, #1213 ruling 3).
+        if (!isReplay && current.AssignedEngineerId is { } engineerId)
         {
-            if (current.AssignedEngineerId is null)
-            {
-                throw new InvalidOperationException("Report preparation requires an assigned Engineer.");
-            }
-
             await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
                 _eligibility,
-                current.AssignedEngineerId.Value,
+                engineerId,
                 cancellationToken);
         }
 
@@ -545,6 +593,13 @@ public sealed class ReturnCaseToEngineer(
 
 public static class CaseLifecycleRules
 {
+    /// <summary>
+    /// The one sentence for a Case whose report work needs an Engineer and has
+    /// none: Create audit's refusal and the report blocker (operator, 15
+    /// October 2026, #1213 ruling 3: an Engineer must take it first).
+    /// </summary>
+    public const string AssignedEngineerRequired = "Report preparation requires an assigned Engineer.";
+
     public static async Task<CaseWorkflowRecord> GetRequiredAsync(
         ICaseWorkflowQueries queries,
         Guid caseId,
@@ -698,11 +753,16 @@ public static class CaseLifecycleRules
         }
     }
 
+    /// <summary>
+    /// Assign Engineer takes no typed reason (operator, 15 October 2026,
+    /// #1213 ruling 1): Core composes the history reason. A null Engineer is
+    /// Unassigned; a given one is a real identifier.
+    /// </summary>
     public static void ValidateAssignment(
         AssignCaseEngineerRequest request,
         CaseWorkflowConfiguration configuration)
     {
-        ValidateMutation(request);
+        ValidateMutation(request, requireReason: false);
         if (request.EngineerId == Guid.Empty)
         {
             throw new ArgumentException("An Engineer identifier is required.", nameof(request));
@@ -781,18 +841,16 @@ public static class CaseLifecycleRules
 
     }
 
+    /// <summary>
+    /// A Case reopened to With Engineer with no Engineer lands Unassigned, for
+    /// an Engineer to take (operator, 15 October 2026, #1213 ruling 3).
+    /// </summary>
     public static void RequireReopenDestinationIsAllowed(
         CaseWorkflowRecord current,
         ReopenCaseRequest request)
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Destination == CaseReopenDestination.ReportPreparation
-            && current.AssignedEngineerId is null)
-        {
-            throw new InvalidOperationException("Report preparation requires an assigned staff member.");
-        }
-
         if (request.Destination == CaseReopenDestination.ReportSent
             && current.ReportSentEvidence is null)
         {

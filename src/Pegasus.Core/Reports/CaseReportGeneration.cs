@@ -629,6 +629,7 @@ public sealed record CaseReportReadinessResult(
 /// </summary>
 public static class CaseReportReadiness
 {
+    public const string EngineerRequirement = "Engineer";
     public const string SignatoryRequirement = "Sign-off Engineer";
     public const string CurrentEstimateRequirement = "Current repair spec";
     public const string LabourRateRequirement = "Repair spec labour rate";
@@ -661,6 +662,18 @@ public static class CaseReportReadiness
         SignatoryRequirement, "Case record",
         "The Case has no Sign-off Engineer.",
         "Choose the Sign-off Engineer on Case details.");
+
+    /// <summary>
+    /// A With Engineer Case that is Unassigned: an Engineer must take it
+    /// before its report (operator, 15 October 2026, #1213 ruling 3). Its
+    /// words are existing ones (the ribbon's Engineer, the Case record, the
+    /// shared refusal and the Assign Engineer action) and no Case section
+    /// clears it, so it links none.
+    /// </summary>
+    public static readonly AssessmentReadinessItem AssignedEngineerMissing = new(
+        EngineerRequirement, "Case record",
+        CaseLifecycleRules.AssignedEngineerRequired,
+        "Assign Engineer");
 
     internal static readonly AssessmentReadinessItem CurrentEstimateMissing = new(
         CurrentEstimateRequirement, "Estimates",
@@ -724,6 +737,7 @@ public static class CaseReportReadiness
             }
         }
 
+        Require(input.AssignedEngineerId is not null, AssignedEngineerMissing);
         var signatory = CaseSignOffEngineerResolver.Resolve(
             input.PersistedSignOffEngineerId,
             input.AssignedEngineerId,

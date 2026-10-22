@@ -442,7 +442,9 @@ public sealed partial class AssessmentReportDraftWebTests
         source.Readiness = source.Readiness with
         {
             PersistedSignOffEngineerId = null,
-            AssignedEngineerId = null,
+            // An assigned Engineer who is not a Sign-off Engineer: the report
+            // needs one (#1213 ruling 3), and it resolves no account.
+            AssignedEngineerId = Guid.NewGuid(),
             EligibleSignOffEngineers =
             [
                 .. source.Readiness.EligibleSignOffEngineers.Select(profile => profile with { IsDefault = false }),
@@ -998,7 +1000,8 @@ public sealed partial class AssessmentReportDraftWebTests
                     ReportFixtureAtUtc, "engineer-1", true, false, null));
             }
             var signatory = projection.Signatory!;
-            return new(projection.Assessment, signatoryId, null,
+            // A ready report's Case has an assigned Engineer (#1213 ruling 3).
+            return new(projection.Assessment, signatoryId, Guid.NewGuid(),
                 [new(signatoryId, signatory.PrintedName, signatory.Qualifications, IsDefault: true)],
                 projection.CurrentEstimate,
                 new AppliedValuation(Guid.NewGuid(), projection.Assessment.CaseId, 1, Guid.NewGuid(),

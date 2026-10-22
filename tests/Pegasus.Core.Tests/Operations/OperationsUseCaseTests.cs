@@ -50,6 +50,33 @@ public sealed class OperationsUseCaseTests
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])));
     }
 
+    /// <summary>
+    /// #1213 ruling 2 (operator, 15 October 2026): an assigned With Engineer
+    /// Case is its Engineer's, in their Mine only; nobody takes it.
+    /// </summary>
+    [Fact]
+    public void AWithEngineerRowHasAPersonSlotAndIsItsEngineersMineOnly()
+    {
+        var engineerId = Guid.NewGuid();
+        var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var row = new NeedsAttentionItem(
+            NeedsAttentionKind.WithEngineer, Guid.NewGuid(), "QDOS26001", "Ford Focus", "QDOS",
+            "ReportPreparation", NeedsAttentionPriority.Normal, "Alex", Due: null, LastOutcome: null,
+            Source: null, Attempts: null)
+        {
+            OwnerStaffId = engineerId
+        };
+
+        Assert.Equal("Unassigned", NeedsAttentionPolicy.OwnerText(NeedsAttentionKind.WithEngineer, null));
+        Assert.False(NeedsAttentionPolicy.CanTake(NeedsAttentionKind.WithEngineer, engineer));
+        Assert.True(NeedsAttentionPolicy.InScope(row, NeedsAttentionScope.Mine, engineer));
+        Assert.False(NeedsAttentionPolicy.InScope(row, NeedsAttentionScope.Mine, colleague));
+        Assert.False(NeedsAttentionPolicy.InScope(row, NeedsAttentionScope.Office, engineer));
+        Assert.False(NeedsAttentionPolicy.Holds(NeedsAttentionScope.Office, NeedsAttentionKind.WithEngineer));
+        Assert.True(NeedsAttentionPolicy.Holds(NeedsAttentionScope.Office, NeedsAttentionKind.UnassignedEngineer));
+    }
+
     [Fact]
     public void OpenTasksHaveAPersonSlotAndAreNotWorkToTake()
     {

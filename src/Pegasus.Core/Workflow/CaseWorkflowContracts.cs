@@ -358,6 +358,11 @@ public sealed record ReturnCaseToReviewRequest(
     string EditLeaseToken)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
+/// <summary>
+/// Hand a Review or With Engineer Case to an Engineer, or to Unassigned when
+/// <see cref="EngineerId"/> is null (#1213). The history reason is Core's, so
+/// a caller's <see cref="CaseMutationRequest.Reason"/> is replaced.
+/// </summary>
 public sealed record AssignCaseEngineerRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -365,7 +370,7 @@ public sealed record AssignCaseEngineerRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    Guid EngineerId)
+    Guid? EngineerId)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record RecordCaseReportApprovalRequest(

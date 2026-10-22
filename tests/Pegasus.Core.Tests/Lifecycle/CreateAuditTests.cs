@@ -97,6 +97,21 @@ public sealed class CreateAuditTests
         Assert.Equal(refusal, exception.Refusal);
     }
 
+    /// <summary>
+    /// An Unassigned Case is refused its Audit and its report in one sentence
+    /// (operator, 15 October 2026, #1213 ruling 3: an Engineer must take it first).
+    /// </summary>
+    [Fact]
+    public void TheNoEngineerRefusalIsTheReportBlockersSentence()
+    {
+        Assert.Equal(
+            CaseLifecycleRules.AssignedEngineerRequired,
+            AuditPolicy.Message(AuditRefusal.NoAssignedEngineer));
+        Assert.Equal(
+            CaseLifecycleRules.AssignedEngineerRequired,
+            Pegasus.Core.Reports.CaseReportReadiness.AssignedEngineerMissing.WhyOutstanding);
+    }
+
     [Fact]
     public void TheHistoryLineNamesTheAuditReferenceAndTheActor()
     {

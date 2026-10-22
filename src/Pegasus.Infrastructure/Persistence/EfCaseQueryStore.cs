@@ -256,6 +256,12 @@ public sealed class EfCaseQueryStore(
         {
             rows = rows.Where(item => item.EngineerId == engineerId);
         }
+        if (filters.HasEngineer is { } hasEngineer)
+        {
+            rows = hasEngineer
+                ? rows.Where(item => item.EngineerId != null)
+                : rows.Where(item => item.EngineerId == null);
+        }
         if (filters.ReceivedDate is { } receivedDate)
         {
             var receivedStart = LondonCalendar.StartOfDay(receivedDate);
