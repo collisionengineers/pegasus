@@ -545,7 +545,7 @@ Case document upload mechanism before parsing it immediately. The confirmed
 source appears in Case Files even when parsing refuses it; retrying the same
 file uses that retained source, while a replay of the same operation returns
 the same import. A staff Import makes the imported spec Current. The stored
-source is an Estimate document, as are a Glass's session's XML export,
+source has the Estimate type, as do a Glass's session's XML export,
 calculation-sheet PDF and rejected XML; a file imported from where it already
 sits in Case Files keeps its type
 ([FRD-05](frd-05-documents-extraction-and-custody.md#document-types);
