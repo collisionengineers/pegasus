@@ -9,9 +9,9 @@
 @{
     var workflow = Model.Case!.Workflow;
     var staleGeneration = Model.CurrentReportGeneration is { State: CaseReportGenerationState.Stale };
-    var next = Model.NextAction;
     var reportBlockers = Model.ReportNotReadyBlockers;
     var requirements = Model.ReportNotReadyRequirements;
+    var next = Model.NextAction(requirements);
     var openTasks = Model.OpenTasks;
     var drawsNextAction = next is not null
         || Model.AiDrafts.Count > 0
@@ -217,7 +217,7 @@
                             }
                         </div>
                     }
-                    else if (Model.NextActionRequirement(nextRow) is { } requirement)
+                    else if (Model.NextActionRequirement(nextRow, requirements) is { } requirement)
                     {
                         <div class="next-step next-step--item" data-next-step data-case-requirement>
                             <strong data-next-label>@requirement.Title</strong>

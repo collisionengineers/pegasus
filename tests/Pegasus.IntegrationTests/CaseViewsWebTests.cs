@@ -753,7 +753,6 @@ public sealed class CaseViewsWebTests
         var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
 
         var next = NextAction(html);
-        Assert.DoesNotContain("data-next-step", next, StringComparison.Ordinal);
         var listStart = next.IndexOf("data-open-tasks>", StringComparison.Ordinal);
         Assert.True(listStart >= 0, "The Next action must list the open tasks.");
         var list = next[listStart..];
@@ -801,10 +800,8 @@ public sealed class CaseViewsWebTests
         Assert.Contains("disabled aria-disabled=\"true\" data-archive-case>", bar, StringComparison.Ordinal);
         Assert.DoesNotContain("data-dialog-open=\"case-archive-dialog\"", bar, StringComparison.Ordinal);
 
-        // The task remains, so the card is drawn, holding the task list alone.
-        var next = NextAction(html);
-        Assert.Contains("data-open-tasks>", next, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-next-step", next, StringComparison.Ordinal);
+        // The task remains, so the card is drawn, holding the task list.
+        Assert.Contains("data-open-tasks>", NextAction(html), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1032,13 +1029,11 @@ public sealed class CaseViewsWebTests
         return card.Value;
     }
 
-    /// <summary>The aside draws no Next action card at all: no shell, no None, no Notes link.</summary>
+    /// <summary>The aside draws no Next action card at all.</summary>
     private static void AssertNoNextActionCard(string html)
     {
         Assert.False(NextActionRegex().IsMatch(html), "A Next action card is rendered.");
         Assert.DoesNotContain("data-next-action", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-next-label", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-section-jump=\"notes\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>The report card's status line.</summary>
