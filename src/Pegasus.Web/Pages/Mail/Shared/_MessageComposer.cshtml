@@ -1,0 +1,135 @@
+@model Pegasus.Web.Pages.Mail.MessageModel
+@using Pegasus.Web.Presentation
+@{
+    var summary = Model.Detail.Summary;
+    var correspondenceMode = Model.CorrespondenceMode;
+    var handler = correspondenceMode switch
+    {
+        "reply" => "Reply",
+        "reply-all" => "ReplyAll",
+        "forward" => "Forward",
+        _ => null
+    };
+}
+
+@* The composer (FRD-21): Reply, Reply all and Forward. The record page draws it
+   above the message; the Inbox's dialog draws it alone, with Cancel and Send in
+   its foot (v41 I15). One markup, one set of handlers. *@
+@if (handler is not null)
+{
+    <form method="post" id="mailComposerForm" asp-page-handler="@handler" asp-route-id="@summary.Id"
+          asp-route-dialog="@(Model.InDialog ? "true" : null)"
+          class="@(Model.InDialog ? "stack mail-compose" : "panel section-gap")">
+        @if (!Model.InDialog)
+        {
+            <div class="panel-head"><h2>@(correspondenceMode == "forward" ? OperatorLabels.StaffMail.Forward : correspondenceMode == "reply-all" ? OperatorLabels.StaffMail.ReplyAll : OperatorLabels.StaffMail.Reply)</h2></div>
+        }
+        <div class="@(Model.InDialog ? "stack" : "panel-body stack")">
+            <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
+            <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
+            <input type="hidden" name="pageNumber" value="@Model.PageRouteValue" />
+            <input type="hidden" name="search" value="@Model.SearchTerm" />
+            <input type="hidden" name="queue" value="@Model.QueueFilter" />
+            <input type="hidden" name="sort" value="@(Model.OldestFirst ? "oldest" : null)" />
+            <input type="hidden" name="compose" value="@correspondenceMode" />
+            <input type="hidden" asp-for="CorrespondenceOperationKey" />
+            <input type="hidden" asp-for="ExpectedCorrespondenceCaseVersion" />
+            <input type="hidden" asp-for="FixedCorrespondenceCaseReference" />
+            <div class="definition-list">
+                <dl class="definition"><dt>From</dt><dd>@Model.CorrespondenceMailbox!.Address</dd></dl>
+            </div>
+            @* Case / PO searches as staff type: choosing an option
+               posts SelectCorrespondenceCase, which fixes the Case
+               and its version. A reference typed in full is sent
+               as it is. *@
+            <div class="field case-picker" data-case-picker
+                 data-case-picker-url="@Url.Page("/Mail/Message", "CorrespondenceCaseOptions", new { id = summary.Id })">
+                <label asp-for="CorrespondenceCaseReference">Case / PO</label>
+                <input asp-for="CorrespondenceCaseReference" type="text" maxlength="100" autocomplete="off"
+                       role="combobox" aria-autocomplete="list" aria-expanded="false"
+                       aria-controls="message-case-options" />
+                <span class="field-hint">Search by Case / PO, registration, claimant, claim number, or Principal.</span>
+                <span asp-validation-for="CorrespondenceCaseReference"></span>
+                <div id="message-case-options" class="case-picker-options" data-case-picker-options hidden></div>
+            </div>
+            @if (correspondenceMode == "forward")
+            {
+                <div class="field">
+                    <label asp-for="CorrespondenceTo">To</label>
+                    <input asp-for="CorrespondenceTo" type="text" />
+                    <span asp-validation-for="CorrespondenceTo"></span>
+                </div>
+                <div class="field">
+                    <label asp-for="CorrespondenceCc">Cc</label>
+                    <input asp-for="CorrespondenceCc" type="text" />
+                </div>
+            }
+            else
+            {
+                <div class="definition-list">
+                    <dl class="definition"><dt>To</dt><dd>@Model.CorrespondenceTo</dd></dl>
+                    @if (!string.IsNullOrWhiteSpace(Model.CorrespondenceCc))
+                    {
+                        <dl class="definition"><dt>Cc</dt><dd>@Model.CorrespondenceCc</dd></dl>
+                    }
+                </div>
+            }
+            <div class="field">
+                <label asp-for="CorrespondenceSubject">Subject</label>
+                <input asp-for="CorrespondenceSubject" type="text" />
+                <span asp-validation-for="CorrespondenceSubject"></span>
+            </div>
+            @if (Model.AiDraft is { } aiDraft)
+            {
+                @* Opened on an AI draft (FRD-27): Message holds the draft and
+                   the send completes the job. Staff edit it before sending. *@
+                <div class="notice" role="status" data-ai-draft="@aiDraft.JobId">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
+                    <span><span class="src-tag src-tag--ai">AI</span> @OperatorLabels.QueryResponseJobs.DraftLine(aiDraft.DraftReadyAtUtc ?? aiDraft.CreatedAtUtc, aiDraft.TakenBy)</span>
+                </div>
+            }
+            @* Bound under its route name, so the send carries the job the composer opened on. *@
+            <input type="hidden" name="aiJob" value="@(Model.AiJobId?.ToString("D"))" />
+            <div class="field">
+                <label asp-for="CorrespondenceBody">Message</label>
+                <textarea asp-for="CorrespondenceBody" rows="8"></textarea>
+                <span asp-validation-for="CorrespondenceBody"></span>
+            </div>
+            @if (Model.OffersResolveQuery)
+            {
+                @* The Case holds an open query: this reply may resolve it,
+                   on observed Sent (operator, 11 October 2026). *@
+                <div class="field">
+                    <label>
+                        <input type="checkbox" asp-for="ResolveQuery" data-resolve-query />
+                        @OperatorLabels.StaffMail.AlsoResolveQuery
+                    </label>
+                </div>
+            }
+            @if (Model.AvailableAttachments.Count > 0)
+            {
+                <fieldset class="field">
+                    <legend>Attachments</legend>
+                    @foreach (var attachment in Model.AvailableAttachments)
+                    {
+                        <label>
+                            <input type="checkbox" name="SelectedAttachments" value="@attachment.Selection"
+                                   checked="@Model.SelectedAttachments.Contains(attachment.Selection)" />
+                            @attachment.FileName
+                        </label>
+                    }
+                    <span asp-validation-for="SelectedAttachments"></span>
+                </fieldset>
+            }
+            @if (!Model.InDialog)
+            {
+                <div class="button-row">
+                    <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Sending">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
+                        <span>Send</span>
+                    </button>
+                </div>
+            }
+        </div>
+    </form>
+}

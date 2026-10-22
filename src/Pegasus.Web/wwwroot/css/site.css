@@ -454,7 +454,6 @@ tbody tr:hover{background:#f3f6f7}
    Mail (§1.3)
    --------------------------------------------------------------------------- */
 
-.mail-preview{padding:16px;min-width:0}
 .mail-header{padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:14px}
 .mail-subject{font-size:19px;font-weight:780;line-height:1.3}
 .mail-route{font-size:10px;color:var(--muted);margin-top:5px}
@@ -1527,35 +1526,10 @@ details > summary.btn { display: inline-flex; list-style: none; }
 details > summary.btn::-webkit-details-marker { display: none; }
 details > summary.btn::marker { content: ""; }
 
-/* UI-10: the retained-mail table remains the primary workspace. The preview is
-   a read-only adjacent evidence region, then an ordinary ordered section when
-   constrained width or browser zoom leaves no honest room for two panes. */
-.mail-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
-  gap: var(--sp-6);
-  align-items: start;
-}
-
-.mail-workspace > .table-wrap { min-width: 0; }
-
-.mail-preview h2 { margin: 0 0 var(--sp-4); font-size: var(--t-h3); }
-.mail-preview__status { margin: 0; color: var(--muted); }
-.mail-preview__facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); margin: 0; }
-.mail-preview__facts > div { min-width: 0; }
-.mail-preview__facts dt { color: var(--muted); font-size: var(--t-sm); font-weight: 700; }
-.mail-preview__facts dd { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
-
-@media (max-width: 1279px) {
-  .mail-workspace { grid-template-columns: minmax(0, 1fr); }
-  .mail-preview { order: 2; }
-}
-
-
 /* A retained body is flattened text. It is rendered as text and wraps like
-   text; nothing here interprets markup. The pre form is the quick preview and
-   Deleted-items rendering; the message page's div form renders paragraphs and
-   must not inherit pre-wrap. */
+   text; nothing here interprets markup. The pre form is the Deleted-items
+   rendering; the message page's div form renders paragraphs and must not
+   inherit pre-wrap. */
 pre.mail-body {
   margin: var(--sp-4) 0 0;
   font: inherit;

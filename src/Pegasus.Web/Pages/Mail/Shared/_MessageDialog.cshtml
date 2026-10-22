@@ -1,0 +1,54 @@
+@model Pegasus.Web.Pages.Mail.MessageModel
+@using Pegasus.Web.Presentation
+@{
+    var summary = Model.Detail.Summary;
+    var composing = Model.CanCorrespond && Model.CorrespondenceMode is not null;
+    var composeLabel = Model.CorrespondenceMode switch
+    {
+        "reply-all" => OperatorLabels.StaffMail.ReplyAll,
+        "forward" => OperatorLabels.StaffMail.Forward,
+        _ => OperatorLabels.StaffMail.Reply
+    };
+    var routeParts = new List<string> { $"From {Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary)}" };
+    routeParts.AddRange(Pegasus.Web.Pages.Mail.MessageModel.RouteParts(Model.Detail));
+}
+
+@* One message in a dialog over the Inbox (v41 I2, I17): one head (the subject;
+   From, To and received beneath; Previous and Next and close at the right),
+   the tabs, then the message beside Decision, and the foot. The same record
+   the /Inbox/{id} page draws, fetched on open by the Inbox's script; the
+   reason dialogs it opens follow it as siblings so each stacks over it. *@
+<div id="mailMessageDialog" class="dialog-backdrop" data-dialog="mailMessageDialog"
+     data-mail-message="@summary.Id" hidden>
+    <section class="dialog dialog--mail" role="dialog" aria-modal="true" aria-labelledby="mailMessageDialog_title">
+        <div class="dialog-head">
+            <div class="mail-dialog-title">
+                <h2 id="mailMessageDialog_title" class="wrap" tabindex="-1" data-dialog-initial-focus>@(composing ? $"{composeLabel} · " : string.Empty)@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h2>
+                @if (!composing)
+                {
+                    <p class="mail-route">@string.Join(" · ", routeParts) · <time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time></p>
+                }
+            </div>
+            <span class="mail-dialog-tools">
+                @if (!composing)
+                {
+                    <span class="cluster mail-dialog-nav">
+                        <button type="button" class="icon-button" data-mail-previous
+                                aria-label="@OperatorLabels.Inbox.PreviousMessage" title="@OperatorLabels.Inbox.PreviousMessage">
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
+                        </button>
+                        <button type="button" class="icon-button" data-mail-next
+                                aria-label="@OperatorLabels.Inbox.NextMessage" title="@OperatorLabels.Inbox.NextMessage">
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-right")" /></svg>
+                        </button>
+                    </span>
+                }
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                </button>
+            </span>
+        </div>
+        <partial name="Shared/_MessageRecord" model="Model" />
+    </section>
+</div>
+<partial name="Shared/_MessageNested" model="Model" />

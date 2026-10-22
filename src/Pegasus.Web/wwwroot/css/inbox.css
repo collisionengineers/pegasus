@@ -1,9 +1,9 @@
 /* Inbox and message record (Phase 6 Lane B). Page-specific; shared tokens only. */
 .inbox-layout.pane-layout--2 { grid-template-columns: 220px minmax(0, 1fr); }
-.inbox-layout.pane-layout--3 { grid-template-columns: 220px minmax(0, 1fr) minmax(0, 470px); }
 .inbox-filter {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  /* The Folder select is gone (v41 I1): its width goes to the filter's columns. */
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.8fr) auto;
   gap: 8px 12px;
   align-items: end;
   padding: 12px 14px;
@@ -11,8 +11,6 @@
 }
 .inbox-row { position: relative; padding-right: 44px; }
 .inbox-row.unread .row-title { font-weight: 700; }
-/* The preview's excerpt keeps the sender's line breaks. */
-.mail-excerpt { white-space: pre-line; }
 .inbox-row--two-actions { padding-right: 80px; }
 .inbox-row-actions {
   position: absolute;
@@ -26,12 +24,79 @@
 .inbox-row-action { margin: 0; }
 .message-attachments .attachment-outcome { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .message-attachments .attachment-reason { color: var(--muted, #626b70); font-size: 12px; }
+
+/* v41 I18: a checkbox in the row's left gutter, and the one bulk form above the
+   list. A tick neither opens nor pins the row. */
+.inbox-row--ticks { padding-left: 40px; }
+.inbox-row-tick {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.inbox-row-tick input { width: 16px; height: 16px; margin: 0; accent-color: var(--navy); cursor: pointer; }
+.inbox-bulk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line, #d2d8db);
+  background: var(--surface-2);
+}
+.inbox-bulk-count { min-width: 22px; text-align: center; font-size: 12px; font-weight: 700; }
+
+/* v41 I2, I17: the message dialog is wider than dialog--wide: it holds the body
+   and Decision the full page holds. */
+.dialog.dialog--mail { width: min(100%, 1080px); max-height: calc(100vh - 40px); display: flex; flex-direction: column; }
+.dialog--mail .dialog-body { overflow: auto; min-height: 340px; }
+.dialog--mail .dialog-head { align-items: flex-start; gap: 16px; padding-bottom: 10px; }
+.dialog--mail .dialog-head h2 { min-width: 0; }
+.dialog--mail > .tabs { margin: 0; padding: 0 20px; }
+.dialog--mail .mail-route { margin: 0; }
+.mail-dialog-title { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.mail-dialog-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; align-self: flex-start; }
+.mail-dialog-nav { flex-shrink: 0; gap: 2px; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line, #d2d8db); }
+.mail-dialog-nav .icon-button[disabled] { opacity: .35; cursor: default; }
+.mail-compose { max-width: 900px; }
+.mail-compose .definition-list { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+
+/* The message on the left; Decision on the right, holding the Classification
+   chips and the Case picker. */
+.mail-split { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
+.mail-read .mail-body p { margin: 0 0 12px; max-width: 72ch; }
+.mail-decision .decision-body { padding-bottom: 12px; }
+.mail-decision-block { display: grid; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line, #d2d8db); }
+.mail-decision-label { font-size: 10px; color: var(--muted); }
+.mail-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The chips are the shared .chip; the Decision column draws a pressed one pale,
+   with the tick, as drawn (v41 I9). */
+.mail-chips .chip {
+  height: auto;
+  min-height: 26px;
+  padding: 2px 10px;
+  border-color: var(--line-strong);
+  background: #fff;
+  color: var(--ink);
+}
+.mail-chips .chip:hover { background: var(--surface-2); }
+.mail-chips .chip[aria-pressed="true"] { border-color: var(--navy); background: var(--navy-bg); color: var(--ink); font-weight: 700; }
+.mail-chips .chip .icon { color: var(--green); }
+.mail-decision .case-picker .field-hint { margin: 0; }
+.mail-decision-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line, #d2d8db); }
+
 @media (max-width: 1180px) {
   .inbox-filter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .inbox-filter__search { grid-column: 1 / -1; }
 }
+@media (max-width: 900px) {
+  .mail-split { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 760px) {
-  .inbox-layout.pane-layout--2,
-  .inbox-layout.pane-layout--3 { grid-template-columns: minmax(0, 1fr); }
+  .inbox-layout.pane-layout--2 { grid-template-columns: minmax(0, 1fr); }
   .inbox-filter { grid-template-columns: minmax(0, 1fr); }
 }

@@ -25,6 +25,13 @@ public static class MailClassificationSelection
     /// <summary>The reason Tag as query records in the message's classification history.</summary>
     public const string TaggedAsQueryReason = "Tagged as query";
 
+    /// <summary>
+    /// The reason a Classification chip on the message record records: a chip
+    /// applies at once, as Tag as query does, so no reason is typed (operator,
+    /// 22 October 2026, R179).
+    /// </summary>
+    public const string CorrectedFromInboxReason = "Corrected from the Inbox";
+
     // Labels resolve through the one operator label map, so the picker and
     // every read-only rendering of a classification use the same words.
     public static IReadOnlyList<SelectionOption> Options { get; } =

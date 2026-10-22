@@ -29,16 +29,18 @@ owned by [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 ### Inbox scopes and filters
 
 `/Inbox` lists retained mail by scope: All incoming, No Case Found, Sent
-Items and Dismissed. There is no Unread scope; an unread row stays bold. The
-filters are mailbox, folder and **Category**, one flat list: All categories,
-the eleven mail categories
-([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction))
-and No Case Found, with no groups.
+Items, Dismissed and Deleted Items, all five on the rail. There is no Unread
+scope; an unread row stays bold. The filters are mailbox and **Category**,
+one flat list: All categories and the eleven mail categories
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)),
+with no groups. The Folder select is gone and No Case Found is a scope, not a
+category (v41 item I1, signed off 19 October 2026,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 The default view is the incoming Inbox across all approved mailboxes, newest
-received first. Folder, mailbox, category and search views are explicit
+received first. Mailbox, category and search views are explicit
 refinements of that view. Sent mail and read-only Deleted Items search are
-separate folder scopes. Sent Items lists every Sent item the Sent-evidence
+separate scopes. Sent Items lists every Sent item the Sent-evidence
 poll ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md)) has read
 from an Outgoing approved mailbox, newest sent first, whether Pegasus or Outlook
 sent it; a row opens the message record the same way a received one does.
@@ -61,10 +63,13 @@ photo-only e-mail with no Case is listed in No Case Found and in Unassigned
 Images › Unidentified until it is linked.
 
 Each row shows sender, subject and a short excerpt of the body. The subject
-opens the message. Clicking elsewhere on a row selects it. The selected row
-is marked. Up and Down move through the rows. A received row offers
-**Reply** when the mailbox it arrived in can send; it opens the message
-record's Reply
+opens the message as a dialog over the list; the address `/Inbox/{id}` stays
+for a new tab and for no script (operator, 16 October 2026). Clicking elsewhere
+on a row selects it. The selected row is marked. Up and Down move through the
+rows. In All incoming, No Case Found and Dismissed each row carries a
+checkbox in its left gutter; ticking it neither opens nor selects the row.
+A received row offers **Reply** when the mailbox it arrived in can send; it
+opens the message dialog's Reply
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 Rows show retained read and unread state, but this workspace never
 changes that state.
@@ -80,29 +85,24 @@ There is no `View in Outlook`. The in-app message, attachment and thread
 view was accepted as enough, so there is no Outlook navigation, action or
 external access requirement.
 
-### Quick preview and message detail
+### Message dialog and message detail
 
-The quick preview opens on pointer or keyboard intent, works with a keyboard
-and a screen reader, and never clips or covers nearby controls. When the
-intent moves away, the pane keeps the selected message and its navigation
-links instead of going blank. It shows the sender, subject, time, mailbox
-and state. It shows the message text with its line breaks, up to the first
-eight lines. It counts the attachments by kind and does not name them. It
-shows the classification, the Case or Triage Case, and the folder. While a
-search term is typed, it also says where the term matched. Its actions are
-Open full message, Reply when the mailbox the message arrived in can send
-(it opens the message record's Reply), and Open Case, or Open Triage when
-the message's Case is a Triage Case, whether the message opened it or staff
-linked the message to it (operator ruling, 15 October 2026). It has no
-controls that change anything. Previewing never changes classification,
-association, read state, Case state or custody.
+The message is the one reader, and it is a dialog over the Inbox (v41 items
+I2, I4 and I17, signed off 19 October 2026,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+The list has no quick preview. The dialog has one head: the subject, with
+From, To and received beneath, and Previous message and Next message at the
+right beside Close, so the list can be read without closing it. Then come the
+tabs Message, Attachments and Thread, and the message beside Decision, and a
+foot. Opening, reading and moving between messages never changes
+classification, association, read state, Case state or custody.
 
 Opening a message keeps the list's filter and position. The record shows the
 full retained message, its attachments and a chronological thread, and
 states the current classification, processing outcome and Case
 association before any action is offered. When a message opened a Triage
-and is linked to no Case, its Case tab shows that Triage and still offers
-Link to Case.
+and is linked to no Case, its Decision shows that Triage as its Case and
+still offers Link to Case.
 
 The thread shows only retained messages in the same approved mailbox and
 folder scope. A matching thread identity never fetches or reveals other
@@ -144,15 +144,21 @@ view" state and a way back to the list.
 ### Classification and linking actions
 
 Case linking is offered only from the opened message record, never from a
-row or the quick preview, and each link applies to one exact message; there
+row, and each link applies to one exact message; there
 is no bulk Case linking. Classification is offered from the opened message
 record and, for ticked rows in the incoming scopes, from the list, with one
 category and one reason for every ticked message. Each ticked message is
 corrected on its own, with its own history entry (operator, 15 and 16
 October 2026).
 
-The correction picker offers every mail category and Unclassified, and a
-correction to New instruction asks for the work type. Once a classification
+On the record, Decision shows the **Classification** as twelve chips, the
+eleven mail categories and Unclassified, one pressed. Pressing another
+applies the correction at once and records the fixed reason "Corrected from
+the Inbox", as Tag as query records its fixed reason; no reason is typed. A
+correction to New instruction asks for the Case type in the Case picker row
+(operator, 22 October 2026, R179). On the list, **Correct classification**
+opens a dialog once for every ticked row, with Classification, Case type and
+Reason for correction. Once a classification
 is saved, the message record offers the one next action it calls for:
 **Create case** for a New instruction, **Open the Triage** for a Triage
 request, **Register images** for images received, each only while the
@@ -162,16 +168,23 @@ when the message is corrected away (operator, 1 October 2026). A correction
 to or from Query on a linked Case follows
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries).
 
-Case linking starts with a deliberate Case search, then shows the target
-summary, asks for a reason and needs explicit confirmation. Linking may
+Case linking starts with a deliberate choice in the **Case / PO** picker under
+the Case in Decision, which asks for a reason in one dialog; the choice and the
+reason post together, in one step with no prepare round trip, still claiming
+the Case's edit authority and releasing it (v41 items I9 and I13, signed off
+19 October 2026,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Linking may
 happen while classification is still unresolved, when the link evidence on
 its own is enough. The Automation Actor links through the same command
 (`pegasus_mail_link_case`).
 
-The opened message record also offers **Unlink** beside the linked Case. It
-asks for a reason and needs explicit confirmation; where the Case is the one
+The opened message record also offers **Unlink** and **Change linked Case**
+under the picker. Each asks for a reason in one step; where the Case is the one
 the message's own acceptance created, the dialog says that unlinking cancels
-it. Once no Case is current, **Link to case** relinks the message. Both keep
+it. Change linked Case is the existing Unlink and the existing Link to Case
+in one post with one reason. Once no Case is current, **Link to Case** relinks
+the message. All keep
 the history rule in
 [FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
 (operator ruling, 15 October 2026).
@@ -188,7 +201,7 @@ the exact message and the list context it came from.
 
 Each Case workspace shows its linked received and Sent items as one
 chronological history, newest first by default with an oldest-first option.
-A row opens its message over the Case, read-only like the quick preview: no
+A row opens its message over the Case, read-only: no
 classification, association, read-state, Case-state or custody change. Reply,
 Reply all and Forward appear there where the record offers them and open the
 record's composer with that Case chosen
@@ -202,10 +215,20 @@ stays in this mailbox workspace.
 A row or the message record offers **Dismiss**. It records the message as
 dismissed and takes it out of every other scope. **Restore**
 from the Dismissed scope brings it back. Both are always allowed, to staff
-and to the Automation Actor (`pegasus_mail_action`). Ticked rows can be
+and to the Automation Actor (`pegasus_mail_action`). In the message dialog,
+Dismiss moves on to the next message, else the one before it, else the list
+(v41 item I10,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Ticked rows can be
 dismissed together in the incoming scopes and restored together in the
 Dismissed scope, each message on its own (operator, 15 and 16 October
-2026). An open
+2026). One bulk form sits above the list: the ticked count as a bare number,
+and Dismiss and Correct classification, or Restore in Dismissed; its buttons
+are always enabled, because a post with nothing ticked writes nothing, and
+there is no select-all (v41 item I18, signed off 19 October 2026). A bulk post
+that could not change some messages says "N not changed" once above the list,
+and those rows stay ticked so they can be retried (operator, 22 October 2026,
+R180). An open
 Unidentified item stays open, and the message keeps its evidence,
 associations and history. Dismiss is Pegasus data only: the Outlook item
 does not move and no Graph call is made
@@ -246,11 +269,14 @@ workspace only shows them.
 
 ## Acceptance evidence
 
-- Authenticated Web tests for every scope, the three filters, pagination,
+- Authenticated Web tests for every scope, the filters, pagination,
   the 15-minute stale state, filter retention across message and Case
   detail, and the fresh-visit reset.
-- Tests that a preview and an opened record change no classification,
+- Tests that the message dialog and an opened record change no classification,
   association, read state or custody.
+- Tests that a Classification chip records its fixed reason, that a link, a
+  change and an unlink are each one post, and that a refused correction shows
+  its sentence on the record and on the list.
 - Dismiss and Restore tests showing no Graph call.
 - Bulk classification, Dismiss and Restore tests showing one history entry
   per ticked message, a repeated post writing none, a stale message leaving

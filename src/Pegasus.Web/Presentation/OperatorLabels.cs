@@ -2285,7 +2285,6 @@ public static class OperatorLabels
     /// <summary>The retained post-report query's AI job words.</summary>
     public static class QueryResponseJobs
     {
-        public const string Source = "Post-report";
         /// <summary>
         /// Deliberately not "Send query to AI", which would match the shape of
         /// "Send Unidentified to AI" and "Send to Claude". Those two send a
@@ -2856,6 +2855,9 @@ public static class OperatorLabels
         public const string AllCategories = "All categories";
         public const string DismissedScope = "Dismissed";
 
+        /// <summary>The fifth scope on the rail (v41 I1); its messages are the read-only Deleted Items search.</summary>
+        public const string DeletedItemsScope = "Deleted Items";
+
         /// <summary>Received mail with no linked Case: its scope and its outcome chip (operator, 13 October 2026).</summary>
         public const string NoCaseFound = "No Case Found";
         public const string Dismiss = "Dismiss";
@@ -2863,56 +2865,55 @@ public static class OperatorLabels
         public const string DismissedNotice = "Dismissed";
         public const string RestoredNotice = "Restored";
 
+        /// <summary>The message dialog's head buttons (v41 I6), as drawn.</summary>
+        public const string PreviousMessage = "Previous message";
+        public const string NextMessage = "Next message";
+
+        /// <summary>
+        /// The line above the list after a bulk post that could not change some
+        /// ticked messages (operator, 22 October 2026, R180): the number not
+        /// changed; those rows stay ticked so they can be retried.
+        /// </summary>
+        public static string NotChanged(int count) => $"{count} not changed";
+
         // A classification correction's refusals, on the message record and for ticked rows alike.
         public const string ChooseClassification = "Choose a valid classification.";
         public const string ChooseCaseType = "Choose a valid case type.";
         public const string CorrectionReasonRequired = "Explain why this classification is being corrected.";
+
+        // The correction's words: the bulk dialog's fields and the record's
+        // Classification chips, which apply a correction at once.
+        public const string CorrectClassification = "Correct classification";
+        public const string Classification = "Classification";
+        public const string ChooseClassificationOption = "Choose classification";
+        public const string CaseType = "Case type";
+        public const string ChooseCaseTypeOption = "Choose case type";
+        public const string CorrectionReason = "Reason for correction";
+        public const string SaveCorrection = "Save correction";
+
+        // The record's Case row (v41 I9): the Case / PO picker and its buttons.
+        public const string CasePo = "Case / PO";
+        public const string CasePoHint = "Search by Case / PO, registration, claimant, claim number, or Principal.";
+        public const string LinkToCase = "Link to Case";
+        public const string ChangeLinkedCase = "Change linked Case";
+        public const string Unlink = "Unlink";
         public const string OpenFile = "Open file";
         public const string OpenFullMessage = "Open full message";
 
-        // The quick preview (26 September 2026): one attachment line, the
-        // Case cell naming the Case/PO or the Triage's t. reference, and a
-        // Matched cell only while a search term is typed.
+        // The Case cell naming the Case/PO or the Triage's t. reference.
         public const string Case = "Case";
         public const string NoCase = "None";
-        public const string Matched = "Matched";
         public const string OpenCase = WorkCentre.OpenCase;
         public const string OpenTriage = "Open Triage";
 
         /// <summary>
-        /// The chip for a message on a Triage Case or asking for one, and the
-        /// message's Case tab heading for the Triage it opened. It is the
+        /// The chip for a message on a Triage Case or asking for one. It is the
         /// Triage destination's own word, not a new one.
         /// </summary>
         public const string Triage = "Triage";
-        public const string NoAttachments = "No attachments";
 
-        /// <summary>"1 attachment · 1 document", "11 attachments · 10 images, 1 document".</summary>
-        public static string Attachments(IReadOnlyList<RetainedMailAttachment> attachments)
-        {
-            if (attachments.Count == 0)
-            {
-                return NoAttachments;
-            }
-
-            var kinds = attachments
-                .GroupBy(attachment => UnidentifiedFileKind.Broad(attachment.MediaType))
-                .OrderBy(group => group.Key)
-                .Select(group => Counted(group.Count(), AttachmentKind(group.Key)));
-            return $"{AttachmentCount(attachments.Count)} · {string.Join(", ", kinds)}";
-        }
-
-        /// <summary>"1 attachment", "3 attachments": a list row's count and the preview line's head.</summary>
+        /// <summary>"1 attachment", "3 attachments": a list row's count.</summary>
         public static string AttachmentCount(int count) => Counted(count, "attachment");
-
-        private static string AttachmentKind(BroadFileKind kind) => kind switch
-        {
-            BroadFileKind.Image => "image",
-            BroadFileKind.Document => "document",
-            BroadFileKind.Email => "e-mail",
-            BroadFileKind.Video => "video",
-            _ => "other file"
-        };
 
         private static string Counted(int count, string noun) =>
             $"{count} {noun}{(count == 1 ? string.Empty : "s")}";

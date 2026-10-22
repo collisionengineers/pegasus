@@ -1,0 +1,155 @@
+@model Pegasus.Web.Pages.Mail.MessageModel
+@using Pegasus.Web.Presentation
+@{
+    var summary = Model.Detail.Summary;
+}
+
+@* The dialogs the record opens over itself: the offered next action's own dialog
+   and the reason dialogs of Link to Case, Change linked Case and Unlink. They sit
+   beside the record, never inside the Inbox dialog, so each stacks over it. *@
+@if (Model.Offer == Pegasus.Web.Pages.Mail.MessageOffer.OpenTriage)
+{
+    <div id="messageTriageDialog" class="dialog-backdrop" role="dialog" aria-modal="true"
+         aria-labelledby="messageTriageDialog_title" data-dialog="messageTriageDialog" hidden>
+        <section class="dialog">
+            <div class="dialog-head">
+                <h2 id="messageTriageDialog_title" tabindex="-1">Open the Triage</h2>
+            </div>
+            <form method="post"
+                  asp-page-handler="OpenTriage" asp-route-id="@summary.Id"
+                  asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                  asp-route-search="@Model.SearchTerm"
+                  asp-route-queue="@Model.QueueFilter"
+                  asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                  asp-route-pageNumber="@Model.PageNumber"
+                  asp-route-dialog="@(Model.InDialog ? "true" : null)">
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                <div class="dialog-body stack">
+                    <div class="field">
+                        <label class="req" for="messageTriageVrm">Vehicle registration</label>
+                        <input id="messageTriageVrm" class="mono" name="vehicleRegistration" value="@Model.Offers.SuggestedRegistration" maxlength="20" required data-dialog-initial-focus />
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Opening">Open the Triage</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@if (Model.Offer == Pegasus.Web.Pages.Mail.MessageOffer.RegisterImages)
+{
+    <div id="messageRegisterImagesDialog" class="dialog-backdrop" role="dialog" aria-modal="true"
+         aria-labelledby="messageRegisterImagesDialog_title" data-dialog="messageRegisterImagesDialog" hidden>
+        <section class="dialog">
+            <div class="dialog-head">
+                <h2 id="messageRegisterImagesDialog_title" tabindex="-1">Register images</h2>
+            </div>
+            <form method="post"
+                  asp-page-handler="RegisterImages" asp-route-id="@summary.Id"
+                  asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                  asp-route-search="@Model.SearchTerm"
+                  asp-route-queue="@Model.QueueFilter"
+                  asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                  asp-route-pageNumber="@Model.PageNumber"
+                  asp-route-dialog="@(Model.InDialog ? "true" : null)">
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                <div class="dialog-body stack">
+                    <div class="field">
+                        <label class="req" for="messageRegisterVrm">Vehicle registration</label>
+                        <input id="messageRegisterVrm" class="mono" name="vehicleRegistration" value="@Model.Offers.SuggestedRegistration" maxlength="20" required data-dialog-initial-focus />
+                    </div>
+                    <div class="field">
+                        <label class="req" for="messageRegisterReason">Reason</label>
+                        <textarea id="messageRegisterReason" name="reason" maxlength="500" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="submit" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Registering">Register images</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@if (Model.AssociationReceipt is { } receipt)
+{
+    // One step each (v41 I13): the reason is asked once and the post claims the
+    // Case's edit authority, runs the command and releases it. A post that could
+    // not settle its authority comes back with its keys, so the retry is the
+    // same confirmation.
+    var intakeVersion = receipt.Version.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var leaseKey = Model.RetainedLeaseOperationKey ?? Guid.NewGuid().ToString("N");
+    var operationKey = Model.RetainedOperationKey ?? Guid.NewGuid().ToString("D");
+    var route = new
+    {
+        id = summary.Id,
+        mailbox = Model.MailboxFilter,
+        folder = Model.FolderFilter,
+        pageNumber = Model.PageNumber,
+        search = Model.SearchTerm,
+        queue = Model.QueueFilter,
+        sort = Model.OldestFirst ? "oldest" : null,
+        dialog = Model.InDialog ? "true" : null
+    };
+    if (Model.CurrentDestination is { } current)
+    {
+        var consequence = receipt.UnlinkCancelsCase
+            ? $"Unlinking this email cancels case {current.Reference}."
+            : null;
+        var unlinkDialogData = new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "unlinkCaseDialog",
+            ["DialogFormId"] = "unlinkCaseForm",
+            ["DialogTitle"] = $"Unlink from {current.Reference}",
+            ["DialogConsequence"] = consequence,
+            ["DialogActionUrl"] = Url.Page("/Mail/Message", "UnlinkCase", route),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["caseId"] = current.CaseId.ToString("D"),
+                ["expectedIntakeVersion"] = intakeVersion,
+                ["leaseOperationKey"] = leaseKey,
+                ["operationKey"] = operationKey
+            }
+        };
+        <partial name="Shared/_ReasonDialog" view-data="unlinkDialogData" />
+
+        var changeDialogData = new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "changeLinkedCaseDialog",
+            ["DialogFormId"] = "changeLinkedCaseForm",
+            ["DialogTitle"] = OperatorLabels.Inbox.ChangeLinkedCase,
+            ["DialogConsequence"] = consequence,
+            ["DialogActionUrl"] = Url.Page("/Mail/Message", "ChangeLinkedCase", route),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["expectedIntakeVersion"] = intakeVersion,
+                ["leaseOperationKey"] = leaseKey,
+                ["operationKey"] = operationKey,
+                ["linkLeaseOperationKey"] = Guid.NewGuid().ToString("N"),
+                ["linkOperationKey"] = Guid.NewGuid().ToString("D")
+            }
+        };
+        <partial name="Shared/_ReasonDialog" view-data="changeDialogData" />
+    }
+    else
+    {
+        var linkDialogData = new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "linkCaseDialog",
+            ["DialogFormId"] = "linkCaseForm",
+            ["DialogTitle"] = OperatorLabels.Inbox.LinkToCase,
+            ["DialogActionUrl"] = Url.Page("/Mail/Message", "LinkCase", route),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["expectedIntakeVersion"] = intakeVersion,
+                ["leaseOperationKey"] = leaseKey,
+                ["operationKey"] = operationKey
+            }
+        };
+        <partial name="Shared/_ReasonDialog" view-data="linkDialogData" />
+    }
+}

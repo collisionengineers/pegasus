@@ -23,7 +23,6 @@ namespace Pegasus.Web.Pages.Mail;
 /// </remarks>
 public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
-    GetRetainedMailPreview getRetainedMailPreview,
     GetRetainedMailFreshness getFreshness,
     SearchDeletedMail searchDeletedMail,
     IDismissRetainedMail dismissRetainedMail,
@@ -73,7 +72,7 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "sort")]
     public string? SortOrder { get; set; }
 
-    /// <summary>The message whose preview the right pane renders.</summary>
+    /// <summary>The message whose row carries the selection mark; the address names it so a reload or Back lands on it.</summary>
     [BindProperty(SupportsGet = true, Name = "selected")]
     public string? SelectedMessage { get; set; }
 
@@ -88,13 +87,21 @@ public sealed class IndexModel(
     [BindProperty]
     public string? CorrectionReason { get; set; }
 
-    /// <summary>The ticked messages the last bulk post applied to, carried to the list it redirects to.</summary>
-    [TempData]
-    public string[]? BulkSucceeded { get; set; }
+    /// <summary>The key a bulk post leaves, for the list it redirects to, naming the messages it could not change.</summary>
+    private const string BulkNotChangedKey = "BulkNotChanged";
 
-    /// <summary>The ticked messages the last bulk post could not apply to; the others still applied.</summary>
-    [TempData]
-    public string[]? BulkFailed { get; set; }
+    /// <summary>
+    /// The rows drawn ticked: after a bulk post that could not change some
+    /// messages, those messages, so they can be retried (R180); after a refused
+    /// correction, every message that was ticked.
+    /// </summary>
+    public IReadOnlySet<Guid> TickedIds { get; private set; } = new HashSet<Guid>();
+
+    /// <summary>How many ticked messages the last bulk post could not change; the line above the list says so once.</summary>
+    public int NotChangedCount { get; private set; }
+
+    /// <summary>The bulk correction was refused: its dialog opens again with the refusal in it.</summary>
+    public bool ClassifyRefused { get; private set; }
 
     /// <summary>The one mail category the list narrows to, from <c>queue</c>.</summary>
     public MailCategory? CategoryFilter { get; private set; }
@@ -121,8 +128,8 @@ public sealed class IndexModel(
     /// </summary>
     public IReadOnlyList<MailScopeOption> Scopes { get; private set; } = [];
 
-    /// <summary>The message the preview pane renders, when one is selected.</summary>
-    public RetainedMailPreview? SelectedDetail { get; private set; }
+    /// <summary>The message whose row carries the selection mark, when <c>selected</c> names one.</summary>
+    public Guid? SelectedMessageId => Guid.TryParse(SelectedMessage, out var selectedId) ? selectedId : (Guid?)null;
 
     public MailFreshness Freshness { get; private set; } =
         new(MailFreshnessState.Unavailable, null);
@@ -141,6 +148,18 @@ public sealed class IndexModel(
         if (!TryParseListContext())
         {
             return NotFound();
+        }
+
+        // What the last bulk post left for this list, read once: the messages
+        // it could not change stay ticked, and the line above the list counts them.
+        // (TempData hands a lone Guid-shaped string back as a Guid, so the ids travel as an array.)
+        if (TempData[BulkNotChangedKey] is string[] notChanged)
+        {
+            TickedIds = notChanged
+                .Select(value => Guid.TryParse(value, out var parsed) ? parsed : Guid.Empty)
+                .Where(value => value != Guid.Empty)
+                .ToHashSet();
+            NotChangedCount = TickedIds.Count;
         }
 
         return await LoadAsync(actor, cancellationToken);
@@ -220,11 +239,7 @@ public sealed class IndexModel(
         && ReplyMailboxIds.Contains(item.MailboxId)
         && !string.IsNullOrWhiteSpace(item.SenderAddress);
 
-    /// <summary>
-    /// The list itself and, with it, the message the preview pane renders. The
-    /// pane is drawn from the list's own row, so the preview read adds only what
-    /// the row does not carry.
-    /// </summary>
+    /// <summary>The list itself, or the read-only Deleted Items search.</summary>
     private async Task ReadListAsync(
         ActionActor actor,
         Guid? mailbox,
@@ -262,7 +277,6 @@ public sealed class IndexModel(
             page,
             PageSize,
             cancellationToken);
-        await LoadSelectedDetailAsync(actor, cancellationToken);
     }
 
     /// <summary>Dismiss from the row: the message leaves every incoming scope; nothing is classified, linked or deleted.</summary>
@@ -417,6 +431,9 @@ public sealed class IndexModel(
             ModelState, ClassificationKey, WorkType, CorrectionReason, out var category, out var workType);
         if (!ModelState.IsValid)
         {
+            // The refusal shows in the dialog it came from, over the rows that were ticked.
+            ClassifyRefused = true;
+            TickedIds = ids.ToHashSet();
             return await LoadAsync(actor, cancellationToken);
         }
 
@@ -477,8 +494,10 @@ public sealed class IndexModel(
             return Forbid();
         }
 
-        BulkSucceeded = succeeded.Count == 0 ? null : [.. succeeded];
-        BulkFailed = failed.Count == 0 ? null : [.. failed];
+        if (failed.Count > 0)
+        {
+            TempData[BulkNotChangedKey] = failed.ToArray();
+        }
         if (confirmation is not null && succeeded.Count > 0 && failed.Count == 0)
         {
             TempData["Confirmation"] = confirmation;
@@ -517,83 +536,6 @@ public sealed class IndexModel(
         CategoryFilter = category;
         NoCaseFoundFilter = noCaseFound;
         return true;
-    }
-
-    public async Task<IActionResult> OnGetPreviewAsync(
-        Guid id,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            var detail = await getRetainedMailPreview.ExecuteAsync(actor, id, cancellationToken: cancellationToken);
-            if (detail is null)
-            {
-                return NotFound();
-            }
-
-            var summary = detail.Summary;
-            var state = StateValue(detail);
-            return new JsonResult(new
-            {
-                id = summary.Id,
-                sender = SenderLine(summary),
-                subject = SubjectLine(summary),
-                receivedAtUtc = summary.ReceivedAtUtc,
-                received = $"{OperatorLabels.OfficeDate(summary.ReceivedAtUtc)} {OperatorLabels.OfficeClock(summary.ReceivedAtUtc)}",
-                mailbox = summary.MailboxAddress,
-                state,
-                stateTone = state is null ? null : OperatorLabels.StatusTone(state),
-                excerpt = summary.BodyExcerpt ?? "No excerpt available",
-                attachments = OperatorLabels.Inbox.Attachments(detail.Attachments),
-                classification = ClassificationValue(detail),
-                association = MessageModel.AssociationLabel(summary.CaseReference),
-                folder = FolderValue(detail),
-                // A pinned row's pane offers its own Open Case or Open Triage.
-                caseUrl = summary.CaseId is { } caseId ? Url.Page("/Cases/Details", new { id = caseId }) : null,
-                caseAction = summary.CaseId is null
-                    ? null
-                    : summary.IsTriageCase ? OperatorLabels.Inbox.OpenTriage : OperatorLabels.Inbox.OpenCase
-            });
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (ArgumentException)
-        {
-            return NotFound();
-        }
-    }
-
-    /// <summary>
-    /// The preview renders the selected row of the current page; with no usable
-    /// selection it renders the first row, the way the drawn list does — a
-    /// selected message that is not on the page falls back to the page's first
-    /// position, exactly as the drawn prototype resolves a stale selection.
-    /// </summary>
-    private async Task LoadSelectedDetailAsync(
-        ActionActor actor,
-        CancellationToken cancellationToken)
-    {
-        var selectedId = Guid.TryParse(SelectedMessage, out var parsed) ? parsed : (Guid?)null;
-        var row = Results.Items.FirstOrDefault(item => item.Id == selectedId)
-            ?? (Results.Items.Count > 0 ? Results.Items[0] : null);
-        if (row is null)
-        {
-            return;
-        }
-
-        // The list row is the summary the pane draws, search matches included.
-        SelectedDetail = await getRetainedMailPreview.ExecuteAsync(
-            actor,
-            row.Id,
-            row,
-            cancellationToken);
     }
 
     private async Task<IReadOnlyList<MailScopeOption>> LoadScopeCountsAsync(
@@ -684,25 +626,6 @@ public sealed class IndexModel(
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
     };
 
-    /// <summary>The preview's Folder cell: the scope the message was read from.</summary>
-    public static string FolderValue(RetainedMailPreview preview) => FolderLabel(preview.Folder);
-
-    /// <summary>
-    /// The preview's Classification cell: the current decision's label, else
-    /// "Not yet processed" for received mail. A Sent item is never processed;
-    /// with no decision its cell says the value is not recorded.
-    /// </summary>
-    public static string ClassificationValue(RetainedMailPreview preview) =>
-        preview.Classification is { } current
-            ? MessageModel.DecisionLabel(current)
-            : preview.Folder == MailFolderScope.Sent
-                ? OperatorLabels.CaseWorkspace.AbsentValue
-                : MessageModel.ClassificationLabel(null);
-
-    /// <summary>The preview's processing chip: received mail's outcome; a Sent item carries none.</summary>
-    public static string? StateValue(RetainedMailPreview preview) =>
-        preview.Folder == MailFolderScope.Sent ? null : MessageModel.OutcomeLabel(preview.Summary);
-
     public static string FreshnessStatus(MailFreshnessState state) => state switch
     {
         MailFreshnessState.Current => "current",
@@ -722,7 +645,7 @@ public sealed class IndexModel(
         ["search"] = SearchTerm,
         ["queue"] = QueueFilter,
         ["sort"] = OldestFirst ? "oldest" : null,
-        ["selected"] = SelectedDetail is { } detail ? detail.Summary.Id.ToString("D") : null,
+        ["selected"] = SelectedMessageId?.ToString("D"),
         ["pageNumber"] = Results.Page > 1
             ? Results.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
             : DeletedResults?.Page > 1
@@ -790,16 +713,18 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// The scope rail, in the planned order (Inbox, 13 September): no Unread scope —
-    /// read state is not a queue; unread rows are bold — and a Dismissed scope last.
-    /// The No Case Found scope reuses the key the Category select already binds.
+    /// The scope rail, in the planned order (Inbox, 13 September; v41 I1): no
+    /// Unread scope — read state is not a queue; unread rows are bold — then the
+    /// Dismissed scope and Deleted Items. The Folder select is gone: every folder
+    /// is a scope. The No Case Found scope keeps the <c>queue</c> key it always had.
     /// </summary>
     public static readonly IReadOnlyList<MailScopeDefinition> ScopeDefinitions =
     [
         new("All incoming", "inbox", MailFolderScope.Inbox),
         new(OperatorLabels.Inbox.NoCaseFound, "search", MailFolderScope.Inbox, NoCaseFound: true),
         new("Sent Items", "send", MailFolderScope.Sent),
-        new(OperatorLabels.Inbox.DismissedScope, "x", MailFolderScope.Inbox, Dismissed: true)
+        new(OperatorLabels.Inbox.DismissedScope, "x", MailFolderScope.Inbox, Dismissed: true),
+        new(OperatorLabels.Inbox.DeletedItemsScope, "trash-2", MailFolderScope.DeletedItems)
     ];
 
     /// <summary>The <c>queue</c> value of the No Case Found scope.</summary>
@@ -808,15 +733,15 @@ public sealed class IndexModel(
     public sealed record MailViewOption(string Value, string Label);
 
     /// <summary>
-    /// The Category select: one flat list, every mail category in order and
-    /// then No Case Found. Each value is the category's code.
+    /// The Category select: one flat list of the eleven mail categories, in
+    /// order. Each value is the category's code. No Case Found is a scope, not a
+    /// category, though <c>queue=no_case_found</c> still addresses it.
     /// </summary>
     public static IReadOnlyList<MailViewOption> CategoryViews { get; } =
     [
         .. MailCategories.All.Select(category => new MailViewOption(
             MailCategories.Code(category),
-            OperatorLabels.MailClassification(category))),
-        new(NoCaseFoundQueueKey, OperatorLabels.Inbox.NoCaseFound)
+            OperatorLabels.MailClassification(category)))
     ];
 
     /// <summary>

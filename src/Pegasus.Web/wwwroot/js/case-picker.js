@@ -5,7 +5,8 @@
 // ArrowUp/Down move the selection, Enter chooses it, Escape closes the list.
 // Each option is the page's own select submit button, so choosing one runs
 // the form's ordinary submit path: the composer's fetch-swap on the Inbox,
-// a plain post elsewhere. Enter never submits the form itself.
+// a plain post elsewhere. Enter never submits the form itself. A picker marked
+// data-case-picker-fill takes the chosen option into its input instead.
 (function () {
     "use strict";
 
@@ -97,6 +98,20 @@
                     }
                 });
         }
+
+        // A picker that fills (data-case-picker-fill) takes the chosen option into
+        // its input and submits nothing: the Inbox's Case / PO field, whose reason
+        // dialog confirms the link.
+        options.addEventListener("click", function (event) {
+            var option = event.target instanceof Element ? event.target.closest("[role='option']") : null;
+            if (!option || !picker.hasAttribute("data-case-picker-fill")) {
+                return;
+            }
+            event.preventDefault();
+            input.value = option.getAttribute("value") || "";
+            close();
+            input.focus();
+        });
 
         input.addEventListener("input", function () {
             window.clearTimeout(timer);

@@ -1,0 +1,355 @@
+@model Pegasus.Web.Pages.Mail.MessageModel
+@using Pegasus.Web.Presentation
+@{
+    var summary = Model.Detail.Summary;
+    var composing = Model.CanCorrespond && Model.CorrespondenceMode is not null;
+    // In the dialog the composer takes the place of the tabs and the message;
+    // on the page it opens above them, as it always has.
+    var dialogComposing = Model.InDialog && composing;
+}
+
+@* The record under its head: the tabs, the body and the foot (v41 I17). The
+   /Inbox/{id} page and the Inbox's message dialog both draw it, so the two
+   cannot drift. *@
+@if (!dialogComposing)
+{
+    <nav class="tabs" aria-label="Sections">
+        <a class="tab" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+           asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+           asp-route-search="@Model.SearchTerm"
+           asp-route-queue="@Model.QueueFilter"
+           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+           aria-current="@(Model.ActiveSection == "message" ? "page" : null)" data-mail-dialog-link>Message</a>
+        <a class="tab" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+           asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+           asp-route-search="@Model.SearchTerm"
+           asp-route-queue="@Model.QueueFilter"
+           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+           asp-route-section="attachments"
+           aria-current="@(Model.ActiveSection == "attachments" ? "page" : null)" data-mail-dialog-link>
+            Attachments
+            @if (Model.Detail.Attachments.Count > 0)
+            {
+                <span class="tab-count">@Model.Detail.Attachments.Count</span>
+            }
+        </a>
+        <a class="tab" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+           asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+           asp-route-search="@Model.SearchTerm"
+           asp-route-queue="@Model.QueueFilter"
+           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+           asp-route-section="thread"
+           aria-current="@(Model.ActiveSection == "thread" ? "page" : null)" data-mail-dialog-link>Thread</a>
+    </nav>
+}
+
+<div class="@(Model.InDialog ? "dialog-body" : "record-body")">
+    @if (Model.OutsideListScope)
+    {
+        <div class="notice notice--warning" role="status">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
+            <span>
+                This message is no longer in the view you opened it from. It is still here,
+                in @summary.MailboxAddress.
+            </span>
+        </div>
+    }
+    @if (Model.ClassificationNotice is { } classificationNotice)
+    {
+        <div class="notice notice--success" role="status">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
+            <span>@classificationNotice</span>
+        </div>
+    }
+    @if (Model.AssociationNotice is { } associationNotice)
+    {
+        <div class="notice notice--success" role="status">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
+            <span>@associationNotice</span>
+        </div>
+    }
+    @if (Model.QueryResponseNotice is { } queryResponseNotice)
+    {
+        <div class="notice notice--success" role="status">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
+            <span>@queryResponseNotice</span>
+        </div>
+    }
+    @if (Model.CorrespondenceNotice is { } correspondenceNotice)
+    {
+        <div class="notice notice--success" role="status">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
+            <span>@correspondenceNotice</span>
+        </div>
+    }
+    <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+    @if (Model.CorrespondenceOperation is { } mailOperation)
+    {
+        <section class="panel">
+            <div class="panel-head"><h2>Send status</h2></div>
+            <div class="panel-body fact-grid">
+                <dl class="fact"><dt>State</dt><dd>@OperatorLabels.StaffMail.State(mailOperation.State)</dd></dl>
+                @if (mailOperation.State == Pegasus.Core.Operations.StaffMailState.Failed
+                    && mailOperation.FailureCode is { Length: > 0 } failureCode)
+                {
+                    <dl class="fact"><dt>Reason</dt><dd>@OperatorLabels.StaffMail.Failure(failureCode)</dd></dl>
+                }
+            </div>
+        </section>
+        if (Model.AiJobNotCompletedNotice is { } aiJobNotice)
+        {
+            @* The send has gone but left its AI draft job as it was (FRD-27). *@
+            <div class="notice notice--warning section-gap" role="status" data-ai-job-not-completed>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+                <span>@aiJobNotice</span>
+            </div>
+        }
+    }
+
+    @if (composing)
+    {
+        <partial name="Shared/_MessageComposer" model="Model" />
+    }
+
+    @if (dialogComposing)
+    {
+        @* The composer stands alone in the dialog; Cancel returns to the message. *@
+    }
+    else if (Model.ActiveSection == "message")
+    {
+        var routeParts = Pegasus.Web.Pages.Mail.MessageModel.RouteParts(Model.Detail);
+        <div class="mail-split">
+            <div class="mail-read">
+                @* The dialog's head carries From, To and received; the page's record head
+                   carries From, the mailbox and received, so the route line follows here. *@
+                @if (!Model.InDialog && routeParts.Count > 0)
+                {
+                    <div class="mail-header">
+                        <div class="mail-route">@string.Join(" · ", routeParts)</div>
+                    </div>
+                }
+                <partial name="Shared/_MessageBody" model="Model.Detail" />
+            </div>
+
+            <aside class="stack">
+                <partial name="Shared/_MessageDecision" model="Model" />
+            </aside>
+        </div>
+    }
+    else if (Model.ActiveSection == "attachments")
+    {
+        @if (Model.Detail.Attachments.Count == 0)
+        {
+            <div class="empty"><p>This message has no attachments.</p></div>
+        }
+        else
+        {
+            <div class="table-wrap message-attachments">
+                <table class="table table--compact" data-message-attachments>
+                    <thead>
+                        <tr>
+                            <th scope="col">File</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Size</th>
+                            <th scope="col">Outcome</th>
+                            <th scope="col"><span class="sr-only">Open</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.AttachmentRows)
+                    {
+                        <tr data-attachment-outcome="@row.Outcome.Label">
+                            <td><strong>@row.Attachment.FileName</strong></td>
+                            <td>@row.Attachment.MediaType</td>
+                            <td class="tabular">@OperatorLabels.FileSize(row.Attachment.ContentLength)</td>
+                            <td>
+                                <span class="attachment-outcome">
+                                    <partial name="Shared/_StatusChip" model="@row.Outcome.Label"
+                                             view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = row.Outcome.Tone }' />
+                                    @if (row.Outcome.Reason is { } outcomeReason)
+                                    {
+                                        <span class="attachment-reason">@outcomeReason</span>
+                                    }
+                                    @if (row.Outcome.Href is { } outcomeHref)
+                                    {
+                                        <a class="mono" href="@outcomeHref">@(row.Outcome.LinkText ?? row.Outcome.Label)</a>
+                                    }
+                                </span>
+                            </td>
+                            <td class="row-actions">
+                                @if (row.ViewerHref is { } viewerHref)
+                                {
+                                    <a class="btn btn--small" href="@viewerHref" target="_blank" rel="noopener">@OperatorLabels.Inbox.OpenFile</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else if (Model.ActiveSection == "thread")
+    {
+        @if (Model.Detail.Thread.Count <= 1)
+        {
+            @* Retained scope only: a matching conversation never reaches for a
+               message Pegasus has not already kept. *@
+            <div class="empty"><p>No other message in this conversation is kept here.</p></div>
+        }
+        else
+        {
+            @foreach (var entry in Model.Detail.Thread)
+            {
+                <a class="row-button" asp-page="/Mail/Message" asp-route-id="@entry.Id"
+                   asp-route-mailbox="@Model.MailboxFilter"
+                   asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter"
+                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                   asp-route-pageNumber="@Model.PageRouteValue"
+                   aria-current="@(entry.Id == summary.Id ? "page" : null)" data-mail-dialog-link>
+                    <span class="row-top">
+                        <span class="row-title">@(entry.SenderDisplayName ?? entry.SenderAddress ?? "Sender not recorded")</span>
+                        <span class="row-time"><time datetime="@entry.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.ReceivedAtUtc)</time></span>
+                    </span>
+                    <span class="row-title">@(string.IsNullOrWhiteSpace(entry.Subject) ? "No subject" : entry.Subject)</span>
+                </a>
+            }
+        }
+    }
+</div>
+
+@* The foot (v41 I17): Dismiss (Restore once dismissed) apart on the left; Reply,
+   Reply all and Forward as plain buttons; the classification's next action is
+   the one dark button, at the far right, in place of the record bar. *@
+<div class="dialog-foot">
+    @if (dialogComposing)
+    {
+        <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+           asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+           asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+           asp-route-queue="@Model.QueueFilter"
+           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" data-mail-dialog-link>Cancel</a>
+        <button type="submit" form="mailComposerForm" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Sending">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
+            <span>Send</span>
+        </button>
+    }
+    else
+    {
+        <span class="left">
+            <form method="post" asp-page-handler="@(Model.IsDismissed ? "Restore" : "Dismiss")" asp-route-id="@summary.Id"
+                  asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                  asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                  asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                  asp-route-dialog="@(Model.InDialog ? "true" : null)"
+                  data-message-dismissal="@(Model.IsDismissed ? "restore" : "dismiss")">
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                @if (Model.InDialog)
+                {
+                    @* The Inbox's script names the message the list reads after this one. *@
+                    <input type="hidden" name="next" value="" data-mail-next-id />
+                }
+                <button class="btn" type="submit" data-busy-label="@(Model.IsDismissed ? OperatorLabels.Busy.Restoring : OperatorLabels.Busy.Dismissing)">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(Model.IsDismissed ? "icon-undo" : "icon-x")" /></svg>
+                    <span>@(Model.IsDismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss)</span>
+                </button>
+            </form>
+        </span>
+        @if (Model.CanCorrespond)
+        {
+            @if (Model.CanReply)
+            {
+                <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                   asp-route-compose="reply" data-mail-dialog-link>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-reply")" /></svg>
+                    <span>@OperatorLabels.StaffMail.Reply</span>
+                </a>
+                <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                   asp-route-compose="reply-all" data-mail-dialog-link>@OperatorLabels.StaffMail.ReplyAll</a>
+            }
+            <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+               asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+               asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+               asp-route-compose="forward" data-mail-dialog-link>@OperatorLabels.StaffMail.Forward</a>
+        }
+
+        @if (Model.IsQueryResponseSource)
+        {
+            @* The live Query response job stands in for the start button (FRD-27):
+               pending while Queued or Taken, Reply with AI draft once Draft ready. *@
+            @if (Model.QueryResponseJob is { IsReady: true, Job: var readyJob } && Model.StaffMailAvailable && Model.CurrentCase is { } draftCase)
+            {
+                <a class="btn btn--dark" href="@Pegasus.Core.Notifications.StaffNotificationPolicy.MessageReplyRoute(summary.Id, draftCase.Summary.Reference, readyJob.JobId)" data-query-ai-draft="@readyJob.JobId" data-mail-dialog-link>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
+                    <span>@OperatorLabels.QueryResponseJobs.ReplyWithDraft</span>
+                </a>
+            }
+            else if (Model.QueryResponseJob is { } liveJob)
+            {
+                <span class="muted" data-query-ai-pending="@liveJob.Job.JobId">@OperatorLabels.QueryResponseJobs.Pending(liveJob.State)</span>
+            }
+            else if (Model.QueryResponseEnabled)
+            {
+                <form method="post" asp-page-handler="CreateQueryResponse"
+                      asp-route-id="@summary.Id"
+                      asp-route-mailbox="@Model.MailboxFilter"
+                      asp-route-folder="@Model.FolderRouteValue"
+                      asp-route-pageNumber="@Model.PageRouteValue"
+                      asp-route-search="@Model.SearchTerm"
+                      asp-route-queue="@Model.QueueFilter"
+                      asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                      asp-route-section="@Model.ActiveSection"
+                      asp-route-dialog="@(Model.InDialog ? "true" : null)">
+                    <input type="hidden" name="operationKey"
+                           value="@($"query-response:{Pegasus.Web.Pages.StaffPageModel.NewOperationKey()}")" />
+                    <button class="btn btn--dark" type="submit" data-busy-label="@OperatorLabels.Busy.Drafting">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
+                        <span>@OperatorLabels.QueryResponseJobs.Create</span>
+                    </button>
+                </form>
+            }
+            else
+            {
+                <span class="gated" data-condition="@Model.QueryResponseCondition">
+                    <button class="btn btn--dark" type="button" disabled aria-disabled="true">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
+                        <span>@OperatorLabels.QueryResponseJobs.Create</span>
+                    </button>
+                </span>
+            }
+        }
+        else if (Model.Offer is { } offer)
+        {
+            @* The one next action the classification calls for (FRD-20): staff
+               press it; nothing runs on its own. *@
+            if (offer == Pegasus.Web.Pages.Mail.MessageOffer.CreateCase)
+            {
+                <a class="btn btn--dark" asp-page="/Cases/Create" asp-route-receiptId="@Model.AssociationReceipt!.Id" data-offered-action="@offer">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>Create case</span>
+                </a>
+            }
+            else if (offer == Pegasus.Web.Pages.Mail.MessageOffer.OpenTriage)
+            {
+                <button class="btn btn--dark" type="button" data-offered-action="@offer" data-dialog-open="messageTriageDialog">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-clipboard-list")" /></svg><span>Open the Triage</span>
+                </button>
+            }
+            else
+            {
+                <button class="btn btn--dark" type="button" data-offered-action="@offer" data-dialog-open="messageRegisterImagesDialog">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-image")" /></svg><span>Register images</span>
+                </button>
+            }
+        }
+    }
+</div>

@@ -29,10 +29,12 @@ namespace Pegasus.IntegrationTests;
 public sealed class MailWorkspaceWebTests
 {
     private static readonly DateTimeOffset NowUtc = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+    // The Category select holds the eleven categories only: No Case Found is a scope (v41 I1).
     private static readonly string[] CategoryFilterValues =
-        ["", .. MailCategories.All.Select(MailCategories.Code), "no_case_found"];
-    private static readonly string[] CorrectionValues =
-        ["", .. MailCategories.All.Select(MailCategories.Code), "unclassified"];
+        ["", .. MailCategories.All.Select(MailCategories.Code)];
+    // The record's Classification chips: the eleven, then Unclassified (R179).
+    private static readonly string[] ChipValues =
+        [.. MailCategories.All.Select(MailCategories.Code), "unclassified"];
 
     private const string FirstMailboxId = "instructions";
     private static string FirstMailboxFilter => TestMailboxId.From(FirstMailboxId).ToString("D");
@@ -43,22 +45,24 @@ public sealed class MailWorkspaceWebTests
     /// <summary>The Inbox rows as a row list; the shell's notification list carries the same hook on every page.</summary>
     private const string InboxRowList = "<div data-row-list>";
 
+    /// <summary>
+    /// The Inbox's message dialog is the record's Dialog handler: the same
+    /// exact-message read, actor and refusals as the record page, drawn as a
+    /// fragment, and like it a read that changes nothing (v41 I2).
+    /// </summary>
     [Fact]
-    public async Task QuickPreviewIsAuthenticatedExactEvidenceAndDoesNotMutateMailState()
+    public async Task TheInboxDialogFragmentIsAuthenticatedExactEvidenceAndChangesNothing()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var messageId = Assert.Single(await SeedAsync(
             factory, FirstMailboxId, FirstMailboxAddress, count: 1));
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, "/Inbox");
-        Assert.Contains("data-mail-preview-workspace", html, StringComparison.Ordinal);
-        Assert.Contains("data-mail-preview-trigger", html, StringComparison.Ordinal);
-        Assert.Contains("handler=Preview", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(messageId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
-        var previewMarkup = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.DoesNotContain("<form", previewMarkup, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<button", previewMarkup, StringComparison.OrdinalIgnoreCase);
+        // The list draws the mount for the dialog and links each subject to the record.
+        var list = await GetHtmlAsync(client, "/Inbox");
+        Assert.Contains("data-mail-workspace", list, StringComparison.Ordinal);
+        Assert.Contains("data-mail-dialog-root", list, StringComparison.Ordinal);
+        Assert.Contains("data-mail-open", MailRow(list, messageId), StringComparison.Ordinal);
 
         bool readBefore;
         int classificationHistoryBefore;
@@ -75,27 +79,19 @@ public sealed class MailWorkspaceWebTests
             associationHistoryBefore = await context.IntakeMutationHistory.CountAsync();
         }
 
-        using var response = await client.GetAsync($"/Inbox?handler=Preview&id={messageId:D}");
+        using var response = await client.GetAsync($"/Inbox/{messageId:D}?handler=Dialog&mailbox={FirstMailboxFilter}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var json = await response.Content.ReadAsStringAsync();
-        using var document = JsonDocument.Parse(json);
-        var preview = document.RootElement;
-        Assert.Equal(messageId, preview.GetProperty("id").GetGuid());
-        Assert.Equal("A Sender", preview.GetProperty("sender").GetString());
-        Assert.Equal($"Message 0 from {FirstMailboxId}", preview.GetProperty("subject").GetString());
-        // The pane's every cell: the chip with its tone, the mailbox, the
-        // folder and one attachment line by kind, never the names.
-        Assert.Equal(FirstMailboxAddress, preview.GetProperty("mailbox").GetString());
-        Assert.Equal("Not yet processed", preview.GetProperty("state").GetString());
-        Assert.Equal("amber", preview.GetProperty("stateTone").GetString());
-        Assert.Equal("Please inspect the vehicle at the address supplied.", preview.GetProperty("excerpt").GetString());
-        Assert.Equal("1 attachment · 1 document", preview.GetProperty("attachments").GetString());
-        Assert.Equal("Not yet processed", preview.GetProperty("classification").GetString());
-        Assert.Equal("None", preview.GetProperty("association").GetString());
-        Assert.Equal("Inbox", preview.GetProperty("folder").GetString());
-        Assert.DoesNotContain("estimate.pdf", json, StringComparison.Ordinal);
-        // No Case, so a pinned row's pane offers no Case action.
-        Assert.True(!preview.TryGetProperty("caseUrl", out var caseUrl) || caseUrl.ValueKind == JsonValueKind.Null);
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        var fragment = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("<html", fragment, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-dialog=\"mailMessageDialog\"", fragment, StringComparison.Ordinal);
+        Assert.Contains($"data-mail-message=\"{messageId:D}\"", fragment, StringComparison.Ordinal);
+        Assert.Contains($"Message 0 from {FirstMailboxId}", fragment, StringComparison.Ordinal);
+        Assert.Contains("Please inspect the vehicle at the address supplied.", fragment, StringComparison.Ordinal);
+        // The head carries Previous and Next (v41 I6); the list's context rides every link.
+        Assert.Contains($"aria-label=\"{OperatorLabels.Inbox.PreviousMessage}\"", fragment, StringComparison.Ordinal);
+        Assert.Contains($"aria-label=\"{OperatorLabels.Inbox.NextMessage}\"", fragment, StringComparison.Ordinal);
+        Assert.Contains($"mailbox={FirstMailboxFilter}", fragment, StringComparison.Ordinal);
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -109,11 +105,11 @@ public sealed class MailWorkspaceWebTests
             Assert.Equal(associationHistoryBefore, await context.IntakeMutationHistory.CountAsync());
         }
 
-        using var unknown = await client.GetAsync($"/Inbox?handler=Preview&id={Guid.NewGuid():D}");
+        using var unknown = await client.GetAsync($"/Inbox/{Guid.NewGuid():D}?handler=Dialog");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         using var rolelessRequest = new HttpRequestMessage(
             HttpMethod.Get,
-            $"/Inbox?handler=Preview&id={messageId:D}");
+            $"/Inbox/{messageId:D}?handler=Dialog");
         rolelessRequest.Headers.Add("X-Test-Roleless", "1");
         using var roleless = await client.SendAsync(rolelessRequest);
         Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
@@ -184,14 +180,14 @@ public sealed class MailWorkspaceWebTests
 
     /// <summary>
     /// C08: the workspace contract says mailbox/folder/search/queue/unread/
-    /// sort/page are URL and retained-query state only — opening, previewing,
-    /// filtering or changing the unread scope never reaches Outlook or writes
+    /// sort/page are URL and retained-query state only — opening, filtering or
+    /// changing the unread scope never reaches Outlook or writes
     /// a classification correction. <see cref="RecordingClassificationStore"/>
     /// stands in for <see cref="CorrectRetainedMailClassification"/>'s store
     /// and is asserted at zero after every read action below.
     /// </summary>
     [Fact]
-    public async Task OpenPreviewFilterUnreadAndSortNeverWriteThroughTheRetainedMailPorts()
+    public async Task OpenFilterUnreadAndSortNeverWriteThroughTheRetainedMailPorts()
     {
         var classificationStore = new RecordingClassificationStore();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -218,7 +214,7 @@ public sealed class MailWorkspaceWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         // Open the list, filter it every way the workspace contract names,
-        // preview a row, then open and return from the full message —
+        // then open and return from the full message —
         // carrying the exact same query string a real navigation would.
         // "queue" has no "all" sentinel: TryParseQueue accepts only a
         // category code (e.g. "new-instruction") or "no_case_found", and
@@ -247,12 +243,12 @@ public sealed class MailWorkspaceWebTests
         // asserting a guessed ordered substring — the sort *toggle* link
         // deliberately carries the opposite value, so only the row link
         // proves what this query round-trips.
-        var triggerIndex = listHtml.IndexOf("data-mail-preview-trigger", StringComparison.Ordinal);
-        Assert.True(triggerIndex >= 0, "expected at least one rendered row (data-mail-preview-trigger) for this query.");
+        var triggerIndex = listHtml.IndexOf("data-mail-open", StringComparison.Ordinal);
+        Assert.True(triggerIndex >= 0, "expected at least one rendered row (data-mail-open) for this query.");
         var rowAnchorStart = listHtml.LastIndexOf("<a", triggerIndex, StringComparison.Ordinal);
         var rowAnchorEnd = listHtml.IndexOf('>', triggerIndex);
         Assert.True(rowAnchorStart >= 0 && rowAnchorEnd > triggerIndex,
-            "expected data-mail-preview-trigger inside a complete row anchor.");
+            "expected data-mail-open inside a complete row anchor.");
         var rowAnchor = listHtml[rowAnchorStart..(rowAnchorEnd + 1)];
         var rowHrefMatch = Regex.Match(rowAnchor, "href=\"(?<href>[^\"]+)\"", RegexOptions.IgnoreCase);
         Assert.True(rowHrefMatch.Success, $"expected the rendered row anchor to carry an href: {rowAnchor}");
@@ -261,25 +257,10 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain("unread=", rowHref, StringComparison.Ordinal);
         Assert.Contains("sort=oldest", rowHref, StringComparison.Ordinal);
 
-        // Diagnostic for a non-OK preview: confirm whether the seeded row is
-        // still present (rules out a seeding/dedup gap) before asserting, so a
-        // failure names the actual cause instead of only the status code.
-        using (var previewResponse = await client.GetAsync($"/Inbox?handler=Preview&id={ids[0]:D}"))
+        // The dialog's fragment reads the same exact message and writes nothing.
+        using (var dialogResponse = await client.GetAsync($"/Inbox/{ids[0]:D}?{query}&handler=Dialog"))
         {
-            if (previewResponse.StatusCode != HttpStatusCode.OK)
-            {
-                var previewBody = await previewResponse.Content.ReadAsStringAsync();
-                await using var scope = factory.Services.CreateAsyncScope();
-                var contextFactory = scope.ServiceProvider
-                    .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-                await using var context = await contextFactory.CreateDbContextAsync();
-                var rowExists = await context.RetainedMailboxMessages
-                    .AsNoTracking()
-                    .AnyAsync(item => item.Id == ids[0]);
-                Assert.Fail(
-                    $"Preview for {ids[0]:D} returned {(int)previewResponse.StatusCode} "
-                    + $"{previewResponse.StatusCode} (row exists in DB: {rowExists}). Body: {previewBody}");
-            }
+            Assert.Equal(HttpStatusCode.OK, dialogResponse.StatusCode);
         }
 
         var messageHtml = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?{query}");
@@ -326,15 +307,14 @@ public sealed class MailWorkspaceWebTests
         var outcome = await AcceptReceiptAsync(factory, receiptId);
 
         var page = await GetHtmlAsync(
-            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&section=case");
-        var confirmation = await PrepareAssociationAsync(client, page, "PrepareUnlinkCase");
+            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}");
         Assert.Contains(
             $"Unlinking this email cancels case {outcome.Identity.Reference}.",
-            confirmation,
+            page,
             StringComparison.Ordinal);
 
-        var submission = AssociationSubmission(
-            confirmation,
+        var submission = DialogSubmission(
+            page,
             "UnlinkCase",
             "The email that created this case was unlinked.");
         using var unlink = await client.PostAsync(
@@ -348,18 +328,18 @@ public sealed class MailWorkspaceWebTests
             CaseLifecycleState.SourceEmailUnlinked,
             await ReadCaseStateAsync(factory.Services, outcome.Identity.CaseId));
         var unlinked = await GetHtmlAsync(
-            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&section=case");
+            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}");
         Assert.DoesNotContain("cancels case", unlinked, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// What the Inbox pages cost in SQL commands against the real stores
     /// (Roadmap Lane D, parts D1 and D3): the message page of a message linked to
-    /// a Case, the list with its first row selected, and the list's Preview
-    /// fragment. The message page reads the Case header, not the whole Case; the
-    /// list draws its pane from its own row and reads only what the row lacks.
-    /// All three counts are ceilings, so growth in one is seen, and a failure
-    /// lists every command sent.
+    /// a Case, the list, and the message dialog's fragment, which is the same
+    /// record. The message page reads the Case header, not the whole Case; the
+    /// list reads only its rows and counts, nothing per message. All three counts
+    /// are ceilings, so growth in one is seen, and a failure lists every command
+    /// sent.
     /// </summary>
     [Fact]
     public async Task TheInboxPagesSendTheirPinnedStatements()
@@ -376,7 +356,7 @@ public sealed class MailWorkspaceWebTests
         // The first request of each page pays one-off work; the count is the second.
         _ = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         _ = await GetHtmlAsync(client, "/Inbox");
-        _ = await GetHtmlAsync(client, $"/Inbox?handler=Preview&id={messageId:D}");
+        _ = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=Dialog");
 
         counter.Reset();
         var message = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
@@ -391,12 +371,12 @@ public sealed class MailWorkspaceWebTests
         var list = await GetHtmlAsync(client, "/Inbox");
         var listCommands = counter.Count;
         var listDescription = counter.Describe();
-        Assert.Contains("data-mail-preview-classification", list, StringComparison.Ordinal);
+        Assert.Contains($"data-mail-row=\"{messageId:D}\"", list, StringComparison.OrdinalIgnoreCase);
 
         counter.Reset();
-        _ = await GetHtmlAsync(client, $"/Inbox?handler=Preview&id={messageId:D}");
-        var previewCommands = counter.Count;
-        var previewDescription = counter.Describe();
+        _ = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=Dialog");
+        var dialogCommands = counter.Count;
+        var dialogDescription = counter.Describe();
 
         Assert.True(
             messageCommands <= InboxMessageCommands,
@@ -407,17 +387,16 @@ public sealed class MailWorkspaceWebTests
             listCommands <= InboxListCommands,
             $"The Inbox list sent {listCommands} SQL commands; at most {InboxListCommands} are allowed."
             + Environment.NewLine + listDescription);
+        // The dialog is the record, so it holds to the record's ceiling.
         Assert.True(
-            previewCommands <= InboxPreviewCommands,
-            $"The Inbox preview sent {previewCommands} SQL commands; at most {InboxPreviewCommands} are allowed."
-            + Environment.NewLine + previewDescription);
+            dialogCommands <= InboxMessageCommands,
+            $"The Inbox message dialog sent {dialogCommands} SQL commands; at most {InboxMessageCommands} are allowed."
+            + Environment.NewLine + dialogDescription);
     }
 
     private const int InboxMessageCommands = 19;
 
     private const int InboxListCommands = 13;
-
-    private const int InboxPreviewCommands = 6;
 
     /// <summary>
     /// The Inbox list reads nothing once per row: the same request over six
@@ -465,7 +444,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
-    public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
+    public async Task ExactMessageCanBeLinkedUnlinkedAndLinkedToAReplacementInOneStepEach()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var messageId = Assert.Single(await SeedAsync(
@@ -482,86 +461,87 @@ public sealed class MailWorkspaceWebTests
             factory.Services, replacementOriginId, "MAIL31002", nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var search = await GetHtmlAsync(
+        // The record carries the Case / PO picker and its Link to Case button; typing
+        // fetches the Cases the receipt may be linked to, and choosing one writes nothing.
+        var record = await GetHtmlAsync(
             client,
-            $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&pageNumber=2&caseQuery=MAIL31001");
-        Assert.Contains(">MAIL31001</strong>", search, StringComparison.Ordinal);
-        Assert.Contains($"mailbox={FirstMailboxFilter}", search, StringComparison.Ordinal);
-        Assert.Contains("pageNumber=2", search, StringComparison.Ordinal);
+            $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&pageNumber=2");
+        Assert.Contains($">{OperatorLabels.Inbox.LinkToCase}</button>", record, StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-case-picker-url=\"/Inbox/{messageId:D}?handler=LinkCaseOptions\"",
+            record,
+            StringComparison.Ordinal);
+        using (var options = await client.GetAsync($"/Inbox/{messageId:D}?handler=LinkCaseOptions&q=MAIL31001"))
+        {
+            Assert.Equal(HttpStatusCode.OK, options.StatusCode);
+            var optionsHtml = await options.Content.ReadAsStringAsync();
+            Assert.Contains("role=\"listbox\"", optionsHtml, StringComparison.Ordinal);
+            Assert.Contains("value=\"MAIL31001\"", optionsHtml, StringComparison.Ordinal);
+        }
+        await AssertAssociationStateAsync(factory, receiptId, expectedCaseId: null, expectedHistoryCount: 0);
 
-        var target = await GetHtmlAsync(
-            client,
-            $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&pageNumber=2&caseQuery=MAIL31001&targetCaseId={firstCaseId:D}");
-        Assert.Contains("Confirm target", target, StringComparison.Ordinal);
-        Assert.Contains("MAIL31001", target, StringComparison.Ordinal);
-        Assert.DoesNotContain("Confirm unlink", target, StringComparison.Ordinal);
-        var linkConfirmation = await PrepareAssociationAsync(client, target, "PrepareLinkCase");
-        var linkSubmission = AssociationSubmission(
-            linkConfirmation,
+        // One POST: the Case / PO and the reason arrive together.
+        var linkSubmission = DialogSubmission(
+            record,
             "LinkCase",
-            "The retained message names this exact Case/PO.");
+            "The retained message names this exact Case/PO.",
+            "MAIL31001");
         using var link = await client.PostAsync(
             linkSubmission.Action,
             new FormUrlEncodedContent(linkSubmission.Fields));
         Assert.Equal(HttpStatusCode.Redirect, link.StatusCode);
-        using var linkReplay = await client.PostAsync(
-            linkSubmission.Action,
-            new FormUrlEncodedContent(linkSubmission.Fields));
-        Assert.Equal(HttpStatusCode.Redirect, linkReplay.StatusCode);
+        Assert.Contains($"mailbox={FirstMailboxFilter}", link.Headers.Location!.ToString(), StringComparison.Ordinal);
+        Assert.Contains("pageNumber=2", link.Headers.Location.ToString(), StringComparison.Ordinal);
 
-        var linked = await GetHtmlAsync(client, link.Headers.Location!.ToString());
+        var linked = await GetHtmlAsync(client, link.Headers.Location.ToString());
         Assert.Contains("Message linked to the confirmed case.", linked, StringComparison.Ordinal);
-        Assert.Contains("Linked case", linked, StringComparison.Ordinal);
-        Assert.Contains(">Unlink</button>", linked, StringComparison.Ordinal);
-        Assert.DoesNotContain("association-case-query", linked, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.Unlink}</button>", linked, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.ChangeLinkedCase}</button>", linked, StringComparison.Ordinal);
         await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
 
-        var conflictingLinkFields = new Dictionary<string, string>(linkSubmission.Fields)
-        {
-            ["Reason"] = "Changed reason under the same operation key."
-        };
-        using var conflictingLink = await client.PostAsync(
+        // The same post again finds the receipt moved on and writes nothing.
+        using (var linkReplay = await client.PostAsync(
             linkSubmission.Action,
-            new FormUrlEncodedContent(conflictingLinkFields));
-        Assert.Equal(HttpStatusCode.OK, conflictingLink.StatusCode);
-        Assert.Contains(
-            "confirmation identity was already used with different details",
-            await conflictingLink.Content.ReadAsStringAsync(),
-            StringComparison.Ordinal);
+            new FormUrlEncodedContent(linkSubmission.Fields)))
+        {
+            Assert.Equal(HttpStatusCode.OK, linkReplay.StatusCode);
+            Assert.Contains(
+                "The message or case changed. Reload it, review the current target, and try again.",
+                await linkReplay.Content.ReadAsStringAsync(),
+                StringComparison.Ordinal);
+        }
         await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
 
-        var unlinkConfirmation = await PrepareAssociationAsync(client, linked, "PrepareUnlinkCase");
-        var unlinkSubmission = AssociationSubmission(
-            unlinkConfirmation,
+        var unlinkSubmission = DialogSubmission(
+            linked,
             "UnlinkCase",
             "The message belongs to a different Case/PO.");
         using var unlink = await client.PostAsync(
             unlinkSubmission.Action,
             new FormUrlEncodedContent(unlinkSubmission.Fields));
         Assert.Equal(HttpStatusCode.Redirect, unlink.StatusCode);
-        using var unlinkReplay = await client.PostAsync(
-            unlinkSubmission.Action,
-            new FormUrlEncodedContent(unlinkSubmission.Fields));
-        Assert.Equal(HttpStatusCode.Redirect, unlinkReplay.StatusCode);
-        await AssertAssociationStateAsync(factory, receiptId, expectedCaseId: null, expectedHistoryCount: 2);
 
         var unlinked = await GetHtmlAsync(client, unlink.Headers.Location!.ToString());
         Assert.Contains("Message unlinked from the confirmed case.", unlinked, StringComparison.Ordinal);
-        Assert.Contains("association-case-query", unlinked, StringComparison.Ordinal);
-        Assert.DoesNotContain("Unlink from this case", unlinked, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.LinkToCase}</button>", unlinked, StringComparison.Ordinal);
 
-        var replacement = await GetHtmlAsync(
-            client,
-            $"/Inbox/{messageId:D}?caseQuery=MAIL31002&targetCaseId={replacementCaseId:D}");
-        var replacementConfirmation = await PrepareAssociationAsync(
-            client, replacement, "PrepareLinkCase");
-        var replacementSubmission = AssociationSubmission(
-            replacementConfirmation,
+        using (var unlinkReplay = await client.PostAsync(
+            unlinkSubmission.Action,
+            new FormUrlEncodedContent(unlinkSubmission.Fields)))
+        {
+            Assert.Equal(HttpStatusCode.OK, unlinkReplay.StatusCode);
+        }
+        await AssertAssociationStateAsync(factory, receiptId, expectedCaseId: null, expectedHistoryCount: 2);
+
+        var replacement = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        var relinkSubmission = DialogSubmission(
+            replacement,
             "LinkCase",
-            "The replacement Case/PO was separately searched and confirmed.");
+            "The replacement Case/PO was separately searched and confirmed.",
+            "MAIL31002");
         using var relink = await client.PostAsync(
-            replacementSubmission.Action,
-            new FormUrlEncodedContent(replacementSubmission.Fields));
+            relinkSubmission.Action,
+            new FormUrlEncodedContent(relinkSubmission.Fields));
         Assert.Equal(HttpStatusCode.Redirect, relink.StatusCode);
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -575,15 +555,74 @@ public sealed class MailWorkspaceWebTests
         Assert.Null((await context.CaseWorkflows.SingleAsync(item => item.CaseId == replacementCaseId)).EditLeaseToken);
     }
 
+    /// <summary>
+    /// Change linked Case (v41 I9, I13) is the existing Unlink and the existing
+    /// Link to Case in one post with one reason: two history entries, each under
+    /// its own edit authority, and a Case / PO that names no Case stops it before
+    /// anything is unlinked.
+    /// </summary>
     [Fact]
-    public async Task LinkedPostReportMessageCreatesAQueryResponseJobAndShowsCaseJobs()
+    public async Task ChangeLinkedCaseUnlinksAndLinksInOnePostWithOneReasonAndTwoHistoryEntries()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        _ = Assert.Single(await SeedAsync(
+            factory, SecondMailboxId, SecondMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var otherOriginId = await ReceiptIdAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var firstCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, receiptId, "MAIL33001", nameof(CaseLifecycleState.Review));
+        var newCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, otherOriginId, "MAIL33002", nameof(CaseLifecycleState.Review));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        var link = DialogSubmission(record, "LinkCase", "The message names this Case/PO.", "MAIL33001");
+        using (var linked = await client.PostAsync(link.Action, new FormUrlEncodedContent(link.Fields)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, linked.StatusCode);
+        }
+        await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
+
+        var page = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+
+        // A reference that names no Case is refused before the message is unlinked.
+        var unknown = DialogSubmission(page, "ChangeLinkedCase", "Moved to the right Case.", "NO-SUCH-CASE");
+        using (var refused = await client.PostAsync(unknown.Action, new FormUrlEncodedContent(unknown.Fields)))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            Assert.Contains(
+                "Choose one Case by its Case / PO reference.",
+                await refused.Content.ReadAsStringAsync(),
+                StringComparison.Ordinal);
+        }
+        await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
+
+        var change = DialogSubmission(page, "ChangeLinkedCase", "Moved to the right Case.", "MAIL33002");
+        using (var changed = await client.PostAsync(change.Action, new FormUrlEncodedContent(change.Fields)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, changed.StatusCode);
+        }
+
+        await AssertAssociationStateAsync(factory, receiptId, newCaseId, expectedHistoryCount: 3);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Null((await context.CaseWorkflows.SingleAsync(item => item.CaseId == firstCaseId)).EditLeaseToken);
+        Assert.Null((await context.CaseWorkflows.SingleAsync(item => item.CaseId == newCaseId)).EditLeaseToken);
+    }
+
+    [Fact]
+    public async Task LinkedPostReportMessageCreatesAQueryResponseJobFromTheRecord()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
         var (messageId, caseId, linked) = await SeedLinkedPostReportQueryAsync(factory, client);
         Assert.Contains("handler=CreateQueryResponse", linked, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.QueryResponseJobs.Create}</span>", linked, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"case-ai-jobs-title\"", linked, StringComparison.Ordinal);
         var createForm = AssociationForm(linked, "CreateQueryResponse");
         using var create = await client.PostAsync(
             AssociationAction(createForm, "CreateQueryResponse"),
@@ -608,16 +647,8 @@ public sealed class MailWorkspaceWebTests
 
         var rendered = await GetHtmlAsync(client, create.Headers.Location!.ToString());
         Assert.Contains(OperatorLabels.QueryResponseJobs.Created, rendered, StringComparison.Ordinal);
-        Assert.Contains("id=\"case-ai-jobs-title\"", rendered, StringComparison.Ordinal);
-        Assert.Contains(">Query response</td>", rendered, StringComparison.Ordinal);
-        Assert.Contains(">Queued</span>", rendered, StringComparison.Ordinal);
-        var jobsPanel = Between(
-            rendered,
-            "<section class=\"panel\" aria-labelledby=\"case-ai-jobs-title\">",
-            "</section>");
-        Assert.DoesNotContain(messageId.ToString("D"), jobsPanel, StringComparison.OrdinalIgnoreCase);
 
-        // The record bar reads the live job in place of the start button (FRD-27).
+        // The foot reads the live job in place of the start button (FRD-27).
         Guid jobId;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -711,20 +742,29 @@ public sealed class MailWorkspaceWebTests
             "AUTO14001",
             nameof(CaseLifecycleState.ReportSent));
 
-        var target = await GetHtmlAsync(
-            client,
-            $"/Inbox/{messageId:D}?caseQuery=AUTO14001&targetCaseId={caseId:D}");
-        var linkConfirmation = await PrepareAssociationAsync(client, target, "PrepareLinkCase");
-        var linkSubmission = AssociationSubmission(
-            linkConfirmation,
-            "LinkCase",
-            "The retained post-report query names this Case/PO.");
-        using var link = await client.PostAsync(
-            linkSubmission.Action,
-            new FormUrlEncodedContent(linkSubmission.Fields));
-        Assert.Equal(HttpStatusCode.Redirect, link.StatusCode);
+        var linked = await LinkThroughTheRecordAsync(
+            client, messageId, "AUTO14001", "The retained post-report query names this Case/PO.");
+        return (messageId, caseId, linked);
+    }
 
-        return (messageId, caseId, await GetHtmlAsync(client, link.Headers.Location!.ToString()));
+    /// <summary>
+    /// Links a message to a Case in one step, as the record's Link to Case does
+    /// (v41 I13): the Case / PO and the reason in one post. Returns the record it lands on.
+    /// </summary>
+    private static async Task<string> LinkThroughTheRecordAsync(
+        HttpClient client,
+        Guid messageId,
+        string caseReference,
+        string reason,
+        string context = "")
+    {
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}{context}");
+        var submission = DialogSubmission(record, "LinkCase", reason, caseReference);
+        using var link = await client.PostAsync(
+            submission.Action,
+            new FormUrlEncodedContent(submission.Fields));
+        Assert.Equal(HttpStatusCode.Redirect, link.StatusCode);
+        return await GetHtmlAsync(client, link.Headers.Location!.ToString());
     }
 
     /// <summary>The external client takes the job and writes its draft reply, as the Automation Actor's tools do.</summary>
@@ -790,14 +830,12 @@ public sealed class MailWorkspaceWebTests
         var caseId = await ImageIntakeTestData.SeedCaseAsync(
             factory.Services, receiptId, "MAIL31999", nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
         using var client = IntakeWebDriver.CreateClient(factory);
-        var target = await GetHtmlAsync(
-            client,
-            $"/Inbox/{messageId:D}?caseQuery=MAIL31999&targetCaseId={caseId:D}");
-        var confirmation = await PrepareAssociationAsync(client, target, "PrepareLinkCase");
-        var submission = AssociationSubmission(
-            confirmation,
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        var submission = DialogSubmission(
+            record,
             "LinkCase",
-            "Reviewed exact retained-message evidence.");
+            "Reviewed exact retained-message evidence.",
+            "MAIL31999");
         using var rolelessRequest = new HttpRequestMessage(HttpMethod.Post, submission.Action)
         {
             Content = new FormUrlEncodedContent(submission.Fields)
@@ -843,7 +881,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
-    public async Task PreparedAssociationCannotMoveToAnotherMessageOrTheOtherAction()
+    public async Task AnAssociationPostNamesItsMessageItsVersionAndItsAction()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         _ = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
@@ -857,14 +895,22 @@ public sealed class MailWorkspaceWebTests
             factory.Services, receiptA, "MAIL-BIND", nameof(CaseLifecycleState.Review));
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var targetA = await GetHtmlAsync(
-            client,
-            $"/Inbox/{messageA:D}?caseQuery=MAIL-BIND&targetCaseId={caseId:D}");
-        var confirmationA = await PrepareAssociationAsync(client, targetA, "PrepareLinkCase");
-        var linkA = AssociationSubmission(
-            confirmationA,
+        var recordA = await GetHtmlAsync(client, $"/Inbox/{messageA:D}");
+        var linkA = DialogSubmission(
+            recordA,
             "LinkCase",
-            "The exact retained message belongs to this Case/PO.");
+            "The exact retained message belongs to this Case/PO.",
+            "MAIL-BIND");
+
+        // Message B stands at another version, so A's confirmation moved onto B writes nothing.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            await context.IntakeReceipts
+                .Where(item => item.Id == receiptB)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.Version, item => item.Version + 1));
+        }
         using var crossMessage = await client.PostAsync(
             linkA.Action.Replace(messageA.ToString("D"), messageB.ToString("D"), StringComparison.Ordinal),
             new FormUrlEncodedContent(linkA.Fields));
@@ -876,19 +922,12 @@ public sealed class MailWorkspaceWebTests
         await AssertAssociationStateAsync(factory, receiptA, expectedCaseId: null, expectedHistoryCount: 0);
         await AssertAssociationStateAsync(factory, receiptB, expectedCaseId: null, expectedHistoryCount: 0);
 
-        targetA = await GetHtmlAsync(
-            client,
-            $"/Inbox/{messageA:D}?caseQuery=MAIL-BIND&targetCaseId={caseId:D}");
-        confirmationA = await PrepareAssociationAsync(client, targetA, "PrepareLinkCase");
-        linkA = AssociationSubmission(
-            confirmationA,
-            "LinkCase",
-            "The exact retained message belongs to this Case/PO.");
         using var linked = await client.PostAsync(
             linkA.Action,
             new FormUrlEncodedContent(linkA.Fields));
         Assert.Equal(HttpStatusCode.Redirect, linked.StatusCode);
 
+        // A link's fields posted to Unlink, the other action, name no linked Case.
         using var linkAsUnlink = await client.PostAsync(
             linkA.Action.Replace("handler=LinkCase", "handler=UnlinkCase", StringComparison.Ordinal),
             new FormUrlEncodedContent(linkA.Fields));
@@ -899,11 +938,10 @@ public sealed class MailWorkspaceWebTests
             StringComparison.Ordinal);
         await AssertAssociationStateAsync(factory, receiptA, caseId, expectedHistoryCount: 1);
 
+        // An unlink's fields posted to Link: the message already holds a Case.
         var linkedPage = await GetHtmlAsync(client, linked.Headers.Location!.ToString());
-        var unlinkConfirmation = await PrepareAssociationAsync(
-            client, linkedPage, "PrepareUnlinkCase");
-        var unlink = AssociationSubmission(
-            unlinkConfirmation,
+        var unlink = DialogSubmission(
+            linkedPage,
             "UnlinkCase",
             "The exact retained message must be unlinked from this Case/PO.");
         using var unlinkAsLink = await client.PostAsync(
@@ -917,11 +955,17 @@ public sealed class MailWorkspaceWebTests
         await AssertAssociationStateAsync(factory, receiptA, caseId, expectedHistoryCount: 1);
     }
 
+    /// <summary>
+    /// A link that fails for good after its edit authority was claimed gives the
+    /// authority back; when that release itself fails, the form comes back with
+    /// its confirmation, so the retry is the same confirmation and settles it.
+    /// </summary>
     [Fact]
-    public async Task FailedLeaseReleaseRetainsTheExactConfirmationUntilCompensationSucceeds()
+    public async Task FailedLeaseReleaseRetainsTheExactConfirmationUntilTheRetrySettlesIt()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var releaseFailures = new ReleaseFailureGate();
+        var linkFailures = new ReleaseFailureGate();
         var messageId = Assert.Single(await SeedAsync(
             baseFactory, FirstMailboxId, FirstMailboxAddress, count: 1));
         await StoreClassificationAsync(baseFactory, FirstMailboxId, FirstMailboxId + "-0");
@@ -936,25 +980,19 @@ public sealed class MailWorkspaceWebTests
                     new FailOnceReleaseCaseEditLease(
                         services.GetRequiredService<ILeaseCaseForEdit>(),
                         releaseFailures));
+                services.RemoveAll<ILinkIntake>();
+                services.AddScoped<ILinkIntake>(services =>
+                    new FailingFirstLinkIntake(
+                        ActivatorUtilities.CreateInstance<LinkIntake>(services),
+                        linkFailures));
             }));
         using var client = IntakeWebDriver.CreateClient(factory);
-        var target = await GetHtmlAsync(
-            client,
-            $"/Inbox/{messageId:D}?caseQuery=MAIL-RELEASE&targetCaseId={caseId:D}");
-        var confirmation = await PrepareAssociationAsync(client, target, "PrepareLinkCase");
-        var submission = AssociationSubmission(
-            confirmation,
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        var submission = DialogSubmission(
+            record,
             "LinkCase",
-            "Reviewed exact retained-message evidence.");
-
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            await using var context = await contextFactory.CreateDbContextAsync();
-            await context.IntakeReceipts
-                .Where(item => item.Id == receiptId)
-                .ExecuteUpdateAsync(update => update.SetProperty(item => item.Version, item => item.Version + 1));
-        }
+            "Reviewed exact retained-message evidence.",
+            "MAIL-RELEASE");
 
         using var failedRelease = await client.PostAsync(
             submission.Action,
@@ -962,38 +1000,35 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal(HttpStatusCode.OK, failedRelease.StatusCode);
         var retryPage = await failedRelease.Content.ReadAsStringAsync();
         Assert.Contains("edit authority could not be released", retryPage, StringComparison.Ordinal);
-        var retry = AssociationSubmission(
+        Assert.Equal(1, releaseFailures.AttemptCount);
+        Assert.NotNull(await CaseLeaseTokenAsync(baseFactory, caseId));
+        await AssertAssociationStateAsync(baseFactory, receiptId, expectedCaseId: null, expectedHistoryCount: 0);
+
+        // The form came back with the same confirmation, so its retry claims the same authority.
+        var retry = DialogSubmission(
             retryPage,
             "LinkCase",
-            "Reviewed exact retained-message evidence.");
-
-        using var released = await client.PostAsync(
+            "Reviewed exact retained-message evidence.",
+            "MAIL-RELEASE");
+        Assert.Equal(submission.Fields["leaseOperationKey"], retry.Fields["leaseOperationKey"]);
+        Assert.Equal(submission.Fields["operationKey"], retry.Fields["operationKey"]);
+        using var settled = await client.PostAsync(
             retry.Action,
             new FormUrlEncodedContent(retry.Fields));
-        Assert.Equal(HttpStatusCode.OK, released.StatusCode);
-        var releasedPage = await released.Content.ReadAsStringAsync();
-        Assert.Contains("The message or case changed", releasedPage, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"editLeaseToken\"", releasedPage, StringComparison.Ordinal);
-        Assert.Equal(2, releaseFailures.AttemptCount);
+        Assert.Equal(HttpStatusCode.Redirect, settled.StatusCode);
 
-        await using var verificationScope = factory.Services.CreateAsyncScope();
-        var verificationFactory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var verification = await verificationFactory.CreateDbContextAsync();
-        Assert.Null((await verification.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).EditLeaseToken);
-        Assert.Empty(await verification.IntakeMutationHistory.Where(item => item.IntakeReceiptId == receiptId).ToListAsync());
-        var actor = ActionActor.Staff(
-            DevelopmentOfflineIdentity.AdministratorId,
-            [StaffRole.Administrator]);
-        var retryLease = await verificationScope.ServiceProvider
-            .GetRequiredService<IAcquireCaseEditLease>()
-            .ExecuteAsync(
-                new(caseId, 0, actor, $"mail-release-retry:{Guid.NewGuid():N}"),
-                CancellationToken.None);
-        Assert.Equal(caseId, retryLease.CaseId);
+        await AssertAssociationStateAsync(baseFactory, receiptId, caseId, expectedHistoryCount: 1);
+        Assert.Null(await CaseLeaseTokenAsync(baseFactory, caseId));
+        Assert.Equal(1, releaseFailures.AttemptCount);
     }
 
+    /// <summary>
+    /// The Link to Case options are one button each, whose accessible name holds
+    /// the Case / PO, the registration and the claimant, so nothing but the name
+    /// is needed to choose. Choosing one writes nothing.
+    /// </summary>
     [Fact]
-    public async Task CaseSearchResultIsOneFocusableLinkWhoseNameContainsEveryVisibleIdentityFact()
+    public async Task TheLinkOptionsAreOneButtonEachWhoseNameContainsEveryVisibleIdentityFact()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -1004,28 +1039,28 @@ public sealed class MailWorkspaceWebTests
             factory, FirstMailboxId, FirstMailboxAddress, count: 1));
         await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
 
-        var html = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?caseQuery=AB12%20CDE");
-        var resultLink = Regex.Match(
+        var html = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=LinkCaseOptions&q=AB12%20CDE");
+        var option = Regex.Match(
             html,
-            $"<a[^>]*targetCaseId={caseId:D}[^>]*>(.*?)</a>",
+            $"<button[^>]*role=\"option\"[^>]*value=\"{Regex.Escape(caseReference)}\"[^>]*>(.*?)</button>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
 
-        Assert.True(resultLink.Success, "The matching Case must be one focusable link.");
+        Assert.True(option.Success, "The matching Case must be one option button.");
         Assert.Single(
-            Regex.Matches(
-                html,
-                $"<a[^>]*targetCaseId={caseId:D}[^>]*>",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
-                .Cast<Match>());
+            Regex.Matches(html, "role=\"option\"", RegexOptions.CultureInvariant).Cast<Match>());
         var accessibleName = Regex.Replace(
-            WebUtility.HtmlDecode(resultLink.Groups[1].Value),
+            WebUtility.HtmlDecode(option.Groups[1].Value),
             "<[^>]+>",
             string.Empty,
             RegexOptions.CultureInvariant);
         Assert.Contains(caseReference, accessibleName, StringComparison.Ordinal);
         Assert.Contains("AB12CDE", accessibleName.Replace(" ", string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains("Fixture Claimant", accessibleName, StringComparison.Ordinal);
-        Assert.Contains("Review", accessibleName, StringComparison.Ordinal);
+        await AssertAssociationStateAsync(
+            factory,
+            await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0"),
+            expectedCaseId: null,
+            expectedHistoryCount: 0);
     }
 
     [Fact]
@@ -1052,20 +1087,21 @@ public sealed class MailWorkspaceWebTests
         Assert.True(newest < oldest, "The list must default to newest received first.");
 
         // Reading changes nothing. Beyond the layout's sign-out, the only POST
-        // forms are the rows' Dismiss actions (Inbox, 13 September), one per row.
+        // forms are the rows' Dismiss actions (Inbox, 13 September), one per row,
+        // and the one bulk form above the list (v41 I18).
         Assert.Equal(3, CountOccurrences(html, "data-mail-row-action=\"dismiss\""));
-        // Sign-out, the shell's Report a problem, and the three dismissals.
-        Assert.Equal(2 + 3, CountOccurrences(html, "method=\"post\""));
+        // Sign-out, the shell's Report a problem, the bulk form and the three dismissals.
+        Assert.Equal(2 + 1 + 3, CountOccurrences(html, "method=\"post\""));
         Assert.Contains("/Account/SignOut", html, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// Operator, 12 October 2026: a received message whose mailbox can send
-    /// offers Reply on its row and in the preview pane, opening the message
-    /// record's own reply; a message in a mailbox that cannot send offers none.
+    /// offers Reply on its row, opening the message record's own reply; a message
+    /// in a mailbox that cannot send offers none.
     /// </summary>
     [Fact]
-    public async Task AMessageInASendingMailboxOffersReplyOnItsRowAndInThePreview()
+    public async Task AMessageInASendingMailboxOffersReplyOnItsRow()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var sendingId = Assert.Single(await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 1));
@@ -1086,27 +1122,12 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("data-mail-row-reply", sendingRow, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Inbox/{sendingId:D}?", sendingRow, StringComparison.Ordinal);
         Assert.Contains("compose=reply", sendingRow, StringComparison.Ordinal);
-        Assert.Contains("data-mail-reply-url=", sendingRow, StringComparison.Ordinal);
+        // The row's Reply opens the composer in the message dialog (script); its address is the record's own.
+        Assert.Contains("data-mail-open", Between(sendingRow, "data-mail-row-reply", ">"), StringComparison.Ordinal);
         Assert.Contains("data-mail-row-action=\"dismiss\"", sendingRow, StringComparison.Ordinal);
         var receivingRow = MailRow(html, receivingId);
         Assert.DoesNotContain("data-mail-row-reply", receivingRow, StringComparison.Ordinal);
-        // Razor keeps a data- attribute with a null value, so the row carries an empty one.
-        Assert.Contains("data-mail-reply-url=\"\"", receivingRow, StringComparison.Ordinal);
         Assert.Contains("data-mail-row-action=\"dismiss\"", receivingRow, StringComparison.Ordinal);
-
-        var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
-        var previewReply = Regex.Match(preview, "<a[^>]*data-mail-preview-reply[^>]*>");
-        Assert.True(previewReply.Success, "The preview pane has no Reply.");
-        Assert.Contains($"href=\"/Inbox/{sendingId:D}?", previewReply.Value, StringComparison.Ordinal);
-        Assert.Contains("compose=reply", previewReply.Value, StringComparison.Ordinal);
-        Assert.DoesNotContain("hidden", previewReply.Value, StringComparison.Ordinal);
-
-        var receivingHtml = await GetHtmlAsync(client, $"/Inbox?selected={receivingId:D}");
-        var receivingPreview = Between(receivingHtml, "<aside id=\"mail-quick-preview\"", "</aside>");
-        var hiddenReply = Regex.Match(receivingPreview, "<a[^>]*data-mail-preview-reply[^>]*>");
-        Assert.True(hiddenReply.Success, "The preview pane keeps its Reply slot for a row that offers one.");
-        Assert.Contains("hidden=\"hidden\"", hiddenReply.Value, StringComparison.Ordinal);
-        Assert.DoesNotContain("href=", hiddenReply.Value, StringComparison.Ordinal);
     }
 
     /// <summary>Without staff mail the Inbox offers no Reply, even for a mailbox that can send.</summary>
@@ -1121,10 +1142,6 @@ public sealed class MailWorkspaceWebTests
         var html = await GetHtmlAsync(client, $"/Inbox?selected={messageId:D}");
 
         Assert.DoesNotContain("data-mail-row-reply", MailRow(html, messageId), StringComparison.Ordinal);
-        Assert.Contains(
-            "hidden=\"hidden\"",
-            Regex.Match(html, "<a[^>]*data-mail-preview-reply[^>]*>").Value,
-            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1157,15 +1174,16 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("sort=oldest", subject, StringComparison.Ordinal);
         Assert.DoesNotContain("selected=", subject, StringComparison.Ordinal);
         Assert.DoesNotContain("title=", subject, StringComparison.Ordinal);
-        Assert.Contains("data-mail-preview-trigger", subject, StringComparison.Ordinal);
+        // Script opens it in the dialog; the link is the record page, as it always was.
+        Assert.Contains("data-mail-open", subject, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The preview's text (26 September 2026): the sender's line breaks are
+    /// The row's excerpt (26 September 2026): the sender's line breaks are
     /// kept, runs of spaces collapse, and it stops after eight lines.
     /// </summary>
     [Fact]
-    public async Task ThePreviewKeepsTheSendersLineBreaksAndStopsAfterEightLines()
+    public async Task TheRowExcerptKeepsTheSendersLineBreaksAndStopsAfterEightLines()
     {
         using var factory = new IntakeWebApplicationFactory();
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
@@ -1177,9 +1195,9 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, "/Inbox");
         // The HTML encoder writes each line break and the ellipsis as a
-        // character reference; the browser reads them back for pre-line.
+        // character reference; the browser reads them back.
         var excerpt = WebUtility.HtmlDecode(
-            Between(html, "<p class=\"mail-excerpt\" data-mail-preview-excerpt>", "</p>"));
+            Between(html, "<span class=\"row-excerpt\">", "</span>"));
 
         Assert.Contains("Line 1 of the message.\nLine 2 of the message.", excerpt, StringComparison.Ordinal);
         Assert.EndsWith("Line 8 of the message.…", excerpt, StringComparison.Ordinal);
@@ -1187,7 +1205,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
-    /// A long single paragraph: the preview reads enough of the body to cut
+    /// A long single paragraph: the excerpt reads enough of the body to cut
     /// it, so the text stops at a word boundary with an ellipsis rather than
     /// mid-word where the read ran out.
     /// </summary>
@@ -1201,8 +1219,8 @@ public sealed class MailWorkspaceWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Inbox");
-        const string excerptStart = "<p class=\"mail-excerpt\" data-mail-preview-excerpt>";
-        var excerpt = WebUtility.HtmlDecode(Between(html, excerptStart, "</p>")[excerptStart.Length..]);
+        const string excerptStart = "<span class=\"row-excerpt\">";
+        var excerpt = WebUtility.HtmlDecode(Between(html, excerptStart, "</span>")[excerptStart.Length..]);
 
         Assert.EndsWith("…", excerpt, StringComparison.Ordinal);
         Assert.True(excerpt.Length <= 600, $"The excerpt is {excerpt.Length} characters: {excerpt}");
@@ -1212,12 +1230,11 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
-    /// The preview's attachments (26 September 2026): one line counting them
-    /// by kind, no names. The row keeps its count and the full message still
-    /// names every file.
+    /// The row's attachments (26 September 2026): one count, no names. The full
+    /// message still names every file.
     /// </summary>
     [Fact]
-    public async Task ThePreviewCountsAttachmentsByKindWhileTheMessageNamesThem()
+    public async Task TheRowCountsAttachmentsWhileTheMessageNamesThem()
     {
         using var factory = new IntakeWebApplicationFactory();
         var messageId = Assert.Single(await SeedAsync(
@@ -1234,11 +1251,10 @@ public sealed class MailWorkspaceWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Inbox");
-        var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.Contains("data-mail-preview-attachments>3 attachments &#xB7; 2 images, 1 document</p>", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain("front.jpg", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain("estimate.pdf", preview, StringComparison.Ordinal);
-        Assert.Contains("3 attachments", MailRow(html, messageId), StringComparison.Ordinal);
+        var row = MailRow(html, messageId);
+        Assert.Contains("3 attachments", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("front.jpg", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("estimate.pdf", row, StringComparison.Ordinal);
 
         var attachments = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=attachments");
         Assert.Contains("front.jpg", attachments, StringComparison.Ordinal);
@@ -1248,11 +1264,11 @@ public sealed class MailWorkspaceWebTests
 
     /// <summary>
     /// A message that opened a Triage (26 September 2026): the chip reads
-    /// Triage, the Case cell carries the t. reference, the row links it, and
-    /// the pane offers Open Triage rather than saying there is no Case.
+    /// Triage and the Case cell carries the t. reference, on the row and, once,
+    /// in the record's Decision.
     /// </summary>
     [Fact]
-    public async Task AMessageThatOpenedATriageShowsItsReferenceAndOpenTriage()
+    public async Task AMessageThatOpenedATriageShowsItsReference()
     {
         using var factory = new IntakeWebApplicationFactory();
         var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
@@ -1263,33 +1279,19 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, "/Inbox");
 
-        var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.Contains(">Triage</span>", preview, StringComparison.Ordinal);
-        Assert.Contains($"<dt>{OperatorLabels.Inbox.Case}</dt>", preview, StringComparison.Ordinal);
-        Assert.Contains("data-mail-preview-association>t.QDOS31007</dd>", preview, StringComparison.Ordinal);
-        Assert.Contains($"href=\"/Cases/{triageCaseId:D}\"", preview, StringComparison.Ordinal);
-        Assert.Contains($"<span>{OperatorLabels.Inbox.OpenTriage}</span>", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.Inbox.OpenCase, preview, StringComparison.Ordinal);
-        Assert.DoesNotContain(">None<", preview, StringComparison.Ordinal);
-
         var row = MailRow(html, messageId);
         Assert.Contains(">Triage</span>", row, StringComparison.Ordinal);
         Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31007</a>", row, StringComparison.Ordinal);
 
-        // A pinned row's pane takes its Case action from the preview JSON.
-        Assert.Contains("data-mail-preview-open", preview, StringComparison.Ordinal);
-        Assert.Contains("data-mail-preview-case", preview, StringComparison.Ordinal);
-        using var response = await client.GetAsync($"/Inbox?handler=Preview&id={messageId:D}");
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal($"/Cases/{triageCaseId:D}", json.RootElement.GetProperty("caseUrl").GetString());
-        Assert.Equal("Open Triage", json.RootElement.GetProperty("caseAction").GetString());
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.Contains($"<span>{OperatorLabels.Inbox.Case}</span>", record, StringComparison.Ordinal);
+        Assert.Contains($"<strong><a href=\"/Cases/{triageCaseId:D}\">t.QDOS31007</a></strong>", record, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// The Triage flag follows the Case's own type, not how the message came
     /// to it: a message staff linked to a Triage Case it did not open shows
-    /// the Triage chip and Open Triage too.
+    /// the Triage chip too, and its record offers Unlink and Change linked Case.
     /// </summary>
     [Fact]
     public async Task AMessageLinkedToATriageCaseShowsItAsATriage()
@@ -1303,24 +1305,22 @@ public sealed class MailWorkspaceWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Inbox");
-
-        var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.Contains(">Triage</span>", preview, StringComparison.Ordinal);
-        Assert.Contains("data-mail-preview-association>t.QDOS31008</dd>", preview, StringComparison.Ordinal);
-        Assert.Contains($"href=\"/Cases/{triageCaseId:D}\"", preview, StringComparison.Ordinal);
-        Assert.Contains($"<span>{OperatorLabels.Inbox.OpenTriage}</span>", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.Inbox.OpenCase, preview, StringComparison.Ordinal);
         Assert.Contains(">Triage</span>", MailRow(html, messageId), StringComparison.Ordinal);
+
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.Contains($"<strong><a href=\"/Cases/{triageCaseId:D}\">t.QDOS31008</a></strong>", record, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.Unlink}</button>", record, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.ChangeLinkedCase}</button>", record, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// The full message agrees with itself: a message that opened a Triage and
-    /// is linked to no Case shows that Triage on its Case tab, with its t.
-    /// reference and Open Triage, and Link to Case stays available because
-    /// linking to an instruction Case is a separate act.
+    /// is linked to no Case shows that Triage as its Case, with its t.
+    /// reference, and Link to Case stays available because linking to an
+    /// instruction Case is a separate act.
     /// </summary>
     [Fact]
-    public async Task TheCaseTabShowsTheTriageTheMessageOpened()
+    public async Task TheRecordShowsTheTriageTheMessageOpenedAndStillOffersLinkToCase()
     {
         using var factory = new IntakeWebApplicationFactory();
         var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
@@ -1329,17 +1329,15 @@ public sealed class MailWorkspaceWebTests
         var triageCaseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, receiptId, "t.QDOS31010");
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var caseTab = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=case");
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
 
-        Assert.Contains($"<h2 class=\"decision-head\">{OperatorLabels.Inbox.Triage}</h2>", caseTab, StringComparison.Ordinal);
-        Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31010</a>", caseTab, StringComparison.Ordinal);
-        Assert.Contains($"<span>{OperatorLabels.Inbox.OpenTriage}</span>", caseTab, StringComparison.Ordinal);
-        Assert.DoesNotContain("Linked case", caseTab, StringComparison.Ordinal);
-        Assert.Contains("association-case-query", caseTab, StringComparison.Ordinal);
+        Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31010</a>", record, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.LinkToCase}</button>", record, StringComparison.Ordinal);
+        Assert.Contains("id=\"mailLinkCaseReference\"", record, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task CompoundOutcomeLabelsStayExactAndGreenInRowsAndSelectedPreview()
+    public async Task CompoundOutcomeLabelsStayExactAndGreenInRows()
     {
         using var factory = new IntakeWebApplicationFactory();
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
@@ -1358,10 +1356,6 @@ public sealed class MailWorkspaceWebTests
             var row = MailRow(html, outcome.MessageId);
             Assert.Contains($">{outcome.Label}<", row, StringComparison.Ordinal);
             Assert.Contains("class=\"status status--green\"", row, StringComparison.Ordinal);
-
-            var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
-            Assert.Contains($">{outcome.Label}<", preview, StringComparison.Ordinal);
-            Assert.Contains("class=\"status status--green\"", preview, StringComparison.Ordinal);
         }
     }
 
@@ -1382,9 +1376,9 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
-    /// The list's scope rail (Inbox, 13 September): one count per scope, no Unread
-    /// scope and a Dismissed scope last, the sort toggle as a server-side flip, and
-    /// the preview pane rendered from the selected row.
+    /// The list's scope rail (Inbox, 13 September; v41 I1): one count per scope,
+    /// no Unread scope, the five scopes with Deleted Items last, and the sort
+    /// toggle as a server-side flip.
     /// </summary>
     [Fact]
     public async Task TheScopeRailCountsEachScopeHasNoUnreadScopeAndTheSortToggleFlipsOrder()
@@ -1406,15 +1400,12 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains($">{OperatorLabels.Inbox.NoCaseFound}</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Sent Items</span>", html, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.Inbox.DismissedScope}</span>", html, StringComparison.Ordinal);
-        Assert.Equal(4, CountOccurrences(html, "class=\"scope-button\""));
+        // Deleted Items is the fifth scope (v41 I1); there is no Folder select beside the rail.
+        Assert.Contains($">{OperatorLabels.Inbox.DeletedItemsScope}</span>", html, StringComparison.Ordinal);
+        Assert.Equal(5, CountOccurrences(html, "class=\"scope-button\""));
         // Three retained inbox messages, none read.
         Assert.Contains("<span class=\"tabular\">3</span>", html, StringComparison.Ordinal);
-
-        // The preview pane renders server-side for the newest row, and the
-        // pane's full-detail entry carries the list context.
-        Assert.Contains("data-mail-preview-facts", html, StringComparison.Ordinal);
         Assert.Contains("Message 2 from instructions", html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.Inbox.OpenFullMessage, html, StringComparison.Ordinal);
 
         // The Dismissed scope is a real query: nothing dismissed yet, so it is empty
         // and pressed, and the incoming rows are not in it.
@@ -1620,17 +1611,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Following up on your claim", sent, StringComparison.Ordinal);
         Assert.DoesNotContain($"Message 0 from {FirstMailboxId}", sent, StringComparison.Ordinal);
         Assert.DoesNotContain("not kept in Pegasus yet", sent, StringComparison.Ordinal);
-        // A Sent item is not received work: no processing chip on the row or
-        // the pane, and its preview JSON carries no state to repaint one.
+        // A Sent item is not received work: no processing chip on the row.
         Assert.DoesNotContain("Not yet processed", sent, StringComparison.Ordinal);
-        var previewUrl = Regex.Match(sent, "data-mail-preview-url=\"([^\"]+)\"").Groups[1].Value;
-        Assert.NotEmpty(previewUrl);
-        using var previewResponse = await client.GetAsync(System.Net.WebUtility.HtmlDecode(previewUrl));
-        Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
-        using var preview = JsonDocument.Parse(await previewResponse.Content.ReadAsStringAsync());
-        Assert.Equal(JsonValueKind.Null, preview.RootElement.GetProperty("state").ValueKind);
-        Assert.Equal(Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue, preview.RootElement.GetProperty("classification").GetString());
-        Assert.Equal("Sent", preview.RootElement.GetProperty("folder").GetString());
         Assert.Contains("Deleted items messages are not kept in Pegasus yet.", deleted, StringComparison.Ordinal);
         // MAIL-010: this used to assert the sentence that told the operator to
         // search. The sentence was a field hint and is gone; what mattered was
@@ -1770,15 +1752,6 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("search=inspect&amp;pageNumber=2", html, StringComparison.Ordinal);
         Assert.Contains("Matched in: Message body", html, StringComparison.Ordinal);
         Assert.Contains("search=inspect", html, StringComparison.Ordinal);
-
-        // The pane says where the term matched only while one is typed.
-        var searched = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.Contains($"<dt>{OperatorLabels.Inbox.Matched}</dt>", searched, StringComparison.Ordinal);
-        Assert.Contains("data-mail-preview-matched", searched, StringComparison.Ordinal);
-        Assert.Contains("<dd>Message body</dd>", searched, StringComparison.Ordinal);
-        var unsearched = Between(await GetHtmlAsync(client, "/Inbox"), "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.DoesNotContain(OperatorLabels.Inbox.Matched, unsearched, StringComparison.Ordinal);
-        Assert.DoesNotContain("Search match", unsearched, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1834,7 +1807,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains($"<label for=\"queue-filter\">{OperatorLabels.Inbox.Category}</label>", receiving, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.Inbox.AllCategories}</option>", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain(">Queue</label>", receiving, StringComparison.Ordinal);
-        // One flat list: All categories, every category in order, then No Case Found.
+        // One flat list: All categories, then the eleven categories in order. No Case
+        // Found is a scope on the rail, not a category (v41 I1).
         Assert.DoesNotContain("<optgroup", receiving, StringComparison.Ordinal);
         var categorySelect = Between(receiving, "<select id=\"queue-filter\"", "</select>");
         Assert.Equal(
@@ -1843,11 +1817,10 @@ public sealed class MailWorkspaceWebTests
                 .Select(match => match.Groups["value"].Value)
                 .ToArray());
         Assert.Contains(">Not client related</option>", categorySelect, StringComparison.Ordinal);
-        Assert.Contains($">{OperatorLabels.Inbox.NoCaseFound}</option>", categorySelect, StringComparison.Ordinal);
         Assert.DoesNotContain("Current view:", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"field-hint\"", receiving, StringComparison.Ordinal);
-        // One selected option per filter-bar select: mailbox, folder, queue.
-        Assert.Equal(3, CountOccurrences(receiving, " selected=\"selected\""));
+        // One selected option per filter-bar select: mailbox and category.
+        Assert.Equal(2, CountOccurrences(receiving, " selected=\"selected\""));
         Assert.Contains($"/Inbox/{ids[5]:D}?queue=new-instruction", receiving, StringComparison.Ordinal);
         Assert.Contains("<span class=\"row-meta\">New instruction</span>", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("Message 1 from instructions", receiving, StringComparison.Ordinal);
@@ -1877,8 +1850,8 @@ public sealed class MailWorkspaceWebTests
             client,
             $"/Inbox/{ids[5]:D}?queue=new-instruction&pageNumber=2");
         Assert.Contains("/Inbox?queue=new-instruction&amp;pageNumber=2", detail, StringComparison.Ordinal);
-        // The Case tab carries the whole list context forward.
-        Assert.Contains("queue=new-instruction&amp;section=case", detail, StringComparison.Ordinal);
+        // Every section tab carries the whole list context forward.
+        Assert.Contains("queue=new-instruction&amp;section=attachments", detail, StringComparison.Ordinal);
         using var deleted = await client.GetAsync("/Inbox?folder=deleted&queue=triage-request");
         using var deletedDetail = await client.GetAsync($"/Inbox/{ids[5]:D}?folder=deleted&queue=triage-request");
         Assert.Equal(HttpStatusCode.NotFound, deleted.StatusCode);
@@ -1933,55 +1906,29 @@ public sealed class MailWorkspaceWebTests
                 : action.Replace("queue=new-instruction", "queue=needs-sorting", StringComparison.Ordinal);
         }
 
-        var linkTarget = await GetHtmlAsync(
-            client,
-            $"/Inbox/{linkMessageId:D}?queue=new-instruction&caseQuery=MAIL-CONTEXT-LINK&targetCaseId={linkCaseId:D}");
-        var prepareLinkForm = AssociationForm(linkTarget, "PrepareLinkCase");
-        await PostNotFoundAsync(
-            client,
-            Forge(AssociationAction(prepareLinkForm, "PrepareLinkCase")),
-            HiddenFields(prepareLinkForm));
-        Assert.Null(await CaseLeaseTokenAsync(baseFactory, linkCaseId));
-
-        var linkConfirmation = await PrepareAssociationAsync(client, linkTarget, "PrepareLinkCase");
-        var linkSubmission = AssociationSubmission(
-            linkConfirmation,
+        // One post names its context: a forged one stops before the Case's authority
+        // is claimed, so nothing is written and nothing is left held.
+        var linkRecord = await GetHtmlAsync(client, $"/Inbox/{linkMessageId:D}?queue=new-instruction");
+        var linkSubmission = DialogSubmission(
+            linkRecord,
             "LinkCase",
-            "The exact retained message belongs to this Case/PO.");
+            "The exact retained message belongs to this Case/PO.",
+            "MAIL-CONTEXT-LINK");
         await PostNotFoundAsync(
             client,
             Forge(linkSubmission.Action),
             linkSubmission.Fields);
         await AssertAssociationStateAsync(baseFactory, linkReceiptId, expectedCaseId: null, expectedHistoryCount: 0);
-        Assert.Equal(linkSubmission.Fields["editLeaseToken"], await CaseLeaseTokenAsync(baseFactory, linkCaseId));
+        Assert.Null(await CaseLeaseTokenAsync(baseFactory, linkCaseId));
 
-        var unlinkTarget = await GetHtmlAsync(
+        var linkedPage = await LinkThroughTheRecordAsync(
             client,
-            $"/Inbox/{unlinkMessageId:D}?queue=new-instruction&caseQuery=MAIL-CONTEXT-UNLINK&targetCaseId={unlinkCaseId:D}");
-        var unlinkLinkConfirmation = await PrepareAssociationAsync(client, unlinkTarget, "PrepareLinkCase");
-        var unlinkLinkSubmission = AssociationSubmission(
-            unlinkLinkConfirmation,
-            "LinkCase",
-            "The exact retained message belongs to this Case/PO.");
-        using (var linked = await client.PostAsync(
-            unlinkLinkSubmission.Action,
-            new FormUrlEncodedContent(unlinkLinkSubmission.Fields)))
-        {
-            Assert.Equal(HttpStatusCode.Redirect, linked.StatusCode);
-        }
-        var linkedPage = await GetHtmlAsync(
-            client,
-            $"/Inbox/{unlinkMessageId:D}?queue=new-instruction");
-        var prepareUnlinkForm = AssociationForm(linkedPage, "PrepareUnlinkCase");
-        await PostNotFoundAsync(
-            client,
-            Forge(AssociationAction(prepareUnlinkForm, "PrepareUnlinkCase")),
-            HiddenFields(prepareUnlinkForm));
-        Assert.Null(await CaseLeaseTokenAsync(baseFactory, unlinkCaseId));
-
-        var unlinkConfirmation = await PrepareAssociationAsync(client, linkedPage, "PrepareUnlinkCase");
-        var unlinkSubmission = AssociationSubmission(
-            unlinkConfirmation,
+            unlinkMessageId,
+            "MAIL-CONTEXT-UNLINK",
+            "The exact retained message belongs to this Case/PO.",
+            "?queue=new-instruction");
+        var unlinkSubmission = DialogSubmission(
+            linkedPage,
             "UnlinkCase",
             "The message belongs to a different Case/PO.");
         await PostNotFoundAsync(
@@ -1989,18 +1936,21 @@ public sealed class MailWorkspaceWebTests
             Forge(unlinkSubmission.Action),
             unlinkSubmission.Fields);
         await AssertAssociationStateAsync(baseFactory, unlinkReceiptId, unlinkCaseId, expectedHistoryCount: 1);
-        Assert.Equal(unlinkSubmission.Fields["editLeaseToken"], await CaseLeaseTokenAsync(baseFactory, unlinkCaseId));
+        Assert.Null(await CaseLeaseTokenAsync(baseFactory, unlinkCaseId));
 
         var actionPage = await GetHtmlAsync(
             client,
             $"/Inbox/{actionMessageId:D}?queue=new-instruction");
-        var correctionForm = AssociationForm(actionPage, "CorrectClassification");
-        var correctionFields = HiddenFields(correctionForm);
-        correctionFields["ClassificationKey"] = "general";
-        correctionFields["CorrectionReason"] = "Reviewed retained evidence.";
+        var correctionFields = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AntiforgeryToken(actionPage),
+            ["ExpectedClassificationVersion"] = "1",
+            ["ClassificationKey"] = "general",
+            ["CorrectionReason"] = MailClassificationSelection.CorrectedFromInboxReason
+        };
         await PostNotFoundAsync(
             client,
-            Forge(AssociationAction(correctionForm, "CorrectClassification")),
+            Forge(ChipFormAction(actionPage)),
             correctionFields);
 
         await using var scope = baseFactory.Services.CreateAsyncScope();
@@ -2119,21 +2069,30 @@ public sealed class MailWorkspaceWebTests
         // The Decision card carries the decision in operator words; policy
         // keys, versions, predicate rows and prose never reach the page.
         Assert.Contains("<h2 class=\"decision-head\">Decision</h2>", html, StringComparison.Ordinal);
-        Assert.Contains("<span>Classification</span>", html, StringComparison.Ordinal);
-        Assert.Contains("<strong>Unclassified</strong>", html, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.Classification}</span>", html, StringComparison.Ordinal);
+        // The Classification chips: the decision is the one pressed, and the twelve are the
+        // eleven categories then Unclassified (v41 I9, R179).
+        var chips = Between(html, "id=\"mailClassificationLabel\"", "</form>");
+        Assert.Equal(
+            ChipValues.Length,
+            CountOccurrences(chips, "aria-pressed=\"false\"") + CountOccurrences(chips, "aria-pressed=\"true\""));
+        Assert.Contains(MailClassificationSelection.UnclassifiedLabel, Between(chips, "aria-pressed=\"true\"", "</button>"), StringComparison.Ordinal);
         // An unlinked message has no Destination row.
         Assert.DoesNotContain("<span>Destination</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("shared-mail-policy", html, StringComparison.Ordinal);
         Assert.DoesNotContain("sender-domain", html, StringComparison.Ordinal);
         Assert.DoesNotContain("mail_operational_destination", html, StringComparison.Ordinal);
-        // The correction is a dialog on the card, posting the exact decision
-        // version it corrects.
-        Assert.Contains(">Save correction</button>", html, StringComparison.Ordinal);
+        // A chip applies at once: it posts the exact decision version it corrects and
+        // the fixed reason, so no reason is typed.
         Assert.Contains("name=\"ExpectedClassificationVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"1\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"name=\"CorrectionReason\" value=\"{MailClassificationSelection.CorrectedFromInboxReason}\"",
+            html,
+            StringComparison.Ordinal);
         // The persisted "system-worker:..." actor resolves to the
-        // operator-facing provenance word, never the raw stored value.
-        Assert.Contains("data-word=\"Automatic\"", html, StringComparison.Ordinal);
+        // operator-facing word beside the time, never the raw stored value.
+        Assert.Contains("· Automatic", html, StringComparison.Ordinal);
         Assert.DoesNotContain("system-worker:approved-inbox-poller", html, StringComparison.Ordinal);
         // No corrections yet, so no Corrections card.
         Assert.DoesNotContain(">Corrections<", html, StringComparison.Ordinal);
@@ -2153,60 +2112,45 @@ public sealed class MailWorkspaceWebTests
             factory.Services, receiptId, "MAIL-DESTINATION", nameof(CaseLifecycleState.Review));
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var target = await GetHtmlAsync(
+        _ = await LinkThroughTheRecordAsync(
             client,
-            $"/Inbox/{linkedMessageId:D}?caseQuery=MAIL-DESTINATION&targetCaseId={caseId:D}");
-        var confirmation = await PrepareAssociationAsync(client, target, "PrepareLinkCase");
-        var submission = AssociationSubmission(
-            confirmation,
-            "LinkCase",
+            linkedMessageId,
+            "MAIL-DESTINATION",
             "The retained message belongs to this Case/PO.");
-        using var linkedResponse = await client.PostAsync(
-            submission.Action,
-            new FormUrlEncodedContent(submission.Fields));
-        Assert.Equal(HttpStatusCode.Redirect, linkedResponse.StatusCode);
 
-        // The linking session retains its confirmation context on the Case tab.
         // A fresh viewer checks the persisted message destination independently.
         using var viewer = IntakeWebDriver.CreateClient(factory);
         var linked = await GetHtmlAsync(viewer, $"/Inbox/{linkedMessageId:D}");
         // FRD-08 case-state classification: linked to a Review Case, the
-        // unclassified message becomes a Case update.
-        Assert.Contains("<span>Classification</span>", linked, StringComparison.Ordinal);
-        Assert.Contains("<strong>Case update</strong>", linked, StringComparison.Ordinal);
-        Assert.DoesNotContain("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
-        Assert.Contains("<span>Destination</span>", linked, StringComparison.Ordinal);
+        // unclassified message becomes a Case update. The Case is shown once.
+        Assert.Contains("Case update", PressedChip(linked), StringComparison.Ordinal);
+        Assert.DoesNotContain(MailClassificationSelection.UnclassifiedLabel, PressedChip(linked), StringComparison.Ordinal);
         Assert.Contains(
-            $"<a href=\"/Cases/{caseId:D}\">MAIL-DESTINATION</a>",
+            $"<strong><a href=\"/Cases/{caseId:D}\">MAIL-DESTINATION</a></strong>",
             linked,
             StringComparison.Ordinal);
         Assert.DoesNotContain($"<strong>{OperatorLabels.Inbox.NoCaseFound}</strong>", linked, StringComparison.Ordinal);
 
-        var previewPage = await GetHtmlAsync(viewer, $"/Inbox?selected={linkedMessageId:D}");
-        var linkedRowStart = previewPage.IndexOf(
-            $"data-mail-row=\"{linkedMessageId:D}\"",
-            StringComparison.OrdinalIgnoreCase);
-        Assert.True(linkedRowStart >= 0, "The linked message row was not rendered.");
-        var linkedRowEnd = previewPage.IndexOf("</div>", linkedRowStart, StringComparison.Ordinal);
-        Assert.True(linkedRowEnd > linkedRowStart, "The linked message row was not complete.");
-        var linkedRow = previewPage[linkedRowStart..linkedRowEnd];
+        var listPage = await GetHtmlAsync(viewer, $"/Inbox?selected={linkedMessageId:D}");
+        var linkedRow = MailRow(listPage, linkedMessageId);
         Assert.Contains("Case update", linkedRow, StringComparison.Ordinal);
         Assert.DoesNotContain(OperatorLabels.Inbox.NoCaseFound, linkedRow, StringComparison.Ordinal);
 
-        var preview = Between(previewPage, "<aside id=\"mail-quick-preview\"", "</aside>");
-        Assert.Contains("data-mail-preview-classification>Case update</dd>", preview, StringComparison.Ordinal);
-        // An instruction Case: the Case cell names its Case/PO and the pane offers Open Case.
-        Assert.Contains($"<dt>{OperatorLabels.Inbox.Case}</dt>", preview, StringComparison.Ordinal);
-        Assert.Contains("data-mail-preview-association>MAIL-DESTINATION</dd>", preview, StringComparison.Ordinal);
-        Assert.Contains($"href=\"/Cases/{caseId:D}\"", preview, StringComparison.Ordinal);
-        Assert.Contains($"<span>{OperatorLabels.Inbox.OpenCase}</span>", preview, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.Inbox.OpenTriage, preview, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.Inbox.NoCaseFound, preview, StringComparison.Ordinal);
-
         var unlinked = await GetHtmlAsync(viewer, $"/Inbox/{unlinkedMessageId:D}");
-        Assert.Contains("<strong>Unclassified</strong>", unlinked, StringComparison.Ordinal);
-        Assert.DoesNotContain("<span>Destination</span>", unlinked, StringComparison.Ordinal);
+        Assert.Contains(MailClassificationSelection.UnclassifiedLabel, PressedChip(unlinked), StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.Inbox.NoCase}</strong>", unlinked, StringComparison.Ordinal);
+    }
+
+    /// <summary>The one pressed Classification chip of a record: the message's decision.</summary>
+    private static string PressedChip(string html) =>
+        Between(Between(html, "id=\"mailClassificationLabel\"", "</form>"), "aria-pressed=\"true\"", "</button>");
+
+    /// <summary>The Classification chips are one form; its action, as rendered.</summary>
+    private static string ChipFormAction(string html)
+    {
+        var form = Regex.Match(html, "<form[^>]*id=\"mailClassificationForm\"[^>]*>", RegexOptions.CultureInvariant);
+        Assert.True(form.Success, "The Classification chips were not rendered.");
+        return FormAction(form.Value);
     }
 
     [Fact]
@@ -2220,7 +2164,7 @@ public sealed class MailWorkspaceWebTests
         var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
 
         // The category alone: no destination, folder recommendation or move.
-        Assert.Contains("<strong>New instruction</strong>", html, StringComparison.Ordinal);
+        Assert.Contains("New instruction", PressedChip(html), StringComparison.Ordinal);
         Assert.DoesNotContain("<span>Destination</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Folder</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Move to", html, StringComparison.Ordinal);
@@ -2266,7 +2210,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
-    public async Task TheCorrectionOffersEveryCategoryAndUnclassifiedAndANewInstructionStoresItsCaseType()
+    public async Task TheChipsOfferEveryCategoryAndUnclassifiedAndANewInstructionStoresItsCaseTypeAndTheFixedReason()
     {
         using var factory = new IntakeWebApplicationFactory();
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
@@ -2275,16 +2219,15 @@ public sealed class MailWorkspaceWebTests
         var route = $"/Inbox/{ids[0]:D}?handler=CorrectClassification";
 
         var page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
-        // The picker is one flat list: every category, then Unclassified, and
-        // it asks for the case type a New instruction names.
-        var picker = Between(page, "id=\"ClassificationKey\"", "</select>");
+        // The chips are one flat set: every category, then Unclassified, which is the
+        // one pressed here (the message is Unclassified), and a New instruction asks for the case type.
+        var chips = Between(page, "id=\"mailClassificationLabel\"", "</form>");
         Assert.Equal(
-            CorrectionValues,
-            Regex.Matches(picker, "<option value=\"(?<value>[^\"]*)\"")
+            ChipValues[..^1],
+            Regex.Matches(chips, "name=\"ClassificationKey\" value=\"(?<value>[^\"]*)\"")
                 .Select(match => match.Groups["value"].Value)
                 .ToArray());
-        Assert.Contains(">Unclassified</option>", picker, StringComparison.Ordinal);
-        Assert.DoesNotContain("OtherClassification", page, StringComparison.Ordinal);
+        Assert.Contains(MailClassificationSelection.UnclassifiedLabel, PressedChip(page), StringComparison.Ordinal);
         Assert.Contains("data-work-type-field", page, StringComparison.Ordinal);
 
         // A New instruction without a case type is refused before the command.
@@ -2293,7 +2236,7 @@ public sealed class MailWorkspaceWebTests
             ["__RequestVerificationToken"] = AntiforgeryToken(page),
             ["ExpectedClassificationVersion"] = "1",
             ["ClassificationKey"] = "new-instruction",
-            ["CorrectionReason"] = "Instruction read from the retained message."
+            ["CorrectionReason"] = MailClassificationSelection.CorrectedFromInboxReason
         })))
         {
             Assert.Equal(HttpStatusCode.OK, missing.StatusCode);
@@ -2307,7 +2250,7 @@ public sealed class MailWorkspaceWebTests
             ["ExpectedClassificationVersion"] = "1",
             ["ClassificationKey"] = "new-instruction",
             ["WorkType"] = nameof(CaseType.InspectionAndAudit),
-            ["CorrectionReason"] = "Instruction read from the retained message."
+            ["CorrectionReason"] = MailClassificationSelection.CorrectedFromInboxReason
         })))
         {
             Assert.Equal(HttpStatusCode.Redirect, corrected.StatusCode);
@@ -2319,6 +2262,10 @@ public sealed class MailWorkspaceWebTests
         var decision = await context.IntakeMailClassificationDecisions.SingleAsync();
         Assert.Equal(2, decision.Version);
         Assert.Equal(CaseTypeCodes.ToCode(CaseType.InspectionAndAudit), decision.CaseType);
+        // A chip records the fixed reason, as Tag as query records its own (R179).
+        Assert.Equal(
+            MailClassificationSelection.CorrectedFromInboxReason,
+            (await context.IntakeMailClassificationHistory.SingleAsync()).Reason);
 
         // The corrected classification offers its one next action, Create case,
         // against the message's receipt; nothing ran on its own.
@@ -2828,6 +2775,255 @@ public sealed class MailWorkspaceWebTests
         Assert.Empty(await context.IntakeMailClassificationHistory.ToListAsync());
     }
 
+    /// <summary>
+    /// Row ticks and one bulk form (v41 I18): a tick in the gutter of every row in
+    /// All incoming, No Case Found and Dismissed, each named by its message's subject;
+    /// one form above the list with a bare count and Dismiss and Correct classification,
+    /// or Restore in Dismissed; none in Sent Items or Deleted Items. The rendered form
+    /// posts to each handler, and each applies to the messages it names.
+    /// </summary>
+    [Fact]
+    public async Task TheListOffersTickboxesAndOneBulkFormInTheScopesTheDrawingShows()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        for (var index = 0; index < ids.Length; index++)
+        {
+            await StoreClassificationAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var incoming = await GetHtmlAsync(client, "/Inbox");
+        Assert.Equal(1, CountOccurrences(incoming, "id=\"mail-bulk\""));
+        Assert.Equal(3, CountOccurrences(incoming, "data-mail-tick"));
+        Assert.Contains("<span class=\"inbox-bulk-count tabular\" data-bulk-count>0</span>", incoming, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.CorrectClassification}</button>", incoming, StringComparison.Ordinal);
+        foreach (var (id, index) in ids.Select((id, index) => (id, ids.Length - 1 - index)))
+        {
+            var row = MailRow(incoming, id);
+            Assert.Contains($"aria-label=\"Message {index} from {FirstMailboxId}\"", row, StringComparison.Ordinal);
+            Assert.Contains($"name=\"versions[{id:D}]\"", row, StringComparison.Ordinal);
+        }
+        var noCaseFound = await GetHtmlAsync(client, "/Inbox?queue=no_case_found");
+        Assert.Equal(3, CountOccurrences(noCaseFound, "data-mail-tick"));
+        foreach (var scope in new[] { "folder=sent", "folder=deleted" })
+        {
+            var html = await GetHtmlAsync(client, $"/Inbox?{scope}");
+            Assert.Equal(0, CountOccurrences(html, "data-mail-tick"));
+            Assert.Equal(0, CountOccurrences(html, "id=\"mail-bulk\""));
+        }
+
+        // The rendered form posts: Dismiss for two of the three ticked, then Restore from Dismissed.
+        var token = AntiforgeryToken(incoming);
+        var operationKey = HiddenValue(Between(incoming, "id=\"mail-bulk\"", "</form>"), "operationKey");
+        using (var dismiss = await client.PostAsync(
+            BulkAction(incoming, "BulkDismiss"),
+            BulkForm(token, ids[..2], ("operationKey", operationKey))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, dismiss.StatusCode);
+        }
+        Assert.Equal(ids[..2].Order(), await DismissedMessagesAsync(factory));
+
+        var dismissed = await GetHtmlAsync(client, "/Inbox?folder=dismissed");
+        Assert.Equal(2, CountOccurrences(dismissed, "data-mail-tick"));
+        Assert.Contains($">{OperatorLabels.Inbox.Restore}</span>", Between(dismissed, "id=\"mail-bulk\"", "</form>"), StringComparison.Ordinal);
+        using (var restore = await client.PostAsync(
+            BulkAction(dismissed, "BulkRestore"),
+            BulkForm(
+                AntiforgeryToken(dismissed),
+                ids[..2],
+                ("operationKey", HiddenValue(Between(dismissed, "id=\"mail-bulk\"", "</form>"), "operationKey")))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, restore.StatusCode);
+        }
+        Assert.Empty(await DismissedMessagesAsync(factory));
+
+        // Correct classification: the dialog's fields and each row's version join the one form.
+        var again = await GetHtmlAsync(client, "/Inbox");
+        var versions = Regex.Matches(again, "name=\"versions\\[(?<id>[^\\]]+)\\]\" value=\"(?<version>\\d+)\"")
+            .ToDictionary(match => match.Groups["id"].Value, match => match.Groups["version"].Value);
+        Assert.Equal(3, versions.Count);
+        using (var classify = await client.PostAsync(
+            BulkAction(again, "BulkClassify"),
+            BulkForm(
+                AntiforgeryToken(again),
+                ids[1..],
+                ($"versions[{ids[1]:D}]", versions[ids[1].ToString("D")]),
+                ($"versions[{ids[2]:D}]", versions[ids[2].ToString("D")]),
+                ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                ("CorrectionReason", "Acknowledgements."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, classify.StatusCode);
+        }
+        await using var verification = factory.Services.CreateAsyncScope();
+        var contextFactory = verification.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(2, await context.IntakeMailClassificationHistory.CountAsync());
+    }
+
+    /// <summary>
+    /// A bulk post that could not change some ticked messages (R180): one line above
+    /// the list says how many were not changed, once, and those rows stay ticked so they
+    /// can be retried; the others are changed.
+    /// </summary>
+    [Fact]
+    public async Task ABulkPostThatCouldNotChangeAMessageSaysSoOnceAndKeepsItTicked()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        var messages = new Guid[3];
+        for (var index = 0; index < messages.Length; index++)
+        {
+            await StoreClassificationAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+            messages[index] = await MessageIdAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+        }
+        await using (var colleague = factory.Services.CreateAsyncScope())
+        {
+            await colleague.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                new(messages[0], 1, MailCategory.Billing, "A colleague's correction."));
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var token = AntiforgeryToken(await GetHtmlAsync(client, "/Inbox"));
+
+        using (var response = await client.PostAsync(
+            "/Inbox?handler=BulkClassify",
+            BulkForm(
+                token,
+                messages,
+                ($"versions[{messages[0]:D}]", "1"),
+                ($"versions[{messages[1]:D}]", "1"),
+                ($"versions[{messages[2]:D}]", "1"),
+                ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                ("CorrectionReason", "Acknowledgements."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        var list = await GetHtmlAsync(client, "/Inbox");
+        Assert.Equal(1, CountOccurrences(list, "data-bulk-not-changed"));
+        Assert.Contains($">{OperatorLabels.Inbox.NotChanged(1)}</span>", list, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(list, " checked=\"checked\""));
+        Assert.Contains(" checked=\"checked\"", MailRow(list, messages[0]), StringComparison.Ordinal);
+        Assert.Equal(0, CountOccurrences(await GetHtmlAsync(client, "/Inbox"), "data-bulk-not-changed"));
+    }
+
+    /// <summary>
+    /// A refused correction shows its sentences where the operator sees them: on the
+    /// record, beside the Case type a New instruction asks for, and on the list, in the
+    /// dialog it came from, which opens again over the rows that were ticked.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedCorrectionIsVisibleOnTheRecordAndOnTheList()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        for (var index = 0; index < ids.Length; index++)
+        {
+            await StoreClassificationAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
+        }
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var record = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+        using (var refused = await client.PostAsync(
+            ChipFormAction(record),
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(record),
+                ["ExpectedClassificationVersion"] = "1",
+                ["ClassificationKey"] = MailCategories.Code(MailCategory.NewInstruction),
+                ["CorrectionReason"] = MailClassificationSelection.CorrectedFromInboxReason
+            })))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            var html = await refused.Content.ReadAsStringAsync();
+            var caseTypeField = Between(html, "class=\"field mail-case-type\"", "</div>");
+            Assert.Contains(OperatorLabels.Inbox.ChooseCaseType, caseTypeField, StringComparison.Ordinal);
+            Assert.DoesNotContain("hidden", Between(html, "class=\"field mail-case-type\"", ">"), StringComparison.Ordinal);
+        }
+
+        var list = await GetHtmlAsync(client, "/Inbox");
+        using var listRefusal = await client.PostAsync(
+            "/Inbox?handler=BulkClassify",
+            BulkForm(
+                AntiforgeryToken(list),
+                ids,
+                ($"versions[{ids[0]:D}]", "1"),
+                ($"versions[{ids[1]:D}]", "1"),
+                ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                ("CorrectionReason", " ")));
+        Assert.Equal(HttpStatusCode.OK, listRefusal.StatusCode);
+        var refusedList = await listRefusal.Content.ReadAsStringAsync();
+        Assert.Contains("data-dialog-open-on-load=\"true\"", Between(refusedList, "id=\"bulkClassifyDialog\"", ">"), StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.Inbox.CorrectionReasonRequired, refusedList, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(refusedList, " checked=\"checked\""));
+    }
+
+    /// <summary>
+    /// Dismiss in the message dialog (v41 I10): the post names the message the list
+    /// reads after this one, and the Inbox opens it; with none, the Inbox shows the list.
+    /// </summary>
+    [Fact]
+    public async Task DismissInTheDialogLandsOnTheFollowingMessage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var dialog = await GetHtmlAsync(
+            client, $"/Inbox/{ids[1]:D}?handler=Dialog&mailbox={FirstMailboxFilter}");
+        var form = Regex.Match(
+            dialog,
+            "<form[^>]*data-message-dismissal=\"dismiss\"[^>]*>[\\s\\S]*?</form>").Value;
+        var action = FormAction(form);
+        Assert.Contains("dialog=true", action, StringComparison.Ordinal);
+        Assert.Contains("name=\"next\"", form, StringComparison.Ordinal);
+
+        using (var dismiss = await client.PostAsync(
+            action,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = FormInput(dialog, "__RequestVerificationToken"),
+                ["operationKey"] = FormInput(form, "operationKey"),
+                ["next"] = ids[2].ToString("D")
+            })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, dismiss.StatusCode);
+            var location = dismiss.Headers.Location!.ToString();
+            Assert.StartsWith("/Inbox?", location, StringComparison.Ordinal);
+            Assert.Contains($"open={ids[2]:D}", location, StringComparison.Ordinal);
+            Assert.Contains($"selected={ids[2]:D}", location, StringComparison.Ordinal);
+            Assert.Contains($"mailbox={FirstMailboxFilter}", location, StringComparison.Ordinal);
+        }
+        Assert.Equal([ids[1]], await DismissedMessagesAsync(factory));
+
+        // A message with no following one and none before it: the Inbox shows the list.
+        var last = await GetHtmlAsync(client, $"/Inbox/{ids[2]:D}?handler=Dialog");
+        var lastForm = Regex.Match(
+            last,
+            "<form[^>]*data-message-dismissal=\"dismiss\"[^>]*>[\\s\\S]*?</form>").Value;
+        using (var dismissLast = await client.PostAsync(
+            FormAction(lastForm),
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = FormInput(last, "__RequestVerificationToken"),
+                ["operationKey"] = FormInput(lastForm, "operationKey"),
+                ["next"] = string.Empty
+            })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, dismissLast.StatusCode);
+            Assert.Equal("/Inbox", dismissLast.Headers.Location?.OriginalString);
+        }
+    }
+
+    /// <summary>The action the rendered bulk form's control for a handler posts to.</summary>
+    private static string BulkAction(string html, string handler)
+    {
+        var match = Regex.Match(html, $"formaction=\"(?<action>[^\"]*handler={handler}[^\"]*)\"");
+        Assert.True(match.Success, $"The bulk control for {handler} was not rendered.");
+        return WebUtility.HtmlDecode(match.Groups["action"].Value);
+    }
+
     private static FormUrlEncodedContent BulkForm(
         string token,
         IEnumerable<Guid> ticked,
@@ -3019,31 +3215,24 @@ public sealed class MailWorkspaceWebTests
         return WebUtility.HtmlDecode(match.Groups[1].Value);
     }
 
-    private static async Task<string> PrepareAssociationAsync(
-        HttpClient client,
-        string html,
-        string handler)
-    {
-        var form = AssociationForm(html, handler);
-        using var response = await client.PostAsync(
-            AssociationAction(form, handler),
-            new FormUrlEncodedContent(HiddenFields(form)));
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.NotNull(response.Headers.Location);
-        return await GetHtmlAsync(client, response.Headers.Location.ToString());
-    }
-
-    private static AssociationPost AssociationSubmission(
+    /// <summary>
+    /// The one post a record's reason dialog makes (v41 I13): its rendered action and
+    /// hidden fields, the reason, and the Case / PO the picker held, for a link.
+    /// </summary>
+    private static AssociationPost DialogSubmission(
         string html,
         string handler,
-        string reason)
+        string reason,
+        string? caseReference = null)
     {
         var form = AssociationForm(html, handler);
-        var action = AssociationAction(form, handler);
         var fields = HiddenFields(form);
         fields["Reason"] = reason;
-        Assert.DoesNotContain(fields["editLeaseToken"], action, StringComparison.Ordinal);
-        return new(action, fields);
+        if (caseReference is not null)
+        {
+            fields["caseReference"] = caseReference;
+        }
+        return new(AssociationAction(form, handler), fields);
     }
 
     private static string AssociationForm(string html, string handler)
@@ -3107,6 +3296,17 @@ public sealed class MailWorkspaceWebTests
         public int AttemptCount => Volatile.Read(ref attempts);
 
         public bool FailThisAttempt() => Interlocked.Increment(ref attempts) == 1;
+    }
+
+    /// <summary>The first link fails for good, as a Core refusal does; every later one is the real command.</summary>
+    private sealed class FailingFirstLinkIntake(ILinkIntake inner, ReleaseFailureGate gate) : ILinkIntake
+    {
+        public Task ExecuteAsync(
+            LinkIntakeRequest request,
+            CancellationToken cancellationToken = default) =>
+            gate.FailThisAttempt()
+                ? Task.FromException(new InvalidOperationException("Fixture link failure."))
+                : inner.ExecuteAsync(request, cancellationToken);
     }
 
     private sealed class FailOnceReleaseCaseEditLease(

@@ -936,7 +936,9 @@ deleted in wave 5.
 | `next-step`, `next-step-go` | The Next action's one step and its full-width control |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
-| `mail-preview`, `decision-card` | Inbox preview and message decision |
+| `decision-card` | Message decision |
+| `inbox-row--ticks`, `inbox-row-tick`, `inbox-bulk` | A row's gutter tick and the one bulk form above the Inbox list (v41 I18) |
+| `dialog--mail`, `mail-split`, `mail-chips`, `mail-decision` | The Inbox message dialog: the message beside Decision, the Classification chips and the Case / PO picker (v41 I2, I9, I17) |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `admin-layout`, `admin-nav` | Administration |
 | `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |
@@ -1086,7 +1088,7 @@ this section holds the cross-cutting rules every page is held to.
 | Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. The default repairer VAT status is Registered (19 October 2026). A status still stored as Unknown does not block Use repair spec; it does block the report (27 September 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
-| Mail preview | Keyboard and pointer intent exposes an accessible preview that changes no message or Case state; when intent moves away the pane restores the selected message and stays visible with its navigation links. |
+| Message dialog | The subject opens one dialog over the Inbox, with Previous message and Next message in its head; opening, reading and moving between messages change no message or Case state; `/Inbox/{id}` stays for a new tab and for no script (v41 I2, I6, I17; [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)). |
 | Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
