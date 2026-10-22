@@ -17,7 +17,6 @@ public sealed class HealthModel(GetServiceHealth getServiceHealth) : Administrat
             return Forbid();
         }
 
-        // The administration metrics are drawn on the Logs page, not here.
         Snapshot = await getServiceHealth.ExecuteAsync(actor, cancellationToken);
         return Page();
     }

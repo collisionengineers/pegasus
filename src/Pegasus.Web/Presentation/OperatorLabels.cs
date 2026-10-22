@@ -446,16 +446,37 @@ public static class OperatorLabels
         public const string Kept = "The report was kept but could not be sent.";
         public const string Sent = "Sent";
         public const string NotSent = "Not sent";
-        public const string Unknown = "Delivery unknown. An Administrator must check GitHub for the report ID before retrying.";
+        public const string DeliveryUnknown = "Delivery unknown";
+        public const string Unknown = DeliveryUnknown + ". An Administrator must check GitHub for the report ID before retrying.";
 
         public static string Reported(int issueNumber) =>
             string.Create(CultureInfo.InvariantCulture, $"Reported as #{issueNumber}.");
+
+        /// <summary>
+        /// The list's Page cell: the page a report was raised on, by the first
+        /// segment of its route (<c>/Cases/…</c> reads Cases), so no record
+        /// identifier shows (v41 A25). A route with no segment shows itself.
+        /// </summary>
+        public static string PageName(string route)
+        {
+            var path = route.AsSpan();
+            var query = path.IndexOf('?');
+            if (query >= 0)
+            {
+                path = path[..query];
+            }
+
+            path = path.Trim('/');
+            var segment = path.IndexOf('/');
+            var name = segment >= 0 ? path[..segment] : path;
+            return name.IsEmpty ? route : name.ToString();
+        }
     }
 
     public static string ProblemReportStatus(Pegasus.Core.Support.ProblemReportStatus status) => status switch
     {
         Pegasus.Core.Support.ProblemReportStatus.Sent => ProblemReports.Sent,
-        Pegasus.Core.Support.ProblemReportStatus.Unknown => "Unknown",
+        Pegasus.Core.Support.ProblemReportStatus.Unknown => ProblemReports.DeliveryUnknown,
         _ => ProblemReports.NotSent
     };
 
@@ -1511,6 +1532,7 @@ public static class OperatorLabels
 
             // Service health and request operations
             "running" => "blue",
+            "working" => "green",
             "review required" => "amber",
             "needs attention" or "not set" => "amber",
             "active" => "navy",
@@ -1617,6 +1639,25 @@ public static class OperatorLabels
         "Case" => "Case",
         _ => Humanise(area)
     };
+
+    /// <summary>The chip an Action logs row's Actor carries when the Automation client did the work.</summary>
+    public const string ActionLogAiActor = "AI";
+
+    /// <summary>
+    /// An Action logs row's Action: the stored event code as words, with AI
+    /// and API as the initialisms they are (v41 A13).
+    /// </summary>
+    public static string ActionLogAction(string operation) =>
+        string.Join(' ', Humanise(operation).Split(' ').Select(word => word.ToLowerInvariant() switch
+        {
+            "ai" => "AI",
+            "api" => "API",
+            _ => word
+        }));
+
+    /// <summary>An Action logs row's Result, written with a capital whatever its stored spelling (v41 A13).</summary>
+    public static string ActionLogResult(string result) =>
+        string.IsNullOrEmpty(result) ? result : char.ToUpperInvariant(result[0]) + result[1..];
 
     /// <summary>
     /// What a security event written before the acting principal was recorded
@@ -1812,6 +1853,16 @@ public static class OperatorLabels
         public const string OpenQuery = QueryResponseJobs.ReplyWithDraft;
         public const string Review = "Review";
 
+        public const string Stop = "Stop";
+        public const string None = "No AI jobs are recorded.";
+
+        /// <summary>The Estimate kind's reserved term (CONTEXT.md; v41 A28).</summary>
+        public const string AiProposal = "AI Proposal";
+
+        /// <summary>The Send to AI switch beside the job counts: "Send to AI on" or "Send to AI off" (v41 A28).</summary>
+        public static string SendToAiState(bool enabled) =>
+            $"{AutomationAdmin.SendToAi} {(enabled ? "on" : "off")}";
+
         /// <summary>
         /// The instruction a row prints. A Query response stores the message
         /// id it answers as its instruction, which no operator reads, so that
@@ -1830,7 +1881,7 @@ public static class OperatorLabels
 
         public static string Kind(Pegasus.Core.AiWork.AiJobKind kind) => kind switch
         {
-            Pegasus.Core.AiWork.AiJobKind.Estimate => "Estimate",
+            Pegasus.Core.AiWork.AiJobKind.Estimate => AiProposal,
             Pegasus.Core.AiWork.AiJobKind.UnidentifiedResolution => "Unidentified resolution",
             Pegasus.Core.AiWork.AiJobKind.QueryResponse => "Query response",
             Pegasus.Core.AiWork.AiJobKind.UnidentifiedQueuePass => "Unidentified-queue pass",
@@ -2056,7 +2107,6 @@ public static class OperatorLabels
     public static class CaseList
     {
         public const string Title = "Case list";
-        public const string Note = "One row per Case received in the period, open or closed. N/A means the column does not apply to that Case type; a blank cell means nothing is recorded yet.";
         public const string ReceivedFrom = "Received from";
         public const string ReceivedTo = "Received to";
         public const string AllTime = "All time";
@@ -2092,6 +2142,14 @@ public static class OperatorLabels
             Pegasus.Core.Reports.CaseListColumnGroup.PartiesAndActivity => "Parties and activity",
             _ => Humanise(group.ToString())
         };
+    }
+
+    /// <summary>Management Reports' tabs (v41 A26); the Case list tab reads <see cref="CaseList.Title"/>.</summary>
+    public static class ReportTabs
+    {
+        public const string Engineers = "Engineers";
+        public const string Principals = "Principals";
+        public const string Queues = "Queues";
     }
 
     /// <summary>The Mail settings area labels and status values — one list.</summary>
@@ -2265,7 +2323,7 @@ public static class OperatorLabels
         public const string StopConsequence =
             "In-flight work remains visible and no result is discarded.";
 
-        public const string SendToAiEnabled = "Reviewed AI proposals enabled";
+        public const string SendToAi = "Send to AI";
         public const string Save = "Save AI settings";
 
         /// <summary>The state word for a switch an administrator holds.</summary>
@@ -2283,7 +2341,7 @@ public static class OperatorLabels
         public static string AutomationScope(string key) => key switch
         {
             "automation.cases" => "Cases",
-            "automation.intake" => "Intake",
+            "automation.intake" => "Received files",
             "automation.documents" => "Documents",
             "automation.assessment" => "Assessment",
             "automation.mail" => "Mail",
@@ -2798,8 +2856,8 @@ public static class OperatorLabels
         public const string Logs = "Logs";
         public const string ActionLogsTab = "Action logs";
         public const string IntakeLogTab = "Intake log";
-        public const string FailedIntake = "Failed intake";
-        public const string OldestPendingIntake = "Oldest pending intake";
+        public const string FailedFiles = "Failed files";
+        public const string OldestFileWaiting = "Oldest file waiting";
         public const string Reevaluate = "Re-evaluate with current policy";
         public const string RetryAllocation = "Retry allocation";
         public const string RetryOcr = "Retry OCR";

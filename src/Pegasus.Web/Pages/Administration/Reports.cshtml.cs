@@ -42,6 +42,21 @@ public sealed class ReportsModel(
     public static IReadOnlyList<(string Value, string Label)> Works { get; } =
         [("all", "All"), ("inspection", "Inspection"), ("audit", "Audit")];
 
+    public const string EngineersTab = "engineers";
+    public const string PrincipalsTab = "principals";
+    public const string QueuesTab = "queues";
+    public const string CaseListTab = "case-list";
+
+    /// <summary>The page's four tabs by their <c>?tab=</c> value, in the order they are drawn (v41 A26); the first is the default.</summary>
+    public static IReadOnlyList<(string Value, string Label)> Tabs { get; } =
+    [
+        (EngineersTab, OperatorLabels.ReportTabs.Engineers),
+        (PrincipalsTab, OperatorLabels.ReportTabs.Principals),
+        (QueuesTab, OperatorLabels.ReportTabs.Queues),
+        (CaseListTab, OperatorLabels.CaseList.Title)
+    ];
+
+    [BindProperty(SupportsGet = true, Name = "tab")] public string? Tab { get; set; }
     [BindProperty(SupportsGet = true, Name = "from")] public DateTime? From { get; set; }
     [BindProperty(SupportsGet = true, Name = "to")] public DateTime? To { get; set; }
     [BindProperty(SupportsGet = true, Name = "period")] public string? Period { get; set; }
@@ -99,6 +114,8 @@ public sealed class ReportsModel(
 
     public string PeriodValue => Periods.Any(item => item.Value == Period) ? Period! : "custom";
 
+    public string TabValue => Tabs.Any(item => item.Value == Tab) ? Tab! : EngineersTab;
+
     public string WorkValue => Works.Any(item => item.Value == Work) ? Work! : "all";
 
     public string MonthWorkValue => Works.Any(item => item.Value == MonthWork) ? MonthWork! : "all";
@@ -137,8 +154,8 @@ public sealed class ReportsModel(
         : [];
 
     /// <summary>
-    /// The page's state as query values, so a sort, a Work choice, Person and
-    /// the period survive every link and form on the page (finding 7).
+    /// The page's state as query values, so the tab, a sort, a Work choice,
+    /// Person and the period survive every link and form on the page (finding 7).
     /// Each override replaces a value; a null drops it.
     /// </summary>
     public Dictionary<string, string> State(params (string Key, string? Value)[] overrides)
@@ -149,6 +166,7 @@ public sealed class ReportsModel(
             if (!string.IsNullOrEmpty(value)) state[key] = value; else state.Remove(key);
         }
 
+        Set("tab", TabValue);
         Set("period", PeriodValue == "custom" ? null : PeriodValue);
         Set("from", From?.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
         Set("to", To?.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
@@ -182,8 +200,8 @@ public sealed class ReportsModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(Reads.Page, cancellationToken)) return Forbid();
-        await LoadCaseListAsync(null, cancellationToken);
+        if (!await LoadAsync(ReadsOf(TabValue), cancellationToken)) return Forbid();
+        if (TabValue == CaseListTab) await LoadCaseListAsync(null, cancellationToken);
         return Page();
     }
 
@@ -310,7 +328,7 @@ public sealed class ReportsModel(
         {
             var (confirmation, presetId) = await operation(actor);
             TempData["Confirmation"] = confirmation;
-            return RedirectToPage(new { preset = presetId });
+            return RedirectToPage(new { tab = CaseListTab, preset = presetId });
         }
         catch (CaseListPresetException exception)
         {
@@ -343,10 +361,11 @@ public sealed class ReportsModel(
         return await RedisplayAsync(input, message, cancellationToken);
     }
 
-    /// <summary>The page again, with the Case list form as posted and the reason it was refused.</summary>
+    /// <summary>The Case list tab again, with its form as posted and the reason it was refused; its own posts do not name the tab.</summary>
     private async Task<IActionResult> RedisplayAsync(CaseListInput input, string message, CancellationToken cancellationToken)
     {
-        if (!await LoadAsync(Reads.Page, cancellationToken)) return Forbid();
+        Tab = CaseListTab;
+        if (!await LoadAsync(Reads.None, cancellationToken)) return Forbid();
         await LoadCaseListAsync(input, cancellationToken);
         CaseListError = message;
         return Page();
@@ -444,21 +463,37 @@ public sealed class ReportsModel(
     /// <summary>UTF-8 with its byte-order mark: without it Excel reads the file as Windows-1252 and "·" shows as "Â·".</summary>
     private static byte[] CsvBytes(string csv) => [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(csv)];
 
-    /// <summary>The reads a handler asks <see cref="LoadAsync"/> for: the page draws every report, a CSV only its own.</summary>
+    /// <summary>The reads a handler asks <see cref="LoadAsync"/> for: the page draws its tab's reports, a CSV only its own.</summary>
     [Flags]
     private enum Reads
     {
+        None = 0,
         Engineer = 1,
         Principal = 2,
         Monthly = 4,
         Outcomes = 8,
         Unidentified = 16,
 
-        /// <summary>The Person choices and the period just before, which only the page draws.</summary>
-        PageOnly = 32,
+        /// <summary>The Person choices, which only the Engineers tab draws.</summary>
+        People = 32,
+
+        /// <summary>The period just before, for the totals that show it: Engineer activity's and Reports by Principal's (operator, 16 October 2026).</summary>
+        PreviousEngineer = 64,
+        PreviousPrincipal = 128,
         Workbook = Engineer | Principal | Monthly | Outcomes,
-        Page = Workbook | Unidentified | PageOnly
+        ForEngineers = Engineer | People | PreviousEngineer,
+        ForPrincipals = Principal | Monthly | Outcomes | PreviousPrincipal,
+        ForQueues = Principal | Unidentified
     }
+
+    /// <summary>Only the active tab's reads run; the Case list tab reads no report.</summary>
+    private static Reads ReadsOf(string tab) => tab switch
+    {
+        PrincipalsTab => Reads.ForPrincipals,
+        QueuesTab => Reads.ForQueues,
+        CaseListTab => Reads.None,
+        _ => Reads.ForEngineers
+    };
 
     private async Task<bool> LoadAsync(Reads reads, CancellationToken cancellationToken)
     {
@@ -481,7 +516,6 @@ public sealed class ReportsModel(
         // and independent. The account list and Engineer report share the
         // scoped staff context, so they remain serial while those are in flight.
         var (previousFrom, previousTo) = ReportPeriods.Previous(from, to);
-        var page = reads.HasFlag(Reads.PageOnly);
         var principalTask = Read(reads.HasFlag(Reads.Principal), () => principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken));
         var monthlyTask = Read(reads.HasFlag(Reads.Monthly), () => monthlyActivity.ExecuteAsync(actor, from, to, cancellationToken));
         var outcomesTask = Read(reads.HasFlag(Reads.Outcomes), () => reportOutcomes.ExecuteAsync(actor, from, to, cancellationToken));
@@ -492,7 +526,7 @@ public sealed class ReportsModel(
             await Task.WhenAll(count, oldest);
             return new UnidentifiedFigures(await count, await oldest);
         });
-        var previousPrincipalTask = Read(page, () => principalActivityReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken));
+        var previousPrincipalTask = Read(reads.HasFlag(Reads.PreviousPrincipal), () => principalActivityReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken));
 
         var all = await Read(reads.HasFlag(Reads.Engineer), () => engineerReport.ExecuteAsync(actor, from, to, cancellationToken));
         EngineerActivityUnavailable = reads.HasFlag(Reads.Engineer) && all is null;
@@ -501,7 +535,7 @@ public sealed class ReportsModel(
             EngineerResult = Sorted(all.For(EngineerId));
         }
 
-        if (page && all is not null)
+        if (reads.HasFlag(Reads.People) && all is not null)
         {
             var people = all.People.Select(row => (row.EngineerId, row.DisplayName)).ToList();
             if (EngineerId is { } chosen && people.All(person => person.EngineerId != chosen))
@@ -516,7 +550,7 @@ public sealed class ReportsModel(
             People = [.. people.OrderBy(person => person.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(person => person.EngineerId)];
         }
 
-        PreviousEngineer = (await Read(page && all is not null, () => engineerReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken)))?.For(EngineerId);
+        PreviousEngineer = (await Read(reads.HasFlag(Reads.PreviousEngineer) && all is not null, () => engineerReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken)))?.For(EngineerId);
         PrincipalActivity = await principalTask;
         Monthly = await monthlyTask;
         Outcomes = await outcomesTask;

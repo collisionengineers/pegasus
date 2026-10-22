@@ -57,8 +57,9 @@ asks the Administrator to reload.
 Where Automation is composed, each of its scopes (`automation.cases`,
 `automation.intake`, `automation.documents`, `automation.assessment`,
 `automation.mail`, `automation.jobs`) renders as a plain label (Cases,
-Intake, Documents, Assessment, Mail, AI jobs). The underlying key is kept
-only as a hover title.
+Received files, Documents, Assessment, Mail, AI jobs). The underlying key is
+kept only as a hover title
+([v41 A23](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 ### Accounts
 
@@ -227,11 +228,13 @@ keeps its sub-second precision.
 
 **Intake log** lists one row per received file: received, source, item
 (opening the original), outcome with its reason, what it became, and
-attempts. Its head shows counts (Failed intake and the oldest pending intake). It has filters (search, outcome, source,
-principal, from, to), paging, and a row drawer with the retained original,
+attempts. Its head shows counts (Failed files and Oldest file waiting). It has
+filters (search, outcome, source,
+principal, from, to), paging, and a row dialog with the retained original,
 Open message where it came by e-mail, the processing evidence and the
 technical actions that apply
-([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
+([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions);
+[v41 A24](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 ### Management Reports
 
@@ -241,11 +244,15 @@ This quarter, Last 12 months or Custom, in whole London months), **From**,
 **To** and **Apply**. Typing a date makes the period Custom. The period
 governs every report below it; a period that ends before it starts, or is
 longer than a year, shows "Choose a valid date range." in the bar and draws
-no report and no figure, only the Case list. **Download workbook** sits in
-the page header. The reports follow in this order, each with its own
-**Download CSV** in its head: Engineer activity (MI-01), Reports by
-Principal and By month (MI-02), Outcomes (MI-06), Turnaround (MI-03),
-Queues (MI-05) and the Case list (MI-04). No MI label is drawn.
+no report and no figure, only the Case list tab. **Download workbook** sits in
+the page header. Four tabs follow the bar, **Engineers**, **Principals**,
+**Queues** and **Case list**, each its own address (`?tab=`) that keeps the
+period and every choice, and each reading only its own reports: Engineers
+holds Engineer activity (MI-01); Principals holds Reports by Principal and By
+month (MI-02), Outcomes (MI-06) and Turnaround (MI-03); Queues holds Queues
+(MI-05); Case list holds the Case list (MI-04). Each report has its own
+**Download CSV** in its head. No MI label is drawn
+([v41 A26](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 Reports and fees are counted per report: the first confirmed report of the
 Inspection and, once created, of the Audit of an Inspection + Audit Case

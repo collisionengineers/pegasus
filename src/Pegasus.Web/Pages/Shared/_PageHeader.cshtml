@@ -1,9 +1,19 @@
+@*
+    ViewData["PrimaryActionText" | "PrimaryActionUrl" | "PrimaryActionIcon"] — the page's one primary link.
+    ViewData["SecondaryActionText" | "SecondaryActionUrl" | "SecondaryActionIcon"] — a download beside it: the
+    answer is a file, so site.js fetches it (data-busy-download).
+*@
 @{
     var title = ViewData["Title"] as string ?? "Operations";
     var eyebrow = ViewData["Eyebrow"] as string;
     var primaryActionText = ViewData["PrimaryActionText"] as string;
     var primaryActionUrl = ViewData["PrimaryActionUrl"] as string;
     var primaryActionIcon = ViewData["PrimaryActionIcon"] as string ?? "icon-plus";
+    var secondaryActionText = ViewData["SecondaryActionText"] as string;
+    var secondaryActionUrl = ViewData["SecondaryActionUrl"] as string;
+    var secondaryActionIcon = ViewData["SecondaryActionIcon"] as string ?? "icon-download";
+    var hasPrimaryAction = !string.IsNullOrEmpty(primaryActionText) && !string.IsNullOrEmpty(primaryActionUrl);
+    var hasSecondaryAction = !string.IsNullOrEmpty(secondaryActionText) && !string.IsNullOrEmpty(secondaryActionUrl);
 }
 <header class="page-header">
     <div class="page-title">
@@ -13,13 +23,23 @@
         }
         <h1>@title</h1>
     </div>
-    @if (!string.IsNullOrEmpty(primaryActionText) && !string.IsNullOrEmpty(primaryActionUrl))
+    @if (hasPrimaryAction || hasSecondaryAction)
     {
         <div class="page-actions">
-            <a href="@primaryActionUrl" class="btn btn--primary">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(primaryActionIcon)" /></svg>
-                <span>@primaryActionText</span>
-            </a>
+            @if (hasSecondaryAction)
+            {
+                <a href="@secondaryActionUrl" class="btn" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(secondaryActionIcon)" /></svg>
+                    <span>@secondaryActionText</span>
+                </a>
+            }
+            @if (hasPrimaryAction)
+            {
+                <a href="@primaryActionUrl" class="btn btn--primary">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(primaryActionIcon)" /></svg>
+                    <span>@primaryActionText</span>
+                </a>
+            }
         </div>
     }
 </header>

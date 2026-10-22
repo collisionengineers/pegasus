@@ -29,7 +29,6 @@ public sealed class AiJobsModel(
     public async Task<IActionResult> OnPostStopAsync(
         Guid jobId,
         long expectedVersion,
-        string? reason,
         string operationKey,
         int pageNumber,
         CancellationToken cancellationToken)
@@ -43,7 +42,7 @@ public sealed class AiJobsModel(
         }
         try
         {
-            await cancelJob.ExecuteAsync(new(jobId, expectedVersion, actor, operationKey, reason?.Trim()), cancellationToken);
+            await cancelJob.ExecuteAsync(new(jobId, expectedVersion, actor, operationKey, Reason: null), cancellationToken);
             StatusMessage = "The AI job was stopped.";
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)

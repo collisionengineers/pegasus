@@ -178,7 +178,7 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
-    public async Task ActionLogsSelectPeopleByDisplayNameAndKeepAdministrationDiagnostics()
+    public async Task ActionLogsSelectPeopleByDisplayName()
     {
         var now = DateTimeOffset.UtcNow;
         using var factory = new IntakeWebApplicationFactory();
@@ -226,10 +226,11 @@ public sealed class AdministrationSearchAccountWebTests
 
         Assert.Contains($"value=\"{actor}\"", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(DevelopmentOfflineIdentity.UserName, html, StringComparison.Ordinal);
-        Assert.Contains("selected_person_action", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("other_person_action", html, StringComparison.Ordinal);
-        Assert.Contains("Recorded counts and processing times", html, StringComparison.Ordinal);
-        Assert.Contains("Mailbox failures", html, StringComparison.Ordinal);
+        // The Action column reads the stored code in words and the Result column
+        // one spelling, whichever way the writer spelt either (v41 A13).
+        Assert.Contains(OperatorLabels.ActionLogAction("selected_person_action"), html, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.ActionLogAction("other_person_action"), html, StringComparison.Ordinal);
+        Assert.Contains(">Succeeded</td>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -298,7 +299,7 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Contains($"/Unidentified/{subjectId:D}", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(">U777</a>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(jobId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
-        var missingJobRow = ActionLogRow(html, "ai_job_missing_subject");
+        var missingJobRow = ActionLogRow(html, OperatorLabels.ActionLogAction("ai_job_missing_subject"));
         Assert.Contains("&#x2014;", missingJobRow, StringComparison.Ordinal);
         Assert.DoesNotContain(missingJobId.ToString("D"), missingJobRow, StringComparison.OrdinalIgnoreCase);
     }
@@ -346,7 +347,7 @@ public sealed class AdministrationSearchAccountWebTests
         var third = await client.GetStringAsync($"/Administration/Logs?From={from}&To={to}&Actor={actor}&page=3");
         Assert.Contains("Page 3", third, StringComparison.Ordinal);
         Assert.Contains("page=2", third, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("action-100", third, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.ActionLogAction("action-100"), third, StringComparison.Ordinal);
         Assert.DoesNotContain("page=4", third, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -403,13 +404,13 @@ public sealed class AdministrationSearchAccountWebTests
 
         var security = await client.GetStringAsync(
             $"/Administration/Logs?From={from}&To={to}&Area=Security&Record=security-subject");
-        Assert.Contains("SignInFailed", security, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.ActionLogAction("SignInFailed"), security, StringComparison.Ordinal);
         Assert.Contains("security-subject", security, StringComparison.Ordinal);
         Assert.DoesNotContain("case-reference", security, StringComparison.Ordinal);
 
         var action = await client.GetStringAsync(
             $"/Administration/Logs?From={from}&To={to}&Record=case-reference");
-        Assert.Contains("case_saved", action, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.ActionLogAction("case_saved"), action, StringComparison.Ordinal);
         Assert.Contains("case-reference", action, StringComparison.Ordinal);
         Assert.DoesNotContain("security-subject", action, StringComparison.Ordinal);
 
@@ -457,7 +458,7 @@ public sealed class AdministrationSearchAccountWebTests
 
         var html = await client.GetStringAsync(
             $"/Administration/Logs?From={from}&To={to}&Area=Security");
-        var row = ActionLogRow(html, "SecurityStampChanged");
+        var row = ActionLogRow(html, OperatorLabels.ActionLogAction("SecurityStampChanged"));
 
         Assert.Contains(DevelopmentOfflineIdentity.UserName, row, StringComparison.Ordinal);
         Assert.DoesNotContain("Unknown user", row, StringComparison.Ordinal);
@@ -470,10 +471,10 @@ public sealed class AdministrationSearchAccountWebTests
         // and now also by the operator who acted.
         var byActor = await client.GetStringAsync(
             $"/Administration/Logs?From={from}&To={to}&Actor={DevelopmentOfflineIdentity.AdministratorId:D}");
-        Assert.Contains("SecurityStampChanged", byActor, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.ActionLogAction("SecurityStampChanged"), byActor, StringComparison.Ordinal);
         var bySubject = await client.GetStringAsync(
             $"/Administration/Logs?From={from}&To={to}&Actor={targetAccount:D}");
-        Assert.Contains("SecurityStampChanged", bySubject, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.ActionLogAction("SecurityStampChanged"), bySubject, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -510,7 +511,7 @@ public sealed class AdministrationSearchAccountWebTests
         var html = await client.GetStringAsync(
             $"/Administration/Logs?From={from}&To={to}&Area=Security");
         // The reason code is not a column; the recorded event type is.
-        var row = ActionLogRow(html, "SignIn");
+        var row = ActionLogRow(html, OperatorLabels.ActionLogAction("SignIn"));
 
         Assert.Contains("Sign-in", row, StringComparison.Ordinal);
         Assert.DoesNotContain(ActorDisplayNames.UnknownStaff, row, StringComparison.Ordinal);
@@ -544,11 +545,13 @@ public sealed class AdministrationSearchAccountWebTests
 
         var html = await client.GetStringAsync($"/Administration/Logs?From={from}&To={to}");
 
-        var aiRow = ActionLogRow(html, "ai_job_taken");
+        var aiRow = ActionLogRow(html, OperatorLabels.ActionLogAction("ai_job_taken"));
         Assert.Contains(">AI<", aiRow, StringComparison.Ordinal);
         Assert.Contains("AI job", aiRow, StringComparison.Ordinal);
+        // The AI actor chip is the shared status chip (v41 A6).
+        Assert.Contains($"<span class=\"status status--neutral\">{OperatorLabels.ActionLogAiActor}</span>", aiRow, StringComparison.Ordinal);
 
-        var systemRow = ActionLogRow(html, "case_chased");
+        var systemRow = ActionLogRow(html, OperatorLabels.ActionLogAction("case_chased"));
         Assert.Contains(OperatorLabels.SystemActorLabel, systemRow, StringComparison.Ordinal);
         Assert.DoesNotContain(">AI<", systemRow, StringComparison.Ordinal);
 
@@ -599,12 +602,12 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Contains("kind-filter-ai", ai, StringComparison.Ordinal);
         Assert.DoesNotContain("kind-filter-staff", ai, StringComparison.Ordinal);
         Assert.DoesNotContain("kind-filter-system", ai, StringComparison.Ordinal);
-        Assert.DoesNotContain("PasswordChanged", ai, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.ActionLogAction("PasswordChanged"), ai, StringComparison.Ordinal);
 
         var staff = await client.GetStringAsync(
             $"/Administration/Logs?From={from}&To={to}&ActorType=Staff");
         Assert.Contains("kind-filter-staff", staff, StringComparison.Ordinal);
-        Assert.Contains("PasswordChanged", staff, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.ActionLogAction("PasswordChanged"), staff, StringComparison.Ordinal);
         Assert.DoesNotContain("kind-filter-ai", staff, StringComparison.Ordinal);
 
         var system = await client.GetStringAsync(
@@ -741,7 +744,7 @@ public sealed class AdministrationSearchAccountWebTests
             $"/Administration/Logs?From={from}&To={to}&Actor={actor}&page=3");
 
         Assert.Contains("combined-action-050", page, StringComparison.Ordinal);
-        Assert.Contains("SignInFailed050", page, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.ActionLogAction("SignInFailed050"), page, StringComparison.Ordinal);
         Assert.DoesNotContain("page=4", page, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -939,7 +942,7 @@ public sealed class AdministrationSearchAccountWebTests
         var fromParam = Uri.EscapeDataString(from.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
         var toParam = Uri.EscapeDataString(to.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
 
-        var html = await client.GetStringAsync($"/Administration/Reports?from={fromParam}&to={toParam}");
+        var html = await client.GetStringAsync($"/Administration/Reports?tab=principals&from={fromParam}&to={toParam}");
 
         Assert.Contains("Reports by Principal", html, StringComparison.Ordinal);
         Assert.Contains("QDOS", html, StringComparison.Ordinal);
@@ -1133,11 +1136,13 @@ public sealed class AdministrationSearchAccountWebTests
         var fromParam = Uri.EscapeDataString(from.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
         var toParam = Uri.EscapeDataString(to.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
 
-        var html = await client.GetStringAsync($"/Administration/Reports?from={fromParam}&to={toParam}");
+        var html = await client.GetStringAsync($"/Administration/Reports?tab=principals&from={fromParam}&to={toParam}");
 
         Assert.Contains("Turnaround", html, StringComparison.Ordinal);
         Assert.Contains("QDOS", html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.OfficeTime(heldAt), html, StringComparison.Ordinal);
+        // Held is now, so it is on the Queues tab.
+        var queuesTab = await client.GetStringAsync($"/Administration/Reports?tab=queues&from={fromParam}&to={toParam}");
+        Assert.Contains(OperatorLabels.OfficeTime(heldAt), queuesTab, StringComparison.Ordinal);
         Assert.Contains("2 days", html, StringComparison.Ordinal);
         Assert.Contains("3 days", html, StringComparison.Ordinal);
         Assert.Contains("4 days", html, StringComparison.Ordinal);

@@ -3,10 +3,18 @@
 @using Pegasus.Core.Reports
 @{
     ViewData["Title"] = OperatorLabels.Admin.Reports;
-    ViewData["Eyebrow"] = "Administration";
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "reports";
+    if (!Model.PeriodInvalid)
+    {
+        ViewData["SecondaryActionText"] = "Download workbook";
+        ViewData["SecondaryActionUrl"] = Url.Page("/Administration/Reports", "Workbook", Model.State());
+        ViewData["SecondaryActionIcon"] = "icon-file-spreadsheet";
+    }
+
     var invariant = System.Globalization.CultureInfo.InvariantCulture;
     string Money(decimal value) => value.ToString("£#,##0.00", invariant);
+    var tab = Model.TabValue;
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
@@ -27,9 +35,9 @@
         }
     }
 
-    void Download(string handler, string label = "Download CSV", string icon = "icon-download", string css = "btn btn--small")
+    void Download(string handler)
     {
-        <a class="@css" href="@Url.Page("/Administration/Reports", handler, Model.State())" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href(icon)" /></svg><span>@label</span></a>
+        <a class="btn btn--small" href="@Url.Page("/Administration/Reports", handler, Model.State())" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg><span>Download CSV</span></a>
     }
 
     void Metric(string label, string value, string? previous)
@@ -61,16 +69,7 @@
         </form>
     }
 }
-<header class="page-header">
-    <div class="page-title">
-        <p class="eyebrow">Administration</p>
-        <h1>@OperatorLabels.Admin.Reports</h1>
-    </div>
-    @if (!Model.PeriodInvalid)
-    {
-        <div class="page-actions">@{ Download("Workbook", "Download workbook", "icon-file-spreadsheet", "btn"); }</div>
-    }
-</header>
+<partial name="Shared/_PageHeader" />
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
@@ -92,7 +91,7 @@
                        which the picker then shows. *@
                     <div class="field"><label for="report-from">From</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" data-period-custom /></div>
                     <div class="field"><label for="report-to">To</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" data-period-custom /></div>
-                    <div class="cluster"><button class="btn btn--dark" type="submit">Apply</button></div>
+                    <div class="cluster"><button class="btn btn--primary" type="submit">Apply</button></div>
                 </div>
                 @if (Model.PeriodInvalid)
                 {
@@ -101,7 +100,15 @@
             </div>
         </form>
 
-        @if (!Model.PeriodInvalid)
+        @* Each tab is its own address, as on Logs. The period and every choice ride the tab links. *@
+        <nav class="tabs" aria-label="@OperatorLabels.Admin.Reports">
+            @foreach (var (value, label) in ReportsModel.Tabs)
+            {
+                <a class="tab" href="@Url.Page("/Administration/Reports", null, Model.State(("tab", value)))" aria-current="@(value == tab ? "page" : null)">@label</a>
+            }
+        </nav>
+
+        @if (!Model.PeriodInvalid && tab == ReportsModel.EngineersTab)
         {
             var engineerRows = Model.EngineerResult.Rows;
             var previousEngineer = Model.PreviousEngineer?.Rows;
@@ -173,7 +180,10 @@
                     </div>
                 </div>
             </section>
+        }
 
+        @if (!Model.PeriodInvalid && tab == ReportsModel.PrincipalsTab)
+        {
             var principal = Model.PrincipalActivity;
             var previousPrincipal = Model.PreviousPrincipal?.Rows;
             var principalRows = Model.PrincipalRows;
@@ -356,7 +366,11 @@
                     </div>
                 </div>
             </section>
+        }
 
+        @if (!Model.PeriodInvalid && tab == ReportsModel.QueuesTab)
+        {
+            var principal = Model.PrincipalActivity;
             var queueRows = principal is null ? Array.Empty<PrincipalReportActivity>() : AdministrationReportTables.QueueRows(principal).ToArray();
             <section class="panel" aria-labelledby="queues-title">
                 <div class="panel-head">
@@ -408,15 +422,14 @@
             </section>
         }
 
-        @{
-            var caseList = Model.CaseList;
-            var chosen = caseList.Columns.ToHashSet(StringComparer.Ordinal);
-            var selectedPreset = Model.SelectedPreset;
-        }
+        @if (tab == ReportsModel.CaseListTab)
+        {
+        var caseList = Model.CaseList;
+        var chosen = caseList.Columns.ToHashSet(StringComparer.Ordinal);
+        var selectedPreset = Model.SelectedPreset;
         <section class="panel" aria-labelledby="mi04-title" data-case-list>
             <div class="panel-head"><h2 id="mi04-title">@OperatorLabels.CaseList.Title</h2></div>
             <div class="panel-body stack">
-                <p class="muted admin-report-note">@OperatorLabels.CaseList.Note</p>
                 @if (Model.CaseListError is { } caseListError)
                 {
                     <div class="notice notice--danger" role="alert">@caseListError</div>
@@ -455,7 +468,7 @@
                     </div>
                     @foreach (var group in CaseListColumns.All.GroupBy(column => column.Group))
                     {
-                        <fieldset class="stack">
+                        <fieldset class="stack fieldset-plain fieldset-plain--label">
                             <legend>@OperatorLabels.CaseList.Group(group.Key)</legend>
                             <div class="form-grid form-grid--auto">
                                 @foreach (var column in group)
@@ -486,5 +499,6 @@
                 </form>
             </div>
         </section>
+        }
     </div>
 </div>

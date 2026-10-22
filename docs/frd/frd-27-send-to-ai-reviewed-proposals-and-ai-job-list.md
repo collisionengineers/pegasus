@@ -119,7 +119,9 @@ files are retained. All kinds can also end in `Failed`, `Cancelled` or
   implied.
 - `Failed`: the client reported failure with a reason; not re-queued
   automatically.
-- `Cancelled`: staff or the Automation Actor cancelled with a reason. A
+- `Cancelled`: staff cancelled, with an optional reason
+  ([v41 A28](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
+  or the Automation Actor cancelled with a reason. A
   taken job is cancelled at once, whichever client holds it, and the
   holder's next progress call is refused.
 - `Expired`: never taken before its own expiry.
