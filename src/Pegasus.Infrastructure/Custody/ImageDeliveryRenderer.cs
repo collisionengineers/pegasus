@@ -14,10 +14,9 @@ namespace Pegasus.Infrastructure.Custody;
 /// <remarks>
 /// The source is decoded once, at the scale the first edge needs, and every
 /// smaller attempt resizes that bitmap, so a 6 MB photograph is read once.
-/// When no quality fits at the first edge, the smallest rendering is probed
-/// before the edges between, so an image that no rendering fits is refused
-/// after one more draw and one more encode rather than every one; an image
-/// that fits at the first edge pays nothing for the probe.
+/// The search runs from the first edge down, each edge at every quality, and
+/// the first rendering that fits is returned; only an image for which every
+/// edge and quality has failed is refused as no quality fits.
 /// The codec reads the caller's bytes where they lie rather than a copy.
 /// Nothing here throws at the caller: bytes that are not a decodable image,
 /// an image past the decode bound, or a budget no quality fits mean "no
@@ -108,62 +107,12 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
                 return Undecodable;
             }
 
-            // The edges halve from the first down to the floor; the last one
-            // tried is the smallest.
+            // The edges halve from the first down to the floor, each at every
+            // quality, largest first; the first rendering that fits is the
+            // answer. An image already under the floor is tried at its own
+            // size.
             var lastEdge = Math.Min(MinimumEdge, firstEdge);
-            var smallestEdge = firstEdge;
-            while (smallestEdge / 2 >= lastEdge)
-            {
-                smallestEdge /= 2;
-            }
-
-            // The first edge, every quality, largest first: a render that fits
-            // here draws and encodes nothing else.
-            cancellationToken.ThrowIfCancellationRequested();
-            var (firstWidth, firstHeight) = TargetSize(
-                displayedWidth, displayedHeight, displayedLongest, firstEdge);
-            using (var first = Draw(decoded, origin, transposed, firstWidth, firstHeight))
-            {
-                if (first is null)
-                {
-                    return Undecodable;
-                }
-                if (FirstFit(first, Qualities, maximumBytes, firstWidth, firstHeight, displayedWidth, displayedHeight)
-                    is { } rendering)
-                {
-                    return rendering;
-                }
-            }
-            if (smallestEdge == firstEdge)
-            {
-                return NoQualityFits;
-            }
-
-            // Every quality failed at the first edge, so the smallest
-            // rendering, the smallest edge at the lowest quality, is probed
-            // before the edges between: when it does not fit, no rendering
-            // does, and the image is refused after one more draw and one more
-            // encode. When it fits, the smallest edge reuses this drawing and
-            // this encoding.
-            cancellationToken.ThrowIfCancellationRequested();
-            var (smallestWidth, smallestHeight) = TargetSize(
-                displayedWidth, displayedHeight, displayedLongest, smallestEdge);
-            using var smallest = Draw(decoded, origin, transposed, smallestWidth, smallestHeight);
-            if (smallest is null)
-            {
-                return Undecodable;
-            }
-            using var smallestEncoded = smallest.Encode(SKEncodedImageFormat.Jpeg, Qualities[^1]);
-            if (smallestEncoded is null)
-            {
-                return Undecodable;
-            }
-            if (smallestEncoded.Size > maximumBytes)
-            {
-                return NoQualityFits;
-            }
-
-            for (var edge = firstEdge / 2; edge > smallestEdge; edge /= 2)
+            for (var edge = firstEdge; edge >= lastEdge; edge /= 2)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var (targetWidth, targetHeight) = TargetSize(displayedWidth, displayedHeight, displayedLongest, edge);
@@ -172,23 +121,14 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
                 {
                     return Undecodable;
                 }
-                if (FirstFit(image, Qualities, maximumBytes, targetWidth, targetHeight, displayedWidth, displayedHeight)
+                if (FirstFit(image, maximumBytes, targetWidth, targetHeight, displayedWidth, displayedHeight)
                     is { } rendering)
                 {
                     return rendering;
                 }
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
-            return FirstFit(
-                    smallest,
-                    Qualities.AsSpan(..^1),
-                    maximumBytes,
-                    smallestWidth,
-                    smallestHeight,
-                    displayedWidth,
-                    displayedHeight)
-                ?? Rendered(smallestEncoded, smallestWidth, smallestHeight, displayedWidth, displayedHeight);
+            return NoQualityFits;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -218,19 +158,18 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
     }
 
     /// <summary>
-    /// The drawing encoded at the first of <paramref name="qualities"/> that
-    /// fits, undecodable when an encode fails, or <c>null</c> when none fits.
+    /// The drawing encoded at the first quality, highest first, that fits,
+    /// undecodable when an encode fails, or <c>null</c> when none fits.
     /// </summary>
     private static DeliveryImageRendering? FirstFit(
         SKImage image,
-        ReadOnlySpan<int> qualities,
         int maximumBytes,
         int width,
         int height,
         int displayedWidth,
         int displayedHeight)
     {
-        foreach (var quality in qualities)
+        foreach (var quality in Qualities)
         {
             using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, quality);
             if (encoded is null)
