@@ -5,7 +5,9 @@
 // ArrowUp/Down move the selection, Enter chooses it, Escape closes the list.
 // Each option is the page's own select submit button, so choosing one runs
 // the form's ordinary submit path: the composer's fetch-swap on the Inbox,
-// a plain post elsewhere. Enter never submits the form itself.
+// a plain post elsewhere. Enter never submits the form itself. An option that
+// is a [data-case-picker-choice] button instead fills the input with its
+// Case / PO and closes the list; the page's own form then posts it.
 (function () {
     "use strict";
 
@@ -97,6 +99,16 @@
                     }
                 });
         }
+
+        options.addEventListener("click", function (event) {
+            var choice = event.target.closest("[data-case-picker-choice]");
+            if (!choice) {
+                return;
+            }
+            input.value = choice.getAttribute("data-case-picker-choice");
+            close();
+            input.focus();
+        });
 
         input.addEventListener("input", function () {
             window.clearTimeout(timer);
