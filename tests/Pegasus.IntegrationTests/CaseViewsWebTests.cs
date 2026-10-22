@@ -763,6 +763,10 @@ public sealed class CaseViewsWebTests
         {
             Assert.Contains($"data-open-task=\"{task.Id:D}\"", list, StringComparison.Ordinal);
             Assert.Contains(task.Description, list, StringComparison.Ordinal);
+            // The row is the link: its description opens the dialog (v41 K3).
+            Assert.Matches(
+                $"<li class=\"blocker\" data-open-task=\"{task.Id:D}\">\\s*<a [^>]*data-dialog-open=\"case-tasks-dialog\"[^>]*><strong>{Regex.Escape(task.Description)}</strong></a>\\s*</li>",
+                list);
         }
         // Each opens the Tasks dialog, with ?dialog=tasks drawing it open without script.
         Assert.Equal(openTasks.Length, Occurrences(list, "data-dialog-open=\"case-tasks-dialog\""));

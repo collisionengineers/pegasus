@@ -526,11 +526,20 @@ internal static partial class CaseWebTestSupport
         /// <summary>The tasks the Tasks section reads, in the order the store lists them.</summary>
         public List<CaseTaskRecord> Tasks { get; } = [];
 
+        /// <summary>The enabled staff the Tasks section reads: the Assign choices and the assignees it names.</summary>
+        public List<CaseEngineerChoice> TaskStaff { get; } = [];
+
         Task<CaseTasksSection?> IGetCaseTasksSection.ExecuteAsync(
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CaseTasksSection?>(query.CaseId == CaseId
-                ? new(query.Frame ?? FocusedFrame(), [.. Tasks], new Dictionary<Guid, string>())
+                ? new(
+                    query.Frame ?? FocusedFrame(),
+                    [.. Tasks],
+                    TaskStaff
+                        .Where(staff => Tasks.Exists(task => task.AssigneeId == staff.StaffId))
+                        .ToDictionary(staff => staff.StaffId, staff => staff.DisplayName),
+                    [.. TaskStaff])
                 : null);
     }
 }

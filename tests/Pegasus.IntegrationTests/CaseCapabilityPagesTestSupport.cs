@@ -756,28 +756,44 @@ internal static partial class CaseWebTestSupport
     /// satisfied by the first record's page frame or assessment workspace.
     /// </summary>
 
-    internal sealed class StubStaffAccounts(Guid staffId, string userName, StaffRole role = StaffRole.User)
-        : IStaffAccountQueries
+    internal sealed class StubStaffAccounts(
+        Guid staffId,
+        string userName,
+        StaffRole role = StaffRole.User,
+        params StaffAccountSummary[] colleagues)
+        : IStaffAccountQueries, ICaseEngineerChoices
     {
-        private readonly StaffAccountSummary account =
-            new(staffId, userName, true, false, role);
+        private readonly StaffAccountSummary[] accounts =
+            [new(staffId, userName, true, false, role), .. colleagues];
 
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,
             int limit,
             CancellationToken cancellationToken) =>
-            Task.FromResult(new StaffAccountQuerySlice([account], false));
+            Task.FromResult(new StaffAccountQuerySlice(accounts, false));
 
         public Task<StaffAccountSummary?> GetAsync(
             Guid requestedStaffId,
             CancellationToken cancellationToken) =>
-            Task.FromResult<StaffAccountSummary?>(requestedStaffId == staffId ? account : null);
+            Task.FromResult(accounts.FirstOrDefault(account => account.Id == requestedStaffId));
 
         public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
             IReadOnlyCollection<Guid> staffIds,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
-                staffIds.Contains(staffId) ? [account] : []);
+                [.. accounts.Where(account => staffIds.Contains(account.Id))]);
+
+        /// <summary>The enabled accounts by username, as the directory lists the Engineer choices.</summary>
+        public Task<IReadOnlyList<CaseEngineerChoice>> GetAsync(
+            ActionActor actor,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseEngineerChoice>>(
+            [
+                .. accounts.Where(account => account.IsEnabled)
+                    .OrderBy(account => account.UserName, StringComparer.Ordinal)
+                    .ThenBy(account => account.Id)
+                    .Select(account => new CaseEngineerChoice(account.Id, account.UserName))
+            ]);
 
         public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");

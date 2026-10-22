@@ -80,6 +80,30 @@ public static class CaseWorkspaceLabels
         public const string Details = "Details";
         public const string ReturnToReview = "Return to Review";
         public const string ReturnToEngineer = "Return to Engineer";
+
+        /// <summary>
+        /// Return to work on a closed Case (R157, FRD-13; v41 K10, signed off
+        /// 19 October 2026): the Actions item and its dialog's title.
+        /// </summary>
+        public const string ReturnToWork = "Return to work";
+
+        /// <summary>
+        /// The Return to work dialog's stage field (v41 K10, signed off 19
+        /// October 2026): the word W2 gives the Search stage filter.
+        /// </summary>
+        public const string ReturnToWorkStage = OperatorLabels.Search.CaseStage;
+
+        /// <summary>A Return to work stage option: the stage's own name.</summary>
+        public static string ReturnToWorkDestination(CaseReopenDestination destination) =>
+            OperatorLabels.CaseStage(destination switch
+            {
+                CaseReopenDestination.NotReady => CaseLifecycleState.NotReady,
+                CaseReopenDestination.Review => CaseLifecycleState.Review,
+                CaseReopenDestination.ReportPreparation => CaseLifecycleState.ReportPreparation,
+                CaseReopenDestination.ReportSent => CaseLifecycleState.ReportSent,
+                _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
+            });
+
         public const string ArchiveCase = "Archive case";
         public const string OriginalCase = "Original case";
         public const string ReplacementCase = "Replacement case";

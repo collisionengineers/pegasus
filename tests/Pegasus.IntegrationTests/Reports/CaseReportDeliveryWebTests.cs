@@ -936,10 +936,12 @@ public sealed partial class AssessmentReportDraftWebTests
                 null, null, "handler@principal.example",
                 ["noreply@principal.example", "copy@principal.example"], "Claim for PK12TMZ"),
             Outcome: "repairable");
+        // The already-sent line lists every address the last send went to, To then Cc (v41 K5).
         var history = new CaseReportSendHistory(
             1, null,
             LastSentAtUtc: new DateTimeOffset(2026, 10, 3, 13, 2, 0, TimeSpan.Zero),
-            LastRecipients: ["a@principal.example", "b@principal.example"]);
+            LastTo: ["a@principal.example"],
+            LastCc: ["b@principal.example"]);
         // The report replies to the instruction email from the mailbox it
         // arrived in (operator, 12 October 2026).
         var engineers = OutgoingMailbox("engineers@collisionengineers.example");
@@ -1001,6 +1003,8 @@ public sealed partial class AssessmentReportDraftWebTests
             "<input type=\"checkbox\" name=\"holdsDone\" value=\"Check the images.\" data-report-hold />",
             form,
             StringComparison.Ordinal);
+        // Each hold and its Done tick share one line (v41 K2).
+        Assert.Equal(2, Regex.Count(form, "<div class=\"cluster\" data-report-hold-row>"));
         Assert.Equal(facts.Fingerprint, InputValue(form, "dispatchFingerprint"));
         Assert.Contains(
             $">{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendReport}<",
@@ -1009,6 +1013,43 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.DoesNotContain("data-report-missing-companion", form, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=PrepareReportDelivery", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-still-to-do", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Reading a Case whose report was sent (v41 K5, 15 October 2026): the
+    /// delivery cells' To and Cc read the last send's recipients, each apart,
+    /// and a cell the send left empty reads Not recorded.
+    /// </summary>
+    [Fact]
+    public async Task ReadModeShowsTheLastSentReportsToAndCc()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var facts = new ReportDispatchFacts(
+            "QDOS26001", "PK12TMZ", "Principal Ltd", PrincipalReportSendingRules.Default, null)
+        {
+            OriginalSender = "handler@principal.example"
+        };
+        var history = new CaseReportSendHistory(
+            1, null,
+            LastSentAtUtc: new DateTimeOffset(2026, 10, 3, 13, 2, 0, TimeSpan.Zero),
+            LastTo: ["handler@principal.example", "claims@principal.example"],
+            LastCc: []);
+        using var factory = WithDispatchFacts(baseFactory, caseId, new FakeCurrentGeneration(caseId), facts, history);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var read = Regex.Match(html, "<div class=\"recip-form\" data-send-report-read>.*?data-report-file-name", RegexOptions.Singleline);
+        Assert.True(read.Success, "Read mode must draw the delivery cells.");
+        Assert.Contains(
+            "<div class=\"fc ro\"><span class=\"lbl\">To</span><div class=\"fv\" data-report-last-to>handler@principal.example, claims@principal.example</div></div>",
+            read.Value,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"<div class=\"fc ro\"><span class=\"lbl\">Cc</span><div class=\"fv empty\" data-report-last-cc>{Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue}</div></div>",
+            read.Value,
+            StringComparison.Ordinal);
     }
 
     /// <summary>

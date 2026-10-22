@@ -89,6 +89,10 @@ Next action is one step (operator, 8 October 2026): in Not ready the first
 outstanding requirement, in Review Assign Engineer, which opens the Actions
 menu's dialog, and With Engineer the first blocker ([FRD-16](frd-16-case-record-workspace.md#case-workspace),
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+A With Engineer Case with no Engineer has Assign Engineer as its step too,
+with **Take** beside it while the Case is Unassigned (#1213, v41 K9,
+operator, 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 **Required items are configuration.** Instruction completeness and image
 completeness are each a versioned list of items marked required or not

@@ -71,14 +71,47 @@ public sealed partial class DetailsModel
     public bool CanCreateAudit => OffersCreateAudit && CreateAuditCondition is null;
 
     /// <summary>
-    /// Assign Engineer is live: a Review Case whose data the viewer may act on,
-    /// with an eligible Engineer to choose. Its dialog renders, and the Actions
-    /// menu and the Next action both open it (issue 1025).
+    /// Assign Engineer is live: a Review or With Engineer Case (#1213) whose
+    /// data the viewer may act on, with an eligible Engineer to choose. Its
+    /// dialog renders, and the Actions menu and the Next action both open it
+    /// (issue 1025).
     /// </summary>
     public bool CanAssignEngineer =>
-        Case is { Workflow.State: CaseLifecycleState.Review }
+        Case is { } details
+        && CaseLifecycleRules.CanBeAssigned(details.Workflow.State)
         && !ColleagueIsEditing
-        && AssignEngineerChoices is { EngineerOptions.Count: > 0 };
+        && AssignEngineerChoices is { Engineers.Count: > 0 };
+
+    /// <summary>
+    /// The signed-in person's staff id, which Take posts beside Assign
+    /// Engineer while the Case has no Engineer (#1213, v41 K9); null when
+    /// Take is not offered.
+    /// </summary>
+    public Guid? TakeEngineerId =>
+        CanAssignEngineer && Case!.Workflow.AssignedEngineerId is null
+            ? AssignEngineerChoices!.ViewerStaffId
+            : null;
+
+    /// <summary>
+    /// The ribbon's Engineer: the assigned Engineer's name, else Unassigned
+    /// before the report (R161 (b)), else Not recorded.
+    /// </summary>
+    public string RibbonEngineer =>
+        EngineerDisplayName
+        ?? (CaseLifecycleRules.IsClosed(Case!.Workflow.State)
+            ? OperatorLabels.CaseWorkspace.AbsentValue
+            : OperatorLabels.CaseWorkspace.Unassigned);
+
+    /// <summary>
+    /// Return to work is live (R157): a closed Case other than Created in
+    /// error, not archived, that no colleague is editing. Its dialog renders
+    /// and the Actions menu opens it.
+    /// </summary>
+    public bool CanReturnToWork =>
+        Case is { } details
+        && CaseLifecycleRules.CanBeReopened(details.Workflow.State)
+        && details.Workflow.Archive is null
+        && !ColleagueIsEditing;
 
     /// <summary>
     /// Place on Hold is live: a Case Core allows to be held (Not ready, Review

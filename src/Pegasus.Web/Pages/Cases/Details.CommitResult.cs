@@ -181,6 +181,7 @@ public sealed partial class DetailsModel
         {
             var extrasInputs = new WorkspaceExtrasInputs(
                 Case,
+                actor,
                 AssessmentCanOpen,
                 EligibleSignOffEngineers,
                 LeaseToken);

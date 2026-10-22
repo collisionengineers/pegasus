@@ -218,7 +218,25 @@
                 else if (nextRow.OpensAssignEngineer)
                 {
                     <div class="next-step" data-next-step>
-                        @if (Model.CanAssignEngineer)
+                        @if (Model.TakeEngineerId is { } takeEngineerId)
+                        {
+                            @* An Unassigned Case: Take beside Assign Engineer assigns
+                               it to the signed-in person in one step (#1213, v41 K9). *@
+                            <div class="next-row" data-next-assign>
+                                <button type="button" class="@StepButton" data-dialog-open="case-handoff-dialog" data-next-assign-engineer>@CaseWorkspaceLabels.AssignEngineer</button>
+                                <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="AssignEngineer" data-case-take>
+                                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                                    @if (!string.IsNullOrWhiteSpace(Model.LeaseToken)) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                                    <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                    <input type="hidden" name="section" value="@Model.Section" />
+                                    <input type="hidden" name="engineerId" value="@takeEngineerId" />
+                                    <button type="submit" class="btn btn--primary btn--small" data-busy-label="@OperatorLabels.Busy.Assigning">@OperatorLabels.WorkCentre.Take</button>
+                                </form>
+                            </div>
+                        }
+                        else if (Model.CanAssignEngineer)
                         {
                             <button type="button" class="@StepButton" data-dialog-open="case-handoff-dialog" data-next-assign-engineer>@CaseWorkspaceLabels.AssignEngineer</button>
                         }
@@ -296,19 +314,17 @@
                 @* Once Report sent is recorded the Case's open tasks follow
                    the step (operator, 6 October 2026), and while any is open
                    Archive is greyed: one row per open task, oldest first, each
-                   opening the Tasks dialog, which owns them. *@
+                   row the link that opens the Tasks dialog, which owns them
+                   (v41 K3). *@
                 <div class="sub-panel blockers" data-open-tasks>
                     <h3>@CaseWorkspaceLabels.Tasks.Title</h3>
                     <ul class="blocker-list">
                         @foreach (var task in openTasks)
                         {
                             <li class="blocker" data-open-task="@task.Id">
-                                <strong>@task.Description</strong>
-                                <div class="blocker-actions">
-                                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
-                                       asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
-                                       data-dialog-open="case-tasks-dialog">@CaseWorkspaceLabels.Tasks.Title</a>
-                                </div>
+                                <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                                   asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
+                                   data-dialog-open="case-tasks-dialog"><strong>@task.Description</strong></a>
                             </li>
                         }
                     </ul>

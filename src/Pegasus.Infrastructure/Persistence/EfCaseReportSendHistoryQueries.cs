@@ -11,7 +11,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// actually left the approved mailbox, counted from the staff-send operations
 /// that carried one of this work's generations (either report of a send that
 /// carried both), with the report date of the one sent last, when it was
-/// observed in the Sent folder and the addresses it went to. A
+/// observed in the Sent folder and the addresses it went to, To and Cc apart
+/// (v41 K5). A
 /// prepared-but-unsent delivery is not a send. The accepted count also counts
 /// the sends Graph accepted whose Sent item is not yet observed: the Next
 /// action follows it rather than waiting for the Sent poll (operator, 12
@@ -44,18 +45,22 @@ internal sealed class EfCaseReportSendHistoryQueries(
                 && send.Purpose == StaffMailPurpose.CaseReport
                 && (send.State == StaffMailState.Submitted || send.State == StaffMailState.Sent)
             select new { send.State, send.ObservedSentAtUtc, send.RecipientsJson, generation.SnapshotJson };
-        var acceptedCount = await accepted.CountAsync(cancellationToken).ConfigureAwait(false);
-        if (acceptedCount == 0)
+        // One statement gives both counts: a work has a handful of sends, so
+        // their states are read and counted here.
+        var states = await accepted.Select(row => row.State).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (states.Count == 0)
         {
             return CaseReportSendHistory.None;
         }
 
-        var sent = accepted.Where(row => row.State == StaffMailState.Sent);
-        var sentCount = await sent.CountAsync(cancellationToken).ConfigureAwait(false);
+        var acceptedCount = states.Count;
+        var sentCount = states.Count(state => state == StaffMailState.Sent);
         if (sentCount == 0)
         {
             return new(0, null, acceptedCount);
         }
+
+        var sent = accepted.Where(row => row.State == StaffMailState.Sent);
 
         // Only the newest send is read in full: the counts, its report date,
         // when it was observed and who it went to are all the history carries.
@@ -72,6 +77,7 @@ internal sealed class EfCaseReportSendHistoryQueries(
             latest?.ReportDate,
             acceptedCount,
             newest.ObservedSentAtUtc,
-            [.. (recipients?.To ?? []).Concat(recipients?.Cc ?? []).Select(recipient => recipient.Address)]);
+            [.. (recipients?.To ?? []).Select(recipient => recipient.Address)],
+            [.. (recipients?.Cc ?? []).Select(recipient => recipient.Address)]);
     }
 }

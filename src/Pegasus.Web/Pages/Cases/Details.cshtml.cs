@@ -1663,10 +1663,6 @@ public sealed partial class DetailsModel(
             {
                 await LoadValuationSectionAsync(id, actor, cancellationToken);
             }
-            if (key == "tasks" && !ColleagueIsEditing)
-            {
-                TaskAssigneeChoices = await caseEngineerChoices.GetAsync(actor, cancellationToken);
-            }
             return Partial(view, this);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -1759,13 +1755,9 @@ public sealed partial class DetailsModel(
             : null;
         // The Tasks dialog's body is drawn with the page only when the page
         // draws the dialog open; otherwise it is fetched as the dialog opens.
+        // It carries the enabled staff an open task's Assign offers.
         var tasks = readsTasks
             ? reads.Start(token => getCaseTasksSection.ExecuteAsync(query, token))
-            : null;
-        // An open task's Assign offers the enabled staff only while the Tasks
-        // body is rendered here and can be changed (in or out of a session).
-        var taskAssignees = readsTasks && !ColleagueIsEditing
-            ? reads.Start(token => caseEngineerChoices.GetAsync(actor, token))
             : null;
         var queries = rendered.Contains("queries")
             ? reads.Start(token => getCaseQueriesSection.ExecuteAsync(query, token))
@@ -1805,10 +1797,6 @@ public sealed partial class DetailsModel(
             TasksSection = await tasks
                 ?? throw new InvalidOperationException("The Case tasks section is unavailable.");
         }
-        if (taskAssignees is not null)
-        {
-            TaskAssigneeChoices = await taskAssignees;
-        }
         if (queries is not null)
         {
             QueriesSection = await queries
@@ -1836,6 +1824,7 @@ public sealed partial class DetailsModel(
         var filesRendered = !SectionIsDeferred("files");
         var extrasInputs = new WorkspaceExtrasInputs(
             details,
+            actor,
             AssessmentCanOpen,
             EligibleSignOffEngineers,
             LeaseToken);
@@ -4962,6 +4951,7 @@ public sealed partial class DetailsModel(
     /// <summary>The page state the frame's extra reads start from.</summary>
     private sealed record WorkspaceExtrasInputs(
         CasePageFrame Details,
+        ActionActor Actor,
         bool AssessmentCanOpen,
         IReadOnlyList<SignOffEngineerProfile> EligibleSignOffEngineers,
         string? LeaseToken);
@@ -4974,7 +4964,7 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// The values the workspace frame names that the case projection does not
     /// carry directly: the assigned and Sign-off Engineer names, and the
-    /// Engineer choices available in Review.
+    /// Engineer choices available in Review and With Engineer.
     /// </summary>
     private async Task<WorkspaceExtras> ReadWorkspaceExtrasAsync(
         WorkspaceExtrasInputs inputs,
@@ -4982,18 +4972,21 @@ public sealed partial class DetailsModel(
     {
         var details = inputs.Details;
         var workflow = details.Workflow;
-        // In Review the Engineer choices list the staff accounts, which name
-        // the assigned Engineer too, so that account is read on its own only
-        // when the list does not hold it.
-        IReadOnlyList<StaffAccountSummary> roster = workflow.State == CaseLifecycleState.Review
-            ? (await staffAccountQueries.ListAsync(0, 100, cancellationToken)).Accounts
+        // Where Assign Engineer runs, its choices are the enabled staff, the
+        // signed-in person first, as the Triage Assign list reads them (#1213).
+        // They name the assigned Engineer too, so that account is read on its
+        // own only when the list does not hold it.
+        var viewerStaffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(inputs.Actor);
+        IReadOnlyList<CaseEngineerChoice> roster = CaseLifecycleRules.CanBeAssigned(workflow.State)
+            ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, cancellationToken))
+                .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
             : [];
         string? engineerDisplayName = null;
         if (workflow.AssignedEngineerId is { } engineerId)
         {
-            var account = roster.FirstOrDefault(listed => listed.Id == engineerId)
-                ?? await staffAccountQueries.GetAsync(engineerId, cancellationToken);
-            engineerDisplayName = account?.UserName ?? ActorDisplayNames.UnknownStaff;
+            engineerDisplayName = roster.FirstOrDefault(listed => listed.StaffId == engineerId)?.DisplayName
+                ?? (await staffAccountQueries.GetAsync(engineerId, cancellationToken))?.UserName
+                ?? ActorDisplayNames.UnknownStaff;
         }
 
         var profiles = inputs.AssessmentCanOpen ? inputs.EligibleSignOffEngineers
@@ -5005,15 +4998,10 @@ public sealed partial class DetailsModel(
         var signOffEngineerDisplayName = signOffEngineer?.PrintedName
             ?? Labels.CaseWorkspace.Unassigned;
 
-        IReadOnlyList<EngineerOption> engineerOptions = roster
-            .Where(account => account.IsEnabled)
-            .Select(account => new EngineerOption(account.Id, account.UserName))
-            .ToArray();
-
         return new(
             engineerDisplayName,
             signOffEngineerDisplayName,
-            new(engineerOptions));
+            new(roster, viewerStaffId));
     }
 
     /// <summary>

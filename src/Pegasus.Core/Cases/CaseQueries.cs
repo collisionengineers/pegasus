@@ -380,13 +380,17 @@ public sealed record CaseQueriesSection(
     IReadOnlyList<CaseQueryItem> Queries);
 
 /// <summary>
-/// The Tasks body source (CASE-20): the Case's tasks, open ones first, and the operator-facing
-/// names of the staff they are assigned to.
+/// The Tasks body source (CASE-20): the Case's tasks, open ones first; the names of the
+/// enabled staff they are assigned to; and the enabled staff, an open task's Assign
+/// choices, read only while a task is open or names an assignee. A task held by an
+/// account that is no longer enabled has no name here and reads Unassigned (operator,
+/// 22 October 2026).
 /// </summary>
 public sealed record CaseTasksSection(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseTaskRecord> Tasks,
-    IReadOnlyDictionary<Guid, string> AssigneeNames);
+    IReadOnlyDictionary<Guid, string> AssigneeNames,
+    IReadOnlyList<CaseEngineerChoice> AssigneeChoices);
 
 /// <summary>
 /// The Files body source. Documents and correspondence belong together because
@@ -861,7 +865,7 @@ public sealed class GetCaseQueriesSection(
 public sealed class GetCaseTasksSection(
     ICaseQueryStore store,
     ICaseTaskQueries tasks,
-    IStaffAccountQueries staffAccounts) : IGetCaseTasksSection
+    ICaseEngineerChoices enabledStaff) : IGetCaseTasksSection
 {
     public async Task<CaseTasksSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
@@ -873,11 +877,34 @@ public sealed class GetCaseTasksSection(
         }
 
         var listed = await tasks.ListAsync(query.CaseId, cancellationToken);
-        var names = await ActorDisplayNames.ResolveStaffNamesAsync(
-            staffAccounts,
-            listed.Where(task => task.AssigneeId is not null).Select(task => task.AssigneeId!.Value),
-            cancellationToken);
-        return new(frame, listed, names);
+        var assigneeIds = new HashSet<Guid>();
+        var anyOpen = false;
+        foreach (var task in listed)
+        {
+            if (task.AssigneeId is { } assigneeId)
+            {
+                assigneeIds.Add(assigneeId);
+            }
+            anyOpen |= task.State == CaseTaskState.Open;
+        }
+
+        // The enabled staff are an open task's Assign choices and the only
+        // names an assignee reads as, so a task held by an account no longer
+        // enabled reads Unassigned and has no option of its own (operator,
+        // 22 October 2026). They are read once, and only when a task is open
+        // or names an assignee.
+        IReadOnlyList<CaseEngineerChoice> enabled = anyOpen || assigneeIds.Count > 0
+            ? await enabledStaff.GetAsync(query.Actor, cancellationToken)
+            : [];
+        var names = new Dictionary<Guid, string>();
+        foreach (var choice in enabled)
+        {
+            if (assigneeIds.Contains(choice.StaffId))
+            {
+                names[choice.StaffId] = choice.DisplayName;
+            }
+        }
+        return new(frame, listed, names, enabled);
     }
 }
 

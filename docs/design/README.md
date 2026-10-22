@@ -650,7 +650,7 @@ symbols: the fifty-three above plus these twenty-two.
 | — | `pound-sterling` | `72454D0BBC72046B76787C89101DC263E6060D4F4AF8B2DDD47EF2BB9976171A` | Administration nav: Valuation presets |
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
 | — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item; image tile: In report, off |
-| — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | Image tile: In report, on |
+| — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | Image tile: In report, on; Case Tasks (Actions item, empty list; [v41 K1](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
 | — | `tag` | `DD7CD667273A81E81C0901A77A43153FC8A1C8FC51FDFB98F5CFDF2AB7AC4596` | Image tile: Tag |
 | — | `file-image` | `DAE10E1CDF7EE095323DC27D60CF5A113ADB9830B2A02A2A90BF11FAEEED3808` | Image tile: Print on its own page (Full page) |
@@ -936,7 +936,7 @@ deleted in wave 5.
 | `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Overview and Close-up their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it |
-| `next-step`, `next-step-go` | The Next action's one step and its full-width control |
+| `next-step`, `next-step-go` | The Next action's one step and its full-width control, which shares its row with Take while the Case is Unassigned ([v41 K9](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `mail-preview`, `decision-card` | Inbox preview and message decision |

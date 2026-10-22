@@ -101,7 +101,7 @@ public sealed class AssignCaseEngineer(
             request.CaseId,
             request.OperationKey,
             cancellationToken);
-        if (current.State is not (CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation) && !isReplay)
+        if (!CaseLifecycleRules.CanBeAssigned(current.State) && !isReplay)
         {
             throw new InvalidOperationException(
                 "A staff member can be assigned only while the case is in Review or With Engineer.");
@@ -541,7 +541,7 @@ public sealed class ReopenCase(ICaseWorkflowStore store) : IReopenCase
     {
         CaseLifecycleRules.ValidateReopen(request);
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if ((!CaseLifecycleRules.IsTerminal(current.State) || current.State == CaseLifecycleState.CreatedInError)
+        if (!CaseLifecycleRules.CanBeReopened(current.State)
             && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {
             throw new InvalidOperationException("Only a closed case other than Created in error can be reopened.");
@@ -628,6 +628,21 @@ public static class CaseLifecycleRules
         CaseLifecycleState.NotReady or
         CaseLifecycleState.Review or
         CaseLifecycleState.ReportPreparation;
+
+    /// <summary>
+    /// Assign Engineer and Take run only in Review and With Engineer (#1213,
+    /// the FRD-13 transition table).
+    /// </summary>
+    public static bool CanBeAssigned(CaseLifecycleState state) => state is
+        CaseLifecycleState.Review or
+        CaseLifecycleState.ReportPreparation;
+
+    /// <summary>
+    /// Return to work runs from every closed disposition except Created in
+    /// error (the FRD-13 transition table).
+    /// </summary>
+    public static bool CanBeReopened(CaseLifecycleState state) =>
+        IsTerminal(state) && state != CaseLifecycleState.CreatedInError;
 
     /// <summary>
     /// A case nobody is still working: its report is sent or it ended in a terminal

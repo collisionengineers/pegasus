@@ -107,6 +107,8 @@ public sealed class DatabaseLessWebHostTests
                 await services.GetRequiredService<IMyReleaseNotes>().GetUnacknowledgedAsync(administrator, none)),
             ("staff directory", async services => await StaffDirectoryAsync(
                 services.GetRequiredService<IStaffAccountQueries>())),
+            ("engineer choices", async services =>
+                await services.GetRequiredService<ICaseEngineerChoices>().GetAsync(administrator, none)),
             ("case kind", async services =>
                 await services.GetRequiredService<ICaseKindQueries>().GetAsync(caseId, none)),
             ("asset preparations", async services =>

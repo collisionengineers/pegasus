@@ -236,7 +236,7 @@ registration. Once active, DVSA runs for every Case. Until then, approved
 local replay returns its preserved result, and with no replay evidence the
 value is source-labelled `Unavailable`.
 
-The mileage tiers and discrepancy rule are in
+The mileage tiers are in
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence).
 
 **Every lookup is an observation.** Each lookup or refresh keeps its provider
@@ -372,9 +372,7 @@ When DVSA history must estimate a Case mileage, Pegasus:
   its sample checks;
 - returns the exact observation on an exact MOT date, interpolates only
   inside a compatible segment, forecasts only within a validated horizon, and
-  gives calibrated intervals only with eligible chronological holdouts;
-- otherwise shows a wider, explicitly non-probabilistic range and never
-  writes it into the Case by default.
+  gives calibrated intervals only with eligible chronological holdouts.
 
 The rule prefers a reviewable abstention or a qualified range over a
 plausible but unsupported number. It applies only after the DVSA/DVLA route,

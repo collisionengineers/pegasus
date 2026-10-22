@@ -6,9 +6,11 @@
     Cancel, Assign and Add task are offered in and out of an edit session: in one
     each posts under the session's lease, outside one each claims the Case's lease
     for that command, with one fixed recorded reason either way, so there is no
-    reason box. Assign offers the enabled named staff; there is no unassign. Each post
-    returns with ?dialog=tasks, which draws the dialog open, so it works without
-    script as the estimate dialogs do. There is no due date yet.
+    reason box. Assign offers the enabled named staff; there is no unassign, and a
+    task held by an account no longer enabled reads Unassigned (operator,
+    22 October 2026). Each post returns with ?dialog=tasks, which draws the dialog
+    open, so it works without script as the estimate dialogs do. There is no due
+    date yet.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Web.Presentation
@@ -18,7 +20,7 @@
     var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
     var tasks = section?.Tasks ?? [];
     var names = section?.AssigneeNames;
-    var assigneeChoices = Model.TaskAssigneeChoices;
+    var assigneeChoices = section?.AssigneeChoices ?? [];
     var leaseToken = Model.RenderLeaseToken;
     // Task actions act in and out of an edit session; a Held or closed Case, an
     // archived one and a Case a colleague is editing show the list without them.
@@ -73,7 +75,7 @@
         if (tasks.Count == 0)
         {
             <div class="empty">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-square")" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-square-check")" /></svg>
                 <h3>@TaskLabels.None</h3>
             </div>
         }
@@ -97,10 +99,10 @@
                         {
                             var assignee = task.AssigneeId is { } assigneeId && names is not null && names.TryGetValue(assigneeId, out var assigneeName)
                                 ? assigneeName
-                                : task.AssigneeId is null ? TaskLabels.Unassigned : Pegasus.Core.Actors.ActorDisplayNames.FormerStaff;
+                                : null;
                             <tr data-case-task="@task.Id" data-task-state="@task.State">
                                 <td>@task.Description</td>
-                                <td>@assignee</td>
+                                <td>@(assignee ?? TaskLabels.Unassigned)</td>
                                 <td><span class="status status--plain @TaskLabels.StateTone(task.State)">@TaskLabels.StateText(task.State)</span></td>
                                 @if (mayChange)
                                 {
@@ -121,13 +123,9 @@
                                                         <input type="hidden" name="view" value="@Model.ViewRoute" />
                                                         <input type="hidden" name="section" value="@Model.Section" />
                                                         <select name="assigneeId" aria-label="@TaskLabels.Assignee" required>
-                                                            @if (task.AssigneeId is null)
+                                                            @if (assignee is null)
                                                             {
                                                                 <option value="" selected="selected">@TaskLabels.Unassigned</option>
-                                                            }
-                                                            else if (!assigneeChoices.Any(choice => choice.StaffId == task.AssigneeId))
-                                                            {
-                                                                <option value="" selected="selected" disabled="disabled">@assignee</option>
                                                             }
                                                             @foreach (var choice in assigneeChoices)
                                                             {
