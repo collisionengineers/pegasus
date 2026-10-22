@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.ExceptionServices;
@@ -193,6 +194,31 @@ internal sealed class GraphMailClient(
 {
     // Outlook allows four concurrent requests per mailbox; two leaves the Worker headroom.
     internal const int MaximumConcurrentMimeReads = 2;
+
+    // One slot set per mailbox for this process's page-loop polls (Inbox and Sent), so
+    // together they never put more than MaximumConcurrentMimeReads reads on one mailbox.
+    // The webhook read and the Web's Deleted search do not take a slot.
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> mailboxMimeReadSlots =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public async Task<T> ReadWithinMailboxBoundAsync<T>(
+        string mailboxId,
+        Func<CancellationToken, Task<T>> read,
+        CancellationToken cancellationToken)
+    {
+        var slots = mailboxMimeReadSlots.GetOrAdd(
+            mailboxId,
+            static _ => new SemaphoreSlim(MaximumConcurrentMimeReads));
+        await slots.WaitAsync(cancellationToken);
+        try
+        {
+            return await read(cancellationToken);
+        }
+        finally
+        {
+            slots.Release();
+        }
+    }
 
     private static readonly TokenRequestContext TokenContext =
         new(["https://graph.microsoft.com/.default"]);
@@ -732,7 +758,10 @@ internal sealed class GraphApprovedInboxSource(
             async (index, token) =>
             {
                 var (item, receivedAtUtc, next) = survivors[index];
-                var mime = await ReadMimeAsync(mailboxId, item.Id, token);
+                var mime = await client.ReadWithinMailboxBoundAsync(
+                    mailboxId,
+                    readToken => ReadMimeAsync(mailboxId, item.Id, readToken),
+                    token);
                 // A message refused before it was read has no subject to name it by.
                 var metadata = mime.Rejection is not null
                     ? null
@@ -1252,10 +1281,14 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
             page = await client.ReadDeltaAsync(cursor.PageUri, mailboxId, sentFolderId, cancellationToken);
         }
         var available = page.Items.Skip(cursor.SkipCount).Take(maximumItems).ToArray();
-        var items = new List<ApprovedSentItem>(available.Length);
+        // A serial pass keeps the page order, the cursor positions and the boundary skip;
+        // the MIME reads then run MaximumConcurrentMimeReads at a time into their slots.
+        var slots = new ApprovedSentItem?[available.Length];
+        var reads = new List<(int Slot, GraphDeltaItem Item, string Next)>(available.Length);
         var processed = cursor.SkipCount;
-        foreach (var item in available)
+        for (var slot = 0; slot < available.Length; slot++)
         {
+            var item = available[slot];
             processed++;
             var next = GraphCursor.Serialize(
                 processed >= page.Items.Count ? page.NextUri : cursor.PageUri,
@@ -1267,13 +1300,23 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
             }
             if (item.Removed)
             {
-                items.Add(DeletedItem(lease.MailboxId, item, next));
+                slots[slot] = DeletedItem(lease.MailboxId, item, next);
             }
-            else if (await DiscoveredItemAsync(lease, item, next, cancellationToken) is { } discovered)
+            else
             {
-                items.Add(discovered);
+                reads.Add((slot, item, next));
             }
         }
+        await Parallel.ForEachAsync(
+            reads,
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = GraphMailClient.MaximumConcurrentMimeReads,
+                CancellationToken = cancellationToken,
+            },
+            async (read, token) =>
+                slots[read.Slot] = await DiscoveredItemAsync(lease, read.Item, read.Next, token));
+        var items = slots.OfType<ApprovedSentItem>().ToList();
         var consumed = cursor.SkipCount + available.Length;
         var pageCursor = GraphCursor.Serialize(
             consumed >= page.Items.Count ? page.NextUri : cursor.PageUri,
@@ -1294,8 +1337,11 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
         string nextCursor,
         CancellationToken cancellationToken)
     {
-        var mime = await client.ReadFolderMimeAsync(
-            lease.MailboxId, lease.SentFolderIdentity, item.Id, cancellationToken);
+        var mime = await client.ReadWithinMailboxBoundAsync(
+            lease.MailboxId,
+            token => client.ReadFolderMimeAsync(
+                lease.MailboxId, lease.SentFolderIdentity, item.Id, token),
+            cancellationToken);
         var sourceHash = Convert.ToHexString(SHA256.HashData(mime));
         try
         {

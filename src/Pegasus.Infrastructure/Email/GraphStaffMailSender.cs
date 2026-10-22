@@ -123,7 +123,7 @@ internal sealed class GraphStaffMailSender(
         var message = BuildMimeMessage(operation, command);
         await using var mime = new MemoryStream();
         await message.WriteToAsync(mime, cancellationToken);
-        var payload = Convert.ToBase64String(mime.ToArray());
+        var payload = Convert.ToBase64String(mime.GetBuffer(), 0, (int)mime.Length);
         using var request = new HttpRequestMessage(HttpMethod.Post, BuildMailboxUri(mailbox, path))
         {
             Content = new StringContent(payload, System.Text.Encoding.ASCII, "text/plain")
@@ -276,7 +276,7 @@ internal sealed class GraphStaffMailSender(
                 await uploadProgress.SaveAsync(operationId, attachmentIdentity,
                     new(null, DateTimeOffset.MaxValue, 0), cancellationToken);
             }
-            using var memory = new MemoryStream();
+            using var memory = new MemoryStream((int)Math.Clamp(attachment.ContentLength, 0, SmallAttachmentLimit));
             await content.CopyToAsync(memory, cancellationToken);
             using var request = new HttpRequestMessage(
                 HttpMethod.Post, BuildMailboxUri(mailbox, $"messages/{Escape(immutableDraftId)}/attachments"))
@@ -286,7 +286,7 @@ internal sealed class GraphStaffMailSender(
                     ["@odata.type"] = "#microsoft.graph.fileAttachment",
                     ["name"] = attachment.FileName,
                     ["contentType"] = attachment.MediaType,
-                    ["contentBytes"] = Convert.ToBase64String(memory.ToArray())
+                    ["contentBytes"] = Convert.ToBase64String(memory.GetBuffer(), 0, (int)memory.Length)
                 })
             };
             using var response = await client.SendStaffAsync(request, cancellationToken);
