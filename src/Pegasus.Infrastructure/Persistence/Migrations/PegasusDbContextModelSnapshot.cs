@@ -3772,6 +3772,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[ActiveAccountKey] IS NOT NULL");
 
+                    b.HasIndex("CallbackDigest");
+
                     b.HasIndex("CaseId");
 
                     b.HasIndex("OperationKey")

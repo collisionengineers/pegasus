@@ -260,7 +260,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261018080000_GrantWorkerContactPrincipalLinksRead",
                 "20261019120000_RepairerVatStatusDefaultsToRegistered",
                 "20261021120000_GrantWebRepairSpecDiscardDelete",
-                "20261022120000_DocumentTypesEstimateAndValuationEvidence"
+                "20261022120000_DocumentTypesEstimateAndValuationEvidence",
+                "20261023120000_GlassRepairEstimateSessionCallbackDigestIndex"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -272,6 +273,9 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(N'IntakeOcrOperations') AND name = N'IX_IntakeOcrOperations_IntakeAssetId'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'DocumentContentCacheEntries') AND name = N'DocumentVersionId'"));
+        // The Glass callback finds its session by this index (R328); it is not unique.
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(N'GlassRepairEstimateSessions') AND name = N'IX_GlassRepairEstimateSessions_CallbackDigest' AND is_unique = 0"));
         // The accept-recovery joins compare SQL Server's uniqueidentifier
         // conversion, which is UPPERCASE, against tokens .NET wrote lowercase
         // (Guid.ToString("N") for ExternalReceiptToken, "D" for AggregateId).
