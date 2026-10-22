@@ -274,6 +274,9 @@ public sealed partial class DetailsModel(
     /// <summary>The Tasks dialog, whose body the fragment route also serves.</summary>
     private const string TasksView = "/Pages/Cases/Shared/_CaseTasks.cshtml";
 
+    /// <summary>The Repair Spec section and the dialogs drawn after it, which the fragment route also serves.</summary>
+    private const string EstimateView = "/Pages/Cases/Shared/_CaseEstimate.cshtml";
+
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
     /// first response. The addressed section is always rendered, so
@@ -1328,24 +1331,7 @@ public sealed partial class DetailsModel(
             : null;
         await reads.WhenAllAsync();
 
-        IReadOnlyList<RepairSpecificationSnapshot> frozen = snapshotRead is null ? [] : await snapshotRead;
-        var frozenBySpecification = frozen.ToLookup(item => item.SpecificationId);
-        EstimateSnapshots = Estimates.ToDictionary(
-            item => item.SpecificationId,
-            item => (IReadOnlyList<RepairSpecificationSnapshot>)frozenBySpecification[item.SpecificationId].ToArray());
-        if (SelectedEstimate is not null)
-        {
-            SelectedEstimateSnapshots = EstimateSnapshots.GetValueOrDefault(SelectedEstimate.SpecificationId, []);
-            if (SelectedEstimate.Supplementary is { } supplementary)
-            {
-                SupplementaryBase = SelectedEstimateSnapshots.FirstOrDefault(item => item.Id == supplementary.OfSnapshotId);
-                SupplementaryDiff = SupplementaryBase is null
-                    ? null
-                    : RepairSpecificationComparison.Compare(SupplementaryBase, SelectedEstimate);
-            }
-        }
-        ComparisonOptions = BuildComparisonOptions();
-        ResolveComparison(Request.Query["from"], Request.Query["to"], dialog);
+        ApplyEstimateSnapshots(snapshotRead is null ? [] : await snapshotRead, dialog);
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None
             : await history;
@@ -1374,15 +1360,93 @@ public sealed partial class DetailsModel(
             ? CaseReportSendHistory.None
             : await otherHistory;
         ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
-        OpenDialog = dialog switch
+        OpenDialog = EstimateDialogOf(dialog);
+    }
+
+    /// <summary>
+    /// What the selected spec's frozen versions decide: Compare's sides, the
+    /// scaling readout and the Supplementary difference. Compare's From and To
+    /// come from the request's query.
+    /// </summary>
+    private void ApplyEstimateSnapshots(IReadOnlyList<RepairSpecificationSnapshot> frozen, string? dialog)
+    {
+        var frozenBySpecification = frozen.ToLookup(item => item.SpecificationId);
+        EstimateSnapshots = Estimates.ToDictionary(
+            item => item.SpecificationId,
+            item => (IReadOnlyList<RepairSpecificationSnapshot>)frozenBySpecification[item.SpecificationId].ToArray());
+        if (SelectedEstimate is not null)
         {
-            "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
-            "compare-estimates" when ComparisonOffered => "compare-estimates",
-            "versions" when SelectedEstimate is not null => "versions",
-            "delete-estimate" when SelectedEstimateIsEditable
-                && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
-            _ => null
-        };
+            SelectedEstimateSnapshots = EstimateSnapshots.GetValueOrDefault(SelectedEstimate.SpecificationId, []);
+            if (SelectedEstimate.Supplementary is { } supplementary)
+            {
+                SupplementaryBase = SelectedEstimateSnapshots.FirstOrDefault(item => item.Id == supplementary.OfSnapshotId);
+                SupplementaryDiff = SupplementaryBase is null
+                    ? null
+                    : RepairSpecificationComparison.Compare(SupplementaryBase, SelectedEstimate);
+            }
+        }
+        ComparisonOptions = BuildComparisonOptions();
+        ResolveComparison(Request.Query["from"], Request.Query["to"], dialog);
+    }
+
+    /// <summary>The dialog of the Estimate section the request asks to draw open, when it may open.</summary>
+    private string? EstimateDialogOf(string? dialog) => dialog switch
+    {
+        "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
+        "compare-estimates" when ComparisonOffered => "compare-estimates",
+        "versions" when SelectedEstimate is not null => "versions",
+        "delete-estimate" when SelectedEstimateIsEditable
+            && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
+        _ => null
+    };
+
+    /// <summary>
+    /// The Repair Spec section's fragment: what the section and its dialogs
+    /// draw and nothing else. A spec tab, New repair spec and Compare's From
+    /// and To redraw only this part (case-workspace.js showEstimate), so the
+    /// reads the rest of the page needs (the direct sections, the report's
+    /// inputs, generations and delivery, the extras) are not repeated.
+    /// </summary>
+    private async Task LoadEstimateSectionAsync(
+        Guid id,
+        ActionActor actor,
+        AssessmentWorkspace? workspace,
+        CaseWorkSelector work,
+        string? estimate,
+        string? dialog,
+        CancellationToken cancellationToken)
+    {
+        if (workspace is null)
+        {
+            await EvaluateEngineerSectionConditionsAsync(cancellationToken);
+            return;
+        }
+
+        Assessment = workspace.Assessment;
+        CurrentSpecification = workspace.CurrentSpecification;
+        using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var estimates = reads.Start(token => listEstimates.ExecuteAsync(id, work, token));
+        var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
+        var sendingToAi = AssessmentCanOpen && !AssessmentIsReadOnly
+            ? reads.Start(token => sendToAiControl.IsEnabledAsync(token))
+            : null;
+        var glass = reads.Start(token => ReadGlassSessionAsync(id, actor, token));
+        await reads.WhenAllAsync();
+
+        Estimates = await estimates;
+        SpecAuthorNames = await ResolveSpecAuthorNamesAsync(Estimates, cancellationToken);
+        LabourRateCards = await cards;
+        ApplyEstimateSelection(estimate);
+        EvaluateEngineerSectionConditions(sendingToAi is not null && await sendingToAi);
+        ApplyGlassSession(await glass);
+
+        var specificationIds = Estimates.Select(item => item.SpecificationId).ToArray();
+        ApplyEstimateSnapshots(
+            specificationIds.Length > 0
+                ? await specificationSnapshots.ListForSpecificationsAsync(id, specificationIds, cancellationToken)
+                : [],
+            dialog);
+        OpenDialog = EstimateDialogOf(dialog);
     }
 
     /// <summary>What the Estimate section's Glass's surface shows.</summary>
@@ -1556,6 +1620,8 @@ public sealed partial class DetailsModel(
     public async Task<IActionResult> OnGetSectionAsync(
         Guid id,
         string? section,
+        string? estimate,
+        string? dialog,
         [FromHeader(Name = "X-Pegasus-Edit-Lease")] string? renderLeaseToken,
         CancellationToken cancellationToken)
     {
@@ -1571,7 +1637,12 @@ public sealed partial class DetailsModel(
         // The Tasks dialog's body is fetched here as the dialog opens; it is
         // not a section, so the section vocabulary does not name it.
         var key = string.Equals(section, "tasks", StringComparison.Ordinal) ? "tasks" : NormalizeSection(section);
-        var view = key == "tasks" ? TasksView : LazySectionViews.GetValueOrDefault(key);
+        var view = key switch
+        {
+            "tasks" => TasksView,
+            "estimate" => EstimateView,
+            _ => LazySectionViews.GetValueOrDefault(key)
+        };
         if (view is null)
         {
             return FragmentNotFound();
@@ -1619,6 +1690,9 @@ public sealed partial class DetailsModel(
                         return FragmentNotFound();
                     }
                     break;
+                case "estimate":
+                    return await GetEstimateFragmentAsync(
+                        id, actor, estimate, dialog, renderLeaseToken, cancellationToken);
                 case "queries":
                     QueriesSection = await getCaseQueriesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (QueriesSection is null)
@@ -1670,6 +1744,38 @@ public sealed partial class DetailsModel(
             LogCaseDetailsQueryFailed(logger, id, exception);
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
+    }
+
+    /// <summary>
+    /// The Repair Spec section for a tab, New repair spec or Compare switch,
+    /// drawn from the same view as the full page. Like every mounted body this
+    /// GET reads and writes no TempData; the browser repeats the lease it
+    /// holds in a header, and once Core validates it the section is drawn as
+    /// the full page draws it for the lease's holder.
+    /// </summary>
+    private async Task<IActionResult> GetEstimateFragmentAsync(
+        Guid id,
+        ActionActor actor,
+        string? estimate,
+        string? dialog,
+        string? renderLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        var work = WorkSelector;
+        (Case, var workspace) = await ReadFrameAndWorkspaceAsync(id, actor, work, cancellationToken);
+        if (Case is null)
+        {
+            return FragmentNotFound();
+        }
+        ApplyAssessmentAccess(actor, Case.Workflow);
+        if (!string.IsNullOrWhiteSpace(renderLeaseToken)
+            && validateCaseRenderLease is not null
+            && await validateCaseRenderLease.ExecuteAsync(new(id, actor, renderLeaseToken), cancellationToken))
+        {
+            AdoptRenderLease(renderLeaseToken);
+        }
+        await LoadEstimateSectionAsync(id, actor, workspace, work, estimate, dialog, cancellationToken);
+        return Partial(EstimateView, this);
     }
 
     /// <summary>The Files body's image-intake records, tag vocabulary and galleries.</summary>

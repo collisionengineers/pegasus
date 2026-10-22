@@ -1038,15 +1038,23 @@
     }
     // Choosing a repair spec (a spec tab, New repair spec, Compare's From and
     // To) changes only what the Repair Spec section draws: the section and
-    // the dialogs drawn after it. Only those are redrawn from the page the
-    // choice addresses, so nothing above them moves and the page stays where
-    // it is. A choice that cannot be redrawn takes the navigation it replaced.
+    // the dialogs drawn after it. Only those are fetched, as the Repair Spec
+    // fragment the choice addresses (its query carried over, the lease this
+    // page holds repeated in the header as a mounted body does), so nothing
+    // above them moves, the page stays where it is and the server does not
+    // read the rest of the Case. A choice that cannot be redrawn takes the
+    // navigation it replaced.
     function showEstimate(href) {
         glassRefreshGeneration += 1;
-        return fetch(href, {
-            credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
+        var headers = { 'Accept': 'text/html' };
+        var lease = editLeaseToken();
+        if (lease) { headers['X-Pegasus-Edit-Lease'] = lease; }
+        return fetch(fragmentPath + new URL(href, window.location.href).search, {
+            credentials: 'same-origin', cache: 'no-store', headers: headers
         }).then(function (response) {
-            if (!response.ok || !samePage(response.url || href)) { throw new Error('section estimate: ' + response.status); }
+            if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
+                throw new Error('section estimate: ' + response.status);
+            }
             return response.text();
         }).then(function (html) {
             var section = sectionFor('estimate');
