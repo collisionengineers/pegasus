@@ -677,8 +677,7 @@ public sealed class IndexModel(
         // Once Report sent is recorded the Case's open tasks are its step, as
         // the Case page's aside lists them (operator, 6 October 2026).
         var hasOpenTasks = workflow.ReportSentEvidence is not null
-            && (await _caseTasks.ListAsync(caseId, cancellationToken))
-                .Any(task => task.State == Pegasus.Core.Tasks.CaseTaskState.Open);
+            && await _caseTasks.HasOpenAsync(caseId, cancellationToken);
         var next = CaseNextAction.Of(
             workflow,
             summary.CaseType,

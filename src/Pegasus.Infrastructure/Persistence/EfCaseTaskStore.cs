@@ -54,6 +54,23 @@ public sealed class EfCaseTaskStore(
         return tasks.Select(item => Map(item, caseVersion)).ToArray();
     }
 
+    public async Task<bool> HasOpenAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.CaseTasks
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.CaseId == caseId && item.State == nameof(CaseTaskState.Open),
+                cancellationToken);
+    }
+
     /// <summary>
     /// The Case's open tasks, oldest first, as the Next action lists them once Report sent is
     /// recorded (operator, 6 October 2026). A task's age is its <c>case_task_created</c>

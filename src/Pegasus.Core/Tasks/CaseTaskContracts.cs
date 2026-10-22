@@ -152,6 +152,11 @@ public interface ICaseTaskQueries
     Task<IReadOnlyList<CaseTaskRecord>> ListAsync(
         Guid caseId,
         CancellationToken cancellationToken);
+
+    /// <summary>Whether the Case has at least one open task, without listing them.</summary>
+    Task<bool> HasOpenAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
 }
 
 public interface ICaseTaskAssigneeDirectory
