@@ -135,6 +135,63 @@ public sealed class InstructionEvidenceImagesTests
             retained.Select(candidate => candidate.SourceLabel));
     }
 
+    /// <summary>
+    /// Operator, 22 October 2026: an image on every page of a PDF of two or
+    /// more pages is letterhead art, beside the byte floor and the side ratio.
+    /// The 898x437 logo passes both. A photograph on one page of the same PDF
+    /// is kept, and a PDF whose page count was not stated keeps its images.
+    /// </summary>
+    [Theory]
+    [InlineData("two-page", 2, new[] { 1, 2 }, false)]
+    [InlineData("ten-page", 10, new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, false)]
+    [InlineData("nine-of-ten", 10, new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 }, true)]
+    [InlineData("one-of-ten", 10, new[] { 4 }, true)]
+    [InlineData("single-page", 1, new[] { 1 }, true)]
+    [InlineData("unknown-count", 0, new[] { 1, 2 }, true)]
+    public void AnImageOnEveryPageOfAPdfIsLetterheadArt(
+        string shape,
+        int pageCount,
+        int[] pages,
+        bool retained)
+    {
+        _ = shape;
+        const string pdfLabel = "uploaded report.pdf";
+        var logo = new byte[60_000];
+        var placements = pages.Select(page => new IntakeAssetCandidate(
+            $"{pdfLabel}, page {page}, image 1",
+            $"page-{page}-image-1.png",
+            "image/png",
+            logo,
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            page,
+            WidthPixels: 898,
+            HeightPixels: 437));
+        var photograph = new IntakeAssetCandidate(
+            $"{pdfLabel}, page 1, image 2",
+            "page-1-image-2.jpg",
+            "image/jpeg",
+            new byte[90_000],
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            1,
+            WidthPixels: 547,
+            HeightPixels: 650);
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [],
+            [],
+            [],
+            false,
+            Assets: [.. placements, photograph],
+            Pdfs: pageCount == 0 ? [] : [new(pdfLabel, IsRoot: true, pageCount, HasTextLayer: true)]);
+
+        var kept = InstructionEvidenceImages.RetentionCandidates(read).ToArray();
+
+        Assert.Contains(photograph, kept);
+        Assert.Equal(retained ? pages.Length + 1 : 1, kept.Length);
+    }
+
     [Fact]
     public void OnePhotographCarriedTwiceAppearsOncePreferringTheAttachedCopy()
     {

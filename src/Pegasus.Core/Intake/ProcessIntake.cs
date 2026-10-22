@@ -200,11 +200,18 @@ public sealed class ProcessIntake(
         try
         {
             // Storage is by content hash and a retry presents the same bytes,
-            // so a candidate stored before a sibling fails is harmless.
-            assets.AddRange(await RunRetentionsAsync(
-                InstructionEvidenceImages.RetentionCandidates(readResult).ToArray(),
-                candidate => RetainAsync(candidate, cancellationToken),
-                cancellationToken));
+            // so a candidate stored before a sibling fails is harmless. Bytes
+            // carried by several placements are hashed and stored once, and
+            // each placement keeps its own row (operator, 22 October 2026).
+            var candidates = InstructionEvidenceImages.RetentionCandidates(readResult).ToArray();
+            var stored = (await RunRetentionsAsync(
+                    candidates.Select(candidate => candidate.Content)
+                        .Distinct(InstructionEvidenceImages.SameBytes)
+                        .ToArray(),
+                    content => StoreAsync(content, cancellationToken),
+                    cancellationToken))
+                .ToDictionary(item => item.Content, InstructionEvidenceImages.SameBytes);
+            assets.AddRange(candidates.Select(candidate => AssetRecord(candidate, stored[candidate.Content])));
         }
         catch (IntakeArtifactRetentionException)
         {
@@ -1569,22 +1576,23 @@ public sealed class ProcessIntake(
         }
     }
 
-    private async Task<IntakeAssetRecord> RetainAsync(
-        IntakeAssetCandidate candidate,
+    private async Task<StoredContent> StoreAsync(
+        ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken)
     {
-        var contentHash = Convert.ToHexString(SHA256.HashData(candidate.Content.Span));
-        string storageKey;
+        var contentHash = Convert.ToHexString(SHA256.HashData(content.Span));
         try
         {
-            storageKey = await artifactStore.StoreAsync(contentHash, candidate.Content, cancellationToken);
+            return new(content, contentHash, await artifactStore.StoreAsync(contentHash, content, cancellationToken));
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             throw new IntakeArtifactRetentionException(exception);
         }
+    }
 
-        return new(
+    private static IntakeAssetRecord AssetRecord(IntakeAssetCandidate candidate, StoredContent stored) =>
+        new(
             Guid.NewGuid(),
             candidate.SourceLabel,
             Path.GetFileName(candidate.FileName),
@@ -1592,13 +1600,17 @@ public sealed class ProcessIntake(
             candidate.Kind,
             candidate.Disposition,
             candidate.Content.Length,
-            contentHash,
-            storageKey,
+            stored.ContentHash,
+            stored.StorageKey,
             candidate.PageNumber,
             candidate.Bounds,
             candidate.WidthPixels,
             candidate.HeightPixels);
-    }
+
+    private readonly record struct StoredContent(
+        ReadOnlyMemory<byte> Content,
+        string ContentHash,
+        string StorageKey);
 
     private void RecordTelemetry(
         Activity? activity,

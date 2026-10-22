@@ -555,6 +555,18 @@ public sealed record ScannedPdfOcrCandidate(
     string SourceLabel,
     int PageNumber);
 
+/// <summary>
+/// One PDF the reader opened: the label its pages and images carry, whether
+/// it is the source itself rather than a file the source carries, its page
+/// count, and whether any page holds a readable text layer. A PDF the reader
+/// could not open states no pages and no text.
+/// </summary>
+public sealed record IntakePdfReading(
+    string SourceLabel,
+    bool IsRoot,
+    int PageCount,
+    bool HasTextLayer);
+
 public sealed record IntakeSourceReadResult(
     IntakeSourceReadStatus Status,
     IReadOnlyList<IntakeContentFragment> Content,
@@ -570,9 +582,12 @@ public sealed record IntakeSourceReadResult(
     string ReaderVersion = "1",
     IReadOnlyList<IntakeAttachmentDescriptor>? Attachments = null,
     IReadOnlyList<IntakeContentFragment>? Companions = null,
-    IntakeEmailSummary? RootEmail = null)
+    IntakeEmailSummary? RootEmail = null,
+    IReadOnlyList<IntakePdfReading>? Pdfs = null)
 {
     public IReadOnlyList<IntakeAssetCandidate> AssetCandidates => Assets ?? [];
+
+    public IReadOnlyList<IntakePdfReading> PdfReadings => Pdfs ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
 

@@ -161,6 +161,9 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         bool isRoot,
         CancellationToken cancellationToken)
     {
+        // Stated before it is opened, so a PDF that cannot be opened, or whose
+        // read a limit stops, is still a PDF the source carries.
+        result.Pdfs.Add(new(sourceLabel, isRoot, PageCount: 0, HasTextLayer: false));
         PdfResult pdf;
         try
         {
@@ -321,8 +324,11 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         limits.ThrowIfProcessingDeadlineExceeded();
         cancellationToken.ThrowIfCancellationRequested();
         using var document = PdfDocument.Open(bytes);
+        var reading = result.Pdfs.Count - 1;
+        result.Pdfs[reading] = result.Pdfs[reading] with { PageCount = document.NumberOfPages };
         var pages = new List<PdfPageResult>();
         var chargedImageObjects = new HashSet<string>(StringComparer.Ordinal);
+        var conversions = new Dictionary<string, PdfImageConversion>(StringComparer.Ordinal);
         for (var pageNumber = 1; pageNumber <= document.NumberOfPages; pageNumber++)
         {
             limits.ThrowIfProcessingDeadlineExceeded();
@@ -359,6 +365,10 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             var hasDominantRaster = images.Any(image => Coverage(
                 image.BoundingBox, page.CropBox.GetVisibleBounds(page.Rotation)) >= ScannedPageImageCoverage);
             var hasInsufficientText = readableCharacters < MinimumReadablePdfCharacters;
+            if (!hasInsufficientText && !result.Pdfs[reading].HasTextLayer)
+            {
+                result.Pdfs[reading] = result.Pdfs[reading] with { HasTextLayer = true };
+            }
 
             // A full-page raster on a page with almost no text is either a
             // scanned document page or a photograph that fills the page. The
@@ -368,7 +378,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             PdfImageRead? dominantRead = null;
             ScanPageClassification? fullPageRaster = hasInsufficientText && hasDominantRaster
                 ? ClassifyFullPageRaster(
-                    bytes, page, images, sourceLabel, result, limits, chargedImageObjects, out dominantRead)
+                    bytes, page, images, sourceLabel, result, limits, chargedImageObjects, conversions, out dominantRead)
                 : null;
             var isDocumentPage = fullPageRaster?.Kind == ScanPageKind.Document;
             IPdfImage[] pageImages = isDocumentPage ? [] : images;
@@ -382,9 +392,10 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 PdfImageRead? carried = dominantRead is { } read && ReferenceEquals(read.Image, image) ? read : null;
                 // Each distinct image object is charged once, when it is first
                 // reached and before it is decoded: a letterhead placed on
-                // every page costs its pixels once. A drawn page's raster
+                // every page costs its pixels once. A classified page's raster
                 // carries the key its classification already computed.
-                if (chargedImageObjects.Add(carried?.ObjectKey ?? ImageObjectKey(image))
+                var objectKey = carried?.ObjectKey ?? ImageObjectKey(image);
+                if (chargedImageObjects.Add(objectKey)
                     && !limits.TryAddImageSamplePixels(
                         image.WidthInSamples,
                         image.HeightInSamples,
@@ -409,7 +420,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 {
                     try
                     {
-                        extracted = TryReadPdfImage(image, out imageBytes, out mediaType, out extension);
+                        extracted = TryReadPdfImageOnce(
+                            image, objectKey, conversions, out imageBytes, out mediaType, out extension);
                     }
                     catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
                     {
@@ -485,6 +497,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         ReadAccumulator result,
         PdfLimitState limits,
         IReadOnlySet<string> chargedImageObjects,
+        Dictionary<string, PdfImageConversion> conversions,
         out PdfImageRead? dominantRead)
     {
         dominantRead = null;
@@ -493,7 +506,9 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         var classification = new ScanPageClassification(ScanPageKind.Document, null);
         try
         {
-            if (TryReadPdfImage(dominant, out var bytes, out var dominantMediaType, out var dominantExtension))
+            var dominantKey = ImageObjectKey(dominant);
+            if (TryReadPdfImageOnce(
+                    dominant, dominantKey, conversions, out var bytes, out var dominantMediaType, out var dominantExtension))
             {
                 dominantRead = new(
                     dominant,
@@ -501,7 +516,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                     dominantMediaType,
                     dominantExtension,
                     dominant.WidthInSamples,
-                    dominant.HeightInSamples);
+                    dominant.HeightInSamples,
+                    dominantKey);
                 classification = ScanPageClassifier.Classify(bytes.Span);
             }
             else if (CanRenderPageOf(dominant))
@@ -716,7 +732,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
     /// <summary>
     /// A PDF image already extracted or drawn, with the media type, extension
-    /// and size it was kept as, and its object key when drawing it needed one.
+    /// and size it was kept as, and the object key its classification computed.
     /// </summary>
     private readonly record struct PdfImageRead(
         IPdfImage Image,
@@ -725,7 +741,37 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         string Extension,
         int Width,
         int Height,
-        string? ObjectKey = null);
+        string ObjectKey);
+
+    /// <summary>
+    /// One image object is converted once however many times it is placed:
+    /// every placement shares the one converted buffer, so retention hashes
+    /// and stores it once (R225). A conversion that failed is not tried again.
+    /// </summary>
+    private static bool TryReadPdfImageOnce(
+        IPdfImage image,
+        string objectKey,
+        Dictionary<string, PdfImageConversion> conversions,
+        out ReadOnlyMemory<byte> bytes,
+        out string mediaType,
+        out string extension)
+    {
+        if (!conversions.TryGetValue(objectKey, out var conversion))
+        {
+            var extracted = TryReadPdfImage(image, out bytes, out mediaType, out extension);
+            conversion = new(extracted, bytes, mediaType, extension);
+            conversions.Add(objectKey, conversion);
+        }
+
+        (bytes, mediaType, extension) = (conversion.Bytes, conversion.MediaType, conversion.Extension);
+        return conversion.Extracted;
+    }
+
+    private readonly record struct PdfImageConversion(
+        bool Extracted,
+        ReadOnlyMemory<byte> Bytes,
+        string MediaType,
+        string Extension);
 
     private static bool TryReadPdfImage(
         IPdfImage image,
@@ -1737,6 +1783,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
         public List<ScannedPdfOcrCandidate> OcrCandidates { get; } = [];
 
+        public List<IntakePdfReading> Pdfs { get; } = [];
+
         public MimeLimitState? MimeLimits { get; set; }
 
         public PdfLimitState PdfLimits { get; } = new(timeProvider);
@@ -1772,7 +1820,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 ReaderKey,
                 ReaderVersion,
                 Attachments,
-                RootEmail: RootEmail);
+                RootEmail: RootEmail,
+                Pdfs: Pdfs);
     }
 
     private sealed class MimeLimitState

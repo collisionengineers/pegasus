@@ -71,6 +71,39 @@ public sealed class MailboxPhotoReceiptTests
         Assert.False(ImageIntakeLifecycleRules.IsImageRegistrationEligible(imagesReceived with { AcceptedCaseId = Guid.NewGuid() }));
     }
 
+    /// <summary>
+    /// R186 and R298 (operator, 22 October 2026): a mailbox receipt carrying a
+    /// recognised report or a PDF is a document carrier. Its photographs stay
+    /// selected, but it is neither Image Intake nor Unidentified material, and
+    /// staff classifying it Images received offers no registration either.
+    /// </summary>
+    [Fact]
+    public void AMailboxDocumentCarrierIsNeverImageMaterialEvenClassifiedImagesReceived()
+    {
+        var photo = Asset("vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment);
+        var carrier = Receipt([Asset("report.pdf", "application/pdf", IntakeAssetKind.Attachment), photo]) with
+        {
+            Evidence =
+            [
+                new(
+                    IntakeEvidenceSource.SystemDefault,
+                    IntakeEvidenceStrength.Strong,
+                    IntakeEvidenceFinding.Information,
+                    IntakeEvidenceSignals.RecognizedNonImageDocument,
+                    "A known document role or instruction selection requires the original intake route.")
+            ],
+            MailClassificationDecision = MailClassificationResult.Classified(
+                MailCategory.ImagesReceived,
+                [], "Corrected by staff.", "shared-mail-policy", 1)
+        };
+
+        Assert.Equal(photo.Id, Assert.Single(InstructionEvidenceImages.Select(carrier.AssetRecords)).Id);
+        Assert.False(ImageIntakeLifecycleRules.IsImageOnlyMaterial(carrier));
+        Assert.False(ImageIntakeLifecycleRules.IsImageRegistrationEligible(carrier));
+        Assert.False(ProcessIntake.IsDeferredForAutomation(carrier));
+        Assert.False(ProcessIntake.BecomesUnidentified(carrier));
+    }
+
     [Fact]
     public void InstructionBearingMailboxReceiptDoesNotBecomeImageIntake()
     {

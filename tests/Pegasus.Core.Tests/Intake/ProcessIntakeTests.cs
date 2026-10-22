@@ -670,6 +670,41 @@ public sealed class ProcessIntakeTests
     }
 
     /// <summary>
+    /// R225 (operator, 22 October 2026): one row per visible placement, the
+    /// bytes stored once and shared.
+    /// </summary>
+    [Fact]
+    public async Task APhotographPlacedThreeTimesIsStoredOnceWithARowPerPlacement()
+    {
+        var photograph = new byte[121_652];
+        var placements = Enumerable.Range(1, 3)
+            .Select(image => new IntakeAssetCandidate(
+                $"uploaded images.pdf, page 1, image {image}",
+                $"page-1-image-{image}.jpg",
+                "image/jpeg",
+                photograph,
+                IntakeAssetKind.EmbeddedImage,
+                IntakeAssetDisposition.Embedded,
+                PageNumber: 1,
+                WidthPixels: 547,
+                HeightPixels: 650))
+            .ToArray();
+        var artifactStore = new RecordingArtifactStore();
+
+        var receipt = await CreateSut(
+                new StubReader(Readable() with { Assets = placements }), new RecordingStore(), artifactStore)
+            .ExecuteAsync(CreateSource());
+
+        var rows = receipt.AssetRecords.Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage).ToArray();
+        Assert.Equal(
+            ["page-1-image-1.jpg", "page-1-image-2.jpg", "page-1-image-3.jpg"],
+            rows.Select(asset => asset.FileName));
+        Assert.Equal(3, rows.Select(asset => asset.Id).Distinct().Count());
+        Assert.Single(rows.Select(asset => asset.StorageKey).Distinct());
+        Assert.Equal(2, artifactStore.StoredHashes.Count);
+    }
+
+    /// <summary>
     /// One receipt's files go into holding custody up to four at once, and a
     /// file that fails does not stop the others: each runs to its own end
     /// before the failure is thrown.
@@ -853,9 +888,69 @@ public sealed class ProcessIntakeTests
         Assert.Empty(receipt.Fields);
         Assert.Contains(receipt.Evidence, item =>
             item.Signal == IntakeEvidenceSignals.RecognizedNonImageDocument);
-        Assert.True(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+        // R186: the report is correspondence or evidence, so it is neither
+        // Image Intake nor Unidentified material; its photograph is still
+        // selected, to be filed with it once its Case is matched (R226).
+        Assert.False(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
         Assert.False(ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt));
         Assert.False(ProcessIntake.IsDeferredForAutomation(receipt));
+        Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
+        Assert.Single(InstructionEvidenceImages.Select(receipt.AssetRecords));
+    }
+
+    /// <summary>
+    /// R296-R298 (operator, 22 October 2026): a PDF with a readable text layer
+    /// is a document whatever its issuer, an image-only PDF a source carries is
+    /// a document too, and one signal covers the whole source, so its loose
+    /// photographs open no Image Intake or Unidentified item. Every shape's
+    /// photographs stay selected, to be filed once its Case is matched. An
+    /// uploaded PDF of photographs alone, and photographs with no PDF, stay
+    /// image material.
+    /// </summary>
+    [Theory]
+    [InlineData("text-attached", false, true, true, false)]
+    [InlineData("image-attached", false, false, true, false)]
+    [InlineData("pdf-loose", false, false, false, false)]
+    [InlineData("root-text", true, true, true, false)]
+    [InlineData("root-image", true, false, true, true)]
+    [InlineData("no-pdf", null, false, false, true)]
+    public async Task APdfMakesItsSourceADocumentCarrier(
+        string shape,
+        bool? pdfIsRoot,
+        bool hasTextLayer,
+        bool photographInPdf,
+        bool imageMaterial)
+    {
+        _ = shape;
+        var pdfLabel = pdfIsRoot == true ? "uploaded selected.pdf" : "outer message, attachment 1: report.pdf";
+        var photograph = photographInPdf
+            ? new IntakeAssetCandidate(
+                $"{pdfLabel}, page 1, image 1", "page-1-image-1.jpg", "image/jpeg", new byte[121_652],
+                IntakeAssetKind.EmbeddedImage, IntakeAssetDisposition.Embedded, PageNumber: 1,
+                WidthPixels: 547, HeightPixels: 650)
+            : new IntakeAssetCandidate(
+                "outer message, attachment 2: damage.jpg", "damage.jpg", "image/jpeg", new byte[121_652],
+                IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment,
+                WidthPixels: 547, HeightPixels: 650);
+        var readResult = Readable(transportEvidence: []) with
+        {
+            Assets = [photograph],
+            Pdfs = pdfIsRoot is { } isRoot ? [new(pdfLabel, isRoot, PageCount: 1, hasTextLayer)] : []
+        };
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(IntakeSourceChannel.ManualUpload, $"document-carrier-{shape}")
+        };
+
+        var receipt = await CreateSut(new StubReader(readResult), new RecordingStore())
+            .ExecuteAsync(source);
+
+        Assert.Equal(
+            !imageMaterial,
+            receipt.Evidence.Any(item => item.Signal == IntakeEvidenceSignals.RecognizedNonImageDocument));
+        Assert.Equal(imageMaterial, ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+        Assert.Equal(imageMaterial, ProcessIntake.BecomesUnidentified(receipt));
+        Assert.Single(InstructionEvidenceImages.Select(receipt.AssetRecords));
     }
 
     [Fact]

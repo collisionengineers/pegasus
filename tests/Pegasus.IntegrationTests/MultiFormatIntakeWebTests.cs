@@ -698,6 +698,56 @@ public sealed partial class MultiFormatIntakeWebTests
             receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.EmbeddedImage));
     }
 
+    /// <summary>
+    /// #1493 (operator, 22 October 2026, R224, R296-R298): an e-mail carrying
+    /// a three-page report whose logo is on every page, with a photograph in
+    /// the report and a loose photograph attached, is a document carrier. With
+    /// no Case it waits in No Case Found with no Image Intake or Unidentified
+    /// item; the logo is not retained, and both photographs stay selected, to
+    /// be filed with it once its Case is matched.
+    /// </summary>
+    [Fact]
+    public async Task AnEmailCarryingALetterheadedReportIsADocumentCarrier()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = CreateClient(factory);
+        PdfImagePlacement[] images =
+        [
+            new(20, 700, 180, 88, 0, 0, 0, SampleWidth: 898, SampleHeight: 437, Pixels: RandomPixels(898, 437, 41)),
+            new(20, 100, 200, 240, 0, 0, 0, SampleWidth: 200, SampleHeight: 240, Pixels: RandomPixels(200, 240, 42))
+        ];
+        const string text =
+            "Engineer report prepared for the instructing party,\nwith enough printed words to read clearly as a text layer.";
+        var report = CreateSharedImagePdf(images, (text, new[] { 0 }), (text, new[] { 0, 1 }), (text, new[] { 0 }));
+        var message = CreateMessage(
+            "Report and photograph",
+            "Please find the report and a photograph attached.",
+            ("report.pdf", "application/pdf", report),
+            ("vehicle.jpg", "image/jpeg", Convert.FromBase64String(TinyJpegBase64)));
+
+        var result = await UploadAsync(factory, client, "report-mail.eml", "message/rfc822", Serialize(message));
+        var receiptId = ReceiptId(result);
+        var receipt = await GetReceiptAsync(factory, receiptId);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Contains(receipt.Evidence, item => item.Signal == IntakeEvidenceSignals.RecognizedNonImageDocument);
+        Assert.DoesNotContain(receipt.AssetRecords, asset => asset.WidthPixels == 898);
+        Assert.Collection(
+            InstructionEvidenceImages.Select(receipt.AssetRecords),
+            photo => Assert.Equal("vehicle.jpg", photo.FileName),
+            photo =>
+            {
+                Assert.Equal(2, photo.PageNumber);
+                Assert.Equal(200, photo.WidthPixels);
+            });
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.Null(await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+        Assert.Null(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+            .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+    }
+
     [Fact]
     public async Task DistinctImagesOverThePixelBudgetAreIncompleteAndNeverEnterImageAutomation()
     {
@@ -1515,6 +1565,60 @@ public sealed partial class MultiFormatIntakeWebTests
             .Concat(operators)
             .Concat(Encoding.ASCII.GetBytes("\nendstream"))
             .ToArray());
+        return WritePdfObjects(objectBodies);
+    }
+
+    /// <summary>
+    /// Text pages sharing image objects: each image is one object, drawn on
+    /// the pages that list it, so an image on every page is one repeated
+    /// object, as a letterhead is.
+    /// </summary>
+    private static byte[] CreateSharedImagePdf(
+        PdfImagePlacement[] images,
+        params (string Text, int[] Images)[] pages)
+    {
+        const int firstPageObject = 3;
+        var fontObject = firstPageObject + pages.Length;
+        var firstImageObject = fontObject + 1;
+        var firstContentObject = firstImageObject + images.Length;
+        var kids = string.Join(" ", pages.Select((_, index) => $"{firstPageObject + index} 0 R"));
+        var resources = string.Join(" ", images.Select((_, index) => $"/Im{index + 1} {firstImageObject + index} 0 R"));
+        var objectBodies = new List<byte[]>
+        {
+            Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+            Encoding.ASCII.GetBytes($"<< /Type /Pages /Kids [{kids}] /Count {pages.Length} >>")
+        };
+        objectBodies.AddRange(pages.Select((_, index) => Encoding.ASCII.GetBytes(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            + $"/Resources << /XObject << {resources} >> /Font << /F1 {fontObject} 0 R >> >> "
+            + $"/Contents {firstContentObject + index} 0 R >>")));
+        objectBodies.Add(Encoding.ASCII.GetBytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"));
+        foreach (var image in images)
+        {
+            var pixels = image.Pixels ?? [image.Red, image.Green, image.Blue];
+            using var imageObject = new MemoryStream();
+            WriteAscii(
+                imageObject,
+                $"<< /Type /XObject /Subtype /Image /Width {image.SampleWidth} /Height {image.SampleHeight} "
+                + $"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Length {pixels.Length} >>\nstream\n");
+            imageObject.Write(pixels);
+            WriteAscii(imageObject, "\nendstream");
+            objectBodies.Add(imageObject.ToArray());
+        }
+
+        foreach (var page in pages)
+        {
+            var operators = Encoding.ASCII.GetBytes(string.Concat(page.Images.Select(index =>
+                    $"q\n{images[index].Width} 0 0 {images[index].Height} {images[index].X} {images[index].Y} cm\n/Im{index + 1} Do\nQ\n")))
+                .Concat(CreatePdfTextOperators(page.Text))
+                .ToArray();
+            objectBodies.Add([
+                .. Encoding.ASCII.GetBytes($"<< /Length {operators.Length} >>\nstream\n"),
+                .. operators,
+                .. Encoding.ASCII.GetBytes("\nendstream")
+            ]);
+        }
+
         return WritePdfObjects(objectBodies);
     }
 

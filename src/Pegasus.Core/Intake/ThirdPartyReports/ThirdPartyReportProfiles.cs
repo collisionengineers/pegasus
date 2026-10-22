@@ -332,21 +332,29 @@ public static class ThirdPartyReportProfiles
     /// classification fact; it must not manufacture a receipt or asset identity
     /// merely to test a route guard. A capture PDF is not one: its
     /// photographs are the material image automation exists to place.
+    ///
+    /// A source carrying a PDF is one too, whatever its issuer (operator,
+    /// 22 October 2026): any PDF a source carries, and an uploaded PDF with a
+    /// readable text layer. One signal covers the whole source, so its loose
+    /// photographs are filed with it once its Case is matched.
     /// </summary>
     public static bool HasRecognizedNonImageDocument(IntakeSourceReadResult readResult)
     {
         ArgumentNullException.ThrowIfNull(readResult);
 
         var pages = ThirdPartySourcePage.Read(readResult);
-        if (pages.Count == 0)
+        var document = pages.Count == 0 ? null : Document(pages);
+        if (document is not null && Compiled.Any(candidate =>
+                candidate.Signature.Role is not (ThirdPartyDocumentRole.ImageEvidence or ThirdPartyDocumentRole.VehicleCapture)
+                && candidate.Matches(document)))
         {
-            return false;
+            return true;
         }
 
-        var document = Document(pages);
-        return Compiled.Any(candidate =>
-            candidate.Signature.Role is not (ThirdPartyDocumentRole.ImageEvidence or ThirdPartyDocumentRole.VehicleCapture)
-            && candidate.Matches(document));
+        return readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer)
+            && (document is null || !Compiled.Any(candidate =>
+                candidate.Signature.Role == ThirdPartyDocumentRole.VehicleCapture
+                && candidate.Matches(document)));
     }
 
     /// <summary>
