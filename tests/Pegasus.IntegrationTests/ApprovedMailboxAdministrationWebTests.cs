@@ -142,6 +142,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("The address could not be found in the mail system.", html, StringComparison.Ordinal);
+        Assert.Equal(1, ErrorSummaryCount(html));
         Assert.DoesNotContain(
             $"<td>{NewAddress}</td>",
             await GetPageAsync(client),
@@ -430,6 +431,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("cannot be changed once saved", html, StringComparison.Ordinal);
+        Assert.Equal(1, ErrorSummaryCount(html));
         Assert.DoesNotContain(
             "a-different-address@collisionengineers.co.uk",
             await GetPageAsync(client),
@@ -584,6 +586,10 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
     }
+
+    /// <summary>A refused post names its errors in one summary, in the dialog that was posted.</summary>
+    private static int ErrorSummaryCount(string html) =>
+        Regex.Count(html, "class=\"validation-summary\"", RegexOptions.CultureInvariant);
 
     private static Task<HttpResponseMessage> PostAsync(
         HttpClient client,

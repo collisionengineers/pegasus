@@ -292,7 +292,8 @@ put into forced-change state, so it must choose a new password at its next
 sign-in. That forced screen asks only for the new password and its
 confirmation; the issued password is replaced, not re-entered, and it cannot be
 chosen again. A voluntary change still asks for the current password first.
-The reset is a permanent history event with actor, time and reason.
+The reset is a permanent history event with actor and time
+([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 The temporary secret is never emailed, logged, stored in raw form or sent to
 analytics.
 

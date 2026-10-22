@@ -125,6 +125,10 @@ public sealed partial class GlassCredentialAdministrationWebTests
         var html = await GetHtmlAsync(client, PageFor(StaffId));
 
         Assert.Equal(CaseWorkspaceLabels.GlassCredential.NotSet, ChipText(html, "glass-credential-title"));
+        Assert.Contains(
+            $"<span class=\"status status--amber\">{CaseWorkspaceLabels.GlassCredential.NotSet}</span>",
+            html,
+            StringComparison.Ordinal);
         Assert.Contains("handler=SaveGlass\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClearGlass\"", html, StringComparison.Ordinal);
     }

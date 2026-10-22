@@ -1512,7 +1512,7 @@ public static class OperatorLabels
             // Service health and request operations
             "running" => "blue",
             "review required" => "amber",
-            "needs attention" or "not configured" => "amber",
+            "needs attention" or "not set" => "amber",
             "active" => "navy",
 
             // Tone by meaning (v28 P2, 18 September 2026): green for an operation
