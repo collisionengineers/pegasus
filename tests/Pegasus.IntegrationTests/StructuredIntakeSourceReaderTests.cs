@@ -122,11 +122,13 @@ public sealed class StructuredIntakeSourceReaderTests
 
     /// <summary>
     /// The same page in paper white is a scanned document page: the recovered
-    /// raster is measured, the page goes to OCR and keeps no image.
+    /// raster, or as JPEG 2000 the page drawn small, is measured, and the page
+    /// goes to OCR and keeps no image.
     /// </summary>
     [Theory]
     [InlineData(FallbackJpeg)]
     [InlineData(FallbackPng)]
+    [InlineData(FallbackJpx)]
     public async Task AScannedPageOnlyTheFallbackCanDecodeStillGoesToOcrWithAMeasurement(string fallback)
     {
         var result = await ReadAsync(new TestEmail(
@@ -216,29 +218,6 @@ public sealed class StructuredIntakeSourceReaderTests
         Assert.Contains(result.Issues, issue => issue.Code == "scan-page-photograph");
         Assert.DoesNotContain(result.Issues, issue => issue.Code == "pdf-image-decode-failure");
         Assert.Contains(PdfPageRasteriser.Version, result.ReaderVersion, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The same kind of page in paper white is a scanned document page: the
-    /// small drawing is measured, the page goes to OCR and keeps no image.
-    /// </summary>
-    [Fact]
-    public async Task AFullPageJpeg2000ScanIsDrawnSmallAndStillGoesToOcrWithAMeasurement()
-    {
-        var result = await ReadAsync(new TestEmail(
-            "scan.pdf",
-            "application/pdf",
-            BuildPdf(new PdfFixturePage(null, Jpeg2000Image(
-                PhotoWidth,
-                PhotoHeight,
-                Convert.FromBase64String(Jpeg2000PaperWhiteCodestream),
-                FullPage)))));
-
-        var candidate = Assert.Single(result.ScannedPdfPages);
-        Assert.Equal(1, candidate.PageNumber);
-        Assert.Empty(result.AssetCandidates);
-        var verdict = Assert.Single(result.Issues, issue => issue.Code == "scan-page-document");
-        Assert.Contains("(near-white ", verdict.Reason, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -747,14 +726,22 @@ public sealed class StructuredIntakeSourceReaderTests
     private const string FullPage = "612 0 0 792 0 0";
     private const string FallbackJpeg = "wrapped-jpeg";
     private const string FallbackPng = "long-samples";
+    private const string FallbackJpx = "jpx";
 
     /// <summary>
     /// A raster PdfPig hands over as neither a JPEG nor a PNG: a JPEG behind
-    /// <c>/FlateDecode</c>, which has no decoded samples, or samples one row
-    /// longer than the declared size, which PdfPig refuses as a PNG.
+    /// <c>/FlateDecode</c>, which has no decoded samples, samples one row
+    /// longer than the declared size, which PdfPig refuses as a PNG, or, for
+    /// the paper-white page only, a JPEG 2000 codestream, which is drawn as
+    /// its page.
     /// </summary>
     private static PdfFixtureImage FallbackOnlyImage(string fallback, byte[] rgb, string placement) => fallback switch
     {
+        FallbackJpx when !rgb.AsSpan().ContainsAnyExcept((byte)0xff) => Jpeg2000Image(
+            PhotoWidth,
+            PhotoHeight,
+            Convert.FromBase64String(Jpeg2000PaperWhiteCodestream),
+            placement),
         FallbackJpeg => new(
             PhotoWidth,
             PhotoHeight,

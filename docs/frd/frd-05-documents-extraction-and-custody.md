@@ -38,9 +38,6 @@ images, MP4 and MOV video evidence, and route metadata. Support is proved
 only by the actual application caller and current evidence, never by an
 imported workspace or plan.
 
-<!-- Proposed for the operator's approval (R209): the two PDF sentences
-below restate R194 and replace "PDF uses PdfPig, the only live PDF
-implementation (ADR-0040, ADR-0003)." -->
 One engine owns each readable format. PDF uses PdfPig (ADR-0040, ADR-0003).
 For photo PDFs only, when a stream is not JPEG or PNG, PDFtoImage over
 PDFium renders that full page to a raster image, which is treated as the

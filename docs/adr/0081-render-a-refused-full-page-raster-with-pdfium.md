@@ -15,7 +15,9 @@ tags: [extraction, pdf, renderer, pdfium]
 
 Accepted (operator rulings R194 and R209, 22 October 2026). This record
 refines ADR-0061 (a full-page raster is a document or a photograph by its
-colour) and sits beside ADR-0040 and ADR-0003 (PdfPig reads PDF).
+colour) and ADR-0025 ("one live PDF implementation, not two"; R209 accepts
+the second native PDF engine), and sits beside ADR-0040 and ADR-0003 (PdfPig
+reads PDF).
 
 ## Context
 
