@@ -76,8 +76,11 @@ screen shows exactly which field or material is missing, where it should come
 from and why it is required; its control is what clears it, with no sentence
 saying how (operator, 9 October 2026). Pegasus never shows an
 overall score, a percentage, or a summary such as "3 items outstanding". On
-the Case record each report blocker links to the section that clears it. A
-recorded value is never a blocker because of who recorded it: there is no
+the Case record each report blocker links to the section that clears it. The
+Engineer blocker is the one exception: it links the ribbon's Assign Engineer
+action, not a section, here and in the Report not ready card (operator, 22
+October 2026).
+A recorded value is never a blocker because of who recorded it: there is no
 per-field review, and Assign Engineer is the only review (operator, 25
 September 2026). While the report is not ready the aside's **Report not
 ready** card lists every report blocker, each linking to its section, and the
