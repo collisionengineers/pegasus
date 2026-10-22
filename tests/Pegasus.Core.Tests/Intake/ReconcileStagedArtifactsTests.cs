@@ -116,11 +116,49 @@ public sealed class ReconcileStagedArtifactsTests
 
         Assert.Equal(None with { Completed = 1, Retained = 2 }, result);
         Assert.Equal(
-            new[] { $"set {failed} Failed", $"set {completed} Completed", $"delete {completed} Completed" },
+            new[] { $"set {failed} Failed", $"complete {completed}" },
             harness.Store.Calls);
         Assert.True(harness.Store.IsStaged(pending));
         Assert.True(harness.Store.IsStaged(failed));
         Assert.False(harness.Store.IsStaged(completed));
+    }
+
+    /// <summary>
+    /// A completed item's blob listed Pending takes the one complete operation
+    /// (tag and delete), not a set followed by a delete; one already listed
+    /// Completed, left by a delete that was refused, is only deleted.
+    /// </summary>
+    [Fact]
+    public async Task ACompletedItemIsCompletedInOneOperationOrOnlyDeletedWhenListedCompleted()
+    {
+        var harness = new Harness();
+        var pending = harness.Store.Add(1, Young, StagedArtifactDisposition.Pending);
+        harness.Authority.Add(pending, StagedArtifactAuthorityState.Completed);
+        var listedCompleted = harness.Store.Add(2, Young, StagedArtifactDisposition.Completed);
+        harness.Authority.Add(listedCompleted, StagedArtifactAuthorityState.Completed);
+
+        var result = await harness.RunAsync();
+
+        Assert.Equal(None with { Completed = 2 }, result);
+        Assert.Equal(
+            new[] { $"complete {pending}", $"delete {listedCompleted} Completed" },
+            harness.Store.Calls);
+        Assert.False(harness.Store.IsStaged(pending));
+        Assert.False(harness.Store.IsStaged(listedCompleted));
+    }
+
+    [Fact]
+    public async Task ACompleteOperationThatIsRefusedIsAFailureAndLeavesTheBlob()
+    {
+        var harness = new Harness();
+        var completed = harness.Store.Add(1, Young, StagedArtifactDisposition.Pending);
+        harness.Authority.Add(completed, StagedArtifactAuthorityState.Completed);
+        harness.Store.RefuseDelete.Add(completed);
+
+        var result = await harness.RunAsync();
+
+        Assert.Equal(None with { Failures = 1 }, result);
+        Assert.True(harness.Store.IsStaged(completed));
     }
 
     [Fact]
@@ -290,6 +328,16 @@ public sealed class ReconcileStagedArtifactsTests
                 && entries.TryGetValue(storageKey, out var entry)
                 && string.Equals(entry.Item.ConcurrencyToken, expectedConcurrencyToken, StringComparison.Ordinal)
                 && entry.Tag == expectedDisposition
+                && entries.Remove(storageKey));
+        }
+
+        public Task<bool> TryCompleteStagedAsync(
+            string storageKey,
+            CancellationToken cancellationToken)
+        {
+            Calls.Add($"complete {storageKey}");
+            return Task.FromResult(
+                !RefuseDelete.Contains(storageKey)
                 && entries.Remove(storageKey));
         }
 

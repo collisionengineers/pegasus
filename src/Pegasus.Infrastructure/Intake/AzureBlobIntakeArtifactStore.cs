@@ -435,13 +435,14 @@ public sealed class AzureBlobIntakeArtifactStore
                 properties.Value.ETag,
                 properties.Value.Metadata,
                 tags.Value.Tags);
+            var metadata = CreateStagedMetadata(
+                current.ContentHash,
+                current.ContentLength,
+                current.FirstSeenAtUtc,
+                disposition,
+                properties.Value.Metadata);
             var metadataUpdate = await blob.SetMetadataAsync(
-                CreateStagedMetadata(
-                    current.ContentHash,
-                    current.ContentLength,
-                    current.FirstSeenAtUtc,
-                    disposition,
-                    properties.Value.Metadata),
+                metadata,
                 new BlobRequestConditions { IfMatch = expected },
                 cancellationToken);
 
@@ -463,19 +464,24 @@ public sealed class AzureBlobIntakeArtifactStore
                     previousDisposition);
             }
 
+            var newTags = CreateDispositionTags(disposition);
             await blob.SetTagsAsync(
-                CreateDispositionTags(disposition),
+                newTags,
                 tagConditions,
                 cancellationToken);
-            var updated = await GetStagedAsync(storageKey, cancellationToken);
-            return updated is not null
-                && updated.Disposition == disposition
-                && string.Equals(
-                    updated.ConcurrencyToken,
-                    metadataUpdate.Value.ETag.ToString(),
-                    StringComparison.Ordinal)
-                    ? updated
-                    : null;
+
+            // What the two writes just made, with no re-read: a tag write
+            // leaves the ETag the metadata write returned, and a writer after
+            // this point fails the caller's next conditional call (the sweep's
+            // delete) under that ETag and tag.
+            return MapStaged(
+                storageKey,
+                hash,
+                current.ContentLength,
+                properties.Value.CreatedOn,
+                metadataUpdate.Value.ETag,
+                metadata,
+                newTags);
         }
         catch (RequestFailedException exception) when (exception.Status is 404 or 412)
         {

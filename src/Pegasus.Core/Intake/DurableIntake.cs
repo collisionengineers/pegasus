@@ -1669,6 +1669,24 @@ public sealed class ReconcileStagedArtifacts(
                     && !kept
                     && nowUtc - item.FirstSeenAtUtc >= ExpiryGracePeriod;
                 var current = item;
+                // A completed item's blob not yet listed Completed goes by the one
+                // complete-and-delete operation, which tags Completed and deletes
+                // under that tag; a blob already listed Completed is only deleted.
+                if (target == StagedArtifactDisposition.Completed
+                    && current.Disposition != StagedArtifactDisposition.Completed)
+                {
+                    if (await artifactStore.TryCompleteStagedAsync(item.StorageKey, cancellationToken))
+                    {
+                        completed++;
+                    }
+                    else
+                    {
+                        failures++;
+                    }
+
+                    continue;
+                }
+
                 // An expiring blob is set even when it lists with its target: a
                 // listed Unmatched may carry another tag, which the delete's tag
                 // condition would refuse on every run.

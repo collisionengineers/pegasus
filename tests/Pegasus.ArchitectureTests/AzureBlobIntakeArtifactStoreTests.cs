@@ -123,6 +123,48 @@ public sealed class AzureBlobIntakeArtifactStoreTests
     }
 
     [Fact]
+    public async Task SettingADispositionTakesFourOperationsAndHandsBackWhatItWroteWithoutARereadAndTheNextDeleteHolds()
+    {
+        var initialETag = new ETag("\"etag-1\"");
+        var updatedETag = new ETag("\"etag-2\"");
+        var blob = new StubBlobClient(
+            StorageKey,
+            Hash,
+            17,
+            FirstSeenAtUtc,
+            StagedArtifactDisposition.Pending,
+            initialETag)
+        {
+            NextMetadataETag = updatedETag
+        };
+        var store = CreateStore(new StubBlobContainerClient(blob));
+
+        var updated = await store.TrySetStagedDispositionAsync(
+            StorageKey,
+            initialETag.ToString(),
+            StagedArtifactDisposition.Orphan,
+            CancellationToken.None);
+
+        // Properties, tags, metadata, tags: the result is built from the writes.
+        Assert.Equal(4, blob.Operations);
+        Assert.NotNull(updated);
+        Assert.Equal(StagedArtifactDisposition.Orphan, updated.Disposition);
+        Assert.Equal(updatedETag.ToString(), updated.ConcurrencyToken);
+        Assert.Equal(StorageKey, updated.StorageKey);
+        Assert.Equal(Hash, updated.ContentHash);
+        Assert.Equal(17, updated.ContentLength);
+        Assert.Equal(FirstSeenAtUtc, updated.FirstSeenAtUtc);
+
+        // What the sweep's delete then presents is what the blob now holds.
+        Assert.True(await store.DeleteStagedAsync(
+            StorageKey,
+            updated.ConcurrencyToken,
+            updated.Disposition,
+            CancellationToken.None));
+        Assert.Equal(1, blob.DeleteCount);
+    }
+
+    [Fact]
     public async Task DeleteRequiresTheExpectedTagUnderTheExpectedETagWithoutRereadingTheBlob()
     {
         var etag = new ETag("\"etag-1\"");
