@@ -31,6 +31,7 @@ public sealed class DependencyDirectionTests
         "MimeKit",
         "DocumentFormat.OpenXml",
         "UglyToad.PdfPig",
+        "PDFtoImage",
         "Microsoft.Data.SqlClient",
         "System.Net.Http",
         "OpenIddict",
@@ -58,6 +59,7 @@ public sealed class DependencyDirectionTests
     [InlineData("DocumentFormat.OpenXml", true)]
     [InlineData("MimeKit", true)]
     [InlineData("UglyToad.PdfPig", true)]
+    [InlineData("PDFtoImage", true)]
     [InlineData("Microsoft.Data.SqlClient", true)]
     [InlineData("System.Net.Http", true)]
     [InlineData("Pegasus.Infrastructure", true)]
