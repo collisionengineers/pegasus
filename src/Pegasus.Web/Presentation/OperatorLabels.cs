@@ -2107,6 +2107,20 @@ public static class OperatorLabels
         };
     }
 
+    /// <summary>
+    /// Search's filter and results words that v41 W2 and W3 gave (signed off
+    /// 19 October 2026): the stage filter's name, the two lists' empty choice,
+    /// the results' Type column and the preview's copy button.
+    /// </summary>
+    public static class Search
+    {
+        public const string CaseStage = "Case stage";
+        public const string AllPrincipals = "All principals";
+        public const string AllEngineers = "All engineers";
+        public const string TypeColumn = "Type";
+        public const string CopyCaseReference = "Copy Case/PO";
+    }
+
     /// <summary>The Mail settings area labels and status values — one list.</summary>
     public static class MailSettings
     {

@@ -330,7 +330,7 @@ else
                                     @if (item.Kind == NeedsAttentionKind.UnassignedEngineer)
                                     {
                                         <div class="wc-row-actions">
-                                            <a class="btn btn--dark btn--small" href="@Model.PageUrl(selected: item.Id, assign: true)" data-wc-dialog="wc-assign-dialog">
+                                            <a class="btn btn--small" href="@Model.PageUrl(selected: item.Id, assign: true)" data-wc-dialog="wc-assign-dialog">
                                                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
                                                 <span>@Labels.AssignEngineer</span>
                                             </a>
@@ -348,7 +348,7 @@ else
                                     }
                                     else if (!string.IsNullOrWhiteSpace(item.Route))
                                     {
-                                        <a class="btn btn--dark btn--small" href="@item.Route">
+                                        <a class="btn btn--small" href="@item.Route">
                                             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
                                             <span>@NeedsAttentionPresentation.ActionLabel(item)</span>
                                         </a>
@@ -661,7 +661,7 @@ else
                                 <div class="wc-row-actions wc-job-actions">
                                     @if (row.Draft is { Route: { Length: > 0 } draftRoute } draft)
                                     {
-                                        <a class="btn btn--small btn--dark" href="@draftRoute">@Labels.AiDraftAction(draft.Action.ToString())</a>
+                                        <a class="btn btn--small" href="@draftRoute">@Labels.AiDraftAction(draft.Action.ToString())</a>
                                     }
                                     @if (row.CanComplete)
                                     {

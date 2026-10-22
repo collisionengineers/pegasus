@@ -59,7 +59,10 @@ no figure and the section's unavailable notice, never `0`.
 headed Activity holds a table: the figures head the columns and the rows are
 **Today** and **This week**. The figures are New cases, Sent to Engineer,
 Reports sent and E-mails received, each counted for both rows (operator 8
-and 11 October 2026). Today runs from midnight Europe/London and This week
+and 11 October 2026), set at table size (v41 W6, operator, 15 and 19 October
+2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Today runs from midnight Europe/London and This week
 from Monday 00:00 Europe/London, both to the instant of the read. Every
 figure is office-wide and plain text; New cases opens the New cases tab
 when that tab is shown. The definitions:
@@ -125,7 +128,10 @@ are on Administration Logs. Service health, Administration only, states the
 external-work queue.
 
 **Office, Mine, kinds and Find.** The section's toolbar carries the Office /
-Mine switch and **Find in Needs attention**. Office is every item but a With
+Mine switch, at the shared control height, and **Find in Needs attention**
+(v41 W1, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Office is every item but a With
 Engineer one, which is its Engineer's Mine only; an Unassigned Case is in
 both (#1213, operator, 15 October 2026,
 [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
@@ -144,8 +150,10 @@ toolbar and says "No work matches these filters."
 **The ledger.** A table with seven columns: Next action (the task, with its
 kind beneath), Record / detail (the reference, with the subject beneath;
 the reference links to the Case, or to the Unidentified item it names, and
-an AI draft on the Unidentified queue has no link), Owner, Due, Received, the next action as a button (v32 item M) and
-**Dismiss**, an icon-only control named "Dismiss {reference}" (v32 item B).
+an AI draft on the Unidentified queue has no link), Owner, Due, Received, the next action as a button (v32 item M), quiet
+except the open row's own, and **Dismiss**, an icon-only control named
+"Dismiss {reference}" (v32 item B; v41 W5, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Owner is the person's name; an Open tasks row's person is its oldest open
 task's assignee, else the staff member who created that task, and a With
 Engineer row's is the Case's Engineer (#1213). A Held, Review,
@@ -254,9 +262,9 @@ queue is, and a link to an Identified record opens the page that holds it
 (operator, 15 and 16 October 2026).
 Queries lists every open Case that holds an open query, whatever its state
 (operator, 11 October 2026); the tab and its list heading read Queries,
-while a Case's stage chip and Search's State filter still read Query.
+while a Case's stage chip and Search's Case stage filter still read Query.
 Report sent has no queue; a Report sent Case is
-found through Search's State filter, whose Report sent choice finds those
+found through Search's Case stage filter, whose Report sent choice finds those
 with no open query and whose Query choice finds every Case with one.
 Cancellation, rejection and Created in error are recorded dispositions, not
 a Closed queue.
@@ -449,12 +457,17 @@ Server-side transitions stay reachable where a handler exists.
 ### Search
 
 `/Search` carries the `UI-07` filters: Case/PO or Image reference,
-Registration, Claimant, Claim/Principal reference, Principal, State, Engineer,
-Received from/to and Origin, with Search and Clear. Results are one table
-(Case/PO and Our ref, vehicle, claimant, principal, type, state, due).
+Registration, Claimant, Claim/Principal reference, Principal, Case stage,
+Engineer, Received from/to and Origin, with Search and Clear. Principal and
+Engineer are selects, and Case stage is the filter that read State (v41 W2,
+operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Results are one table (Case/PO and Claim reference, vehicle, claimant,
+principal, type, state, due; v41 W3, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Pointer or keyboard intent on a row shows a selected-Case preview beside the
-table (type, state, accident circumstances, Our ref, Engineer, due, next
-action, outstanding requirements, Open Case, copy Case/PO). The accident
+table (type, state, accident circumstances, Claim reference, Engineer, due,
+next action, outstanding requirements, Open Case, copy Case/PO). The accident
 circumstances are read for the selected Case only. At constrained width the
 preview stacks after the table. Vehicle-images records are
 searchable by Image reference or registration and use the named states

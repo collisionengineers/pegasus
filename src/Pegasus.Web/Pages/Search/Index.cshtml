@@ -47,10 +47,16 @@
         </div>
         <div class="field">
             <label for="search-principal">Principal</label>
-            <input id="search-principal" name="principal" value="@Model.Principal" maxlength="20" />
+            <select id="search-principal" name="principal">
+                <option value="">@OperatorLabels.Search.AllPrincipals</option>
+                @foreach (var code in Model.PrincipalOptions)
+                {
+                    <option value="@code" selected="@(string.Equals(Model.Principal, code, StringComparison.OrdinalIgnoreCase))">@code</option>
+                }
+            </select>
         </div>
         <div class="field">
-            <label for="search-state">State</label>
+            <label for="search-state">@OperatorLabels.Search.CaseStage</label>
             <select id="search-state" name="state">
                 <option value="">All states</option>
                 @foreach (var option in OperatorLabels.CaseStageOptions)
@@ -75,7 +81,13 @@
         <div class="compact-search__more-fields">
             <div class="field">
                 <label for="search-engineer">Engineer</label>
-                <input id="search-engineer" name="engineerId" value="@Model.EngineerId?.ToString("D")" />
+                <select id="search-engineer" name="engineerId">
+                    <option value="">@OperatorLabels.Search.AllEngineers</option>
+                    @foreach (var choice in Model.EngineerOptions)
+                    {
+                        <option value="@choice.StaffId.ToString("D")" selected="@(Model.EngineerId == choice.StaffId)">@choice.DisplayName</option>
+                    }
+                </select>
                 <span asp-validation-for="EngineerId" class="field-validation-error"></span>
             </div>
             <div class="field">
@@ -180,7 +192,9 @@ else if (listingImages)
                                     <th scope="col">Vehicle</th>
                                     <th scope="col">Claimant</th>
                                     <th scope="col">Principal</th>
+                                    <th scope="col">@OperatorLabels.Search.TypeColumn</th>
                                     <th scope="col">State</th>
+                                    <th scope="col">@CaseWorkspaceLabels.Frame.Due</th>
                                     <th scope="col">@Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.Editing</th>
                                 </tr>
                             </thead>
@@ -208,7 +222,9 @@ else if (listingImages)
                                         </td>
                                         <td>@(row.Item.Claimant ?? "Not recorded")</td>
                                         <td>@row.Item.Principal</td>
+                                        <td>@OperatorLabels.CaseTypeName(row.Item.CaseType)</td>
                                         <td><partial name="Shared/_StatusChip" model="@row.Chip" /></td>
+                                        <td>@row.Due</td>
                                         <td>@row.Editing</td>
                                         <template>
                                             <partial name="_CasePreview" model="row" />

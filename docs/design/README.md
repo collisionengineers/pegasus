@@ -106,10 +106,13 @@ per browser in the `pegasus-rail` cookie (read by
 server with no flash. Under 980px, where the rail lies down, the control is
 hidden.
 
-The **utility bar** is dark and sticky at the top of the column: freshness
-text, the global search input with its "Ctrl K" hint (Enter or Ctrl K opens
-the command palette dialog), the "New case" link to the real creation form,
-and the bell. Upload and Inbox retain their named navigation destinations.
+The **utility bar** is dark and sticky at the top of the column: the global
+search input with its "Ctrl K" hint (Enter or Ctrl K opens the command palette
+dialog), the "New case" link to the real creation form, and the bell. The
+rail foot's freshness line is the one clock (v41 S4, operator, 15 and 19
+October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Upload and Inbox retain their named navigation destinations.
 
 The **bell** is personal notifications and nothing else: never office-wide
 work, attention rows or queue counts. Its `.bell-count` shows the signed-in
@@ -882,7 +885,7 @@ deleted in wave 5.
 | `brand`, `brand-copy` | Rail lockup |
 | `primary-nav`, `nav-label`, `nav-link` | Rail navigation |
 | `rail-health`, `rail-user` | Rail foot |
-| `utility-bar`, `utility-freshness`, `utility-search` | Dark bar |
+| `utility-bar`, `utility-search` | Dark bar |
 | `rail-collapsed` (on `app-shell`), `[data-rail-toggle]` | Collapsed 64px rail and its Collapse/Expand control |
 | `bell-wrap`, `bell-count`, `row-list`, `row-form`, `row-button`, `row-button--unread` | The bell with its unread count, and the Notifications dialog's one-button rows |
 | `external-shell`, `auth-identity`, `auth-brand`, `auth-company`, `auth-panel`, `auth-card`, `auth-card--wide`, `password-reveal` | Navless frame: identity panel beside the page's card |

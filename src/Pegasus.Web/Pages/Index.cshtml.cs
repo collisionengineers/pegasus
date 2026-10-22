@@ -632,10 +632,9 @@ public partial class IndexModel(
 
             var accounts = await staffAccounts.ListAsync(0, 100, cancellationToken);
             // The signed-in person first, as the Triage Assign list (#1213).
-            var viewer = StaffNotificationPolicy.StaffId(actor);
             var engineers = accounts.Accounts
                 .Where(account => account.IsEnabled)
-                .OrderBy(account => account.Id == viewer ? 0 : 1)
+                .OrderBy(account => account.Id == ViewerStaffId ? 0 : 1)
                 .Select(account => new WorkCentreEngineer(account.Id, account.UserName))
                 .ToArray();
             var current = header.Workflow.AssignedEngineerId is { } engineerId

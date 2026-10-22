@@ -76,12 +76,16 @@ screen shows exactly which field or material is missing, where it should come
 from and why it is required; its control is what clears it, with no sentence
 saying how (operator, 9 October 2026). Pegasus never shows an
 overall score, a percentage, or a summary such as "3 items outstanding". On
-the Case record each report blocker links to the section that clears it. A
-recorded value is never a blocker because of who recorded it: there is no
+the Case record each report blocker links to the section that clears it,
+except an Unassigned With Engineer Case's, which links none (#1213, operator,
+15 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+A recorded value is never a blocker because of who recorded it: there is no
 per-field review, and Assign Engineer is the only review (operator, 25
 September 2026). While the report is not ready the aside's **Report not
-ready** card lists every report blocker, each linking to its section, and the
-Report section's head keeps the one **Not ready** availability label. The
+ready** card lists every report blocker, each linking to its section but that
+one, and the Report section's head keeps the one **Not ready** availability
+label. The
 Next action is one step (operator, 8 October 2026): in Not ready the first
 outstanding requirement, in Review Assign Engineer, which opens the Actions
 menu's dialog, and With Engineer the first blocker ([FRD-16](frd-16-case-record-workspace.md#case-workspace),

@@ -256,6 +256,30 @@ public sealed class WorkCentreWebTests
     }
 
     /// <summary>
+    /// Row actions are quiet buttons; only the opened row's own action stays
+    /// dark, so the table is no longer a column of black buttons (v41 W5,
+    /// signed off 19 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task RowActionsAreQuietAndOnlyTheOpenedRowsActionStaysDark()
+    {
+        var review = Item(NeedsAttentionKind.ReviewCase, "QDOS26008", NeedsAttentionPriority.Today, Now.AddHours(3));
+        var held = Item(NeedsAttentionKind.HeldDecision, "QDOS26009", NeedsAttentionPriority.Normal, Now.AddDays(4));
+        using var host = Host(new FakeSnapshot { Items = [review, held], TodayCount = 1, LaterCount = 1 });
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, $"/?selected={review.Id:D}");
+
+        var cells = Regex.Matches(html, "<td class=\"wc-col-action\">(.*?)</td>", RegexOptions.Singleline)
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+        Assert.Equal(2, cells.Length);
+        Assert.All(cells, cell => Assert.Matches("<a class=\"btn btn--small\" href=", cell));
+        var openRowActions = Regex.Match(html, "data-wc-actions>(.*?)</div>", RegexOptions.Singleline).Groups[1].Value;
+        Assert.Contains("class=\"btn btn--dark\"", openRowActions, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// #1213 (v41 W8): Mine lists a With Engineer row, its kind chip and bold
     /// line reading With Engineer, its action Open Case, its Due No due date
     /// when the Case has none; its kind chip sits beside Unassigned on Mine.

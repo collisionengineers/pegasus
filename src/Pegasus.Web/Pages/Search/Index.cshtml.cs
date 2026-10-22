@@ -36,6 +36,7 @@ public sealed partial class IndexModel(
     IGetCaseCircumstances getCaseCircumstances,
     IImageIntakeQueries imageIntakeQueries,
     IStaffAccountQueries staffAccounts,
+    ICaseEngineerChoices engineerChoices,
     TimeProvider timeProvider,
     ILogger<IndexModel> logger) : StaffPageModel
 {
@@ -107,6 +108,12 @@ public sealed partial class IndexModel(
 
     public IReadOnlyList<ImageIntakeSummary> ImageIntakeResults { get; private set; } = [];
 
+    /// <summary>The Principal filter's choices: every active Principal's code, and the one filtering when it is not active (v41 W2).</summary>
+    public IReadOnlyList<string> PrincipalOptions { get; private set; } = [];
+
+    /// <summary>The Engineer filter's choices: every enabled account, and the one filtering when it is not enabled (v41 W2).</summary>
+    public IReadOnlyList<CaseEngineerChoice> EngineerOptions { get; private set; } = [];
+
     public bool QueryFailed { get; private set; }
 
     /// <summary>
@@ -135,7 +142,6 @@ public sealed partial class IndexModel(
         string? View,
         string DetailHref,
         string SelectHref,
-        string Heading,
         string Muted,
         string Chip,
         string Vehicle,
@@ -161,21 +167,25 @@ public sealed partial class IndexModel(
             return NotFound();
         }
         PageNumber = pageNumber ?? 1;
-        if (!ModelState.IsValid)
-        {
-            return Page();
-        }
 
         try
         {
-            // The Image Intake lookups and the Case search read independently, so they run together.
+            // The filter lists, the Image Intake lookups and the Case search read
+            // independently, so they run together.
+            var filterOptionsLoad = LoadFilterOptionsAsync(actor, cancellationToken);
+            if (!ModelState.IsValid)
+            {
+                await filterOptionsLoad;
+                return Page();
+            }
+
             var imageIntakeLoad = RecordKindFilter != "instructions"
                 ? LoadImageIntakeResultsAsync(cancellationToken)
                 : Task.CompletedTask;
 
             if (RecordKindFilter == "images")
             {
-                await imageIntakeLoad;
+                await Task.WhenAll(imageIntakeLoad, filterOptionsLoad);
                 LoadedAtUtc = timeProvider.GetUtcNow();
                 return Page();
             }
@@ -209,12 +219,12 @@ public sealed partial class IndexModel(
             }
             catch
             {
-                // Validation throws before any task starts: the Image Intake results still land first.
-                await imageIntakeLoad;
+                // Validation throws before any task starts: the other reads still land first.
+                await Task.WhenAll(imageIntakeLoad, filterOptionsLoad);
                 throw;
             }
 
-            await imageIntakeLoad;
+            await Task.WhenAll(imageIntakeLoad, filterOptionsLoad);
             Results = await caseSearch;
             // The circumstances are read for the one Case the pane opens on;
             // every other row asks for its own when it is selected.
@@ -255,6 +265,35 @@ public sealed partial class IndexModel(
         }
 
         return Page();
+    }
+
+    /// <summary>
+    /// The Principal and Engineer filters are selects (v41 W2): each lists what
+    /// the filter can find, whatever the page of results shows. A value already
+    /// filtering stays listed when it is not among them, so the control that
+    /// made the filter never hides it.
+    /// </summary>
+    private async Task LoadFilterOptionsAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        var principalsRead = imageIntakeQueries.ListActivePrincipalsAsync(cancellationToken);
+        var engineersRead = engineerChoices.GetAsync(actor, cancellationToken);
+        await Task.WhenAll(principalsRead, engineersRead);
+
+        var codes = (await principalsRead).Select(principal => principal.Code).ToList();
+        if (!string.IsNullOrWhiteSpace(Principal)
+            && !codes.Contains(Principal, StringComparer.OrdinalIgnoreCase))
+        {
+            codes.Add(Principal);
+            codes.Sort(StringComparer.Ordinal);
+        }
+        PrincipalOptions = codes;
+
+        var engineers = (await engineersRead).ToList();
+        if (EngineerId is { } filtering && engineers.All(choice => choice.StaffId != filtering))
+        {
+            engineers.Add(new CaseEngineerChoice(filtering, filtering.ToString("D")));
+        }
+        EngineerOptions = engineers;
     }
 
     /// <summary>
@@ -425,7 +464,6 @@ public sealed partial class IndexModel(
                 view,
                 view is null ? $"/Cases/{item.CaseId:D}" : $"/Cases/{item.CaseId:D}?view={view}",
                 Href(selected: item.CaseId, selectedView: view),
-                Join(reference, item.Registration),
                 Join(item.Claimant, item.Principal),
                 StateLabel(item),
                 string.Join(

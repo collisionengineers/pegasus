@@ -603,24 +603,30 @@
         });
     });
 
-    // Copy a support reference. Without script the value is still selectable
-    // text, which is why the button is rendered hidden and revealed here rather
-    // than shipped as a control that might do nothing.
-    document.querySelectorAll('[data-copy-target]').forEach(function (button) {
-        var source = document.getElementById(button.getAttribute('data-copy-target'));
-        if (!source || !navigator.clipboard) {
-            return;
-        }
+    // Copy a support reference, or a Case/PO (Search's preview). Without script
+    // the value is still selectable text, which is why the button is rendered
+    // hidden and revealed here rather than shipped as a control that might do
+    // nothing. A preview swapped in later binds through pegasusMountBinders.
+    function bindCopyButtons(root) {
+        root.querySelectorAll('[data-copy-target]').forEach(function (button) {
+            var source = document.getElementById(button.getAttribute('data-copy-target'));
+            if (!source || !navigator.clipboard || button.dataset.copyBound === 'true') {
+                return;
+            }
 
-        button.hidden = false;
-        button.addEventListener('click', function () {
-            navigator.clipboard.writeText(source.textContent.trim()).then(function () {
-                var original = button.textContent;
-                button.textContent = 'Copied';
-                window.setTimeout(function () { button.textContent = original; }, 2000);
+            button.dataset.copyBound = 'true';
+            button.hidden = false;
+            button.addEventListener('click', function () {
+                navigator.clipboard.writeText(source.textContent.trim()).then(function () {
+                    var original = button.textContent;
+                    button.textContent = 'Copied';
+                    window.setTimeout(function () { button.textContent = original; }, 2000);
+                });
             });
         });
-    });
+    }
+    bindCopyButtons(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindCopyButtons);
 
     // Show / Hide a password (sign in, v30 item J). Without script the field
     // is an ordinary password field, which is why the control ships hidden.
@@ -2486,6 +2492,7 @@ window.pegasusPreferences = (function () {
             candidate.setAttribute('aria-selected', candidate === row ? 'true' : 'false');
         });
         target.replaceChildren(template.content.cloneNode(true));
+        (window.pegasusMountBinders || []).forEach(function (bind) { bind(target); });
         showCircumstances();
         var url = new URL(window.location.href);
         url.searchParams.set('selected', row.getAttribute('data-select-id') || row.getAttribute('data-select-href'));

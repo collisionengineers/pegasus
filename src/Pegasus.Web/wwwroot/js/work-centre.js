@@ -74,6 +74,21 @@
         return true;
     }
 
+    // The Case an opener belongs to: its own row, or the open row's facts.
+    function openerCase(opener) {
+        var holder = opener.closest('[data-wc-row], [data-wc-detail]');
+        if (!holder) {
+            return null;
+        }
+        return (holder.getAttribute('data-wc-row') || holder.id.replace(/^wc-detail-/, '')).toLowerCase();
+    }
+
+    // The Case the assignment dialog on the page is for.
+    function dialogCase(dialog) {
+        var field = dialog.querySelector('input[name="caseId"]');
+        return field ? field.value.toLowerCase() : null;
+    }
+
     document.addEventListener('click', function (event) {
         var scopeLink = event.target.closest('[data-wc-scope-link]');
         if (scopeLink) {
@@ -97,7 +112,9 @@
         var opener = event.target.closest('[data-wc-dialog]');
         if (opener) {
             var dialog = document.getElementById(opener.getAttribute('data-wc-dialog'));
-            if (dialog && typeof dialog.pegasusOpen === 'function') {
+            // The dialog on the page is the open row's own. Another row's
+            // opener follows its address, which opens that row with its dialog.
+            if (dialog && typeof dialog.pegasusOpen === 'function' && openerCase(opener) === dialogCase(dialog)) {
                 event.preventDefault();
                 dialog.pegasusOpen(opener);
             }

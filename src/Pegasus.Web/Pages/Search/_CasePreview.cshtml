@@ -11,7 +11,7 @@
    value is null. *@
 <div class="detail-canvas">
     <p class="eyebrow">@OperatorLabels.CaseTypeName(Model.Item.CaseType)</p>
-    <h2>@Model.Heading</h2>
+    <h2><span id="selected-case-po">@Model.Reference</span>@if (!string.IsNullOrWhiteSpace(Model.Item.Registration)){<text> · @Model.Item.Registration</text>}</h2>
     <p class="muted">@Model.Muted</p>
     <partial name="Shared/_StatusChip" model="@Model.Chip" />
     <section class="section-gap">
@@ -26,7 +26,7 @@
         }
     </section>
     <div class="fact-grid">
-        <dl class="fact"><dt>Our ref</dt><dd>@Model.PrincipalReference</dd></dl>
+        <dl class="fact"><dt>@CaseWorkspaceLabels.Frame.ClaimReference</dt><dd>@Model.PrincipalReference</dd></dl>
         <dl class="fact"><dt>Engineer</dt><dd>@Model.Engineer</dd></dl>
         @if (Model.Editing.Length > 0)
         {
@@ -57,5 +57,7 @@
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
             <span>Open Case</span>
         </a>
+        @* Shipped hidden and revealed by site.js, so without script the Case/PO is simply text (v41 W3). *@
+        <button type="button" class="btn" data-copy-target="selected-case-po" hidden>@OperatorLabels.Search.CopyCaseReference</button>
     </div>
 </div>

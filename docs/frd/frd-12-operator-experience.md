@@ -100,9 +100,16 @@ The rail foot also carries **Collapse**, which folds the rail to icons
 and painted by the server on the next page. Below 980px, where the rail lies
 down, there is no collapse.
 
-**The utility bar** carries the page freshness text, the global search input
-(Enter or Ctrl K opens the command palette), **New case**, and the bell.
+**The utility bar** carries the global search input (Enter or Ctrl K opens
+the command palette), **New case**, and the bell; the rail foot's freshness
+line is the one clock (v41 S4, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Upload and Inbox keep their named navigation.
+
+**The account dialog** holds **Release notes**, **Report a problem** and
+**Change password** in its body, and its foot keeps Close and Sign out (v41
+S1, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 **New case** opens direct staff creation (`/Cases/Create`) with the
 identity-critical Case facts and no invented intake receipt or source
@@ -122,9 +129,14 @@ planes: a charcoal identity panel (the Pegasus mark, the product name and the
 company) beside a white panel carrying the page's one card; below 980px the
 identity panel becomes a strip above the card. Sign in reads "Sign in" with
 Username, Password (with a Show / Hide control) and one Sign in button.
+Change password's fields carry the same Show / Hide control and its one button
+sits directly in the form (v41 S6, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Access denied renders in the navless frame with the rest of the error family:
 the area as the eyebrow, the refusal in one sentence and Return to Work
-Centre.
+Centre. The Not found page's one action is the primary button (v41 S7,
+operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 **The bell** is the signed-in person's own notifications, never office-wide
 work or queue counts. It shows the unread count, absent at zero. A
@@ -140,8 +152,10 @@ notification is raised for exactly these causes:
 Nobody is notified of their own act. There is no e-mail notification. The
 dialog lists notifications newest first with the Case reference,
 registration, the cause in operator words, when, and Unread until opened.
-Opening one marks it read and goes to its place. **Mark all read** marks
-every one read. Notifications are kept for 30 days and then drop off. A
+Opening one marks it read and goes to its place. **Mark all read**, in the
+dialog's head, marks every one read (v41 S2, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Notifications are kept for 30 days and then drop off. A
 notification-query failure must not block the page unless it is a
 cancellation or a failed authorisation. The dialog then shows
 `Notifications unavailable.` with no placeholder or stale rows, and the
@@ -213,7 +227,9 @@ A record's own state, such as the ribbon's Editing badge and "{name} is
 editing", stays on the record.
 
 The command palette (Ctrl K, the global search field, the Open button) finds
-Cases, references and routes by typing and opens the selection.
+Cases, references and routes by typing and opens the selection. Its Cases
+result carries the rail's Cases icon (v41 S3, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 | Key | Action |
 | --- | --- |

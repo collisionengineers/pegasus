@@ -111,8 +111,6 @@ main [id]{scroll-margin-top:92px}
 .utility-bar{height:var(--utility-h);padding:0 var(--page-pad);background:var(--nav);color:var(--nav-text);border-top:3px solid var(--red);display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:30}
 .utility-search{position:relative;flex:1;max-width:640px}
 .utility-actions{margin-left:auto;display:flex;align-items:center;gap:7px}
-.utility-freshness{display:flex;align-items:center;gap:7px;font-size:11px;color:#dce4e7;white-space:nowrap}
-.utility-freshness .health-dot{box-shadow:none;width:7px;height:7px}
 .utility-bar .btn{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.3)}
 .utility-bar .btn--primary{background:var(--red);border-color:var(--red)}
 .app-main{min-width:0;flex:1;padding:var(--page-pad);padding-bottom:50px}
@@ -610,6 +608,7 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
 .account-signoff-fields .field:last-child{grid-column:1/-1}
 .dialog-head{padding:12px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
 .dialog-head h2{font-size:17px}
+[data-dialog="notifications-dialog"] .dialog-head form{margin-left:auto}
 .dialog-body{padding:20px;min-height:0;overflow:auto}
 .dialog-foot{padding:12px 20px;border-top:1px solid var(--line);background:var(--surface-2);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .dialog-close{min-width:34px;min-height:34px;border:0;background:transparent;display:grid;place-items:center}
@@ -1111,7 +1110,7 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
   :root{--page-pad:12px;--utility-h:96px}
   .primary-nav .nav-link{font-size:12px;padding-inline:7px}
   .primary-nav .nav-link .icon{width:18px;height:18px}
-  .utility-bar{flex-wrap:wrap;padding-block:5px}.utility-search{order:2;flex-basis:100%;max-width:none}.utility-freshness{display:none}
+  .utility-bar{flex-wrap:wrap;padding-block:5px}.utility-search{order:2;flex-basis:100%;max-width:none}
   .page-header{flex-direction:column;align-items:stretch;gap:10px;padding-bottom:10px}.page-actions{width:100%;justify-content:flex-start}.page-actions .btn{flex:none;width:auto}
   .grid-2,.grid-3,.admin-grid,.fact-grid,.definition-list{grid-template-columns:1fr}
   .account-settings-facts,.account-signoff-fields{grid-template-columns:1fr}
@@ -1152,7 +1151,7 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
   .btn--primary,.btn--dark{border:2px solid ButtonText}
   .app-rail::before,.brand::after,.record-head::after,.page-title h1::after{display:none}
   .app-rail,.brand,.utility-bar,.record-head,.toast,.utility-search input,.utility-bar .btn,.btn--primary,.btn--dark,.nav-link,.nav-link[aria-current="page"],.rail-health,.avatar,.shortcut-hint,.estimate-totals .estimate-total{background:Canvas;color:CanvasText;text-shadow:none}
-  .brand-copy span,.nav-label,.rail-health,.rail-user small,.utility-freshness,.shortcut-hint,.record-identity,.record-identity b,.estimate-totals .estimate-total dt{color:CanvasText}
+  .brand-copy span,.nav-label,.rail-health,.rail-user small,.shortcut-hint,.record-identity,.record-identity b,.estimate-totals .estimate-total dt{color:CanvasText}
   .app-rail,.utility-bar,.nav-link[aria-current="page"],.rail-health,.utility-search input{border-color:CanvasText}
   .utility-search:focus-within>.icon{color:CanvasText}
   .nav-link .icon,.scope-visual-icon,.admin-nav a .icon{border:1px solid CanvasText;background:Canvas;color:CanvasText}
@@ -1650,10 +1649,12 @@ th a:hover { text-decoration: underline; }
 
 /* The result table has only the facts needed to identify a case. The selected
    case retains its wider preview beside it, so normal desktop use does not
-   require an inner horizontal scrollbar. */
-.case-search-layout { grid-template-columns: minmax(0, 1fr) minmax(320px, .86fr); }
+   require an inner horizontal scrollbar. The results take the wider share for
+   their Type and Due columns, and a Case/PO stays on one line (v41 W3). */
+.case-search-layout { grid-template-columns: minmax(0, 1.75fr) minmax(360px, 1fr); }
 .case-search-layout .table-wrap table { min-width: 0; table-layout: fixed; }
 .case-search-layout th, .case-search-layout td { padding: var(--sp-2) var(--sp-3); }
+.case-search-layout .table-wrap td:first-child, .case-search-layout .table-wrap td:first-child * { white-space: nowrap; }
 
 .compact-log-filter {
   display: grid;
