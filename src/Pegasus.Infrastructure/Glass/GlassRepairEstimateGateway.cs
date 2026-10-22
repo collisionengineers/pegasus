@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -1365,7 +1366,8 @@ public sealed partial class GlassRepairEstimateGateway(
                 mediaType,
                 content.LongLength,
                 Convert.ToHexStringLower(SHA256.HashData(content)),
-                stream),
+                stream,
+                SemanticRole: DocumentSemanticRole.Estimate),
             cancellationToken);
         return Artifact.From(retained, fileName, mediaType, content.LongLength);
     }

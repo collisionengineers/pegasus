@@ -347,7 +347,7 @@ public sealed class FileGuideValuationReport(ICaseArtifactCustody custody, IExtr
                 content.LongLength,
                 Convert.ToHexStringLower(SHA256.HashData(content)),
                 stream,
-                SemanticRole: DocumentSemanticRole.Other,
+                SemanticRole: DocumentSemanticRole.ValuationEvidence,
                 Source: DocumentSource.Generated),
             cancellationToken);
     }

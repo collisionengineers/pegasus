@@ -1134,7 +1134,8 @@ public static class OperatorLabels
         DocumentSemanticRole.Correspondence => "Correspondence",
         DocumentSemanticRole.EngineerReport => "Engineer report",
         DocumentSemanticRole.AuditReport => "Audit report",
-        DocumentSemanticRole.MarketResearch => "Market research",
+        DocumentSemanticRole.Estimate => "Estimate",
+        DocumentSemanticRole.ValuationEvidence => "Valuation Evidence",
         DocumentSemanticRole.Other => "Other",
         _ => Humanise(role.ToString())
     };
