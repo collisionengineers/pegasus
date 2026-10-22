@@ -64,9 +64,10 @@ internal static class FrozenReportSnapshot
         }
 
         var confirmed = ConfirmedAssessmentReports(db);
+        var ids = workIds.ToArray();
         var rows = await ReadAsync(
             from report in confirmed
-            where workIds.Contains(report.WorkId)
+            where ids.Contains(report.WorkId)
                 && report.GeneratedAtUtc >= fromUtc
                 && report.GeneratedAtUtc < toUtc
                 && !confirmed.Any(earlier =>
