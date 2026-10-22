@@ -57,22 +57,17 @@ public sealed class GitHubIssueProblemReportSink(GitHubProblemReportOptions opti
     private readonly GitHubProblemReportOptions _options = options ?? throw new ArgumentNullException(nameof(options));
     private readonly HttpClient _client = client ?? throw new ArgumentNullException(nameof(client));
 
+    // The sink is a singleton, so a matched identity is checked once per process (ADR-0055);
+    // a failed or mismatched check is never remembered, and the next report verifies again.
+    private volatile bool _repositoryVerified;
+
     public async Task<ProblemReportDelivery> SendAsync(ProblemReport report, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(report);
-        using var repositoryRequest = CreateRequest(HttpMethod.Get, $"https://api.github.com/repos/{_options.Repository}", report);
-        using var repositoryResponse = await _client.SendAsync(repositoryRequest, cancellationToken);
-        if (!repositoryResponse.IsSuccessStatusCode)
+        if (!_repositoryVerified)
         {
-            throw new HttpRequestException(
-                $"GitHub repository identity could not be verified: {(int)repositoryResponse.StatusCode} {repositoryResponse.ReasonPhrase}.");
-        }
-
-        var repository = await repositoryResponse.Content.ReadFromJsonAsync<RepositoryResponse>(cancellationToken);
-        if (repository is null
-            || !string.Equals(repository.FullName, _options.Repository, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("The configured GitHub repository identity could not be verified.");
+            await VerifyRepositoryAsync(report, cancellationToken);
+            _repositoryVerified = true;
         }
 
         using var request = CreateRequest(HttpMethod.Post, $"https://api.github.com/repos/{_options.Repository}/issues", report);
@@ -125,6 +120,24 @@ public sealed class GitHubIssueProblemReportSink(GitHubProblemReportOptions opti
         }
 
         return new ProblemReportDelivery(issue.Number, issue.HtmlUrl);
+    }
+
+    private async Task VerifyRepositoryAsync(ProblemReport report, CancellationToken cancellationToken)
+    {
+        using var repositoryRequest = CreateRequest(HttpMethod.Get, $"https://api.github.com/repos/{_options.Repository}", report);
+        using var repositoryResponse = await _client.SendAsync(repositoryRequest, cancellationToken);
+        if (!repositoryResponse.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"GitHub repository identity could not be verified: {(int)repositoryResponse.StatusCode} {repositoryResponse.ReasonPhrase}.");
+        }
+
+        var repository = await repositoryResponse.Content.ReadFromJsonAsync<RepositoryResponse>(cancellationToken);
+        if (repository is null
+            || !string.Equals(repository.FullName, _options.Repository, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The configured GitHub repository identity could not be verified.");
+        }
     }
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string uri, ProblemReport report)
