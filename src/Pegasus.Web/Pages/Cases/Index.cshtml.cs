@@ -688,9 +688,6 @@ public sealed class IndexModel(
             row.DetailHref,
             "Open full Case",
             [
-                ("Case/PO", summary.Reference),
-                ("Registration", summary.Registration ?? "Not recorded"),
-                ("Claimant", summary.Claimant ?? "Not recorded"),
                 ("Vehicle", vehicle.Length > 0 ? vehicle : "Not recorded"),
                 ("Type", OperatorLabels.CaseTypeName(summary.CaseType))
             ],

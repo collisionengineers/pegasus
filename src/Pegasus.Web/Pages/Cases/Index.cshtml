@@ -227,6 +227,13 @@ else
                                              view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = detail.StateTone }' /></dd>
                             </div>
                         }
+                        @if (detail.Work is { Count: > 0 })
+                        {
+                            foreach (var workFact in detail.Work)
+                            {
+                                <div class="fact"><dt>@workFact.Label</dt><dd>@workFact.Value</dd></div>
+                            }
+                        }
                     </dl>
                     @if (detail.Outstanding is { Count: > 0 })
                     {
@@ -242,18 +249,6 @@ else
                                 }
                             </ul>
                         </section>
-                    }
-                    @if (detail.Work is { Count: > 0 })
-                    {
-                        <div class="cases-work">
-                            @foreach (var fact in detail.Work)
-                            {
-                                <div class="decision-row">
-                                    <span>@fact.Label</span>
-                                    <strong>@fact.Value</strong>
-                                </div>
-                            }
-                        </div>
                     }
                     @if (detail.Kind == IndexModel.RowKind.Image && detail.OriginReceiptId is { } receiptId)
                     {

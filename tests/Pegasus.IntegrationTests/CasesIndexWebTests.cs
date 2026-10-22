@@ -646,6 +646,48 @@ public sealed class CasesIndexWebTests
         Assert.DoesNotContain("data-cases-type", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// v41 U3, U7 and U8: the Principal filter sits in the list head and lists
+    /// every active Principal, not only those on the page's rows; the footer
+    /// names the page only when another page exists; and a Case's quick detail
+    /// is one fact grid ending with what the row does not show.
+    /// </summary>
+    [Fact]
+    public async Task TheListHeadHoldsThePrincipalFilterAndTheQuickDetailIsOneFactGrid()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "PA12 NEL", "V41-PANE-01");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            var organizationId = Guid.NewGuid();
+            var lineageId = Guid.NewGuid();
+            var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Filter test provider"}, {0L})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({Guid.NewGuid()}, {organizationId}, {"ZZPANE"}, {lineageId}, {true}, {0L})");
+        }
+
+        using var response = await client.GetAsync($"/Cases?tab=review&selected={caseId:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Matches(
+            new Regex(@"<div class=""pane-head"">\s*<h2>Review</h2>\s*<span class=""meta"">1 case</span>\s*<form method=""get"" class=""filter-bar cases-filters"""),
+            html);
+        Assert.Contains("<option value=\"ZZPANE\">ZZPANE</option>", html, StringComparison.Ordinal);
+        Assert.Contains("<span>Newest first</span>", html, StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(@"<dt>Vehicle</dt>.*<dt>Type</dt>.*<dt>State</dt>.*<dt>Current work</dt>.*<dt>Engineer</dt>", RegexOptions.Singleline),
+            html);
+    }
+
     [Fact]
     public async Task TheSelectedEntryOfAnAuditedCaseIsReadServerSide()
     {

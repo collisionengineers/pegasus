@@ -56,9 +56,9 @@ public sealed class CaseListDueWebTests
 
         var list = await GetAsync(client, $"/Cases?queue=review&selected={caseId:D}");
         Assert.Contains("<td class=\"nowrap\">18 Jun 2040</td>", list, StringComparison.Ordinal);
-        Assert.Matches(new Regex(@"<span>Due</span>\s*<strong>18 Jun 2040</strong>"), list);
+        Assert.Matches(new Regex(@"<dt>Due</dt>\s*<dd>18 Jun 2040</dd>"), list);
         Assert.Matches(
-            new Regex(@"<span>Current work</span>\s*<strong>" + Regex.Escape(CaseWorkspaceLabels.AssignEngineer) + "</strong>"),
+            new Regex(@"<dt>Current work</dt>\s*<dd>" + Regex.Escape(CaseWorkspaceLabels.AssignEngineer) + "</dd>"),
             list);
         Assert.DoesNotContain("Chasing stopped", list, StringComparison.Ordinal);
 
