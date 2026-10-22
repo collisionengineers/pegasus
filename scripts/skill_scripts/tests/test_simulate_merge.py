@@ -1,6 +1,7 @@
 """simulate_merge.py on a temporary repository: exit codes, the conflict report and a pairwise golden."""
 import os
 import unittest
+from collections import Counter
 from unittest import mock
 
 from skill_scripts_support import Repository, SharedGitCase, build_pull_requests, load_script, run_main, short
@@ -97,6 +98,38 @@ class SimulateMergeTests(SharedGitCase):
         self.assertEqual(1, code)
         self.assertIn("- #5: conflicts in a.txt\n- #1: clean\n", out)
         self.assertIn("- #5 × #1: skipped (#5 conflicts with the target alone)\n", out)
+
+    def count_git(self, *args):
+        """Run simulate_merge; return (exit code, output, how many times each git subcommand ran)."""
+        calls = []
+        real = simulate.git
+
+        def counting(*git_args):
+            calls.append(git_args[0])
+            return real(*git_args)
+
+        with mock.patch.object(simulate, "git", counting):
+            code, out, _ = self.simulate(*args)
+        return code, out, Counter(calls)
+
+    def test_pairwise_over_four_clean_heads_reuses_the_alone_merges_and_builds_each_base_once(self):
+        # 1, 2, 3 and 6 are clean in the train and in every pair. The train costs 4 merge-tree and
+        # 4 commit-tree calls, the alone loop 4 merge-tree, the six pairs 6 merge-tree, and the
+        # three heads that start a pair one commit-tree base each: 14 and 7, where recomputing
+        # the alone merge and the base for every pair cost 20 and 10.
+        code, out, calls = self.count_git("--target", self.commits["target"], "--pairwise", *self.heads(1, 2, 3, 6))
+        self.assertEqual(0, code)
+        self.assertIn("(pairs not listed merge cleanly)", out)
+        self.assertEqual((14, 7), (calls["merge-tree"], calls["commit-tree"]))
+
+    def test_a_head_that_conflicts_with_the_target_alone_builds_no_pair_base(self):
+        # 5 conflicts with the target, so its two pairs are skipped without a merge or a base; the
+        # one pair (1, 2) builds one base. Train 3 + 3 alone + 1 pair merge, and 3 train + 1 base.
+        code, out, calls = self.count_git("--target", self.commits["target"], "--pairwise", *self.heads(5, 1, 2))
+        self.assertEqual(1, code)
+        self.assertIn("- #5 × #1: skipped (#5 conflicts with the target alone)\n"
+                      "- #5 × #2: skipped (#5 conflicts with the target alone)\n", out)
+        self.assertEqual((7, 4), (calls["merge-tree"], calls["commit-tree"]))
 
     def test_a_bare_rev_is_labelled_by_its_first_twelve_characters(self):
         code, out, _ = self.simulate("--target", self.commits["target"], self.commits["pr1"])
