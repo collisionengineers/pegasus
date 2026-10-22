@@ -10,17 +10,9 @@
   font-weight: 400;
 }
 
-.admin-report-note { margin: 0 0 12px; }
-
 .admin-report-filter { align-items: end; }
 
 .admin-actions-end { justify-content: flex-end; }
-
-.admin-service-area {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-}
 
 .panel-foot .pagination { margin: 0; }
 
@@ -44,5 +36,15 @@
    head (Person, Work) sits label beside control. */
 .admin-report-period .panel-body { padding: 12px; }
 .admin-report-period .validation-summary { margin-top: 12px; }
+.admin-report-period .cluster { justify-content: flex-start; }
+.admin-report-period .cluster .btn { width: auto; flex: 0 0 auto; }
 .admin-report-head-field { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .admin-report-head-field select { width: auto; min-height: 30px; padding: 3px 8px; }
+
+/* Problem reports: the reconciliation form of a report whose delivery is
+   unknown keeps its controls on one line, its sentence beneath. */
+[data-problem-reports] td > .cluster { gap: 6px 8px; }
+[data-problem-reports] td > .cluster form { display: contents; }
+[data-problem-reports] td > .cluster label { font-size: 11px; font-weight: 600; color: var(--muted); }
+[data-problem-reports] td > .cluster input[type=number] { width: 140px; max-width: 140px; min-height: 32px; padding: 5px 8px; }
+[data-problem-reports] td > .cluster > p { flex: 1 1 100%; margin: 0; }

@@ -175,7 +175,8 @@ public static class AiJobPolicy
                 throw new InvalidOperationException(
                     "Only the Automation Actor takes, releases, progresses, completes or fails an AI job.");
             case AiJobState.Failed or AiJobState.Cancelled
-                when string.IsNullOrWhiteSpace(transition.Reason):
+                when transition.Actor.Kind == ActorKind.Automation
+                    && string.IsNullOrWhiteSpace(transition.Reason):
                 throw new ArgumentException(
                     $"Marking an AI job {transition.TargetState} requires a reason.",
                     nameof(transition));

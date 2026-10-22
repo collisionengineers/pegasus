@@ -2,7 +2,7 @@
 @model Pegasus.Web.Pages.Administration.ReleaseNotes.EditModel
 @{
     ViewData["Title"] = Model.Note?.Title ?? OperatorLabels.ReleaseNotes.New;
-    ViewData["Eyebrow"] = OperatorLabels.Admin.ReleaseNotes;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "release-notes";
 }
 <partial name="Shared/_PageHeader" />
@@ -10,10 +10,6 @@
     <partial name="Shared/_AdminNav" />
     <div class="stack">
         <partial name="Shared/_ErrorSummary" />
-        @if (TempData["Confirmation"] is string confirmation)
-        {
-            <div class="notice notice--success" role="status">@confirmation</div>
-        }
         @if (Model.IsPublished && Model.Note is { } published)
         {
             <section class="panel release-note" aria-labelledby="release-note-title" data-release-note-published>
@@ -34,10 +30,13 @@
         }
         else
         {
-            <section class="panel" aria-labelledby="release-note-title">
-                <div class="panel-head">
-                    <h2 id="release-note-title">@(Model.Note is null ? OperatorLabels.ReleaseNotes.New : OperatorLabels.ReleaseNotes.Draft)</h2>
-                </div>
+            <section class="panel" aria-label="@(Model.Note is null ? OperatorLabels.ReleaseNotes.New : OperatorLabels.ReleaseNotes.Draft)">
+                @if (Model.Note is not null)
+                {
+                    <div class="panel-head">
+                        <h2>@OperatorLabels.ReleaseNotes.Draft</h2>
+                    </div>
+                }
                 <form method="post" class="panel-body stack" data-release-note-form>
                     <input type="hidden" name="Id" value="@Model.Id" />
                     <input type="hidden" name="ExpectedRowVersion" value="@Model.ExpectedRowVersion" />

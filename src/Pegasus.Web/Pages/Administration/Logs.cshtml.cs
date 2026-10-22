@@ -20,7 +20,6 @@ namespace Pegasus.Web.Pages.Administration;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class LogsModel(
     ListActionLogs listActionLogs,
-    GetAdministrationHealthMetrics getMetrics,
     TimeProvider timeProvider,
     IListCaseReferences listCaseReferences,
     ISearchCases searchCases,
@@ -71,7 +70,6 @@ public sealed class LogsModel(
     public int CurrentPage { get; private set; } = 1;
     public IReadOnlyList<StaffAccountSummary> People { get; private set; } = [];
     public string? AutomationActorSubjectId { get; private set; }
-    public AdministrationHealthMetrics? Metrics { get; private set; }
 
     public string AutomationActorLabel => OperatorLabels.AutomationActorLabel(
         AutomationActorSubjectId ?? string.Empty,
@@ -123,39 +121,24 @@ public sealed class LogsModel(
             ModelState.AddModelError(string.Empty, "Choose a valid UTC period.");
             return Page();
         }
-        Task<AdministrationHealthMetrics>? metricsRead = null;
         try
         {
             var record = await ResolveRecordFilterAsync(actor, cancellationToken);
-            metricsRead = getMetrics.ExecuteAsync(actor, timeProvider.GetUtcNow(), cancellationToken);
             Result = await listActionLogs.ExecuteAsync(actor,
                 new(from, to, Trim(Search), Trim(Area), Trim(Actor), Trim(ResultFilter),
                     Trim(Operation), record, Trim(CorrelationId), OldestFirst,
                     CurrentPage, ActorType: SelectedActorKind()?.ToString()), cancellationToken);
-            Metrics = await metricsRead;
             await ResolveStaffNamesAsync(cancellationToken);
             await ResolveCaseReferencesAsync(actor, cancellationToken);
             await ResolveAiJobReferencesAsync(cancellationToken);
         }
         catch (ArgumentOutOfRangeException)
         {
-            // The metrics panel is not shown for an invalid page; observe the read so a fault is not left unobserved.
-            ObserveMetricsRead(metricsRead);
             ModelState.AddModelError(nameof(page), "Choose a valid page.");
-        }
-        catch
-        {
-            // Any other failure after the metrics read started leaves it observed too.
-            ObserveMetricsRead(metricsRead);
-            throw;
         }
         return Page();
     }
 
-    private static void ObserveMetricsRead(Task<AdministrationHealthMetrics>? metricsRead)
-    {
-        _ = metricsRead?.ContinueWith(static read => read.Exception, TaskContinuationOptions.OnlyOnFaulted);
-    }
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private async Task<IActionResult> LoadIntakeLogAsync(ActionActor actor, CancellationToken cancellationToken)

@@ -2,20 +2,15 @@
 @model Pegasus.Web.Pages.Administration.ReleaseNotes.IndexModel
 @{
     ViewData["Title"] = OperatorLabels.Admin.ReleaseNotes;
-    ViewData["Eyebrow"] = "Administration";
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "release-notes";
 }
 <partial name="Shared/_PageHeader" />
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
-        @if (TempData["Confirmation"] is string confirmation)
-        {
-            <div class="notice notice--success" role="status">@confirmation</div>
-        }
-        <section class="panel" aria-labelledby="release-notes-title">
+        <section class="panel" aria-label="@OperatorLabels.Admin.ReleaseNotes">
             <div class="panel-head">
-                <h2 id="release-notes-title">@OperatorLabels.Admin.ReleaseNotes</h2>
                 <div class="panel-actions">
                     <a class="btn btn--small btn--primary" asp-page="/Administration/ReleaseNotes/Edit">
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
@@ -23,6 +18,12 @@
                     </a>
                 </div>
             </div>
+            @if (Model.Notes.Count == 0)
+            {
+                <div class="empty"><p>@OperatorLabels.ReleaseNotes.None</p></div>
+            }
+            else
+            {
             <div class="table-wrap no-border">
                 <table class="table table--compact" data-release-notes>
                     <caption class="sr-only">@OperatorLabels.Admin.ReleaseNotes</caption>
@@ -41,18 +42,15 @@
                         <tr data-release-note="@note.Id">
                             <td><a asp-page="/Administration/ReleaseNotes/Edit" asp-route-id="@note.Id">@note.Title</a></td>
                             <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ReleaseNoteStatus(note.Status)" /></td>
-                            <td class="mono">@(note.Version ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
-                            <td>@OperatorLabels.OfficeTime(note.PublishedAtUtc, OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                            <td class="mono">@(note.Version ?? "—")</td>
+                            <td>@OperatorLabels.OfficeTime(note.PublishedAtUtc, "—")</td>
                             <td>@Model.PublishedBy(note)</td>
                         </tr>
-                    }
-                    @if (Model.Notes.Count == 0)
-                    {
-                        <tr><td colspan="5" class="muted">@OperatorLabels.ReleaseNotes.None</td></tr>
                     }
                     </tbody>
                 </table>
             </div>
+            }
         </section>
     </div>
 </div>

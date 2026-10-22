@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.AiWork;
@@ -43,10 +42,6 @@ public sealed class IndexModel : AdministrationPageModel
     public bool TargetEnabled { get; set; }
 
     [BindProperty]
-    [StringLength(1000)]
-    public string? Reason { get; set; }
-
-    [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
 
     /// <summary>The AI settings panel's enabled checkbox.</summary>
@@ -65,7 +60,7 @@ public sealed class IndexModel : AdministrationPageModel
         return Page();
     }
 
-    /// <summary>The automation kill switch, reached through the reason dialog.</summary>
+    /// <summary>The automation kill switch, posted on the click.</summary>
     public async Task<IActionResult> OnPostSetEnabledAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -89,7 +84,7 @@ public sealed class IndexModel : AdministrationPageModel
             var status = await registry.SetEnabledAsync(
                 TargetEnabled,
                 actor,
-                Reason,
+                reason: null,
                 OperationKey,
                 cancellationToken);
             TempData["AdministrationStatus"] = status.IsEnabled
@@ -132,7 +127,7 @@ public sealed class IndexModel : AdministrationPageModel
                 await control.SetEnabledAsync(
                     SendToAiEnabled,
                     actor,
-                    Reason,
+                    reason: null,
                     OperationKey,
                     cancellationToken);
             }

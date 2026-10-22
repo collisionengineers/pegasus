@@ -217,6 +217,7 @@ details[open]>summary.panel-head::after{content:"−"}
    --------------------------------------------------------------------------- */
 
 .metric-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);background:#fff}
+.metric-strip--2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .metric-strip--3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .metric{min-height:86px;padding:12px 14px;border:0;border-right:1px solid var(--line);background:#fff;text-align:left;color:inherit;text-decoration:none;display:flex;flex-direction:column;justify-content:space-between;min-width:0}
 .metric:last-child{border-right:0}
@@ -491,6 +492,8 @@ tbody tr:hover{background:#f3f6f7}
 .admin-card{min-height:62px;padding:12px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:inherit;text-decoration:none;text-align:left;display:flex;align-items:center;gap:10px}
 .admin-card:hover{border-color:var(--line-strong);background:var(--surface-2);text-decoration:none}
 .admin-card .icon{width:20px;height:20px;color:var(--red)}
+/* A line of small print under a cell's main text: a Service health row's area and its mapped reason. */
+.admin-service-area{display:block;color:var(--muted);font-size:11px}
 /* Refined Contacts directory and bounded editors. */
 .form-grid.form-grid--2{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;row-gap:14px}
 .contact-editor{max-width:720px}
@@ -1283,26 +1286,7 @@ td time, .tabular { font-variant-numeric: tabular-nums; }
 input[readonly], input:disabled, select:disabled, textarea:disabled { border-color: var(--line); background: var(--paper); color: var(--muted); }
 input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; accent-color: var(--ce-red); }
 .icon--lg { width: 1.25rem; height: 1.25rem; }
-.icon--sm, .status-chip .icon { width: .875rem; height: .875rem; }
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: 1px var(--sp-2);
-  border: 1px solid var(--state-line);
-  border-radius: 999px;
-  background: var(--state-bg);
-  color: var(--state-fg);
-  font-size: var(--t-eyebrow);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-/* Tones, not states. The state-to-tone decision belongs in _StatusChip.cshtml,
-   which is the single place a business state chooses its treatment. The four
-   legacy state-named classes remain as aliases for pages not yet migrated. */
-.status-chip--neutral { --state-line: var(--line); --state-bg: var(--paper); --state-fg: var(--muted); }
+.icon--sm { width: .875rem; height: .875rem; }
 
 .status-card--error { --state-line: var(--ce-red); --state-bg: var(--ce-red-tint); }
 
@@ -1405,7 +1389,7 @@ table tfoot th {
 }
 
 @media (forced-colors: active) {
-  .queue-card, .metric-tile, .acceptance-boundary, .status-card, .status-chip { border: 1px solid CanvasText; }
+  .queue-card, .metric-tile, .acceptance-boundary, .status-card { border: 1px solid CanvasText; }
 }
 .validation-summary__heading {
   font-size: 1rem;
@@ -1517,11 +1501,6 @@ table tfoot th {
   .src-tag { border-color: CanvasText; }
 }
 
-/* An action that needs a reason confirms in the row it belongs to, rather than
-   making the operator manage a mode before they can take it. */
-.row-confirm { display: flex; align-items: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
-.row-confirm label { font-size: var(--t-eyebrow); font-weight: 600; }
-.row-confirm input { min-width: 12rem; }
 details > summary.btn { display: inline-flex; list-style: none; }
 details > summary.btn::-webkit-details-marker { display: none; }
 details > summary.btn::marker { content: ""; }

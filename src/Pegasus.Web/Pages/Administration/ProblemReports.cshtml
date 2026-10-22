@@ -2,18 +2,25 @@
 @model Pegasus.Web.Pages.Administration.ProblemReportsModel
 @{
     ViewData["Title"] = OperatorLabels.Admin.ProblemReports;
-    ViewData["Eyebrow"] = "Administration";
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "problem-reports";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
 }
 <partial name="Shared/_PageHeader" />
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
-        <section class="panel" aria-labelledby="problem-reports-title">
-            <div class="panel-head"><h2 id="problem-reports-title">@OperatorLabels.Admin.ProblemReports</h2></div>
+        <section class="panel" aria-label="@OperatorLabels.Admin.ProblemReports">
+            @if (Model.Reports.Count == 0)
+            {
+                <div class="empty"><p>@OperatorLabels.ProblemReports.None</p></div>
+            }
+            else
+            {
             <div class="table-wrap no-border">
                 <table class="table table--compact" data-problem-reports>
-                    <caption class="sr-only">@OperatorLabels.Admin.ProblemReports</caption>
                     <thead>
                         <tr>
                             <th scope="col">When</th>
@@ -30,9 +37,15 @@
                     @foreach (var report in Model.Reports)
                     {
                         <tr data-problem-report="@report.Id">
-                            <td><time datetime="@report.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(report.CreatedAtUtc)</time><small class="mono">@report.Id</small></td>
+                            <td>
+                                <time datetime="@report.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(report.CreatedAtUtc)</time>
+                                @if (report.Status == Pegasus.Core.Support.ProblemReportStatus.Unknown)
+                                {
+                                    <small class="mono">@report.Id</small>
+                                }
+                            </td>
                             <td>@Model.ReportedBy(report)</td>
-                            <td class="mono">@report.Snapshot.Route</td>
+                            <td>@OperatorLabels.ProblemReports.PageName(report.Snapshot.Route)</td>
                             <td class="mono">@(report.Snapshot.CaseReference ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
                             <td>@report.Description</td>
                             <td>
@@ -62,8 +75,7 @@
                                 }
                                 else if (report.Status == Pegasus.Core.Support.ProblemReportStatus.Unknown)
                                 {
-                                    <div class="stack">
-                                        <p class="muted">Search the approved GitHub repository for this report ID before choosing an outcome.</p>
+                                    <div class="cluster">
                                         <form method="post" asp-page-handler="ConfirmIssue" asp-route-id="@report.Id">
                                             <input type="hidden" name="operationKey" value="@ProblemReportsModel.NewOperationKey()" />
                                             <label for="issue-@report.Id">Matching issue number</label>
@@ -74,18 +86,16 @@
                                             <input type="hidden" name="operationKey" value="@ProblemReportsModel.NewOperationKey()" />
                                             <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Confirming">Confirm no issue</button>
                                         </form>
+                                        <p class="muted">Search the approved GitHub repository for this report ID before choosing an outcome.</p>
                                     </div>
                                 }
                             </td>
                         </tr>
                     }
-                    @if (Model.Reports.Count == 0)
-                    {
-                        <tr><td colspan="8" class="muted">@OperatorLabels.ProblemReports.None</td></tr>
-                    }
                     </tbody>
                 </table>
             </div>
+            }
         </section>
     </div>
 </div>

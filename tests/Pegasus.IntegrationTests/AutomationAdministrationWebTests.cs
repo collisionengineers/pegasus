@@ -46,8 +46,9 @@ public sealed partial class AutomationAdministrationWebTests
 
         var html = await GetHtmlAsync(client, AutomationRoute);
 
-        Assert.Equal(AutomationMcp.ClientDisplayName, FactValue(html, "Registered clients"));
-        Assert.Equal(ClientId, FactValue(html, "Client identifier"));
+        Assert.Equal(AutomationMcp.ClientDisplayName, FactValue(html, OperatorLabels.AutomationAdmin.RegisteredClients));
+        Assert.Equal(ClientId, FactValue(html, OperatorLabels.AutomationAdmin.ClientIdentifier));
+        Assert.Equal(5, FactCount(html));
         // The panel shows each scope's plain label, with the raw key kept on
         // the chip as a title so no scope key is ever silently hidden.
         foreach (var scope in AutomationMcp.Scopes)
@@ -71,6 +72,21 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.DoesNotContain("is not part of this deployment", html, StringComparison.Ordinal);
         Assert.DoesNotContain("refuses new tokens immediately", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Back to Administration", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>The client's name and its identifier are one fact, labelled Client identifier, when they are the same string (v41 A23).</summary>
+    [Fact]
+    public async Task TheRegisteredClientAndItsIdentifierAreOneFactWhenTheyAreTheSameString()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithAutomationMcp(baseFactory).WithWebHostBuilder(builder =>
+            builder.UseSetting("AutomationMcp:ClientId", AutomationMcp.ClientDisplayName));
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, AutomationRoute);
+
+        Assert.Equal(AutomationMcp.ClientDisplayName, FactValue(html, OperatorLabels.AutomationAdmin.ClientIdentifier));
+        Assert.Equal(4, FactCount(html));
     }
 
     [Fact]
@@ -125,7 +141,6 @@ public sealed partial class AutomationAdministrationWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var redisplayedHtml = await response.Content.ReadAsStringAsync();
-        Assert.Equal("Enabled", ChipText(redisplayedHtml, "ai-settings-panel-title"));
         Assert.True(CheckboxIsChecked(redisplayedHtml, "SendToAiEnabled"));
         await using var verificationScope = factory.Services.CreateAsyncScope();
         Assert.True(await verificationScope.ServiceProvider
@@ -164,6 +179,9 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.Contains("Unidentified-queue pass", first, StringComparison.Ordinal);
         Assert.Contains("Unidentified queue", first, StringComparison.Ordinal);
         Assert.Contains("Queued", first, StringComparison.Ordinal);
+        // The meta states the Send to AI switch as on or off; Stop is one button posting no reason.
+        Assert.Contains(OperatorLabels.AiJobs.SendToAiState(true), first, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.AiJobs.Stop}</button>", first, StringComparison.Ordinal);
         Assert.DoesNotContain("UnidentifiedQueuePass", first, StringComparison.Ordinal);
         Assert.DoesNotContain(AiJobPolicy.QueueSubjectReference, first, StringComparison.Ordinal);
         Assert.Contains("Page 1", first, StringComparison.Ordinal);
@@ -173,17 +191,64 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.Contains("Page 2", second, StringComparison.Ordinal);
         Assert.Contains("pageNumber=1", second, StringComparison.OrdinalIgnoreCase);
 
+        var stoppedJobId = Guid.Parse(InputValue(second, "jobId"));
         using var stopped = await client.PostAsync(
             "/Administration/AiJobs?handler=Stop",
             Form(
                 AntiforgeryValue(second),
-                ("jobId", InputValue(second, "jobId")),
+                ("jobId", stoppedJobId.ToString()),
                 ("expectedVersion", InputValue(second, "expectedVersion")),
                 ("operationKey", InputValue(second, "operationKey")),
                 ("pageNumber", InputValue(second, "pageNumber"))));
 
         Assert.Equal(HttpStatusCode.Redirect, stopped.StatusCode);
         Assert.Equal("/Administration/AiJobs?pageNumber=2", stopped.Headers.Location?.OriginalString);
+
+        // Stop asks no reason, and an Administrator's Stop cancels the job.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var job = await scope.ServiceProvider
+                .GetRequiredService<IAiJobStore>()
+                .GetAsync(stoppedJobId, CancellationToken.None);
+            Assert.Equal(AiJobState.Cancelled, job?.State);
+            Assert.Null(job?.ClosureReason);
+        }
+
+        var after = await GetHtmlAsync(client, stopped.Headers.Location!.OriginalString);
+        Assert.Contains("The AI job was stopped.", after, StringComparison.Ordinal);
+        Assert.Contains("notice notice--success", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("notice--danger", after, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ARefusedStopReadsAsAFailureNoticeAndLeavesTheJobQueued()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithAutomationMcp(baseFactory);
+        await SeedJobsAsync(factory, liveJobs: 1, failedJobs: 0);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, "/Administration/AiJobs");
+        var jobId = Guid.Parse(InputValue(html, "jobId"));
+
+        using var refused = await client.PostAsync(
+            "/Administration/AiJobs?handler=Stop",
+            Form(
+                AntiforgeryValue(html),
+                ("jobId", jobId.ToString()),
+                ("expectedVersion", "999"),
+                ("operationKey", InputValue(html, "operationKey")),
+                ("pageNumber", InputValue(html, "pageNumber"))));
+
+        Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
+        var after = await GetHtmlAsync(client, refused.Headers.Location!.OriginalString);
+        Assert.Contains("The AI job changed before it could be stopped.", after, StringComparison.Ordinal);
+        Assert.Contains("notice notice--danger", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("notice--success", after, StringComparison.Ordinal);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var job = await scope.ServiceProvider
+            .GetRequiredService<IAiJobStore>()
+            .GetAsync(jobId, CancellationToken.None);
+        Assert.Equal(AiJobState.Queued, job?.State);
     }
 
     [Fact]
@@ -195,8 +260,7 @@ public sealed partial class AutomationAdministrationWebTests
 
         var html = await GetHtmlAsync(client, AutomationRoute);
         Assert.Contains("AI settings", html, StringComparison.Ordinal);
-        Assert.Contains("Reviewed AI proposals enabled", html, StringComparison.Ordinal);
-        Assert.Equal("Enabled", ChipText(html, "ai-settings-panel-title"));
+        Assert.Contains($"<span>{OperatorLabels.AutomationAdmin.SendToAi}</span>", html, StringComparison.Ordinal);
         Assert.True(CheckboxIsChecked(html, "SendToAiEnabled"));
         Assert.DoesNotContain("refuses new hand-offs immediately", html, StringComparison.Ordinal);
         Assert.DoesNotContain("apply from the next hand-off", html, StringComparison.Ordinal);
@@ -206,8 +270,7 @@ public sealed partial class AutomationAdministrationWebTests
             Form(
                 AntiforgeryValue(html),
                 ("SendToAiEnabled", "false"),
-                ("OperationKey", InputValue(html, "OperationKey")),
-                ("Reason", "Paused while the AI client is rebuilt."))))
+                ("OperationKey", InputValue(html, "OperationKey")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         }
@@ -220,7 +283,6 @@ public sealed partial class AutomationAdministrationWebTests
         }
 
         var savedHtml = await GetHtmlAsync(client, AutomationRoute);
-        Assert.Equal("Stopped", ChipText(savedHtml, "ai-settings-panel-title"));
         Assert.False(CheckboxIsChecked(savedHtml, "SendToAiEnabled"));
     }
 
@@ -313,17 +375,17 @@ public sealed partial class AutomationAdministrationWebTests
             client,
             $"/Administration/Logs?From={from}&To={to}");
 
-        var automationRow = TableRow(html, "pegasus_case_get");
+        var automationRow = TableRow(html, OperatorLabels.ActionLogAction("pegasus_case_get"));
         Assert.Contains(caseReference, automationRow, StringComparison.Ordinal);
         Assert.Contains(AutomationMcp.ClientDisplayName, automationRow, StringComparison.Ordinal);
         Assert.DoesNotContain(caseId.ToString("D"), automationRow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(ClientId, automationRow, StringComparison.Ordinal);
 
         // The batch download is recorded against the Case it names, too.
-        var batchRow = TableRow(html, "pegasus_document_download_batch");
+        var batchRow = TableRow(html, OperatorLabels.ActionLogAction("pegasus_document_download_batch"));
         Assert.Contains(caseReference, batchRow, StringComparison.Ordinal);
 
-        var staffRow = TableRow(html, "case_reviewed");
+        var staffRow = TableRow(html, OperatorLabels.ActionLogAction("case_reviewed"));
         Assert.Contains(caseReference, staffRow, StringComparison.Ordinal);
         Assert.Contains(DevelopmentOfflineIdentity.UserName, staffRow, StringComparison.Ordinal);
         Assert.DoesNotContain(caseId.ToString("D"), staffRow, StringComparison.OrdinalIgnoreCase);
@@ -406,6 +468,10 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.True(match.Success, $"The page must render the '{label}' cell.");
         return WebUtility.HtmlDecode(match.Groups["value"].Value).Trim();
     }
+
+    /// <summary>How many facts the Automation panel draws.</summary>
+    private static int FactCount(string html) =>
+        Regex.Count(html, "<dl class=\"fact\">", RegexOptions.CultureInvariant);
 
     /// <summary>The state chip beside one panel heading.</summary>
     private static string ChipText(string html, string headingId)

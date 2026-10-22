@@ -32,6 +32,14 @@ public sealed class ProblemReportsWebTests
 {
     private const string ListPage = "/Administration/ProblemReports";
 
+    /// <summary>The list's Page cell reads the page's name, never its route or a record's identifier (v41 A25).</summary>
+    [Theory]
+    [InlineData("/Cases/6a1f0f8e-3f56-4c43-9c11-2f4a8f0d7b1e?section=estimate", "Cases")]
+    [InlineData("/Administration/ProblemReports", "Administration")]
+    [InlineData("/", "/")]
+    public void ThePageCellNamesThePageByTheFirstSegmentOfItsRoute(string route, string expected) =>
+        Assert.Equal(expected, OperatorLabels.ProblemReports.PageName(route));
+
     [Fact]
     public async Task AReportFromTheShellIsKeptRaisedAndListed()
     {
@@ -377,7 +385,9 @@ public sealed class ProblemReportsWebTests
         Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
         Assert.Empty(sink.Sent);
         list = await GetHtmlAsync(administrator, ListPage);
-        Assert.Contains(">Unknown<", list, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.ProblemReports.DeliveryUnknown}<", list, StringComparison.Ordinal);
+        // Only the row that needs reconciling prints its report ID (v41 A12).
+        Assert.Contains($"<small class=\"mono\">{id:D}</small>", list, StringComparison.Ordinal);
         Assert.Contains("Confirm no issue", list, StringComparison.Ordinal);
         using var reconciled = await administrator.PostAsync(
             $"{ListPage}?handler=ConfirmNoIssue&id={id}", Form(list, new()));

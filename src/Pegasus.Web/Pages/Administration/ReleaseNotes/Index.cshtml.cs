@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ReleaseNotes;
-using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration.ReleaseNotes;
 
@@ -23,7 +22,7 @@ public sealed class IndexModel(
     public string PublishedBy(ReleaseNote note) =>
         note.PublishedByStaffId is { } id
             ? ActorDisplayNames.Resolve(ActorKind.Staff, id.ToString("D"), _staffNames)
-            : OperatorLabels.CaseWorkspace.AbsentValue;
+            : "—";
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {

@@ -14,6 +14,7 @@ public sealed class AiJobsModel(
     public AdministrationAiJobPage Result { get; private set; } = new([], new(0, 0), false, false);
     public int CurrentPage { get; private set; } = 1;
     [TempData] public string? StatusMessage { get; set; }
+    [TempData] public string? ErrorMessage { get; set; }
 
     public async Task<IActionResult> OnGetAsync(
         [FromQuery(Name = "pageNumber")] int pageNumber,
@@ -29,7 +30,6 @@ public sealed class AiJobsModel(
     public async Task<IActionResult> OnPostStopAsync(
         Guid jobId,
         long expectedVersion,
-        string? reason,
         string operationKey,
         int pageNumber,
         CancellationToken cancellationToken)
@@ -38,17 +38,17 @@ public sealed class AiJobsModel(
         var returnPage = Math.Max(pageNumber, 1);
         if (jobId == Guid.Empty || !IsOperationKeyValid(operationKey))
         {
-            StatusMessage = "The AI job could not be stopped.";
+            ErrorMessage = "The AI job could not be stopped.";
             return RedirectToPage(new { pageNumber = returnPage });
         }
         try
         {
-            await cancelJob.ExecuteAsync(new(jobId, expectedVersion, actor, operationKey, reason?.Trim()), cancellationToken);
+            await cancelJob.ExecuteAsync(new(jobId, expectedVersion, actor, operationKey, Reason: null), cancellationToken);
             StatusMessage = "The AI job was stopped.";
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
         {
-            StatusMessage = "The AI job changed before it could be stopped.";
+            ErrorMessage = "The AI job changed before it could be stopped.";
         }
         return RedirectToPage(new { pageNumber = returnPage });
     }
