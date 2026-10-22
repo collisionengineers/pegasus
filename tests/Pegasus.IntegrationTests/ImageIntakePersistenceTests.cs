@@ -1236,7 +1236,7 @@ public sealed class ImageIntakePersistenceTests
     }
 
     /// <summary>
-    /// Staff "Link to case" reaches every Case in any lifecycle state
+    /// Staff "Link to Case" reaches every Case in any lifecycle state
     /// (operator, 24 September 2026): the Vehicle images record it links is
     /// merged into a Report sent or closed Case and its evidence folded into
     /// that Case's folder, not left awaiting instruction.

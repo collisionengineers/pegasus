@@ -1,0 +1,175 @@
+@model Pegasus.Web.Pages.Mail.MessageModel
+@using Pegasus.Core.Intake
+@using Pegasus.Web.Presentation
+@{
+    var summary = Model.Detail.Summary;
+    var dossier = Model.Detail.Classification;
+    // The Case / PO field joins the reason dialog it opens by form="…", so it sits
+    // in the Decision column and the confirmation stays in a dialog.
+    var linkFormId = Model.CurrentDestination is null ? "linkCaseForm" : "changeLinkedCaseForm";
+    // A message whose decision leaves no Case to link or change to has no form for the picker to join.
+    var picksCase = Model.OffersLinkToCase || Model.OffersChangeLinkedCase;
+    // A Triage the message opened is its Case until staff link it to an instruction Case.
+    var opensTriage = summary.IsTriageCase && summary.CaseId is not null;
+    var workTypeRefused = ViewData.ModelState["WorkType"]?.Errors.Count > 0;
+}
+
+@* Decision (v41 I9, I11, I12): the Classification chips apply at once; the Case
+   is shown once, with the Case / PO picker under it and the buttons that link,
+   change or unlink it; Decided is plain text with its actor. *@
+<section class="decision-card mail-decision">
+    <h2 class="decision-head">Decision</h2>
+    <div class="decision-body">
+        <div class="decision-facts">
+            @if (dossier is { } current)
+            {
+                var currentKey = current.Current is { IsClassified: true, Category: { } currentCategory }
+                    ? MailCategories.Code(currentCategory)
+                    : MailClassificationSelection.UnclassifiedKey;
+                @* A chip applies at once and records the fixed reason "Corrected from the Inbox",
+                   as Tag as query records its fixed reason (R179). The Case type a New
+                   instruction asks for sits in the Case picker row, joined by form="…". *@
+                <form method="post" id="mailClassificationForm" class="mail-decision-block"
+                      asp-page-handler="CorrectClassification" asp-route-id="@summary.Id"
+                      asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                      asp-route-search="@Model.SearchTerm"
+                      asp-route-queue="@Model.QueueFilter"
+                      asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                      asp-route-pageNumber="@Model.PageNumber"
+                      asp-route-dialog="@(Model.InDialog ? "true" : null)">
+                    <input type="hidden" asp-for="ExpectedClassificationVersion" value="@current.Version" />
+                    <input type="hidden" name="CorrectionReason" value="@MailClassificationSelection.CorrectedFromInboxReason" />
+                    <span class="mail-decision-label" id="mailClassificationLabel">@OperatorLabels.Inbox.Classification</span>
+                    <div class="mail-chips" role="group" aria-labelledby="mailClassificationLabel">
+                        @foreach (var option in Model.ClassificationOptions)
+                        {
+                            if (option.Value == currentKey)
+                            {
+                                <button type="button" class="chip" aria-pressed="true">
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
+                                    <span>@option.Label</span>
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="submit" class="chip" name="ClassificationKey" value="@option.Value" aria-pressed="false"
+                                        data-busy-label="@OperatorLabels.Busy.Saving">@option.Label</button>
+                            }
+                        }
+                    </div>
+                    <span asp-validation-for="ClassificationKey"></span>
+                </form>
+            }
+            else
+            {
+                <div class="decision-row">
+                    <span>@OperatorLabels.Inbox.Classification</span>
+                    <strong>@Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome)</strong>
+                </div>
+            }
+            <div class="decision-row">
+                <span>@OperatorLabels.Inbox.Case</span>
+                @if (summary.CaseId is { } caseId)
+                {
+                    <strong><a asp-page="/Cases/Details" asp-route-id="@caseId">@summary.CaseReference</a></strong>
+                }
+                else
+                {
+                    <strong class="quiet">@Pegasus.Web.Pages.Mail.MessageModel.AssociationLabel(summary.CaseReference)</strong>
+                }
+            </div>
+            @if (dossier is not null || picksCase)
+            {
+                <div class="mail-decision-block">
+                    @if (dossier is not null)
+                    {
+                        @* Shown by script when New instruction is pressed without a case type. *@
+                        <div class="field mail-case-type" data-work-type-field hidden="@(!workTypeRefused)">
+                            <label class="req" for="mailWorkType">@CaseWorkspaceLabels.Frame.CaseType</label>
+                            <select id="mailWorkType" name="WorkType" form="mailClassificationForm">
+                                <option value="">@OperatorLabels.Inbox.ChooseCaseTypeOption</option>
+                                @foreach (var option in MailClassificationSelection.WorkTypeOptions)
+                                {
+                                    <option value="@option.Value" selected="@(Model.WorkType == option.Value)">@option.Label</option>
+                                }
+                            </select>
+                            <span asp-validation-for="WorkType"></span>
+                        </div>
+                    }
+                    @if (picksCase)
+                    {
+                        <div class="field case-picker" data-case-picker data-case-picker-fill
+                             data-case-picker-url="@Url.Page("/Mail/Message", "LinkCaseOptions", new { id = summary.Id })">
+                            <label for="mailLinkCaseReference">@OperatorLabels.Inbox.CasePo</label>
+                            <input id="mailLinkCaseReference" name="caseReference" form="@linkFormId" type="text" maxlength="100"
+                                   autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                   aria-controls="mailLinkCaseOptions" />
+                            <span class="field-hint">@OperatorLabels.Inbox.CasePoHint</span>
+                            <div id="mailLinkCaseOptions" class="case-picker-options" data-case-picker-options hidden></div>
+                        </div>
+                    }
+                </div>
+            }
+            @if (Model.AssociationReceipt is not null
+                && (opensTriage || Model.CurrentDestination is not null || Model.OffersLinkToCase))
+            {
+                <div class="mail-decision-actions">
+                    @if (opensTriage)
+                    {
+                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@summary.CaseId">@OperatorLabels.Inbox.OpenTriage</a>
+                    }
+                    @if (Model.CurrentDestination is not null)
+                    {
+                        if (Model.OffersChangeLinkedCase)
+                        {
+                            <button class="btn btn--small" type="button" data-dialog-open="changeLinkedCaseDialog">@OperatorLabels.Inbox.ChangeLinkedCase</button>
+                        }
+                        <button class="btn btn--small" type="button" data-dialog-open="unlinkCaseDialog">@OperatorLabels.Inbox.Unlink</button>
+                    }
+                    else if (Model.OffersLinkToCase)
+                    {
+                        <button class="btn btn--small" type="button" data-dialog-open="linkCaseDialog">@OperatorLabels.Inbox.LinkToCase</button>
+                    }
+                </div>
+            }
+            @if (dossier is { } decided)
+            {
+                var actorWord = decided.CurrentActorDisplayName == "System"
+                    ? "Automatic"
+                    : decided.CurrentActorDisplayName;
+                <div class="decision-row">
+                    <span>Decided</span>
+                    <strong>
+                        <time datetime="@decided.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(decided.CurrentDecidedAtUtc)</time>
+                        · @actorWord
+                    </strong>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@if (dossier is { History.Count: > 0 } correctedDossier)
+{
+    <section class="decision-card">
+        <h2 class="decision-head">Corrections</h2>
+        <div class="decision-body">
+            <div class="timeline">
+                @foreach (var entry in correctedDossier.History.OrderByDescending(item => item.Version))
+                {
+                    <div class="timeline-item">
+                        <div class="timeline-title">
+                            @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.Before)
+                            → @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.After)
+                        </div>
+                        <div class="timeline-meta">
+                            <time datetime="@entry.CorrectedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.CorrectedAtUtc)</time>
+                            · @entry.ActorDisplayName
+                        </div>
+                        <div class="timeline-text">@entry.Reason</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+}

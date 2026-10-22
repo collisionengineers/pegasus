@@ -381,6 +381,70 @@ public sealed class StaffCorrespondenceWebTests
             command.Cc.Select(item => item.Address));
     }
 
+    /// <summary>
+    /// Reply all from the record (v41 I15, I17): the record's foot offers Reply
+    /// all, following it opens the composer for the exact message and Case, its
+    /// Send posts ReplyAll, and the record the send lands on reads the sent
+    /// state back.
+    /// </summary>
+    [Fact]
+    public async Task ReplyAllSendsFromTheRecord()
+    {
+        var send = new RecordingStaffMailSend { NextState = StaffMailState.Sent };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 RECORD", "SC08-RECORD-REPLY-ALL");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var recordGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}");
+        Assert.Equal(HttpStatusCode.OK, recordGet.StatusCode);
+        var record = await recordGet.Content.ReadAsStringAsync();
+        var replyAll = Regex.Match(
+            record,
+            $"<a[^>]*href=\"(?<href>[^\"]*compose=reply-all[^\"]*)\"[^>]*>\\s*{Regex.Escape(OperatorLabels.StaffMail.ReplyAll)}\\s*</a>",
+            RegexOptions.CultureInvariant);
+        Assert.True(replyAll.Success, "The record's foot did not offer Reply all.");
+        Assert.Equal(0, send.SendCalls);
+
+        using var composerGet = await client.GetAsync(WebUtility.HtmlDecode(replyAll.Groups["href"].Value));
+        Assert.Equal(HttpStatusCode.OK, composerGet.StatusCode);
+        var composer = await composerGet.Content.ReadAsStringAsync();
+        Assert.Equal("reply-all", InputValue(composer, "compose"));
+        Assert.Equal("Re: Source subject", InputValue(composer, "CorrespondenceSubject"));
+        Assert.Equal(0, send.SendCalls);
+
+        var form = RetainedReplyForm(
+            composer, InputValue(composer, "CorrespondenceOperationKey"), "Reviewed response.");
+        form["FixedCorrespondenceCaseReference"] = InputValue(composer, "FixedCorrespondenceCaseReference");
+        using var post = await client.PostAsync(
+            FormAction(composer, "ReplyAll"),
+            new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailComposeMode.ReplyAll, command.ComposeMode);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.Equal(await CaseVersionAsync(factory, caseId), command.ExpectedContextVersion);
+        Assert.Equal(seeded.MessageId, command.OriginalMessage!.RetainedMessageId);
+        Assert.Equal(
+            ["reply@example.invalid", "other-to@example.invalid"],
+            command.To.Select(item => item.Address));
+        Assert.Equal(["copy@example.invalid"], command.Cc.Select(item => item.Address));
+
+        using var landed = await client.GetAsync(post.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, landed.StatusCode);
+        var landedHtml = await landed.Content.ReadAsStringAsync();
+        Assert.Contains("Send status", landedHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<dd>{OperatorLabels.StaffMail.State(StaffMailState.Sent)}</dd>",
+            landedHtml,
+            StringComparison.Ordinal);
+        Assert.Equal(1, send.SendCalls);
+    }
+
     [Fact]
     public async Task RetainedForwardSearchAndSelectionUseRenderedActionsAndRetainFormState()
     {
@@ -526,6 +590,47 @@ public sealed class StaffCorrespondenceWebTests
             $"/Inbox/{seeded.MessageId:D}?handler=Reply&compose=reply",
             new FormUrlEncodedContent(selectedForm));
         Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+        Assert.Equal(selectedCaseId, Assert.Single(send.Commands).ContextId);
+    }
+
+    /// <summary>
+    /// The Inbox's dialog composes inside itself (v41 I15): its Case / PO picker
+    /// only fills the field, so choosing an option never posts
+    /// SelectCorrespondenceCase and leaves the dialog for the record page, and
+    /// the send lands back on the Inbox with the message open.
+    /// </summary>
+    [Fact]
+    public async Task TheDialogComposerFillsTheCaseReferenceAndSendsBackToTheInbox()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var selectedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 DIALOG", "SC08-MSG-DIALOG");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId: null);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var get = await client.GetAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Dialog&compose=reply");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var html = await get.Content.ReadAsStringAsync();
+        Assert.Matches(
+            "<div class=\"field case-picker\" data-case-picker data-case-picker-fill\\s+data-case-picker-url=\"[^\"]*handler=CorrespondenceCaseOptions",
+            html);
+        var action = FormAction(html, "Reply");
+        Assert.Contains("dialog=true", action, StringComparison.Ordinal);
+
+        var form = RetainedReplyForm(
+            html,
+            InputValue(html, "CorrespondenceOperationKey"),
+            "Reply from the dialog.");
+        form["CorrespondenceCaseReference"] = await CaseReferenceAsync(factory, selectedCaseId);
+        using var sent = await client.PostAsync(action, new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+        var location = sent.Headers.Location!.OriginalString;
+        Assert.StartsWith("/Inbox?", location, StringComparison.Ordinal);
+        Assert.Contains($"open={seeded.MessageId:D}", location, StringComparison.Ordinal);
         Assert.Equal(selectedCaseId, Assert.Single(send.Commands).ContextId);
     }
 

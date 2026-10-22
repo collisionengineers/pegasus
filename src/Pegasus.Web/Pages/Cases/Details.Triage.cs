@@ -972,7 +972,9 @@ public sealed partial class DetailsModel
 
         return Partial(
             "/Pages/Shared/_CaseOptions.cshtml",
-            new CaseOptions(items, FormAction: null, FieldName: null, IdPrefix: "triage-link-case-option"));
+            new CaseOptions(
+                items.Select(item => new CaseOption(item.Reference, item.Registration, item.Claimant)).ToList(),
+                IdPrefix: "triage-link-case-option"));
     }
 
     /// <summary>The Case a typed Case / PO reference names exactly; null when it names none.</summary>

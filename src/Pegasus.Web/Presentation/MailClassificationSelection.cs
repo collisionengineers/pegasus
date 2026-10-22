@@ -25,6 +25,13 @@ public static class MailClassificationSelection
     /// <summary>The reason Tag as query records in the message's classification history.</summary>
     public const string TaggedAsQueryReason = "Tagged as query";
 
+    /// <summary>
+    /// The reason a Classification chip on the message record records: a chip
+    /// applies at once, as Tag as query does, so no reason is typed (operator,
+    /// 22 October 2026, R179).
+    /// </summary>
+    public const string CorrectedFromInboxReason = "Corrected from the Inbox";
+
     // Labels resolve through the one operator label map, so the picker and
     // every read-only rendering of a classification use the same words.
     public static IReadOnlyList<SelectionOption> Options { get; } =
@@ -35,13 +42,26 @@ public static class MailClassificationSelection
         ];
 
     /// <summary>
-    /// Parses the case type a New instruction correction names. Only the three
-    /// work types are accepted; a Triage is a Case type, not instructed work.
+    /// The case types a New instruction correction may name. Only the three work
+    /// types are offered or accepted; a Triage is a Case type, not instructed work.
     /// </summary>
+    private static readonly CaseType[] WorkTypes =
+        [CaseType.Inspection, CaseType.Audit, CaseType.InspectionAndAudit];
+
+    /// <summary>
+    /// The work types for the Case type select, worded as the base message page
+    /// and the Create case form word them: "Inspection and Audit", where the
+    /// Case type's own name reads "Inspection and audit".
+    /// </summary>
+    public static IReadOnlyList<SelectionOption> WorkTypeOptions { get; } =
+        [.. WorkTypes.Select(type => new SelectionOption(
+            type.ToString(),
+            type == CaseType.InspectionAndAudit ? "Inspection and Audit" : OperatorLabels.CaseTypeName(type)))];
+
+    /// <summary>Parses the case type a New instruction correction names.</summary>
     public static bool TryParseWorkType(string? value, out CaseType? caseType)
     {
-        caseType = Enum.TryParse<CaseType>(value, out var parsed)
-            && parsed is CaseType.Inspection or CaseType.Audit or CaseType.InspectionAndAudit
+        caseType = Enum.TryParse<CaseType>(value, out var parsed) && WorkTypes.Contains(parsed)
             ? parsed
             : null;
         return caseType is not null;

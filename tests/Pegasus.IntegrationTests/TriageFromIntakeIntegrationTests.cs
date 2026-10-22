@@ -367,7 +367,7 @@ public sealed class TriageFromIntakeIntegrationTests
     /// Processing here does not run the mailbox poll, which is what retains
     /// the message record staff open; retain it as the poll would.
     /// </summary>
-    private static async Task<Guid> RetainAsThePollWouldAsync(
+    internal static async Task<Guid> RetainAsThePollWouldAsync(
         IntakeWebApplicationFactory factory,
         Guid receiptId,
         string key,

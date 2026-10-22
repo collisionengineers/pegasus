@@ -157,7 +157,7 @@ exclusion.
 | MAIL-04 | Explainable classification evidence, policy version, correction history, and the work type and Triage match a correction carries | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | MAIL-09 | Automatic association of related email and attachments with a case | [Automatic Case association of retained mail](frd/frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail) |
 | MAIL-10 | Manual email/case association, unlink, relink, correction, and the next action a corrected classification offers | [Classification and linking actions](frd/frd-20-mailbox-workspace.md#classification-and-linking-actions) |
-| MAIL-11 | Browse, search and view mailbox messages and threads | [Quick preview and message detail](frd/frd-20-mailbox-workspace.md#quick-preview-and-message-detail) |
+| MAIL-11 | Browse, search and view mailbox messages and threads | [Message dialog and message detail](frd/frd-20-mailbox-workspace.md#message-dialog-and-message-detail) |
 | CASE-23 | Queries, disputes included, raised, listed and resolved on the existing Case | [Report sent and queries](frd/frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries) |
 | UI-10 | Full email-management workspace | [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
 | UI-14 | Categorised email views by mail category | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction); [Inbox scopes and filters](frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters) |
