@@ -144,7 +144,7 @@ public static class ValuationPolicy
     /// The sources staff may type in. Collision Engineers may record the
     /// Glass's, Brego, Super CAP, CAP and Cazana guides by hand (v28 P8 and
     /// P13, 18 September 2026), including the two Get valuation can fetch
-    /// (Glass's, ADR-0060; Cazana, ADR-0066): a fetched figure and a typed
+    /// (Glass's, ADR-0060; Cazana, ADR-0079): a fetched figure and a typed
     /// one are the same record. AI market research
     /// is written only by the automation completion, so staff never record it.
     /// </summary>

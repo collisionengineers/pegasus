@@ -1,0 +1,43 @@
+<div class="w-2/5 h-auto p-2 flex flex-col gap-4">
+  {{#listing}}
+  <div>
+    <div>
+      <h3 class="font-semibold text-slate-600 my-4 border-b-2 pb-2">
+        Last for sale {{listinglastSeen}} months ago
+      </h3>
+      <p class="mb-4">Advert details</p>
+    </div>
+    <div class="flex flex-col gap-4 text-gray-700">
+      <div class="flex flex-row justify-between">
+        <p>Last price</p>
+        <p>£{{listinglastPrice}}</p>
+      </div>
+      <div class="flex flex-row justify-between">
+        <p>Original price</p>
+        <p>£{{listingOriginalPrice}}</p>
+      </div>
+      <div class="flex flex-row justify-between">
+        <p>Days on sale</p>
+        <p>{{listingDaysonMarket}}</p>
+      </div>
+      <div class="flex flex-row justify-between">
+        <p>Date listed</p>
+        <p>{{listingDateListed}}</p>
+      </div>
+      <div class="flex flex-row justify-between border-b-2 pb-2">
+        <p>Mileage</p>
+        <p>{{listingMileage}}</p>
+      </div>
+      <p>Seller details</p>
+      <div class="flex flex-row justify-between border-b-2 pb-2">
+        <p>Seller</p>
+        <p>{{listingSeller}}</p>
+      </div>
+      <div>
+        <p class="mb-4">Ad text</p>
+        <p>{{listingAdText}}</p>
+      </div>
+    </div>
+  </div>
+  {{/listing}}
+</div>

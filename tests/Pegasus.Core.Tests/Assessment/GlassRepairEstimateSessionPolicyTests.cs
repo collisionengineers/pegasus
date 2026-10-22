@@ -123,6 +123,7 @@ public sealed class GlassRepairEstimateSessionPolicyTests
     [Theory]
     [InlineData("XY99 ZZZ", 33000L, false, null, 0L)]
     [InlineData("ab12cde", 33001L, false, "AB12 CDE", 33000L)]
+    [InlineData("ab12 cde", 33001L, false, "AB12 CDE", 33000L)]
     [InlineData("XY99 ZZZ", 33001L, true, "XY99 ZZZ", 33001L)]
     public void OnlyAChangedRegistrationOnARealVehicleRefusesAReopenOrAResume(
         string registration, long mileage, bool placeholder, string? continuesOn, long continuesAt)

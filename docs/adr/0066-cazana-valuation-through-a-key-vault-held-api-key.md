@@ -1,9 +1,9 @@
 ---
 id: ADR-0066
-status: accepted
+status: superseded
 date: 2026-10-09
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0079]
 related_capabilities: [EXT-07, EXT-13]
 related_frd: [FRD-24, FRD-16, FRD-10]
 tags: [cazana, valuation, key-vault, custody]
@@ -13,7 +13,7 @@ tags: [cazana, valuation, key-vault, custody]
 
 ## Status
 
-Accepted on 9 October 2026. The operator asked for Cazana to be connected as
+Superseded on 21 October 2026 by [ADR-0079](0079-cazana-companion-account-and-companion-report.md). Accepted on 9 October 2026. The operator asked for Cazana to be connected as
 a further guide valuation source, using the Cazana API key held in Infisical,
 entered into Key Vault. [FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)
 owns what staff see. This record owns how the valuation is fetched and where
