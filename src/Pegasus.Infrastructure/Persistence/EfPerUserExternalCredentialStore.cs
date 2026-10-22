@@ -398,9 +398,8 @@ public sealed class EfPerUserExternalCredentialStore(
     private static string NormalizeAccountKey(
         ExternalCredentialProvider provider,
         string username) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-                $"{ProviderName(provider)}\n{username.ToUpperInvariant()}")))
-            .ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+                $"{ProviderName(provider)}\n{username.ToUpperInvariant()}")));
 
     private static string ProviderName(ExternalCredentialProvider provider) =>
         provider switch

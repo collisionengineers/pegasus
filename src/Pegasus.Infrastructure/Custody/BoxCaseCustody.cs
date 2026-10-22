@@ -1654,7 +1654,7 @@ internal sealed partial class BoxContentClient(
             }
             hash.AppendData(buffer, 0, read);
         }
-        var actualHash = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        var actualHash = Convert.ToHexStringLower(hash.GetHashAndReset());
         if (copied != expectedLength
             || !string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
         {

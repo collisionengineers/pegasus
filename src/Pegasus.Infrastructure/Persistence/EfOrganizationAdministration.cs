@@ -748,11 +748,10 @@ public sealed class EfOrganizationAdministration(
             actor.Roles.OrderBy(role => role).Select(role => role.ToString()).ToArray());
 
     internal static string HashRequest<T>(T material) =>
-        Convert.ToHexString(
+        Convert.ToHexStringLower(
             SHA256.HashData(
                 Encoding.UTF8.GetBytes(
-                    JsonSerializer.Serialize(material, SerializerOptions))))
-            .ToLowerInvariant();
+                    JsonSerializer.Serialize(material, SerializerOptions))));
 
     private static Task<T> ExecuteWithConcurrencyRetryAsync<T>(
         Func<CancellationToken, Task<T>> operation,

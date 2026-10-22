@@ -51,8 +51,8 @@ internal sealed class EfStandaloneAuditEvidenceStore(
 
         var operationKey = $"automatic-standalone-audit:{request.IntakeReceiptId:N}";
         var reason = $"The retained original report states {request.Assessment}.";
-        var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            $"{request.IntakeReceiptId:N}|{request.OriginalReportAssetId:N}|{request.Assessment}"))).ToLowerInvariant();
+        var requestHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{request.IntakeReceiptId:N}|{request.OriginalReportAssetId:N}|{request.Assessment}")));
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await EfIntakeReceiptStore.LockAsync(context, request.IntakeReceiptId, cancellationToken);
@@ -140,7 +140,7 @@ internal sealed class EfStandaloneAuditEvidenceStore(
         var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
             ?? throw new InvalidOperationException(
                 "The selected original Engineer report is no longer available in retained intake custody.");
-        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
+        var actualHash = Convert.ToHexStringLower(SHA256.HashData(content.Span));
         if (content.Length != asset.ContentLength
             || !CryptographicOperations.FixedTimeEquals(
                 Convert.FromHexString(actualHash),

@@ -202,7 +202,7 @@ public sealed class EfCaseWorkflowStore(
             ? await LeaseHolderNameAsync(context, previousHolderKind, previousHolder, cancellationToken)
             : null;
         ClearLease(workflow);
-        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var tokenHash = Hash(token);
         var expiresAtUtc = now + EditLeaseDuration;
         workflow.EditLeaseToken = token;
@@ -2349,5 +2349,5 @@ public sealed class EfCaseWorkflowStore(
     }
 
     private static string RequestHash<T>(T request) => Hash(JsonSerializer.Serialize(request));
-    private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+    private static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }

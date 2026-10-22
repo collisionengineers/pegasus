@@ -930,7 +930,7 @@ public sealed class EfStaffAccountAdministration(
     }
 
     private static string SignatureDigest(byte[] signature) =>
-        Convert.ToHexString(SHA256.HashData(signature)).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(signature));
 
     private static (long Authorizations, long Tokens) ParseRevocationCounts(
         string? afterJson)

@@ -520,9 +520,8 @@ public sealed class EfIntakeSubmissionGroupStore(
             return;
         }
 
-        var fingerprint = Convert.ToHexString(SHA256.HashData(
-                Encoding.UTF8.GetBytes($"{groupId:N}|image_match_declined|{staffSubjectId}")))
-            .ToLowerInvariant();
+        var fingerprint = Convert.ToHexStringLower(SHA256.HashData(
+                Encoding.UTF8.GetBytes($"{groupId:N}|image_match_declined|{staffSubjectId}")));
         var beforeVersion = group.Version;
         group.Version++;
         group.ImageMatchDeclinedAtUtc = declinedAtUtc;
@@ -668,7 +667,7 @@ public sealed class EfIntakeSubmissionGroupStore(
             string.Join(',', request.ExpectedReceiptVersions
                 .OrderBy(item => item.Key)
                 .Select(item => $"{item.Key:N}:{item.Value}")));
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
     }
 
 }

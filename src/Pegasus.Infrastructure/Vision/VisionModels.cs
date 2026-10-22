@@ -86,7 +86,7 @@ internal sealed class VisionModelSet
     /// </summary>
     internal static byte[] VerifyModel(string name, byte[] bytes, string pinnedSha256)
     {
-        var actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        var actual = Convert.ToHexStringLower(SHA256.HashData(bytes));
         if (!string.Equals(actual, pinnedSha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new VisionModelIntegrityException(

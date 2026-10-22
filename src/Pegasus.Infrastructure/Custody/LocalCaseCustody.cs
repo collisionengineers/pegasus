@@ -215,8 +215,7 @@ internal sealed class LocalCaseCustody(
         ArgumentException.ThrowIfNullOrWhiteSpace(auditReference);
         ValidateOperationKey(operationKey);
 
-        var identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(auditReference)))
-            .ToLowerInvariant();
+        var identity = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(auditReference)));
         var relativeId = $"{root.RemoteId}/audit/{identity}";
         var directory = Resolve(relativeId);
         Directory.CreateDirectory(directory);
@@ -240,7 +239,7 @@ internal sealed class LocalCaseCustody(
         var expectedHash = NormalizeSha256(source.SourceHash);
         var content = await intakeArtifactStore.ReadAsync(source.SourceObjectKey, cancellationToken)
             ?? throw new FileNotFoundException("The retained intake source is unavailable.");
-        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
+        var actualHash = Convert.ToHexStringLower(SHA256.HashData(content.Span));
         if (!string.Equals(expectedHash, actualHash, StringComparison.Ordinal))
         {
             throw new InvalidDataException("The retained intake source failed its custody integrity check.");
@@ -354,8 +353,7 @@ internal sealed class LocalCaseCustody(
             FileShare.Read,
             64 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(existing, cancellationToken))
-            .ToLowerInvariant();
+        var actualHash = Convert.ToHexStringLower(await SHA256.HashDataAsync(existing, cancellationToken));
         if (!string.Equals(actualHash, expectedHash, StringComparison.Ordinal))
         {
             throw new InvalidDataException("Existing custody content does not match the expected hash.");
