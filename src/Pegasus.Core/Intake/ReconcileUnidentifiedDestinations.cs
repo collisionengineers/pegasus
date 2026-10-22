@@ -93,9 +93,9 @@ public sealed class ReconcileUnidentifiedDestinations(
         // so a resolution written this pass is examined once here and leaves
         // the queue in the same pass. Bounded like the open loop, and one
         // failure never stops the sweep. Every recheck row counts as a
-        // candidate, so "examined nothing this pass" is observable as
-        // Candidates = 0 and a queue that never advances shows as a non-zero
-        // candidate count pass after pass.
+        // candidate, so "examined nothing this pass" is observable as no
+        // result line at all and a queue that never advances shows as a
+        // non-zero candidate count pass after pass.
         var recheck = await unidentifiedStore.ListResolutionsToRecheckAsync(maximumItems, cancellationToken);
         foreach (var item in recheck)
         {

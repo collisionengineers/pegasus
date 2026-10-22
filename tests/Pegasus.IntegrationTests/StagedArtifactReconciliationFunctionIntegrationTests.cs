@@ -63,6 +63,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var pairing = new RecordingPairing();
         var triagePairing = new RecordingTriagePairing();
         var settlement = new RecordingSettlement();
+        var purgeNotifications = new EmptyStaffNotificationStore();
         var function = new StagedArtifactReconciliationFunction(
             reconciler,
             new EmptyCacheCleanup(),
@@ -77,7 +78,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             unidentifiedReconciler,
             vehicleLookupReconciler,
             principalSubmissionReconciler,
-            new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
+            new PurgeStaffNotifications(purgeNotifications, TimeProvider.System),
             new StaffNotificationPurgeSchedule(TimeProvider.System),
             new PrepareDocumentThumbnails(thumbnailCandidates, new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(estimateCandidates, new UnreachableDocumentReads(), []),
@@ -90,22 +91,24 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(50, settlement.MaximumItems);
         Assert.Equal(50, pairing.MaximumItems);
         Assert.Equal(50, triagePairing.MaximumItems);
-        // The thumbnail sweep asks for a small number each run; with none to
-        // make it logs nothing.
-        Assert.Equal(2, thumbnailCandidates.MaximumItems);
-        // So does estimate recognition, and with none to read it logs nothing.
-        Assert.Equal(10, estimateCandidates.MaximumItems);
-        // Eight reconciliation results and the staff-notification purge. Still nine:
-        // the failure lines were always logged, and only their level depends on the
-        // count now. The per-attempt cause of a failed custody item is logged by the
-        // sweep's own logger, not by this function's.
-        Assert.Equal(9, logger.States.Count);
+        // The thumbnail sweep asks for a dozen each run; with none to make it
+        // logs nothing.
+        Assert.Equal(12, thumbnailCandidates.MaximumItems);
+        // Estimate recognition asks for sixty, and with none to read it logs nothing.
+        Assert.Equal(60, estimateCandidates.MaximumItems);
+        Assert.Equal(1, purgeNotifications.Purges);
+        // Four steps counted something: staged artifacts, the report settlement and both
+        // pairings. The grouped-image, Unidentified, vehicle-lookup, Principal-submission
+        // and purge steps ran and counted nothing, so they wrote no line. The per-attempt
+        // cause of a failed custody item is logged by the sweep's own logger, not by this
+        // function's.
+        Assert.Equal(4, logger.States.Count);
         // A result line that counts failures is a Warning; the same line with none stays
         // Information. Only the image pairing (2 failures) and Triage pairing (1) counted any.
+        Assert.Equal(LogLevel.Warning, logger.Entries[2].Level);
         Assert.Equal(LogLevel.Warning, logger.Entries[3].Level);
-        Assert.Equal(LogLevel.Warning, logger.Entries[4].Level);
         Assert.All(
-            logger.Entries.Where((_, index) => index is not (3 or 4)),
+            logger.Entries.Where((_, index) => index is not (2 or 3)),
             entry => Assert.Equal(LogLevel.Information, entry.Level));
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredWorkItems"]);
@@ -121,38 +124,43 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var settlementState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[1]);
         Assert.Equal(3, settlementState["Settled"]);
 
-        var groupedImageState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[2]);
-        Assert.Equal(0, groupedImageState["Candidates"]);
-        Assert.Equal(0, groupedImageState["Retried"]);
-        Assert.Equal(0, groupedImageState["Escaped"]);
-        Assert.Equal(0, groupedImageState["Failures"]);
-
-        var pairingState = logger.States[3];
+        var pairingState = logger.States[2];
         Assert.Equal(7, pairingState["Candidates"]);
         Assert.Equal(3, pairingState["Merged"]);
         Assert.Equal(2, pairingState["Failures"]);
         Assert.Equal(nameof(IntakeAssociationConflictException), pairingState["FirstFailure"]);
 
-        var triagePairingState = logger.States[4];
+        var triagePairingState = logger.States[3];
         Assert.Equal(4, triagePairingState["Candidates"]);
         Assert.Equal(2, triagePairingState["Linked"]);
         Assert.Equal(1, triagePairingState["Failures"]);
         Assert.Equal(nameof(TriageVersionConflictException), triagePairingState["FirstFailure"]);
-
-        var unidentifiedState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[5]);
-        Assert.Equal(0, unidentifiedState["Candidates"]);
-        Assert.Equal(0, unidentifiedState["Resolved"]);
-        Assert.Equal(0, unidentifiedState["Failures"]);
-
-        var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[6]);
-        Assert.Equal(0, vehicleLookupState["Enqueued"]);
-
-        var principalSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[7]);
-        Assert.Equal(0, principalSubmissionState["Candidates"]);
-        Assert.Equal(0, principalSubmissionState["Repaired"]);
-        Assert.Equal(0, principalSubmissionState["Failures"]);
-        Assert.Null(principalSubmissionState["FirstFailure"]);
     }
+
+    /// <summary>
+    /// A tick that found nothing writes no result line: every step answers zero.
+    /// </summary>
+    [Fact]
+    public async Task AnIdleTickLogsNoResultLine()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+        var notifications = new EmptyStaffNotificationStore();
+
+        await RunPairingTimerAsync(
+            new IdlePairing(),
+            contextFactory,
+            new IdleSettlement(),
+            logger,
+            notifications: notifications,
+            triagePairing: new IdleTriagePairing());
+
+        Assert.Equal(1, notifications.Purges);
+        Assert.Empty(logger.Entries);
+    }
+
 
     /// <summary>
     /// A report that cannot be settled is named with its cause and the steps
@@ -166,14 +174,16 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         var pairing = new RecordingPairing();
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+        var notifications = new EmptyStaffNotificationStore();
 
-        await RunPairingTimerAsync(pairing, contextFactory, new FailingSettlement(), logger);
+        await RunPairingTimerAsync(
+            pairing, contextFactory, new FailingSettlement(), logger, notifications: notifications);
 
         var failure = Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Error);
         Assert.IsType<InvalidOperationException>(failure.Exception);
         Assert.DoesNotContain(logger.States, state => state.ContainsKey("Settled"));
         Assert.Equal(50, pairing.MaximumItems);
-        Assert.Contains(logger.States, state => state.ContainsKey("Purged"));
+        Assert.Equal(1, notifications.Purges);
     }
 
     /// <summary>
@@ -217,20 +227,22 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var thumbnailCandidates = new RecordingThumbnailCandidates();
         var estimateCandidates = new RecordingEstimateCandidates();
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+        var notifications = new EmptyStaffNotificationStore();
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => RunPairingTimerAsync(
             pairing,
             contextFactory,
             logger: logger,
+            notifications: notifications,
             workStore: new ReconciliationWorkStore(0, failure),
             thumbnailCandidates: thumbnailCandidates,
             estimateCandidates: estimateCandidates));
 
         Assert.Same(failure, thrown);
         Assert.Equal(50, pairing.MaximumItems);
-        Assert.Contains(logger.States, state => state.ContainsKey("Purged"));
-        Assert.Equal(2, thumbnailCandidates.MaximumItems);
-        Assert.Equal(10, estimateCandidates.MaximumItems);
+        Assert.Equal(1, notifications.Purges);
+        Assert.Equal(12, thumbnailCandidates.MaximumItems);
+        Assert.Equal(60, estimateCandidates.MaximumItems);
         var logged = Assert.Single(FailedSteps(logger));
         Assert.Equal("staged artifacts", logged.Step);
         Assert.Same(failure, logged.Exception);
@@ -247,11 +259,15 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var thumbnailCandidates = new RecordingThumbnailCandidates();
         var estimateCandidates = new RecordingEstimateCandidates();
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+        var triagePairing = new RecordingTriagePairing();
+        var notifications = new EmptyStaffNotificationStore();
 
         var thrown = await Assert.ThrowsAsync<AggregateException>(() => RunPairingTimerAsync(
             new RecordingPairing(pairingFailure),
             contextFactory,
             logger: logger,
+            notifications: notifications,
+            triagePairing: triagePairing,
             cacheCleanup: new FailingCacheCleanup(cacheFailure),
             thumbnailCandidates: thumbnailCandidates,
             estimateCandidates: estimateCandidates));
@@ -263,13 +279,10 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(
             ["document cache cleanup", "image pairing"],
             FailedSteps(logger).Select(logged => logged.Step));
-        Assert.Contains(logger.States, state => state.ContainsKey("Linked"));
-        Assert.Contains(logger.States, state => state.ContainsKey("Resolved"));
-        Assert.Contains(logger.States, state => state.ContainsKey("Enqueued"));
-        Assert.Contains(logger.States, state => state.ContainsKey("Repaired"));
-        Assert.Contains(logger.States, state => state.ContainsKey("Purged"));
-        Assert.Equal(2, thumbnailCandidates.MaximumItems);
-        Assert.Equal(10, estimateCandidates.MaximumItems);
+        Assert.Equal(50, triagePairing.MaximumItems);
+        Assert.Equal(1, notifications.Purges);
+        Assert.Equal(12, thumbnailCandidates.MaximumItems);
+        Assert.Equal(60, estimateCandidates.MaximumItems);
     }
 
     [Fact]
@@ -318,6 +331,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         StaffNotificationPurgeSchedule? purgeSchedule = null,
         IStaffNotificationStore? notifications = null,
         IIntakeWorkStore? workStore = null,
+        ITriageCasePairing? triagePairing = null,
         IDocumentContentCacheCleanup? cacheCleanup = null,
         IListDocumentThumbnailCandidates? thumbnailCandidates = null,
         IEstimateRecognitionCandidates? estimateCandidates = null,
@@ -334,7 +348,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
                 new UnreachableProcessQueuedIntake(), TimeProvider.System, new UnreachableRegisterUnidentified()),
             pairing,
-            new TriageCasePairing(new EfTriageStore(contextFactory,
+            triagePairing ?? new TriageCasePairing(new EfTriageStore(contextFactory,
                 [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())])),
             new ReconcileUnidentifiedDestinations(new EmptyUnidentifiedStore(), new UnreachableResolveUnidentified(),
                 receipts, new UnreachableImageIntakeQueries(), new UnreachableTriageQueries(), TimeProvider.System,
@@ -363,6 +377,29 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             throw new NotSupportedException();
         public Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class IdleTriagePairing : ITriageCasePairing
+    {
+        public Task<TriageCasePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
+            Task.FromResult(new TriageCasePairingResult(0, 0, 0));
+        public Task<TriageCasePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class IdleSettlement : ISettleFiledCaseReportArtifacts
+    {
+        public Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken) => Task.FromResult(0);
+    }
+
+    private sealed class IdlePairing : IImageIntakeCasePairing
+    {
+        public Task<ImageIntakePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
+            Task.FromResult(new ImageIntakePairingResult(0, 0, 0));
+        public Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(Guid receiptId, CancellationToken cancellationToken, ImageIntakeDetail? registered = null) => throw new NotSupportedException();
     }
 
     private sealed class RecordingSettlement : ISettleFiledCaseReportArtifacts
