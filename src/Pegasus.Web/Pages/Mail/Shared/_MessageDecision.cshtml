@@ -81,12 +81,13 @@
                     {
                         @* Shown by script when New instruction is pressed without a case type. *@
                         <div class="field mail-case-type" data-work-type-field hidden="@(!workTypeRefused)">
-                            <label class="req" for="mailWorkType">@OperatorLabels.Inbox.CaseType</label>
+                            <label class="req" for="mailWorkType">@CaseWorkspaceLabels.Frame.CaseType</label>
                             <select id="mailWorkType" name="WorkType" form="mailClassificationForm">
                                 <option value="">@OperatorLabels.Inbox.ChooseCaseTypeOption</option>
-                                <option value="@Pegasus.Core.Cases.CaseType.Inspection" selected="@(Model.WorkType == nameof(Pegasus.Core.Cases.CaseType.Inspection))">Inspection</option>
-                                <option value="@Pegasus.Core.Cases.CaseType.Audit" selected="@(Model.WorkType == nameof(Pegasus.Core.Cases.CaseType.Audit))">Audit</option>
-                                <option value="@Pegasus.Core.Cases.CaseType.InspectionAndAudit" selected="@(Model.WorkType == nameof(Pegasus.Core.Cases.CaseType.InspectionAndAudit))">Inspection and Audit</option>
+                                @foreach (var option in MailClassificationSelection.WorkTypeOptions)
+                                {
+                                    <option value="@option.Value" selected="@(Model.WorkType == option.Value)">@option.Label</option>
+                                }
                             </select>
                             <span asp-validation-for="WorkType"></span>
                         </div>
@@ -108,6 +109,11 @@
             @if (Model.AssociationReceipt is not null)
             {
                 <div class="mail-decision-actions">
+                    @* A Triage the message opened is its Case until staff link it to an instruction Case. *@
+                    @if (summary.IsTriageCase && summary.CaseId is { } triageId)
+                    {
+                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@triageId">@OperatorLabels.Inbox.OpenTriage</a>
+                    }
                     @if (Model.CurrentDestination is not null)
                     {
                         <button class="btn btn--small" type="button" data-dialog-open="changeLinkedCaseDialog">@OperatorLabels.Inbox.ChangeLinkedCase</button>

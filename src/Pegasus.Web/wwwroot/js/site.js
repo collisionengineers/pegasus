@@ -1868,11 +1868,11 @@
     if (opening) {
         address.searchParams.delete('open');
         window.history.replaceState(window.history.state, '', address.toString());
-        var openRowFor = rowOf(opening);
-        var openLink = openRowFor ? openRowFor.querySelector('a[data-mail-open]') : null;
-        if (openRowFor) { pin(openRowFor); }
-        opener = openLink;
-        var url = new URL(openLink ? openLink.href : '/Inbox/' + encodeURIComponent(opening), window.location.href);
+        var openedRow = rowOf(opening);
+        var openedLink = openedRow ? openedRow.querySelector('a[data-mail-open]') : null;
+        if (openedRow) { pin(openedRow); }
+        opener = openedLink;
+        var url = new URL(openedLink ? openedLink.href : '/Inbox/' + encodeURIComponent(opening), window.location.href);
         // The rest of the address (the composer, the send's operation) rides to the record.
         var carried = CONTEXT.concat(['selected', 'open', 'handler']);
         new URLSearchParams(window.location.search).forEach(function (value, key) {

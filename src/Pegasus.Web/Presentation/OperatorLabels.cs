@@ -2886,7 +2886,6 @@ public static class OperatorLabels
         public const string CorrectClassification = "Correct classification";
         public const string Classification = "Classification";
         public const string ChooseClassificationOption = "Choose classification";
-        public const string CaseType = "Case type";
         public const string ChooseCaseTypeOption = "Choose case type";
         public const string CorrectionReason = "Reason for correction";
         public const string SaveCorrection = "Save correction";
@@ -2903,7 +2902,6 @@ public static class OperatorLabels
         // The Case cell naming the Case/PO or the Triage's t. reference.
         public const string Case = "Case";
         public const string NoCase = "None";
-        public const string OpenCase = WorkCentre.OpenCase;
         public const string OpenTriage = "Open Triage";
 
         /// <summary>

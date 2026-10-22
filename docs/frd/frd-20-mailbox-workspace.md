@@ -64,10 +64,13 @@ Images › Unidentified until it is linked.
 
 Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message as a dialog over the list; the address `/Inbox/{id}` stays
-for a new tab and for no script (operator, 16 October 2026). Clicking elsewhere
-on a row selects it. The selected row is marked. Up and Down move through the
-rows. In All incoming, No Case Found and Dismissed each row carries a
-checkbox in its left gutter; ticking it neither opens nor selects the row.
+for a new tab and for no script (operator, 16 October 2026, R159 (c),
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Clicking elsewhere on a row selects it. The selected row is marked. Up and
+Down move through the rows. In All incoming, No Case Found and Dismissed each
+row carries a checkbox in its left gutter; ticking it neither opens nor
+selects the row (v41 item I18, signed off 19 October 2026,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 A received row offers **Reply** when the mailbox it arrived in can send; it
 opens the message dialog's Reply
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
@@ -101,8 +104,8 @@ Opening a message keeps the list's filter and position. The record shows the
 full retained message, its attachments and a chronological thread, and
 states the current classification, processing outcome and Case
 association before any action is offered. When a message opened a Triage
-and is linked to no Case, its Decision shows that Triage as its Case and
-still offers Link to Case.
+and is linked to no Case, its Decision shows that Triage as its Case with
+Open Triage (operator ruling, 15 October 2026) and still offers Link to Case.
 
 The thread shows only retained messages in the same approved mailbox and
 folder scope. A matching thread identity never fetches or reveals other
@@ -156,7 +159,9 @@ eleven mail categories and Unclassified, one pressed. Pressing another
 applies the correction at once and records the fixed reason "Corrected from
 the Inbox", as Tag as query records its fixed reason; no reason is typed. A
 correction to New instruction asks for the Case type in the Case picker row
-(operator, 22 October 2026, R179). On the list, **Correct classification**
+(operator, 22 October 2026, R179,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+On the list, **Correct classification**
 opens a dialog once for every ticked row, with Classification, Case type and
 Reason for correction. Once a classification
 is saved, the message record offers the one next action it calls for:
@@ -179,15 +184,15 @@ happen while classification is still unresolved, when the link evidence on
 its own is enough. The Automation Actor links through the same command
 (`pegasus_mail_link_case`).
 
-The opened message record also offers **Unlink** and **Change linked Case**
-under the picker. Each asks for a reason in one step; where the Case is the one
+The opened message record also offers **Unlink**; where the Case is the one
 the message's own acceptance created, the dialog says that unlinking cancels
-it. Change linked Case is the existing Unlink and the existing Link to Case
-in one post with one reason. Once no Case is current, **Link to Case** relinks
-the message. All keep
+it. Once no Case is current, **Link to Case** relinks the message. Both keep
 the history rule in
 [FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
-(operator ruling, 15 October 2026).
+(operator ruling, 15 October 2026). **Change linked Case** and Unlink sit
+under the picker, each asking for a reason in one step (v41 items I9 and I13,
+signed off 19 October 2026,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 The message record shows its current Case association even while its
 classification is Unclassified. Classification, Case association and custody
@@ -225,10 +230,13 @@ Dismissed scope, each message on its own (operator, 15 and 16 October
 2026). One bulk form sits above the list: the ticked count as a bare number,
 and Dismiss and Correct classification, or Restore in Dismissed; its buttons
 are always enabled, because a post with nothing ticked writes nothing, and
-there is no select-all (v41 item I18, signed off 19 October 2026). A bulk post
-that could not change some messages says "N not changed" once above the list,
-and those rows stay ticked so they can be retried (operator, 22 October 2026,
-R180). An open
+there is no select-all (v41 item I18, signed off 19 October 2026,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+A bulk post that could not change some messages says "N not changed" once
+above the list, and those rows stay ticked so they can be retried (operator,
+22 October 2026, R180,
+[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+An open
 Unidentified item stays open, and the message keeps its evidence,
 associations and history. Dismiss is Pegasus data only: the Outlook item
 does not move and no Graph call is made

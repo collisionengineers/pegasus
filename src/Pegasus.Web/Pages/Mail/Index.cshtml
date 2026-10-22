@@ -493,12 +493,13 @@
                     <span asp-validation-for="ClassificationKey"></span>
                 </div>
                 <div class="field" data-work-type-field hidden>
-                    <label class="req" for="bulkWorkType">@OperatorLabels.Inbox.CaseType</label>
+                    <label class="req" for="bulkWorkType">@CaseWorkspaceLabels.Frame.CaseType</label>
                     <select id="bulkWorkType" name="WorkType" form="mail-bulk">
                         <option value="">@OperatorLabels.Inbox.ChooseCaseTypeOption</option>
-                        <option value="@Pegasus.Core.Cases.CaseType.Inspection" selected="@(Model.WorkType == nameof(Pegasus.Core.Cases.CaseType.Inspection))">Inspection</option>
-                        <option value="@Pegasus.Core.Cases.CaseType.Audit" selected="@(Model.WorkType == nameof(Pegasus.Core.Cases.CaseType.Audit))">Audit</option>
-                        <option value="@Pegasus.Core.Cases.CaseType.InspectionAndAudit" selected="@(Model.WorkType == nameof(Pegasus.Core.Cases.CaseType.InspectionAndAudit))">Inspection and Audit</option>
+                        @foreach (var option in MailClassificationSelection.WorkTypeOptions)
+                        {
+                            <option value="@option.Value" selected="@(Model.WorkType == option.Value)">@option.Label</option>
+                        }
                     </select>
                     <span asp-validation-for="WorkType"></span>
                 </div>

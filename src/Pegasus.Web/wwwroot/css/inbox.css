@@ -63,7 +63,11 @@
 .mail-dialog-nav { flex-shrink: 0; gap: 2px; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line, #d2d8db); }
 .mail-dialog-nav .icon-button[disabled] { opacity: .35; cursor: default; }
 .mail-compose { max-width: 900px; }
-.mail-compose .definition-list { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+/* v41 I15: From, To and the Case sit on one line; it wraps only when it must. */
+.mail-compose-route { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px; }
+.mail-compose-route .mail-route { flex: 1 1 auto; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.mail-compose-route .field { flex: 1 1 14rem; min-width: 0; margin: 0; }
+.mail-compose-route .case-picker { flex: 0 1 22rem; }
 
 /* The message on the left; Decision on the right, holding the Classification
    chips and the Case picker. */

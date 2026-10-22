@@ -42,13 +42,20 @@ public static class MailClassificationSelection
         ];
 
     /// <summary>
-    /// Parses the case type a New instruction correction names. Only the three
-    /// work types are accepted; a Triage is a Case type, not instructed work.
+    /// The case types a New instruction correction may name. Only the three work
+    /// types are offered or accepted; a Triage is a Case type, not instructed work.
     /// </summary>
+    private static readonly CaseType[] WorkTypes =
+        [CaseType.Inspection, CaseType.Audit, CaseType.InspectionAndAudit];
+
+    /// <summary>The work types by the Case type's own name, for the Case type select.</summary>
+    public static IReadOnlyList<SelectionOption> WorkTypeOptions { get; } =
+        [.. WorkTypes.Select(type => new SelectionOption(type.ToString(), OperatorLabels.CaseTypeName(type)))];
+
+    /// <summary>Parses the case type a New instruction correction names.</summary>
     public static bool TryParseWorkType(string? value, out CaseType? caseType)
     {
-        caseType = Enum.TryParse<CaseType>(value, out var parsed)
-            && parsed is CaseType.Inspection or CaseType.Audit or CaseType.InspectionAndAudit
+        caseType = Enum.TryParse<CaseType>(value, out var parsed) && WorkTypes.Contains(parsed)
             ? parsed
             : null;
         return caseType is not null;

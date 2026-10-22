@@ -558,8 +558,8 @@ public sealed class MailWorkspaceWebTests
     /// <summary>
     /// Change linked Case (v41 I9, I13) is the existing Unlink and the existing
     /// Link to Case in one post with one reason: two history entries, each under
-    /// its own edit authority, and a Case / PO that names no Case stops it before
-    /// anything is unlinked.
+    /// its own edit authority. A Case / PO that names no Case, or a Case a
+    /// colleague is editing, stops it before anything is unlinked.
     /// </summary>
     [Fact]
     public async Task ChangeLinkedCaseUnlinksAndLinksInOnePostWithOneReasonAndTwoHistoryEntries()
@@ -601,7 +601,40 @@ public sealed class MailWorkspaceWebTests
         }
         await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
 
-        var change = DialogSubmission(page, "ChangeLinkedCase", "Moved to the right Case.", "MAIL33002");
+        // A colleague is editing the new Case: its authority is claimed before the
+        // message is unlinked, so the message stays linked to the first Case.
+        await using (var colleagueScope = factory.Services.CreateAsyncScope())
+        {
+            var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+            var held = await colleagueScope.ServiceProvider
+                .GetRequiredService<Pegasus.Core.Workflow.IAcquireCaseEditLease>()
+                .ExecuteAsync(
+                    new(newCaseId, 0, colleague, $"mail-test-colleague:{Guid.NewGuid():N}"),
+                    CancellationToken.None);
+            var busy = DialogSubmission(page, "ChangeLinkedCase", "Moved to the right Case.", "MAIL33002");
+            using (var refusedBusy = await client.PostAsync(busy.Action, new FormUrlEncodedContent(busy.Fields)))
+            {
+                Assert.Equal(HttpStatusCode.OK, refusedBusy.StatusCode);
+                Assert.Contains(
+                    "This case is currently being edited. Reload and try again later.",
+                    await refusedBusy.Content.ReadAsStringAsync(),
+                    StringComparison.Ordinal);
+            }
+            await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
+            Assert.Null(await CaseLeaseTokenAsync(factory, firstCaseId));
+            await colleagueScope.ServiceProvider
+                .GetRequiredService<Pegasus.Core.Workflow.IReleaseCaseEditLease>()
+                .ExecuteAsync(
+                    new(newCaseId, colleague, $"mail-test-colleague-release:{Guid.NewGuid():N}", held.Token),
+                    CancellationToken.None);
+        }
+
+        // The record is drawn again, so the retry carries fresh confirmation keys.
+        var change = DialogSubmission(
+            await GetHtmlAsync(client, $"/Inbox/{messageId:D}"),
+            "ChangeLinkedCase",
+            "Moved to the right Case.",
+            "MAIL33002");
         using (var changed = await client.PostAsync(change.Action, new FormUrlEncodedContent(change.Fields)))
         {
             Assert.Equal(HttpStatusCode.Redirect, changed.StatusCode);
@@ -3014,6 +3047,63 @@ public sealed class MailWorkspaceWebTests
             Assert.Equal(HttpStatusCode.Redirect, dismissLast.StatusCode);
             Assert.Equal("/Inbox", dismissLast.Headers.Location?.OriginalString);
         }
+    }
+
+    /// <summary>
+    /// Register images (v41 I17): the offer sits in the record's foot and its dialog
+    /// posts from the record. The message's image-only receipt becomes a
+    /// vehicle-images record under the registration staff give.
+    /// </summary>
+    [Fact]
+    public async Task RegisterImagesPostsFromTheRecord()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            factory.Services,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64));
+        var messageId = await TriageFromIntakeIntegrationTests.RetainAsThePollWouldAsync(
+            factory, receiptId, "register-images", "Photographs of the vehicle");
+
+        // The route read no category: staff correct the message to Images received,
+        // and the record then offers Register images against the same receipt.
+        using (var correction = await client.PostAsync(
+            $"/Inbox/{messageId:D}?handler=CorrectClassification",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
+                ["ExpectedClassificationVersion"] = "1",
+                ["ClassificationKey"] = "images-received",
+                ["CorrectionReason"] = MailClassificationSelection.CorrectedFromInboxReason
+            })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, correction.StatusCode);
+        }
+
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.Contains("data-offered-action=\"RegisterImages\"", record, StringComparison.Ordinal);
+        var form = AssociationForm(record, "RegisterImages");
+        var fields = HiddenFields(form);
+        fields["vehicleRegistration"] = "ab12 cde";
+        fields["reason"] = "Staff read the registration from the retained image.";
+        using (var register = await client.PostAsync(
+            AssociationAction(form, "RegisterImages"),
+            new FormUrlEncodedContent(fields)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, register.StatusCode);
+            var landed = await GetHtmlAsync(client, register.Headers.Location!.ToString());
+            Assert.Contains("Registered as vehicle images AB12CDE-01.", landed, StringComparison.Ordinal);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        Assert.Equal(IntakeDecision.ImageIntakeRegistered, receipt!.Decision);
     }
 
     /// <summary>The action the rendered bulk form's control for a handler posts to.</summary>

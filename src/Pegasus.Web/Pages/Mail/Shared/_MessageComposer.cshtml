@@ -35,45 +35,40 @@
             <input type="hidden" asp-for="CorrespondenceOperationKey" />
             <input type="hidden" asp-for="ExpectedCorrespondenceCaseVersion" />
             <input type="hidden" asp-for="FixedCorrespondenceCaseReference" />
-            <div class="definition-list">
-                <dl class="definition"><dt>From</dt><dd>@Model.CorrespondenceMailbox!.Address</dd></dl>
+            @* From, To and the Case sit on one line (v41 I15). Case / PO
+               searches as staff type: choosing an option posts
+               SelectCorrespondenceCase, which fixes the Case and its
+               version. A reference typed in full is sent as it is. *@
+            <div class="mail-compose-route">
+                @if (correspondenceMode == "forward")
+                {
+                    <p class="mail-route">From @Model.CorrespondenceMailbox!.Address</p>
+                    <div class="field">
+                        <label asp-for="CorrespondenceTo">To</label>
+                        <input asp-for="CorrespondenceTo" type="text" />
+                        <span asp-validation-for="CorrespondenceTo"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="CorrespondenceCc">Cc</label>
+                        <input asp-for="CorrespondenceCc" type="text" />
+                    </div>
+                }
+                else
+                {
+                    var copied = string.IsNullOrWhiteSpace(Model.CorrespondenceCc) ? string.Empty : $" · Cc {Model.CorrespondenceCc}";
+                    <p class="mail-route">@($"From {Model.CorrespondenceMailbox!.Address} · To {Model.CorrespondenceTo}{copied}")</p>
+                }
+                <div class="field case-picker" data-case-picker
+                     data-case-picker-url="@Url.Page("/Mail/Message", "CorrespondenceCaseOptions", new { id = summary.Id })">
+                    <label asp-for="CorrespondenceCaseReference">@OperatorLabels.Inbox.CasePo</label>
+                    <input asp-for="CorrespondenceCaseReference" type="text" maxlength="100" autocomplete="off"
+                           role="combobox" aria-autocomplete="list" aria-expanded="false"
+                           aria-controls="message-case-options" />
+                    <span class="field-hint">@OperatorLabels.Inbox.CasePoHint</span>
+                    <span asp-validation-for="CorrespondenceCaseReference"></span>
+                    <div id="message-case-options" class="case-picker-options" data-case-picker-options hidden></div>
+                </div>
             </div>
-            @* Case / PO searches as staff type: choosing an option
-               posts SelectCorrespondenceCase, which fixes the Case
-               and its version. A reference typed in full is sent
-               as it is. *@
-            <div class="field case-picker" data-case-picker
-                 data-case-picker-url="@Url.Page("/Mail/Message", "CorrespondenceCaseOptions", new { id = summary.Id })">
-                <label asp-for="CorrespondenceCaseReference">Case / PO</label>
-                <input asp-for="CorrespondenceCaseReference" type="text" maxlength="100" autocomplete="off"
-                       role="combobox" aria-autocomplete="list" aria-expanded="false"
-                       aria-controls="message-case-options" />
-                <span class="field-hint">Search by Case / PO, registration, claimant, claim number, or Principal.</span>
-                <span asp-validation-for="CorrespondenceCaseReference"></span>
-                <div id="message-case-options" class="case-picker-options" data-case-picker-options hidden></div>
-            </div>
-            @if (correspondenceMode == "forward")
-            {
-                <div class="field">
-                    <label asp-for="CorrespondenceTo">To</label>
-                    <input asp-for="CorrespondenceTo" type="text" />
-                    <span asp-validation-for="CorrespondenceTo"></span>
-                </div>
-                <div class="field">
-                    <label asp-for="CorrespondenceCc">Cc</label>
-                    <input asp-for="CorrespondenceCc" type="text" />
-                </div>
-            }
-            else
-            {
-                <div class="definition-list">
-                    <dl class="definition"><dt>To</dt><dd>@Model.CorrespondenceTo</dd></dl>
-                    @if (!string.IsNullOrWhiteSpace(Model.CorrespondenceCc))
-                    {
-                        <dl class="definition"><dt>Cc</dt><dd>@Model.CorrespondenceCc</dd></dl>
-                    }
-                </div>
-            }
             <div class="field">
                 <label asp-for="CorrespondenceSubject">Subject</label>
                 <input asp-for="CorrespondenceSubject" type="text" />

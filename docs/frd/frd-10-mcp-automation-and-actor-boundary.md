@@ -396,8 +396,8 @@ replays by its operation key.
   Unclassified, with a reason, as the staff correction does
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
 - `pegasus_mail_link_destinations` lists the Cases and Triage Cases the
-  staff **Link to case** dialog offers, and `pegasus_mail_link_case` links
-  the message through the staff command
+  staff **Case / PO** picker offers for **Link to Case**, and
+  `pegasus_mail_link_case` links the message through the staff command
   ([FRD-20](frd-20-mailbox-workspace.md#classification-and-linking-actions)).
 - `pegasus_mail_action` with `dismiss` or `restore` changes the message's
   Pegasus scope only
