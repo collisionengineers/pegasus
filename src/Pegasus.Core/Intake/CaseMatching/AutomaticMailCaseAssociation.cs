@@ -37,7 +37,10 @@ public interface IAutomaticMailCaseAssociationEvidenceQueries
 /// <summary>
 /// Conservatively associates one retained inbound message using only a unique
 /// system-wide registration or an already-associated exact mailbox thread.
-/// Case and PO references are deliberately absent from the contract.
+/// Case and PO references are deliberately absent from the contract. The
+/// receipt's recorded case-match decision outranks both: a Case it eliminated
+/// is never the target, and an Ambiguous decision links nothing (FRD-09
+/// shared eliminator; FRD-22; R35, operator, 15 October 2026).
 /// </summary>
 public sealed class AssociateRetainedMailWithCase(
     IAutomaticMailCaseAssociationEvidenceQueries evidenceQueries,
@@ -51,6 +54,7 @@ public sealed class AssociateRetainedMailWithCase(
 
     public async Task<AutomaticCaseAssociationOutcome?> ExecuteAsync(
         Guid intakeReceiptId,
+        CaseMatchEvaluationResult? caseMatchDecision = null,
         CancellationToken cancellationToken = default)
     {
         if (intakeReceiptId == Guid.Empty)
@@ -58,8 +62,15 @@ public sealed class AssociateRetainedMailWithCase(
             throw new ArgumentException("An intake receipt identifier is required.", nameof(intakeReceiptId));
         }
 
+        // Decided before the evidence read, so an Ambiguous message pays no
+        // registration or thread query.
+        if (caseMatchDecision?.Outcome == CaseMatchOutcome.Ambiguous)
+        {
+            return null;
+        }
+
         var evidence = await evidenceQueries.GetAsync(intakeReceiptId, cancellationToken);
-        if (evidence is null || SelectTarget(evidence) is not { } caseId)
+        if (evidence is null || SelectTarget(evidence, caseMatchDecision) is not { } caseId)
         {
             return null;
         }
@@ -85,7 +96,9 @@ public sealed class AssociateRetainedMailWithCase(
         return outcome;
     }
 
-    internal static Guid? SelectTarget(AutomaticMailCaseAssociationEvidence evidence)
+    internal static Guid? SelectTarget(
+        AutomaticMailCaseAssociationEvidence evidence,
+        CaseMatchEvaluationResult? caseMatchDecision)
     {
         ArgumentNullException.ThrowIfNull(evidence);
         Guid? registrationCaseId = null;
@@ -124,6 +137,20 @@ public sealed class AssociateRetainedMailWithCase(
             return null;
         }
 
-        return registrationCaseId ?? threadCaseId;
+        // Refused after the uniqueness rule, never before it: removing an
+        // eliminated Case first would promote another Case holding the same
+        // registration. A Created in error candidate the decision redirected
+        // is listed only as its replacement's RedirectedFromCaseId.
+        var target = registrationCaseId ?? threadCaseId;
+        if (target is { } caseId
+            && caseMatchDecision is not null
+            && caseMatchDecision.Candidates.Any(candidate =>
+                candidate.Eliminations.Count > 0
+                && (candidate.CaseId == caseId || candidate.RedirectedFromCaseId == caseId)))
+        {
+            return null;
+        }
+
+        return target;
     }
 }
