@@ -99,6 +99,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0076](0076-reviewed-register-is-the-contact-directory-data-contract.md) | The reviewed register is the Contacts directory data contract | accepted | — | DATA-02, ACC-05 |
 | [ADR-0077](0077-compress-json-responses.md) | Compress JSON responses over HTTPS | accepted | — | — |
 | [ADR-0078](0078-intermediaries-are-linked-claim-sources.md) | Intermediaries are linked Claim Sources | accepted | — | INT-04 |
+| [ADR-0080](0080-automation-mcp-one-server-per-scope.md) | One Automation MCP server per scope | proposed | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
