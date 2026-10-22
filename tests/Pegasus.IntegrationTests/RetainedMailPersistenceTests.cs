@@ -1179,6 +1179,39 @@ public sealed class RetainedMailPersistenceTests
             Guid.NewGuid(), "message-1", canonical, CancellationToken.None));
     }
 
+    /// <summary>
+    /// A page that already holds a receipt's external token finds the retained message
+    /// by that token with one read of the retained rows and no join to the receipts;
+    /// an empty or unknown token finds none and sends nothing for the empty one.
+    /// </summary>
+    [Fact]
+    public async Task TheRetainedMessageIsFoundByItsTokenWithoutJoiningTheReceipts()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        await SeedPollStateAsync(database);
+        var message = Message("message-token");
+        await RetainAsync(database, message);
+        var retainedId = await RetainedIdAsync(database, message);
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+
+        statements.Reset();
+        Assert.Equal(
+            retainedId,
+            await queries.FindIdByExternalReceiptTokenAsync(
+                message.ExternalReceiptToken, CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+        Assert.Equal(0, statements.CountContaining("[IntakeReceipts]"));
+
+        statements.Reset();
+        Assert.Null(await queries.FindIdByExternalReceiptTokenAsync("", CancellationToken.None));
+        Assert.Equal(0, statements.Count);
+        Assert.Null(await queries.FindIdByExternalReceiptTokenAsync(
+            "no-such-token", CancellationToken.None));
+    }
+
     [Fact]
     public async Task ChangedProviderItemIdentityDoesNotDuplicateTheSameRfcMessage()
     {

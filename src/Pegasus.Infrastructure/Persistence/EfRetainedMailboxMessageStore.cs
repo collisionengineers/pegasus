@@ -511,7 +511,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             ? await GetAsync(retainedId, cancellationToken)
             : null;
 
-    public async Task<Guid?> FindIdByOriginReceiptAsync(
+    private async Task<Guid?> FindIdByOriginReceiptAsync(
         Guid originReceiptId,
         CancellationToken cancellationToken)
     {
@@ -526,14 +526,36 @@ internal sealed class EfRetainedMailboxMessageStore(
                 select retained.Id)
             .Take(2)
             .ToListAsync(cancellationToken);
-        if (retainedIds.Count > 1)
+        return SingleRetainedId(retainedIds, "The origin receipt");
+    }
+
+    public async Task<Guid?> FindIdByExternalReceiptTokenAsync(
+        string externalReceiptToken,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(externalReceiptToken))
         {
-            throw new InvalidOperationException(
-                "The origin receipt matches more than one retained mailbox message.");
+            return null;
         }
 
-        return retainedIds.Count == 0 ? null : retainedIds[0];
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var retainedIds = await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .Where(retained => retained.ExternalReceiptToken == externalReceiptToken)
+            .Select(retained => retained.Id)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        return SingleRetainedId(retainedIds, "The external receipt token");
     }
+
+    private static Guid? SingleRetainedId(List<Guid> retainedIds, string subject) =>
+        retainedIds.Count switch
+        {
+            0 => null,
+            1 => retainedIds[0],
+            _ => throw new InvalidOperationException(
+                $"{subject} matches more than one retained mailbox message.")
+        };
 
     /// <summary>
     /// The message's receipt as the detail and the summaries find it (the

@@ -433,40 +433,50 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
-    public async Task FindIdByOriginReceiptNeedsCaseworkAndReturnsOnlyTheIdentifier()
+    public async Task FindIdBySourceNeedsCaseworkAndReadsByTheTokenAlone()
     {
-        var originReceiptId = Guid.NewGuid();
-        var detail = Detail(
-            "mailbox-a",
-            new(1, MailClassificationResult.Unclassified([], "Fixture.", "test", 1),
-                "system-worker:poll", NowUtc, []));
-        var queries = new Queries { DetailToReturn = detail };
+        var messageId = Guid.NewGuid();
+        var source = new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, "token-a");
+        var queries = new Queries { IdToReturnForToken = messageId };
         var getRetainedMail = new GetRetainedMail(queries, new NoStaffAccounts());
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            getRetainedMail.FindIdByOriginReceiptAsync(
+            getRetainedMail.FindIdBySourceAsync(
                 ActionActor.Principal(Guid.NewGuid()),
-                originReceiptId,
-                CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            getRetainedMail.FindIdByOriginReceiptAsync(
-                Caseworker(),
-                Guid.Empty,
+                source,
                 CancellationToken.None));
 
-        var id = await getRetainedMail.FindIdByOriginReceiptAsync(
+        var id = await getRetainedMail.FindIdBySourceAsync(
             Caseworker(),
-            originReceiptId,
+            source,
             CancellationToken.None);
 
-        Assert.Equal(detail.Summary.Id, id);
-        Assert.Equal(originReceiptId, queries.OriginReceiptId);
+        Assert.Equal(messageId, id);
+        Assert.Equal(["token-a"], queries.TokenReads);
+        Assert.Null(queries.OriginReceiptId);
+        Assert.Equal(0, queries.FullReads);
 
-        queries.DetailToReturn = null;
-        Assert.Null(await getRetainedMail.FindIdByOriginReceiptAsync(
+        queries.IdToReturnForToken = null;
+        Assert.Null(await getRetainedMail.FindIdBySourceAsync(
             Caseworker(),
-            originReceiptId,
+            source,
             CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(IntakeSourceChannel.ManualUpload)]
+    [InlineData(IntakeSourceChannel.Automation)]
+    [InlineData(IntakeSourceChannel.PrincipalApi)]
+    public async Task FindIdBySourceIsNullWithoutAReadForANonMailboxSource(IntakeSourceChannel channel)
+    {
+        var queries = new Queries { IdToReturnForToken = Guid.NewGuid() };
+        var getRetainedMail = new GetRetainedMail(queries, new NoStaffAccounts());
+
+        Assert.Null(await getRetainedMail.FindIdBySourceAsync(
+            Caseworker(),
+            new(channel, "token-a"),
+            CancellationToken.None));
+        Assert.Empty(queries.TokenReads);
     }
 
     [Fact]
@@ -833,6 +843,18 @@ public sealed class RetainedMailTests
         internal int FullReads { get; private set; }
 
         internal Guid? OriginReceiptId { get; private set; }
+
+        internal List<string> TokenReads { get; } = [];
+
+        internal Guid? IdToReturnForToken { get; set; }
+
+        public Task<Guid?> FindIdByExternalReceiptTokenAsync(
+            string externalReceiptToken,
+            CancellationToken cancellationToken)
+        {
+            TokenReads.Add(externalReceiptToken);
+            return Task.FromResult(IdToReturnForToken);
+        }
 
         public Task<RetainedMailPage> ListAsync(
             MailWorkspaceScope scope,

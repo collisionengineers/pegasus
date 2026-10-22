@@ -188,13 +188,11 @@ public sealed class DetailsModel(
         Triage = await triageQueries.GetByOriginReceiptAsync(
             detail.Record.Origin.ReceiptId,
             cancellationToken);
-        if (getRetainedMail is not null
-            && detail.Record.Origin.SourceIdentity.Channel == Pegasus.Core.Intake.IntakeSourceChannel.Mailbox
-            && TryGetActor(out var actor))
+        if (getRetainedMail is not null && TryGetActor(out var actor))
         {
-            SourceMessageId = await getRetainedMail.FindIdByOriginReceiptAsync(
+            SourceMessageId = await getRetainedMail.FindIdBySourceAsync(
                 actor,
-                detail.Record.Origin.ReceiptId,
+                detail.Record.Origin.SourceIdentity,
                 cancellationToken);
         }
 
