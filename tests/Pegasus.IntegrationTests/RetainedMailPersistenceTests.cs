@@ -1728,6 +1728,60 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task TheMailboxListIsKeptUntilAMailSettingsSaveEvictsIt()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await SeedPollStateAsync(database);
+        await RetainAsync(database, Message("message-1"));
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var queries = services.GetRequiredService<IRetainedMailQueries>();
+
+        var first = Assert.Single(await queries.ListMailboxesAsync(CancellationToken.None));
+        Assert.True(first.IsPolled);
+
+        // A repeat list, from this scope or another, sends nothing.
+        counter.Reset();
+        Assert.Equal(first, Assert.Single(await queries.ListMailboxesAsync(CancellationToken.None)));
+        await using (var other = database.CreateAsyncScope())
+        {
+            Assert.Equal(
+                first,
+                Assert.Single(await other.ServiceProvider.GetRequiredService<IRetainedMailQueries>()
+                    .ListMailboxesAsync(CancellationToken.None)));
+        }
+
+        Assert.Equal(0, counter.Count);
+
+        // A Mail settings save evicts it: the mailbox now reads as not polled.
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var approved = (await services.GetRequiredService<ListApprovedMailboxes>()
+            .ExecuteAsync(actor, CancellationToken.None))
+            .Single(item => item.Address == MailboxAddress);
+        await services.GetRequiredService<UpdateApprovedMailbox>().ExecuteAsync(
+            new UpdateApprovedMailboxRequest(
+                approved.Id,
+                approved.Address,
+                [ApprovedMailboxRouteScope.Incoming],
+                ApprovedMailboxState.Disabled,
+                approved.Version,
+                actor,
+                "mailbox-list-save",
+                approved.MailboxIdentity,
+                approved.InboxFolderIdentity,
+                approved.SentFolderIdentity),
+            CancellationToken.None);
+        Assert.False(Assert.Single(await queries.ListMailboxesAsync(CancellationToken.None)).IsPolled);
+
+        // The save's list is kept in turn.
+        counter.Reset();
+        Assert.Single(await queries.ListMailboxesAsync(CancellationToken.None));
+        Assert.Equal(0, counter.Count);
+    }
+
+    [Fact]
     public async Task ADisabledMailboxKeepsItsMessagesAndReportsThatItIsNoLongerPolled()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();

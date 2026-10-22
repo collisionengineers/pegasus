@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -18,7 +19,8 @@ internal sealed record ApprovedIntakeMailboxCandidate(
 
 public sealed class EfApprovedMailboxStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : IApprovedMailboxStore, IApprovedIntakeMailboxes
+    TimeProvider timeProvider,
+    IMemoryCache cache) : IApprovedMailboxStore, IApprovedIntakeMailboxes
 {
     private const string AggregateType = "approved_mailbox";
     private const string EventKind = "approved_mailbox_updated";
@@ -334,6 +336,8 @@ public sealed class EfApprovedMailboxStore(
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        // The Inbox's mailbox list says whether each mailbox is polled.
+        EfRetainedMailboxMessageStore.EvictMailboxList(cache);
         return Map(entity);
     }
 

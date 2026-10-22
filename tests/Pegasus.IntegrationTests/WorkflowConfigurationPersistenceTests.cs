@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -18,7 +20,7 @@ public sealed class WorkflowConfigurationPersistenceTests
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var factory = new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
             .UseSqlServer(database.ConnectionString).Options);
-        var store = new EfWorkflowConfigurationStore(factory, TimeProvider.System);
+        var store = new EfWorkflowConfigurationStore(factory, TimeProvider.System, new MemoryCache(new MemoryCacheOptions()));
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var before = await store.GetCurrentAsync(default);
         var request = new UpdateWorkflowConfigurationRequest(before.PolicyVersion, actor, "save-config")
@@ -30,6 +32,43 @@ public sealed class WorkflowConfigurationPersistenceTests
             store.UpdateAsync(request with { OperationKey = "stale-save", ChaseIntervalDays = 20 }, default));
         Assert.Equal(12, (await store.GetCurrentAsync(default)).ChaseIntervalDays);
         Assert.Equal(saved, await store.UpdateAsync(request, default));
+    }
+
+    [Fact]
+    public async Task TheCurrentConfigurationIsKeptUntilAnUpdateEvictsItAndTheTransactionReadIsNeverKept()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IWorkflowConfigurationStore>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var before = await store.GetCurrentAsync(default);
+
+        // A repeat read, from this scope or another, sends nothing.
+        counter.Reset();
+        Assert.Equal(before, await store.GetCurrentAsync(default));
+        await using (var other = database.CreateAsyncScope())
+        {
+            Assert.Equal(
+                before,
+                await other.ServiceProvider.GetRequiredService<IWorkflowConfigurationStore>()
+                    .GetCurrentAsync(default));
+        }
+
+        Assert.Equal(0, counter.Count);
+
+        // The update evicts it, so the next read is the saved configuration.
+        await store.UpdateAsync(
+            new UpdateWorkflowConfigurationRequest(before.PolicyVersion, actor, "kept-config")
+            { ChaseIntervalDays = 12 },
+            default);
+        var after = await store.GetCurrentAsync(default);
+        Assert.Equal(12, after.ChaseIntervalDays);
+        Assert.Equal(before.PolicyVersion + 1, after.PolicyVersion);
+        counter.Reset();
+        Assert.Equal(after, await store.GetCurrentAsync(default));
+        Assert.Equal(0, counter.Count);
     }
 
     [Fact]

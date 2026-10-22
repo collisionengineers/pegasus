@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -3614,7 +3615,7 @@ public sealed class CaseWorkflowPersistenceTests
             EngineerEligibility = new EfCaseEngineerEligibility(factory);
             ReportSentEvidenceStore = new EfCaseReportSentEvidenceStore(
                 factory,
-                new EfApprovedMailboxStore(factory, timeProvider));
+                new EfApprovedMailboxStore(factory, timeProvider, new MemoryCache(new MemoryCacheOptions())));
             ReplacementStore = new EfLinkedCaseReplacementStore(
                 factory,
                 timeProvider,
