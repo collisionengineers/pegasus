@@ -208,7 +208,10 @@ may be linked automatically only when:
 If both kinds of evidence point at a Case, they must agree. Pegasus abstains
 when a registration has zero or several candidates, when the thread has
 several candidates, when the candidates disagree, or when the evidence
-changes before the serializable write. The Case/PO text inside an inbound
+changes before the serializable write. Mail association never re-decides a
+Case the message's case match eliminated, or an `Ambiguous` match
+([FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association)).
+The Case/PO text inside an inbound
 message is never a matching key. So a first message may qualify by its
 unique registration before its thread is linked, and a later message with no
 registration may qualify from the exact thread. The system-worker
