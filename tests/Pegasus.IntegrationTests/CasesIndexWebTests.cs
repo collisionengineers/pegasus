@@ -939,10 +939,8 @@ public sealed class CasesIndexWebTests
         /// <summary>The active Principals Search's filter offers, in code order.</summary>
         public IReadOnlyList<string> ActivePrincipalCodes { get; set; } = [];
 
-        public Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<Principal>>(
-                [.. ActivePrincipalCodes.Select(code => new Principal(
-                    Guid.NewGuid(), Guid.NewGuid(), code, Guid.NewGuid(), null, null, true, 1))]);
+        public Task<IReadOnlyList<string>> ListActivePrincipalCodesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(ActivePrincipalCodes);
 
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference,

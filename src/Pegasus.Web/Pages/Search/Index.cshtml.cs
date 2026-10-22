@@ -275,11 +275,11 @@ public sealed partial class IndexModel(
     /// </summary>
     private async Task LoadFilterOptionsAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        var principalsRead = imageIntakeQueries.ListActivePrincipalsAsync(cancellationToken);
+        var principalsRead = imageIntakeQueries.ListActivePrincipalCodesAsync(cancellationToken);
         var engineersRead = engineerChoices.GetAsync(actor, cancellationToken);
         await Task.WhenAll(principalsRead, engineersRead);
 
-        var codes = (await principalsRead).Select(principal => principal.Code).ToList();
+        var codes = (await principalsRead).ToList();
         if (!string.IsNullOrWhiteSpace(Principal)
             && !codes.Contains(Principal, StringComparer.OrdinalIgnoreCase))
         {

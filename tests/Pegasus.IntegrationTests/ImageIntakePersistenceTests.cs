@@ -1615,6 +1615,10 @@ public sealed class ImageIntakePersistenceTests
         Assert.Equal(
             options.Select(principal => principal.Code).OrderBy(code => code, StringComparer.Ordinal),
             options.Select(principal => principal.Code));
+        // Search's Principal filter reads the same active set as codes alone (v41 W2).
+        Assert.Equal(
+            options.Select(principal => principal.Code),
+            await queries.ListActivePrincipalCodesAsync(CancellationToken.None));
 
         // Set.
         var set = await store.SetPrincipalAsync(

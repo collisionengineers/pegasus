@@ -333,6 +333,16 @@ public interface IImageIntakeQueries
         CancellationToken cancellationToken) =>
         Task.FromException<IReadOnlyList<Principal>>(
             new NotSupportedException("Active principal options are not available."));
+
+    /// <summary>
+    /// The codes of those same active principals, ordered by code, for Search's
+    /// Principal filter (v41 W2): the filter needs no more than the codes, so
+    /// no principal's settings are read or mapped. Fails closed like the list.
+    /// </summary>
+    Task<IReadOnlyList<string>> ListActivePrincipalCodesAsync(
+        CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<string>>(
+            new NotSupportedException("Active principal options are not available."));
 }
 
 /// <summary>
