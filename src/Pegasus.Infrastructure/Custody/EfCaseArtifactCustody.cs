@@ -30,7 +30,7 @@ internal sealed class EfCaseArtifactCustody(
     {
         Validate(request);
         RequireRetainAuthorization(request);
-        await using var staged = await StageVerifiedAsync(request, cancellationToken);
+        await using var staged = new StagedArtifact(await StageVerifiedAsync(request, cancellationToken));
         // The caller read these verified bytes from the intake store's own
         // content-addressed copy, so that copy is the pending copy: storing
         // and reading it back again would only find the same blob.
@@ -39,9 +39,9 @@ internal sealed class EfCaseArtifactCustody(
             : null;
         if (retained is null)
         {
-            staged.Position = 0;
+            staged.Content.Position = 0;
             retained = await quarantineArtifactStore.StoreStreamAsync(
-                staged, request.ContentLength, cancellationToken);
+                staged.Content, request.ContentLength, cancellationToken);
             if (retained.ContentLength != request.ContentLength
                 || !string.Equals(retained.ContentHash, NormalizeHash(request.Sha256), StringComparison.OrdinalIgnoreCase))
             {
@@ -152,10 +152,11 @@ internal sealed class EfCaseArtifactCustody(
     private async Task<CaseArtifactCustodyResult> RetainCaseAsync(
         Guid caseId,
         CaseArtifactCustodyRequest request,
-        Stream content,
+        StagedArtifact staged,
         string pendingContentStorageKey,
         CancellationToken cancellationToken)
     {
+        var content = staged.Content;
         var recorded = await StoreConcurrencyRetry.ExecuteAsync(
             token => RecordPendingCaseVersionAsync(caseId, request, pendingContentStorageKey, token),
             cancellationToken,
@@ -243,7 +244,7 @@ internal sealed class EfCaseArtifactCustody(
         // is best effort and never changes what this call answers.
         await PublishFiledAsync(
             DocumentContentCacheKey.ForVersion(version.Id),
-            content,
+            staged,
             version.Sha256,
             request.ContentLength,
             cancellationToken);
@@ -455,17 +456,142 @@ internal sealed class EfCaseArtifactCustody(
 
     /// <summary>
     /// Publishes the read-cache copy of a file this call has just filed, from
-    /// the staged and verified bytes. It never throws.
+    /// the staged and verified bytes. It never throws. Inside a document batch
+    /// the publish runs beside the batch's next upload and the batch's scope
+    /// waits for it, and the staged bytes stay until it ends; outside one the
+    /// call waits for it.
     /// </summary>
-    private Task PublishFiledAsync(
+    private async Task PublishFiledAsync(
         DocumentContentCacheKey key,
-        Stream staged,
+        StagedArtifact staged,
         string sha256,
         long contentLength,
-        CancellationToken cancellationToken) =>
-        cachePublisher is null
-            ? Task.CompletedTask
-            : cachePublisher.PublishAsync(key, staged, sha256, contentLength, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        if (cachePublisher is not { } publisher)
+        {
+            return;
+        }
+        if (filingBatch.Value is { } batch
+            && await batch.TryStartAsync(async () =>
+            {
+                try
+                {
+                    await publisher.PublishAsync(
+                        key, staged.Content, sha256, contentLength, cancellationToken);
+                }
+                finally
+                {
+                    await staged.ReleaseAsync();
+                }
+            }))
+        {
+            staged.PassToPublish();
+            return;
+        }
+        await publisher.PublishAsync(key, staged.Content, sha256, contentLength, cancellationToken);
+    }
+
+    /// <summary>
+    /// The staged, verified bytes of one retention. Whoever publishes the
+    /// read-cache copy after the call returns owns them until that ends.
+    /// </summary>
+    private sealed class StagedArtifact(FileStream content) : IAsyncDisposable
+    {
+        private bool passedToPublish;
+
+        public FileStream Content { get; } = content;
+
+        public void PassToPublish() => passedToPublish = true;
+
+        public ValueTask ReleaseAsync() => Content.DisposeAsync();
+
+        public ValueTask DisposeAsync() =>
+            passedToPublish ? ValueTask.CompletedTask : Content.DisposeAsync();
+    }
+
+    /// <summary>
+    /// The batch scope of the document writes one flow makes: the folder
+    /// proofs they share and the read-cache publishes they leave running
+    /// while the next one uploads. Disposing it waits for those publishes.
+    /// </summary>
+    private sealed class DocumentBatch(EfCaseArtifactCustody custody, IDisposable proofs) : IAsyncDisposable
+    {
+        /// <summary>
+        /// How many publishes run at once: the most retentions one receipt
+        /// has at once, so no retention waits on a publish it did not wait on
+        /// before, and no more staged files wait than are being retained.
+        /// </summary>
+        private const int MaximumConcurrentPublishes = 4;
+
+        private readonly SemaphoreSlim slots = new(MaximumConcurrentPublishes);
+        private readonly List<Task> publishes = [];
+        private int ended;
+
+        public async ValueTask<bool> TryStartAsync(Func<Task> publish)
+        {
+            if (Volatile.Read(ref ended) != 0)
+            {
+                return false;
+            }
+            // Each publish is bounded by the store's own timeout, so this wait is too.
+            await slots.WaitAsync(CancellationToken.None);
+            var running = RunAsync(publish);
+            lock (publishes)
+            {
+                publishes.Add(running);
+            }
+            return true;
+        }
+
+        private async Task RunAsync(Func<Task> publish)
+        {
+            try
+            {
+                await publish();
+            }
+            finally
+            {
+                slots.Release();
+            }
+        }
+
+        // Not async: the scope is left in the caller's own flow, as the proofs' is.
+        public ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref ended, 1) != 0)
+            {
+                return ValueTask.CompletedTask;
+            }
+            custody.filingBatch.Value = null;
+            proofs.Dispose();
+            Task[] pending;
+            lock (publishes)
+            {
+                pending = [.. publishes];
+            }
+            if (pending.Length == 0)
+            {
+                slots.Dispose();
+                return ValueTask.CompletedTask;
+            }
+            return new(EndAsync(pending));
+        }
+
+        private async Task EndAsync(Task[] pending)
+        {
+            try
+            {
+                await Task.WhenAll(pending);
+            }
+            finally
+            {
+                slots.Dispose();
+            }
+        }
+    }
+
+    private readonly AsyncLocal<DocumentBatch?> filingBatch = new();
 
     /// <summary>
     /// The named fault Core retries on. The Box transport's own exception type
@@ -492,10 +618,20 @@ internal sealed class EfCaseArtifactCustody(
         }
     }
 
-    public IDisposable BeginDocumentBatch() =>
-        documentContentStore is BoxDocumentContentStore boxStore
-            ? boxStore.BeginFolderProofBatch()
-            : NoCustodyBatch.Instance;
+    public IAsyncDisposable BeginDocumentBatch()
+    {
+        if (filingBatch.Value is not null)
+        {
+            return NoCustodyBatch.Instance;
+        }
+        var batch = new DocumentBatch(
+            this,
+            documentContentStore is BoxDocumentContentStore boxStore
+                ? boxStore.BeginFolderProofBatch()
+                : NoCustodyBatch.Instance);
+        filingBatch.Value = batch;
+        return batch;
+    }
 
     internal static bool TryGetAutomaticPromotionReceiptId(
         string operationKey,
@@ -744,9 +880,10 @@ internal sealed class EfCaseArtifactCustody(
 
     private async Task<CaseArtifactCustodyResult> RetainHoldingAsync(
         CaseArtifactCustodyRequest request,
-        Stream content,
+        StagedArtifact staged,
         CancellationToken cancellationToken)
     {
+        var content = staged.Content;
         var receiptId = request.IntakeReceiptId!.Value;
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         if (!Guid.TryParseExact(request.OccurrenceIdentity.Trim(), "N", out var assetId))
@@ -854,7 +991,7 @@ internal sealed class EfCaseArtifactCustody(
         // first read is a cache hit. Best effort; it never changes the answer.
         await PublishFiledAsync(
             DocumentContentCacheKey.ForIntakeAsset(asset.Id),
-            content,
+            staged,
             normalizedHash,
             request.ContentLength,
             cancellationToken);

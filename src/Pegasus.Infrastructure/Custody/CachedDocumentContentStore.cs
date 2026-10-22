@@ -1581,9 +1581,10 @@ internal sealed class DocumentThumbnailCache(
 /// rule rather than restating any of them. A profile with no content cache
 /// composed simply derives on every read.
 /// </remarks>
-internal sealed class CaseDocumentThumbnailReader(
+internal sealed partial class CaseDocumentThumbnailReader(
     IReadLogicalDocumentVersion source,
-    DocumentThumbnailCache? cache = null) : IReadCaseDocumentThumbnail
+    DocumentThumbnailCache? cache = null,
+    ILogger<CaseDocumentThumbnailReader>? logger = null) : IReadCaseDocumentThumbnail
 {
     private static readonly ConcurrentDictionary<(Guid VersionId, string Variant), RenderGate> RenderGates = [];
 
@@ -1602,7 +1603,9 @@ internal sealed class CaseDocumentThumbnailReader(
         var variant = CaseDocumentThumbnails.VariantToken(request.Rotation, request.Crop);
         if (cache is null)
         {
-            return await RenderAndCacheAsync(request, variant, cancellationToken);
+            return await RenderAsync(request, cancellationToken) is { } plain
+                ? Rendering(plain, request.Sha256)
+                : null;
         }
 
         var cached = await cache.TryReadAsync(
@@ -1617,21 +1620,85 @@ internal sealed class CaseDocumentThumbnailReader(
         // bounded, process-local gate so a same-representation burst does
         // that expensive work once while retaining cancellation for each
         // waiter. Different versions and prepared regions remain parallel.
-        using var renderGate = await AcquireRenderGateAsync(
+        var renderGate = await AcquireRenderGateAsync(
             (request.VersionId, variant), cancellationToken);
-        cached = await cache.TryReadAsync(
-            request.Actor, request.VersionId, variant, cancellationToken);
-        if (cached is not null)
+        var gateHeld = true;
+        try
         {
-            return Rendering(cached, request.Sha256);
-        }
+            cached = await cache.TryReadAsync(
+                request.Actor, request.VersionId, variant, cancellationToken);
+            if (cached is not null)
+            {
+                return Rendering(cached, request.Sha256);
+            }
 
-        return await RenderAndCacheAsync(request, variant, cancellationToken);
+            var rendered = await RenderAsync(request, cancellationToken);
+            if (rendered is null)
+            {
+                return null;
+            }
+            if (request.Actor.Kind == ActorKind.SystemWorker)
+            {
+                // The Worker's sweep exists to make the cached copy and counts
+                // what it made, so it waits for the write.
+                await cache.WriteAsync(request.VersionId, variant, rendered, cancellationToken);
+            }
+            else
+            {
+                // The viewer already holds the bytes: the write runs after the
+                // answer, and the gate stays held until it ends so that a
+                // waiter reads the copy it wrote rather than rendering again.
+                gateHeld = false;
+                _ = WriteAfterAnswerAsync(cache, request.VersionId, variant, rendered, renderGate);
+            }
+            return Rendering(rendered, request.Sha256);
+        }
+        finally
+        {
+            if (gateHeld)
+            {
+                renderGate.Dispose();
+            }
+        }
     }
 
-    private async Task<CaseDocumentThumbnail?> RenderAndCacheAsync(
-        CaseDocumentThumbnailRequest request,
+    /// <summary>
+    /// Records a rendering the caller has already been given. Best effort, as
+    /// <see cref="DocumentThumbnailCache.WriteAsync"/> is: a failure is logged
+    /// and the next read renders again. It ends within the filing publish
+    /// bound, and then releases the render gate it was handed.
+    /// </summary>
+    private async Task WriteAfterAnswerAsync(
+        DocumentThumbnailCache cache,
+        Guid versionId,
         string variant,
+        byte[] content,
+        RenderGateLease renderGate)
+    {
+        try
+        {
+            using var bounded = new CancellationTokenSource(CachedDocumentContentStore.FilingPublishTimeout);
+            await cache.WriteAsync(versionId, variant, content, bounded.Token);
+        }
+        catch (Exception exception)
+        {
+            LogThumbnailWriteFailed(
+                logger ?? NullLogger<CaseDocumentThumbnailReader>.Instance, versionId, exception);
+        }
+        finally
+        {
+            renderGate.Dispose();
+        }
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "The cached thumbnail of document version {VersionId} could not be written, so its next view renders it again.")]
+    private static partial void LogThumbnailWriteFailed(
+        ILogger logger, Guid versionId, Exception exception);
+
+    private async Task<byte[]?> RenderAsync(
+        CaseDocumentThumbnailRequest request,
         CancellationToken cancellationToken)
     {
         await using var full = await source.OpenAsync(
@@ -1645,21 +1712,12 @@ internal sealed class CaseDocumentThumbnailReader(
                 ExpectedSha256: request.Sha256,
                 ExpectedContentLength: request.ContentLength),
             cancellationToken);
-        var rendered = await ImageThumbnailRendering.TryRenderAsync(
+        return await ImageThumbnailRendering.TryRenderAsync(
             full.Content,
             request.ContentLength,
             request.Rotation,
             request.Crop ?? CaseAssetCrop.Full,
             cancellationToken);
-        if (rendered is null)
-        {
-            return null;
-        }
-        if (cache is not null)
-        {
-            await cache.WriteAsync(request.VersionId, variant, rendered, cancellationToken);
-        }
-        return Rendering(rendered, request.Sha256);
     }
 
     private static async Task<RenderGateLease> AcquireRenderGateAsync(

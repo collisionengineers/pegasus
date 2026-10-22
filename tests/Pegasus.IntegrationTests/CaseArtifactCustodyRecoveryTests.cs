@@ -164,7 +164,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         var custody = HoldingCustody(scope.ServiceProvider, box);
 
         var results = new List<CaseArtifactCustodyResult>();
-        using (custody.BeginDocumentBatch())
+        await using (custody.BeginDocumentBatch())
         {
             results.Add(await custody.RetainAsync(
                 HoldingRequest(receiptId, first.Id, first.Bytes, "page-1-image-1.jpg"), CancellationToken.None));
@@ -180,6 +180,52 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 "POST /api/2.0/files/content"
             ],
             box.Requests);
+    }
+
+    /// <summary>
+    /// Inside a batch the read-cache publish of a filed file runs beside the
+    /// next file's retention, the staged bytes it reads outlive the retention
+    /// that staged them, and the batch ends only when the publish has: outside
+    /// a batch the call waits for it, as before.
+    /// </summary>
+    [Fact]
+    public async Task ABatchesFilingPublishesRunBesideTheNextRetentionAndTheBatchWaitsForThem()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var receiptId = Guid.NewGuid();
+        var first = (Id: Guid.NewGuid(), Bytes: "first held publish photo"u8.ToArray());
+        var second = (Id: Guid.NewGuid(), Bytes: "second held publish photo"u8.ToArray());
+        await SeedHoldingReceiptAsync(database, receiptId, first, second);
+        await using var scope = database.CreateAsyncScope();
+        var publisher = new HeldCachePublisher();
+        var custody = HoldingCustody(scope.ServiceProvider, new HoldingBox(), publisher);
+
+        var batch = custody.BeginDocumentBatch();
+        try
+        {
+            var retainedFirst = await custody.RetainAsync(
+                HoldingRequest(receiptId, first.Id, first.Bytes, "page-1-image-1.jpg"), CancellationToken.None);
+            await publisher.FirstStarted.WaitAsync(TimeSpan.FromSeconds(30));
+            var retainedSecond = await custody.RetainAsync(
+                HoldingRequest(receiptId, second.Id, second.Bytes, "page-1-image-2.jpg"), CancellationToken.None);
+
+            Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, retainedFirst.Disposition);
+            Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, retainedSecond.Disposition);
+            Assert.Empty(publisher.Published);
+            var ending = batch.DisposeAsync().AsTask();
+            Assert.False(ending.IsCompleted);
+
+            publisher.Release();
+            await ending.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            publisher.Release();
+            await batch.DisposeAsync();
+        }
+
+        byte[][] expected = [first.Bytes, second.Bytes];
+        Assert.Equal(expected, publisher.Published.OrderBy(copy => copy.Length).ToArray());
     }
 
     /// <summary>
@@ -1931,6 +1977,43 @@ public sealed class CaseArtifactCustodyRecoveryTests
     /// replacement custody implementation. Every request is recorded, so a
     /// test can state exactly what custody asked Box for.
     /// </summary>
+    /// <summary>
+    /// A cache publisher that holds every publish until released, then reads
+    /// the staged bytes it was handed, so a stream disposed too early fails it.
+    /// </summary>
+    private sealed class HeldCachePublisher : IDocumentContentCachePublisher
+    {
+        private readonly TaskCompletionSource firstStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly List<byte[]> published = [];
+
+        public Task FirstStarted => firstStarted.Task;
+
+        public IReadOnlyList<byte[]> Published
+        {
+            get { lock (published) { return [.. published]; } }
+        }
+
+        public void Release() => release.TrySetResult();
+
+        public async Task PublishAsync(
+            DocumentContentCacheKey key, Stream content, string sha256, long contentLength,
+            CancellationToken cancellationToken)
+        {
+            firstStarted.TrySetResult();
+            await release.Task.WaitAsync(cancellationToken);
+            using var copy = new MemoryStream();
+            content.Position = 0;
+            await content.CopyToAsync(copy, cancellationToken);
+            lock (published) { published.Add(copy.ToArray()); }
+        }
+
+        public Task PublishRetainedIntakeCopyAsync(
+            DocumentContentCacheKey key, string storageKey, string sha256, long contentLength,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
     private sealed class HoldingBox
     {
         public const string RootId = "405543781910";

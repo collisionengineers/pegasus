@@ -668,7 +668,8 @@ public static class DependencyInjection
             services.AddScoped<IReadCaseDocumentThumbnail>(provider =>
                 new CaseDocumentThumbnailReader(
                     provider.GetRequiredService<IReadLogicalDocumentVersion>(),
-                    provider.GetService<DocumentThumbnailCache>()));
+                    provider.GetService<DocumentThumbnailCache>(),
+                    provider.GetService<ILogger<CaseDocumentThumbnailReader>>()));
             // The Worker's sweep makes plain thumbnails through that same
             // reader before the first view.
             services.AddScoped<PrepareDocumentThumbnails>();
