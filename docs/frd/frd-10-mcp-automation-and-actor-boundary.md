@@ -212,7 +212,10 @@ one; it changes no Case value and needs no version or lease.
 **Case lifecycle.** <a id="case-lifecycle"></a> `pegasus_case_action` takes
 one Actions-menu act through the same Core command as the staff Case page:
 place on Hold, with an optional review date, and release it; return to
-Review; assign the Engineer; return to Engineer; close with a named outcome;
+Review; assign the Engineer, or, with no `engineerId`, hand the Case to
+Unassigned (#1213, operator, 15 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
+return to Engineer; close with a named outcome;
 reopen to a named destination; archive; create the linked replacement of a
 Case created in error; Create audit; request the vehicle lookup; record a
 manual chase; log a query (its channel, with the reason as its details) on a
@@ -237,7 +240,10 @@ records nothing. An approval, archive or evidence link the Actor records is
 attributed to it and reads back as the Automation actor.
 
 **Document acts.** `pegasus_document_action` tags and untags an image, puts
-it in the report or takes it out, marks the Audit's original report, removes
+it in the report or takes it out, marks the Audit's original report, changes
+a document's type with a reason (`set_type`: any type but Original source;
+operator, 22 October 2026, R204;
+[FRD-05](frd-05-documents-extraction-and-custody.md#document-types)), removes
 a document occurrence while custody content and history are kept, retries
 failed custody, and adds a word to the shared image-tag vocabulary, through
 the staff Custody commands.
@@ -404,8 +410,8 @@ replays by its operation key.
   Unclassified, with a reason, as the staff correction does
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
 - `pegasus_mail_link_destinations` lists the Cases and Triage Cases the
-  staff **Link to case** dialog offers, and `pegasus_mail_link_case` links
-  the message through the staff command
+  staff **Case / PO** picker offers for **Link to Case**, and
+  `pegasus_mail_link_case` links the message through the staff command
   ([FRD-20](frd-20-mailbox-workspace.md#classification-and-linking-actions)).
 - `pegasus_mail_action` with `dismiss` or `restore` changes the message's
   Pegasus scope only
@@ -431,7 +437,7 @@ stopped automation client is refused before any tool runs.
 | --- | --- | --- |
 | `pegasus_ai_job_list` | `automation.jobs` | List jobs by state and kind; a client sees every queued job and its own taken jobs |
 | `pegasus_ai_job_create` | `automation.jobs` | Create a job of any kind with the subject the staff action names: Estimate (a Case, optional direction and target), MarketResearch (a Case and guide month; a pending job for the Case is returned instead), QueryResponse (a retained Query e-mail linked to its Case), UnidentifiedResolution (an open U-reference) or UnidentifiedQueuePass (an instruction). Jobs are how external agents on automated runs hand work to each other (operator, 7 October 2026) |
-| `pegasus_ai_job_transition` | `automation.jobs` | One tool with an `action`: Take claims a queued job under a bounded lease held by the client's name (refused when the job is not queued or the kill switch is on); Progress renews the lease and records a short note (refused after cancellation, lease expiry or while the kill switch is on); Complete marks a non-MarketResearch job `Draft ready`, naming its result kind; Fail marks it `Failed` with a reason; Release returns a taken job to `Queued` before the lease ends. Those five act only on the client's own job. Cancel stops any queued, taken or `Draft ready` job with a reason, as an Administrator's Stop does; Confirm marks a `Draft ready` QueryResponse or UnidentifiedQueuePass `Completed`, as the Work Centre's **Complete job** does |
+| `pegasus_ai_job_transition` | `automation.jobs` | One tool with an `action`: Take claims a queued job under a bounded lease held by the client's name (refused when the job is not queued or the kill switch is on); Progress renews the lease and records a short note (refused after cancellation, lease expiry or while the kill switch is on); Complete marks a non-MarketResearch job `Draft ready`, naming its result kind; Fail marks it `Failed` with a reason; Release returns a taken job to `Queued` before the lease ends. Those five act only on the client's own job. Cancel stops any queued, taken or `Draft ready` job with a reason; Confirm marks a `Draft ready` QueryResponse or UnidentifiedQueuePass `Completed`, as the Work Centre's **Complete job** does |
 | `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document and one AI market research card and mark the client's MarketResearch job `Completed`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or closed Case (operator, 28 September 2026) |
 | `pegasus_estimate_save` | `automation.assessment` | Create an estimate on a Case, which lands as an AI-draft `Draft`, or edit any live estimate in place, the Current one included; citing the Estimate job it fulfils is optional |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
@@ -482,8 +488,10 @@ the Administrator consent page; a token without it cannot see the ledger.
 sends nothing, whatever casework it may do. The estimate tools stay under `automation.assessment` because they write
 assessment values. `pegasus_estimate_import` names a retained PDF, XML or
 JSON file for shared extraction. Every scope has a consent
-description on the Administrator consent page. Every tool is proven under the
-tranche rule above.
+description on the Administrator consent page, which prints it without the
+scope's identifier (v41 S5, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Every tool is proven under the tranche rule above.
 
 ### Tool inventory
 
@@ -519,7 +527,7 @@ its one command when none is given.
 | `automation.intake` | `pegasus_triage_assign`, `pegasus_triage_note_add` | Assign or unassign the Triage; add a Triage note | one-command lease |
 | `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced | one-command lease |
 | `automation.documents` | `pegasus_document_download`, `pegasus_document_download_batch` | One exact document version, or 1 to 25 versions sharing the inline budget, as native content | none |
-| `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
+| `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, set_type, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
 | `automation.documents` | `pegasus_report_list` | A work's report generations and artifacts, its report approval and its report-Sent evidence | none |
 | `automation.documents` | `pegasus_report_action` | Generate the report, Repair Spec or images; record report approval; link or unlink report-Sent evidence | one-command lease |
 | `automation.documents` | `pegasus_report_wording_get`, `pegasus_image_preparation_get` | A work's report wording blocks with their composed sentences; each image's report place, role, rotation, crop, page of its own and preparation version | none |

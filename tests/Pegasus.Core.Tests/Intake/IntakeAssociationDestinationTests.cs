@@ -32,6 +32,31 @@ public sealed class IntakeAssociationDestinationTests
             Receipt(IntakeDecision.NeedsSorting, currentCaseId: Guid.NewGuid())));
     }
 
+    /// <summary>
+    /// Change linked Case offers a linked message the destinations a link would
+    /// offer; a message with no Case has nothing to change.
+    /// </summary>
+    [Theory]
+    [InlineData(IntakeDecision.OcrRequired)]
+    [InlineData(IntakeDecision.NeedsSorting)]
+    [InlineData(IntakeDecision.CaseCreated)]
+    [InlineData(IntakeDecision.ImageIntakeRegistered)]
+    public void ALinkedReceiptCanOfferADestinationToChangeTo(IntakeDecision decision)
+    {
+        Assert.True(IntakeAssociationDestinationPolicy.CanOfferToChange(
+            Receipt(decision, currentCaseId: Guid.NewGuid())));
+        Assert.False(IntakeAssociationDestinationPolicy.CanOfferToChange(Receipt(decision)));
+    }
+
+    [Theory]
+    [InlineData(IntakeDecision.Unsupported)]
+    [InlineData(IntakeDecision.TechnicalFailure)]
+    public void AnUnsafeLinkedSourceCannotOfferADestinationToChangeTo(IntakeDecision decision)
+    {
+        Assert.False(IntakeAssociationDestinationPolicy.CanOfferToChange(
+            Receipt(decision, currentCaseId: Guid.NewGuid())));
+    }
+
     [Theory]
     [InlineData(IntakeSourceChannel.Mailbox)]
     [InlineData(IntakeSourceChannel.Automation)]
@@ -59,7 +84,7 @@ public sealed class IntakeAssociationDestinationTests
     }
 
     /// <summary>
-    /// Staff "Link to case" reaches every Case in any lifecycle state (operator,
+    /// Staff "Link to Case" reaches every Case in any lifecycle state (operator,
     /// 24 September 2026); only an archived Case is refused.
     /// </summary>
     [Theory]

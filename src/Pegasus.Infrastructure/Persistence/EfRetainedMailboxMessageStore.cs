@@ -535,6 +535,25 @@ internal sealed class EfRetainedMailboxMessageStore(
         return retainedIds.Count == 0 ? null : retainedIds[0];
     }
 
+    /// <summary>
+    /// The message's receipt as the detail and the summaries find it (the
+    /// mailbox receipt with the message's token), without loading the message,
+    /// its attachments or its summary.
+    /// </summary>
+    public async Task<Guid?> FindReceiptIdAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await (
+                from retained in context.RetainedMailboxMessages.AsNoTracking()
+                join receipt in context.IntakeReceipts.AsNoTracking()
+                    on retained.ExternalReceiptToken equals receipt.ExternalReceiptToken
+                where retained.Id == id && receipt.SourceChannel == "mailbox"
+                select (Guid?)receipt.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken)
     {

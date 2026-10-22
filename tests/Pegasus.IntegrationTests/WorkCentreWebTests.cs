@@ -201,8 +201,14 @@ public sealed class WorkCentreWebTests
         Assert.Contains($"href=\"/?scope=office&amp;page=3\">{OperatorLabels.WorkCentre.Next}</a>", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// #1213 (v41 W8, signed off 19 October 2026): an Unassigned row carries
+    /// Take, a small primary button, beside Assign Engineer, and so does its
+    /// open row. Take posts the existing Assign Engineer handler with the
+    /// signed-in person's staff id; there is still no Assign to me.
+    /// </summary>
     [Fact]
-    public async Task TheOpenRowShowsItsFactsWithoutAssignToMe()
+    public async Task AnUnassignedRowAndItsOpenRowCarryTakeBesideAssignEngineer()
     {
         var unassigned = Item(NeedsAttentionKind.UnassignedEngineer, "QDOS26005", NeedsAttentionPriority.Today, Now.AddHours(3)) with
         {
@@ -217,7 +223,18 @@ public sealed class WorkCentreWebTests
         // The reference opens the Case.
         Assert.Contains("<a href=\"/Cases/00000000-0000-0000-0000-000000000005\">QDOS26005</a>", closed, StringComparison.Ordinal);
         Assert.DoesNotContain("wc-inline-detail", closed, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-wc-take", closed, StringComparison.Ordinal);
+        var take = Regex.Match(closed, "<form[^>]*data-wc-take[^>]*>.*?</form>", RegexOptions.Singleline).Value;
+        Assert.Contains("action=\"/?handler=AssignEngineer\"", take, StringComparison.Ordinal);
+        Assert.Contains($"name=\"caseId\" value=\"{unassigned.Id}\"", take, StringComparison.Ordinal);
+        Assert.Contains(
+            $"name=\"engineerId\" value=\"{Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId}\"",
+            take,
+            StringComparison.Ordinal);
+        Assert.Contains("name=\"__RequestVerificationToken\"", take, StringComparison.Ordinal);
+        Assert.Matches($"class=\"btn btn--primary btn--small\"[^>]*>{OperatorLabels.WorkCentre.Take}</button>", take);
+        Assert.Matches(
+            $"(?s)<div class=\"wc-row-actions\">\\s*<a class=\"btn[^\"]*\"[^>]*data-wc-dialog=\"wc-assign-dialog\">.*?{OperatorLabels.WorkCentre.AssignEngineer}.*?data-wc-take",
+            closed);
 
         var html = await GetOkAsync(client, $"/?selected={unassigned.Id:D}");
 
@@ -232,7 +249,172 @@ public sealed class WorkCentreWebTests
         Assert.Contains(OperatorLabels.WorkCentre.AssignEngineer, html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=AssignToMe", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Assign to me", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-wc-take", html, StringComparison.Ordinal);
+        // The row's Take and the open row's beside its Assign Engineer.
+        Assert.Equal(2, Regex.Count(html, "data-wc-take"));
+        var openRowActions = Regex.Match(html, "data-wc-actions>(.*?)</div>", RegexOptions.Singleline).Groups[1].Value;
+        Assert.Contains("data-wc-take", openRowActions, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Row actions are quiet buttons; only the opened row's own action stays
+    /// dark, so the table is no longer a column of black buttons (v41 W5,
+    /// signed off 19 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task RowActionsAreQuietAndOnlyTheOpenedRowsActionStaysDark()
+    {
+        var review = Item(NeedsAttentionKind.ReviewCase, "QDOS26008", NeedsAttentionPriority.Today, Now.AddHours(3));
+        var held = Item(NeedsAttentionKind.HeldDecision, "QDOS26009", NeedsAttentionPriority.Normal, Now.AddDays(4));
+        using var host = Host(new FakeSnapshot { Items = [review, held], TodayCount = 1, LaterCount = 1 });
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, $"/?selected={review.Id:D}");
+
+        var cells = Regex.Matches(html, "<td class=\"wc-col-action\">(.*?)</td>", RegexOptions.Singleline)
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+        Assert.Equal(2, cells.Length);
+        Assert.All(cells, cell => Assert.Matches("<a class=\"btn btn--small\" href=", cell));
+        var openRowActions = Regex.Match(html, "data-wc-actions>(.*?)</div>", RegexOptions.Singleline).Groups[1].Value;
+        Assert.Contains("class=\"btn btn--dark\"", openRowActions, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// #1213 (v41 W8): Mine lists a With Engineer row, its kind chip and bold
+    /// line reading With Engineer, its action Open Case, its Due No due date
+    /// when the Case has none; its kind chip sits beside Unassigned on Mine.
+    /// </summary>
+    [Fact]
+    public async Task MineListsAWithEngineerRowThatOpensTheCase()
+    {
+        var caseId = Guid.NewGuid();
+        var withEngineer = new NeedsAttentionItem(
+            NeedsAttentionKind.WithEngineer,
+            caseId,
+            "QDOS26007",
+            "Ford Focus AB12CDE",
+            "QDOS",
+            "ReportPreparation",
+            NeedsAttentionPriority.Normal,
+            Owner: "alex",
+            Due: null,
+            LastOutcome: null,
+            Source: null,
+            Attempts: null,
+            Received: Now.AddDays(-2))
+        {
+            OwnerStaffId = Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId,
+            Route = $"/Cases/{caseId:D}",
+            RecordRoute = $"/Cases/{caseId:D}"
+        };
+        using var host = Host(new FakeSnapshot { Items = [withEngineer], LaterCount = 1 });
+        using var client = Client(host);
+
+        var mine = await GetOkAsync(client, "/?scope=mine");
+
+        var row = Regex.Match(mine, $"<tr id=\"wc-row-{caseId:D}\".*?</tr>", RegexOptions.Singleline).Value;
+        Assert.Contains("data-wc-row-kind=\"with-engineer\"", row, StringComparison.Ordinal);
+        Assert.Contains($"<small>{OperatorLabels.WorkCentre.WithEngineer}</small>", row, StringComparison.Ordinal);
+        Assert.Contains($"<span>{OperatorLabels.WorkCentre.OpenCase}</span>", row, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{caseId:D}\"", row, StringComparison.Ordinal);
+        Assert.Contains("No due date", row, StringComparison.Ordinal);
+        Assert.Matches(
+            $"data-wc-kind=\"unassigned\">Unassigned<span class=\"n\">0</span></a>\\s*<a[^>]*data-wc-kind=\"with-engineer\">{OperatorLabels.WorkCentre.WithEngineer}<span class=\"n\">1</span>",
+            mine);
+        Assert.DoesNotContain("data-wc-kind=\"with-engineer\"", await GetOkAsync(client, "/"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// #1213 (v41 W8): the Work Centre's Assign Engineer list keeps its empty
+    /// first option and required, puts the signed-in person first as "Name
+    /// (you)", then the others, then Unassigned.
+    /// </summary>
+    [Fact]
+    public async Task TheAssignEngineerListPutsTheSignedInPersonFirstAndOffersUnassigned()
+    {
+        var store = new CaseWebTestSupport.RecordingCaseDetailsStore();
+        var viewer = Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId;
+        var colleague = Guid.NewGuid();
+        var unassigned = Item(NeedsAttentionKind.UnassignedEngineer, "QDOS3100043", NeedsAttentionPriority.Today, Now.AddHours(3)) with
+        {
+            Id = store.CaseId,
+            Route = $"/Cases/{store.CaseId:D}?section=assign"
+        };
+        var roster = new RosterStaffAccounts(
+        [
+            new StaffAccountSummary(colleague, "colleague", true, false, StaffRole.Engineer),
+            new StaffAccountSummary(viewer, "alex", true, false, StaffRole.Administrator)
+        ]);
+        using var host = Host(
+            new FakeSnapshot { Items = [unassigned], TodayCount = 1 },
+            caseHeader: store,
+            configure: services =>
+            {
+                services.RemoveAll<IStaffAccountQueries>();
+                services.AddSingleton<IStaffAccountQueries>(roster);
+            });
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, $"/?selected={store.CaseId:D}&assign=true");
+
+        var select = Regex.Match(html, "<select id=\"wc-assign-engineer\" name=\"engineerId\" required[^>]*>(.*?)</select>", RegexOptions.Singleline);
+        Assert.True(select.Success, "The Assign Engineer list is not rendered required.");
+        Assert.Equal(
+            [
+                ("", OperatorLabels.WorkCentre.ChooseEngineer),
+                (viewer.ToString("D"), OperatorLabels.Triage.You("alex")),
+                (colleague.ToString("D"), "colleague"),
+                (AssignEngineerChoice.UnassignedValue, OperatorLabels.CaseWorkspace.Unassigned)
+            ],
+            Regex.Matches(select.Groups[1].Value, "<option value=\"(?<value>[^\"]*)\">(?<label>[^<]*)</option>")
+                .Select(option => (option.Groups["value"].Value, WebUtility.HtmlDecode(option.Groups["label"].Value)))
+                .ToArray());
+    }
+
+    /// <summary>
+    /// Take and Unassigned post the one Assign Engineer handler (#1213): the
+    /// Engineer is read through the shared nullable parse, the reason is
+    /// left to Core, and a value that names neither is refused unassigned.
+    /// </summary>
+    [Fact]
+    public async Task TakeAndUnassignedPostTheAssignEngineerHandlerWithNoReason()
+    {
+        var store = new CaseWebTestSupport.RecordingCaseDetailsStore { State = Pegasus.Core.Workflow.CaseLifecycleState.Review };
+        var viewer = Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId;
+        using var host = Host(
+            new FakeSnapshot(),
+            configure: services =>
+            {
+                CaseWebTestSupport.Substitute<IGetCaseEditBasis>(services, store);
+                CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.IAcquireCaseEditLease>(services, store);
+                CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.IReleaseCaseEditLease>(services, store);
+                CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.IAssignCaseEngineer>(services, store);
+            });
+        using var client = Client(host);
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+
+        async Task<HttpResponseMessage> PostAsync(string engineerId, string operationKey) =>
+            await client.PostAsync("/?handler=AssignEngineer", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["caseId"] = store.CaseId.ToString("D"),
+                ["engineerId"] = engineerId,
+                ["operationKey"] = operationKey,
+                ["returnUrl"] = "/?scope=office",
+                ["__RequestVerificationToken"] = token
+            }));
+
+        using var taken = await PostAsync(viewer.ToString("D"), "take-from-the-row");
+        using var handed = await PostAsync(AssignEngineerChoice.UnassignedValue, "hand-to-unassigned");
+        using var refused = await PostAsync(string.Empty, "hand-to-nobody");
+
+        Assert.All(new[] { taken, handed, refused }, response =>
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode));
+        Assert.Equal(
+            [("take-from-the-row", (Guid?)viewer), ("hand-to-unassigned", null)],
+            store.EngineerAssignments.Select(request => (request.OperationKey, request.EngineerId)).ToArray());
+        Assert.All(store.EngineerAssignments, request => Assert.Equal(string.Empty, request.Reason));
+        // The refused post claimed a lease and released it.
+        Assert.Single(store.LeaseReleases);
     }
 
     /// <summary>
@@ -702,7 +884,8 @@ public sealed class WorkCentreWebTests
         FakeRecentCases? feed = null,
         FakeAiJobs? jobs = null,
         IGetCaseHeader? caseHeader = null,
-        FakeActivity? activity = null) =>
+        FakeActivity? activity = null,
+        Action<IServiceCollection>? configure = null) =>
         new IntakeWebApplicationFactory().WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -719,7 +902,30 @@ public sealed class WorkCentreWebTests
                     services.RemoveAll<IGetCaseHeader>();
                     services.AddSingleton(caseHeader);
                 }
+
+                configure?.Invoke(services);
             }));
+
+    /// <summary>The roster the Assign Engineer list reads, in the store's own order.</summary>
+    private sealed class RosterStaffAccounts(StaffAccountSummary[] accounts) : IStaffAccountQueries
+    {
+        public Task<StaffAccountQuerySlice> ListAsync(int offset, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult(new StaffAccountQuerySlice([.. accounts.Skip(offset).Take(limit)], false));
+
+        public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
+            Task.FromResult(accounts.FirstOrDefault(account => account.Id == staffId));
+
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffAccountSummary>>([.. accounts.Where(account => staffIds.Contains(account.Id))]);
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
+
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            Task.FromResult<SignOffSignature?>(null);
+    }
 
     private static HttpClient Client(WebApplicationFactory<Program> host, string? role = null)
     {

@@ -128,6 +128,33 @@ public sealed partial class TriageCaseWebTests
     }
 
     [Fact]
+    public async Task TheLinkCaseDialogAsksForACasePoAndOffersTheCasesMatchingWhatIsTyped()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "link-picker-triage");
+        var inspection = await CreateManualInspectionAsync(factory.Services, "link-picker-inspection");
+
+        using var page = await client.GetAsync($"/Cases/{triage.CaseId:D}");
+        var html = await page.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.Contains("for=\"triage-link-case-id\">Case / PO</label>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-case-picker-url=\"/Cases/{triage.CaseId:D}?handler=TriageLinkCaseOptions\"",
+            html,
+            StringComparison.Ordinal);
+
+        using var options = await client.GetAsync(
+            $"/Cases/{triage.CaseId:D}?handler=TriageLinkCaseOptions&q={Uri.EscapeDataString(inspection.Reference)}");
+        var optionsHtml = await options.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, options.StatusCode);
+        Assert.Contains(
+            $"data-case-picker-choice=\"{inspection.Reference}\"",
+            optionsHtml,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task EachKindOfCaseRefusesTheOtherKindsHandlers()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -288,7 +315,7 @@ public sealed partial class TriageCaseWebTests
     }
 
     /// <summary>
-    /// Staff "Link to case" reaches every Triage Case and every Case in any
+    /// Staff "Link to Case" reaches every Triage Case and every Case in any
     /// state (operator, 24 September 2026). A Triage Case answers through its
     /// Triage version and edit scope, and the link reopens nothing.
     /// </summary>

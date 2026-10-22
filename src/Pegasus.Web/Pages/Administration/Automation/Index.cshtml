@@ -5,12 +5,14 @@
     ViewData["Title"] = OperatorLabels.Admin.Automation;
     ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "automation";
-    ViewData["AdminAutomationComposed"] = Model.IsComposed;
 
     var registration = Model.Status;
     var killSwitchLabel = registration is { IsEnabled: true }
         ? OperatorLabels.AutomationAdmin.Stop
         : OperatorLabels.AutomationAdmin.Start;
+    var registeredClient = registration is { IsRegistered: true }
+        ? registration.DisplayName ?? registration.ClientId
+        : null;
 }
 
 @section Styles {
@@ -21,19 +23,17 @@
    else. *@
 <partial name="Shared/_PageHeader" />
 
-@if (TempData["AdministrationStatus"] is string statusMessage)
-{
-    <div class="notice mb-2" role="status">
-        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
-        <span>@statusMessage</span>
-    </div>
-}
-
-<partial name="Shared/_ErrorSummary" />
-
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
+        @if (TempData["AdministrationStatus"] is string statusMessage)
+        {
+            <div class="notice notice--success" role="status">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
+                <span>@statusMessage</span>
+            </div>
+        }
+        <partial name="Shared/_ErrorSummary" />
         @* A capability this deployment does not carry is absent, never an
            inert panel: the client registration is gated composition. *@
         @if (registration is not null)
@@ -47,10 +47,15 @@
                     @* One client is registered per deployment (ADR-0011), and
                        the job figures are the ledger's own counters. *@
                     <div class="fact-grid">
-                        <dl class="fact">
-                            <dt>@OperatorLabels.AutomationAdmin.RegisteredClients</dt>
-                            <dd>@(registration.IsRegistered ? registration.DisplayName ?? registration.ClientId : "—")</dd>
-                        </dl>
+                        @* The client's name and its identifier are one fact when
+                           they are the same string. *@
+                        @if (registeredClient != registration.ClientId)
+                        {
+                            <dl class="fact">
+                                <dt>@OperatorLabels.AutomationAdmin.RegisteredClients</dt>
+                                <dd>@(registeredClient ?? "—")</dd>
+                            </dl>
+                        }
                         <dl class="fact">
                             <dt>@OperatorLabels.AutomationAdmin.ClientIdentifier</dt>
                             <dd class="mono">@registration.ClientId</dd>
@@ -84,7 +89,7 @@
                     @* The switch posts on its click. Stopping is the
                        destructive half, so only that direction carries the
                        danger styling and its consequence sentence. *@
-                    <form method="post" asp-page-handler="SetEnabled" class="cluster mt-2">
+                    <form method="post" asp-page-handler="SetEnabled" class="cluster admin-actions-end mt-2">
                         <input type="hidden" name="TargetEnabled" value="@((!registration.IsEnabled).ToString())" />
                         <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
                         @if (registration.IsEnabled)
@@ -105,16 +110,15 @@
             <section class="panel" aria-labelledby="ai-settings-panel-title">
                 <div class="panel-head">
                     <h2 id="ai-settings-panel-title">@OperatorLabels.AutomationAdmin.AiSettingsPanel</h2>
-                    <partial name="Shared/_StatusChip" model="@OperatorLabels.AutomationAdmin.SwitchState(Model.SendToAiEnabledNow)" />
                 </div>
                 <div class="panel-body">
                     <form method="post" asp-page-handler="SaveAiSettings" class="stack" autocomplete="off">
                         <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
                         @* asp-for writes the unchecked fallback beside the box,
                            so a cleared checkbox reaches the handler as false. *@
-                        <label class="cluster">
+                        <label class="choice">
                             <input asp-for="SendToAiEnabled" type="checkbox" />
-                            <span>@OperatorLabels.AutomationAdmin.SendToAiEnabled</span>
+                            <span>@OperatorLabels.AutomationAdmin.SendToAi</span>
                         </label>
                         <div class="cluster admin-actions-end">
                             <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">
@@ -129,7 +133,7 @@
         @if (!Model.IsComposed)
         {
             <section class="panel unavailable-panel" aria-labelledby="automation-unavailable-title">
-                <div class="panel-head"><h2 id="automation-unavailable-title">Automation &amp; AI</h2></div>
+                <div class="panel-head"><h2 id="automation-unavailable-title">@OperatorLabels.Admin.Automation</h2></div>
                 <div class="panel-body">
                     <p>This deployment does not have Automation or AI configuration available.</p>
                 </div>

@@ -661,7 +661,14 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
         {
-            await RequireReviewReadinessAsync(context, workflow, cancellationToken);
+            // The Review gate guards entry to With Engineer; a With Engineer
+            // Case handed to another Engineer or to Unassigned (#1213) has
+            // already passed it.
+            if (workflow.State != nameof(CaseLifecycleState.ReportPreparation))
+            {
+                await RequireReviewReadinessAsync(context, workflow, cancellationToken);
+            }
+
             var beforeAssignedEngineerId = workflow.AssignedEngineerId;
             var beforeSignOffEngineerId = workflow.SignOffEngineerId;
             workflow.AssignedEngineerId = request.EngineerId;

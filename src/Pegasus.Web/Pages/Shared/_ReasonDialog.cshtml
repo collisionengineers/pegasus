@@ -19,6 +19,9 @@
     var consequence = ViewData["DialogConsequence"] as string;
     var reasonMaxLength = ViewData["DialogReasonMaxLength"] as int? ?? 500;
     var reason = ViewData["DialogReason"] as string ?? string.Empty;
+    // Supplied where a field outside the dialog joins its form (the Inbox's
+    // Case / PO picker); absent otherwise, and the form carries no id.
+    var formId = ViewData["DialogFormId"] as string;
 }
 <div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" hidden>
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title">
@@ -28,7 +31,7 @@
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
             </button>
         </div>
-        <form method="post" action="@actionUrl">
+        <form method="post" action="@actionUrl" id="@formId">
             @Html.AntiForgeryToken()
             @foreach (var field in hiddenFields)
             {
@@ -51,7 +54,7 @@
             </div>
             <div class="dialog-foot">
                 <button type="button" class="btn" data-dialog-close>Cancel</button>
-                <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Confirming">Confirm Action</button>
+                <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Confirming">@OperatorLabels.CaseWorkspace.ConfirmAction</button>
             </div>
         </form>
     </section>

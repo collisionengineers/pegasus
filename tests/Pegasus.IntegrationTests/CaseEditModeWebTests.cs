@@ -1562,7 +1562,12 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task TheReportNotReadyLabelAndBlockersShowOutsideEditMode()
     {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        // The Case has its Engineer, so the report is its Next action's concern (#1213).
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            AssignedEngineerId = Guid.NewGuid()
+        };
         using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
             Substitute<ICaseReportSnapshotSource>(services, store));
 

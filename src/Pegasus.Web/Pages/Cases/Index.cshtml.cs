@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -41,7 +42,8 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed class IndexModel(
     IListTriage listTriage,
     ISearchCases searchCases,
-    IGetCaseEditBasis getCaseEditBasis,
+    IGetCaseSectionFrame getCaseSectionFrame,
+    ICaseDocumentQueries caseDocuments,
     ICaseReportSnapshotSource reportSnapshotSource,
     ICaseReportGenerationStore reportGenerations,
     ICaseReportSendHistoryQueries reportSendHistory,
@@ -68,8 +70,10 @@ public sealed class IndexModel(
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly ISearchCases _searchCases =
         searchCases ?? throw new ArgumentNullException(nameof(searchCases));
-    private readonly IGetCaseEditBasis _getCaseEditBasis =
-        getCaseEditBasis ?? throw new ArgumentNullException(nameof(getCaseEditBasis));
+    private readonly IGetCaseSectionFrame _getCaseSectionFrame =
+        getCaseSectionFrame ?? throw new ArgumentNullException(nameof(getCaseSectionFrame));
+    private readonly ICaseDocumentQueries _caseDocuments =
+        caseDocuments ?? throw new ArgumentNullException(nameof(caseDocuments));
     private readonly ICaseReportSnapshotSource _reportSnapshotSource =
         reportSnapshotSource ?? throw new ArgumentNullException(nameof(reportSnapshotSource));
     private readonly ICaseReportGenerationStore _reportGenerations =
@@ -254,7 +258,7 @@ public sealed class IndexModel(
 
     public bool HasNextPage { get; private set; }
 
-    /// <summary>The principals present in the loaded Case rows, for the Principal select.</summary>
+    /// <summary>The Principal select's options, on the Case queues.</summary>
     public IReadOnlyList<string> Principals { get; private set; } = [];
 
     /// <summary>
@@ -366,18 +370,26 @@ public sealed class IndexModel(
     {
         // Every group carries its count whichever one is open. The three
         // count queries use their own DbContext each, so they run together.
-        var stageCountsTask = _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+        // A Case queue's Principal select lists the Principals on every Case
+        // queue (v41 U3), which the stage counts' statement reads with them.
+        var queuesTask = ListsCases(Queue)
+            ? _dashboardQueries.GetCaseQueuesAsync(cancellationToken)
+            : CountsAloneAsync(_dashboardQueries.GetCaseStageCountsAsync(cancellationToken));
         var awaitingTask = _dashboardQueries.GetAwaitingInstructionCountAsync(cancellationToken);
         var triageTask = _listTriage.CountAsync(
             actor,
             TriageLifecycleRules.ActiveStates,
             cancellationToken);
         var openUnidentifiedCountTask = _unidentifiedStore.CountOpenAsync(cancellationToken);
-        await Task.WhenAll(stageCountsTask, awaitingTask, triageTask, openUnidentifiedCountTask);
-        StageCounts = stageCountsTask.Result;
+        await Task.WhenAll(queuesTask, awaitingTask, triageTask, openUnidentifiedCountTask);
+        StageCounts = queuesTask.Result.Counts;
         AwaitingInstructionCount = awaitingTask.Result;
         TriageCount = triageTask.Result;
         UnidentifiedCount = openUnidentifiedCountTask.Result;
+        if (ListsCases(Queue))
+        {
+            Principals = PrincipalOptions(queuesTask.Result.Principals);
+        }
 
         var rows = Queue switch
         {
@@ -486,7 +498,6 @@ public sealed class IndexModel(
         HasPreviousPage = CurrentPage > 1;
         HasNextPage = result.HasNextPage;
         var items = result.Items.ToArray();
-        Principals = PrincipalOptions(items);
         _engineerNames = await EngineerNamesAsync(items, cancellationToken);
         return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
@@ -505,7 +516,6 @@ public sealed class IndexModel(
             cancellationToken);
 
         var items = result.Items.ToArray();
-        Principals = PrincipalOptions(items);
         _engineerNames = await EngineerNamesAsync(items, cancellationToken);
         return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
@@ -596,7 +606,8 @@ public sealed class IndexModel(
 
     /// <summary>
     /// The selected row's quick detail. The record kinds already carry their
-    /// facts; only the Case's own requirements and work need reading here.
+    /// facts; only the Case's own requirements and work need reading here,
+    /// from its frame and only what its Next action names (PERF-WEB-03).
     /// </summary>
     private async Task<QuickDetail> LoadDetailAsync(ActionActor actor, QueueRow row, CancellationToken cancellationToken)
     {
@@ -605,27 +616,51 @@ public sealed class IndexModel(
             return RecordDetail(row);
         }
 
-        var basis = await _getCaseEditBasis.ExecuteAsync(new(row.Id, actor), cancellationToken)
+        var frame = await _getCaseSectionFrame.ExecuteAsync(new(row.Id, actor), cancellationToken)
             ?? throw new InvalidOperationException($"Case '{row.Id}' was listed but could not be read.");
-        var missingRequirements = basis.Data.Completeness.Evaluation.MissingRequirements;
-        var outstanding = basis.Workflow.State == CaseLifecycleState.NotReady && missingRequirements is not null
+        var workflow = frame.Workflow;
+        var summary = frame.Summary;
+        var caseId = workflow.CaseId;
+
+        // Current work is the Case's Next action, the one the Case page's
+        // aside states (issue 896), read from the same facts. In Not ready
+        // and Held it is the first outstanding requirement in the aside's
+        // order: Original report missing on an Audit without its report
+        // (R155), then the completeness facts the configuration requires.
+        // Only those states read the configuration, and only an Audit kept
+        // without standalone evidence reads whether its report is filed.
+        IReadOnlyList<string> missingRequirements = [];
+        string? firstRequirement = null;
+        if (CaseNextAction.ReadsTheRequirements(workflow))
+        {
+            var configurationRead = _workflowConfiguration.GetCurrentAsync(cancellationToken);
+            var auditReportRead = OriginalReportPolicy.ReadsTheDocuments(summary.CaseType, frame.StandaloneAuditEvidenceId)
+                ? _caseDocuments.HasCurrentAuditReportAsync(caseId, cancellationToken)
+                : Task.FromResult(false);
+            await Task.WhenAll(configurationRead, auditReportRead);
+            missingRequirements = CaseCompletenessPolicy.Evaluate(
+                new(summary.InstructionComplete ?? false, summary.ImagesComplete ?? false),
+                configurationRead.Result).MissingRequirements;
+            firstRequirement = OriginalReportPolicy.IsMissing(
+                summary.CaseType, frame.StandaloneAuditEvidenceId, auditReportRead.Result)
+                ? OperatorLabels.OriginalReportMissing
+                : missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null;
+        }
+        var outstanding = workflow.State == CaseLifecycleState.NotReady
             ? OperatorLabels.CaseRequirements(missingRequirements)
             : [];
 
-        // Current work is the Case's Next action, the one the Case page's
-        // aside states (issue 896), read from the same facts: the first
-        // missing requirement, and once the report is the Case's concern its
-        // readiness while the assessment can open, the current report and
-        // whether a send of it was accepted.
-        var caseId = basis.Workflow.CaseId;
+        // Once the report is the Case's concern: its readiness while the
+        // assessment can open, the current report and whether a send of it
+        // was accepted.
         IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
         CaseReportGenerationRecord? currentReport = null;
         var reportSent = false;
-        if (CaseNextAction.ReadsTheReport(basis.Workflow))
+        if (CaseNextAction.ReadsTheReport(workflow))
         {
             // The snapshot, the current report and its sends are independent reads.
             using var reads = new BoundedReads(cancellationToken);
-            var snapshotTask = AssessmentAccessPolicy.For(actor, basis.Workflow).CanOpen
+            var snapshotTask = AssessmentAccessPolicy.For(actor, workflow).CanOpen
                 ? reads.Start(token => _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, token))
                 : null;
             var currentTask = reads.Start(token => _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, token));
@@ -641,14 +676,14 @@ public sealed class IndexModel(
         }
         // Once Report sent is recorded the Case's open tasks are its step, as
         // the Case page's aside lists them (operator, 6 October 2026).
-        var hasOpenTasks = basis.Workflow.ReportSentEvidence is not null
+        var hasOpenTasks = workflow.ReportSentEvidence is not null
             && (await _caseTasks.ListAsync(caseId, cancellationToken))
                 .Any(task => task.State == Pegasus.Core.Tasks.CaseTaskState.Open);
         var next = CaseNextAction.Of(
-            basis.Workflow,
-            basis.Summary.CaseType,
-            basis.Frame.Works,
-            missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
+            workflow,
+            summary.CaseType,
+            frame.Works,
+            firstRequirement,
             reportBlockers,
             _ => null,
             currentReport,
@@ -658,7 +693,7 @@ public sealed class IndexModel(
         var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
 
         var engineer = "Not assigned";
-        if (basis.Workflow.AssignedEngineerId is { } engineerId)
+        if (workflow.AssignedEngineerId is { } engineerId)
         {
             // The queue rows already resolved this name; only an id the rows
             // did not carry is read.
@@ -669,12 +704,11 @@ public sealed class IndexModel(
         }
         work.Add(("Engineer", engineer));
 
-        if (basis.Summary.DueAtUtc is { } due)
+        if (summary.DueAtUtc is { } due)
         {
             work.Add(("Due", OperatorLabels.DueDate(due)));
         }
 
-        var summary = basis.Summary;
         var vehicle = string.Join(" ", new[] { summary.VehicleMake, summary.VehicleModel }.Where(part => !string.IsNullOrWhiteSpace(part)));
         return new(
             RowKind.Case,
@@ -683,9 +717,6 @@ public sealed class IndexModel(
             row.DetailHref,
             "Open full Case",
             [
-                ("Case/PO", summary.Reference),
-                ("Registration", summary.Registration ?? "Not recorded"),
-                ("Claimant", summary.Claimant ?? "Not recorded"),
                 ("Vehicle", vehicle.Length > 0 ? vehicle : "Not recorded"),
                 ("Type", OperatorLabels.CaseTypeName(summary.CaseType))
             ],
@@ -741,9 +772,10 @@ public sealed class IndexModel(
         var last = Queue switch
         {
             "not_ready" => new Cell(MissingText(item), CellKind.Chip, MissingText(item) == "Review pending" ? "neutral" : "amber"),
+            // A With Engineer Case with no Engineer reads Unassigned (#1213, v41 W8).
             "with_engineer" => Cell.Of(item.EngineerId is { } engineerId
                 ? ActorDisplayNames.Resolve(ActorKind.Staff, engineerId.ToString("D"), engineers)
-                : null),
+                : OperatorLabels.CaseWorkspace.Unassigned),
             _ => new Cell(chip, CellKind.Chip)
         };
         return new QueueRow(
@@ -888,28 +920,20 @@ public sealed class IndexModel(
             NoticeTone: "success");
     }
 
-    private static string[] PrincipalsOf(IEnumerable<CaseSearchItem> items) => items
-        .Select(item => item.Principal)
-        .Distinct(StringComparer.Ordinal)
-        .Order(StringComparer.Ordinal)
-        .ToArray();
-
     /// <summary>
-    /// The Principal select's options: the principals of the rows the
-    /// filters still show — a sample of the queue, not a census — plus the
-    /// active principal when no shown row carries it, so the choice that is
-    /// filtering the list is never invisible in the control that made it.
+    /// The Principal select's options (v41 U3): every Principal that appears
+    /// in the Case queues, whichever queue and page are open, plus the
+    /// Principal filtering the list, so the choice that is filtering is never
+    /// invisible in the control that made it.
     /// </summary>
-    private string[] PrincipalOptions(CaseSearchItem[] items)
-    {
-        var options = PrincipalsOf(items).ToList();
-        if (PrincipalFilter is not null && !options.Contains(PrincipalFilter))
-        {
-            options.Add(PrincipalFilter);
-            options.Sort(StringComparer.Ordinal);
-        }
-        return [.. options];
-    }
+    private string[] PrincipalOptions(IReadOnlyList<string> queuePrincipals) =>
+        [.. (PrincipalFilter is null ? queuePrincipals : queuePrincipals.Append(PrincipalFilter))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)];
+
+    /// <summary>The scopes with no Principal select read the stage counts alone.</summary>
+    private static async Task<CaseQueues> CountsAloneAsync(Task<CaseStageCounts> counts) =>
+        new(await counts, []);
 
     private static string? EmptyToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

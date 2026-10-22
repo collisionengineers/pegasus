@@ -38,6 +38,12 @@ public static class OperatorLabels
     public const string MarkAsOriginalReport = "Mark as original report";
 
     /// <summary>
+    /// The Case requirement an Audit lists first until its original report is
+    /// filed (FRD-01): the Case page's aside and the Cases quick detail name it.
+    /// </summary>
+    public const string OriginalReportMissing = "Original report missing";
+
+    /// <summary>
     /// The known principal on a pre-case record — an Image Intake or a Triage.
     /// One pair owns the concept for both surfaces: `Not known` is the absent
     /// principal and is never reused as a generic empty label elsewhere.
@@ -81,11 +87,11 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// What an Unidentified item's retained material is, for the Queues
-    /// page's Images/E-mails filter and the row/detail "what is going on"
-    /// text. Supersedes the old origin-kind label ("Intake receipt"), which
-    /// named the internal record rather than the material and used the
-    /// banned word "intake".
+    /// What an Unidentified item's retained material is, for the Material
+    /// column, the row/detail "what is going on" text and the Automation list
+    /// filter (<c>UnidentifiedMcpTools.ListAsync</c>). Supersedes the old
+    /// origin-kind label ("Intake receipt"), which named the internal record
+    /// rather than the material and used the banned word "intake".
     /// </summary>
     public static string UnidentifiedMediaKind(Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind kind) => kind switch
     {
@@ -313,10 +319,10 @@ public static class OperatorLabels
     public static class EmailTemplates
     {
         public const string Area = "E-mail templates";
-        public const string Card = "Edit the wording of staff replies.";
         public const string ActionLogArea = "E-mail template";
         public const string Template = "Template";
         public const string LastChanged = "Last changed";
+        public const string BuiltInWording = "Built-in wording";
         public const string Actions = "Actions";
         public const string Edit = "Edit";
         public const string Body = "Body";
@@ -345,7 +351,7 @@ public static class OperatorLabels
     }
 
     /// <summary>
-    /// The state a staff "Link to case" destination shows: a Case's stage, or
+    /// The state a staff "Link to Case" destination shows: a Case's stage, or
     /// a Triage Case's Triage state.
     /// </summary>
     public static string AssociationDestinationState(IntakeAssociationDestination destination)
@@ -446,16 +452,37 @@ public static class OperatorLabels
         public const string Kept = "The report was kept but could not be sent.";
         public const string Sent = "Sent";
         public const string NotSent = "Not sent";
-        public const string Unknown = "Delivery unknown. An Administrator must check GitHub for the report ID before retrying.";
+        public const string DeliveryUnknown = "Delivery unknown";
+        public const string Unknown = DeliveryUnknown + ". An Administrator must check GitHub for the report ID before retrying.";
 
         public static string Reported(int issueNumber) =>
             string.Create(CultureInfo.InvariantCulture, $"Reported as #{issueNumber}.");
+
+        /// <summary>
+        /// The list's Page cell: the page a report was raised on, by the first
+        /// segment of its route (<c>/Cases/…</c> reads Cases), so no record
+        /// identifier shows (v41 A25). A route with no segment shows itself.
+        /// </summary>
+        public static string PageName(string route)
+        {
+            var path = route.AsSpan();
+            var query = path.IndexOf('?');
+            if (query >= 0)
+            {
+                path = path[..query];
+            }
+
+            path = path.Trim('/');
+            var segment = path.IndexOf('/');
+            var name = segment >= 0 ? path[..segment] : path;
+            return name.IsEmpty ? route : name.ToString();
+        }
     }
 
     public static string ProblemReportStatus(Pegasus.Core.Support.ProblemReportStatus status) => status switch
     {
         Pegasus.Core.Support.ProblemReportStatus.Sent => ProblemReports.Sent,
-        Pegasus.Core.Support.ProblemReportStatus.Unknown => "Unknown",
+        Pegasus.Core.Support.ProblemReportStatus.Unknown => ProblemReports.DeliveryUnknown,
         _ => ProblemReports.NotSent
     };
 
@@ -798,6 +825,7 @@ public static class OperatorLabels
         Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
         Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => WorkCentre.VehicleImagesPaired,
         Pegasus.Core.Operations.NeedsAttentionKind.OpenTasks => WorkCentre.OpenTasks,
+        Pegasus.Core.Operations.NeedsAttentionKind.WithEngineer => WorkCentre.WithEngineer,
         _ => Humanise(kind.ToString())
     };
 
@@ -845,6 +873,12 @@ public static class OperatorLabels
         public const string Due = "Due";
         public const string Received = "Received";
         public const string AssignEngineer = "Assign Engineer";
+
+        /// <summary>
+        /// Take (#1213, v41 W8 and K9, signed off 19 October 2026): an
+        /// Unassigned Case assigned to the person taking it, in one step.
+        /// </summary>
+        public const string Take = "Take";
         public const string Assign = "Assign";
         public const string Reassign = "Reassign";
         public const string ChooseEngineer = "Choose an Engineer";
@@ -930,6 +964,12 @@ public static class OperatorLabels
         /// </summary>
         public const string OpenTasks = "Open tasks";
 
+        /// <summary>
+        /// A With Engineer Case its Engineer holds (#1213, v41 W8): the row's
+        /// kind, its kind chip and its bold line, the stage's own word.
+        /// </summary>
+        public static readonly string WithEngineer = CaseStage(CaseLifecycleState.ReportPreparation);
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -942,6 +982,7 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
             Pegasus.Core.Operations.NeedsAttentionKind.OpenTasks => "Tasks",
             Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
+            Pegasus.Core.Operations.NeedsAttentionKind.WithEngineer => WithEngineer,
             _ => Humanise(kind.ToString())
         };
 
@@ -1093,7 +1134,8 @@ public static class OperatorLabels
         DocumentSemanticRole.Correspondence => "Correspondence",
         DocumentSemanticRole.EngineerReport => "Engineer report",
         DocumentSemanticRole.AuditReport => "Audit report",
-        DocumentSemanticRole.MarketResearch => "Market research",
+        DocumentSemanticRole.Estimate => "Estimate",
+        DocumentSemanticRole.ValuationEvidence => "Valuation Evidence",
         DocumentSemanticRole.Other => "Other",
         _ => Humanise(role.ToString())
     };
@@ -1333,6 +1375,7 @@ public static class OperatorLabels
         "audit_custody_confirmed" => "Audit evidence stored",
         "audit_custody_failed" => "Audit evidence storage failed",
         "case_document_removed" => "File removed",
+        "case_document_type_set" => "Document type changed",
         "custody_confirmed" => "Document stored",
         "custody_failed" => "Document storage failed",
         "principal_inspection_mode_applied" => "Inspection mode taken from the principal",
@@ -1461,14 +1504,13 @@ public static class OperatorLabels
             "review" => "navy",
             "with engineer" => "navy",
             "held" => "amber",
-            "complete" or "completed" or "post report completion" => "green",
+            "completed" => "green",
             "cancelled" or "principal cancellation" or "archived" => "neutral",
             "created in error" => "neutral",
             "reopened" or "open" => "navy",
 
             // Intake and Triage
             "needs sorting" or "unidentified" or "no case found" => "amber",
-            "blocked intake" or "blocked" => "red",
             "document text required" or "unsupported" => "amber",
             "awaiting information" => "amber",
             "finding recorded" => "navy",
@@ -1511,8 +1553,9 @@ public static class OperatorLabels
 
             // Service health and request operations
             "running" => "blue",
+            "working" => "green",
             "review required" => "amber",
-            "needs attention" or "not configured" => "amber",
+            "needs attention" or "not set" => "amber",
             "active" => "navy",
 
             // Tone by meaning (v28 P2, 18 September 2026): green for an operation
@@ -1617,6 +1660,25 @@ public static class OperatorLabels
         "Case" => "Case",
         _ => Humanise(area)
     };
+
+    /// <summary>The chip an Action logs row's Actor carries when the Automation client did the work.</summary>
+    public const string ActionLogAiActor = "AI";
+
+    /// <summary>
+    /// An Action logs row's Action: the stored event code as words, with AI
+    /// and API as the initialisms they are (v41 A13).
+    /// </summary>
+    public static string ActionLogAction(string operation) =>
+        string.Join(' ', Humanise(operation).Split(' ').Select(word => word.ToLowerInvariant() switch
+        {
+            "ai" => "AI",
+            "api" => "API",
+            _ => word
+        }));
+
+    /// <summary>An Action logs row's Result, written with a capital whatever its stored spelling (v41 A13).</summary>
+    public static string ActionLogResult(string result) =>
+        string.IsNullOrEmpty(result) ? result : char.ToUpperInvariant(result[0]) + result[1..];
 
     /// <summary>
     /// What a security event written before the acting principal was recorded
@@ -1812,6 +1874,16 @@ public static class OperatorLabels
         public const string OpenQuery = QueryResponseJobs.ReplyWithDraft;
         public const string Review = "Review";
 
+        public const string Stop = "Stop";
+        public const string None = "No AI jobs are recorded.";
+
+        /// <summary>The Estimate kind's reserved term (CONTEXT.md; v41 A28).</summary>
+        public const string AiProposal = "AI Proposal";
+
+        /// <summary>The Send to AI switch beside the job counts: "Send to AI on" or "Send to AI off" (v41 A28).</summary>
+        public static string SendToAiState(bool enabled) =>
+            $"{AutomationAdmin.SendToAi} {(enabled ? "on" : "off")}";
+
         /// <summary>
         /// The instruction a row prints. A Query response stores the message
         /// id it answers as its instruction, which no operator reads, so that
@@ -1830,7 +1902,7 @@ public static class OperatorLabels
 
         public static string Kind(Pegasus.Core.AiWork.AiJobKind kind) => kind switch
         {
-            Pegasus.Core.AiWork.AiJobKind.Estimate => "Estimate",
+            Pegasus.Core.AiWork.AiJobKind.Estimate => AiProposal,
             Pegasus.Core.AiWork.AiJobKind.UnidentifiedResolution => "Unidentified resolution",
             Pegasus.Core.AiWork.AiJobKind.QueryResponse => "Query response",
             Pegasus.Core.AiWork.AiJobKind.UnidentifiedQueuePass => "Unidentified-queue pass",
@@ -1967,6 +2039,7 @@ public static class OperatorLabels
         public const string ContactTab = "Contact";
         public const string ReportGeneration = "Report generation";
         public const string DefaultInspectionLocation = "Default inspection location";
+        public const string InspectionMode = "Inspection mode";
         public const string AcceptedIdentities = "Accepted e-mail identities";
         /// <summary>A Principal with no accepted route (operator, 13 October 2026).</summary>
         public const string NoAcceptedRoute = "No accepted e-mail route. Instructions arrive by upload, Triage or the Principal API.";
@@ -2055,7 +2128,6 @@ public static class OperatorLabels
     public static class CaseList
     {
         public const string Title = "Case list";
-        public const string Note = "One row per Case received in the period, open or closed. N/A means the column does not apply to that Case type; a blank cell means nothing is recorded yet.";
         public const string ReceivedFrom = "Received from";
         public const string ReceivedTo = "Received to";
         public const string AllTime = "All time";
@@ -2093,6 +2165,38 @@ public static class OperatorLabels
         };
     }
 
+    /// <summary>
+    /// The Cases queue's footer line (v41 U3, signed off 19 October 2026): the
+    /// page number shows only when another page exists.
+    /// </summary>
+    public static class CaseQueueFooter
+    {
+        public static string PageLine(int page, bool hasOtherPage) =>
+            hasOtherPage ? string.Create(CultureInfo.InvariantCulture, $"Page {page} · newest first") : "Newest first";
+    }
+
+    /// <summary>
+    /// Search's filter and results words that v41 W2 and W3 gave (signed off
+    /// 19 October 2026): the stage filter's name, the two lists' empty choice,
+    /// the results' Type column and the preview's copy button.
+    /// </summary>
+    public static class Search
+    {
+        public const string CaseStage = "Case stage";
+        public const string AllPrincipals = "All principals";
+        public const string AllEngineers = "All engineers";
+        public const string TypeColumn = "Type";
+        public const string CopyCaseReference = "Copy Case/PO";
+    }
+
+    /// <summary>Management Reports' tabs (v41 A26); the Case list tab reads <see cref="CaseList.Title"/>.</summary>
+    public static class ReportTabs
+    {
+        public const string Engineers = "Engineers";
+        public const string Principals = "Principals";
+        public const string Queues = "Queues";
+    }
+
     /// <summary>The Mail settings area labels and status values — one list.</summary>
     public static class MailSettings
     {
@@ -2107,10 +2211,19 @@ public static class OperatorLabels
         public const string NoApprovedMailboxes = "No approved mailboxes";
         public const string NotActivated = "Not activated";
         public const string NoSubscription = "None.";
+        public const string NotPolled = "Not polled";
+        public const string NotYetPolled = "Not yet polled";
+        public const string NoCompletedPoll = "No completed poll yet";
+        public const string NoError = "None";
 
         public static string MailboxState(ApprovedMailboxState state) =>
             Humanise(state.ToString());
 
+        /// <summary>The mailbox count the panel head shows under the title.</summary>
+        public static string MailboxCount(int count) =>
+            count == 1 ? "1 mailbox" : $"{count} mailboxes";
+
+        /// <summary>The Last checked cell: the last completed poll's time, or why there is none.</summary>
         public static string PollStatus(
             ApprovedMailbox mailbox,
             ApprovedMailboxPollStatus? status)
@@ -2120,7 +2233,7 @@ public static class OperatorLabels
                 if (mailbox.State != ApprovedMailboxState.Approved
                     || !mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.Incoming))
                 {
-                    return "Not polled.";
+                    return NotPolled;
                 }
 
                 // Polling starts from the recorded identity and activation the
@@ -2128,25 +2241,25 @@ public static class OperatorLabels
                 // mailbox, so "not yet polled" would promise a poll that cannot
                 // happen; the stored evidence says only that it is not activated.
                 return mailbox.IdentityIsBound && mailbox.ActivatedAtUtc is not null
-                    ? "Not yet polled."
-                    : $"{NotActivated}.";
+                    ? NotYetPolled
+                    : NotActivated;
             }
 
-            var completed = status.LastCompletedAtUtc is { } lastCompletedAtUtc
-                ? $"Last completed {OfficeTime(lastCompletedAtUtc)}."
-                : "No completed poll yet.";
-            var due = $" Next due {OfficeTime(status.DueAtUtc)}.";
-            var failure = status.LastFailureCode switch
-            {
-                null => string.Empty,
-                "mailbox_access_denied" =>
-                    " The tenant has not granted this application access to this mailbox.",
-                "mailbox_not_approved" =>
-                    " The last attempt stopped because this mailbox was no longer approved.",
-                var code => $" Last failure: {Humanise(code)}."
-            };
-            return $"{completed}{due}{failure}";
+            return status.LastCompletedAtUtc is { } lastCompletedAtUtc
+                ? OfficeTime(lastCompletedAtUtc)
+                : NoCompletedPoll;
         }
+
+        /// <summary>The Settings dialog's Last error, in words rather than the stored failure code.</summary>
+        public static string LastError(string? failureCode) => failureCode switch
+        {
+            null => NoError,
+            "mailbox_access_denied" =>
+                "The tenant has not granted this application access to this mailbox.",
+            "mailbox_not_approved" =>
+                "The last attempt stopped because this mailbox was no longer approved.",
+            var code => Humanise(code)
+        };
 
         public static string SubscriptionStatus(ApprovedMailboxSubscription? subscription)
         {
@@ -2189,6 +2302,7 @@ public static class OperatorLabels
         public const string ReplaceSignature = "Replace signature";
         public const string DefaultSignOffEngineer = "Default sign-off Engineer";
         public const string Settings = "Settings";
+        public const string Account = "Account";
         public const string Cancel = "Cancel";
         public const string SignatureMissing = "Signature missing";
         public const string QualificationsMissing = "Yes · qualifications missing";
@@ -2254,7 +2368,7 @@ public static class OperatorLabels
         public const string StopConsequence =
             "In-flight work remains visible and no result is discarded.";
 
-        public const string SendToAiEnabled = "Reviewed AI proposals enabled";
+        public const string SendToAi = "Send to AI";
         public const string Save = "Save AI settings";
 
         /// <summary>The state word for a switch an administrator holds.</summary>
@@ -2272,7 +2386,7 @@ public static class OperatorLabels
         public static string AutomationScope(string key) => key switch
         {
             "automation.cases" => "Cases",
-            "automation.intake" => "Intake",
+            "automation.intake" => "Received files",
             "automation.documents" => "Documents",
             "automation.assessment" => "Assessment",
             "automation.mail" => "Mail",
@@ -2285,7 +2399,6 @@ public static class OperatorLabels
     /// <summary>The retained post-report query's AI job words.</summary>
     public static class QueryResponseJobs
     {
-        public const string Source = "Post-report";
         /// <summary>
         /// Deliberately not "Send query to AI", which would match the shape of
         /// "Send Unidentified to AI" and "Send to Claude". Those two send a
@@ -2385,7 +2498,6 @@ public static class OperatorLabels
         public const string PreviousAddress = "Previous";
         public const string ManualEntry = "Manual entry";
         public const string NotRecorded = "Not recorded";
-        public const string NotRecordedSuffix = " · not recorded";
         // The Case's repairer.
         public const string Repairer = "Repairer";
         public const string RepairerDirectory = "Repairer contact";
@@ -2442,6 +2554,9 @@ public static class OperatorLabels
         public const string SignOffEngineer = "Sign-off Engineer";
         public const string Unassigned = "Unassigned";
         public const string ReasonForAction = "Reason for action";
+
+        /// <summary>The reason dialog's confirming button.</summary>
+        public const string ConfirmAction = "Confirm Action";
 
         // Review point 12: the adverse disposition, named apart from the
         // progression actions it must never sit among.
@@ -2547,7 +2662,6 @@ public static class OperatorLabels
     public static class Upload
     {
         public const string Title = "Upload";
-        public const string ReviewSubtitle = "Review your upload and its destination.";
         public const string SelectEyebrow = "Add files to Pegasus";
         public const string ChooseHeading = "Choose the files for this upload";
         public const string DropHeading = "Drop files here";
@@ -2579,8 +2693,6 @@ public static class OperatorLabels
         public const string ChooseTitle = "Which Case do these files belong to?";
         public const string NoMatchEyebrow = "No suggested match";
         public const string NoMatchTitle = "Find the right Case";
-        public const string NoMatchSentence = "Search all Cases and Triage items. The upload is retained while you decide.";
-        public const string SelectHint = "Select a Case to continue.";
         public const string Review = "Review and add to Case";
         public const string FindCase = "Find a Case";
         public const string FindAnotherCase = "Find another Case";
@@ -2590,10 +2702,9 @@ public static class OperatorLabels
         public const string RetrySearch = "Retry search";
         public const string SearchUnavailable = "Case search is unavailable.";
         public const string SearchUnavailableSentence = "Your upload is retained. Try again in a moment.";
-        public const string ImageIntake = "Image intake";
+        public const string VehicleImages = "Vehicle images";
         public const string RegisteredAutomatically = "Registered automatically";
         public const string Proposal = "Review new Case proposal";
-        public const string ProposalSentence = "Use the extracted instruction details to create a new Case.";
         public const string LeaveUndecided = "Leave undecided";
         public const string Discard = "Discard upload";
         public const string DiscardTitle = "Discard this upload?";
@@ -2647,14 +2758,6 @@ public static class OperatorLabels
         public static string DiscardSentence(int count) => $"Discard all {Files(count)} in this upload. The source files and processing record will be retained.";
 
         public static string OriginalFiles(int count) => count == 1 ? "1 original file" : string.Create(CultureInfo.InvariantCulture, $"{count} original files");
-
-        public static string CandidatesSentence(int count, string? registration) => (count, registration) switch
-        {
-            (1, null) => "One possible Case. Check the details before adding the files.",
-            (1, _) => $"One possible Case for {registration}. Check the details before adding the files.",
-            (_, null) => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases. Choose the correct claimant and Case."),
-            _ => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases for {registration}. Choose the correct claimant and Case.")
-        };
 
         public static string CouldNotBeReadTitle(int count) => count == 1 ? "1 file could not be read" : string.Create(CultureInfo.InvariantCulture, $"{count} files could not be read");
 
@@ -2787,8 +2890,8 @@ public static class OperatorLabels
         public const string Logs = "Logs";
         public const string ActionLogsTab = "Action logs";
         public const string IntakeLogTab = "Intake log";
-        public const string FailedIntake = "Failed intake";
-        public const string OldestPendingIntake = "Oldest pending intake";
+        public const string FailedFiles = "Failed files";
+        public const string OldestFileWaiting = "Oldest file waiting";
         public const string Reevaluate = "Re-evaluate with current policy";
         public const string RetryAllocation = "Retry allocation";
         public const string RetryOcr = "Retry OCR";
@@ -2856,6 +2959,9 @@ public static class OperatorLabels
         public const string AllCategories = "All categories";
         public const string DismissedScope = "Dismissed";
 
+        /// <summary>The fifth scope on the rail (v41 I1); its messages are the read-only Deleted Items search.</summary>
+        public const string DeletedItemsScope = "Deleted Items";
+
         /// <summary>Received mail with no linked Case: its scope and its outcome chip (operator, 13 October 2026).</summary>
         public const string NoCaseFound = "No Case Found";
         public const string Dismiss = "Dismiss";
@@ -2863,56 +2969,53 @@ public static class OperatorLabels
         public const string DismissedNotice = "Dismissed";
         public const string RestoredNotice = "Restored";
 
+        /// <summary>The message dialog's head buttons (v41 I6), as drawn.</summary>
+        public const string PreviousMessage = "Previous message";
+        public const string NextMessage = "Next message";
+
+        /// <summary>
+        /// The line above the list after a bulk post that could not change some
+        /// ticked messages (operator, 22 October 2026, R180): the number not
+        /// changed; those rows stay ticked so they can be retried.
+        /// </summary>
+        public static string NotChanged(int count) => $"{count} not changed";
+
         // A classification correction's refusals, on the message record and for ticked rows alike.
         public const string ChooseClassification = "Choose a valid classification.";
         public const string ChooseCaseType = "Choose a valid case type.";
         public const string CorrectionReasonRequired = "Explain why this classification is being corrected.";
+
+        // The correction's words: the bulk dialog's fields and the record's
+        // Classification chips, which apply a correction at once.
+        public const string CorrectClassification = "Correct classification";
+        public const string Classification = "Classification";
+        public const string ChooseClassificationOption = "Choose classification";
+        public const string ChooseCaseTypeOption = "Choose case type";
+        public const string CorrectionReason = "Reason for correction";
+        public const string SaveCorrection = "Save correction";
+
+        // The record's Case row (v41 I9): the Case / PO picker and its buttons.
+        public const string CasePo = "Case / PO";
+        public const string CasePoHint = "Search by Case / PO, registration, claimant, claim number, or Principal.";
+        public const string LinkToCase = "Link to Case";
+        public const string ChangeLinkedCase = "Change linked Case";
+        public const string Unlink = "Unlink";
         public const string OpenFile = "Open file";
         public const string OpenFullMessage = "Open full message";
 
-        // The quick preview (26 September 2026): one attachment line, the
-        // Case cell naming the Case/PO or the Triage's t. reference, and a
-        // Matched cell only while a search term is typed.
+        // The Case cell naming the Case/PO or the Triage's t. reference.
         public const string Case = "Case";
         public const string NoCase = "None";
-        public const string Matched = "Matched";
-        public const string OpenCase = WorkCentre.OpenCase;
         public const string OpenTriage = "Open Triage";
 
         /// <summary>
-        /// The chip for a message on a Triage Case or asking for one, and the
-        /// message's Case tab heading for the Triage it opened. It is the
+        /// The chip for a message on a Triage Case or asking for one. It is the
         /// Triage destination's own word, not a new one.
         /// </summary>
         public const string Triage = "Triage";
-        public const string NoAttachments = "No attachments";
 
-        /// <summary>"1 attachment · 1 document", "11 attachments · 10 images, 1 document".</summary>
-        public static string Attachments(IReadOnlyList<RetainedMailAttachment> attachments)
-        {
-            if (attachments.Count == 0)
-            {
-                return NoAttachments;
-            }
-
-            var kinds = attachments
-                .GroupBy(attachment => UnidentifiedFileKind.Broad(attachment.MediaType))
-                .OrderBy(group => group.Key)
-                .Select(group => Counted(group.Count(), AttachmentKind(group.Key)));
-            return $"{AttachmentCount(attachments.Count)} · {string.Join(", ", kinds)}";
-        }
-
-        /// <summary>"1 attachment", "3 attachments": a list row's count and the preview line's head.</summary>
+        /// <summary>"1 attachment", "3 attachments": a list row's count.</summary>
         public static string AttachmentCount(int count) => Counted(count, "attachment");
-
-        private static string AttachmentKind(BroadFileKind kind) => kind switch
-        {
-            BroadFileKind.Image => "image",
-            BroadFileKind.Document => "document",
-            BroadFileKind.Email => "e-mail",
-            BroadFileKind.Video => "video",
-            _ => "other file"
-        };
 
         private static string Counted(int count, string noun) =>
             $"{count} {noun}{(count == 1 ? string.Empty : "s")}";

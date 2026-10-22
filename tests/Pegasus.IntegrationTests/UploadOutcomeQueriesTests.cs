@@ -584,6 +584,10 @@ public sealed class UploadOutcomeQueriesTests
             IntakeReceipt receipt, string term, ActionActor actor, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<IntakeAssociationDestination>>([]);
 
+        public Task<IReadOnlyList<IntakeAssociationDestination>> SearchToChangeAsync(
+            IntakeReceipt receipt, string term, ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<IntakeAssociationDestination>>([]);
+
         public Task<IntakeAssociationDestination?> GetAsync(
             IntakeReceipt receipt, Guid caseId, ActionActor actor, CancellationToken cancellationToken = default) =>
             Task.FromResult<IntakeAssociationDestination?>(null);

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Identity;
 using Pegasus.Core.Tasks;
 using TaskLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Tasks;
 
@@ -15,12 +14,6 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 public sealed partial class DetailsModel
 {
-    /// <summary>
-    /// The staff an open task may be assigned to: the enabled named staff, read only with the
-    /// Tasks dialog while it can be changed, so no other read pays for them.
-    /// </summary>
-    public IReadOnlyList<CaseEngineerChoice> TaskAssigneeChoices { get; private set; } = [];
-
     public Task<IActionResult> OnPostCreateCaseTaskAsync(
         Guid id,
         Guid taskId,

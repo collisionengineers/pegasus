@@ -111,8 +111,6 @@ main [id]{scroll-margin-top:92px}
 .utility-bar{height:var(--utility-h);padding:0 var(--page-pad);background:var(--nav);color:var(--nav-text);border-top:3px solid var(--red);display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:30}
 .utility-search{position:relative;flex:1;max-width:640px}
 .utility-actions{margin-left:auto;display:flex;align-items:center;gap:7px}
-.utility-freshness{display:flex;align-items:center;gap:7px;font-size:11px;color:#dce4e7;white-space:nowrap}
-.utility-freshness .health-dot{box-shadow:none;width:7px;height:7px}
 .utility-bar .btn{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.3)}
 .utility-bar .btn--primary{background:var(--red);border-color:var(--red)}
 .app-main{min-width:0;flex:1;padding:var(--page-pad);padding-bottom:50px}
@@ -219,6 +217,7 @@ details[open]>summary.panel-head::after{content:"−"}
    --------------------------------------------------------------------------- */
 
 .metric-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);background:#fff}
+.metric-strip--2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .metric-strip--3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .metric{min-height:86px;padding:12px 14px;border:0;border-right:1px solid var(--line);background:#fff;text-align:left;color:inherit;text-decoration:none;display:flex;flex-direction:column;justify-content:space-between;min-width:0}
 .metric:last-child{border-right:0}
@@ -454,7 +453,6 @@ tbody tr:hover{background:#f3f6f7}
    Mail (§1.3)
    --------------------------------------------------------------------------- */
 
-.mail-preview{padding:16px;min-width:0}
 .mail-header{padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:14px}
 .mail-subject{font-size:19px;font-weight:780;line-height:1.3}
 .mail-route{font-size:10px;color:var(--muted);margin-top:5px}
@@ -493,20 +491,25 @@ tbody tr:hover{background:#f3f6f7}
 .admin-card{min-height:62px;padding:12px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:inherit;text-decoration:none;text-align:left;display:flex;align-items:center;gap:10px}
 .admin-card:hover{border-color:var(--line-strong);background:var(--surface-2);text-decoration:none}
 .admin-card .icon{width:20px;height:20px;color:var(--red)}
-.admin-card h2{font-size:14px}
-.admin-card p{font-size:10px;color:var(--muted);margin:6px 0}
-.admin-card small{margin-top:auto;color:var(--muted);font-size:9px;font-weight:750}
+/* A line of small print under a cell's main text: a Service health row's area and its mapped reason. */
+.admin-service-area{display:block;color:var(--muted);font-size:11px}
 /* Refined Contacts directory and bounded editors. */
 .form-grid.form-grid--2{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;row-gap:14px}
 .contact-editor{max-width:720px}
 .contact-toolbar{display:grid;grid-template-columns:minmax(220px,380px) 180px auto;align-items:end;justify-content:start;gap:12px;padding:16px;border-bottom:1px solid var(--line)}
 .contact-toolbar .field{margin:0}
 .contact-toolbar .btn{height:36px}
+.panel-head>.contact-toolbar{flex:1 1 auto;padding:0;border-bottom:0}
 .contact-kind-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .contact-kind{display:flex;gap:10px;align-items:center;min-height:42px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius);color:inherit;text-decoration:none}
+/* A fieldset that keeps its grouping and loses the browser frame (v41 A4, A11, A18);
+   --label gives its legend the field-label look. */
+.fieldset-plain{min-width:0;margin:0;padding:0;border:0}
+.fieldset-plain--label>legend{padding:0;margin-bottom:6px;font-size:11px;font-weight:780;color:#45433f}
+[data-report-sending-editor] [data-rs-add]{align-self:flex-start}
 .contact-section{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.contact-section>legend{float:left;width:100%}
 .contact-section h3{margin-bottom:12px}
-.contact-editor>fieldset{min-width:0;margin:0;padding:0;border:0}
 .contact-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 16px}
 textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
 .dialog.dialog--compact{width:480px;max-width:calc(100vw - 32px)}
@@ -531,7 +534,6 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
 .dialog-foot .left{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-right:auto}
 .dialog-foot .left form{display:contents}
 .settings-line{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 16px}
-.settings-line .meta{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
 .account-settings-section{border-top:1px solid var(--line);margin-top:14px;padding-top:14px}
 /* Fixed 48px preset rows, including the inline add row and inline edit row:
    36px compact controls (var(--control)) plus 6px top/bottom padding fit
@@ -598,18 +600,13 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
 .dialog--wide{width:min(100%,820px)}
 .account-settings-dialog{width:min(100%,720px)}
 .account-settings-dialog .dialog-body{gap:10px}
-.account-settings-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+.account-settings-dialog .account-settings-actions{padding-top:0}
 .account-settings-section{border:1px solid var(--line);background:var(--surface-2)}
-.account-settings-section>summary{min-height:42px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;font-weight:650}
-.account-settings-section>summary::-webkit-details-marker{display:none}
-.account-settings-section>summary::marker{content:""}
-.account-settings-section>summary::after{content:"+";font-size:18px;line-height:1}
-.account-settings-section[open]>summary{border-bottom:1px solid var(--line);background:#fff}
-.account-settings-section[open]>summary::after{content:"−"}
 .account-signoff-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .account-signoff-fields .field:last-child{grid-column:1/-1}
 .dialog-head{padding:12px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
 .dialog-head h2{font-size:17px}
+[data-dialog="notifications-dialog"] .dialog-head form{margin-left:auto}
 .dialog-body{padding:20px;min-height:0;overflow:auto}
 .dialog-foot{padding:12px 20px;border-top:1px solid var(--line);background:var(--surface-2);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .dialog-close{min-width:34px;min-height:34px;border:0;background:transparent;display:grid;place-items:center}
@@ -1111,10 +1108,10 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
   :root{--page-pad:12px;--utility-h:96px}
   .primary-nav .nav-link{font-size:12px;padding-inline:7px}
   .primary-nav .nav-link .icon{width:18px;height:18px}
-  .utility-bar{flex-wrap:wrap;padding-block:5px}.utility-search{order:2;flex-basis:100%;max-width:none}.utility-freshness{display:none}
+  .utility-bar{flex-wrap:wrap;padding-block:5px}.utility-search{order:2;flex-basis:100%;max-width:none}
   .page-header{flex-direction:column;align-items:stretch;gap:10px;padding-bottom:10px}.page-actions{width:100%;justify-content:flex-start}.page-actions .btn{flex:none;width:auto}
   .grid-2,.grid-3,.admin-grid,.fact-grid,.definition-list{grid-template-columns:1fr}
-  .account-settings-facts,.account-signoff-fields{grid-template-columns:1fr}
+  .account-signoff-fields{grid-template-columns:1fr}
   .account-signoff-fields .field:last-child{grid-column:auto}
   .fact:nth-child(odd),.definition:nth-child(odd){border-right:0}
   .fact:nth-last-child(2),.definition:nth-last-child(2){border-bottom:1px solid var(--line)}
@@ -1152,7 +1149,7 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
   .btn--primary,.btn--dark{border:2px solid ButtonText}
   .app-rail::before,.brand::after,.record-head::after,.page-title h1::after{display:none}
   .app-rail,.brand,.utility-bar,.record-head,.toast,.utility-search input,.utility-bar .btn,.btn--primary,.btn--dark,.nav-link,.nav-link[aria-current="page"],.rail-health,.avatar,.shortcut-hint,.estimate-totals .estimate-total{background:Canvas;color:CanvasText;text-shadow:none}
-  .brand-copy span,.nav-label,.rail-health,.rail-user small,.utility-freshness,.shortcut-hint,.record-identity,.record-identity b,.estimate-totals .estimate-total dt{color:CanvasText}
+  .brand-copy span,.nav-label,.rail-health,.rail-user small,.shortcut-hint,.record-identity,.record-identity b,.estimate-totals .estimate-total dt{color:CanvasText}
   .app-rail,.utility-bar,.nav-link[aria-current="page"],.rail-health,.utility-search input{border-color:CanvasText}
   .utility-search:focus-within>.icon{color:CanvasText}
   .nav-link .icon,.scope-visual-icon,.admin-nav a .icon{border:1px solid CanvasText;background:Canvas;color:CanvasText}
@@ -1280,30 +1277,15 @@ td time, .tabular { font-variant-numeric: tabular-nums; }
 .form-grid > div, .form-grid > label { min-width: 0; }
 .form-grid > div { display: grid; align-content: start; gap: var(--sp-1); }
 .field-wide { grid-column: 1 / -1; }
+.form-grid label .src-tag { margin-left: 6px; }
+/* Create case (v41 U10): the form is bounded and its actions end it. */
+.create-form { max-width: 960px; }
+.create-form > .cluster { justify-content: flex-end; }
 
 input[readonly], input:disabled, select:disabled, textarea:disabled { border-color: var(--line); background: var(--paper); color: var(--muted); }
 input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; accent-color: var(--ce-red); }
 .icon--lg { width: 1.25rem; height: 1.25rem; }
-.icon--sm, .status-chip .icon { width: .875rem; height: .875rem; }
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: 1px var(--sp-2);
-  border: 1px solid var(--state-line);
-  border-radius: 999px;
-  background: var(--state-bg);
-  color: var(--state-fg);
-  font-size: var(--t-eyebrow);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-/* Tones, not states. The state-to-tone decision belongs in _StatusChip.cshtml,
-   which is the single place a business state chooses its treatment. The four
-   legacy state-named classes remain as aliases for pages not yet migrated. */
-.status-chip--neutral { --state-line: var(--line); --state-bg: var(--paper); --state-fg: var(--muted); }
+.icon--sm { width: .875rem; height: .875rem; }
 
 .status-card--error { --state-line: var(--ce-red); --state-bg: var(--ce-red-tint); }
 
@@ -1406,7 +1388,7 @@ table tfoot th {
 }
 
 @media (forced-colors: active) {
-  .queue-card, .metric-tile, .acceptance-boundary, .status-card, .status-chip { border: 1px solid CanvasText; }
+  .queue-card, .metric-tile, .acceptance-boundary, .status-card { border: 1px solid CanvasText; }
 }
 .validation-summary__heading {
   font-size: 1rem;
@@ -1518,44 +1500,14 @@ table tfoot th {
   .src-tag { border-color: CanvasText; }
 }
 
-/* An action that needs a reason confirms in the row it belongs to, rather than
-   making the operator manage a mode before they can take it. */
-.row-confirm { display: flex; align-items: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
-.row-confirm label { font-size: var(--t-eyebrow); font-weight: 600; }
-.row-confirm input { min-width: 12rem; }
 details > summary.btn { display: inline-flex; list-style: none; }
 details > summary.btn::-webkit-details-marker { display: none; }
 details > summary.btn::marker { content: ""; }
 
-/* UI-10: the retained-mail table remains the primary workspace. The preview is
-   a read-only adjacent evidence region, then an ordinary ordered section when
-   constrained width or browser zoom leaves no honest room for two panes. */
-.mail-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
-  gap: var(--sp-6);
-  align-items: start;
-}
-
-.mail-workspace > .table-wrap { min-width: 0; }
-
-.mail-preview h2 { margin: 0 0 var(--sp-4); font-size: var(--t-h3); }
-.mail-preview__status { margin: 0; color: var(--muted); }
-.mail-preview__facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); margin: 0; }
-.mail-preview__facts > div { min-width: 0; }
-.mail-preview__facts dt { color: var(--muted); font-size: var(--t-sm); font-weight: 700; }
-.mail-preview__facts dd { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
-
-@media (max-width: 1279px) {
-  .mail-workspace { grid-template-columns: minmax(0, 1fr); }
-  .mail-preview { order: 2; }
-}
-
-
 /* A retained body is flattened text. It is rendered as text and wraps like
-   text; nothing here interprets markup. The pre form is the quick preview and
-   Deleted-items rendering; the message page's div form renders paragraphs and
-   must not inherit pre-wrap. */
+   text; nothing here interprets markup. The pre form is the Deleted-items
+   rendering; the message page's div form renders paragraphs and must not
+   inherit pre-wrap. */
 pre.mail-body {
   margin: var(--sp-4) 0 0;
   font: inherit;
@@ -1650,10 +1602,12 @@ th a:hover { text-decoration: underline; }
 
 /* The result table has only the facts needed to identify a case. The selected
    case retains its wider preview beside it, so normal desktop use does not
-   require an inner horizontal scrollbar. */
-.case-search-layout { grid-template-columns: minmax(0, 1fr) minmax(320px, .86fr); }
+   require an inner horizontal scrollbar. The results take the wider share for
+   their Type and Due columns, and a Case/PO stays on one line (v41 W3). */
+.case-search-layout { grid-template-columns: minmax(0, 1.75fr) minmax(360px, 1fr); }
 .case-search-layout .table-wrap table { min-width: 0; table-layout: fixed; }
 .case-search-layout th, .case-search-layout td { padding: var(--sp-2) var(--sp-3); }
+.case-search-layout .table-wrap td:first-child, .case-search-layout .table-wrap td:first-child * { white-space: nowrap; }
 
 .compact-log-filter {
   display: grid;

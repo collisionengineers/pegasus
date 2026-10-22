@@ -3,7 +3,6 @@
    UploadStatus only. */
 
 .up-head { margin-bottom: 20px; }
-.up-subtitle { margin: 5px 0 0; font-size: 12px; color: var(--muted); }
 .up-meta { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 .up-eyebrow { margin: 0 0 9px; font-size: 10px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .up-explainer { margin: 7px 0 0; color: var(--muted); line-height: 1.65; font-size: 12px; }
@@ -13,9 +12,9 @@
 .up-surface .btn { box-shadow: none; font-weight: 600; }
 .up-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 355px; align-items: start; }
 
-/* The decision, right; the inspector, left. */
-.up-decision { grid-column: 2; grid-row: 1; padding: 24px; min-width: 0; border-left: 1px solid var(--line); }
-.up-inspector { grid-column: 1; grid-row: 1; min-width: 0; background: var(--surface-2); }
+/* The inspector, left, comes first in the markup; the decision, right, follows it. */
+.up-decision { padding: 24px; min-width: 0; border-left: 1px solid var(--line); }
+.up-inspector { min-width: 0; background: var(--surface-2); }
 .up-inspect-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--muted); }
 .up-inspect-top strong { font-size: 12px; color: var(--ink); font-weight: 600; }
 .up-inspect-media { background: var(--nav); padding: 20px; display: flex; align-items: center; justify-content: center; min-height: 280px; }
@@ -129,10 +128,8 @@
 .up-case-person { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; font-weight: 550; }
 .up-case-person span + span { border-left: 1px solid var(--line); padding-left: 8px; }
 .up-case-detail { display: block; font-size: 11.5px; color: var(--muted); margin-top: 7px; line-height: 1.6; }
-.up-choice-hint { margin: 0; font-size: 11.5px; color: var(--muted); }
-/* The Review action appears once a Case is chosen; until then the hint holds its place. */
+/* The Review action appears once a Case is chosen. */
 .up-decision:not(:has(.up-case input:checked)) .up-review { display: none; }
-.up-decision:has(.up-case input:checked) .up-choice-hint { display: none; }
 .up-decision:not(:has(.up-case)) .up-decision-form .up-action-slot { display: none; }
 .up-search { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 18px; }
 .up-search > summary { font-size: 12px; cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; min-height: 24px; font-weight: 550; }
@@ -147,7 +144,8 @@
 .up-search-results .up-case-ref { font-size: 14px; }
 .up-search-note { margin: 0; font-size: 11.5px; color: var(--muted); padding: 12px 0; line-height: 1.7; }
 .up-search-note .btn { margin-top: 8px; }
-.up-proposal .up-explainer { margin-top: 6px; }
+.up-proposal { margin-top: 22px; }
+.up-proposal > .btn { width: 100%; }
 .up-text-link { display: inline-flex; align-items: center; gap: 5px; border: 0; padding: 0; background: none; color: var(--blue); font-weight: 600; font-size: 12px; text-align: left; min-height: 24px; text-decoration: none; }
 .up-text-link:hover { text-decoration: underline; }
 .up-text-link .icon { width: 13px; height: 13px; }
@@ -191,7 +189,7 @@
 
 @media (max-width: 900px) {
     .up-workspace, .up-workspace.is-choosing { display: flex; flex-direction: column; }
-    .up-decision { width: 100%; border: 0; }
+    .up-decision { order: -1; width: 100%; border: 0; }
     .up-inspector, .up-workspace.is-choosing > .up-evidence { width: 100%; border-left: 0; border-top: 1px solid var(--line); }
     .up-select { width: 100%; padding: 24px; }
     .up-meta { font-size: 10px; }

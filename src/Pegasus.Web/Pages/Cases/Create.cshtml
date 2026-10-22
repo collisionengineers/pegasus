@@ -22,7 +22,7 @@
 @{
     void Row(string label, string? value, string fieldName)
     {
-        var extracted = Model.DraftFields.ProvenanceWord(fieldName) == "Extracted";
+        var extracted = Model.DraftFields.IsExtracted(fieldName);
         var recorded = !string.IsNullOrWhiteSpace(value);
         <dl class="definition">
             <dt>@label</dt>
@@ -46,7 +46,7 @@
         </div>
     </header>
 
-    <form method="post" asp-page-handler="Create" class="stack">
+    <form method="post" asp-page-handler="Create" class="stack create-form">
         <input asp-for="IsManual" type="hidden" />
         <input asp-for="OperationId" type="hidden" />
         <partial name="Shared/_ErrorSummary" />
@@ -54,7 +54,7 @@
         <section class="panel" aria-labelledby="case-title">
             <div class="panel-head"><h2 id="case-title">Case</h2></div>
             <div class="panel-body stack">
-                <div class="grid grid-2">
+                <div class="grid grid-3">
                     <div class="field">
                         <label class="req" asp-for="PrincipalCode">Principal code</label>
                         <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" required />
@@ -105,7 +105,7 @@
         <section class="panel" aria-labelledby="vehicle-title">
             <div class="panel-head"><h2 id="vehicle-title">Vehicle and inspection</h2></div>
             <div class="panel-body stack">
-                <div class="grid grid-2">
+                <div class="grid grid-3">
                     <div class="field" data-triage-hidden><label asp-for="VehicleMake">Make</label><input asp-for="VehicleMake" maxlength="100" /></div>
                     <div class="field" data-triage-hidden><label asp-for="VehicleModel">Model</label><input asp-for="VehicleModel" maxlength="100" /></div>
                     <div class="field" data-triage-hidden><label asp-for="VehicleMileage">Mileage</label><input asp-for="VehicleMileage" type="number" min="0" /></div>
@@ -122,8 +122,8 @@
         </section>
 
         <div class="cluster">
-            <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--primary">Create case</button>
             <a class="btn" asp-page="/Cases/Index">Cancel</a>
+            <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--primary">Create case</button>
         </div>
     </form>
 }
@@ -188,7 +188,7 @@ else
 }
 else
 {
-    <form method="post" asp-page-handler="Create" class="stack">
+    <form method="post" asp-page-handler="Create" class="stack create-form">
         <input asp-for="ReceiptId" type="hidden" />
         <input asp-for="OperationId" type="hidden" />
         <input asp-for="ExpectedReceiptVersion" type="hidden" />
@@ -348,14 +348,14 @@ else
                         <span asp-validation-for="CaseType" class="field-error"></span>
                     </div>
                 </div>
-
-                @* One committed action, and the way out beside it. *@
-                <div class="cluster">
-                    <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--primary">Accept and create case</button>
-                    <a class="btn" asp-page="/Cases/Index">Cancel</a>
-                </div>
             </div>
         </section>
+
+        @* One committed action at the form's end, and the way out beside it. *@
+        <div class="cluster">
+            <a class="btn" asp-page="/Cases/Index">Cancel</a>
+            <button type="submit" data-busy-label="@OperatorLabels.Busy.Creating" class="btn btn--primary">Accept and create case</button>
+        </div>
     </form>
 }
 }

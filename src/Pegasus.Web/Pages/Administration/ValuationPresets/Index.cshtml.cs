@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
-using Pegasus.Web.Mcp;
 
 namespace Pegasus.Web.Pages.Administration.ValuationPresets;
 
@@ -20,7 +18,6 @@ public sealed class IndexModel(
 {
     /// <summary>Every preset, enabled and disabled, in the Core query's order.</summary>
     public IReadOnlyList<ValuationPreset> Presets { get; private set; } = [];
-    public bool AutomationComposed { get; private set; }
 
     public Guid CreatePresetId { get; private set; } = Guid.NewGuid();
     public string CreateOperationKey { get; private set; } = NewOperationKey();
@@ -104,7 +101,6 @@ public sealed class IndexModel(
     public Task<IActionResult> OnPostRemoveAsync(
         Guid presetId,
         long expectedVersion,
-        string? reason,
         string? operationKey,
         CancellationToken cancellationToken)
     {
@@ -113,7 +109,7 @@ public sealed class IndexModel(
             {
                 if (!RequireOperationKey(operationKey) | !RequirePreset(presetId)) return null;
                 await removeValuationPreset.ExecuteAsync(
-                    new(presetId, expectedVersion, actor, operationKey!, reason),
+                    new(presetId, expectedVersion, actor, operationKey!, Reason: null),
                     cancellationToken);
                 return ValuationPresetLabels.Removed;
             },
@@ -200,7 +196,6 @@ public sealed class IndexModel(
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        AutomationComposed = HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         Presets = await listValuationPresets.ExecuteAsync(actor, cancellationToken);
     }
 }
@@ -208,9 +203,9 @@ public sealed class IndexModel(
 internal static class ValuationPresetLabels
 {
     public const string Title = "Valuation presets";
+    public const string Presets = "Presets";
     public const string PresetLabel = "Label";
     public const string Amount = "Amount";
-    public const string State = "State";
     public const string Save = "Save";
     public const string Enabled = "Enabled";
     public const string Remove = "Remove";

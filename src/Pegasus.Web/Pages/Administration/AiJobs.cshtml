@@ -2,11 +2,10 @@
 @using Pegasus.Core.AiWork
 @model Pegasus.Web.Pages.Administration.AiJobsModel
 @{
-    ViewData["Title"] = "AI jobs";
-    ViewData["Eyebrow"] = "Administration";
+    ViewData["Title"] = OperatorLabels.Admin.AiJobs;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "ai-jobs";
     var counts = Model.Result.Counts;
-    var channel = Model.Result.SendToAiSwitchEnabled ? "Active" : "Stopped";
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
@@ -17,17 +16,29 @@
     <div class="stack">
         @if (Model.StatusMessage is { } message)
         {
-            <div class="notice" role="status"><span>@message</span></div>
-        }
-        <section class="panel" aria-labelledby="ai-jobs-title">
-            <div class="panel-head">
-                <h2 id="ai-jobs-title">AI jobs</h2>
-                <span class="meta" data-ai-jobs-counts>@counts.Active active · @counts.Failed failed · @channel</span>
+            <div class="notice notice--success" role="status">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
+                <span>@message</span>
             </div>
+        }
+        @if (Model.ErrorMessage is { } errorMessage)
+        {
+            <div class="notice notice--danger" role="alert"><span>@errorMessage</span></div>
+        }
+        <section class="panel" aria-label="@OperatorLabels.Admin.AiJobs">
+            <div class="panel-head">
+                <span class="meta" data-ai-jobs-counts>@counts.Active active · @counts.Failed failed · @OperatorLabels.AiJobs.SendToAiState(Model.Result.SendToAiSwitchEnabled)</span>
+            </div>
+            @if (Model.Result.Jobs.Count == 0)
+            {
+                <div class="empty"><p>@OperatorLabels.AiJobs.None</p></div>
+            }
+            else
+            {
             <div class="table-wrap no-border">
                 <table class="table table--compact" data-admin-ai-jobs>
-                    <caption class="sr-only">AI jobs</caption>
-                    <thead><tr><th scope="col">Job</th><th scope="col">Subject</th><th scope="col">Created</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
+                    <caption class="sr-only">@OperatorLabels.Admin.AiJobs</caption>
+                    <thead><tr><th scope="col">Job</th><th scope="col">Subject</th><th scope="col">Created</th><th scope="col">State</th><th scope="col" class="right">Action</th></tr></thead>
                     <tbody>
                     @foreach (var job in Model.Result.Jobs)
                     {
@@ -39,7 +50,20 @@
                                     <small class="admin-job-detail">@OperatorLabels.AiJobs.Instruction(job)</small>
                                 }
                             </td>
-                            <td class="mono">@(job.SubjectKind == AiJobSubjectKind.Queue ? OperatorLabels.AiJobs.QueueRecord : job.SubjectReference)</td>
+                            <td class="mono">
+                                @if (job.SubjectKind == AiJobSubjectKind.Queue)
+                                {
+                                    @OperatorLabels.AiJobs.QueueRecord
+                                }
+                                else if (job.SubjectKind == AiJobSubjectKind.Case && job.SubjectId is { } caseId)
+                                {
+                                    <a asp-page="/Cases/Details" asp-route-id="@caseId">@job.SubjectReference</a>
+                                }
+                                else
+                                {
+                                    @job.SubjectReference
+                                }
+                            </td>
                             <td class="nowrap">@OperatorLabels.OfficeTime(job.CreatedAtUtc, "")</td>
                             <td><partial name="Shared/_StatusChip"
                                          model="@OperatorLabels.AiJobs.State(job.State)"
@@ -47,18 +71,13 @@
                             <td class="row-actions">
                                 @if (!AiJobStates.IsTerminal(job.State))
                                 {
-                                    <details>
-                                        <summary class="btn btn--small btn--danger">Stop</summary>
-                                        <form method="post" asp-page-handler="Stop" class="row-confirm">
-                                            <input type="hidden" name="jobId" value="@job.JobId" />
-                                            <input type="hidden" name="expectedVersion" value="@job.Version" />
-                                            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                                            <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
-                                            <label for="stop-reason-@job.JobId">Reason</label>
-                                            <input id="stop-reason-@job.JobId" name="reason" required maxlength="500" />
-                                            <button class="btn btn--small btn--danger" type="submit" data-busy-label="@OperatorLabels.Busy.Stopping">Confirm stop</button>
-                                        </form>
-                                    </details>
+                                    <form method="post" asp-page-handler="Stop">
+                                        <input type="hidden" name="jobId" value="@job.JobId" />
+                                        <input type="hidden" name="expectedVersion" value="@job.Version" />
+                                        <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                                        <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
+                                        <button class="btn btn--small btn--danger" type="submit" data-busy-label="@OperatorLabels.Busy.Stopping">@OperatorLabels.AiJobs.Stop</button>
+                                    </form>
                                 }
                                 else
                                 {
@@ -67,13 +86,10 @@
                             </td>
                         </tr>
                     }
-                    @if (Model.Result.Jobs.Count == 0)
-                    {
-                        <tr><td colspan="5" class="muted">No AI jobs are recorded.</td></tr>
-                    }
                     </tbody>
                 </table>
             </div>
+            }
             @if (Model.CurrentPage > 1 || Model.Result.HasMore)
             {
                 <div class="panel-foot">

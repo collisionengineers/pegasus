@@ -7,7 +7,6 @@
     ViewData["Title"] = ValuationPresetLabels.Title;
     ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "valuation-presets";
-    ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
     var labelLimit = ValuationCalculationPolicy.MaximumAdditionLabelLength;
 }
 
@@ -17,15 +16,13 @@
     <partial name="Shared/_AdminNav" />
     <div class="stack">
         <partial name="Shared/_ErrorSummary" />
-        @if (TempData["Confirmation"] is string confirmation)
-        {
-            <div class="notice notice--success" role="status">@confirmation</div>
-        }
 
         <section class="panel" aria-labelledby="valuation-presets-title">
             <div class="panel-head">
-                <h2 id="valuation-presets-title">Fixed valuation additions</h2>
-                <span class="meta">@Model.Presets.Count preset@(Model.Presets.Count == 1 ? string.Empty : "s")</span>
+                <div>
+                    <h2 id="valuation-presets-title">@ValuationPresetLabels.Presets</h2>
+                    <p class="panel-title-meta">@Model.Presets.Count preset@(Model.Presets.Count == 1 ? string.Empty : "s")</p>
+                </div>
             </div>
             <div class="table-wrap no-border">
                 <table class="table table--compact preset-table">
@@ -34,7 +31,7 @@
                         <tr>
                             <th scope="col">@ValuationPresetLabels.PresetLabel</th>
                             <th scope="col" class="num">@ValuationPresetLabels.Amount</th>
-                            <th scope="col">@ValuationPresetLabels.State</th>
+                            <th scope="col">@ValuationPresetLabels.Enabled</th>
                             <th scope="col" class="preset-actions"><span class="sr-only">Actions</span></th>
                         </tr>
                     </thead>
@@ -61,7 +58,7 @@
                             </td>
                             <td>
                                 <label class="sr-only" for="preset-amount-@presetId">@ValuationPresetLabels.Amount</label>
-                                <input id="preset-amount-@presetId" class="input-money" name="amount" type="number" inputmode="decimal" form="@saveFormId" min="0" step="0.01" required value="@rowAmount" />
+                                <div class="input-money"><input id="preset-amount-@presetId" name="amount" type="number" inputmode="decimal" form="@saveFormId" min="0" step="0.01" required value="@rowAmount" /></div>
                             </td>
                             <td>
                                 <label class="choice">
@@ -87,14 +84,14 @@
                             </td>
                         </tr>
                     }
-                    <tr class="preset-row--add">
+                    <tr>
                         <td>
                             <label class="sr-only" for="create-label">@ValuationPresetLabels.PresetLabel</label>
                             <input id="create-label" class="input" name="label" form="preset-create" required maxlength="@labelLimit" value="@Model.CreateLabel" />
                         </td>
                         <td>
                             <label class="sr-only" for="create-amount">@ValuationPresetLabels.Amount</label>
-                            <input id="create-amount" class="input-money" name="amount" type="number" inputmode="decimal" form="preset-create" min="0" step="0.01" required value="@Model.CreateAmountInput" />
+                            <div class="input-money"><input id="create-amount" name="amount" type="number" inputmode="decimal" form="preset-create" min="0" step="0.01" required value="@Model.CreateAmountInput" /></div>
                         </td>
                         <td>
                             <label class="choice">

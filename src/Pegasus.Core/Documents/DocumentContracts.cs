@@ -93,10 +93,18 @@ public enum DocumentSemanticRole
     AuditReport,
 
     /// <summary>
-    /// Market research findings produced outside Pegasus and filed against the
-    /// Case: evidence beside the valuation, never read as a value.
+    /// A repair estimate: the estimate import's stored file, in any format, and
+    /// a Glass's session's XML export, calculation sheet and rejected export
+    /// (operator, 22 October 2026).
     /// </summary>
-    MarketResearch,
+    Estimate,
+
+    /// <summary>
+    /// A guide valuation report, or market research findings produced outside
+    /// Pegasus, filed against the Case: evidence beside the valuation, never
+    /// read as a value (operator, 22 October 2026).
+    /// </summary>
+    ValuationEvidence,
     Other
 }
 

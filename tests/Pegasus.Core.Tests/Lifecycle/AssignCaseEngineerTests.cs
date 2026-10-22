@@ -9,8 +9,14 @@ public sealed class AssignCaseEngineerTests
 {
     private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly Guid EngineerId = Guid.NewGuid();
+    private static readonly Guid ActorStaffId = Guid.NewGuid();
     private static readonly ActionActor Actor =
-        ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        ActionActor.Staff(ActorStaffId, [StaffRole.User]);
+    private static readonly Dictionary<Guid, string> Names = new()
+    {
+        [EngineerId] = "ed.mawdsley",
+        [ActorStaffId] = "alex",
+    };
 
     [Theory]
     [InlineData(false, false, "does not exist")]
@@ -63,7 +69,9 @@ public sealed class AssignCaseEngineerTests
 
         var assigned = await sut.ExecuteAsync(request, default);
         eligibility.Current = new(true, false);
-        var replay = await sut.ExecuteAsync(request, default);
+        // The replay's own reason is replaced too, so it composes the same
+        // request the first call committed and replays rather than conflicts.
+        var replay = await sut.ExecuteAsync(request with { Reason = "A different reason" }, default);
 
         Assert.Equal(EngineerId, assigned.AssignedEngineerId);
         Assert.Equal(EngineerId, assigned.SignOffEngineerId);
@@ -72,7 +80,118 @@ public sealed class AssignCaseEngineerTests
         Assert.Equal(assigned, replay);
         Assert.Equal(1, eligibility.CallCount);
         Assert.Equal(2, store.AssignmentCount);
+        Assert.Equal("Assigned to ed.mawdsley", store.AppliedRequest!.Reason);
     }
+
+    /// <summary>
+    /// #1213 rulings 1 and 3 (operator, 15 October 2026): a Review or a With
+    /// Engineer Case is handed to a named Engineer with no typed reason, and
+    /// Core records who it went to in place of the caller's words.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    public async Task ANamedEngineerIsAssignedFromReviewOrWithEngineerAndHistoryNamesThem(CaseLifecycleState from)
+    {
+        var store = new RecordingWorkflowStore(from);
+        var eligibility = new StubEligibility(new(true, true));
+        var sut = Assign(store, eligibility);
+
+        var assigned = await sut.ExecuteAsync(CreateAssignmentRequest() with { Reason = string.Empty }, default);
+
+        Assert.Equal(EngineerId, assigned.AssignedEngineerId);
+        Assert.Equal(CaseLifecycleState.ReportPreparation, assigned.State);
+        Assert.Equal(1, eligibility.CallCount);
+        Assert.Equal(EngineerId, eligibility.LastStaffId);
+        Assert.Equal("Assigned to ed.mawdsley", store.AppliedRequest!.Reason);
+    }
+
+    /// <summary>Take is the signed-in person assigning themself (v41 W8, K9).</summary>
+    [Fact]
+    public async Task TakeAssignsTheActorAndHistoryReadsTakenBy()
+    {
+        var store = new RecordingWorkflowStore(CaseLifecycleState.ReportPreparation);
+        var eligibility = new StubEligibility(new(true, true));
+        var sut = Assign(store, eligibility);
+
+        var taken = await sut.ExecuteAsync(
+            CreateAssignmentRequest() with { EngineerId = ActorStaffId, Reason = "Assign Engineer" },
+            default);
+
+        Assert.Equal(ActorStaffId, taken.AssignedEngineerId);
+        Assert.Equal(ActorStaffId, eligibility.LastStaffId);
+        Assert.Equal("Taken by alex", store.AppliedRequest!.Reason);
+    }
+
+    /// <summary>
+    /// Unassigned is a target (#1213): no account to check, the Case lands
+    /// With Engineer with no Engineer, and the line has no full stop (R161 a).
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    public async Task UnassignedChecksNoAccountAndHistoryReadsSetToUnassigned(CaseLifecycleState from)
+    {
+        var defaultSignOffEngineerId = Guid.NewGuid();
+        var store = new RecordingWorkflowStore(from);
+        var eligibility = new StubEligibility(new(true, true));
+        var sut = new AssignCaseEngineer(
+            store,
+            new FixedWorkflowConfiguration(),
+            eligibility,
+            new StubStaffAccounts([Profile(defaultSignOffEngineerId, isDefault: true)]));
+
+        var unassigned = await sut.ExecuteAsync(
+            CreateAssignmentRequest() with { EngineerId = null, Reason = string.Empty },
+            default);
+
+        Assert.Null(unassigned.AssignedEngineerId);
+        Assert.Equal(defaultSignOffEngineerId, unassigned.SignOffEngineerId);
+        Assert.Equal(CaseLifecycleState.ReportPreparation, unassigned.State);
+        Assert.Equal(0, eligibility.CallCount);
+        Assert.Equal("Set to Unassigned", store.AppliedRequest!.Reason);
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady)]
+    [InlineData(CaseLifecycleState.Held)]
+    [InlineData(CaseLifecycleState.ReportSent)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled)]
+    public async Task EveryOtherStateRefusesTheHandoff(CaseLifecycleState from)
+    {
+        var store = new RecordingWorkflowStore(from);
+        var eligibility = new StubEligibility(new(true, true));
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => Assign(store, eligibility).ExecuteAsync(CreateAssignmentRequest(), default));
+
+        Assert.Equal(
+            "A staff member can be assigned only while the case is in Review or With Engineer.",
+            refusal.Message);
+        Assert.Equal(0, store.AssignmentCount);
+        Assert.Equal(0, eligibility.CallCount);
+    }
+
+    [Fact]
+    public async Task AnEmptyEngineerIdentifierIsRefusedAndAnEmptyReasonIsNot()
+    {
+        var store = new RecordingWorkflowStore();
+        var sut = Assign(store, new StubEligibility(new(true, true)));
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => sut.ExecuteAsync(CreateAssignmentRequest() with { EngineerId = Guid.Empty }, default));
+        var assigned = await sut.ExecuteAsync(CreateAssignmentRequest() with { Reason = string.Empty }, default);
+
+        Assert.Equal(EngineerId, assigned.AssignedEngineerId);
+        Assert.Equal(1, store.AssignmentCount);
+    }
+
+    private static AssignCaseEngineer Assign(RecordingWorkflowStore store, StubEligibility eligibility) =>
+        new(
+            store,
+            new FixedWorkflowConfiguration(),
+            eligibility,
+            new StubStaffAccounts([Profile(EngineerId, isDefault: false)]));
 
     [Fact]
     public async Task UnflaggedAssignedEngineerDefaultsToAdministratorDesignatedSignOffEngineer()
@@ -167,26 +286,30 @@ public sealed class AssignCaseEngineerTests
 
         public int CallCount { get; private set; }
 
+        public Guid? LastStaffId { get; private set; }
+
         public Task<CaseEngineerEligibility> GetAsync(
             Guid staffId,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Assert.Equal(EngineerId, staffId);
             CallCount++;
+            LastStaffId = staffId;
             return Task.FromResult(Current);
         }
     }
 
-    private sealed class RecordingWorkflowStore : ICaseWorkflowStore
+    private sealed class RecordingWorkflowStore(CaseLifecycleState state = CaseLifecycleState.Review)
+        : ICaseWorkflowStore
     {
         private string? _appliedOperationKey;
-        private AssignCaseEngineerRequest? _appliedRequest;
+
+        public AssignCaseEngineerRequest? AppliedRequest { get; private set; }
 
         public CaseWorkflowRecord Current { get; private set; } = new(
             CaseId,
             new(CaseId, "QDOS", 2026, 1, "QDOS260001"),
-            CaseLifecycleState.Review,
+            state,
             null,
             null,
             null,
@@ -233,7 +356,7 @@ public sealed class AssignCaseEngineerTests
             AssignmentCount++;
             if (_appliedOperationKey is not null)
             {
-                if (_appliedRequest != request)
+                if (AppliedRequest != request)
                 {
                     throw new InvalidOperationException("The operation key was reused for different input.");
                 }
@@ -242,7 +365,7 @@ public sealed class AssignCaseEngineerTests
             }
 
             _appliedOperationKey = request.OperationKey;
-            _appliedRequest = request;
+            AppliedRequest = request;
             Current = Current with
             {
                 AssignedEngineerId = request.EngineerId,
@@ -365,8 +488,16 @@ public sealed class AssignCaseEngineerTests
             Guid staffId,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        // The composed history reason names the Engineer through the one
+        // name read every history reader uses.
         public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
             IReadOnlyCollection<Guid> staffIds,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
+            [
+                .. staffIds
+                    .Where(Names.ContainsKey)
+                    .Select(id => new StaffAccountSummary(id, Names[id], true, false, StaffRole.Engineer))
+            ]);
     }
 }

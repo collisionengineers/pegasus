@@ -41,7 +41,10 @@ else
             var version = entry.Version;
             var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
             var viewable = mayRead && Pegasus.Web.Pages.Cases.DetailsModel.IsViewable(version.MediaType);
-            var isMarketResearch = occurrence.SemanticRole == DocumentSemanticRole.MarketResearch;
+            // Valuation Evidence the Automation Actor filed, such as market
+            // research findings, wears the AI tint (operator, 22 October 2026).
+            var isAiValuationEvidence = occurrence.SemanticRole == DocumentSemanticRole.ValuationEvidence
+                && occurrence.Source == DocumentSource.Automation;
             var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
                 || occurrence.Source == DocumentSource.ExternalCorrespondence;
             <div class="doc-row" data-document-row="@occurrence.Id">
@@ -51,7 +54,7 @@ else
                     <small>@OperatorLabels.DocumentOrigin(occurrence.Source) · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc) · @OperatorLabels.FileSize(version.ContentLength)</small>
                 </div>
                 <span class="doc-row-tags">
-                    <span class="src-tag @(isMarketResearch ? "src-tag--ai" : null)">@OperatorLabels.DocumentRole(occurrence.SemanticRole)</span>
+                    <span class="src-tag @(isAiValuationEvidence ? "src-tag--ai" : null)">@OperatorLabels.DocumentRole(occurrence.SemanticRole)</span>
                     @if (!mayRead)
                     {
                         <span class="status @(version.CustodyStatus == DocumentCustodyStatus.Failed ? "status--red" : "status--amber") status--plain">@(version.CustodyStatus == DocumentCustodyStatus.Failed ? FilesLabels.StorageNotReady : OperatorLabels.CustodyState(version.CustodyStatus))</span>

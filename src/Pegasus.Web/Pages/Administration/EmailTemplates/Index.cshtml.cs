@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
-using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 using Labels = Pegasus.Web.Presentation.OperatorLabels.EmailTemplates;
 
@@ -24,8 +22,6 @@ public sealed class IndexModel(
     private IReadOnlyDictionary<Guid, string> _staffNames = new Dictionary<Guid, string>();
 
     public IReadOnlyList<EmailTemplate> Templates { get; private set; } = [];
-
-    public bool AutomationComposed { get; private set; }
 
     /// <summary>The template whose save was refused; its dialog reopens with what was posted.</summary>
     public EmailTemplatePurpose? RefusedPurpose { get; private set; }
@@ -120,7 +116,6 @@ public sealed class IndexModel(
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        AutomationComposed = HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         var templates = new List<EmailTemplate>();
         foreach (var purpose in Enum.GetValues<EmailTemplatePurpose>())
         {

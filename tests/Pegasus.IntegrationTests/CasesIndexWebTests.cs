@@ -236,7 +236,7 @@ public sealed class CasesIndexWebTests
                  {
                      ("search-query", "needle"), ("search-registration", "AB12CDE"),
                      ("search-claimant", "Claimant"), ("search-claim-number", "CLM42"),
-                     ("search-principal", "QDOS"), ("search-from-date", "2031-04-01"),
+                     ("search-from-date", "2031-04-01"),
                      ("search-to-date", "2031-05-31"), ("search-origin", "Email")
                  })
         {
@@ -244,6 +244,11 @@ public sealed class CasesIndexWebTests
                 $"id=\"{field}\"[^>]*value=\"{Regex.Escape(value)}\"",
                 html);
         }
+
+        // Principal and Engineer are selects (v41 W2): the value filtering
+        // stays listed, selected, when the lists do not offer it.
+        Assert.Contains("<option value=\"QDOS\" selected=\"selected\">QDOS</option>", html, StringComparison.Ordinal);
+        Assert.Contains($"<option value=\"{engineerId:D}\" selected=\"selected\">{engineerId:D}</option>", html, StringComparison.Ordinal);
 
         // The ported page: selectable rows, a server-rendered Selected Case
         // pane, and the Closed chip on the closed result (operator, 15 October
@@ -395,17 +400,101 @@ public sealed class CasesIndexWebTests
 
         Assert.Contains("Selected Case", html, StringComparison.Ordinal);
         Assert.Contains("Inspection", html, StringComparison.Ordinal);
-        Assert.Contains("QDOS3100043 &#xB7; AB12CDE", html, StringComparison.Ordinal);
+        // The Case/PO is the span the preview's Copy Case/PO reads (v41 W3).
+        Assert.Contains("<span id=\"selected-case-po\">QDOS3100043</span> · AB12CDE", html, StringComparison.Ordinal);
         Assert.Contains("Rear-end impact at a roundabout", html, StringComparison.Ordinal);
         // The circumstances are read once, for the selected Case alone.
         Assert.Equal(search.ClosedCaseId, Assert.Single(search.Circumstances.Reads));
-        Assert.Contains("Our ref", html, StringComparison.Ordinal);
-        Assert.Contains("CLM43", html, StringComparison.Ordinal);
+        Assert.Contains($"<dt>{Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.ClaimReference}</dt><dd>CLM43</dd>", html, StringComparison.Ordinal);
         Assert.Contains("Unassigned", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{search.ClosedCaseId:D}\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Copy Case/PO", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-copy-reference", html, StringComparison.Ordinal);
+        // Copy Case/PO ships hidden and site.js reveals it (v41 W3).
+        Assert.Contains(
+            $"<button type=\"button\" class=\"btn\" data-copy-target=\"selected-case-po\" hidden>{Pegasus.Web.Presentation.OperatorLabels.Search.CopyCaseReference}</button>",
+            html,
+            StringComparison.Ordinal);
         Assert.Contains("name=\"selected\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Principal and Engineer are selects of everything the filters can find,
+    /// not of what one page of results shows, and State reads Case stage
+    /// (v41 W2, signed off 19 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task PrincipalAndEngineerAreSelectsOfEveryChoiceAndStateReadsCaseStage()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases();
+        var images = new RecordingImageIntakeQueries { ActivePrincipalCodes = ["QDOS", "ZEN"] };
+        var picked = new CaseEngineerChoice(Guid.NewGuid(), "e.mawdsley");
+        using var factory = Configure(
+            baseFactory, search, images, new FixedEngineerChoices(picked, new CaseEngineerChoice(Guid.NewGuid(), "r.okafor")));
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync($"/Search?query=needle&principal=ZEN&engineerId={picked.StaffId:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var principal = Regex.Match(html, "<select id=\"search-principal\"[^>]*>.*?</select>", RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(principal.Success, "The Principal filter is not a select.");
+        Assert.Equal(
+            [string.Empty, "QDOS", "ZEN"],
+            Regex.Matches(principal.Value, "<option value=\"(?<code>[^\"]*)\"").Select(match => match.Groups["code"].Value).ToArray());
+        Assert.Contains("<option value=\"ZEN\" selected=\"selected\">ZEN</option>", principal.Value, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.Search.AllPrincipals,
+            principal.Value,
+            StringComparison.Ordinal);
+
+        var engineer = Regex.Match(html, "<select id=\"search-engineer\"[^>]*>.*?</select>", RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(engineer.Success, "The Engineer filter is not a select.");
+        Assert.Equal(3, Regex.Count(engineer.Value, "<option "));
+        Assert.Contains($"<option value=\"{picked.StaffId:D}\" selected=\"selected\">e.mawdsley</option>", engineer.Value, StringComparison.Ordinal);
+        Assert.Contains("r.okafor</option>", engineer.Value, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.Search.AllEngineers,
+            engineer.Value,
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            $"<label for=\"search-state\">{Pegasus.Web.Presentation.OperatorLabels.Search.CaseStage}</label>",
+            html,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Results gain Type, before State, and Due, after it, read from the
+    /// projection the page already holds (v41 W3).
+    /// </summary>
+    [Fact]
+    public async Task ResultsGainTypeBeforeStateAndDueAfterIt()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases();
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync("/Search?query=needle");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var heads = Regex.Matches(html, "<th scope=\"col\">(?<head>[^<]*)</th>", RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["head"].Value)
+            .ToArray();
+        string[] expected =
+        [
+            "Case/PO", "Vehicle", "Claimant", "Principal",
+            Pegasus.Web.Presentation.OperatorLabels.Search.TypeColumn,
+            "State",
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.Due,
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.Editing
+        ];
+        Assert.Equal(expected, heads.Skip(Array.IndexOf(heads, "Case/PO")).Take(expected.Length).ToArray());
+        Assert.Contains(
+            $"<td>{Pegasus.Web.Presentation.OperatorLabels.CaseTypeName(CaseType.Inspection)}</td>",
+            html,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -507,8 +596,8 @@ public sealed class CasesIndexWebTests
         Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=inspection\">QDOS3100044</a>", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=audit\">a.QDOS3100044</a>", html, StringComparison.Ordinal);
         Assert.Equal(2, Regex.Count(html, $"<tr[^>]*data-select-id=\"{search.AuditCaseId:D}\""));
-        Assert.Contains("<h2>QDOS3100044 &#xB7; AB12CDE</h2>", html, StringComparison.Ordinal);
-        Assert.Contains("<h2>a.QDOS3100044 &#xB7; AB12CDE</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<h2><span id=\"selected-case-po\">QDOS3100044</span> · AB12CDE</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<h2><span id=\"selected-case-po\">a.QDOS3100044</span> · AB12CDE</h2>", html, StringComparison.Ordinal);
         Assert.Contains(">3 results<", html, StringComparison.Ordinal);
         // With nothing selected the first entry is, and a refresh keeps it.
         Assert.Matches("<tr[^>]*data-select-view=\"inspection\"[^>]*aria-selected=\"true\"", html);
@@ -557,6 +646,173 @@ public sealed class CasesIndexWebTests
         Assert.DoesNotContain("data-cases-type", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// v41 U3, U7 and U8: the Principal filter sits in the list head and lists
+    /// every Principal on the Case queues, not only those on the page's rows;
+    /// the footer names the page only when another page exists; and a Case's
+    /// quick detail is one fact grid ending with what the row does not show.
+    /// </summary>
+    [Fact]
+    public async Task TheListHeadHoldsThePrincipalFilterAndTheQuickDetailIsOneFactGrid()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "PA12 NEL", "V41-PANE-01");
+        // A Not ready Case of another Principal: no Review row carries it.
+        var notReadyId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "PA12 NRY", "V41-PANE-02", CaseLifecycleState.NotReady);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            var organizationId = Guid.NewGuid();
+            var lineageId = Guid.NewGuid();
+            var principalId = Guid.NewGuid();
+            var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Filter test provider"}, {0L})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"ZZPANE"}, {lineageId}, {true}, {0L})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Cases SET PrincipalId = {principalId} WHERE Id = {notReadyId}");
+        }
+
+        using var response = await client.GetAsync($"/Cases?tab=review&selected={caseId:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Matches(
+            new Regex(@"<div class=""pane-head"">\s*<h2>Review</h2>\s*<span class=""meta"">1 case</span>\s*<form method=""get"" class=""filter-bar cases-filters"""),
+            html);
+        Assert.Contains("<option value=\"ZZPANE\">ZZPANE</option>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span>{Pegasus.Web.Presentation.OperatorLabels.CaseQueueFooter.PageLine(1, false)}</span>",
+            html,
+            StringComparison.Ordinal);
+        Assert.Matches(
+            new Regex(@"<dt>Vehicle</dt>.*<dt>Type</dt>.*<dt>State</dt>.*<dt>Current work</dt>.*<dt>Engineer</dt>", RegexOptions.Singleline),
+            html);
+    }
+
+    /// <summary>
+    /// PERF-WEB-03: in Not ready and Held a Case's Current work is its first
+    /// outstanding requirement, read from its frame's completeness facts, and
+    /// the Case page's aside names the same step.
+    /// </summary>
+    [Theory]
+    [InlineData("not_ready", CaseLifecycleState.NotReady, "QD21 NRY", "QUICK-DETAIL-01")]
+    [InlineData("held", CaseLifecycleState.Held, "QD21 HLD", "QUICK-DETAIL-02")]
+    public async Task TheQuickDetailNamesTheAsidesFirstRequirement(
+        string tab,
+        CaseLifecycleState state,
+        string registration,
+        string claimNumber)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await SeedImagesIncompleteCaseAsync(factory, client, registration, claimNumber, state);
+        var step = Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete("Images");
+
+        Assert.Matches(
+            CurrentWork(step),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab={tab}&selected={caseId:D}"));
+        Assert.Contains(
+            AsideStep(step),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// PERF-WEB-03: the requirements are evaluated under the workflow
+    /// configuration, not from the raw facts: with images no longer required
+    /// the same Not ready Case's step is its stage, on both surfaces.
+    /// </summary>
+    [Fact]
+    public async Task TheQuickDetailHonoursTheConfiguredRequirements()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 CFG", "QUICK-DETAIL-03", CaseLifecycleState.NotReady);
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            var configuration = await context.Set<WorkflowConfigurationEntity>().SingleAsync();
+            configuration.RequireImages = false;
+            configuration.Version++;
+            await context.SaveChangesAsync();
+        }
+        var step = Pegasus.Web.Presentation.OperatorLabels.CaseStage(CaseLifecycleState.NotReady);
+
+        Assert.Matches(
+            CurrentWork(step),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=not_ready&selected={caseId:D}"));
+        Assert.Contains(
+            AsideStep(step),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// PERF-WEB-03: the selected Case's quick detail reads its frame, not its
+    /// accepted data snapshot with every field.
+    /// </summary>
+    [Fact]
+    public async Task TheQuickDetailReadsNoCaseDataSnapshot()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "QD21 RVW", "QUICK-DETAIL-04");
+
+        counter.Reset();
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=review&selected={caseId:D}");
+
+        Assert.Matches(CurrentWork(Pegasus.Web.Presentation.CaseWorkspaceLabels.AssignEngineer), html);
+        Assert.Equal(0, counter.CountContaining("[CaseDataSnapshots]"));
+    }
+
+    /// <summary>
+    /// R155: a Not ready Audit kept without its original report names Original
+    /// report missing first, as the Case page's aside lists it, ahead of its
+    /// incomplete images. Only the Audit reads whether its report is filed, in
+    /// one document query; an Inspection Case in the same queue reads none.
+    /// </summary>
+    [Fact]
+    public async Task AnAuditWithoutItsOriginalReportNamesItAsTheAsideDoes()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var inspectionId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 INS", "QUICK-DETAIL-05", CaseLifecycleState.NotReady);
+        var auditId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 AUD", "QUICK-DETAIL-06", CaseLifecycleState.NotReady, audit: true);
+
+        counter.Reset();
+        var inspection = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=not_ready&selected={inspectionId:D}");
+        var inspectionDocumentReads = counter.CountContaining("[DocumentOccurrences]");
+        counter.Reset();
+        var audit = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=not_ready&selected={auditId:D}");
+        var auditDocumentReads = counter.CountContaining("[DocumentOccurrences]");
+
+        Assert.Matches(CurrentWork(Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete("Images")), inspection);
+        Assert.Matches(CurrentWork(Pegasus.Web.Presentation.OperatorLabels.OriginalReportMissing), audit);
+        Assert.Equal(0, inspectionDocumentReads);
+        Assert.Equal(1, auditDocumentReads);
+        Assert.Contains(
+            AsideStep(Pegasus.Web.Presentation.OperatorLabels.OriginalReportMissing),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{auditId:D}"),
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TheSelectedEntryOfAnAuditedCaseIsReadServerSide()
     {
@@ -572,7 +828,7 @@ public sealed class CasesIndexWebTests
         Assert.Matches("<tr[^>]*data-select-view=\"audit\"[^>]*aria-selected=\"true\"", html);
         Assert.Matches("<tr[^>]*data-select-view=\"inspection\"[^>]*aria-selected=\"false\"", html);
         var pane = html[html.IndexOf("data-preview-target", StringComparison.Ordinal)..];
-        Assert.Contains("<h2>a.QDOS3100044 &#xB7; AB12CDE</h2>", pane, StringComparison.Ordinal);
+        Assert.Contains("<h2><span id=\"selected-case-po\">a.QDOS3100044</span> · AB12CDE</h2>", pane, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=audit\"", pane, StringComparison.Ordinal);
         Assert.Contains("name=\"selectedView\" value=\"audit\"", html, StringComparison.Ordinal);
         Assert.Contains($"selected={search.AuditCaseId:D}&amp;selectedView=audit", html, StringComparison.Ordinal);
@@ -635,7 +891,8 @@ public sealed class CasesIndexWebTests
     private static WebApplicationFactory<Program> Configure(
         IntakeWebApplicationFactory baseFactory,
         RecordingSearchCases search,
-        RecordingImageIntakeQueries? images = null) => baseFactory.WithWebHostBuilder(builder =>
+        RecordingImageIntakeQueries? images = null,
+        ICaseEngineerChoices? engineers = null) => baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<ISearchCases>();
@@ -647,6 +904,12 @@ public sealed class CasesIndexWebTests
                     services.RemoveAll<IImageIntakeQueries>();
                     services.AddSingleton<IImageIntakeQueries>(images);
                 }
+
+                if (engineers is not null)
+                {
+                    services.RemoveAll<ICaseEngineerChoices>();
+                    services.AddSingleton(engineers);
+                }
             }));
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
@@ -655,6 +918,47 @@ public sealed class CasesIndexWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+
+    /// <summary>The quick detail's Current work fact reading <paramref name="step"/>.</summary>
+    private static Regex CurrentWork(string step) =>
+        new(@"<dt>Current work</dt>\s*<dd>" + Regex.Escape(step) + "</dd>");
+
+    /// <summary>The Case page aside's Next action step reading <paramref name="step"/>.</summary>
+    private static string AsideStep(string step) => $"<strong data-next-label>{step}</strong>";
+
+    /// <summary>
+    /// A seeded instruction Case moved by direct writes to
+    /// <paramref name="state"/> (a Held Case held from Not ready) with its
+    /// images incomplete; with <paramref name="audit"/>, an Audit kept with no
+    /// standalone evidence and no original report.
+    /// </summary>
+    private static async Task<Guid> SeedImagesIncompleteCaseAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        string registration,
+        string claimNumber,
+        CaseLifecycleState state,
+        bool audit = false)
+    {
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(factory, client, registration, claimNumber);
+        await using var context = await factory.Database.CreateContextAsync();
+        var workflow = await context.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleAsync(item => item.CaseId == caseId);
+        workflow.Case.ImagesComplete = false;
+        if (audit)
+        {
+            workflow.Case.Type = CaseTypeCodes.Audit;
+        }
+        workflow.State = state.ToString();
+        if (state == CaseLifecycleState.Held)
+        {
+            workflow.PreHoldState = nameof(CaseLifecycleState.NotReady);
+            workflow.HeldAtUtc = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        }
+        await context.SaveChangesAsync();
+        return caseId;
+    }
 
     private static async Task<HttpResponseMessage> PostImageAttachAsync(
         HttpClient client,
@@ -816,6 +1120,13 @@ public sealed class CasesIndexWebTests
         }
     }
 
+    /// <summary>The enabled accounts Search's Engineer filter offers.</summary>
+    private sealed class FixedEngineerChoices(params CaseEngineerChoice[] choices) : ICaseEngineerChoices
+    {
+        public Task<IReadOnlyList<CaseEngineerChoice>> GetAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseEngineerChoice>>(choices);
+    }
+
     /// <summary>
     /// The Image-intake reads this page makes: an exact reference lookup and a
     /// registration search. Only those two are exercised here; the rest of the
@@ -832,6 +1143,12 @@ public sealed class CasesIndexWebTests
             ImageInitiatedCaseState.AwaitingInstruction;
 
         public bool ThrowUnavailable { get; set; }
+
+        /// <summary>The active Principals Search's filter offers, in code order.</summary>
+        public IReadOnlyList<string> ActivePrincipalCodes { get; set; } = [];
+
+        public Task<IReadOnlyList<string>> ListActivePrincipalCodesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(ActivePrincipalCodes);
 
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference,

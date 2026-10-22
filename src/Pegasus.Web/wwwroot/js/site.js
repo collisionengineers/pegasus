@@ -603,24 +603,30 @@
         });
     });
 
-    // Copy a support reference. Without script the value is still selectable
-    // text, which is why the button is rendered hidden and revealed here rather
-    // than shipped as a control that might do nothing.
-    document.querySelectorAll('[data-copy-target]').forEach(function (button) {
-        var source = document.getElementById(button.getAttribute('data-copy-target'));
-        if (!source || !navigator.clipboard) {
-            return;
-        }
+    // Copy a support reference, or a Case/PO (Search's preview). Without script
+    // the value is still selectable text, which is why the button is rendered
+    // hidden and revealed here rather than shipped as a control that might do
+    // nothing. A preview swapped in later binds through pegasusMountBinders.
+    function bindCopyButtons(root) {
+        root.querySelectorAll('[data-copy-target]').forEach(function (button) {
+            var source = document.getElementById(button.getAttribute('data-copy-target'));
+            if (!source || !navigator.clipboard || button.dataset.copyBound === 'true') {
+                return;
+            }
 
-        button.hidden = false;
-        button.addEventListener('click', function () {
-            navigator.clipboard.writeText(source.textContent.trim()).then(function () {
-                var original = button.textContent;
-                button.textContent = 'Copied';
-                window.setTimeout(function () { button.textContent = original; }, 2000);
+            button.dataset.copyBound = 'true';
+            button.hidden = false;
+            button.addEventListener('click', function () {
+                navigator.clipboard.writeText(source.textContent.trim()).then(function () {
+                    var original = button.textContent;
+                    button.textContent = 'Copied';
+                    window.setTimeout(function () { button.textContent = original; }, 2000);
+                });
             });
         });
-    });
+    }
+    bindCopyButtons(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindCopyButtons);
 
     // Show / Hide a password (sign in, v30 item J). Without script the field
     // is an ordinary password field, which is why the control ships hidden.
@@ -643,46 +649,6 @@
     }
     bindPasswordReveal(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindPasswordReveal);
-
-    // Native <dialog> openers ([data-dialog-open]) and closers
-    // ([data-dialog-close]); showModal supplies the focus containment.
-    function bindNativeDialogs(root) {
-        // Buttons that open their own dialog, so an action can carry its fields
-        // without the page shipping a permanently open form for every action.
-        root.querySelectorAll('[data-dialog-open]').forEach(function (trigger) {
-            var dialog = document.getElementById(trigger.getAttribute('data-dialog-open'));
-            if (!dialog || typeof dialog.showModal !== 'function' || trigger.dataset.nativeDialogBound === 'true') {
-                return;
-            }
-            trigger.dataset.nativeDialogBound = 'true';
-
-            trigger.addEventListener('click', function (event) {
-                event.preventDefault();
-                dialog.showModal();
-                var initial = dialog.querySelector('[data-dialog-initial-focus]')
-                    || dialog.querySelector('input, select, textarea, button');
-                if (initial) {
-                    initial.focus();
-                }
-            });
-        });
-
-        root.querySelectorAll('dialog [data-dialog-close]').forEach(function (button) {
-            if (button.dataset.nativeDialogBound === 'true') {
-                return;
-            }
-            button.dataset.nativeDialogBound = 'true';
-            button.addEventListener('click', function (event) {
-                event.preventDefault();
-                var dialog = button.closest('dialog');
-                if (dialog) {
-                    dialog.close();
-                }
-            });
-        });
-    }
-    bindNativeDialogs(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindNativeDialogs);
 
     // Scoped edits expire unless the operator is actively keeping the edit
     // session open. Each marked form carries only its existing antiforgery
@@ -846,295 +812,7 @@
     });
 })();
 
-// UI-10: evidence-only mail preview. A subject is the message's own link;
-// this enhancement previews its row on pointer/keyboard intent and reads
-// the same authorized exact-message projection without moving focus or state.
-// When that intent moves on, the pane restores the selected message instead
-// of hiding: the pane is a fixture of the page, not a tooltip. Clicking a row
-// anywhere but a link or a button pins it as the selected message.
 (function () {
-    document.querySelectorAll('[data-mail-preview-workspace]').forEach(function (workspace) {
-        var panel = workspace.querySelector('[data-mail-preview]');
-        var status = workspace.querySelector('[data-mail-preview-status]');
-        var facts = workspace.querySelector('[data-mail-preview-facts]');
-        var rows = Array.from(workspace.querySelectorAll('[data-mail-preview-row]'));
-        if (!panel || !status || !facts || rows.length === 0) {
-            return;
-        }
-
-        var activeRow = null;
-        var request = null;
-        var cache = new Map();
-
-        // The pane renders only beside a list that has a server-selected row
-        // (the page model resolves one whenever it renders the pane at all).
-        // The selected row, which a click may move, is the pane's fallback
-        // wherever intent goes.
-        var selectedRow = rows.filter(function (row) {
-            return row.getAttribute('aria-current') === 'true';
-        })[0] || null;
-        if (!selectedRow) {
-            return;
-        }
-        var actions = facts.querySelector('[data-mail-preview-actions]');
-        var matched = facts.querySelector('[data-mail-preview-matched]');
-        // Where the search term matched is drawn for the row the page was
-        // drawn with; no other row's preview carries it.
-        var matchedRow = selectedRow;
-        activeRow = selectedRow;
-
-        var field = function (name) {
-            return facts.querySelector('[data-mail-preview-' + name + ']');
-        };
-        var caseLink = function () {
-            return actions && actions.querySelector('[data-mail-preview-case]');
-        };
-        // The state chip is the _StatusChip partial's span; its tone class is
-        // the one the server's tone table gave it, and the JSON carries the
-        // same table's answer for a hovered row.
-        // A Sent item carries no processing chip: the span is empty and the
-        // JSON's state is null, so the chip is absent rather than blank.
-        var chip = function () {
-            return field('state').querySelector('.status');
-        };
-        var toneOf = function (element) {
-            var tone = /status--([a-z]+)/.exec(element.className);
-            return tone ? tone[1] : 'neutral';
-        };
-        var paintChip = function (state, tone) {
-            var existing = chip();
-            if (!state) {
-                if (existing) {
-                    existing.remove();
-                }
-                return;
-            }
-            if (!existing) {
-                existing = document.createElement('span');
-                field('state').appendChild(existing);
-            }
-            existing.textContent = state;
-            existing.className = 'status status--' + (tone || 'neutral');
-        };
-
-        // The pane already shows the selected message; seeding the cache from
-        // its rendered fields means restoring that message never waits on the
-        // network and never leaves its actions hidden behind a failed fetch.
-        cache.set(
-            selectedRow
-                .querySelector('[data-mail-preview-trigger]')
-                .getAttribute('data-mail-preview-url'),
-            {
-                sender: field('sender').textContent,
-                subject: field('subject').textContent,
-                received: field('received').textContent,
-                receivedAtUtc: field('received').getAttribute('datetime'),
-                mailbox: field('mailbox').textContent,
-                state: chip() ? chip().textContent : null,
-                stateTone: chip() ? toneOf(chip()) : null,
-                excerpt: field('excerpt').textContent,
-                attachments: field('attachments').textContent,
-                classification: field('classification').textContent,
-                association: field('association').textContent,
-                folder: field('folder').textContent,
-                caseUrl: caseLink() ? caseLink().getAttribute('href') : null,
-                caseAction: caseLink() ? caseLink().querySelector('span').textContent : null
-            });
-
-        // The actions are the shown row's own: Open full message is its
-        // subject's link, which carries the list's values, Reply is the row's
-        // own Reply where it offers one, and Open Case or Open Triage comes
-        // with its preview.
-        var renderActions = function (row, data) {
-            if (!actions) {
-                return;
-            }
-            actions.querySelector('[data-mail-preview-open]').setAttribute(
-                'href',
-                row.querySelector('[data-mail-preview-trigger]').getAttribute('href'));
-            var reply = actions.querySelector('[data-mail-preview-reply]');
-            if (reply) {
-                var replyUrl = row.getAttribute('data-mail-reply-url');
-                if (replyUrl) {
-                    reply.setAttribute('href', replyUrl);
-                } else {
-                    reply.removeAttribute('href');
-                }
-                reply.hidden = !replyUrl;
-            }
-            var link = caseLink();
-            if (!data.caseUrl) {
-                if (link) {
-                    link.hidden = true;
-                }
-                return;
-            }
-            if (!link) {
-                link = document.createElement('a');
-                link.className = 'btn';
-                link.setAttribute('data-mail-preview-case', '');
-                link.appendChild(window.pegasusUi.glyph('icon-folder', 'icon'));
-                link.appendChild(document.createElement('span'));
-                actions.appendChild(link);
-            }
-            link.setAttribute('href', data.caseUrl);
-            link.querySelector('span').textContent = data.caseAction;
-            link.hidden = false;
-        };
-
-        // The actions belong to the selected message; while a transient
-        // preview shows a different row, they are not its.
-        var showOwnFacts = function (row) {
-            if (actions) {
-                actions.hidden = row !== selectedRow;
-            }
-            if (matched) {
-                matched.hidden = row !== matchedRow;
-            }
-        };
-
-        var render = function (row, data) {
-            field('sender').textContent = data.sender;
-            field('subject').textContent = data.subject;
-            field('received').textContent = data.received;
-            field('received').setAttribute('datetime', data.receivedAtUtc);
-            field('mailbox').textContent = data.mailbox;
-            paintChip(data.state, data.stateTone);
-            field('excerpt').textContent = data.excerpt;
-            field('attachments').textContent = data.attachments;
-            field('classification').textContent = data.classification;
-            field('association').textContent = data.association;
-            field('folder').textContent = data.folder;
-            renderActions(row, data);
-
-            status.hidden = true;
-            facts.hidden = false;
-            panel.removeAttribute('aria-busy');
-        };
-
-        var select = function (row) {
-            var trigger = row.querySelector('[data-mail-preview-trigger]');
-            var url = trigger && trigger.getAttribute('data-mail-preview-url');
-            if (!trigger || !url || activeRow === row) {
-                return;
-            }
-
-            if (request) {
-                request.abort();
-            }
-            rows.forEach(function (candidate) {
-                var candidateTrigger = candidate.querySelector('[data-mail-preview-trigger]');
-                if (candidateTrigger) {
-                    candidateTrigger.setAttribute(
-                        'aria-expanded',
-                        candidate === row ? 'true' : 'false');
-                }
-            });
-            activeRow = row;
-            showOwnFacts(row);
-            panel.hidden = false;
-            status.hidden = false;
-            status.textContent = 'Loading quick preview…';
-            facts.hidden = true;
-            panel.setAttribute('aria-busy', 'true');
-
-            if (cache.has(url)) {
-                render(row, cache.get(url));
-                return;
-            }
-
-            request = new AbortController();
-            var currentRequest = request;
-            fetch(url, {
-                headers: { 'Accept': 'application/json' },
-                signal: currentRequest.signal
-            }).then(function (response) {
-                if (!response.ok) {
-                    throw new Error('Preview unavailable');
-                }
-                return response.json();
-            }).then(function (data) {
-                cache.set(url, data);
-                if (activeRow === row) {
-                    render(row, data);
-                }
-            }).catch(function (error) {
-                if (error.name === 'AbortError' || activeRow !== row) {
-                    return;
-                }
-                facts.hidden = true;
-                status.hidden = false;
-                status.textContent = 'Quick preview unavailable. Open the message for full detail.';
-                panel.removeAttribute('aria-busy');
-            }).finally(function () {
-                if (request === currentRequest) {
-                    request = null;
-                }
-            });
-        };
-
-        // Leaving the rows ends the transient preview, not the pane: it falls
-        // back to the selected message, whose actions must stay reachable. select() no-ops when that row is already active, so
-        // leaving the selected row itself leaves the pane untouched.
-        var restoreSelection = function () {
-            select(selectedRow);
-        };
-
-        // Pinning makes a row the selected message: it carries the selection
-        // mark, its preview stays when intent moves on, the pane's actions
-        // are its own, and the address names it, so a reload or a return
-        // from the message lands on it. Without script the row still links.
-        var pin = function (row) {
-            if (row === selectedRow) {
-                return;
-            }
-            selectedRow.removeAttribute('aria-current');
-            row.setAttribute('aria-current', 'true');
-            selectedRow = row;
-            if (activeRow === row) {
-                showOwnFacts(row);
-            } else {
-                select(row);
-            }
-            var address = new URL(window.location.href);
-            address.searchParams.set('selected', row.getAttribute('data-mail-row'));
-            window.history.replaceState(window.history.state, '', address.toString());
-        };
-
-        rows.forEach(function (row) {
-            var trigger = row.querySelector('[data-mail-preview-trigger]');
-            row.addEventListener('pointerenter', function () { select(row); });
-            row.addEventListener('click', function (event) {
-                if (!event.target.closest('a, button, form')) {
-                    pin(row);
-                }
-            });
-            row.addEventListener('pointerleave', function (event) {
-                if (activeRow !== row || row.contains(document.activeElement)) {
-                    return;
-                }
-                // Moving between rows is not leaving them: the next row's
-                // pointerenter supersedes this event, and restoring between
-                // every pair of rows would repaint the pane down the list.
-                var entered = event.relatedTarget;
-                if (!entered || !entered.closest('[data-mail-preview-row]')) {
-                    restoreSelection();
-                }
-            });
-            if (!trigger) {
-                return;
-            }
-            trigger.addEventListener('focus', function () { select(row); });
-            trigger.addEventListener('blur', function () {
-                setTimeout(function () {
-                    if (activeRow === row && !row.contains(document.activeElement)) {
-                        restoreSelection();
-                    }
-                }, 0);
-            });
-        });
-    });
-
     // Dialogs built as div backdrops ([data-dialog="<id>"]): open from any
     // [data-dialog-open="<id>"] control, close on [data-dialog-close], Escape,
     // or a backdrop click, contain focus while open, set `inert` on the
@@ -1146,22 +824,19 @@
     // rendered anywhere in the page (a Case page's reason dialogs live inside
     // the shell), so inert is set on the siblings of each of its ancestors up
     // to body - never on an ancestor - and exactly those elements are
-    // released on close. Other [data-dialog] elements
-    // and native <dialog> elements are never inerted by this: a dialog that
-    // auto-opens on load (a settings dialog) is commonly a sibling of further
-    // action dialogs it triggers (the Accounts Delete confirmation is a
-    // native dialog), and marking a closed sibling inert would leave it
+    // released on close. Other [data-dialog] elements are never inerted by
+    // this: a dialog that auto-opens on load (a settings dialog) is commonly a
+    // sibling of further action dialogs it triggers (the Accounts Delete
+    // confirmation), and marking a closed sibling inert would leave it
     // unusable the moment it opens on top; `hidden` already keeps a closed
-    // backdrop dialog out of the tab order and off screen, a closed native
-    // dialog is not rendered, and showModal() makes the rest of the page
-    // inert itself. A
+    // backdrop dialog out of the tab order and off screen. A
     // module-level stack of currently-open dialogs tracks which one is
     // topmost, so a stacked open (a confirm dialog nested inside settings,
     // or an action dialog opened from a sibling settings dialog) leaves the
     // dialog beneath it open but unresponsive to Escape/Tab until the one on
     // top closes.
     function inertOutside(dialog) {
-        return window.pegasusUi.inertOutside(dialog, '[data-dialog], dialog');
+        return window.pegasusUi.inertOutside(dialog, '[data-dialog]');
     }
 
     var dialogOpeners = {};
@@ -1264,12 +939,6 @@
                 // trap Tab; a dialog further down waits until it is on top
                 // again.
                 if (openDialogStack[openDialogStack.length - 1] !== dialog) {
-                    return;
-                }
-                // A native modal dialog opened from this one (the Accounts
-                // Delete confirmation) is not on the stack; its keys are its
-                // own, so Escape closes it rather than this dialog behind it.
-                if (event.target instanceof Element && event.target.closest('dialog[open]')) {
                     return;
                 }
                 if (event.key === 'Escape') {
@@ -1932,6 +1601,244 @@
     });
 })();
 
+// --- Message record: Classification chips ------------------------------------
+// A chip applies a correction at once (v41 I9). Pressing New instruction first
+// asks for the Case type, which sits in the Case picker row: the press waits
+// until one is chosen, and choosing it completes the press (R179). Without
+// script the chip posts as it is, and the server refuses a New instruction that
+// has no Case type.
+(function () {
+    'use strict';
+    document.addEventListener('click', function (event) {
+        var chip = event.target instanceof Element
+            ? event.target.closest('button[name="ClassificationKey"][value="new-instruction"]')
+            : null;
+        var form = chip ? chip.form : null;
+        var select = form ? form.elements.namedItem('WorkType') : null;
+        if (!(select instanceof HTMLSelectElement) || select.value) { return; }
+        event.preventDefault();
+        var field = select.closest('[data-work-type-field]');
+        if (field) { field.hidden = false; }
+        select.setAttribute('data-asked-by-chip', '');
+        select.focus();
+    });
+    document.addEventListener('change', function (event) {
+        var select = event.target;
+        if (!(select instanceof HTMLSelectElement) || !select.hasAttribute('data-asked-by-chip')
+            || !select.value || !select.form) { return; }
+        select.removeAttribute('data-asked-by-chip');
+        var chip = select.form.querySelector('button[name="ClassificationKey"][value="new-instruction"]');
+        if (chip && typeof select.form.requestSubmit === 'function') { select.form.requestSubmit(chip); }
+    });
+})();
+
+// --- The Inbox: one message in a dialog over the list, and the ticks ---------
+// (v41 I2, I6, I10, I17, I18). Every control is a real link or form: without
+// script a subject opens the /Inbox/{id} page and the bulk form posts as it is.
+// A row's subject or Reply opens the message in the dialog the record's Dialog
+// handler draws; Previous and Next walk the rendered rows, so a press asks the
+// server only for the message it opens; a request is never aborted, so a quick
+// walk down the list leaves no cancelled requests behind. A write made in the
+// dialog returns to the Inbox with `open` naming the message, and this reopens it.
+(function () {
+    'use strict';
+    var workspace = document.querySelector('[data-mail-workspace]');
+    var mount = document.querySelector('[data-mail-dialog-root]');
+    if (!workspace || !mount || typeof window.fetch !== 'function') { return; }
+
+    var CONTEXT = ['mailbox', 'folder', 'pageNumber', 'search', 'queue', 'sort'];
+    var DIALOG = 'mailMessageDialog';
+    var latest = 0;
+    var opener = null;
+
+    function rows() { return Array.prototype.slice.call(workspace.querySelectorAll('[data-mail-row]')); }
+    function rowOf(id) {
+        return rows().filter(function (row) { return row.getAttribute('data-mail-row') === id; })[0] || null;
+    }
+    function isModified(event) { return event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey; }
+    function dialogShown() { return mount.querySelector('[data-dialog="' + DIALOG + '"]'); }
+
+    // The selection mark: the row carries it and the address names it, so a
+    // reload or Back lands on it.
+    function pin(row) {
+        rows().forEach(function (candidate) {
+            if (candidate === row) {
+                candidate.setAttribute('aria-current', 'true');
+            } else {
+                candidate.removeAttribute('aria-current');
+            }
+        });
+        var address = new URL(window.location.href);
+        address.searchParams.set('selected', row.getAttribute('data-mail-row'));
+        window.history.replaceState(window.history.state, '', address.toString());
+    }
+
+    // A link into the record, as the record's Dialog handler: the same address
+    // with the handler, and the Inbox's own list context where the link has none.
+    function fragmentUrl(href) {
+        var url = new URL(href, window.location.href);
+        url.searchParams.set('handler', 'Dialog');
+        var here = new URLSearchParams(window.location.search);
+        CONTEXT.forEach(function (key) {
+            if (!url.searchParams.has(key) && here.has(key)) { url.searchParams.set(key, here.get(key)); }
+        });
+        return url.toString();
+    }
+
+    // Previous and Next are resolved from the rendered rows: disabled at the ends
+    // of the page's rows, and for a message that is not among them.
+    function walk(dialog) {
+        var ids = rows().map(function (row) { return row.getAttribute('data-mail-row'); });
+        var at = ids.indexOf(dialog.getAttribute('data-mail-message'));
+        var previous = dialog.querySelector('[data-mail-previous]');
+        var next = dialog.querySelector('[data-mail-next]');
+        if (previous) { previous.disabled = at < 1; }
+        if (next) { next.disabled = at < 0 || at >= ids.length - 1; }
+    }
+
+    function show(html) {
+        var parsed = new DOMParser().parseFromString(html, 'text/html');
+        var nodes = Array.prototype.slice.call(parsed.body.children).map(function (node) {
+            return document.importNode(node, true);
+        });
+        // A dialog already open is closed in the shell's own way first, so its
+        // inert shell, focus trap and Escape listener do not outlive it.
+        var shown = dialogShown();
+        if (shown && !shown.hidden && typeof shown.pegasusClose === 'function') { shown.pegasusClose(); }
+        mount.replaceChildren.apply(mount, nodes);
+        (window.pegasusMountBinders || []).forEach(function (bind) { bind(mount); });
+        if (typeof window.pegasusBindCasePickers === 'function') { window.pegasusBindCasePickers(mount); }
+        var dialog = dialogShown();
+        if (!dialog || typeof dialog.pegasusOpen !== 'function') { return; }
+        dialog.pegasusOpen(opener);
+        walk(dialog);
+    }
+
+    function load(href) {
+        var mine = ++latest;
+        window.fetch(fragmentUrl(href), { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+            .then(function (response) {
+                if (!response.ok || response.redirected
+                    || !(response.headers.get('Content-Type') || '').includes('text/html')) {
+                    throw new Error('message: ' + response.status);
+                }
+                return response.text();
+            })
+            .then(function (html) {
+                if (mine === latest) { show(html); }
+            })
+            .catch(function () {
+                // The record page is what the link always was.
+                if (mine === latest) { window.location.assign(href); }
+            });
+    }
+
+    // Opens the message a row's link names, marking the row it belongs to.
+    function openLink(link) {
+        var row = link.closest('[data-mail-row]');
+        if (row) { pin(row); }
+        opener = link;
+        load(link.href);
+    }
+
+    function openRow(row) {
+        var link = row ? row.querySelector('a[data-mail-open]') : null;
+        if (link) { openLink(link); }
+    }
+
+    function step(delta) {
+        var dialog = dialogShown();
+        if (!dialog) { return; }
+        var list = rows();
+        var at = list.indexOf(rowOf(dialog.getAttribute('data-mail-message')));
+        if (at >= 0 && list[at + delta]) { openRow(list[at + delta]); }
+    }
+
+    workspace.addEventListener('click', function (event) {
+        var target = event.target instanceof Element ? event.target : null;
+        if (!target) { return; }
+        var link = target.closest('a[data-mail-open]');
+        if (link && !isModified(event)) {
+            event.preventDefault();
+            openLink(link);
+            return;
+        }
+        // A click on the row anywhere but a link, a button, a form or the tick pins it.
+        var clicked = target.closest('[data-mail-row]');
+        if (clicked && !target.closest('a, button, form, label, input, select, textarea')) { pin(clicked); }
+    });
+
+    mount.addEventListener('click', function (event) {
+        var target = event.target instanceof Element ? event.target : null;
+        var control = target
+            ? target.closest('[data-mail-previous], [data-mail-next], a[data-mail-dialog-link]')
+            : null;
+        if (!control) { return; }
+        if (control.hasAttribute('data-mail-previous') || control.hasAttribute('data-mail-next')) {
+            event.preventDefault();
+            step(control.hasAttribute('data-mail-next') ? 1 : -1);
+            return;
+        }
+        // A modified click is a new tab onto the record page, as the link always was.
+        if (isModified(event)) { return; }
+        event.preventDefault();
+        load(control.href);
+    });
+
+    // Dismiss in the dialog moves on: the message the list reads after this one,
+    // else the one before it, else the list (v41 I10).
+    mount.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-message-dismissal')) { return; }
+        var field = form.querySelector('[data-mail-next-id]');
+        var dialog = form.closest('[data-dialog]');
+        if (!field || !dialog) { return; }
+        var list = rows();
+        var at = list.indexOf(rowOf(dialog.getAttribute('data-mail-message')));
+        var following = at >= 0 ? (list[at + 1] || list[at - 1]) : null;
+        field.value = following ? following.getAttribute('data-mail-row') : '';
+    }, true);
+
+    // The ticked count is the bare number; Correct classification opens its
+    // dialog only while something is ticked (a post with nothing ticked writes nothing).
+    var count = workspace.querySelector('[data-bulk-count]');
+    function ticks() { return workspace.querySelectorAll('input[data-mail-tick]:checked').length; }
+    if (count) {
+        count.textContent = String(ticks());
+        workspace.addEventListener('change', function (event) {
+            if (event.target instanceof Element && event.target.matches('input[data-mail-tick]')) {
+                count.textContent = String(ticks());
+            }
+        });
+    }
+    document.addEventListener('click', function (event) {
+        var button = event.target instanceof Element ? event.target.closest('[data-bulk-classify]') : null;
+        if (button && ticks() === 0) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    }, true);
+
+    // A write made in the dialog lands here with `open` naming its message.
+    var address = new URL(window.location.href);
+    var opening = address.searchParams.get('open');
+    if (opening) {
+        address.searchParams.delete('open');
+        window.history.replaceState(window.history.state, '', address.toString());
+        var openedRow = rowOf(opening);
+        var openedLink = openedRow ? openedRow.querySelector('a[data-mail-open]') : null;
+        if (openedRow) { pin(openedRow); }
+        opener = openedLink;
+        var url = new URL(openedLink ? openedLink.href : '/Inbox/' + encodeURIComponent(opening), window.location.href);
+        // The rest of the address (the composer, the send's operation) rides to the record.
+        var carried = CONTEXT.concat(['selected', 'open', 'handler']);
+        new URLSearchParams(window.location.search).forEach(function (value, key) {
+            if (carried.indexOf(key) === -1) { url.searchParams.set(key, value); }
+        });
+        load(url.toString());
+    }
+})();
+
 // ===========================================================================
 // Integrated Operations Workspace shell modules. Each section is
 // self-contained and progressive: without script the markup it enhances is a
@@ -2486,6 +2393,7 @@ window.pegasusPreferences = (function () {
             candidate.setAttribute('aria-selected', candidate === row ? 'true' : 'false');
         });
         target.replaceChildren(template.content.cloneNode(true));
+        (window.pegasusMountBinders || []).forEach(function (bind) { bind(target); });
         showCircumstances();
         var url = new URL(window.location.href);
         url.searchParams.set('selected', row.getAttribute('data-select-id') || row.getAttribute('data-select-href'));

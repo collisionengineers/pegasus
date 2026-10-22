@@ -74,30 +74,7 @@ else
     </aside>
 
     <div class="pane cases-list">
-        @if (isCaseScope)
-        {
-            @* Selects submit on change; the button is the no-script path. The
-               Principal select exists only where Principal rows are listed. *@
-            <form method="get" class="filter-bar cases-filters" data-auto-submit>
-                <input type="hidden" name="tab" value="@Model.Queue" />
-                <div class="field">
-                    <label for="queue-principal">Principal</label>
-                    <select id="queue-principal" name="principal">
-                        <option value="">All principals</option>
-                        @foreach (var principal in Model.Principals)
-                        {
-                            <option value="@principal" selected="@(Model.PrincipalFilter == principal ? "selected" : null)">@principal</option>
-                        }
-                    </select>
-                </div>
-                <noscript><button type="submit" class="btn">Apply</button></noscript>
-                @if (hasFilters)
-                {
-                    <a class="btn" href="@Model.Href(tab: Model.Queue, keepFilters: false)">Clear</a>
-                }
-            </form>
-        }
-        else if (Model.Queue == "unassigned")
+        @if (Model.Queue == "unassigned")
         {
             <form method="get" class="filter-bar cases-filters" data-auto-submit>
                 <input type="hidden" name="tab" value="unassigned" />
@@ -115,6 +92,30 @@ else
         <div class="pane-head">
             <h2>@Model.CurrentTab.Label</h2>
             <span class="meta">@Model.Rows.Count @(noun)@(Model.Rows.Count == 1 ? string.Empty : "s")</span>
+            @if (isCaseScope)
+            {
+                @* The select submits on change; the button is the no-script
+                   path. The Principal select exists only where Principal rows
+                   are listed. *@
+                <form method="get" class="filter-bar cases-filters" data-auto-submit>
+                    <input type="hidden" name="tab" value="@Model.Queue" />
+                    <div class="field">
+                        <label class="sr-only" for="queue-principal">Principal</label>
+                        <select id="queue-principal" name="principal">
+                            <option value="">All principals</option>
+                            @foreach (var principal in Model.Principals)
+                            {
+                                <option value="@principal" selected="@(Model.PrincipalFilter == principal ? "selected" : null)">@principal</option>
+                            }
+                        </select>
+                    </div>
+                    <noscript><button type="submit" class="btn">Apply</button></noscript>
+                    @if (hasFilters)
+                    {
+                        <a class="btn" href="@Model.Href(tab: Model.Queue, keepFilters: false)">Clear</a>
+                    }
+                </form>
+            }
         </div>
         <div class="cases-table" data-row-list>
             @if (Model.Rows.Count == 0)
@@ -173,7 +174,7 @@ else
             }
         </div>
         <nav class="pagination" aria-label="Pages">
-            <span>Page @Model.CurrentPage · newest first</span>
+            <span>@OperatorLabels.CaseQueueFooter.PageLine(Model.CurrentPage, Model.HasPreviousPage || Model.HasNextPage)</span>
             <div class="button-row">
                 @if (Model.HasPreviousPage)
                 {
@@ -226,6 +227,13 @@ else
                                              view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = detail.StateTone }' /></dd>
                             </div>
                         }
+                        @if (detail.Work is { Count: > 0 })
+                        {
+                            foreach (var workFact in detail.Work)
+                            {
+                                <div class="fact"><dt>@workFact.Label</dt><dd>@workFact.Value</dd></div>
+                            }
+                        }
                     </dl>
                     @if (detail.Outstanding is { Count: > 0 })
                     {
@@ -241,18 +249,6 @@ else
                                 }
                             </ul>
                         </section>
-                    }
-                    @if (detail.Work is { Count: > 0 })
-                    {
-                        <div class="cases-work">
-                            @foreach (var fact in detail.Work)
-                            {
-                                <div class="decision-row">
-                                    <span>@fact.Label</span>
-                                    <strong>@fact.Value</strong>
-                                </div>
-                            }
-                        </div>
                     }
                     @if (detail.Kind == IndexModel.RowKind.Image && detail.OriginReceiptId is { } receiptId)
                     {

@@ -16,6 +16,7 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class QdosTriageIntegrationTests
 {
     private const long SeededCaseEntityVersion = 37;
+    private const string SeededCaseReference = "TRIAGE31001";
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
@@ -291,7 +292,7 @@ public sealed partial class QdosTriageIntegrationTests
             5,
             "link_case",
             "Must not bypass another holder",
-            KeyValuePair.Create("caseId", caseId.ToString("D")));
+            KeyValuePair.Create("caseReference", SeededCaseReference));
         // The holder is disclosed by staff account, never by identifier, and the wording and
         // clock are the ones the case workspace uses.
         Assert.Contains("Case locked - ", unavailableCaseHtml, StringComparison.Ordinal);
@@ -319,7 +320,7 @@ public sealed partial class QdosTriageIntegrationTests
             5,
             "link_case",
             "Associated later instruction",
-            KeyValuePair.Create("caseId", caseId.ToString("D")));
+            KeyValuePair.Create("caseReference", SeededCaseReference));
         Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.CaseLinked, linkedHtml, StringComparison.Ordinal);
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(caseId, triage.Record.LinkedInstructionCaseId);
@@ -516,7 +517,7 @@ public sealed partial class QdosTriageIntegrationTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"TRIAGE"}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {"TRIAGE31001"}, {"inspection"}, {"not_ready"}, {"pending"}, {receiptId}, {true}, {true}, {now}, {SeededCaseEntityVersion}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {SeededCaseReference}, {"inspection"}, {"not_ready"}, {"pending"}, {receiptId}, {true}, {true}, {now}, {SeededCaseEntityVersion}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.Review)}, {0L}, {Guid.NewGuid()})");

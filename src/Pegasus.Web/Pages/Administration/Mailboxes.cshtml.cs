@@ -2,10 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
-using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Web.Mcp;
 
 namespace Pegasus.Web.Pages.Administration;
 
@@ -25,8 +23,6 @@ public sealed class MailboxesModel(
     public IReadOnlyList<ApprovedMailboxPollStatus> PollStatuses { get; private set; } = [];
 
     public IReadOnlyList<ApprovedMailboxSubscription> Subscriptions { get; private set; } = [];
-
-    public bool AutomationComposed { get; private set; }
 
     public Guid NewMailboxId { get; private set; }
 
@@ -358,11 +354,15 @@ public sealed class MailboxesModel(
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        AutomationComposed =
-            HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
-        await LoadMailboxesAsync(actor, cancellationToken);
-        PollStatuses = await pollStatusQueries.ListAsync(cancellationToken);
-        Subscriptions = await subscriptionStore.ListAsync(cancellationToken);
+        // Three independent reads, each on a context of its own from the factory,
+        // so they run side by side.
+        var mailboxes = listApprovedMailboxes.ExecuteAsync(actor, cancellationToken);
+        var pollStatuses = pollStatusQueries.ListAsync(cancellationToken);
+        var subscriptions = subscriptionStore.ListAsync(cancellationToken);
+        await Task.WhenAll(mailboxes, pollStatuses, subscriptions);
+        Mailboxes = await mailboxes;
+        PollStatuses = await pollStatuses;
+        Subscriptions = await subscriptions;
     }
 
     private void PrepareFormState()

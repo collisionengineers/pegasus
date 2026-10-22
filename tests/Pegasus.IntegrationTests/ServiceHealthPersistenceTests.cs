@@ -173,8 +173,7 @@ public sealed class ServiceHealthPersistenceTests
 
     /// <summary>
     /// The Health page sends its shell's statements plus at most eleven of its
-    /// own for the snapshot, whatever the row count. It does not read the
-    /// administration metrics; the Logs page does. The shell is measured on the
+    /// own for the snapshot, whatever the row count. The shell is measured on the
     /// Administration hub, which renders the same layout, the same filters and
     /// the same middleware and reads nothing else. The Automation ingress switch
     /// is unconfigured in this host, so it sends none. The page reads the
@@ -230,6 +229,8 @@ public sealed class ServiceHealthPersistenceTests
         counter.Reset();
         var page = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
         Assert.Contains("health-page-1@collisionengineers.co.uk", page, StringComparison.Ordinal);
+        // A row that needs attention shows its mapped reason under the chip (v41 A22).
+        Assert.Contains($"<small class=\"admin-service-area\">{Pegasus.Web.Presentation.OperatorLabels.MailSettings.LastError("graph_unavailable")}</small>", page, StringComparison.Ordinal);
         Assert.Equal(withNoRows, counter.Count);
         Assert.Equal(1, counter.CountContaining("[ApprovedSentPollStates]"));
     }

@@ -518,6 +518,17 @@ public interface IRetainedMailQueries
         CancellationToken cancellationToken) =>
         (await GetByOriginReceiptAsync(originReceiptId, cancellationToken))?.Summary.Id;
 
+    /// <summary>
+    /// The identifier of the intake receipt a retained message became, or null
+    /// when it has none or the message is unknown. A store that can answer
+    /// without loading the message overrides this; the default reads the whole
+    /// detail.
+    /// </summary>
+    async Task<Guid?> FindReceiptIdAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        (await GetAsync(id, cancellationToken))?.Summary.IntakeReceiptId;
+
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);
 
@@ -713,6 +724,27 @@ public sealed class GetRetainedMail(
         }
 
         return queries.FindIdByOriginReceiptAsync(originReceiptId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Only the identifier of the intake receipt a message became, for a
+    /// caller that reads the receipt itself and needs nothing else of the
+    /// message.
+    /// </summary>
+    public Task<Guid?> FindReceiptIdAsync(
+        ActionActor actor,
+        Guid messageId,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (messageId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A retained message identifier is required.",
+                nameof(messageId));
+        }
+
+        return queries.FindReceiptIdAsync(messageId, cancellationToken);
     }
 
     private async Task<RetainedMailDetail?> CompleteAsync(

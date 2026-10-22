@@ -2,6 +2,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
@@ -90,6 +91,58 @@ public sealed class CaseSectionQueryValidationTests
         Assert.Same(workspace.Assessment, section.Assessment);
         Assert.Equal(0, evidence.Reads);
     }
+
+    /// <summary>
+    /// The Tasks body names only enabled staff: a task held by an account no
+    /// longer enabled has no name, so it reads Unassigned (operator, 22 October
+    /// 2026). One read of the enabled staff gives the names and the Assign choices.
+    /// </summary>
+    [Fact]
+    public async Task TheTasksSectionNamesOnlyEnabledAssigneesFromOneStaffRead()
+    {
+        var caseId = Guid.NewGuid();
+        var enabled = new CaseEngineerChoice(Guid.NewGuid(), "enabled.engineer");
+        var staff = new CountingStaff(enabled);
+        var tasks = new FixedTasks(
+            CaseTask(caseId, enabled.StaffId, CaseTaskState.Open),
+            CaseTask(caseId, Guid.NewGuid(), CaseTaskState.Open));
+
+        var section = await new GetCaseTasksSection(new RecordingStore(), tasks, staff).ExecuteAsync(
+            new(caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), Frame: Frame(caseId)),
+            CancellationToken.None);
+
+        Assert.NotNull(section);
+        var named = Assert.Single(section!.AssigneeNames);
+        Assert.Equal(enabled.StaffId, named.Key);
+        Assert.Equal(enabled.DisplayName, named.Value);
+        Assert.Equal([enabled], section.AssigneeChoices);
+        Assert.Equal(1, staff.Reads);
+    }
+
+    /// <summary>
+    /// The enabled staff are read only while a task is open or names an
+    /// assignee: a closed, unassigned task draws neither an Assign nor a name.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseTaskState.Open, 1)]
+    [InlineData(CaseTaskState.Completed, 0)]
+    public async Task TheTasksSectionReadsTheEnabledStaffOnlyWhileATaskIsOpenOrAssigned(
+        CaseTaskState state,
+        int expectedReads)
+    {
+        var caseId = Guid.NewGuid();
+        var staff = new CountingStaff(new CaseEngineerChoice(Guid.NewGuid(), "enabled.engineer"));
+
+        await new GetCaseTasksSection(new RecordingStore(), new FixedTasks(CaseTask(caseId, null, state)), staff)
+            .ExecuteAsync(
+                new(caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), Frame: Frame(caseId)),
+                CancellationToken.None);
+
+        Assert.Equal(expectedReads, staff.Reads);
+    }
+
+    private static CaseTaskRecord CaseTask(Guid caseId, Guid? assigneeId, CaseTaskState state) =>
+        new(Guid.NewGuid(), caseId, "Collect the keys", assigneeId, state, 0, 1);
 
     private static AssessmentWorkspace Workspace(Guid caseId) => new(
         new(caseId, "QDOS3100001", "QDOS", null, CaseType.Inspection, CaseLifecycleState.Review, 1, null, null),
@@ -246,6 +299,23 @@ public sealed class CaseSectionQueryValidationTests
         {
             Reads++;
             return Task.FromResult<CaseVehicleEvidence?>(null);
+        }
+    }
+
+    private sealed class FixedTasks(params CaseTaskRecord[] tasks) : ICaseTaskQueries
+    {
+        public Task<IReadOnlyList<CaseTaskRecord>> ListAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseTaskRecord>>(tasks);
+    }
+
+    private sealed class CountingStaff(params CaseEngineerChoice[] enabled) : ICaseEngineerChoices
+    {
+        public int Reads { get; private set; }
+
+        public Task<IReadOnlyList<CaseEngineerChoice>> GetAsync(ActionActor actor, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<IReadOnlyList<CaseEngineerChoice>>(enabled);
         }
     }
 

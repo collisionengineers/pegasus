@@ -1,4 +1,4 @@
-// Keep account-signoff controls eligible and protect unsaved settings when
+// Reset the account settings form on Cancel and protect unsaved settings when
 // navigating to the account's Glass's login.
 (function () {
     'use strict';

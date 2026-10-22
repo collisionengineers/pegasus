@@ -76,8 +76,11 @@ screen shows exactly which field or material is missing, where it should come
 from and why it is required; its control is what clears it, with no sentence
 saying how (operator, 9 October 2026). Pegasus never shows an
 overall score, a percentage, or a summary such as "3 items outstanding". On
-the Case record each report blocker links to the section that clears it. A
-recorded value is never a blocker because of who recorded it: there is no
+the Case record each report blocker links to the section that clears it. The
+Engineer blocker is the one exception: it links the ribbon's Assign Engineer
+action, not a section, here and in the Report not ready card (operator, 22
+October 2026).
+A recorded value is never a blocker because of who recorded it: there is no
 per-field review, and Assign Engineer is the only review (operator, 25
 September 2026). While the report is not ready the aside's **Report not
 ready** card lists every report blocker, each linking to its section, and the
@@ -86,6 +89,10 @@ Next action is one step (operator, 8 October 2026): in Not ready the first
 outstanding requirement, in Review Assign Engineer, which opens the Actions
 menu's dialog, and With Engineer the first blocker ([FRD-16](frd-16-case-record-workspace.md#case-workspace),
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+A With Engineer Case with no Engineer has Assign Engineer as its step too,
+with **Take** beside it while the Case is Unassigned (#1213, v41 K9,
+operator, 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 **Required items are configuration.** Instruction completeness and image
 completeness are each a versioned list of items marked required or not
@@ -121,12 +128,18 @@ appears within the round trip
 
 ### Assign Engineer
 
-In Review, staff choose **Assign Engineer** and pick an eligible enabled
-staff account. In one operation, under a Case edit lease — the session's, or
+In Review or With Engineer, staff choose **Assign Engineer** and pick an
+eligible enabled staff account, the signed-in person listed first as "Name
+(you)", or Unassigned; **Take** assigns an Unassigned Case to the person
+taking it in one step. Neither asks for a reason: the history line reads
+"Taken by {name}", "Assigned to {name}" or "Set to Unassigned" (#1213,
+operator, 15 and 16 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+In one operation, under a Case edit lease — the session's, or
 one claimed for the action ([FRD-16](frd-16-case-record-workspace.md#actions-menu))
-— and the current version, Pegasus assigns the Engineer, sets the Sign-off
-Engineer, and moves the Case
-to With Engineer. A headless start command can hand a Review Case
+— and the current version, Pegasus assigns the Engineer, or none, sets the
+Sign-off Engineer, and moves a Review Case to With Engineer; a With Engineer
+Case stays With Engineer. A headless start command can hand a Review Case
 to its already-assigned eligible staff member; it is not a second screen step.
 
 Replaying the same request does not hand off twice. A request that is
@@ -175,9 +188,13 @@ never changes the Case state and records no handoff.
 - **Create audit** adds the Audit to an Inspection + Audit Case
   ([Create audit](#create-audit)).
 - **Return to Engineer** records a reason and applies the destination gates
-  when more engineering changes are needed. It is not needed to receive,
-  attach or answer a query. **Return to Review** records a reason from With
-  Engineer or Report sent (operator, 11 October 2026).
+  when more engineering changes are needed. A Case with no Engineer returns
+  Unassigned, for an Engineer to take; one with an Engineer needs that
+  Engineer still eligible (#1213, operator, 15 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  It is not needed to receive, attach or answer a query. **Return to Review**
+  records a reason from With Engineer or Report sent (operator, 11 October
+  2026).
 - **A Case save** needs no reason. Its history line names the fields that
   changed, for example "Vehicle registration, Incident date". Reasons are
   required where an action's rule asks for one: holds and releases, closure,
@@ -271,10 +288,12 @@ other Actions-menu progressions. Once the Inspection report is stored,
 whether or not it is sent, Create audit is the Case's Next action, stated in
 the aside and the Cases quick detail with the same control (operator, 2 and
 12 October 2026).
-With no assigned Engineer it is refused with Return to Engineer's refusal,
-"Report preparation requires an assigned Engineer.", and the assigned
-Engineer must still be eligible, as for Return to Engineer. It asks for no
-reason and no outcome.
+With no assigned Engineer it is refused, "Report preparation requires an
+assigned Engineer.": an Engineer must take an Unassigned Case first (#1213,
+operator, 15 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+The assigned Engineer must still be eligible, as for Return to Engineer. It
+asks for no reason and no outcome.
 
 **What it does.** In one operation, under a Case edit lease (the session's,
 or one claimed for the action) and the current version, Create audit:
@@ -426,7 +445,8 @@ Automation Actor action.
 | From | To | Trigger |
 | --- | --- | --- |
 | Not ready | Review | Every required item present (automatic) |
-| Review | With Engineer | Assign Engineer, or the headless start command |
+| Review | With Engineer | Assign Engineer or Take, to an Engineer or Unassigned (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)), or the headless start command |
+| With Engineer | With Engineer, another Engineer or Unassigned | Assign Engineer or Take (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
 | With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence; an Inspection + Audit Case with no Audit yet stays With Engineer with the Inspection's Sent evidence recorded (operator, 13 October 2026) |
@@ -439,7 +459,7 @@ Automation Actor action.
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |
 | closed disposition | archived | Archive |
-| closed disposition other than Created in error | working state | Return to work (reason), through the normal gates |
+| closed disposition other than Created in error | working state | Return to work (reason), through the normal gates; to With Engineer Unassigned when the Case has no Engineer (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 
 ## Edge cases and fail-closed behaviour
 

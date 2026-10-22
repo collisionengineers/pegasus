@@ -282,14 +282,15 @@ Administrators only. One row per received file shows source, item, outcome
 (Case created, Linked to Case, Vehicle images, Triage, Unidentified, No Case
 Found, Could not be read, Closed, Processing failed, Allocation failed, OCR
 failed), what
-it became, and its attempt counts. A row drawer shows the retained original
+it became, and its attempt counts. A row dialog shows the retained original
 and the processing evidence: decision, failure, registration readings,
 suggested fields, decision evidence, and allocation attempts. The head-line
-Failed intake count is the number of files whose outcome is a retryable
+Failed files count is the number of files whose outcome is a retryable
 failure (Allocation failed, OCR failed, or Processing failed). The Intake
-log alone owns that set and its actions.
+log alone owns that set and its actions
+([v41 A24](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
-Three technical actions live in the Intake log drawer, Administrators only.
+Three technical actions live in the Intake log row dialog, Administrators only.
 Each needs a reason
 and is offered only where it applies:
 

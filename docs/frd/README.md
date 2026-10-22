@@ -35,7 +35,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-17](frd-17-administration-workspace.md) | Administration areas: accounts, contacts, workflow configuration, logs, reports | UI, MI |
 | [FRD-18](frd-18-manual-upload.md) | Staff upload page, upload limits and confirmation | INT |
 | [FRD-19](frd-19-image-led-intake-and-pairing.md) | Vehicle images that arrive without an instruction: grouping, pairing, merge | INT |
-| [FRD-20](frd-20-mailbox-workspace.md) | The Inbox: browsing, preview, classify, link, dismiss | UI, MAIL |
+| [FRD-20](frd-20-mailbox-workspace.md) | The Inbox: browsing, message dialog, classify, link, dismiss | UI, MAIL |
 | [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md) | Sending mail from Pegasus and proving a report was sent | MAIL |
 | [FRD-22](frd-22-pre-case-gates-matching-and-association.md) | Pre-Case gates, matching conflicts, reversible association, staff linking to any Case | INT |
 | [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md) | Case draft fields and provenance | INT |

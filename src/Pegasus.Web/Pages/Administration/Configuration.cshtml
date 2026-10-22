@@ -2,24 +2,20 @@
 @model Pegasus.Web.Pages.Administration.ConfigurationModel
 @{
     ViewData["Title"] = OperatorLabels.Admin.Configuration;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "configuration";
-    ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
 }
 <partial name="Shared/_PageHeader" />
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
         <partial name="Shared/_ErrorSummary" />
-        @if (TempData["Confirmation"] is string confirmation)
-        {
-            <div class="notice notice--success" role="status">@confirmation</div>
-        }
         <section class="panel" aria-labelledby="workflow-title">
             <div class="panel-head"><h2 id="workflow-title">Case workflow</h2></div>
             <form method="post" asp-page-handler="SaveWorkflow" class="panel-body stack">
                 <input type="hidden" name="WorkflowExpectedVersion" value="@Model.WorkflowExpectedVersion" />
                 <input type="hidden" name="WorkflowOperationKey" value="@Model.WorkflowOperationKey" />
-                <fieldset class="stack">
+                <fieldset class="stack fieldset-plain">
                     <legend>Required before Review</legend>
                     <div class="form-grid form-grid--2">
                         <label class="choice"><input type="checkbox" name="RequireInstructions" value="true" checked="@Model.RequireInstructions" /> Instructions</label>
@@ -32,20 +28,19 @@
                             <div class="field">
                                 <label for="@inputId">@setting.Label (days)</label>
                                 <input id="@inputId" name="@setting.Field" type="number" min="@setting.Minimum" max="@setting.Maximum" step="1" value="@Model.WorkflowInputValue(setting.Field, setting.Posted)" required class="@(setting.Field == nameof(ConfigurationModel.ChaseIntervalDays) ? "chase-interval-input" : null)" />
-                                <span class="field-hint">@setting.Minimum to @setting.Maximum</span>
                                 <span asp-validation-for="@setting.Field" class="field-error"></span>
                             </div>
                         }
                     </div>
                 </fieldset>
-                <div class="button-row"><button type="reset" class="btn">Reset</button><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save workflow settings</button></div>
+                <div class="button-row"><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save workflow settings</button></div>
             </form>
         </section>
         <section class="panel" aria-labelledby="rates-title">
             <div class="panel-head"><h2 id="rates-title">Labour-rate cards</h2></div>
-            <div class="table-wrap no-border"><table>
+            <div class="table-wrap no-border"><table class="table table--compact">
                 <caption class="sr-only">Labour-rate cards</caption>
-                <thead><tr><th scope="col">Name</th><th scope="col">Panel and paint (£/hour)</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+                <thead><tr><th scope="col">Name</th><th scope="col" class="num">Panel and paint (£/hour)</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
                 @foreach (var card in Model.RateCards)
                 {
@@ -56,12 +51,12 @@
                     var rowOperationKey = showingPostedValues ? Model.CardOperationKey : ConfigurationModel.NewOperationKey();
                     <tr>
                         <td>@card.Name</td>
-                        <td><input form="@formId" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@rowHourlyRate" aria-label="@card.Name panel and paint hourly rate" required /></td>
+                        <td class="num"><input form="@formId" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@rowHourlyRate" aria-label="@card.Name panel and paint hourly rate" class="num" required /></td>
                         <td><form id="@formId" method="post" asp-page-handler="SaveCard">
                             <input type="hidden" name="CardId" value="@card.Id" />
                             <input type="hidden" name="CardExpectedVersion" value="@rowVersion" />
                             <input type="hidden" name="CardOperationKey" value="@rowOperationKey" />
-                            <div class="button-row"><button type="reset" class="btn btn--small">Reset</button><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
+                            <div class="button-row"><button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save</button></div>
                         </form></td>
                     </tr>
                 }

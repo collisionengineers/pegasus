@@ -28,6 +28,13 @@ public sealed record CaseStageCounts(
     int Query = 0);
 
 /// <summary>
+/// The Cases rail counts and the Principal codes of the Cases its Case queues
+/// hold (Not ready, Review, With Engineer, Queries and Held): the Principal
+/// select's options on a Case queue (v41 U3).
+/// </summary>
+public sealed record CaseQueues(CaseStageCounts Counts, IReadOnlyList<string> Principals);
+
+/// <summary>
 /// A pre-report Case its early vehicle images were paired into, which no
 /// member of staff has changed since (FRD-19, INT-32).
 /// </summary>
@@ -72,6 +79,12 @@ public interface IDashboardQueries
     Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken);
 
     /// <summary>
+    /// <see cref="GetCaseStageCountsAsync"/> with the Principals of the Cases
+    /// those queues hold, in the same statement. Only a Case queue reads it.
+    /// </summary>
+    Task<CaseQueues> GetCaseQueuesAsync(CancellationToken cancellationToken);
+
+    /// <summary>
     /// Unassociated image-initiated records still awaiting instruction. Only
     /// the Cases page shows this figure.
     /// </summary>
@@ -91,8 +104,9 @@ public interface IDashboardQueries
 
 /// <summary>
 /// The Work Centre's actionable kinds (Work Centre D1–D3, D9). Each is derived
-/// from one existing Core query; every kind but <see cref="NeedsAttentionKind.OpenTasks"/> carries
-/// a due instant from the workflow targets. There is no placeholder row. Failed
+/// from one existing Core query; every kind but <see cref="NeedsAttentionKind.OpenTasks"/> and
+/// <see cref="NeedsAttentionKind.WithEngineer"/> carries a due instant from the
+/// workflow targets. There is no placeholder row. Failed
 /// external work is not a kind (D1): a custody failure is retried in its Case's
 /// Custody page.
 /// </summary>
@@ -113,7 +127,10 @@ public enum NeedsAttentionKind
     /// <summary>A Case that is ready for the required Review decision; due entered Review + Review target.</summary>
     ReviewCase,
 
-    /// <summary>A ready Case that has no Engineer assigned; due entered Review + Review target.</summary>
+    /// <summary>
+    /// A ready Review Case, or a With Engineer Case, that has no Engineer
+    /// assigned; due entered its state + Review target.
+    /// </summary>
     UnassignedEngineer,
 
     /// <summary>An AI job in Draft ready waiting for a person; due draft written + AI draft target.</summary>
@@ -129,7 +146,14 @@ public enum NeedsAttentionKind
     /// A Case with at least one open task, named by its oldest open task; no
     /// due instant, so always Normal.
     /// </summary>
-    OpenTasks
+    OpenTasks,
+
+    /// <summary>
+    /// A With Engineer Case its Engineer holds (#1213): listed in that
+    /// Engineer's Mine only, never in Office; due the Case's one due instant,
+    /// undated (always Normal) when it has none.
+    /// </summary>
+    WithEngineer
 }
 
 /// <summary>

@@ -19,6 +19,8 @@ the defaults below.
 
 ## Authority
 
+This repository's AGENTS.md governs every write; invoking this skill authorises none.
+
 Invoking this skill authorises:
 - everything `investigate-issue` authorises, including its issue comment;
 - one new worktree and branch from the integration branch;

@@ -1,9 +1,8 @@
 @{
     var area = ViewData["AdminArea"] as string;
     var page = ViewContext.RouteData.Values["page"] as string;
-    var automationComposed = ViewData["AdminAutomationComposed"] is true
-        || ViewContext.HttpContext.RequestServices.GetService(
-            typeof(Pegasus.Web.Mcp.AutomationClientRegistry)) is not null;
+    var automationComposed = ViewContext.HttpContext.RequestServices.GetService(
+        typeof(Pegasus.Web.Mcp.AutomationClientRegistry)) is not null;
     string? Current(string key) => area == key
         || page == (key switch
         {

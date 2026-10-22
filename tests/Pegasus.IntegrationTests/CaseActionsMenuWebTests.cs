@@ -212,33 +212,81 @@ public sealed class CaseActionsMenuWebTests
     }
 
     /// <summary>
-    /// Assign Engineer on a Review Case is the select. Assign to me is not a
-    /// second way to take the Case. The Next action opens the Actions menu's
-    /// own dialog rather than jumping to a section (issue 1025), and the step
-    /// is that one control, not its words beside it (operator, 8 October 2026).
+    /// #1213 (v41 K9): a Review or With Engineer Case with no Engineer offers
+    /// Assign Engineer in the Actions menu, and its Next action opens that
+    /// menu's own dialog rather than jumping to a section (issue 1025) with
+    /// Take beside it, which posts the signed-in person's staff id, the value
+    /// the dialog's "Name (you)" option posts. The dialog lists the signed-in
+    /// person first, then the other Engineers, then Unassigned; the colleague's
+    /// username sorts before the viewer's, so the directory's order alone
+    /// would list the colleague first.
     /// </summary>
-    [Fact]
-    public async Task AssignEngineerDoesNotOfferAssignToMe()
+    [Theory]
+    [InlineData(CaseLifecycleState.Review)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    public async Task AnUnassignedCaseOffersAssignEngineerAndTakeBesideIt(CaseLifecycleState state)
     {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
+        var viewer = Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId;
+        var colleague = new StaffAccountSummary(Guid.NewGuid(), "aaron", true, false, StaffRole.Engineer);
+        var staff = new StubStaffAccounts(viewer, "alex", StaffRole.Administrator, colleague);
+        var store = new RecordingCaseDetailsStore { State = state };
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
-            Substitute<IStaffAccountQueries>(services, new StubStaffAccounts(Guid.NewGuid(), "User", StaffRole.User));
+            Substitute<IStaffAccountQueries>(services, staff);
+            Substitute<ICaseEngineerChoices>(services, staff);
         }, StaffRole.User);
-        var leased = await workspace.GetWorkspaceAsync();
+
+        var leased = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
+
         var dialog = Section(leased, "case-handoff-dialog-title");
         Assert.Contains("handler=AssignEngineer", dialog, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=AssignToMe", dialog, StringComparison.Ordinal);
-        Assert.DoesNotContain("Assign to me", dialog, StringComparison.Ordinal);
+        Assert.Equal(
+            [
+                ("", ""),
+                (viewer.ToString("D"), OperatorLabels.Triage.You("alex")),
+                (colleague.Id.ToString("D"), "aaron"),
+                (AssignEngineerChoice.UnassignedValue, OperatorLabels.CaseWorkspace.Unassigned)
+            ],
+            Regex.Matches(dialog, "<option value=\"(?<value>[^\"]*)\">(?<label>[^<]*)</option>")
+                .Select(option => (option.Groups["value"].Value, option.Groups["label"].Value))
+                .ToArray());
         Assert.Contains(
             "<button type=\"button\" class=\"btn\" data-dialog-open=\"case-handoff-dialog\">",
             RecordBar(leased),
             StringComparison.Ordinal);
         Assert.Matches(
-            "<div class=\"next-step\" data-next-step>\\s*"
-                + "<button type=\"button\" class=\"btn next-step-go\" data-dialog-open=\"case-handoff-dialog\" data-next-assign-engineer>Assign Engineer</button>\\s*</div>",
+            "<div class=\"next-step\" data-next-step>\\s*<div class=\"next-row\" data-next-assign>\\s*"
+                + $"<button type=\"button\" class=\"btn next-step-go\" data-dialog-open=\"case-handoff-dialog\" data-next-assign-engineer>{CaseWorkspaceLabels.AssignEngineer}</button>\\s*"
+                + "<form[^>]*data-case-take",
             leased);
-        Assert.DoesNotContain("<strong data-next-label>Assign Engineer</strong>", leased, StringComparison.Ordinal);
+        var take = Regex.Match(leased, "<form[^>]*data-case-take[^>]*>.*?</form>", RegexOptions.Singleline).Value;
+        Assert.Contains($"/Cases/{store.CaseId:D}/Workflow?handler=AssignEngineer", take, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"name=\"engineerId\" value=\"{viewer:D}\"", take, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{store.LeaseToken}\"", take, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.WorkCentre.Take}</button>", take, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The ribbon's Engineer reads Unassigned on any Case before its report
+    /// that has no Engineer, Not ready and Review included (R161 (b)); a Case
+    /// past its report with none reads Not recorded.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady, OperatorLabels.CaseWorkspace.Unassigned)]
+    [InlineData(CaseLifecycleState.Review, OperatorLabels.CaseWorkspace.Unassigned)]
+    [InlineData(CaseLifecycleState.ReportPreparation, OperatorLabels.CaseWorkspace.Unassigned)]
+    [InlineData(CaseLifecycleState.Held, OperatorLabels.CaseWorkspace.Unassigned)]
+    [InlineData(CaseLifecycleState.ReportSent, OperatorLabels.CaseWorkspace.AbsentValue)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, OperatorLabels.CaseWorkspace.AbsentValue)]
+    public async Task TheRibbonReadsUnassignedBeforeTheReportWhenTheCaseHasNoEngineer(
+        CaseLifecycleState state, string engineer)
+    {
+        var html = await ReadCaseAsync(new RecordingCaseDetailsStore { State = state });
+
+        Assert.Matches(
+            $"<div class=\"ribbon-label\">{OperatorLabels.CaseWorkspace.RibbonEngineer}</div>\\s*"
+                + $"<div class=\"ribbon-value\"><span>{engineer}</span></div>",
+            html);
     }
 
     /// <summary>

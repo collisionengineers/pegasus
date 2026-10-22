@@ -20,7 +20,9 @@ namespace Pegasus.Web.Pages.Mail;
 /// </summary>
 /// <remarks>
 /// Reads one retained message and invokes the existing Core commands for its
-/// classification, Case association and post-report AI job.
+/// classification, Case association and post-report AI job. The Inbox opens it
+/// in a dialog over the list, fetched from the <c>Dialog</c> handler; this page
+/// is the same record for a new tab and for no script (R159 c).
 /// </remarks>
 /// <summary>The next action a message's classification offers (FRD-20).</summary>
 public enum MessageOffer
@@ -32,7 +34,6 @@ public enum MessageOffer
 
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
-    GetRetainedMailPreview getRetainedMailPreview,
     IStartQueryResponse startQueryResponse,
     IAiJobQueries aiJobQueries,
     IAiJobStore aiJobStore,
@@ -84,9 +85,20 @@ public sealed class MessageModel(
 
     public bool IsDismissed => Detail.Summary.DismissedAtUtc is not null;
 
-    public const string LinkAssociationAction = "Link";
+    /// <summary>
+    /// The record is drawn for the Inbox dialog: its forms carry <c>dialog</c>,
+    /// so a write lands back on the Inbox with this message open (v41 I2).
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "dialog")]
+    public bool InDialog { get; set; }
 
-    public const string UnlinkAssociationAction = "Unlink";
+    /// <summary>
+    /// The keys a link post that could not settle its edit authority keeps on
+    /// the redrawn form, so the retry is the same confirmation.
+    /// </summary>
+    public string? RetainedLeaseOperationKey { get; private set; }
+
+    public string? RetainedOperationKey { get; private set; }
 
     public IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
         MailClassificationSelection.Options;
@@ -122,12 +134,6 @@ public sealed class MessageModel(
 
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? Section { get; set; }
-
-    [BindProperty(SupportsGet = true, Name = "caseQuery")]
-    public string? CaseQuery { get; set; }
-
-    [BindProperty(SupportsGet = true, Name = "targetCaseId")]
-    public Guid? TargetCaseId { get; set; }
 
     [BindProperty]
     public int ExpectedClassificationVersion { get; set; }
@@ -288,50 +294,24 @@ public sealed class MessageModel(
     /// </summary>
     public IntakeAssociationDestination? CurrentDestination { get; private set; }
 
-    public CaseHeader? TargetCase { get; private set; }
+    /// <summary>
+    /// Whether Link to Case is drawn, with its reason dialog and the Case / PO
+    /// picker: the message is not linked and its decision leaves a Case to link
+    /// it to (Core's <see cref="IntakeAssociationDestinationPolicy.CanOffer"/>).
+    /// </summary>
+    public bool OffersLinkToCase =>
+        AssociationReceipt is { } receipt
+        && IntakeAssociationDestinationPolicy.CanOffer(receipt);
 
     /// <summary>
-    /// The chosen "Link to case" target, of either kind, as the destination
-    /// owner offers it. <see cref="TargetCase"/> is null for a Triage Case.
+    /// Whether Change linked Case is drawn: the message is linked and its
+    /// decision leaves a Case to link it to (Core's
+    /// <see cref="IntakeAssociationDestinationPolicy.CanOfferToChange"/>).
     /// </summary>
-    public IntakeAssociationDestination? TargetDestination { get; private set; }
-
-    public IReadOnlyList<UploadCaseSuggestion>? CaseResults { get; private set; }
-
-    public string? AssociationLeaseState
-    {
-        get => TempData.Peek(nameof(AssociationLeaseState)) as string;
-        set
-        {
-            if (value is null)
-            {
-                TempData.Remove(nameof(AssociationLeaseState));
-            }
-            else
-            {
-                TempData[nameof(AssociationLeaseState)] = value;
-            }
-        }
-    }
-
-    public Guid? AssociationLeaseCaseId { get; private set; }
-
-    public Guid? AssociationLeaseMessageId { get; private set; }
-
-    public Guid? AssociationLeaseReceiptId { get; private set; }
-
-    public string? AssociationLeaseAction { get; private set; }
-
-    public long? AssociationLeaseCaseVersion { get; private set; }
-
-    public long? AssociationLeaseIntakeVersion { get; private set; }
-
-    public string? AssociationLeaseToken { get; private set; }
-
-    /// <summary>The prepared association holds a Triage Case's Triage edit scope, not a Case edit lease.</summary>
-    public bool AssociationLeaseIsTriageCase { get; private set; }
-
-    public string? AssociationOperationKey { get; private set; }
+    public bool OffersChangeLinkedCase =>
+        CurrentDestination is not null
+        && AssociationReceipt is { } receipt
+        && IntakeAssociationDestinationPolicy.CanOfferToChange(receipt);
 
     public MailFolderScope ListFolder { get; private set; } = MailFolderScope.Inbox;
 
@@ -357,8 +337,24 @@ public sealed class MessageModel(
 
     public bool CanReply => CanCorrespond && ReplyRecipients(Detail).To.Length > 0;
 
-    public async Task<IActionResult> OnGetAsync(
+    public Task<IActionResult> OnGetAsync(
         Guid id,
+        CancellationToken cancellationToken) =>
+        ShowAsync(id, inDialog: false, cancellationToken);
+
+    /// <summary>
+    /// The record as the Inbox's message dialog, fetched on open: the same read,
+    /// actor and refusals as the page, and like it a read that changes nothing.
+    /// One reader serves the page and the dialog.
+    /// </summary>
+    public Task<IActionResult> OnGetDialogAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        ShowAsync(id, inDialog: true, cancellationToken);
+
+    private async Task<IActionResult> ShowAsync(
+        Guid id,
+        bool inDialog,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -376,6 +372,7 @@ public sealed class MessageModel(
             return NotFound();
         }
 
+        InDialog = inDialog;
         ListFolder = listFolder;
         MailboxFilter = string.IsNullOrWhiteSpace(MailboxFilter) ? null : MailboxFilter.Trim();
 
@@ -415,6 +412,10 @@ public sealed class MessageModel(
         {
             CorrespondenceMode = null;
         }
+        if (inDialog)
+        {
+            return Partial("Shared/_MessageDialog", this);
+        }
         return Page();
     }
 
@@ -423,8 +424,8 @@ public sealed class MessageModel(
     /// Case's Correspondence dialog, with the record's Reply, Reply all and
     /// Forward where the record offers them. Each opens the record's composer
     /// with the dialog's Case (<see cref="CorrespondenceCaseReference"/>)
-    /// chosen. The same actor and read as the record, and like the Inbox
-    /// preview it changes nothing.
+    /// chosen. The same actor and read as the record, and like it a read that
+    /// changes nothing.
     /// </summary>
     public async Task<IActionResult> OnGetContentAsync(
         Guid id,
@@ -485,28 +486,37 @@ public sealed class MessageModel(
         return parts;
     }
 
-    /// <summary>Dismiss on the record: always allowed; an open Unidentified item stays open (Inbox, 13 September).</summary>
-    public Task<IActionResult> OnPostDismissAsync(Guid id, string? operationKey, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// Dismiss on the record: always allowed; an open Unidentified item stays open
+    /// (Inbox, 13 September). From the dialog, <paramref name="next"/> is the
+    /// message the list reads after this one, and the Inbox opens it (v41 I10).
+    /// </summary>
+    public Task<IActionResult> OnPostDismissAsync(
+        Guid id, string? operationKey, Guid? next, CancellationToken cancellationToken) =>
         ChangeDismissalAsync(
             id,
             actor => dismissRetainedMail.ExecuteAsync(
                 new(id, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey),
                 cancellationToken),
-            OperatorLabels.Inbox.DismissedNotice);
+            OperatorLabels.Inbox.DismissedNotice,
+            next);
 
     /// <summary>Restore on the record of a dismissed message.</summary>
-    public Task<IActionResult> OnPostRestoreAsync(Guid id, string? operationKey, CancellationToken cancellationToken) =>
+    public Task<IActionResult> OnPostRestoreAsync(
+        Guid id, string? operationKey, Guid? next, CancellationToken cancellationToken) =>
         ChangeDismissalAsync(
             id,
             actor => restoreRetainedMail.ExecuteAsync(
                 new(id, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey),
                 cancellationToken),
-            OperatorLabels.Inbox.RestoredNotice);
+            OperatorLabels.Inbox.RestoredNotice,
+            next);
 
     private async Task<IActionResult> ChangeDismissalAsync(
         Guid id,
         Func<ActionActor, Task<RetainedMailDismissal?>> change,
-        string notice)
+        string notice,
+        Guid? next)
     {
         if (!TryGetActor(out var actor))
         {
@@ -534,16 +544,9 @@ public sealed class MessageModel(
         }
 
         TempData["Confirmation"] = notice;
-        return RedirectToPage(new
-        {
-            id,
-            mailbox = MailboxFilter,
-            folder = FolderFilter,
-            pageNumber = PageRouteValue,
-            search = SearchTerm,
-            queue = QueueFilter,
-            sort = OldestFirst ? "oldest" : null
-        });
+        // From the dialog the message has left its list: the Inbox opens the one
+        // that followed it, else the one before it, else shows the list (v41 I10).
+        return InDialog ? LandOnInbox(next, null, null) : LandOnRecord(id);
     }
 
     private async Task LoadAttachmentOutcomesAsync(ActionActor actor, CancellationToken cancellationToken)
@@ -627,9 +630,13 @@ public sealed class MessageModel(
     public Task<IActionResult> OnPostForwardAsync(Guid id, CancellationToken cancellationToken) =>
         SendCorrespondenceAsync(id, StaffMailComposeMode.Forward, cancellationToken);
 
+    private const string CaseOptionsView = "/Pages/Shared/_CaseOptions.cshtml";
+
     /// <summary>
     /// The Case / PO field's option list for Reply/Forward, fetched as staff
-    /// type. Choosing an option posts <c>SelectCorrespondenceCase</c>.
+    /// type. On the record page choosing an option posts
+    /// <c>SelectCorrespondenceCase</c>; the dialog's picker only fills the
+    /// field, so a reply never leaves the dialog for the record page.
     /// </summary>
     public async Task<IActionResult> OnGetCorrespondenceCaseOptionsAsync(
         Guid id,
@@ -639,12 +646,14 @@ public sealed class MessageModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (!StaffMailAvailable) return NotFound();
         return Partial(
-            "/Pages/Shared/_CaseOptions.cshtml",
+            CaseOptionsView,
             new Pegasus.Web.Presentation.CaseOptions(
-                await SearchCasesAsync(actor, q, cancellationToken),
+                (await SearchCasesAsync(actor, q, cancellationToken))
+                    .Select(item => new CaseOption(item.Reference, item.Registration, item.Claimant))
+                    .ToList(),
+                "message-case-option",
                 Url.Page("/Mail/Message", "SelectCorrespondenceCase", new { id })!,
-                nameof(SelectedCorrespondenceCaseReference),
-                "message-case-option"));
+                nameof(SelectedCorrespondenceCaseReference)));
     }
 
     public async Task<IActionResult> OnPostSelectCorrespondenceCaseAsync(
@@ -657,7 +666,7 @@ public sealed class MessageModel(
         var result = await ReloadAsync(actor, id, cancellationToken);
         if (CorrespondenceCase is null)
         {
-            ModelState.AddModelError(nameof(CorrespondenceCaseReference), "Choose one Case by its Case / PO reference.");
+            ModelState.AddModelError(nameof(CorrespondenceCaseReference), ChooseOneCaseMessage);
             return result;
         }
         ModelState.Remove(nameof(CorrespondenceCaseReference));
@@ -699,7 +708,7 @@ public sealed class MessageModel(
             // One owner with the Case's Queries row and pegasus_ai_job_create (FRD-27).
             await startQueryResponse.ExecuteAsync(new(actor, id, operationKey), cancellationToken);
             QueryResponseNotice = OperatorLabels.QueryResponseJobs.Created;
-            return RedirectToMessage(id);
+            return LandOn(id);
         }
         catch (StaffAuthorizationException)
         {
@@ -716,25 +725,25 @@ public sealed class MessageModel(
         }
     }
 
-    public async Task<IActionResult> OnPostPrepareLinkCaseAsync(
+    /// <summary>
+    /// Link to Case: one step (v41 I13). The Case / PO the operator named and
+    /// the reason arrive together; this claims the Case's edit authority through
+    /// <see cref="CaseLinkAuthority"/>, runs the link under it and releases or
+    /// compensates on every way out. Staff linking reaches every Case and every
+    /// Triage Case in any state (operator, 24 September 2026); the destination
+    /// owner refuses only an archived Case.
+    /// </summary>
+    public Task<IActionResult> OnPostLinkCaseAsync(
         Guid id,
-        Guid caseId,
+        string? caseReference,
         long expectedIntakeVersion,
-        long expectedCaseVersion,
         string leaseOperationKey,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
+        string operationKey,
+        string Reason,
+        CancellationToken cancellationToken) =>
+        AssociationWriteAsync(id, async actor =>
         {
-            return Forbid();
-        }
-        if (!TryParseListContext(out _))
-        {
-            return NotFound();
-        }
-
-        try
-        {
+            RequireAssociationConfirmation(operationKey, leaseOperationKey, Reason);
             var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
             if (binding is null)
             {
@@ -746,62 +755,54 @@ public sealed class MessageModel(
                 throw new IntakeVersionConflictException();
             }
 
-            // Staff linking reaches every Case and every Triage Case in any
-            // state (operator, 24 September 2026); the destination owner
-            // refuses only an archived Case.
-            var destination = await destinations.GetAsync(binding, caseId, actor, cancellationToken);
-            if (destination is null || destination.Version != expectedCaseVersion)
+            // A message the policy does not let be linked is refused before any
+            // Case is searched or claimed.
+            if (!IntakeAssociationDestinationPolicy.CanOffer(binding))
             {
-                throw new IntakeVersionConflictException();
+                ModelState.AddModelError(
+                    string.Empty, OperatorLabels.IntakeCannotBecomeCaseReason(binding.Decision));
+                return await ReloadAsync(actor, id, cancellationToken);
             }
-            // A Triage Case destination is claimed through its Triage edit scope.
-            var claim = await CaseLinkAuthority.ClaimAsync(
-                destination,
-                expectedCaseVersion,
-                actor,
-                leaseOperationKey,
-                acquireCaseEditLease,
-                editScopes,
-                cancellationToken);
-            PreserveAssociationLease(
-                id,
-                binding.Id,
-                LinkAssociationAction,
-                claim,
-                expectedIntakeVersion,
-                Guid.NewGuid().ToString("D"));
-            return RedirectToAssociationTarget(id, caseId);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            ModelState.AddModelError(string.Empty, AssociationPreparationFailureMessage(exception));
-            return await ReloadAsync(actor, id, cancellationToken);
-        }
-    }
 
-    public async Task<IActionResult> OnPostPrepareUnlinkCaseAsync(
+            // Only the destination's authority row is read: the claim needs its
+            // version and the post shows none of its facts.
+            var targetCaseId = await ResolveCaseIdAsync(actor, caseReference, cancellationToken);
+            var destination = targetCaseId is { } caseId
+                ? await destinations.GetAuthorityAsync(caseId, actor, cancellationToken)
+                : null;
+            if (destination is null)
+            {
+                ModelState.AddModelError(string.Empty, ChooseOneCaseMessage);
+                return await ReloadAsync(actor, id, cancellationToken);
+            }
+
+            var failure = await LinkStepAsync(
+                actor, binding, destination, leaseOperationKey, operationKey, Reason, cancellationToken);
+            if (failure is not null)
+            {
+                return await RefuseAssociationAsync(
+                    actor, id, failure, leaseOperationKey, operationKey, cancellationToken);
+            }
+
+            AssociationNotice = LinkedNotice;
+            return LandOn(id);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Unlink: one step (v41 I13), through the reason dialog. Where the message's
+    /// own acceptance created the Case, the dialog said unlinking cancels it.
+    /// </summary>
+    public Task<IActionResult> OnPostUnlinkCaseAsync(
         Guid id,
         Guid caseId,
         long expectedIntakeVersion,
-        long expectedCaseVersion,
         string leaseOperationKey,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
+        string operationKey,
+        string Reason,
+        CancellationToken cancellationToken) =>
+        AssociationWriteAsync(id, async actor =>
         {
-            return Forbid();
-        }
-        if (!TryParseListContext(out _))
-        {
-            return NotFound();
-        }
-
-        try
-        {
+            RequireAssociationConfirmation(operationKey, leaseOperationKey, Reason);
             var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
             if (binding is null)
             {
@@ -814,26 +815,157 @@ public sealed class MessageModel(
             }
 
             var (current, _) = await GetCurrentDestinationAsync(caseId, actor, cancellationToken);
-            if (current is null || current.Version != expectedCaseVersion)
+            if (current is null)
             {
                 throw new IntakeVersionConflictException();
             }
-            var claim = await CaseLinkAuthority.ClaimAsync(
-                current,
-                expectedCaseVersion,
-                actor,
-                leaseOperationKey,
-                acquireCaseEditLease,
-                editScopes,
-                cancellationToken);
-            PreserveAssociationLease(
-                id,
-                binding.Id,
-                UnlinkAssociationAction,
-                claim,
-                expectedIntakeVersion,
-                Guid.NewGuid().ToString("D"));
-            return RedirectToMessage(id);
+
+            var failure = await UnlinkStepAsync(
+                actor, binding, caseId, current, leaseOperationKey, operationKey, Reason, cancellationToken);
+            if (failure is not null)
+            {
+                return await RefuseAssociationAsync(
+                    actor, id, failure, leaseOperationKey, operationKey, cancellationToken);
+            }
+
+            AssociationNotice = "Message unlinked from the confirmed case.";
+            return LandOn(id);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Change linked Case (v41 I9, I13): the existing Unlink and the existing
+    /// Link to Case in one post, with the one reason for both, each under its
+    /// own edit authority and each keeping its own history entry (FRD-21: Unlinked,
+    /// Relinked with a reason). The new Case is found and its authority claimed
+    /// before anything is unlinked, so a refused target leaves the message linked.
+    /// </summary>
+    public Task<IActionResult> OnPostChangeLinkedCaseAsync(
+        Guid id,
+        string? caseReference,
+        long expectedIntakeVersion,
+        string leaseOperationKey,
+        string operationKey,
+        string linkLeaseOperationKey,
+        string linkOperationKey,
+        string Reason,
+        CancellationToken cancellationToken) =>
+        AssociationWriteAsync(id, async actor =>
+        {
+            RequireAssociationConfirmation(operationKey, leaseOperationKey, Reason);
+            RequireAssociationConfirmation(linkOperationKey, linkLeaseOperationKey, Reason);
+            var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
+            if (binding is null)
+            {
+                return NotFound();
+            }
+            if (binding.Version != expectedIntakeVersion
+                || binding.CurrentCaseId is not { } currentCaseId)
+            {
+                throw new IntakeVersionConflictException();
+            }
+
+            // The unlink is made first and the link then needs a message the
+            // policy lets be linked, so a message it does not is refused before
+            // anything is claimed or unlinked.
+            if (!IntakeAssociationDestinationPolicy.CanOfferToChange(binding))
+            {
+                ModelState.AddModelError(
+                    string.Empty, OperatorLabels.IntakeCannotBecomeCaseReason(binding.Decision));
+                return await ReloadAsync(actor, id, cancellationToken);
+            }
+
+            var targetCaseId = await ResolveCaseIdAsync(actor, caseReference, cancellationToken);
+            var target = targetCaseId is { } newCaseId && newCaseId != currentCaseId
+                ? await destinations.GetAuthorityAsync(newCaseId, actor, cancellationToken)
+                : null;
+            if (target is null)
+            {
+                ModelState.AddModelError(string.Empty, ChooseOneCaseMessage);
+                return await ReloadAsync(actor, id, cancellationToken);
+            }
+
+            var (current, _) = await GetCurrentDestinationAsync(currentCaseId, actor, cancellationToken);
+            if (current is null)
+            {
+                throw new IntakeVersionConflictException();
+            }
+
+            // The new Case's authority is claimed before anything is unlinked: a
+            // Case a colleague is editing refuses here, with nothing written.
+            var (claim, claimFailure) = await ClaimAuthorityAsync(
+                actor, target, linkLeaseOperationKey, cancellationToken);
+            if (claim is null)
+            {
+                return await RefuseAssociationAsync(
+                    actor, id, claimFailure!, linkLeaseOperationKey, linkOperationKey, cancellationToken);
+            }
+
+            // The link command consumes the claim when it runs; until then every
+            // way out gives it back.
+            var claimHandedOn = false;
+            try
+            {
+                var unlinkFailure = await UnlinkStepAsync(
+                    actor, binding, currentCaseId, current, leaseOperationKey, operationKey, Reason, cancellationToken);
+                if (unlinkFailure is not null)
+                {
+                    return await RefuseAssociationAsync(
+                        actor, id, unlinkFailure, leaseOperationKey, operationKey, cancellationToken);
+                }
+
+                // The unlink advanced the receipt: the link is made against it as it now stands.
+                var unlinked = await getIntake.ExecuteAsync(new(binding.Id, actor), cancellationToken)
+                    ?? throw new IntakeVersionConflictException();
+
+                claimHandedOn = true;
+                var linkFailure = await RunClaimedAsync(
+                    actor,
+                    claim,
+                    LinkCommand(actor, unlinked, target.CaseId, linkOperationKey, Reason, cancellationToken),
+                    cancellationToken);
+                if (linkFailure is not null)
+                {
+                    return await RefuseAssociationAsync(
+                        actor, id, linkFailure, linkLeaseOperationKey, linkOperationKey, cancellationToken);
+                }
+            }
+            finally
+            {
+                if (!claimHandedOn)
+                {
+                    await ReleaseClaimAsync(actor, claim);
+                }
+            }
+
+            AssociationNotice = LinkedNotice;
+            return LandOn(id);
+        }, cancellationToken);
+
+    private static readonly string LinkedNotice =
+        $"Message linked to the confirmed case. {OperatorLabels.Upload.AppearUnderFiles}";
+
+    /// <summary>
+    /// What the three association writes share: staff and list context are
+    /// checked, <paramref name="write"/> runs, a staff refusal is Forbid and any
+    /// other recoverable failure redraws the record with its sentence.
+    /// </summary>
+    private async Task<IActionResult> AssociationWriteAsync(
+        Guid id,
+        Func<ActionActor, Task<IActionResult>> write,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            return await write(actor);
         }
         catch (StaffAuthorizationException)
         {
@@ -846,133 +978,109 @@ public sealed class MessageModel(
         }
     }
 
-    public async Task<IActionResult> OnPostLinkCaseAsync(
-        Guid id,
-        Guid caseId,
-        long expectedIntakeVersion,
-        long expectedCaseVersion,
-        string editLeaseToken,
+    /// <summary>The link command, run under the destination's claimed authority, against the receipt as it stands.</summary>
+    private Task<AssociationFailure?> LinkStepAsync(
+        ActionActor actor,
+        IntakeReceipt binding,
+        IntakeAssociationDestination destination,
+        string leaseOperationKey,
         string operationKey,
-        string Reason,
+        string reason,
+        CancellationToken cancellationToken) =>
+        TryAssociateAsync(
+            actor,
+            destination,
+            leaseOperationKey,
+            LinkCommand(actor, binding, destination.CaseId, operationKey, reason, cancellationToken),
+            cancellationToken);
+
+    private Func<CaseLinkAuthorityClaim, Task> LinkCommand(
+        ActionActor actor,
+        IntakeReceipt binding,
+        Guid caseId,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken) =>
+        claim => linkIntake.ExecuteAsync(
+            new(
+                binding.Id,
+                caseId,
+                binding.Version,
+                claim.Version,
+                claim.Token,
+                actor,
+                operationKey,
+                reason),
+            cancellationToken);
+
+    /// <summary>The unlink command, run under the linked Case's claimed authority, against the receipt as it stands.</summary>
+    private Task<AssociationFailure?> UnlinkStepAsync(
+        ActionActor actor,
+        IntakeReceipt binding,
+        Guid caseId,
+        IntakeAssociationDestination current,
+        string leaseOperationKey,
+        string operationKey,
+        string reason,
+        CancellationToken cancellationToken) =>
+        TryAssociateAsync(
+            actor,
+            current,
+            leaseOperationKey,
+            claim => reverseIntakeLink.ExecuteAsync(
+                new(
+                    binding.Id,
+                    caseId,
+                    binding.Version,
+                    claim.Version,
+                    claim.Token,
+                    actor,
+                    operationKey,
+                    reason),
+                cancellationToken),
+            cancellationToken);
+
+    /// <summary>
+    /// The Case / PO options as staff type: the Cases and Triage Cases the
+    /// message's receipt may be linked to, or, for a linked message, changed to.
+    /// Choosing one fills the Case / PO field; nothing is written until the
+    /// reason dialog is confirmed.
+    /// </summary>
+    public async Task<IActionResult> OnGetLinkCaseOptionsAsync(
+        Guid id,
+        string? q,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
-        if (!TryParseListContext(out _))
-        {
-            return NotFound();
-        }
 
         try
         {
-            RestoreAssociationLease();
-            RequireAssociationConfirmation(operationKey, editLeaseToken, Reason);
             var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
-            if (binding is null)
+            if (binding is null || !TryNormalizeCaseQueryValue(q, out var term))
             {
                 return NotFound();
             }
-            RequirePreparedAssociation(
-                id,
-                binding.Id,
-                LinkAssociationAction,
-                caseId,
-                expectedIntakeVersion,
-                expectedCaseVersion,
-                editLeaseToken,
-                operationKey);
-            await linkIntake.ExecuteAsync(
-                new(
-                    binding.Id,
-                    caseId,
-                    expectedIntakeVersion,
-                    expectedCaseVersion,
-                    editLeaseToken,
-                    actor,
-                    operationKey,
-                    Reason),
-                cancellationToken);
-            AssociationNotice = $"Message linked to the confirmed case. {OperatorLabels.Upload.AppearUnderFiles}";
-            return RedirectToMessage(id);
+
+            // Choosing an option only fills the Case / PO field.
+            var found = binding.CurrentCaseId is null
+                ? await destinations.SearchAsync(binding, term!, actor, cancellationToken)
+                : await destinations.SearchToChangeAsync(binding, term!, actor, cancellationToken);
+            return Partial(
+                CaseOptionsView,
+                new Pegasus.Web.Presentation.CaseOptions(
+                    found.Select(item => new CaseOption(item.Reference, item.Registration, item.Claimant)).ToList(),
+                    "mail-link-option"));
         }
         catch (StaffAuthorizationException)
         {
             return Forbid();
         }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            var releasePending = await ResolveFailedAssociationLeaseAsync(exception, actor);
-            ModelState.AddModelError(
-                string.Empty,
-                releasePending ? AssociationReleaseFailureMessage : AssociationFailureMessage(exception));
-            return await ReloadAsync(actor, id, cancellationToken);
-        }
-    }
-
-    public async Task<IActionResult> OnPostUnlinkCaseAsync(
-        Guid id,
-        Guid caseId,
-        long expectedIntakeVersion,
-        long expectedCaseVersion,
-        string editLeaseToken,
-        string operationKey,
-        string Reason,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (!TryParseListContext(out _))
+        catch (ArgumentException)
         {
             return NotFound();
-        }
-
-        try
-        {
-            RestoreAssociationLease();
-            RequireAssociationConfirmation(operationKey, editLeaseToken, Reason);
-            var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
-            if (binding is null)
-            {
-                return NotFound();
-            }
-            RequirePreparedAssociation(
-                id,
-                binding.Id,
-                UnlinkAssociationAction,
-                caseId,
-                expectedIntakeVersion,
-                expectedCaseVersion,
-                editLeaseToken,
-                operationKey);
-            await reverseIntakeLink.ExecuteAsync(
-                new(
-                    binding.Id,
-                    caseId,
-                    expectedIntakeVersion,
-                    expectedCaseVersion,
-                    editLeaseToken,
-                    actor,
-                    operationKey,
-                    Reason),
-                cancellationToken);
-            AssociationNotice = "Message unlinked from the confirmed case.";
-            return RedirectToMessage(id);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            var releasePending = await ResolveFailedAssociationLeaseAsync(exception, actor);
-            ModelState.AddModelError(
-                string.Empty,
-                releasePending ? AssociationReleaseFailureMessage : AssociationFailureMessage(exception));
-            return await ReloadAsync(actor, id, cancellationToken);
         }
     }
 
@@ -1028,16 +1136,7 @@ public sealed class MessageModel(
             // that tab (operator, 11 October 2026).
             return RedirectToPage("/Cases/Details", new { id = returnCaseId, section = "files" });
         }
-        return RedirectToPage(new
-        {
-            id,
-            mailbox = MailboxFilter,
-            folder = FolderFilter,
-            pageNumber = PageNumber,
-            search = SearchTerm,
-            queue = QueueFilter,
-            sort = OldestFirst ? "oldest" : null
-        });
+        return LandOn(id);
     }
 
     public Task<IActionResult> OnPostOpenTriageAsync(
@@ -1094,7 +1193,7 @@ public sealed class MessageModel(
                 return NotFound();
             }
             ClassificationNotice = await run(actor, receipt);
-            return RedirectToMessage(id);
+            return LandOn(id);
         }
         catch (StaffAuthorizationException)
         {
@@ -1121,6 +1220,9 @@ public sealed class MessageModel(
         {
             return NotFound();
         }
+        // A refused write redraws the record page, wherever it was posted from:
+        // the refusal shows on the record, where the operator reads it.
+        InDialog = false;
         ListFolder = listFolder;
         RetainedMailDetail? detail;
         try
@@ -1201,7 +1303,7 @@ public sealed class MessageModel(
         {
             ModelState.AddModelError(
                 nameof(CorrespondenceCaseReference),
-                "Choose one Case by its Case / PO reference.");
+                ChooseOneCaseMessage);
         }
         else if (IsFixedCorrespondenceCase(CorrespondenceCase)
             && (ExpectedCorrespondenceCaseVersion < 0
@@ -1299,18 +1401,7 @@ public sealed class MessageModel(
             return await ReloadAsync(actor, id, cancellationToken);
         }
 
-        return RedirectToPage(new
-        {
-            id,
-            mailbox = MailboxFilter,
-            folder = FolderRouteValue,
-            pageNumber = PageRouteValue,
-            search = SearchTerm,
-            queue = QueueFilter,
-            sort = OldestFirst ? "oldest" : null,
-            compose = ModeCode(mode),
-            mailOperationId = CorrespondenceOperation?.Id
-        });
+        return LandOn(id, ModeCode(mode), CorrespondenceOperation?.Id);
     }
 
     /// <summary>
@@ -1485,18 +1576,33 @@ public sealed class MessageModel(
         string? reference,
         CancellationToken cancellationToken)
     {
+        var match = await FindCaseByReferenceAsync(actor, reference, includeTriage: false, cancellationToken);
+        return match is null
+            ? null
+            : await getCaseHeader.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
+    }
+
+    /// <summary>
+    /// The Case, and with <paramref name="includeTriage"/> the Triage Case, a typed
+    /// Case / PO reference names exactly; null when it names none. Nothing is
+    /// claimed or written.
+    /// </summary>
+    private async Task<CaseSearchItem?> FindCaseByReferenceAsync(
+        ActionActor actor,
+        string? reference,
+        bool includeTriage,
+        CancellationToken cancellationToken)
+    {
         if (!TryNormalizeCaseReference(reference, out var value))
         {
             return null;
         }
 
         var matches = await searchCases.ExecuteAsync(
-            new(actor, new CaseSearchFilters(CaseReference: value), PageSize: 2), cancellationToken);
-        var match = matches.Items.SingleOrDefault(item =>
+            new(actor, new CaseSearchFilters(CaseReference: value, IncludeTriage: includeTriage), PageSize: 10),
+            cancellationToken);
+        return matches.Items.SingleOrDefault(item =>
             string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase));
-        return match is null
-            ? null
-            : await getCaseHeader.ExecuteAsync(new(match.CaseId, actor), cancellationToken);
     }
 
     private static bool TryNormalizeCaseReference(string? value, out string? normalized)
@@ -1640,9 +1746,9 @@ public sealed class MessageModel(
                 CurrentCase?.Workflow, sendToAiControl, cancellationToken);
         }
 
-        // The Case tab lists the Case's jobs; the record bar needs them for the
-        // live Query response job whenever the message is a query source.
-        if ((ActiveSection == "case" || IsQueryResponseSource) && CurrentCase is { } currentCase)
+        // The foot needs the Case's jobs for the live Query response job
+        // whenever the message is a query source.
+        if (IsQueryResponseSource && CurrentCase is { } currentCase)
         {
             AiJobs = await aiJobQueries.ListForSubjectAsync(
                 currentCase.Summary.CaseId,
@@ -1664,19 +1770,12 @@ public sealed class MessageModel(
         }
         catch (ArgumentException exception)
         {
-            ModelState.AddModelError(nameof(CaseQuery), exception.Message);
+            ModelState.AddModelError(string.Empty, exception.Message);
         }
     }
 
     private async Task LoadAssociationAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        RestoreAssociationLease();
-        if (AssociationLeaseAction == LinkAssociationAction
-            && AssociationLeaseMessageId == Detail.Summary.Id
-            && AssociationLeaseCaseId is { } preparedCaseId)
-        {
-            TargetCaseId = preparedCaseId;
-        }
         if (Detail.Summary.IntakeReceiptId is not { } receiptId)
         {
             return;
@@ -1695,40 +1794,6 @@ public sealed class MessageModel(
         {
             (CurrentDestination, CurrentCase) = await GetCurrentDestinationAsync(
                 currentCaseId, actor, cancellationToken);
-            return;
-        }
-
-        if (TargetCaseId is { } targetCaseId)
-        {
-            // The destination owner offers every Case and every Triage Case in
-            // any state, and refuses only an archived Case.
-            TargetDestination = await destinations.GetAsync(
-                AssociationReceipt, targetCaseId, actor, cancellationToken);
-            if (TargetDestination is null)
-            {
-                ModelState.AddModelError(string.Empty, "The selected case is not available for association.");
-            }
-            else if (!TargetDestination.IsTriageCase)
-            {
-                TargetCase = await getCaseHeader.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
-            }
-        }
-        if (!string.IsNullOrWhiteSpace(CaseQuery))
-        {
-            var trimmed = CaseQuery.Trim();
-            if (trimmed.Length < 2)
-            {
-                CaseResults = [];
-                return;
-            }
-            var results = await destinations.SearchAsync(
-                AssociationReceipt, trimmed, actor, cancellationToken);
-            CaseResults = results.Select(item => new UploadCaseSuggestion(
-                item.CaseId,
-                item.Reference,
-                item.Registration,
-                item.Claimant,
-                OperatorLabels.AssociationDestinationState(item))).ToArray();
         }
     }
 
@@ -1777,225 +1842,204 @@ public sealed class MessageModel(
             null);
     }
 
+    /// <summary>
+    /// The receipt the message became, as it stands: only the message's receipt
+    /// identifier is read, then the receipt itself.
+    /// </summary>
     private async Task<IntakeReceipt?> GetExactAssociationAsync(
         ActionActor actor,
         Guid messageId,
-        CancellationToken cancellationToken)
-    {
-        var preview = await getRetainedMailPreview.ExecuteAsync(
-            actor, messageId, cancellationToken: cancellationToken);
-        if (preview?.Summary.IntakeReceiptId is not { } receiptId)
-        {
-            return null;
-        }
-        return await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        await getRetainedMail.FindReceiptIdAsync(actor, messageId, cancellationToken) is { } receiptId
+            ? await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken)
+            : null;
 
-    // Association handlers land back on the Case tab they act from.
-    private RedirectToPageResult RedirectToMessage(Guid id) => RedirectToPage(new
-    {
-        id,
-        mailbox = MailboxFilter,
-        folder = FolderFilter,
-        pageNumber = PageNumber,
-        search = SearchTerm,
-        queue = QueueFilter,
-        sort = OldestFirst ? "oldest" : null,
-        section = "case"
-    });
+    /// <summary>
+    /// Where a write lands. The dialog's writes return to the Inbox with this
+    /// message open, so the list behind it shows the change; the page's return to
+    /// the page.
+    /// </summary>
+    private RedirectToPageResult LandOn(Guid id, string? compose = null, Guid? mailOperationId = null) =>
+        InDialog ? LandOnInbox(id, compose, mailOperationId) : LandOnRecord(id, compose, mailOperationId);
 
-    private RedirectToPageResult RedirectToAssociationTarget(Guid id, Guid caseId) =>
+    private RedirectToPageResult LandOnRecord(Guid id, string? compose = null, Guid? mailOperationId = null) =>
         RedirectToPage(new
         {
             id,
             mailbox = MailboxFilter,
             folder = FolderFilter,
-            pageNumber = PageNumber,
+            pageNumber = PageRouteValue,
             search = SearchTerm,
             queue = QueueFilter,
             sort = OldestFirst ? "oldest" : null,
-            section = "case",
-            caseQuery = CaseQuery,
-            targetCaseId = caseId
+            compose,
+            mailOperationId
         });
 
-    // The authority a prepared association holds: a Case edit lease, or a
-    // Triage Case's Triage edit scope.
-    private const string CaseLeaseKind = "Case";
+    /// <summary>
+    /// The Inbox as the operator left it, with <paramref name="open"/> marked
+    /// and opened by script; with none, the list alone.
+    /// </summary>
+    private RedirectToPageResult LandOnInbox(Guid? open, string? compose, Guid? mailOperationId) =>
+        RedirectToPage("/Mail/Index", new
+        {
+            mailbox = MailboxFilter,
+            folder = FolderFilter,
+            search = SearchTerm,
+            queue = QueueFilter,
+            sort = OldestFirst ? "oldest" : null,
+            pageNumber = PageRouteValue,
+            selected = open,
+            open,
+            compose,
+            mailOperationId
+        });
 
-    private const string TriageCaseLeaseKind = "Triage";
+    /// <summary>The Case or Triage Case a typed Case / PO reference names exactly; null when it names none.</summary>
+    private async Task<Guid?> ResolveCaseIdAsync(
+        ActionActor actor,
+        string? reference,
+        CancellationToken cancellationToken) =>
+        (await FindCaseByReferenceAsync(actor, reference, includeTriage: true, cancellationToken))?.CaseId;
 
-    private void PreserveAssociationLease(
-        Guid messageId,
-        Guid receiptId,
-        string action,
+    /// <summary>One link step that did not complete: what the operator reads, and whether its confirmation is kept.</summary>
+    private sealed record AssociationFailure(string Message, bool KeepConfirmation);
+
+    /// <summary>
+    /// One association step (v41 I13): claims the destination's edit authority
+    /// through <see cref="CaseLinkAuthority.ClaimAsync"/> (a Triage Case's Triage
+    /// edit scope, a Case's edit lease), runs <paramref name="command"/> under
+    /// it, and gives the authority back when the command did not complete. The
+    /// command consumes the authority itself when it commits. Null on success.
+    /// </summary>
+    private async Task<AssociationFailure?> TryAssociateAsync(
+        ActionActor actor,
+        IntakeAssociationDestination destination,
+        string leaseOperationKey,
+        Func<CaseLinkAuthorityClaim, Task> command,
+        CancellationToken cancellationToken)
+    {
+        var (claim, failure) = await ClaimAuthorityAsync(actor, destination, leaseOperationKey, cancellationToken);
+        return claim is null
+            ? failure
+            : await RunClaimedAsync(actor, claim, command, cancellationToken);
+    }
+
+    /// <summary>The destination's edit authority, or why it was refused (nothing is written either way).</summary>
+    private async Task<(CaseLinkAuthorityClaim? Claim, AssociationFailure? Failure)> ClaimAuthorityAsync(
+        ActionActor actor,
+        IntakeAssociationDestination destination,
+        string leaseOperationKey,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var claim = await CaseLinkAuthority.ClaimAsync(
+                destination,
+                destination.Version,
+                actor,
+                leaseOperationKey,
+                acquireCaseEditLease,
+                editScopes,
+                cancellationToken);
+            return (claim, null);
+        }
+        catch (StaffAuthorizationException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            return (null, new(AssociationPreparationFailureMessage(exception), false));
+        }
+    }
+
+    /// <summary>Runs <paramref name="command"/> under a claimed authority and gives it back when the command did not complete.</summary>
+    private async Task<AssociationFailure?> RunClaimedAsync(
+        ActionActor actor,
         CaseLinkAuthorityClaim claim,
-        long intakeVersion,
-        string operationKey) =>
-        PreserveAssociationLease(
-            messageId,
-            receiptId,
-            action,
-            claim.CaseId,
-            claim.IsTriageCase,
-            intakeVersion,
-            claim.Version,
-            claim.Token,
-            operationKey);
-
-    private void PreserveAssociationLease(
-        Guid messageId,
-        Guid receiptId,
-        string action,
-        Guid caseId,
-        bool isTriageCase,
-        long intakeVersion,
-        long caseVersion,
-        string leaseToken,
-        string operationKey)
+        Func<CaseLinkAuthorityClaim, Task> command,
+        CancellationToken cancellationToken)
     {
-        AssociationLeaseState = string.Join(
-            '|',
-            messageId.ToString("D"),
-            receiptId.ToString("D"),
-            action,
-            caseId.ToString("D"),
-            intakeVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            caseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            leaseToken,
-            operationKey,
-            isTriageCase ? TriageCaseLeaseKind : CaseLeaseKind);
-        AssociationLeaseMessageId = messageId;
-        AssociationLeaseReceiptId = receiptId;
-        AssociationLeaseAction = action;
-        AssociationLeaseCaseId = caseId;
-        AssociationLeaseIntakeVersion = intakeVersion;
-        AssociationLeaseCaseVersion = caseVersion;
-        AssociationLeaseToken = leaseToken;
-        AssociationLeaseIsTriageCase = isTriageCase;
-        AssociationOperationKey = operationKey;
-    }
-
-    private void RestoreAssociationLease()
-    {
-        var parts = AssociationLeaseState?.Split('|');
-        if (parts is { Length: 9 }
-            && Guid.TryParse(parts[0], out var messageId)
-            && Guid.TryParse(parts[1], out var receiptId)
-            && parts[2] is LinkAssociationAction or UnlinkAssociationAction
-            && Guid.TryParse(parts[3], out var caseId)
-            && long.TryParse(parts[4], out var intakeVersion)
-            && long.TryParse(parts[5], out var caseVersion)
-            && parts[6] is { Length: CaseEditAuthority.LeaseTokenLength } leaseToken
-            && Guid.TryParseExact(parts[7], "D", out _)
-            && parts[8] is CaseLeaseKind or TriageCaseLeaseKind)
+        try
         {
-            AssociationLeaseMessageId = messageId;
-            AssociationLeaseReceiptId = receiptId;
-            AssociationLeaseAction = parts[2];
-            AssociationLeaseCaseId = caseId;
-            AssociationLeaseIntakeVersion = intakeVersion;
-            AssociationLeaseCaseVersion = caseVersion;
-            AssociationLeaseToken = leaseToken;
-            AssociationLeaseIsTriageCase = parts[8] == TriageCaseLeaseKind;
-            AssociationOperationKey = parts[7];
+            await command(claim);
+            return null;
+        }
+        catch (StaffAuthorizationException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            // A failure that leaves the result unknown releases nothing; one that
+            // failed for good gives the authority back, and when that cannot be
+            // done the form keeps its confirmation so the same confirmation retries.
+            var releasePending = exception is not IntakeOperationConflictException
+                && IsDefinitiveAssociationFailure(exception)
+                && await ReleaseClaimAsync(actor, claim);
+            return new(
+                releasePending ? AssociationReleaseFailureMessage : AssociationFailureMessage(exception),
+                releasePending || !IsDefinitiveAssociationFailure(exception));
         }
     }
 
-    private void ClearAssociationLease()
+    /// <summary>Gives a claimed authority back; true when it could not be (it then lapses on its own).</summary>
+    private async Task<bool> ReleaseClaimAsync(ActionActor actor, CaseLinkAuthorityClaim claim)
     {
-        TempData.Remove(nameof(AssociationLeaseState));
-        AssociationLeaseState = null;
-        AssociationLeaseMessageId = null;
-        AssociationLeaseReceiptId = null;
-        AssociationLeaseAction = null;
-        AssociationLeaseCaseId = null;
-        AssociationLeaseIntakeVersion = null;
-        AssociationLeaseCaseVersion = null;
-        AssociationLeaseToken = null;
-        AssociationLeaseIsTriageCase = false;
-        AssociationOperationKey = null;
-    }
-
-    private async Task<bool> ResolveFailedAssociationLeaseAsync(
-        Exception exception,
-        ActionActor actor)
-    {
-        if (exception is IntakeOperationConflictException)
-        {
-            ClearAssociationLease();
-            return false;
-        }
-        if (!IsDefinitiveAssociationFailure(exception))
-        {
-            return false;
-        }
-        if (AssociationLeaseCaseId is not { } caseId
-            || AssociationLeaseToken is not { } editLeaseToken)
-        {
-            ClearAssociationLease();
-            return false;
-        }
-
         try
         {
             var releaseOperationKey = $"mail-association-release:{Guid.NewGuid():N}";
-            if (AssociationLeaseIsTriageCase)
+            if (claim.IsTriageCase)
             {
                 await editScopes.ReleaseAsync(
                     new(
                         EditScopeKind.Triage,
-                        caseId,
+                        claim.CaseId,
                         actor,
                         releaseOperationKey,
-                        editLeaseToken),
+                        claim.Token),
                     CancellationToken.None);
             }
             else
             {
                 await releaseCaseEditLease.ExecuteAsync(
                     new(
-                        caseId,
+                        claim.CaseId,
                         actor,
                         releaseOperationKey,
-                        editLeaseToken),
+                        claim.Token),
                     CancellationToken.None);
             }
         }
         catch (Exception releaseException) when (IsDefinitiveAssociationFailure(releaseException))
         {
-            ClearAssociationLease();
             return false;
         }
         catch (Exception releaseException) when (IntakeExceptionPolicy.IsRecoverable(releaseException))
         {
             return true;
         }
-        ClearAssociationLease();
+
         return false;
     }
 
-    private void RequirePreparedAssociation(
-        Guid messageId,
-        Guid receiptId,
-        string action,
-        Guid caseId,
-        long intakeVersion,
-        long caseVersion,
-        string leaseToken,
-        string operationKey)
+    /// <summary>A step that did not complete: its refusal on the record, and the confirmation kept where it must be retried.</summary>
+    private Task<IActionResult> RefuseAssociationAsync(
+        ActionActor actor,
+        Guid id,
+        AssociationFailure failure,
+        string leaseOperationKey,
+        string operationKey,
+        CancellationToken cancellationToken)
     {
-        if (AssociationLeaseMessageId != messageId
-            || AssociationLeaseReceiptId != receiptId
-            || !string.Equals(AssociationLeaseAction, action, StringComparison.Ordinal)
-            || AssociationLeaseCaseId != caseId
-            || AssociationLeaseIntakeVersion != intakeVersion
-            || AssociationLeaseCaseVersion != caseVersion
-            || !string.Equals(AssociationLeaseToken, leaseToken, StringComparison.Ordinal)
-            || !string.Equals(AssociationOperationKey, operationKey, StringComparison.Ordinal))
+        ModelState.AddModelError(string.Empty, failure.Message);
+        if (failure.KeepConfirmation)
         {
-            throw new ArgumentException("The association confirmation does not match this message or action.");
+            RetainedLeaseOperationKey = leaseOperationKey;
+            RetainedOperationKey = operationKey;
         }
+        return ReloadAsync(actor, id, cancellationToken);
     }
 
     private static bool IsDefinitiveAssociationFailure(Exception exception) => exception is
@@ -2016,6 +2060,9 @@ public sealed class MessageModel(
         _ => "The association result could not be confirmed. Retry this same confirmation."
     };
 
+    /// <summary>The refusal for a Case / PO that names no Case: the composer's existing sentence.</summary>
+    private const string ChooseOneCaseMessage = "Choose one Case by its Case / PO reference.";
+
     private const string AssociationReleaseFailureMessage =
         "The association was not applied, but edit authority could not be released. Retry this same confirmation.";
 
@@ -2028,16 +2075,16 @@ public sealed class MessageModel(
 
     private static void RequireAssociationConfirmation(
         string operationKey,
-        string editLeaseToken,
+        string leaseOperationKey,
         string reason)
     {
         if (!Guid.TryParseExact(operationKey, "D", out _))
         {
             throw new ArgumentException("The association confirmation has expired.", nameof(operationKey));
         }
-        if (editLeaseToken?.Length != CaseEditAuthority.LeaseTokenLength)
+        if (!Guid.TryParseExact(leaseOperationKey, "N", out _))
         {
-            throw new ArgumentException("The case edit confirmation has expired.", nameof(editLeaseToken));
+            throw new ArgumentException("The case edit confirmation has expired.", nameof(leaseOperationKey));
         }
         if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 500)
         {
@@ -2129,14 +2176,12 @@ public sealed class MessageModel(
         }
     }
 
+    /// <summary>The record's tabs: Message, Attachments and Thread. The Case folded into Decision on Message (v41 I9).</summary>
     public string ActiveSection => Section switch
     {
         "attachments" => "attachments",
         "thread" => "thread",
-        "case" => "case",
-        // A case search or picked target belongs to the Case tab even when
-        // the link that carried it named no section.
-        _ => CaseQuery is not null || TargetCaseId is not null ? "case" : "message"
+        _ => "message"
     };
 
     public string? FolderRouteValue => IndexModel.ListFolderCode(ListFolder, ListDismissed);
@@ -2158,10 +2203,8 @@ public sealed class MessageModel(
         OperatorLabels.MailClassification(category);
 
     /// <summary>
-    /// The one label for a message's Case cell when it has no Case: the
-    /// preview pane, its JSON projection and the message page must all say
-    /// the same word, because two copies of this label drifted apart once
-    /// before.
+    /// The one label for a message's Case cell when it has no Case, so every
+    /// place that draws the cell says the same word.
     /// </summary>
     public static string AssociationLabel(string? caseReference) =>
         caseReference ?? OperatorLabels.Inbox.NoCase;

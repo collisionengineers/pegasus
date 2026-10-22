@@ -444,7 +444,7 @@ public sealed class AutomationMailIngressTests
     }
 
     /// <summary>
-    /// Link to case is the staff act on a message (FRD-20): the Automation
+    /// Link to Case is the staff act on a message (FRD-20): the Automation
     /// Actor reads the destinations the dialog offers and links through the
     /// same Core command, under a lease held for that one command.
     /// </summary>

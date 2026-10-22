@@ -5,7 +5,10 @@
 // ArrowUp/Down move the selection, Enter chooses it, Escape closes the list.
 // Each option is the page's own select submit button, so choosing one runs
 // the form's ordinary submit path: the composer's fetch-swap on the Inbox,
-// a plain post elsewhere. Enter never submits the form itself.
+// a plain post elsewhere. Enter never submits the form itself. An option that
+// is a [data-case-picker-choice] button instead fills the input with its
+// Case / PO and closes the list; the page's own form then posts it. A picker
+// marked data-case-picker-fill takes the chosen option into its input instead.
 (function () {
     "use strict";
 
@@ -97,6 +100,25 @@
                     }
                 });
         }
+
+        // A [data-case-picker-choice] option, or any option of a picker that
+        // fills (data-case-picker-fill), takes the chosen Case / PO into its
+        // input and submits nothing: the Triage Link case field, and the Inbox's
+        // Case / PO field, whose reason dialog confirms the link.
+        options.addEventListener("click", function (event) {
+            var option = event.target instanceof Element ? event.target.closest("[role='option']") : null;
+            if (!option) {
+                return;
+            }
+            var choice = option.getAttribute("data-case-picker-choice");
+            if (choice === null && !picker.hasAttribute("data-case-picker-fill")) {
+                return;
+            }
+            event.preventDefault();
+            input.value = choice !== null ? choice : option.getAttribute("value") || "";
+            close();
+            input.focus();
+        });
 
         input.addEventListener("input", function () {
             window.clearTimeout(timer);

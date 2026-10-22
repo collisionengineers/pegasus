@@ -24,6 +24,13 @@ public sealed class EfCaseQueryStore(
     }
 
     /// <inheritdoc />
+    async Task<bool> ICaseDocumentQueries.HasCurrentAuditReportAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await EfDocumentCustodyStore.CurrentAuditReports(context, caseId).AnyAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     async Task<CaseType?> ICaseKindQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -254,7 +261,13 @@ public sealed class EfCaseQueryStore(
         }
         if (filters.EngineerId is { } engineerId)
         {
-            rows = rows.Where(item => item.EngineerId == engineerId);
+            rows = filters.Unassigned
+                ? rows.Where(item => item.EngineerId == engineerId || item.EngineerId == null)
+                : rows.Where(item => item.EngineerId == engineerId);
+        }
+        else if (filters.Unassigned)
+        {
+            rows = rows.Where(item => item.EngineerId == null);
         }
         if (filters.ReceivedDate is { } receivedDate)
         {
@@ -712,7 +725,8 @@ public sealed class EfCaseQueryStore(
             ResolveActiveLease(workflow, timeProvider.GetUtcNow()),
             workflow.Case.CustodyRootRemoteId,
             ParseCustodyState(workflow.Case.CustodyState),
-            works);
+            works,
+            workflow.Case.StandaloneAuditEvidenceId);
 
     private static async Task<CaseRecordNotes> ReadRecordNotesAsync(
         PegasusDbContext context,

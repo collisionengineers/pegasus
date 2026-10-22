@@ -41,7 +41,6 @@ public static class CaseWorkspaceLabels
         public const string TakeOver = "Take over";
         public const string Editing = "Editing";
         public const string Archived = "Archived";
-        public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
         /// <summary>The aside's Views card and its two rows, present once the Case has its Audit (v29 option 4).</summary>
         public const string Views = "Views";
         public const string InspectionView = "Inspection";
@@ -81,6 +80,30 @@ public static class CaseWorkspaceLabels
         public const string Details = "Details";
         public const string ReturnToReview = "Return to Review";
         public const string ReturnToEngineer = "Return to Engineer";
+
+        /// <summary>
+        /// Return to work on a closed Case (R157, FRD-13; v41 K10, signed off
+        /// 19 October 2026): the Actions item and its dialog's title.
+        /// </summary>
+        public const string ReturnToWork = "Return to work";
+
+        /// <summary>
+        /// The Return to work dialog's stage field (v41 K10, signed off 19
+        /// October 2026): the word W2 gives the Search stage filter.
+        /// </summary>
+        public const string ReturnToWorkStage = OperatorLabels.Search.CaseStage;
+
+        /// <summary>A Return to work stage option: the stage's own name.</summary>
+        public static string ReturnToWorkDestination(CaseReopenDestination destination) =>
+            OperatorLabels.CaseStage(destination switch
+            {
+                CaseReopenDestination.NotReady => CaseLifecycleState.NotReady,
+                CaseReopenDestination.Review => CaseLifecycleState.Review,
+                CaseReopenDestination.ReportPreparation => CaseLifecycleState.ReportPreparation,
+                CaseReopenDestination.ReportSent => CaseLifecycleState.ReportSent,
+                _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
+            });
+
         public const string ArchiveCase = "Archive case";
         public const string OriginalCase = "Original case";
         public const string ReplacementCase = "Replacement case";
@@ -93,7 +116,6 @@ public static class CaseWorkspaceLabels
         public const string CancellationReceived = "Cancellation received";
         public const string Review = "Review";
         public const string CaseType = "Case type";
-        public const string OurRef = "Our ref";
         public const string ClaimReference = "Claim reference";
         public const string IncidentDate = "Incident date";
         public const string Received = "Received";
@@ -336,14 +358,10 @@ public static class CaseWorkspaceLabels
         public const string EngineersValue = "Engineer's Value";
         public const string SalvageValue = "Salvage value";
         public const string Equity = "Equity";
-        public const string EquityMeta = "Engineer's Value − salvage";
         public const string RepairCostIncVat = "Repair cost inc VAT";
         public const string CashInLieu = "Cash in lieu";
         public const string LabourHours = "Labour hours";
         public const string RepairCostOfValue = "Repair cost of value";
-        public const string ExceedsEngineersValue = "Exceeds Engineer's Value";
-        public const string FromCurrentEstimate = "From current repair spec";
-        public const string SetInValuationMeta = "Set in Valuation";
         public const string Salvage = "Salvage";
         public const string NotApplicable = "Not applicable";
         public const string SalvageShare = "Salvage value as a percentage of the Engineer\u2019s Value";
@@ -508,7 +526,6 @@ public static class CaseWorkspaceLabels
         public const string Undo = "Undo";
         public const string LineRemoved = "Line removed";
         public const string OffPattern = "Off-pattern";
-        public const string UpliftPercent = "+ 15 %";
         public const string Suggested = "Suggested";
         public const string LondonAndHomeCounties = "London & Home Counties";
         public const string TargetPercentOfValue = "Target % of value";
@@ -598,7 +615,6 @@ public static class CaseWorkspaceLabels
         };
         public const string Blend = "Blend";
         public const string LabourRateCard = "Labour-rate card";
-        public const string KeepEnteredRate = "Keep entered rate";
         public const string PartNumberShort = "Part no.";
         public const string UnitPounds = "Unit (£)";
         public const string Hours = "Hours";
@@ -1323,7 +1339,7 @@ public static class CaseWorkspaceLabels
         public const string NoDocuments = "No documents on this Case.";
         public const string NoImages = "No images on this Case.";
         public const string NoCorrespondence = "No retained correspondence is associated with this Case.";
-        public const string ImageIntake = "Image intake";
+        public const string VehicleImages = "Vehicle images";
         public const string Photographs = "photographs";
     }
 
@@ -1433,14 +1449,12 @@ public static class CaseWorkspaceLabels
         public const string Account = "Account";
         public const string Username = "Username";
         public const string Password = "Password";
-        public const string Generation = "Generation";
-        public const string Version = "Version";
         public const string Updated = "Updated";
         public const string Save = "Save credential";
         public const string Clear = "Clear credential";
         public const string Enabled = "Enabled";
         public const string DisabledState = "Disabled";
-        public const string NotConfigured = "Not configured";
+        public const string NotSet = "Not set";
         public const string Saved = "The credential was saved.";
         public const string Cleared = "The credential was cleared.";
         public const string UsernameRequired = "Enter a username.";

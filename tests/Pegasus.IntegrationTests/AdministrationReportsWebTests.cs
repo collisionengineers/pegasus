@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Reports;
+using OperatorLabels = Pegasus.Web.Presentation.OperatorLabels;
+using ReportsModel = Pegasus.Web.Pages.Administration.ReportsModel;
 
 namespace Pegasus.IntegrationTests;
 
@@ -54,13 +56,13 @@ public sealed class AdministrationReportsWebTests
     }
 
     /// <summary>
-    /// Design A: the period bar under the title, Person and Work in the
-    /// section heads, each section's own download, one sort arrow (site.css
-    /// draws it from aria-sort), a count's first click largest first, and no
-    /// MI labels or Engineer activity note.
+    /// Design A: the period bar under the title, four tabs after it (v41 A26),
+    /// Person and Work in the section heads, each section's own download, one
+    /// sort arrow (site.css draws it from aria-sort), a count's first click
+    /// largest first, and no MI labels or Engineer activity note.
     /// </summary>
     [Fact]
-    public async Task ThePageIsDesignAWithItsSortsWorkChoicesAndDownloads()
+    public async Task ThePageIsDesignAWithItsTabsSortsWorkChoicesAndDownloads()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -71,33 +73,53 @@ public sealed class AdministrationReportsWebTests
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("<select id=\"report-period\" name=\"period\" data-period-preset>", html, StringComparison.Ordinal);
         Assert.Contains("<option value=\"custom\" selected=\"selected\">Custom</option>", html, StringComparison.Ordinal);
-        Assert.Contains("<select id=\"report-engineer\" name=\"engineerId\">", html, StringComparison.Ordinal);
-        Assert.Contains("<option value=\"audit\" selected=\"selected\">Audit</option>", html, StringComparison.Ordinal);
-        foreach (var handler in new[] { "Workbook", "Csv", "PrincipalCsv", "MonthsCsv", "OutcomesCsv", "TurnaroundCsv", "QueuesCsv" })
+        // Four tabs as links that keep the choices; the Engineers tab is the default.
+        foreach (var (value, label) in ReportsModel.Tabs)
         {
-            Assert.Contains($"handler={handler}", html, StringComparison.Ordinal);
+            Assert.Contains($"tab={value}", html, StringComparison.Ordinal);
+            Assert.Contains($">{label}</a>", html, StringComparison.Ordinal);
         }
+        Assert.Matches("aria-current=\"page\">" + OperatorLabels.ReportTabs.Engineers + "</a>", html);
+        Assert.Contains("handler=Workbook", html, StringComparison.Ordinal);
 
+        // Engineers: Engineer activity, its Person choice, sort and download.
+        Assert.Contains("<select id=\"report-engineer\" name=\"engineerId\">", html, StringComparison.Ordinal);
+        Assert.Contains("handler=Csv", html, StringComparison.Ordinal);
         Assert.Contains("aria-sort=\"descending\"", html, StringComparison.Ordinal);
         // The sorted column reverses; an unsorted count's first click is largest first.
         Assert.Contains("sort=queries&amp;dir=asc", html, StringComparison.Ordinal);
-        Assert.Contains("msort=produced&amp;mdir=desc", html, StringComparison.Ordinal);
-        Assert.Contains("msort=code&amp;mdir=asc", html, StringComparison.Ordinal);
-        // The Work choice and the sort survive every link.
-        Assert.Contains("work=audit", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"mi01-title\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-sort-arrow", html, StringComparison.Ordinal);
         Assert.DoesNotContain("MI01", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Queries received are credited", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"months-title\"", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"outcomes-title\"", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"queues-title\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Amendment requests", html, StringComparison.Ordinal); // An amendment request is a query.
         Assert.DoesNotContain("Disputes", html, StringComparison.Ordinal); // A dispute is a query.
+
+        // Principals: Reports by Principal, By month, Outcomes and Turnaround.
+        var principals = await client.GetStringAsync($"{Page}?tab=principals&work=audit");
+        Assert.Contains("<option value=\"audit\" selected=\"selected\">Audit</option>", principals, StringComparison.Ordinal);
+        foreach (var handler in new[] { "PrincipalCsv", "MonthsCsv", "OutcomesCsv", "TurnaroundCsv" })
+        {
+            Assert.Contains($"handler={handler}", principals, StringComparison.Ordinal);
+        }
+        Assert.Contains("msort=produced&amp;mdir=desc", principals, StringComparison.Ordinal);
+        Assert.Contains("msort=code&amp;mdir=asc", principals, StringComparison.Ordinal);
+        // The Work choice survives every link.
+        Assert.Contains("work=audit", principals, StringComparison.Ordinal);
+        Assert.Contains("id=\"mi02-title\"", principals, StringComparison.Ordinal);
+        Assert.Contains("id=\"months-title\"", principals, StringComparison.Ordinal);
+        Assert.Contains("id=\"outcomes-title\"", principals, StringComparison.Ordinal);
+        Assert.Contains("id=\"mi03-title\"", principals, StringComparison.Ordinal);
         // Reports by Principal: four columns, the Work choice picks the figures.
-        Assert.DoesNotContain("Reports produced &#xB7; Inspection", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reports produced &#xB7; Inspection", principals, StringComparison.Ordinal);
+
+        // Queues.
+        var queues = await client.GetStringAsync($"{Page}?tab=queues");
+        Assert.Contains("id=\"queues-title\"", queues, StringComparison.Ordinal);
+        Assert.Contains("handler=QueuesCsv", queues, StringComparison.Ordinal);
     }
 
-    /// <summary>Item B2: a period that ends before it starts draws no report and no figure, only the error and the Case list.</summary>
+    /// <summary>Item B2: a period that ends before it starts draws no report and no figure, only the error and the Case list tab.</summary>
     [Fact]
     public async Task AnInvalidPeriodShowsTheErrorAndDrawsNoReport()
     {
@@ -112,7 +134,9 @@ public sealed class AdministrationReportsWebTests
         Assert.DoesNotContain("id=\"mi01-title\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("metric-value", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=Workbook", html, StringComparison.Ordinal);
-        Assert.Contains("data-case-list", html, StringComparison.Ordinal);
+
+        var caseList = await client.GetStringAsync($"{Page}?tab=case-list&from=2031-05-01T00:00&to=2031-04-01T00:00");
+        Assert.Contains("data-case-list", caseList, StringComparison.Ordinal);
 
         using var csv = await client.GetAsync($"{Page}?handler=Csv&from=2031-05-01T00:00&to=2031-04-01T00:00");
         Assert.Equal(HttpStatusCode.UnprocessableEntity, csv.StatusCode);
@@ -154,7 +178,7 @@ public sealed class AdministrationReportsWebTests
             BaseAddress = new Uri("https://localhost:7139")
         });
 
-        using var response = await client.GetAsync(Page);
+        using var response = await client.GetAsync($"{Page}?tab=principals");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
@@ -183,7 +207,7 @@ public sealed class AdministrationReportsWebTests
             BaseAddress = new Uri("https://localhost:7139")
         });
 
-        using var response = await client.GetAsync(Page);
+        using var response = await client.GetAsync($"{Page}?tab=principals");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
@@ -270,11 +294,68 @@ public sealed class AdministrationReportsWebTests
 
         using var queues = await client.GetAsync($"{Page}?handler=QueuesCsv");
         Assert.Equal(HttpStatusCode.OK, queues.StatusCode);
-        Assert.Equal((0, 0, 0), recorder.Calls);
+        Assert.Equal((0, 0, 0, 0), recorder.Calls);
 
         using var months = await client.GetAsync($"{Page}?handler=MonthsCsv");
         Assert.Equal(HttpStatusCode.OK, months.StatusCode);
-        Assert.Equal((0, 1, 0), recorder.Calls);
+        Assert.Equal((0, 1, 0, 0), recorder.Calls);
+    }
+
+    /// <summary>
+    /// PERF-WEB-08: a tab runs its own reports' reads and no other tab's. The
+    /// Engineers and Principals tabs also read the period just before for the
+    /// totals that show it (R156); Queues and Case list read none.
+    /// </summary>
+    [Fact]
+    public async Task EachTabRunsOnlyItsOwnReads()
+    {
+        var recorder = new RecordingReportQueries();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IEngineerActivityQueries>();
+                services.RemoveAll<IMonthlyReportActivityQueries>();
+                services.RemoveAll<IReportOutcomeQueries>();
+                services.RemoveAll<IV1ActivityReportQueries>();
+                services.AddSingleton<IEngineerActivityQueries>(recorder);
+                services.AddSingleton<IMonthlyReportActivityQueries>(recorder);
+                services.AddSingleton<IReportOutcomeQueries>(recorder);
+                services.AddSingleton<IV1ActivityReportQueries>(recorder);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        // The default tab is Engineers: the period and the period before.
+        using (var engineers = await client.GetAsync(Page))
+        {
+            Assert.Equal(HttpStatusCode.OK, engineers.StatusCode);
+        }
+        Assert.Equal((2, 0, 0, 0), recorder.Calls);
+
+        recorder.Reset();
+        using (var principals = await client.GetAsync($"{Page}?tab={ReportsModel.PrincipalsTab}"))
+        {
+            Assert.Equal(HttpStatusCode.OK, principals.StatusCode);
+        }
+        Assert.Equal((0, 1, 1, 2), recorder.Calls);
+
+        recorder.Reset();
+        using (var queues = await client.GetAsync($"{Page}?tab={ReportsModel.QueuesTab}"))
+        {
+            Assert.Equal(HttpStatusCode.OK, queues.StatusCode);
+        }
+        Assert.Equal((0, 0, 0, 1), recorder.Calls);
+
+        recorder.Reset();
+        using (var caseList = await client.GetAsync($"{Page}?tab={ReportsModel.CaseListTab}"))
+        {
+            Assert.Equal(HttpStatusCode.OK, caseList.StatusCode);
+        }
+        Assert.Equal((0, 0, 0, 0), recorder.Calls);
     }
 
     /// <summary>#1159: with nothing held, the Queues table says so rather than drawing nothing.</summary>
@@ -294,7 +375,7 @@ public sealed class AdministrationReportsWebTests
             BaseAddress = new Uri("https://localhost:7139")
         });
 
-        var html = await client.GetStringAsync(Page);
+        var html = await client.GetStringAsync($"{Page}?tab=queues");
 
         Assert.Contains("<td colspan=\"5\" class=\"muted\">Nothing is currently held.</td>", html, StringComparison.Ordinal);
     }
@@ -317,7 +398,7 @@ public sealed class AdministrationReportsWebTests
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var html = await client.GetStringAsync(Page);
+        var html = await client.GetStringAsync($"{Page}?tab=case-list");
 
         Assert.Contains("<title>Management Reports", html, StringComparison.Ordinal);
         Assert.Contains("data-case-list", html, StringComparison.Ordinal);
@@ -396,7 +477,7 @@ public sealed class AdministrationReportsWebTests
 
         Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
         Assert.Contains($"preset={presetId:D}", created.Headers.Location!.OriginalString, StringComparison.Ordinal);
-        var chosen = await client.GetStringAsync($"{Page}?preset={presetId:D}");
+        var chosen = await client.GetStringAsync($"{Page}?tab=case-list&preset={presetId:D}");
         Assert.Contains("value=\"agreed_fee.inspection\" checked=\"checked\"", chosen, StringComparison.Ordinal);
         Assert.DoesNotContain("value=\"case.type\" checked", chosen, StringComparison.Ordinal);
         Assert.Contains("value=\"Invoicing\"", chosen, StringComparison.Ordinal);
@@ -420,7 +501,7 @@ public sealed class AdministrationReportsWebTests
             ("Columns", "case.type")));
 
         Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
-        Assert.Contains("value=\"case.type\" checked=\"checked\"", await client.GetStringAsync($"{Page}?preset={presetId:D}"), StringComparison.Ordinal);
+        Assert.Contains("value=\"case.type\" checked=\"checked\"", await client.GetStringAsync($"{Page}?tab=case-list&preset={presetId:D}"), StringComparison.Ordinal);
 
         using var removed = await client.PostAsync($"{Page}?handler=CaseListPresetRemove", CaseListForm(
             token,
@@ -429,7 +510,7 @@ public sealed class AdministrationReportsWebTests
             ("OperationKey", Guid.NewGuid().ToString("N"))));
 
         Assert.Equal(HttpStatusCode.Redirect, removed.StatusCode);
-        Assert.DoesNotContain(">Invoicing</option>", await client.GetStringAsync(Page), StringComparison.Ordinal);
+        Assert.DoesNotContain(">Invoicing</option>", await client.GetStringAsync($"{Page}?tab=case-list"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -497,13 +578,31 @@ public sealed class AdministrationReportsWebTests
         public SyntheticDbException() : base("The monthly report database is unavailable.") { }
     }
 
-    private sealed class RecordingReportQueries : IEngineerActivityQueries, IMonthlyReportActivityQueries, IReportOutcomeQueries
+    private sealed class RecordingReportQueries : IEngineerActivityQueries, IMonthlyReportActivityQueries, IReportOutcomeQueries, IV1ActivityReportQueries
     {
         private int engineer;
         private int monthly;
         private int outcomes;
+        private int principal;
 
-        public (int Engineer, int Monthly, int Outcomes) Calls => (engineer, monthly, outcomes);
+        public (int Engineer, int Monthly, int Outcomes, int Principal) Calls => (engineer, monthly, outcomes, principal);
+
+        public void Reset()
+        {
+            engineer = 0;
+            monthly = 0;
+            outcomes = 0;
+            principal = 0;
+        }
+
+        Task<IReadOnlyList<PrincipalReportActivity>> IV1ActivityReportQueries.GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref principal);
+            return Task.FromResult<IReadOnlyList<PrincipalReportActivity>>([]);
+        }
 
         Task<IReadOnlyList<EngineerActivityCounts>> IEngineerActivityQueries.GetAsync(
             DateTimeOffset fromUtc,

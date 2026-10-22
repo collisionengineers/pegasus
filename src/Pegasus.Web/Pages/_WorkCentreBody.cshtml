@@ -235,7 +235,7 @@ else
             </form>
         </div>
         <nav class="chips wc-filters" aria-label="Kinds">
-            @foreach (var kind in NeedsAttentionPresentation.ChipOrder)
+            @foreach (var kind in NeedsAttentionPresentation.ChipsFor(Model.Scope))
             {
                 var on = Model.Kinds.Contains(kind);
                 <a class="chip @(on ? "on" : null)" href="@Model.PageUrl(kinds: Model.ToggledKinds(kind), page: 1)"
@@ -325,17 +325,30 @@ else
                                 <td class="wc-col-action">
                                     @* The next action in the row (v32 item M). Assign Engineer opens the
                                        dialog in place when the row is open and the dialog is on the page;
-                                       otherwise the address opens the row with the dialog. *@
+                                       otherwise the address opens the row with the dialog. Take beside it
+                                       assigns the Case to the signed-in person in one step (v41 W8). *@
                                     @if (item.Kind == NeedsAttentionKind.UnassignedEngineer)
                                     {
-                                        <a class="btn btn--dark btn--small" href="@Model.PageUrl(selected: item.Id, assign: true)" data-wc-dialog="wc-assign-dialog">
-                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
-                                            <span>@Labels.AssignEngineer</span>
-                                        </a>
+                                        <div class="wc-row-actions">
+                                            <a class="btn btn--small" href="@Model.PageUrl(selected: item.Id, assign: true)" data-wc-dialog="wc-assign-dialog">
+                                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
+                                                <span>@Labels.AssignEngineer</span>
+                                            </a>
+                                            @if (Model.ViewerStaffId is { } rowViewer)
+                                            {
+                                                <form method="post" asp-page="/Index" asp-page-handler="AssignEngineer" data-wc-take>
+                                                    <input type="hidden" name="caseId" value="@item.Id" />
+                                                    <input type="hidden" name="engineerId" value="@rowViewer" />
+                                                    <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                                    <button type="submit" class="btn btn--primary btn--small" data-busy-label="@OperatorLabels.Busy.Assigning">@Labels.Take</button>
+                                                </form>
+                                            }
+                                        </div>
                                     }
                                     else if (!string.IsNullOrWhiteSpace(item.Route))
                                     {
-                                        <a class="btn btn--dark btn--small" href="@item.Route">
+                                        <a class="btn btn--small" href="@item.Route">
                                             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
                                             <span>@NeedsAttentionPresentation.ActionLabel(item)</span>
                                         </a>
@@ -394,6 +407,16 @@ else
                                                         <span>@NeedsAttentionPresentation.ActionLabel(item)</span>
                                                     </a>
                                                 }
+                                                @if (item.Kind == NeedsAttentionKind.UnassignedEngineer && Model.ViewerStaffId is { } openViewer)
+                                                {
+                                                    <form method="post" asp-page="/Index" asp-page-handler="AssignEngineer" data-wc-take>
+                                                        <input type="hidden" name="caseId" value="@item.Id" />
+                                                        <input type="hidden" name="engineerId" value="@openViewer" />
+                                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                                        <button type="submit" class="btn btn--primary btn--small" data-busy-label="@OperatorLabels.Busy.Assigning">@Labels.Take</button>
+                                                    </form>
+                                                }
                                             </div>
                                         </div>
                                     </td>
@@ -448,8 +471,9 @@ else
                                     <option value="">@Labels.ChooseEngineer</option>
                                     @foreach (var engineer in assignment.Engineers)
                                     {
-                                        <option value="@engineer.Id">@engineer.Name</option>
+                                        <option value="@engineer.Id">@Model.EngineerChoiceLabel(engineer)</option>
                                     }
+                                    <option value="@AssignEngineerChoice.UnassignedValue">@OperatorLabels.CaseWorkspace.Unassigned</option>
                                 </select>
                             </div>
                         </form>
@@ -637,7 +661,7 @@ else
                                 <div class="wc-row-actions wc-job-actions">
                                     @if (row.Draft is { Route: { Length: > 0 } draftRoute } draft)
                                     {
-                                        <a class="btn btn--small btn--dark" href="@draftRoute">@Labels.AiDraftAction(draft.Action.ToString())</a>
+                                        <a class="btn btn--small" href="@draftRoute">@Labels.AiDraftAction(draft.Action.ToString())</a>
                                     }
                                     @if (row.CanComplete)
                                     {

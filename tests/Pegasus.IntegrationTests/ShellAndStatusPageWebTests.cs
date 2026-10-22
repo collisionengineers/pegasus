@@ -377,7 +377,10 @@ public sealed class ShellAndStatusPageWebTests
         Assert.Contains(">Query received<", html, StringComparison.Ordinal);
         Assert.Contains("MA59BDY", html, StringComparison.Ordinal);
         Assert.Contains(">Unread<", html, StringComparison.Ordinal);
-        Assert.Contains(">Mark all read<", html, StringComparison.Ordinal);
+        // Mark all read sits in the dialog's head and the foot keeps Close (v41 S2).
+        var notificationsDialog = Between(html, "data-dialog=\"notifications-dialog\"", "data-dialog=\"command-dialog\"");
+        Assert.Contains(">Mark all read<", Between(notificationsDialog, "class=\"dialog-head\"", "class=\"dialog-body"), StringComparison.Ordinal);
+        Assert.Contains(">Close<", notificationsDialog[notificationsDialog.IndexOf("class=\"dialog-foot\"", StringComparison.Ordinal)..], StringComparison.Ordinal);
         Assert.Contains($"data-notification=\"{unreadEstimate.Id:D}\"", html, StringComparison.Ordinal);
         Assert.Contains("row-button row-button--unread", html, StringComparison.Ordinal);
         // The vendor never appears in operator copy.
@@ -552,6 +555,72 @@ public sealed class ShellAndStatusPageWebTests
                 Result = new PageResult()
             }));
         return page;
+    }
+
+    /// <summary>
+    /// The Account dialog's body holds Release notes, Report a problem and
+    /// Change password; its foot keeps Close and Sign out (v41 S1, signed off
+    /// 19 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task TheAccountDialogHoldsItsActionsInTheBodyAndItsFootKeepsCloseAndSignOut()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await client.GetStringAsync("/Search");
+
+        var dialog = Between(html, "data-dialog=\"account-dialog\"", "data-dialog=\"notifications-dialog\"");
+        var body = Between(dialog, "class=\"dialog-body\"", "class=\"dialog-foot\"");
+        var foot = dialog[dialog.IndexOf("class=\"dialog-foot\"", StringComparison.Ordinal)..];
+        Assert.Contains("href=\"/ReleaseNotes\"", body, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"problem-dialog\"", body, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Account/PasswordChange\"", body, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-close", foot, StringComparison.Ordinal);
+        Assert.Contains(">Sign out<", foot, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Count(foot, "<button "));
+    }
+
+    /// <summary>
+    /// The command palette's Cases icon is the rail's Cases icon: one glyph
+    /// means one thing everywhere (v41 S3).
+    /// </summary>
+    [Fact]
+    public async Task TheCommandPaletteCasesIconMatchesTheRailsCasesIcon()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await client.GetStringAsync("/Search");
+
+        Assert.Matches("href=\"/Cases\"[^>]*>\\s*<svg[^>]*><use href=\"[^\"]*#icon-list-checks\"", html);
+        Assert.Matches("data-route=\"/Cases\">\\s*<svg[^>]*><use href=\"[^\"]*#icon-list-checks\"", html);
+    }
+
+    /// <summary>The Not found page's one action is the primary button (v41 S7).</summary>
+    [Fact]
+    public async Task TheNotFoundPagesOneActionIsThePrimaryButton()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/status/404");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains(
+            $"<a class=\"btn btn--primary\" href=\"/\">Return to {OperatorLabels.Nav.WorkCentre}</a>",
+            html,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>The markup between two markers; the end marker's position must follow the start's.</summary>
+    private static string Between(string html, string start, string end)
+    {
+        var from = html.IndexOf(start, StringComparison.Ordinal);
+        Assert.True(from >= 0, $"'{start}' is not on the page.");
+        var to = html.IndexOf(end, from + start.Length, StringComparison.Ordinal);
+        Assert.True(to > from, $"'{end}' does not follow '{start}'.");
+        return html[from..to];
     }
 
     private static BellHost FactoryWith(IMyStaffNotifications notifications) => new(notifications);

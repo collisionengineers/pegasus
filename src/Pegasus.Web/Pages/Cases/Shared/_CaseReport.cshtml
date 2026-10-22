@@ -42,6 +42,12 @@
     var lastSent = Model.ReportSendHistory.LastSentAtUtc is { } sentAt
         ? Pegasus.Core.LondonCalendar.TimeAt(sentAt).ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture)
         : null;
+    // The last send's To and Cc (v41 K5), read mode's two cells; empty when
+    // no send of this work's report was observed.
+    var lastTo = string.Join(", ", Model.ReportSendHistory.LastTo ?? []);
+    var lastCc = string.Join(", ", Model.ReportSendHistory.LastCc ?? []);
+    // The already-sent line lists every address, To then Cc.
+    var lastRecipients = string.Join(", ", (Model.ReportSendHistory.LastTo ?? []).Concat(Model.ReportSendHistory.LastCc ?? []));
     var labels = CaseWorkspaceLabels.Editors.Report;
     var draftPreparation = Model.ReportDraftPreparation;
     var draftCondition = Model.ReportDraftCondition;
@@ -363,7 +369,7 @@
                     {
                         @* The Sent item already proves a report left for this
                            work: say when and to whom before another is sent. *@
-                        <p class="muted" data-report-already-sent>@ReportLabels.AlreadySent(lastSent, string.Join(", ", Model.ReportSendHistory.LastRecipients ?? []))</p>
+                        <p class="muted" data-report-already-sent>@ReportLabels.AlreadySent(lastSent, lastRecipients)</p>
                     }
                     @if (plan is not null)
                     {
@@ -555,14 +561,14 @@
                            not required. *@
                         @foreach (var hold in plan.Holds)
                         {
-                            <div class="stack" data-report-hold-row>
+                            <div class="cluster" data-report-hold-row>
                                 <span>@hold</span>
                                 <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" required data-report-hold /><span>@ReportLabels.HoldDone</span></label>
                             </div>
                         }
                         @foreach (var hold in plan.PossibleHolds)
                         {
-                            <div class="stack" data-report-hold-row>
+                            <div class="cluster" data-report-hold-row>
                                 <span>@hold</span>
                                 <label class="choice"><input type="checkbox" name="holdsDone" value="@hold" data-report-hold /><span>@ReportLabels.HoldDone</span></label>
                             </div>
@@ -586,8 +592,9 @@
                 <div class="recip-form" data-send-report-read>
                     <span class="lg">@Words.ReviewedRecipients</span>
                     <div class="fc ro"><span class="lbl">From</span><div class="fv @(Model.ReportSenders.Reply is null ? "empty" : null)">@(Model.ReportSenders.Reply?.Mailbox.Address ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>
-                    <div class="fc ro"><span class="lbl">To</span><div class="fv empty">@OperatorLabels.CaseWorkspace.AbsentValue</div></div>
-                    <div class="fc ro"><span class="lbl">Cc</span><div class="fv empty">@OperatorLabels.CaseWorkspace.AbsentValue</div></div>
+                    @* To and Cc read the last send's recipients (v41 K5). *@
+                    <div class="fc ro"><span class="lbl">To</span><div class="fv @(lastTo.Length == 0 ? "empty" : null)" data-report-last-to>@(lastTo.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : lastTo)</div></div>
+                    <div class="fc ro"><span class="lbl">Cc</span><div class="fv @(lastCc.Length == 0 ? "empty" : null)" data-report-last-cc>@(lastCc.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : lastCc)</div></div>
                     @if (attachable.Length > 0)
                     {
                         <span class="lbl">@ReportLabels.Attach</span>

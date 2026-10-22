@@ -129,8 +129,9 @@ separate Case with its own number.
 **Replacing a principal code.** When a Principal's code changes, Pegasus
 replaces it in one Core transaction: it deactivates the old code, continues
 the old code's next unused sequence number for the rest of the cutover year
-(Europe/London), and starts later years at `001`. Both codes and the reason
-stay on record permanently.
+(Europe/London), and starts later years at `001`. Both codes stay on record
+permanently
+([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 **Wrong Principal.** A Case created under the wrong Principal is marked
 `Created in error` with a reason and a link to its replacement Case. Neither

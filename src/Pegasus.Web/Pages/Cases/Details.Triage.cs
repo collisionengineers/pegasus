@@ -160,6 +160,13 @@ public sealed class TriageCaseView(TriageDetail triage)
         }
     }
 
+    /// <summary>The inline preview the viewer reads for one of the Triage Case's files.</summary>
+    public string PreviewUrl(Pegasus.Core.Documents.CaseFile file)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        return CaseFileAddresses.Preview(Record.CaseId, file);
+    }
+
     /// <summary>The audited download of one of the Triage Case's files.</summary>
     public string DownloadUrl(Pegasus.Core.Documents.CaseFile file)
     {
@@ -297,6 +304,7 @@ public sealed partial class DetailsModel
         string? responseCandidate,
         Guid? sentEvidenceId,
         Guid? caseId,
+        string? caseReference,
         Guid? assigneeId,
         string? note,
         [FromServices] TriageCasePorts ports,
@@ -312,10 +320,15 @@ public sealed partial class DetailsModel
 
         if (actionName is "link_case" or "unlink_case")
         {
+            // Link case names the Case by its Case / PO; Unlink case posts the
+            // linked Case's id.
+            var targetCaseId = actionName == "link_case"
+                ? await ResolveTriageLinkTargetAsync(caseReference, actionActor, ports, cancellationToken)
+                : caseId;
             return await ExecuteTriageCaseAssociationAsync(
                 linking: actionName == "link_case",
                 id,
-                caseId ?? Guid.Empty,
+                targetCaseId ?? Guid.Empty,
                 expectedVersion,
                 actionActor,
                 operationKey,
@@ -930,6 +943,59 @@ public sealed partial class DetailsModel
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// The Link case dialog's Case / PO option list, fetched as staff type.
+    /// Choosing an option fills the field; the dialog's own form posts it.
+    /// </summary>
+    public async Task<IActionResult> OnGetTriageLinkCaseOptionsAsync(
+        Guid id,
+        string? q,
+        [FromServices] TriageCasePorts ports,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(ports);
+        if (!TryGetTriageActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        IReadOnlyList<CaseSearchItem> items = [];
+        var term = q?.Trim();
+        if (!string.IsNullOrWhiteSpace(term) && term.Length <= 300)
+        {
+            items = (await ports.SearchCases.ExecuteAsync(
+                new(actor, new CaseSearchFilters(Query: term), PageSize: 10),
+                cancellationToken)).Items;
+        }
+
+        return Partial(
+            "/Pages/Shared/_CaseOptions.cshtml",
+            new CaseOptions(
+                items.Select(item => new CaseOption(item.Reference, item.Registration, item.Claimant)).ToList(),
+                IdPrefix: "triage-link-case-option"));
+    }
+
+    /// <summary>The Case a typed Case / PO reference names exactly; null when it names none.</summary>
+    private static async Task<Guid?> ResolveTriageLinkTargetAsync(
+        string? reference,
+        ActionActor actor,
+        TriageCasePorts ports,
+        CancellationToken cancellationToken)
+    {
+        var value = reference?.Trim();
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 100)
+        {
+            return null;
+        }
+
+        var matches = await ports.SearchCases.ExecuteAsync(
+            new(actor, new CaseSearchFilters(CaseReference: value), PageSize: 2),
+            cancellationToken);
+        return matches.Items
+            .SingleOrDefault(item => string.Equals(item.Reference, value, StringComparison.OrdinalIgnoreCase))
+            ?.CaseId;
     }
 
     /// <summary>

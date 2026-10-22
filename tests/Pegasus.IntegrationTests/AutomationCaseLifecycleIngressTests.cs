@@ -240,6 +240,11 @@ public sealed class AutomationCaseLifecycleIngressTests
         }
     }
 
+    /// <summary>
+    /// #1213 (operator, 15 October 2026): an omitted engineerId hands the Case
+    /// to Unassigned, With Engineer, and a named one then assigns it there; no
+    /// reason is asked, and Core records who it went to.
+    /// </summary>
     [Fact]
     public async Task AssignEngineerThroughCaseActionMovesTheCaseToWithEngineer()
     {
@@ -252,16 +257,15 @@ public sealed class AutomationCaseLifecycleIngressTests
         var engineerId = await SeedEngineerAsync(mcpFactory, "lifecycle-engineer");
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using (var noEngineer = await PostMcpAsync(client, token, ToolCallPayload(10, "pegasus_case_action",
-            new { caseId, expectedVersion = version, operationKey = "mcp:assign-none", action = "assign_engineer" })))
-        {
-            Assert.Contains("needs engineerId", await ReadErrorTextAsync(noEngineer), StringComparison.Ordinal);
-        }
+        using var unassigned = await PostMcpAsync(client, token, ToolCallPayload(10, "pegasus_case_action",
+            new { caseId, expectedVersion = version, operationKey = "mcp:assign-none", action = "assign_engineer" }));
+        var unassignedResult = await ReadStructuredContentAsync(unassigned);
+        Assert.Equal(nameof(CaseLifecycleState.ReportPreparation), unassignedResult.GetProperty("state").GetString());
 
         using var assigned = await PostMcpAsync(client, token, ToolCallPayload(11, "pegasus_case_action", new
         {
             caseId,
-            expectedVersion = version,
+            expectedVersion = unassignedResult.GetProperty("caseVersion").GetInt64(),
             operationKey = "mcp:assign",
             action = "assign_engineer",
             engineerId,
@@ -275,6 +279,14 @@ public sealed class AutomationCaseLifecycleIngressTests
         Assert.NotNull(workflow);
         Assert.Equal(engineerId, workflow.AssignedEngineerId);
         Assert.Equal(result.GetProperty("caseVersion").GetInt64(), workflow.Version);
+        await using var db = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        var reasons = await db.CaseWorkflowEvents.AsNoTracking()
+            .Where(row => row.CaseId == caseId && row.EventType == "state_ReportPreparation")
+            .OrderBy(row => row.AfterVersion)
+            .Select(row => row.Reason)
+            .ToListAsync();
+        Assert.Equal(["Set to Unassigned", $"Assigned to lifecycle-engineer-{engineerId:N}"], reasons);
     }
 
     /// <summary>
@@ -420,6 +432,86 @@ public sealed class AutomationCaseLifecycleIngressTests
         }
     }
 
+    /// <summary>
+    /// set_type (operator, 22 October 2026; R204): the tool names the types the
+    /// Core lets staff choose, a malformed call claims nothing, and the change
+    /// is recorded on the timeline as the Automation actor's under the
+    /// one-command lease, which is released.
+    /// </summary>
+    [Fact]
+    public async Task DocumentTypeThroughDocumentActionIsSetAsTheAutomationActor()
+    {
+        const string reason = "A photograph of the claim form, not of the vehicle.";
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var occurrenceId = await SeedImageAsync(mcpFactory, caseId);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        var choosable = DocumentTypePolicy.StaffMayChoose.Select(role => role.ToString()).ToArray();
+        var listed = string.Join(", ", choosable[..^1]) + " or " + choosable[^1];
+        using (var toolsResponse = await PostMcpAsync(client, token, ToolsListPayload(50)))
+        {
+            using var tools = await ReadJsonRpcAsync(toolsResponse);
+            var documentAction = tools.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
+                .Single(tool => tool.GetProperty("name").GetString() == "pegasus_document_action");
+            Assert.Contains(listed, documentAction.GetProperty("description").GetString(), StringComparison.Ordinal);
+            Assert.Contains(
+                listed,
+                documentAction.GetProperty("inputSchema").GetProperty("properties").GetProperty("semanticRole")
+                    .GetProperty("description").GetString(),
+                StringComparison.Ordinal);
+        }
+
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+        var versionId = await VersionIdAsync(mcpFactory, occurrenceId);
+        foreach (var (rpcId, arguments, refusal) in new (int, object, string)[]
+        {
+            (51, new { caseId, expectedVersion = version, operationKey = "mcp:type-no-reason", action = "set_type",
+                occurrenceId, versionId, semanticRole = "Other" }, "The set_type action needs a reason."),
+            (52, new { caseId, expectedVersion = version, operationKey = "mcp:type-digit", action = "set_type",
+                occurrenceId, versionId, semanticRole = "8", reason }, "The set_type action needs semanticRole"),
+            (53, new { caseId, expectedVersion = version, operationKey = "mcp:type-original-source", action = "set_type",
+                occurrenceId, versionId, semanticRole = "OriginalSource", reason }, "The set_type action needs semanticRole"),
+            (54, new { caseId, expectedVersion = version, operationKey = "mcp:type-no-version", action = "set_type",
+                occurrenceId, semanticRole = "Other", reason }, "The set_type action needs versionId."),
+        })
+        {
+            using var refused = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_document_action", arguments));
+            Assert.Contains(refusal, await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+        Assert.Equal(version, await GetWorkflowVersionAsync(mcpFactory, caseId));
+
+        using var set = await PostMcpAsync(client, token, ToolCallPayload(55, "pegasus_document_action", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:type-other",
+            action = "set_type",
+            occurrenceId,
+            versionId,
+            semanticRole = "Other",
+            reason,
+        }));
+        var result = await ReadStructuredContentAsync(set);
+        Assert.Equal("set_type", result.GetProperty("action").GetString());
+        Assert.True(result.GetProperty("caseVersion").GetInt64() > version);
+
+        await using var scope = mcpFactory.Services.CreateAsyncScope();
+        await using var db = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        Assert.Equal(
+            DocumentSemanticRole.Other,
+            (await db.Set<DocumentOccurrenceEntity>().AsNoTracking().SingleAsync(row => row.Id == occurrenceId)).SemanticRole);
+        var change = await db.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(row => row.CaseId == caseId && row.EventType == "case_document_type_set");
+        Assert.Equal(reason, change.Reason);
+        Assert.Equal(nameof(ActorKind.Automation), change.ActorKind);
+        Assert.Equal(ClientId, change.ActorSubjectId);
+        Assert.Null((await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).EditLeaseHolder);
+    }
+
     private static async Task<CaseLifecycleState> StateAsync(WebApplicationFactory<Program> factory, Guid caseId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
@@ -455,6 +547,17 @@ public sealed class AutomationCaseLifecycleIngressTests
         db.UserRoles.Add(new IdentityUserRole<Guid> { UserId = engineerId, RoleId = role.Id });
         await db.SaveChangesAsync();
         return engineerId;
+    }
+
+    private static async Task<Guid> VersionIdAsync(WebApplicationFactory<Program> factory, Guid occurrenceId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var db = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        return await db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            .Where(row => row.Id == occurrenceId)
+            .Select(row => row.VersionId)
+            .SingleAsync();
     }
 
     private static async Task<Guid> SeedImageAsync(WebApplicationFactory<Program> factory, Guid caseId)

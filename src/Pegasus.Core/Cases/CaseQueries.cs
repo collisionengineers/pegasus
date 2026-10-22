@@ -18,6 +18,12 @@ namespace Pegasus.Core.Cases;
 /// More than one lets a caller find an operator stage that spans Core states,
 /// such as With Engineer (operator decision D3), in one paged search.
 /// </param>
+/// <param name="Unassigned">
+/// True matches the Cases with no assigned Engineer: alone, only those; beside
+/// <paramref name="EngineerId"/>, those and that Engineer's. The Work Centre
+/// reads With Engineer's Unassigned Cases, and on Mine the viewer's with them,
+/// in one read (#1213).
+/// </param>
 public sealed record CaseSearchFilters(
     string? CaseReference = null,
     string? Registration = null,
@@ -32,7 +38,8 @@ public sealed record CaseSearchFilters(
     string? Origin = null,
     string? Query = null,
     bool IncludeTriage = false,
-    bool? HasOpenQuery = null);
+    bool? HasOpenQuery = null,
+    bool Unassigned = false);
 
 /// <summary>
 /// The sort a case list renders in. Newest received first is the default
@@ -245,13 +252,20 @@ public sealed record GetCaseHeaderQuery(Guid CaseId, ActionActor Actor);
 /// lazily rendered Case section needs. It deliberately has no body
 /// collections: each section supplies only its own content.
 /// </summary>
+/// <param name="StandaloneAuditEvidenceId">
+/// The standalone-Audit evidence an Audit kept at intake, read with the Case
+/// row, so a caller holding only the frame knows whether
+/// <see cref="OriginalReportPolicy.IsMissing"/> turns on the Case's
+/// documents.
+/// </param>
 public sealed record CaseSectionFrame(
     CaseSearchItem Summary,
     CaseWorkflowRecord Workflow,
     CaseEditLeaseSnapshot? ActiveEditLease,
     string? CustodyFolderRemoteId = null,
     CaseCustodyState CustodyState = CaseCustodyState.Pending,
-    CaseWorkSet? Works = null);
+    CaseWorkSet? Works = null,
+    Guid? StandaloneAuditEvidenceId = null);
 
 /// <summary>
 /// The already-authorized page inputs a directly rendered body may reuse. A
@@ -366,13 +380,17 @@ public sealed record CaseQueriesSection(
     IReadOnlyList<CaseQueryItem> Queries);
 
 /// <summary>
-/// The Tasks body source (CASE-20): the Case's tasks, open ones first, and the operator-facing
-/// names of the staff they are assigned to.
+/// The Tasks body source (CASE-20): the Case's tasks, open ones first; the names of the
+/// enabled staff they are assigned to; and the enabled staff, an open task's Assign
+/// choices, read only while a task is open or names an assignee. A task held by an
+/// account that is no longer enabled has no name here and reads Unassigned (operator,
+/// 22 October 2026).
 /// </summary>
 public sealed record CaseTasksSection(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseTaskRecord> Tasks,
-    IReadOnlyDictionary<Guid, string> AssigneeNames);
+    IReadOnlyDictionary<Guid, string> AssigneeNames,
+    IReadOnlyList<CaseEngineerChoice> AssigneeChoices);
 
 /// <summary>
 /// The Files body source. Documents and correspondence belong together because
@@ -601,6 +619,38 @@ public sealed class GetCaseEditBasis(
 }
 
 /// <summary>
+/// The authorized frame-only read of a Case: its summary, workflow, lease,
+/// custody and works, without the accepted data or any body. The Cases queue
+/// detail reads it; a caller that needs the data reads
+/// <see cref="IGetCaseEditBasis"/>.
+/// </summary>
+public interface IGetCaseSectionFrame
+{
+    Task<CaseSectionFrame?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Requires <see cref="StaffAccessRight.PerformCasework"/> and a case
+/// identifier, then returns the store's frame; null when the Case has no
+/// workflow.
+/// </summary>
+public sealed class GetCaseSectionFrame(ICaseQueryStore store) : IGetCaseSectionFrame
+{
+    private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<CaseSectionFrame?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+        return _store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+    }
+}
+
+/// <summary>
 /// The persistence half of <see cref="CaseFilesSection"/>. It contains only
 /// Files-owned rows; the page frame supplies the already-rendered documents.
 /// </summary>
@@ -815,7 +865,7 @@ public sealed class GetCaseQueriesSection(
 public sealed class GetCaseTasksSection(
     ICaseQueryStore store,
     ICaseTaskQueries tasks,
-    IStaffAccountQueries staffAccounts) : IGetCaseTasksSection
+    ICaseEngineerChoices enabledStaff) : IGetCaseTasksSection
 {
     public async Task<CaseTasksSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
@@ -827,11 +877,34 @@ public sealed class GetCaseTasksSection(
         }
 
         var listed = await tasks.ListAsync(query.CaseId, cancellationToken);
-        var names = await ActorDisplayNames.ResolveStaffNamesAsync(
-            staffAccounts,
-            listed.Where(task => task.AssigneeId is not null).Select(task => task.AssigneeId!.Value),
-            cancellationToken);
-        return new(frame, listed, names);
+        var assigneeIds = new HashSet<Guid>();
+        var anyOpen = false;
+        foreach (var task in listed)
+        {
+            if (task.AssigneeId is { } assigneeId)
+            {
+                assigneeIds.Add(assigneeId);
+            }
+            anyOpen |= task.State == CaseTaskState.Open;
+        }
+
+        // The enabled staff are an open task's Assign choices and the only
+        // names an assignee reads as, so a task held by an account no longer
+        // enabled reads Unassigned and has no option of its own (operator,
+        // 22 October 2026). They are read once, and only when a task is open
+        // or names an assignee.
+        IReadOnlyList<CaseEngineerChoice> enabled = anyOpen || assigneeIds.Count > 0
+            ? await enabledStaff.GetAsync(query.Actor, cancellationToken)
+            : [];
+        var names = new Dictionary<Guid, string>();
+        foreach (var choice in enabled)
+        {
+            if (assigneeIds.Contains(choice.StaffId))
+            {
+                names[choice.StaffId] = choice.DisplayName;
+            }
+        }
+        return new(frame, listed, names, enabled);
     }
 }
 
@@ -913,6 +986,13 @@ public sealed class ValidateCaseRenderLease(
 public interface ICaseDocumentQueries
 {
     Task<IReadOnlyList<CaseDocument>> ListAsync(Guid caseId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether a current, not removed document of the Case holds the Audit
+    /// report role (<see cref="OriginalReportPolicy.IsMissing"/>), in one
+    /// indexed query, for a caller that has not read the documents.
+    /// </summary>
+    Task<bool> HasCurrentAuditReportAsync(Guid caseId, CancellationToken cancellationToken);
 }
 
 /// <summary>The retained report-Sent evidence no Case has linked yet.</summary>

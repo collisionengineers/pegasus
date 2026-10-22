@@ -363,7 +363,9 @@ public sealed class CaseTasksWebTests
     /// the Case's tasks and offers Complete, Cancel and
     /// Assign on an open task and Add task, in and out of the edit session (operator,
     /// 13 October 2026); a closed task never offers an
-    /// action. Assign offers the enabled named staff, and a description has no length limit.
+    /// action. Assign offers the enabled named staff, a task held by an account no longer
+    /// enabled reads Unassigned (operator, 22 October 2026), and a description has no length
+    /// limit.
     /// </summary>
     [Fact]
     public async Task TasksDialogListsTheTasksFromTheActionsMenuAndOffersItsActionsInTheEditSession()
@@ -378,6 +380,7 @@ public sealed class CaseTasksWebTests
             Guid.NewGuid(), store.CaseId, "Collect the keys", formerAssignee, CaseTaskState.Open, 2, store.CaseVersion);
         store.Tasks.AddRange([open, done, former]);
         var colleague = new CaseEngineerChoice(Guid.NewGuid(), "colleague.engineer");
+        store.TaskStaff.Add(colleague);
         using var workspace = await EnterEditModeAsync(store, services =>
         {
             Substitute<IGetCaseTasksSection>(services, store);
@@ -385,7 +388,6 @@ public sealed class CaseTasksWebTests
             Substitute<IAssignCaseTask>(services, store);
             Substitute<ICompleteCaseTask>(services, store);
             Substitute<ICancelCaseTask>(services, store);
-            Substitute<ICaseEngineerChoices>(services, new StaffChoices(colleague));
         });
 
         Assert.DoesNotContain(
@@ -417,7 +419,7 @@ public sealed class CaseTasksWebTests
         Assert.DoesNotContain("button-row", openRow.Value, StringComparison.Ordinal);
         Assert.Contains("handler=AssignCaseTask", openRow.Value, StringComparison.Ordinal);
         Assert.Contains("name=\"assigneeId\"", openRow.Value, StringComparison.Ordinal);
-        Assert.Contains("<option value=\"\" selected=\"selected\">Unassigned</option>", openRow.Value, StringComparison.Ordinal);
+        Assert.Contains($"<option value=\"\" selected=\"selected\">{TaskLabels.Unassigned}</option>", openRow.Value, StringComparison.Ordinal);
         Assert.Contains($"value=\"{colleague.StaffId:D}\"", openRow.Value, StringComparison.Ordinal);
         Assert.Contains($">{colleague.DisplayName}</option>", openRow.Value, StringComparison.Ordinal);
         Assert.Contains($">{TaskLabels.Assign}</span>", openRow.Value, StringComparison.Ordinal);
@@ -426,8 +428,11 @@ public sealed class CaseTasksWebTests
             $"<tr data-case-task=\"{former.Id:D}\".*?</tr>",
             RegexOptions.Singleline | RegexOptions.CultureInvariant);
         Assert.True(formerRow.Success, "The task assigned outside the enabled list is not rendered.");
+        // A task held by an account no longer enabled reads Unassigned, with
+        // the unassigned task's option (operator, 22 October 2026).
+        Assert.Contains($"<td>{TaskLabels.Unassigned}</td>", formerRow.Value, StringComparison.Ordinal);
         Assert.Contains(
-            "<option value=\"\" selected=\"selected\" disabled=\"disabled\">Former staff</option>",
+            $"<option value=\"\" selected=\"selected\">{TaskLabels.Unassigned}</option>",
             formerRow.Value,
             StringComparison.Ordinal);
         Assert.DoesNotContain($"value=\"{formerAssignee:D}\"", formerRow.Value, StringComparison.Ordinal);
@@ -601,15 +606,6 @@ public sealed class CaseTasksWebTests
         Assert.Equal(workspace.Store.LeaseToken, editLeaseToken);
         Assert.Equal(operationKey, recordedOperationKey);
         Assert.Equal(reason, recordedReason);
-    }
-
-    /// <summary>The enabled named staff an open task's Assign offers.</summary>
-    private sealed class StaffChoices(params CaseEngineerChoice[] choices) : ICaseEngineerChoices
-    {
-        public Task<IReadOnlyList<CaseEngineerChoice>> GetAsync(
-            ActionActor actor,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<CaseEngineerChoice>>(choices);
     }
 
     /// <summary>

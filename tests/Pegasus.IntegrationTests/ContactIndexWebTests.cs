@@ -201,6 +201,8 @@ public sealed partial class ContactIndexWebTests
         // The cells are compared without the whitespace between tags.
         var html = Regex.Replace(await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?search=Grouped%20Fixture"), @">\s+<", "><");
 
+        // Apply is for no-script use only: with script the filters apply as the operator types.
+        Assert.Contains("<noscript><button class=\"btn\" type=\"submit\">Apply</button></noscript>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"Sort\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Principals, claim sources, repairers", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<th>Type</th>", html, StringComparison.Ordinal);

@@ -89,7 +89,7 @@
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonEngineer</div>
-            <div class="ribbon-value"><span>@(Model.EngineerDisplayName ?? OperatorLabels.CaseWorkspace.AbsentValue)</span></div>
+            <div class="ribbon-value"><span>@Model.RibbonEngineer</span></div>
         </div>
         <div class="ribbon-chips" aria-label="@OperatorLabels.CaseWorkspace.RibbonState" data-case-ribbon-chips>
             <partial name="Shared/_StatusChip" model="@Model.StateChipText" />
@@ -239,7 +239,7 @@
                 <a class="btn" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
                    asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
                    data-dialog-open="case-tasks-dialog" data-case-tasks-open>
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-square")" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-square-check")" /></svg>
                     <span>@CaseWorkspaceLabels.Tasks.Title</span>
                 </a>
                 @if (canConfirmReportSent)
@@ -272,6 +272,14 @@
                     <button type="button" class="btn" data-dialog-open="case-return-engineer-dialog">
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
                         <span>@Frame.ReturnToEngineer</span>
+                    </button>
+                }
+                @if (Model.CanReturnToWork)
+                {
+                    @* Return to work on a closed Case (R157, v41 K10), before Archive. *@
+                    <button type="button" class="btn" data-dialog-open="case-return-to-work-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
+                        <span>@Frame.ReturnToWork</span>
                     </button>
                 }
                 @if (canArchive)

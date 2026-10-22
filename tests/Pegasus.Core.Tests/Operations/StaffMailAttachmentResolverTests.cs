@@ -140,6 +140,9 @@ public sealed class StaffMailAttachmentResolverTests
             Asked.Add(caseId);
             return Task.FromResult<IReadOnlyList<CaseDocument>>(documents);
         }
+
+        public Task<bool> HasCurrentAuditReportAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class ThrowingIntake : IGetIntake

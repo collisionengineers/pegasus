@@ -106,10 +106,13 @@ per browser in the `pegasus-rail` cookie (read by
 server with no flash. Under 980px, where the rail lies down, the control is
 hidden.
 
-The **utility bar** is dark and sticky at the top of the column: freshness
-text, the global search input with its "Ctrl K" hint (Enter or Ctrl K opens
-the command palette dialog), the "New case" link to the real creation form,
-and the bell. Upload and Inbox retain their named navigation destinations.
+The **utility bar** is dark and sticky at the top of the column: the global
+search input with its "Ctrl K" hint (Enter or Ctrl K opens the command palette
+dialog), the "New case" link to the real creation form, and the bell. The
+rail foot's freshness line is the one clock (v41 S4, operator, 15 and 19
+October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Upload and Inbox retain their named navigation destinations.
 
 The **bell** is personal notifications and nothing else: never office-wide
 work, attention rows or queue counts. Its `.bell-count` shows the signed-in
@@ -380,7 +383,9 @@ design-dev` bundle, the 2026-07 warm palette) are superseded and not retained.
 | `--shadow` | `0 8px 24px rgba(25,39,45,.09)` | Hover-raised cards, palette dropdown, toast |
 
 Green must not represent progress, availability or a generic positive action;
-it is reserved for confirmed completion. The prototype's `--polish-*`
+it is reserved for confirmed completion. Service health's Working chips take
+the green tone ([v41 A22](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+The prototype's `--polish-*`
 properties are a layered overlay and their names are not carried: the
 `--polish-shadow` and `--polish-shadow-raised` values are written into the
 card rules that use them (resting and hover), and `--polish-red-soft` /
@@ -394,7 +399,7 @@ State chips are `.status` with one tone modifier and always a text label:
 | `.status--amber` | `--amber` on `--amber-bg` | Not ready, Held, Unidentified, pending |
 | `.status--navy` | `--navy` on `--navy-bg` | Review |
 | `.status--blue` | `--blue` on `--blue-bg` | With Engineer, running, sent |
-| `.status--green` | `--green` on `--green-bg` | Report sent, confirmed |
+| `.status--green` | `--green` on `--green-bg` | Report sent, confirmed, Service health Working ([v41 A22](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | `.status--purple` | `--purple` on `--purple-bg` | Query |
 | `.status--red` | `--danger` on `--danger-bg` | Failed, could not be read, correction required |
 | `.status--neutral` | `--muted` on `--surface-3` | Closed, cancelled, unknown |
@@ -621,7 +626,7 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `shield` | `shield` | `DC47E83DA00C351F99CB71550D9C473778E5B9ED77EA53C5C6363E6DB5797572` | Roles, access |
 | — | `trash-2` | `BDC20CCC528299464BC8852314626B17A8247752FB07181C8E4472CD55BF3211` | Delete estimate, remove line, Delete message |
 | — | `rotate-cw` | `D716E6418C8814CA369A43E86BF60C03D0D7F2C85B9C53309F62063532B0BB3E` | Rotate view right (paired with `rotate-ccw`) |
-| `spark` (undefined) | `sparkles` | `08C2C4D0FF60EACA5067A5BE176C844952C55FC81B9047CF1FB105C80C0CE6D4` | Automation & AI nav entry, AI job rows |
+| `spark` (undefined) | `sparkles` | `08C2C4D0FF60EACA5067A5BE176C844952C55FC81B9047CF1FB105C80C0CE6D4` | Administration nav and hub: AI jobs; Send to AI, Send Unidentified to AI, Reply with AI draft, Draft reply with AI, the AI draft notice |
 | `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
@@ -641,13 +646,13 @@ symbols: the fifty-three above plus these twenty-two.
 | — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Open the Triage; Triage Record finding |
 | — | `zoom-in` | `F32744E452483FCC60A24618A5C05630138A6C07806F647D510CE82726F0E8B2` | Case viewer Zoom |
 | — | `bar-chart` | `DB920FF9B7CE38B0D2703AE4B696B0682A3DCFE46B9BADE4260DFCF685BABB42` | Administration nav: Management Reports |
-| — | `bot` | `91A0B1650FB3AE4CAC2615A264F8F023989CEFB119F21012937B322B5F941CCC` | Administration nav: Automation & AI |
+| — | `bot` | `91A0B1650FB3AE4CAC2615A264F8F023989CEFB119F21012937B322B5F941CCC` | Administration nav and hub: Automation & AI ([v41 A1](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | — | `file-spreadsheet` | `16CF1ECDEF4DF9F53F2B22B78B633FBB9754BEC4ACF9D3BB9FEAEF3B0EB00DD9` | Management Reports: Download workbook |
 | — | `heart-pulse` | `995A8F1F889A4EC78A7CD23E35DC50DAA9B7983AD78FDAA370D70F6608EC2718` | Administration nav: Service health |
 | — | `pound-sterling` | `72454D0BBC72046B76787C89101DC263E6060D4F4AF8B2DDD47EF2BB9976171A` | Administration nav: Valuation presets |
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
 | — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item; image tile: In report, off |
-| — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | Image tile: In report, on |
+| — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | Image tile: In report, on; Case Tasks (Actions item, empty list; [v41 K1](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
 | — | `tag` | `DD7CD667273A81E81C0901A77A43153FC8A1C8FC51FDFB98F5CFDF2AB7AC4596` | Image tile: Tag |
 | — | `file-image` | `DAE10E1CDF7EE095323DC27D60CF5A113ADB9830B2A02A2A90BF11FAEEED3808` | Image tile: Print on its own page (Full page) |
@@ -882,7 +887,7 @@ deleted in wave 5.
 | `brand`, `brand-copy` | Rail lockup |
 | `primary-nav`, `nav-label`, `nav-link` | Rail navigation |
 | `rail-health`, `rail-user` | Rail foot |
-| `utility-bar`, `utility-freshness`, `utility-search` | Dark bar |
+| `utility-bar`, `utility-search` | Dark bar |
 | `rail-collapsed` (on `app-shell`), `[data-rail-toggle]` | Collapsed 64px rail and its Collapse/Expand control |
 | `bell-wrap`, `bell-count`, `row-list`, `row-form`, `row-button`, `row-button--unread` | The bell with its unread count, and the Notifications dialog's one-button rows |
 | `external-shell`, `auth-identity`, `auth-brand`, `auth-company`, `auth-panel`, `auth-card`, `auth-card--wide`, `password-reveal` | Navless frame: identity panel beside the page's card |
@@ -896,11 +901,11 @@ deleted in wave 5.
 | `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (dismiss, section fold) |
 | `freshness`, `freshness-status`, `health-dot`, `refresh-button` (`Shared/_RefreshButton`) | Page freshness line and the one Refresh control every surface composes; the label becomes "Refreshing" and the icon spins while a refresh runs (`prefers-reduced-motion` keeps the label and disabled state) |
 | `busy-spin`, `busy-done`, `[data-busy]`, `[data-busy-aside]`, `[data-busy-complete]`, `data-busy-label`, `data-busy-still`, `data-busy-done`, `data-busy-download` | Action feedback (site.js `pegasusBusy`): from the press until the result arrives the pressed button or link shows the turning `icon-loader` glyph and its busy words (`OperatorLabels.Busy`), keeping its colours; after five seconds the words say "Still …" (the layout's `data-busy-still` word); the form's other submit buttons stand aside. An action answered in place that succeeds holds the `icon-check` glyph and its `data-busy-done` word (`OperatorLabels.Busy.Done`, or its own label) in the confirmed green for 1.4 s; a page that reloads shows its notice instead. A download link or form fetches its file and stays busy until it arrives |
-| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line; under it the `wc-activity` panel holds the day and week figures as a table, the figures across and Today / This week down |
+| `metric-strip`, `metric-strip--2`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line; under it the `wc-activity` panel holds the day and week figures as a table, the figures across and Today / This week down; the Intake log's two counts sit in `metric-strip--2` ([v41 A24](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |
-| `tabs`, `tab` | `tablist` / `tab` with `aria-selected`; where each tab is its own server-rendered address (`?tab=`), a `nav` of links with `aria-current="page"` (Logs, a Principal contact) |
+| `tabs`, `tab` | `tablist` / `tab` with `aria-selected`; where each tab is its own server-rendered address (`?tab=`), a `nav` of links with `aria-current="page"` (Logs, Management Reports ([v41 A26](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)), a Principal contact) |
 | `pane-layout`, `pane-layout--2`, `pane-layout--3`, `pane`, `pane-head`, `pane-body`, `pane-scroll` | Multi-pane workspaces |
 | `queue-layout` | The Cases three-pane variant |
 | `scope-list`, `scope-button` | Left-pane scopes with icon well and count |
@@ -933,10 +938,12 @@ deleted in wave 5.
 | `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Overview and Close-up their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it |
-| `next-step`, `next-step-go` | The Next action's one step and its full-width control |
+| `next-step`, `next-step-go` | The Next action's one step and its full-width control, which shares its row with Take while the Case is Unassigned ([v41 K9](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
-| `mail-preview`, `decision-card` | Inbox preview and message decision |
+| `decision-card` | Message decision |
+| `inbox-row--ticks`, `inbox-row-tick`, `inbox-bulk` | A row's gutter tick and the one bulk form above the Inbox list (v41 I18) |
+| `dialog--mail`, `mail-split`, `mail-chips`, `mail-decision` | The Inbox message dialog: the message beside Decision, the Classification chips and the Case / PO picker (v41 I2, I9, I17) |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `admin-layout`, `admin-nav` | Administration |
 | `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |
@@ -1086,11 +1093,11 @@ this section holds the cross-cutting rules every page is held to.
 | Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. The default repairer VAT status is Registered (19 October 2026). A status still stored as Unknown does not block Use repair spec; it does block the report (27 September 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
-| Mail preview | Keyboard and pointer intent exposes an accessible preview that changes no message or Case state; when intent moves away the pane restores the selected message and stays visible with its navigation links. |
+| Message dialog | The subject opens one dialog over the Inbox, with Previous message and Next message in its head; opening, reading and moving between messages change no message or Case state; `/Inbox/{id}` stays for a new tab and for no script (v41 I2, I6, I17; [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)). |
 | Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
-| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail and Image Intake; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
+| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail and Image Intake; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in the shared dialog because the row is removed ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/pages/administration/README.md)). |
 
 ### Presentation responsibilities
 

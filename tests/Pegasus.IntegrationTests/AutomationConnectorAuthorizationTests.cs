@@ -12,6 +12,7 @@ using OpenIddict.Server;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
+using Pegasus.Web.Pages.Connect;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -130,9 +131,10 @@ public sealed partial class AutomationConnectorAuthorizationTests
         var html = await consent.Content.ReadAsStringAsync();
         Assert.True(consent.StatusCode == HttpStatusCode.OK, $"{(int)consent.StatusCode}: {html}");
         Assert.Contains("connector.example", html, StringComparison.Ordinal);
-        Assert.Contains("automation.cases", html, StringComparison.Ordinal);
-        Assert.Contains("automation.documents", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("automation.intake", html, StringComparison.Ordinal);
+        // Each requested scope reads as its description alone (v41 S5).
+        Assert.Contains($"<li>{AuthorizeModel.ScopeDescriptions[AutomationMcp.CasesScope]}</li>", html, StringComparison.Ordinal);
+        Assert.Contains($"<li>{AuthorizeModel.ScopeDescriptions[AutomationMcp.DocumentsScope]}</li>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(AuthorizeModel.ScopeDescriptions[AutomationMcp.IntakeScope], html, StringComparison.Ordinal);
 
         // Approve: OpenIddict redirects back to the exact registered URI with the code.
         using var approve = await browser.PostAsync(AuthorizeHandlerUrl("Accept"), ConsentForm(html));

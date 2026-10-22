@@ -151,9 +151,22 @@ public sealed class CaseCustodyWebTests
     {
         var occurrenceId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
+        var estimateId = Guid.NewGuid();
+        var researchId = Guid.NewGuid();
+        var guideValuationId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore
         {
-            CaseDocuments = [Document(occurrenceId, versionId, "instruction.pdf", "application/pdf")]
+            CaseDocuments =
+            [
+                Document(occurrenceId, versionId, "instruction.pdf", "application/pdf"),
+                Document(estimateId, Guid.NewGuid(), "estimate.pdf", "application/pdf", DocumentSemanticRole.Estimate),
+                Document(
+                    researchId, Guid.NewGuid(), "research.pdf", "application/pdf",
+                    DocumentSemanticRole.ValuationEvidence, source: DocumentSource.Automation),
+                Document(
+                    guideValuationId, Guid.NewGuid(), "valuation.pdf", "application/pdf",
+                    DocumentSemanticRole.ValuationEvidence, source: DocumentSource.Generated)
+            ]
         };
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -189,6 +202,20 @@ public sealed class CaseCustodyWebTests
         // Add evidence opens Upload for this Case: the destination is declared
         // before the upload (FRD-18).
         Assert.Contains($"href=\"/Upload?caseId={store.CaseId:D}\"", html, StringComparison.OrdinalIgnoreCase);
+        // Estimate and Valuation Evidence are document types (operator, 22
+        // October 2026); Valuation Evidence the Automation Actor filed wears
+        // the AI tint, and a generated guide valuation report does not.
+        var estimate = OperatorLabels.DocumentRole(DocumentSemanticRole.Estimate);
+        var valuationEvidence = OperatorLabels.DocumentRole(DocumentSemanticRole.ValuationEvidence);
+        Assert.Contains($"<span class=\"src-tag\">{estimate}</span>", DocumentRow(html, estimateId), StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span class=\"src-tag src-tag--ai\">{valuationEvidence}</span>",
+            DocumentRow(html, researchId),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span class=\"src-tag\">{valuationEvidence}</span>",
+            DocumentRow(html, guideValuationId),
+            StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Presentation;
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -84,8 +85,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
         var html = await GetHtmlAsync(client, PageFor(StaffId));
 
         Assert.Equal(FixtureUsername, FactValue(html, "Username"));
-        Assert.Equal("2", FactValue(html, "Generation"));
-        Assert.Equal("4", FactValue(html, "Version"));
         Assert.Equal("Enabled", ChipText(html, "glass-credential-title"));
         Assert.Contains("type=\"password\"", html, StringComparison.Ordinal);
         Assert.Contains("autocomplete=\"new-password\"", html, StringComparison.Ordinal);
@@ -125,7 +124,11 @@ public sealed partial class GlassCredentialAdministrationWebTests
 
         var html = await GetHtmlAsync(client, PageFor(StaffId));
 
-        Assert.Equal("Not configured", ChipText(html, "glass-credential-title"));
+        Assert.Equal(CaseWorkspaceLabels.GlassCredential.NotSet, ChipText(html, "glass-credential-title"));
+        Assert.Contains(
+            $"<span class=\"status status--amber\">{CaseWorkspaceLabels.GlassCredential.NotSet}</span>",
+            html,
+            StringComparison.Ordinal);
         Assert.Contains("handler=SaveGlass\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClearGlass\"", html, StringComparison.Ordinal);
     }
@@ -388,7 +391,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
         var initial = await GetHtmlAsync(client, PageFor(StaffId));
         var initialSave = FormOf(initial, "SaveGlass");
         var initialVersion = InputValue(initialSave, "ExpectedVersion");
-        Assert.Contains(">Not configured<", initial, StringComparison.Ordinal);
+        Assert.Equal(CaseWorkspaceLabels.GlassCredential.NotSet, ChipText(initial, "glass-credential-title"));
 
         using (var replaced = await client.PostAsync(
             $"{Route}?handler=SaveGlass",
@@ -448,7 +451,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
             Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
         }
         var afterClear = await GetHtmlAsync(client, PageFor(StaffId));
-        Assert.Contains(">Not configured<", afterClear, StringComparison.Ordinal);
+        Assert.Equal(CaseWorkspaceLabels.GlassCredential.NotSet, ChipText(afterClear, "glass-credential-title"));
         Assert.DoesNotContain("handler=ClearGlass\"", afterClear, StringComparison.Ordinal);
         Assert.DoesNotContain(FixtureUsername, afterClear, StringComparison.Ordinal);
     }

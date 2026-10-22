@@ -46,7 +46,9 @@ Case at the same route renders as the Triage Case page instead
 
 - the Case/PO as the page heading, under "Case workspace";
 - registration, claimant, principal and Engineer (the registration has its
-  own cell, operator, 8 October 2026);
+  own cell, operator, 8 October 2026); before the report a Case with no
+  Engineer reads Unassigned (#1213, operator, 16 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
 - chips for state, Case type (Audit, Inspection + Audit) and, while someone
   else holds the edit lease, "{name} is editing" with a lock. A held Case
   reads "Held · review on {date}" when the hold has a review date;
@@ -92,8 +94,11 @@ blocker as the step is drawn in full (what is missing, its source and reason)
 with one full-width control to where it is cleared, and no sentence on how
 to resolve it: the control is the how (v36 item AB, 9 October 2026); a step
 whose control says what the step says, such as Assign Engineer or Create
-audit, is that control alone, and any other step names itself above its
-section's control.
+audit, is that control alone, except that while the Case is Unassigned
+Assign Engineer has **Take** beside it (#1213, v41 K9, operator,
+19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
+and any other step names itself above its section's control.
 **Report not ready** is a card of its own below Next action, folded until
 the browser opens it and remembered per browser like the section folds. It
 lists everything outstanding, the step's own item included: every
@@ -129,9 +134,13 @@ second stale notice in Report (operator, 28 September 2026).
 While a linked message is currently classified a cancellation and the Case
 is open, the Next action also carries **Cancellation received** with **Open
 message** ([FRD-13](frd-13-case-lifecycle-and-workflow.md#cancellation-messages)).
-In Review the Next action is **Assign Engineer**, with the Actions menu's own
-control that opens its dialog; where the menu does not offer it, the step is
-named without a control (issue 1025).
+In Review, and With Engineer while the Case has no Engineer, the Next action
+is **Assign Engineer**, with the Actions menu's own control that opens its
+dialog and, while the Case is Unassigned, **Take** beside it (#1213, v41 K9,
+operator, 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
+where the menu does not offer it, the step is named without a control
+(issue 1025).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Once the report is stored, the Next action is
@@ -152,7 +161,9 @@ reply composer with Also resolve query ticked; otherwise it is the Actions
 menu's own Resolve query (operator, 11 October 2026).
 Once Report sent is recorded, the Next action also lists the Case's open
 tasks after its step, oldest first, each opening the [Tasks](#tasks) dialog
-(operator, 6 and 13 October 2026).
+(operator, 6 and 13 October 2026); the row itself is the control, with no
+Tasks button on it (v41 K3, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 While a Triage Case is linked to the Case, a **Linked cases** card follows
@@ -315,16 +326,22 @@ sent Case offers Edit Case like With Engineer (operator, 11 October 2026);
 Return to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
-- **Assign Engineer**, in Review. Its dialog selects an
-  eligible enabled staff account. The one handoff assigns them and
-  enters With Engineer. There is no reviewed checkbox and no separate start
-  action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)).
+- **Assign Engineer**, in Review or With Engineer. Its dialog selects an
+  eligible enabled staff account, the signed-in person listed first as
+  "Name (you)", or Unassigned, and asks no reason (#1213, v41 K9, operator,
+  19 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  The one handoff assigns them, or none, and moves a Review Case to With
+  Engineer. There is no reviewed checkbox and no separate start action
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer)).
 - **Export case**, on every standard Case in every state. It downloads the
   Case export, needs no lease and never changes the Case
   ([FRD-07](frd-07-case-export.md#export-case)).
 - **Tasks**, on every standard Case in every state (operator, 13 October
   2026). It opens the [Tasks](#tasks) dialog; without script its link draws
-  the dialog open.
+  the dialog open. Its icon, and the one on the dialog's empty list, is the
+  sprite's square-check (v41 K1, operator, 15 and 19 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 - **Mark report sent**, in With Engineer. It confirms detected or linked
   Sent evidence and moves the Case to Report sent, except on an Inspection +
   Audit Case with no Audit yet, which stays With Engineer with the
@@ -341,6 +358,12 @@ Return to Engineer needs no session. The rules behind each action are in
 - **Return to Review**, in With Engineer or Report sent, and **Return to
   Engineer**, in Report sent, when engineering changes are needed. Both
   record a reason.
+- **Return to work**, on a closed Case other than Created in error, before
+  Archive (operator, 16 October 2026; v41 K10, 19 October 2026,
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+  Its dialog takes the Case stage to return to and a reason, and the Case
+  returns through the destination gates
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-transitions)).
 - **Archive**, on a closed Case
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)). While the Case
   has an open task it is greyed with the reason "Complete or cancel every
@@ -731,8 +754,11 @@ confirmed**, **Box audit folder: preparing** while it is being created, or
 
 **Documents** lists every live file as a row: filename, role, size, origin,
 recorded time and custody-state chip, with Preview, Save as and, while
-editing, delete. A market research findings file carries the Market research
-role ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
+editing, delete. A market research findings file carries the Valuation
+Evidence role ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)),
+and Valuation Evidence the Automation Actor filed wears the AI tint
+([FRD-05](frd-05-documents-extraction-and-custody.md#document-types);
+operator, 22 October 2026).
 When an Audit lists **Original report missing**, each
 non-image row also offers **Mark as original report** while editing: the
 route for a report Pegasus did not recognise when it was filed. That action
@@ -858,11 +884,17 @@ link opens it without script.
 
 An open task offers **Complete**, **Cancel task** and **Assign**, a choice of
 the enabled named staff, and the head of the list has an **Add task** field,
-in and out of an edit session (operator, 13 October 2026). In a session each
-posts under the session's lease and the session carries on; outside one each
+in and out of an edit session (operator, 13 October 2026). A task held by an
+account that is no longer enabled reads Unassigned and has no option of its
+own (operator, 22 October 2026). In a session each posts under the
+session's lease and the session carries on; outside one each
 claims the Case's lease for that one command, as the other Actions-menu
-dialogs do. Each records one fixed reason, so there is no reason box. A
-Held or closed Case, and a Case a colleague is editing, show the list
+dialogs do. Each records one fixed reason, so there is no reason box. The
+Add task field takes the field style the other Case inputs use, and an open
+task's Assign, Complete and Cancel task sit on one line (v41 K4, operator,
+15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+A Held or closed Case, and a Case a colleague is editing, show the list
 without these. There is no due date yet.
 
 Tasks also appear in it without anyone adding them: when Report sent is
@@ -1038,6 +1070,14 @@ The form also shows what the Principal's report sending rules decided
   filed estimates the rules attach, and any warning, appear as hints;
 - the file name, a read-only "After sending" list of what staff still owe, and
   a Done tick for each hold.
+
+The Yes and No answers show their labels, and a hold's Done tick sits on the
+hold's own line (v41 K2, operator, 15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Reading a Case whose report was sent, To and Cc show the recipients of the
+report last sent, each Not recorded when there are none (v41 K5, operator,
+15 and 19 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 The layout of this form is as built and awaits its design sign-off.
 

@@ -8,6 +8,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using OperatorLabels = Pegasus.Web.Presentation.OperatorLabels;
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -22,6 +23,20 @@ public sealed class LogsWebTests
 {
     private static readonly DateTimeOffset ReceivedAtUtc = new(2031, 5, 6, 9, 31, 0, TimeSpan.Zero);
 
+    /// <summary>Logs reads in words: a stored action code becomes wording, AI and API stay initialisms, and a result takes a capital (v41 A13).</summary>
+    [Theory]
+    [InlineData("ai_job_failed", "AI job failed")]
+    [InlineData("principal_api_credential_issued", "Principal API credential issued")]
+    [InlineData("SignInFailed", "Sign in failed")]
+    public void AnActionCodeReadsAsWords(string code, string expected) =>
+        Assert.Equal(expected, OperatorLabels.ActionLogAction(code));
+
+    [Theory]
+    [InlineData("succeeded", "Succeeded")]
+    [InlineData("Denied", "Denied")]
+    public void AResultReadsWithACapitalWhateverItsStoredSpelling(string stored, string expected) =>
+        Assert.Equal(expected, OperatorLabels.ActionLogResult(stored));
+
     [Fact]
     public async Task TheLogsPageHasBothTabsAndTheIntakeLogReadsTheRealStore()
     {
@@ -33,19 +48,25 @@ public sealed class LogsWebTests
         Assert.Matches("<a class=\"tab\" href=\"/Administration/Logs\" aria-current=\"page\">Action logs</a>", actionLogs);
         Assert.Contains("href=\"/Administration/Logs?tab=intake\"", actionLogs, StringComparison.Ordinal);
         Assert.Contains("compact-log-filter", actionLogs, StringComparison.Ordinal);
-        // The intake metrics moved to the Intake log's head-line counts.
-        Assert.DoesNotContain(">Failed intake</dt>", actionLogs, StringComparison.Ordinal);
+        // The Action logs filter names its fields as its columns are headed (v41 A24).
+        foreach (var label in new[] { "Search", "Action", "Reference", "Result" })
+        {
+            Assert.Contains($">{label}</label>", actionLogs, StringComparison.Ordinal);
+        }
 
         var intake = await GetHtmlAsync(client, "/Administration/Logs?tab=intake");
         Assert.Matches("aria-current=\"page\" data-logs-tab=\"intake\">Intake log</a>", intake);
         Assert.Contains("data-intake-counts", intake, StringComparison.Ordinal);
         Assert.Contains("data-failed-intake", intake, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.IntakeLog.FailedFiles}</span>", intake, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.IntakeLog.OldestFileWaiting}</span>", intake, StringComparison.Ordinal);
         Assert.Contains(">All outcomes</option>", intake, StringComparison.Ordinal);
         Assert.Contains(">Could not be read</option>", intake, StringComparison.Ordinal);
         Assert.Contains(">All sources</option>", intake, StringComparison.Ordinal);
         Assert.Contains("name=\"IntakePrincipal\"", intake, StringComparison.Ordinal);
         Assert.Contains("name=\"IntakeFrom\"", intake, StringComparison.Ordinal);
-        Assert.DoesNotContain("compact-log-filter", intake, StringComparison.Ordinal);
+        // The Intake log's filter takes the Action logs structure (v41 A24).
+        Assert.Contains("compact-log-filter", intake, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -59,7 +80,7 @@ public sealed class LogsWebTests
         var list = await GetHtmlAsync(client, "/Administration/Logs?tab=intake&IntakeOutcome=ProcessingFailed");
         Assert.Equal(IntakeLogOutcome.ProcessingFailed, log.LastFilter?.Outcome);
         Assert.Contains($"data-intake-row=\"{log.ReceiptId:D}\"", list, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("<span class=\"value\" data-failed-intake>3</span>", list, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"metric-value\" data-failed-intake>3</span>", list, StringComparison.Ordinal);
         Assert.Contains("Processing failed", list, StringComparison.Ordinal);
         Assert.Contains("desk@collisionengineers.co.uk", list, StringComparison.Ordinal);
         // Razor encodes the middle dot in an expression.
@@ -70,6 +91,9 @@ public sealed class LogsWebTests
         var drawerRoute = $"/Administration/Logs?tab=intake&Receipt={log.ReceiptId:D}";
         var drawer = await GetHtmlAsync(client, drawerRoute);
         Assert.Contains($"data-intake-drawer=\"{log.ReceiptId:D}\"", drawer, StringComparison.OrdinalIgnoreCase);
+        // The row opens in the shared dialog frame with the one close (v41 A24).
+        Assert.Contains("data-dialog=\"intake-drawer\" data-dialog-open-on-load=\"true\"", drawer, StringComparison.Ordinal);
+        Assert.Contains("class=\"dialog-close\"", drawer, StringComparison.Ordinal);
         Assert.Contains("Retained original", drawer, StringComparison.Ordinal);
         Assert.Contains("Processing evidence", drawer, StringComparison.Ordinal);
         Assert.Contains("AB12CDE", drawer, StringComparison.Ordinal);

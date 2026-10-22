@@ -183,7 +183,7 @@ public sealed class UploadStatusModel(
                         proposal = open.Kind == UploadOutcomeKind.ReadyToCreate ? open.PrimaryAction : null;
                         break;
                     case { Kind: UploadOutcomeKind.ImageCaseRegistered } registered:
-                        report = new(Labels.CompleteEyebrow, $"Registered as {Labels.ImageIntake}", registered.Record is { } state ? $"{Labels.RegisteredAutomatically} · {state.State}" : registered.Message, registered.PrimaryAction);
+                        report = new(Labels.CompleteEyebrow, OperatorLabels.UploadDecision.VehicleImages, registered.Record is { } state ? $"{Labels.RegisteredAutomatically} · {state.State}" : registered.Message, registered.PrimaryAction);
                         break;
                     case { Kind: UploadOutcomeKind.Resolved } resolved:
                         report = new(Labels.CompleteEyebrow, resolved.StateLabel, resolved.Message, resolved.PrimaryAction);

@@ -54,8 +54,8 @@ public enum UnidentifiedResolutionTargetKind
 
 /// <summary>
 /// What kind of retained material an Unidentified item concerns, for the
-/// Queues page's Images/E-mails filter. Not persisted: derived at read time
-/// from the origin receipt's source channel and content type by
+/// Material column and the Automation list filter. Not persisted: derived at
+/// read time from the origin receipt's source channel and content type by
 /// <see cref="UnidentifiedMediaKindPolicy"/>.
 /// </summary>
 public enum UnidentifiedMediaKind
@@ -435,9 +435,9 @@ public interface IUnidentifiedStore
     /// <summary>
     /// The Queues page's Unidentified tab: open items oldest-first, each
     /// carrying enough of the origin receipt to answer what it is without a
-    /// second lookup. <paramref name="mediaKind"/> narrows to one of the
-    /// Images/E-mails filter values; <see langword="null"/> returns every open
-    /// item (the "All" filter).
+    /// second lookup. <paramref name="mediaKind"/> narrows to one media kind
+    /// (the Automation list filter); <see langword="null"/> returns every open
+    /// item.
     /// </summary>
     Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
         UnidentifiedMediaKind? mediaKind,

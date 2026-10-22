@@ -46,9 +46,17 @@ public static class OriginalReportPolicy
         CaseType caseType,
         Guid? standaloneAuditEvidenceId,
         bool hasCurrentAuditReport) =>
-        caseType == CaseType.Audit
-        && standaloneAuditEvidenceId is null
+        ReadsTheDocuments(caseType, standaloneAuditEvidenceId)
         && !hasCurrentAuditReport;
+
+    /// <summary>
+    /// Whether <see cref="IsMissing"/> turns on the Case's filed documents: an
+    /// Audit with no standalone-Audit evidence kept at intake. Any other Case
+    /// is never missing its original report, so a caller that has not read
+    /// its documents need not.
+    /// </summary>
+    public static bool ReadsTheDocuments(CaseType caseType, Guid? standaloneAuditEvidenceId) =>
+        caseType == CaseType.Audit && standaloneAuditEvidenceId is null;
 
     /// <summary>
     /// Whether a report filed on the Case now is recognised as its original

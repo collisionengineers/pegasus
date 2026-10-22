@@ -82,17 +82,19 @@ the normal action for that record. Visuals follow
 [design](../design/README.md).
 
 **Kinds.** A closed Core list. An unknown kind is refused at creation. The
-five kinds are Estimate, Unidentified resolution, Query response,
-Unidentified-queue pass and Market Research (`MarketResearch` in the code
-and in the table below). Each kind is started either from the staff surface
-in the table or by the Automation Actor's `pegasus_ai_job_create`, which
+five kinds are AI Proposal (`Estimate` in the code,
+[v41 A28](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
+Unidentified resolution, Query response, Unidentified-queue pass and
+Market Research (`MarketResearch` in the code and in the table below).
+Each kind is started either from the staff surface in the table or by the
+Automation Actor's `pegasus_ai_job_create`, which
 names the same subject and passes the same checks (operator, 7 October 2026;
 [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)): a job
 is how an external agent on an automated run picks up work.
 
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
-| Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, which may cite the job; state `Draft` | An enabled human staff member uses the draft (**Use repair spec**), which makes it the Current repair spec |
+| AI Proposal | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, which may cite the job; state `Draft` | An enabled human staff member uses the draft (**Use repair spec**), which makes it the Current repair spec |
 | Unidentified resolution | The Unidentified record's `Send Unidentified to AI` for that item's U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | **Draft reply with AI** on the retained Query e-mail's record, or on its open query's row in the Case's Queries section, while the Case is in post-report work; while the job is Queued or Taken both read "AI draft · {state}" in its place | The message reference only | Draft reply text, at most 4,000 characters | **Reply with AI draft** (the Case's Next action, the Work Centre row, the Queries row and the message record) opens that message's reply composer on the draft: Message holds the text, one AI line above it says when and by which client it was written, and Also resolve query starts ticked. **Send** from that composer completes the job once the provider accepts the send; a refused send leaves it Draft ready. A send that has gone but leaves the job as it was reads "The AI draft job was not completed by this send: {reason}.", the reason being "it was cancelled", "it was already completed" or "it changed while the reply was being sent" (operator, 16 October 2026). **Complete job** closes it unused. Never sent automatically (operator, 14 October 2026) |
 | Unidentified-queue pass | The Automation Actor's `create` tool only, for example from an external scheduler; Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item examined | As Unidentified resolution, per item |
@@ -119,7 +121,9 @@ files are retained. All kinds can also end in `Failed`, `Cancelled` or
   implied.
 - `Failed`: the client reported failure with a reason; not re-queued
   automatically.
-- `Cancelled`: staff or the Automation Actor cancelled with a reason. A
+- `Cancelled`: staff cancelled, with an optional reason
+  ([v41 A28](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
+  or the Automation Actor cancelled with a reason. A
   taken job is cancelled at once, whichever client holds it, and the
   holder's next progress call is refused.
 - `Expired`: never taken before its own expiry.

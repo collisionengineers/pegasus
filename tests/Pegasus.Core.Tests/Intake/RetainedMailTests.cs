@@ -470,6 +470,40 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
+    public async Task FindReceiptIdNeedsCaseworkAndReturnsOnlyTheReceiptIdentifier()
+    {
+        var receiptId = Guid.NewGuid();
+        var detail = Detail(
+            "mailbox-a",
+            new(1, MailClassificationResult.Unclassified([], "Fixture.", "test", 1),
+                "system-worker:poll", NowUtc, []));
+        detail = detail with { Summary = detail.Summary with { IntakeReceiptId = receiptId } };
+        var queries = new Queries { DetailToReturn = detail };
+        var getRetainedMail = new GetRetainedMail(queries, new NoStaffAccounts());
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            getRetainedMail.FindReceiptIdAsync(
+                ActionActor.Principal(Guid.NewGuid()),
+                detail.Summary.Id,
+                CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            getRetainedMail.FindReceiptIdAsync(
+                Caseworker(),
+                Guid.Empty,
+                CancellationToken.None));
+
+        Assert.Equal(
+            receiptId,
+            await getRetainedMail.FindReceiptIdAsync(Caseworker(), detail.Summary.Id, CancellationToken.None));
+
+        queries.DetailToReturn = null;
+        Assert.Null(await getRetainedMail.FindReceiptIdAsync(
+            Caseworker(),
+            detail.Summary.Id,
+            CancellationToken.None));
+    }
+
+    [Fact]
     public async Task GetResolvesTheClassificationActorsToOperatorFacingNamesAndNeverTheRawSubjectId()
     {
         var staffId = Guid.NewGuid();

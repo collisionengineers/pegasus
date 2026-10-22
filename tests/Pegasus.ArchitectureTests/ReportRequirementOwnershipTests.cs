@@ -148,7 +148,9 @@ public sealed class ReportRequirementOwnershipTests
     /// Sign-off Engineer has two homes (operator, 26 September 2026): staff
     /// choose one on Case details, and its name and signature are the
     /// account's, which an Administrator sets in Accounts, so that blocker
-    /// names Accounts and links no Case section.
+    /// names Accounts and links no Case section. An Unassigned Case is cleared
+    /// by Assign Engineer, an action rather than a section (operator, 15
+    /// October 2026, #1213 ruling 3), so its blocker links none either.
     /// </summary>
     [Fact]
     public void EveryReportBlockerLinksASectionTheCaseRecordHas()
@@ -166,8 +168,17 @@ public sealed class ReportRequirementOwnershipTests
                 .Distinct(StringComparer.Ordinal)
                 .Count());
         Assert.All(
-            reasons.Where(item => item.Requirement != CaseReportReadiness.SignatoryRequirement),
+            reasons.Where(item => item.Requirement is not (CaseReportReadiness.SignatoryRequirement
+                or CaseReportReadiness.EngineerRequirement)),
             AssertLinks);
+        var engineer = Assert.Single(
+            reasons.Where(item => item.Requirement == CaseReportReadiness.EngineerRequirement).Distinct());
+        Assert.Equal(CaseReportReadiness.AssignedEngineerMissing, engineer);
+        Assert.Null(CaseWorkspaceLabels.Report.BlockerSection(engineer));
+        // Its words are the ones staff already read: the ribbon's Engineer and
+        // the action that clears it.
+        Assert.Equal(OperatorLabels.CaseWorkspace.RibbonEngineer, engineer.Requirement);
+        Assert.Equal(CaseWorkspaceLabels.AssignEngineer, engineer.HowToResolve);
         var signOff = reasons.Where(item => item.Requirement == CaseReportReadiness.SignatoryRequirement).ToArray();
         Assert.Contains(CaseReportReadiness.SignOffEngineerNotChosen, signOff);
         Assert.All(
@@ -482,8 +493,8 @@ public sealed class ReportRequirementOwnershipTests
 
     /// <summary>
     /// Report readiness over <paramref name="assessment"/> with nothing else
-    /// recorded: no sign-off account, Current repair spec, applied valuation
-    /// or report image.
+    /// recorded: no assigned Engineer, sign-off account, Current repair spec,
+    /// applied valuation or report image.
     /// </summary>
     private static CaseReportReadinessInput NothingElseRecorded(CaseAssessmentProjection assessment) => new(
         assessment,

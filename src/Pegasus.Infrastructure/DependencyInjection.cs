@@ -447,6 +447,7 @@ public static class DependencyInjection
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCaseHeader, GetCaseHeader>();
         services.AddScoped<IGetCaseEditBasis, GetCaseEditBasis>();
+        services.AddScoped<IGetCaseSectionFrame, GetCaseSectionFrame>();
         services.AddScoped<IGetCasePageFrame, GetCasePageFrame>();
         services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
         services.AddScoped<IGetCaseValuationSection, GetCaseValuationSection>();
@@ -688,6 +689,11 @@ public static class DependencyInjection
             services.AddScoped<IReadOriginalReport, ReadOriginalReport>();
             services.AddScoped<RecordedOriginalReportReading>();
             services.AddScoped<MarkAsOriginalReport>();
+            // A document's type changed afterwards (R204); a change to Audit
+            // report reads the document first, as the Mark above does.
+            services.AddScoped<ISetDocumentTypeStore>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<ISetDocumentType, SetDocumentType>();
             // The intake filer recognises the original report among what it
             // filed on an Audit awaiting one, where this surface is composed.
             services.AddScoped<IRecogniseOriginalReportStore>(provider =>

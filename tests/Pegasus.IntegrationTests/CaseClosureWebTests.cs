@@ -78,6 +78,78 @@ public sealed class CaseClosureWebTests
     }
 
     /// <summary>
+    /// Return to work (R157, v41 K10): a closed Case other than Created in
+    /// error lists it in the Actions menu before Archive case. Its dialog, the
+    /// Archive dialog's frame, takes the stage to return to by its stage name
+    /// and a reason, and posts the Closure page's Reopen handler, which claims
+    /// a lease for the action outside an edit session.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, true)]
+    [InlineData(CaseLifecycleState.CollisionEngineersRejected, true)]
+    [InlineData(CaseLifecycleState.SourceEmailUnlinked, true)]
+    [InlineData(CaseLifecycleState.CreatedInError, false)]
+    [InlineData(CaseLifecycleState.ReportSent, false)]
+    public async Task AClosedCaseOffersReturnToWorkBeforeArchive(CaseLifecycleState state, bool offered)
+    {
+        var store = new RecordingCaseDetailsStore { State = state };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+            Substitute<IReopenCase>(services, store));
+
+        var html = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
+        var bar = RecordBar(html);
+
+        var item = bar.IndexOf("data-dialog-open=\"case-return-to-work-dialog\"", StringComparison.Ordinal);
+        Assert.Equal(offered, item >= 0);
+        Assert.Equal(offered, html.Contains("data-dialog=\"case-return-to-work-dialog\"", StringComparison.Ordinal));
+        if (!offered)
+        {
+            return;
+        }
+
+        Assert.Contains($"<span>{CaseWorkspaceLabels.Frame.ReturnToWork}</span>", bar[item..], StringComparison.Ordinal);
+        Assert.True(
+            item < bar.IndexOf("data-dialog-open=\"case-archive-dialog\"", StringComparison.Ordinal),
+            "Return to work is listed before Archive case.");
+        var dialog = Section(html, "case-return-to-work-dialog_title");
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.ReturnToWork}</h2>", dialog, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}/Closure?handler=Reopen", dialog, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.ReturnToWorkStage}</label>", dialog, StringComparison.Ordinal);
+        Assert.Equal(
+            [
+                ("", ""),
+                ("NotReady", OperatorLabels.CaseStage(CaseLifecycleState.NotReady)),
+                ("Review", OperatorLabels.CaseStage(CaseLifecycleState.Review)),
+                ("ReportPreparation", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation)),
+                ("ReportSent", OperatorLabels.CaseStage(CaseLifecycleState.ReportSent))
+            ],
+            System.Text.RegularExpressions.Regex.Matches(dialog, "<option value=\"(?<value>[^\"]*)\">(?<label>[^<]*)</option>")
+                .Select(option => (option.Groups["value"].Value, option.Groups["label"].Value))
+                .ToArray());
+        Assert.Matches("<select[^>]*name=\"destination\"[^>]*required", dialog);
+        Assert.Matches("<textarea[^>]*name=\"reason\"[^>]*required", dialog);
+        Assert.Contains($">{OperatorLabels.CaseWorkspace.ConfirmAction}</button>", dialog, StringComparison.Ordinal);
+        AssertCarriesNoLease(dialog);
+
+        using var returned = await workspace.PostAsync(
+            "Closure?handler=Reopen",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", "return-to-work"),
+                ("reason", "Principal reinstated the instruction"),
+                ("destination", "Review")));
+
+        AssertPrg(returned, store.CaseId);
+        var reopening = Assert.Single(store.Reopenings);
+        Assert.Equal(
+            (CaseReopenDestination.Review, "Principal reinstated the instruction", "return-to-work", store.LeaseToken),
+            (reopening.Destination, reopening.Reason, reopening.OperationKey, reopening.EditLeaseToken));
+        Assert.Single(store.Claims);
+    }
+
+    /// <summary>
     /// Log query (operator, 11 October 2026): its dialog takes the channel the
     /// query came by and what it is, and posts both to the one Core command
     /// under the session's lease; the details also stand as the history reason.
