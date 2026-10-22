@@ -417,6 +417,33 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
+    /// Where the assessment cannot open, the Case page reads the assigned
+    /// Engineer's name through the cached name read and starts it beside the
+    /// sign-off list rather than after it (efficiency A1-04, A2-09): the name
+    /// read is held until the list has started, so a page that read them one
+    /// after the other would never release it.
+    /// </summary>
+    [Fact]
+    public async Task TheAssignedEngineerNameIsReadByNameBesideTheSignOffList()
+    {
+        var engineerId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.Held,
+            AssignedEngineerId = engineerId
+        };
+        var staff = new GatedStaffAccounts(engineerId, "Ed Mawdsley");
+        using var host = new ReadingHost(store, services =>
+            Substitute<IStaffAccountQueries>(services, staff));
+
+        _ = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+
+        Assert.Equal(1, staff.EngineerNameReads);
+        Assert.Equal(0, staff.SummaryReads);
+        Assert.True(staff.SignOffListStartedBesideTheNameRead);
+    }
+
+    /// <summary>
     /// The dialog's one primary posts the session's envelope to the use case
     /// and lands back on this Case's default view with no notice; a refusal
     /// stays on the Case with Core's approved reason.
@@ -1014,6 +1041,77 @@ public sealed class CaseViewsWebTests
             await ((IGetCasePageFrame)store).ExecuteAsync(query, cancellationToken) is { } frame
                 ? frame with { OpenTasks = openTasks }
                 : null;
+    }
+
+    /// <summary>
+    /// Staff reads that answer the assigned Engineer's name only once the
+    /// sign-off list has been asked for, and count the summary reads of that Engineer a name
+    /// never needs.
+    /// </summary>
+    private sealed class GatedStaffAccounts(Guid engineerId, string userName) : IStaffAccountQueries
+    {
+        private readonly TaskCompletionSource signOffListStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private int engineerNameReads;
+        private int summaryReads;
+
+        public int EngineerNameReads => Volatile.Read(ref engineerNameReads);
+
+        public int SummaryReads => Volatile.Read(ref summaryReads);
+
+        public bool SignOffListStartedBesideTheNameRead { get; private set; }
+
+        public async Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken)
+        {
+            if (!staffIds.Contains(engineerId))
+            {
+                return new Dictionary<Guid, string>();
+            }
+
+            Interlocked.Increment(ref engineerNameReads);
+            SignOffListStartedBesideTheNameRead =
+                await Task.WhenAny(signOffListStarted.Task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken))
+                    == signOffListStarted.Task;
+            return new Dictionary<Guid, string> { [engineerId] = userName };
+        }
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
+            CancellationToken cancellationToken)
+        {
+            signOffListStarted.TrySetResult();
+            return Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
+        }
+
+        public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken)
+        {
+            if (staffId == engineerId)
+            {
+                Interlocked.Increment(ref summaryReads);
+            }
+
+            return Task.FromResult<StaffAccountSummary?>(null);
+        }
+
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken)
+        {
+            if (staffIds.Contains(engineerId))
+            {
+                Interlocked.Increment(ref summaryReads);
+            }
+
+            return Task.FromResult<IReadOnlyList<StaffAccountSummary>>([]);
+        }
+
+        public Task<StaffAccountQuerySlice> ListAsync(int offset, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult(new StaffAccountQuerySlice([], false));
+
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 
     /// <summary>A reading client with the recording store and any further substitutions.</summary>

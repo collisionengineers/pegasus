@@ -436,16 +436,27 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken)
     {
         var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var authors = new List<(string CreatedBy, Guid AccountId)>();
         foreach (var createdBy in versions.Select(version => version.CreatedBy).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (!Guid.TryParse(createdBy, out var accountId))
+            if (Guid.TryParse(createdBy, out var accountId))
             {
-                continue;
+                authors.Add((createdBy, accountId));
             }
-            var account = await staffAccountQueries.GetAsync(accountId, cancellationToken);
-            if (account is not null && !string.IsNullOrWhiteSpace(account.UserName))
+        }
+        if (authors.Count == 0)
+        {
+            return names;
+        }
+
+        var accountNames = await staffAccountQueries.GetNamesAsync(
+            [.. authors.Select(author => author.AccountId)],
+            cancellationToken);
+        foreach (var (createdBy, accountId) in authors)
+        {
+            if (accountNames.TryGetValue(accountId, out var name) && !string.IsNullOrWhiteSpace(name))
             {
-                names[createdBy] = account.UserName;
+                names[createdBy] = name;
             }
         }
         return names;
@@ -4974,23 +4985,56 @@ public sealed partial class DetailsModel(
         var workflow = details.Workflow;
         // Where Assign Engineer runs, its choices are the enabled staff, the
         // signed-in person first, as the Triage Assign list reads them (#1213).
-        // They name the assigned Engineer too, so that account is read on its
-        // own only when the list does not hold it.
+        // They name the assigned Engineer too, so that account's name is read on
+        // its own only when the list does not hold it. Where the assessment
+        // cannot open, the sign-off list is read beside the roster; both read on
+        // their own contexts, and the awaits below keep the roster's failure
+        // first, the name's second and the list's last.
         var viewerStaffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(inputs.Actor);
-        IReadOnlyList<CaseEngineerChoice> roster = CaseLifecycleRules.CanBeAssigned(workflow.State)
-            ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, cancellationToken))
-                .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
-            : [];
+        using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var rosterRead = CaseLifecycleRules.CanBeAssigned(workflow.State)
+            ? reads.Start(token => caseEngineerChoices.GetAsync(inputs.Actor, token))
+            : null;
+        var signOffRead = inputs.AssessmentCanOpen
+            ? null
+            : reads.Start(token => staffAccountQueries.ListSignOffEngineersAsync(token));
+        IReadOnlyList<SignOffEngineerProfile> profiles;
+        IReadOnlyList<CaseEngineerChoice> roster;
         string? engineerDisplayName = null;
-        if (workflow.AssignedEngineerId is { } engineerId)
+        try
         {
-            engineerDisplayName = roster.FirstOrDefault(listed => listed.StaffId == engineerId)?.DisplayName
-                ?? (await staffAccountQueries.GetAsync(engineerId, cancellationToken))?.UserName
-                ?? ActorDisplayNames.UnknownStaff;
+            roster = rosterRead is null
+                ? []
+                : [.. (await rosterRead).OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)];
+            if (workflow.AssignedEngineerId is { } engineerId)
+            {
+                engineerDisplayName = roster.FirstOrDefault(listed => listed.StaffId == engineerId)?.DisplayName;
+                if (engineerDisplayName is null)
+                {
+                    var names = await staffAccountQueries.GetNamesAsync([engineerId], cancellationToken);
+                    engineerDisplayName = names.TryGetValue(engineerId, out var name)
+                        ? name
+                        : ActorDisplayNames.UnknownStaff;
+                }
+            }
+
+            profiles = signOffRead is null ? inputs.EligibleSignOffEngineers : await signOffRead;
+        }
+        catch
+        {
+            // A read still running must not outlive the request.
+            try
+            {
+                await reads.WhenAllAsync();
+            }
+            catch
+            {
+                // The failure being thrown is the first one in order.
+            }
+
+            throw;
         }
 
-        var profiles = inputs.AssessmentCanOpen ? inputs.EligibleSignOffEngineers
-            : await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
         var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
