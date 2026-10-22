@@ -1188,6 +1188,9 @@ public sealed class DashboardBoundaryTests
         public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new CaseStageCounts(0, 0, 0, 0));
 
+        public Task<CaseQueues> GetCaseQueuesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new CaseQueues(new CaseStageCounts(0, 0, 0, 0), []));
+
         public Task<int> GetAwaitingInstructionCountAsync(CancellationToken cancellationToken) =>
             Task.FromResult(0);
 

@@ -648,9 +648,9 @@ public sealed class CasesIndexWebTests
 
     /// <summary>
     /// v41 U3, U7 and U8: the Principal filter sits in the list head and lists
-    /// every active Principal, not only those on the page's rows; the footer
-    /// names the page only when another page exists; and a Case's quick detail
-    /// is one fact grid ending with what the row does not show.
+    /// every Principal on the Case queues, not only those on the page's rows;
+    /// the footer names the page only when another page exists; and a Case's
+    /// quick detail is one fact grid ending with what the row does not show.
     /// </summary>
     [Fact]
     public async Task TheListHeadHoldsThePrincipalFilterAndTheQuickDetailIsOneFactGrid()
@@ -660,18 +660,24 @@ public sealed class CasesIndexWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "PA12 NEL", "V41-PANE-01");
+        // A Not ready Case of another Principal: no Review row carries it.
+        var notReadyId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "PA12 NRY", "V41-PANE-02", CaseLifecycleState.NotReady);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
             var organizationId = Guid.NewGuid();
             var lineageId = Guid.NewGuid();
+            var principalId = Guid.NewGuid();
             var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Filter test provider"}, {0L})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({Guid.NewGuid()}, {organizationId}, {"ZZPANE"}, {lineageId}, {true}, {0L})");
+                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"ZZPANE"}, {lineageId}, {true}, {0L})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Cases SET PrincipalId = {principalId} WHERE Id = {notReadyId}");
         }
 
         using var response = await client.GetAsync($"/Cases?tab=review&selected={caseId:D}");

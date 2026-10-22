@@ -231,11 +231,8 @@ public sealed class TriageQueuesWebTests
         using var queryResponse = await client.GetAsync("/Cases?tab=query");
         var queryHtml = await queryResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, queryResponse.StatusCode);
-        // The fixture names each Principal by its Case's reference and the
-        // Principal select lists every active Principal (v41 U3), so a listed
-        // Case is its row link.
-        Assert.Contains($">{queryReference}</a>", queryHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain($">{sentReference}</a>", queryHtml, StringComparison.Ordinal);
+        Assert.Contains(queryReference, queryHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(sentReference, queryHtml, StringComparison.Ordinal);
         Assert.Contains("<span class=\"status status--purple\">Query</span>", queryHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(queryHtml, "Queries"));
 
@@ -247,7 +244,7 @@ public sealed class TriageQueuesWebTests
             using var queueResponse = await client.GetAsync($"/Cases?tab={queue}");
             Assert.Equal(HttpStatusCode.OK, queueResponse.StatusCode);
             Assert.DoesNotContain(
-                $">{sentReference}</a>",
+                sentReference,
                 await queueResponse.Content.ReadAsStringAsync(),
                 StringComparison.Ordinal);
         }

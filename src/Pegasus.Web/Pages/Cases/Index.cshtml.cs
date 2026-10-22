@@ -370,18 +370,26 @@ public sealed class IndexModel(
     {
         // Every group carries its count whichever one is open. The three
         // count queries use their own DbContext each, so they run together.
-        var stageCountsTask = _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+        // A Case queue's Principal select lists the Principals on every Case
+        // queue (v41 U3), which the stage counts' statement reads with them.
+        var queuesTask = ListsCases(Queue)
+            ? _dashboardQueries.GetCaseQueuesAsync(cancellationToken)
+            : CountsAloneAsync(_dashboardQueries.GetCaseStageCountsAsync(cancellationToken));
         var awaitingTask = _dashboardQueries.GetAwaitingInstructionCountAsync(cancellationToken);
         var triageTask = _listTriage.CountAsync(
             actor,
             TriageLifecycleRules.ActiveStates,
             cancellationToken);
         var openUnidentifiedCountTask = _unidentifiedStore.CountOpenAsync(cancellationToken);
-        await Task.WhenAll(stageCountsTask, awaitingTask, triageTask, openUnidentifiedCountTask);
-        StageCounts = stageCountsTask.Result;
+        await Task.WhenAll(queuesTask, awaitingTask, triageTask, openUnidentifiedCountTask);
+        StageCounts = queuesTask.Result.Counts;
         AwaitingInstructionCount = awaitingTask.Result;
         TriageCount = triageTask.Result;
         UnidentifiedCount = openUnidentifiedCountTask.Result;
+        if (ListsCases(Queue))
+        {
+            Principals = PrincipalOptions(queuesTask.Result.Principals);
+        }
 
         var rows = Queue switch
         {
@@ -480,20 +488,16 @@ public sealed class IndexModel(
             "query" => OperatorLabels.QueryStage,
             _ => nameof(CaseLifecycleState.Held)
         })!;
-        var activePrincipals = _imageIntakeQueries.ListActivePrincipalCodesAsync(cancellationToken);
-        var search = _searchCases.ExecuteAsync(
+        var result = await _searchCases.ExecuteAsync(
             new(
                 actor,
                 new(States: stage.States, Principal: PrincipalFilter, HasOpenQuery: stage.HasOpenQuery),
                 CurrentPage,
                 PageSize),
             cancellationToken);
-        await Task.WhenAll(activePrincipals, search);
-        var result = search.Result;
         HasPreviousPage = CurrentPage > 1;
         HasNextPage = result.HasNextPage;
         var items = result.Items.ToArray();
-        Principals = PrincipalOptions(items, activePrincipals.Result);
         _engineerNames = await EngineerNamesAsync(items, cancellationToken);
         return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
@@ -503,18 +507,15 @@ public sealed class IndexModel(
     /// </summary>
     private async Task<IReadOnlyList<QueueRow>> LoadNotReadyAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        var activePrincipals = _imageIntakeQueries.ListActivePrincipalCodesAsync(cancellationToken);
-        var search = _searchCases.ExecuteAsync(
+        var result = await _searchCases.ExecuteAsync(
             new(
                 actor,
                 new(States: [CaseLifecycleState.NotReady], Principal: PrincipalFilter),
                 Page: 1,
                 PageSize: MergedPageSize),
             cancellationToken);
-        await Task.WhenAll(activePrincipals, search);
 
-        var items = search.Result.Items.ToArray();
-        Principals = PrincipalOptions(items, activePrincipals.Result);
+        var items = result.Items.ToArray();
         _engineerNames = await EngineerNamesAsync(items, cancellationToken);
         return items.Select(item => CaseRow(item, _engineerNames)).ToArray();
     }
@@ -922,22 +923,19 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// The Principal select's options (v41 U3): every active Principal,
-    /// whatever page of rows the queue shows, plus the Principals of the rows
-    /// shown (an inactive Principal's Cases are still listed) and the Principal
-    /// filtering the list, so the choice that is filtering is never invisible in
-    /// the control that made it.
+    /// The Principal select's options (v41 U3): every Principal that appears
+    /// in the Case queues, whichever queue and page are open, plus the
+    /// Principal filtering the list, so the choice that is filtering is never
+    /// invisible in the control that made it.
     /// </summary>
-    private string[] PrincipalOptions(CaseSearchItem[] items, IReadOnlyList<string> activePrincipals)
-    {
-        var options = new HashSet<string>(activePrincipals, StringComparer.Ordinal);
-        options.UnionWith(items.Select(item => item.Principal));
-        if (PrincipalFilter is not null)
-        {
-            options.Add(PrincipalFilter);
-        }
-        return [.. options.Order(StringComparer.Ordinal)];
-    }
+    private string[] PrincipalOptions(IReadOnlyList<string> queuePrincipals) =>
+        [.. (PrincipalFilter is null ? queuePrincipals : queuePrincipals.Append(PrincipalFilter))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)];
+
+    /// <summary>The scopes with no Principal select read the stage counts alone.</summary>
+    private static async Task<CaseQueues> CountsAloneAsync(Task<CaseStageCounts> counts) =>
+        new(await counts, []);
 
     private static string? EmptyToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -1488,7 +1488,6 @@ public static class OperatorLabels
 
             // Intake and Triage
             "needs sorting" or "unidentified" or "no case found" => "amber",
-            "blocked intake" or "blocked" => "red",
             "document text required" or "unsupported" => "amber",
             "awaiting information" => "amber",
             "finding recorded" => "navy",
