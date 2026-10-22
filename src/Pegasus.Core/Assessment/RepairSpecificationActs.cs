@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Assessment;
 
@@ -691,6 +692,7 @@ public static class RepairSpecificationComparison
         : !string.IsNullOrWhiteSpace(line.GuideCode) ? line.GuideCode.Trim()
         : line.Type;
 
+    /// <summary>A line's labour plus paint hours, read to two decimals like the report.</summary>
     private static string Hours(CaseEstimateLineRecord line) =>
-        ((line.WorkUnits ?? 0m) + (line.PaintWorkUnits ?? 0m)).ToString("0.#", CultureInfo.InvariantCulture);
+        AssessmentReportWording.Hours((line.WorkUnits ?? 0m) + (line.PaintWorkUnits ?? 0m));
 }

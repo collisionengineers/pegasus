@@ -247,7 +247,10 @@ when the Engineer says so (v38 P3). Send to AI proposes only.
 or not; an imported line keeps the values its source printed beside the
 amendment, and the numbered versions keep what a scale, restore or sent
 report replaced. There is no separate supersede step (operator,
-25 September 2026). A Case with no Current spec cannot generate a report. The
+25 September 2026). The editor reads and shows hours to two decimals with the
+stored hours untouched; the rollup, gross, slider and Versions draft read the
+stored figure, and the statement and Compare sheet read two decimals like the
+report (operator, 22 October 2026). A Case with no Current spec cannot generate a report. The
 specification uses one line vocabulary and one calculation basis. The three assessment-report lists (new parts, repairs
 and additional operations) are one deterministic names-only projection of
 those ordered lines, not a second renderer-owned specification. Repairs lists

@@ -638,7 +638,9 @@ public static class EstimatePolicy
     /// evidence. Resolve that evidence only after the operation replay check.
     /// A line's guide code, betterment, evidence label and justification are
     /// carried unless the save supplies its own; its source provenance always
-    /// is.
+    /// is. A line keeps its stored type unless the edit changed the operation
+    /// (<see cref="EstimateOperations.Carry"/>), and its stored hours while the
+    /// posted figure is still their <see cref="EditorHoursDecimals"/> reading.
     /// </summary>
     public static SaveEstimateRequest ApplyEditorEvidence(
         SaveEstimateRequest request, RepairSpecificationVersion? existing, DateTimeOffset savedAtUtc)
@@ -849,9 +851,23 @@ public static class EstimatePolicy
     /// </summary>
     private static decimal? CarryHours(decimal? submitted, decimal? previous) =>
         submitted is { } hours && previous is { } stored
-        && hours == decimal.Round(stored, 2, MidpointRounding.AwayFromZero)
+        && hours == decimal.Round(stored, EditorHoursDecimals, MidpointRounding.AwayFromZero)
             ? stored
             : submitted;
+
+    /// <summary>
+    /// The decimals the editor reads and shows hours to (R193); stored hours
+    /// keep <see cref="WorkUnitDecimals"/>.
+    /// </summary>
+    public const int EditorHoursDecimals = 2;
+
+    /// <summary>An hours box's text: the figure to <see cref="EditorHoursDecimals"/> decimals.</summary>
+    public static string EditorHoursText(decimal hours) =>
+        hours.ToString("F" + EditorHoursDecimals, CultureInfo.InvariantCulture);
+
+    /// <summary>An hours box's <c>step</c>: one unit of <see cref="EditorHoursDecimals"/>'s last decimal.</summary>
+    public static string EditorHoursStep { get; } =
+        new decimal(1, 0, 0, false, EditorHoursDecimals).ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     /// The precision an estimate line's hours are kept to. A provider states
