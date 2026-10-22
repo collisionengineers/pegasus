@@ -4479,11 +4479,10 @@ public sealed partial class DetailsModel(
             Checked("estimateRegionalUplift"),
             Money(form["estimateOtherCosts"].ToString()),
             Money(form["estimateVatPercent"].ToString()),
-            // Enum.TryParse accepts any number. A missing, undefined or
-            // Unknown post is Registered: Unknown is no longer a choice, and
-            // a page still showing it saves as the default.
+            // Enum.TryParse accepts any number; a missing or undefined post is
+            // the default, and Core refuses a defined status that is no choice.
             Enum.TryParse<RepairerVatStatus>(form["estimateVatStatus"].ToString(), out var status)
-                && RepairerVatStatuses.IsChoosable(status)
+                && Enum.IsDefined(status)
                 ? status
                 : RepairerVatStatuses.Default,
             categories,

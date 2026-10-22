@@ -981,8 +981,9 @@ public sealed class EfRepairSpecificationStore(
         // without an explicit one keeps the meaning EstimateDetails gives it
         // rather than reading back as an unrecorded status. The four
         // applicable flags are written only for a hand-made override: their
-        // presence is what "the operator chose these categories" means.
-        var vat = details.VatPolicy;
+        // presence is what "the operator chose these categories" means. A
+        // restored version frozen as Unknown is recorded as Registered (R199).
+        var vat = details.VatPolicy.Standing();
         entity.RepairerVatStatus = vat.RepairerStatus.ToString();
         entity.LabourVatApplicable = Applicable(vat, EstimateVatCategories.Labour);
         entity.PartsVatApplicable = Applicable(vat, EstimateVatCategories.Parts);

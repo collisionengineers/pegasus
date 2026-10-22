@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Assessment;
 
 namespace Pegasus.IntegrationTests;
 
@@ -40,7 +42,7 @@ public sealed class RepairerVatStatusDefaultMigrationTests
         Assert.Equal(0, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE Id = '{CurrentId}' AND LabourVatApplicable IS NOT NULL"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseRepairSpecificationSnapshots WHERE SpecificationId = '{CurrentId}' AND DetailsJson LIKE N'%Unknown%'"));
+            $"SELECT COUNT(*) FROM CaseRepairSpecificationSnapshots WHERE SpecificationId = '{CurrentId}' AND DetailsJson LIKE N'%\"RepairerStatus\":0,%'"));
     }
 
     [Fact]
@@ -64,7 +66,14 @@ public sealed class RepairerVatStatusDefaultMigrationTests
         database.ScalarAsync<string>(
             $"SELECT RepairerVatStatus FROM CaseRepairSpecifications WHERE Id = '{id}'");
 
-    private const string SpecificationsSql =
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.General);
+
+    // The snapshot as Freeze writes it: a numeric status under the General defaults.
+    private static readonly string FrozenUnknownDetails = JsonSerializer.Serialize(
+        new EstimateDetails("Untouched", null, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
+        Json);
+
+    private static readonly string SpecificationsSql =
         $$"""
         INSERT INTO CaseRepairSpecifications
             (Id, WorkId, Version, State, SourceRoute, Name, IsCurrent, RepairerVatStatus, VatPercent,
@@ -86,6 +95,6 @@ public sealed class RepairerVatStatusDefaultMigrationTests
              DetailsJson, LinesJson, SupplementaryJson, ContentHash, Gross, SentOnReport)
         VALUES
             (NEWID(), '{{CaseId}}', '{{CurrentId}}', 1, N'Imported', N'import', N'engineer', '{{Recorded}}',
-             N'{"repairerVatStatus":"Unknown"}', N'[]', N'{}', REPLICATE(N'c', 64), 0, 0);
+             N'{{FrozenUnknownDetails}}', N'[]', N'{}', REPLICATE(N'c', 64), 0, 0);
         """;
 }

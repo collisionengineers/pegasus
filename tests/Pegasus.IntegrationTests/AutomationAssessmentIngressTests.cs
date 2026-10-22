@@ -1621,6 +1621,131 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     /// <summary>
+    /// Core refuses a repairer VAT status that is no choice for every caller
+    /// (R200), by name, by number or undefined, and nothing is saved.
+    /// </summary>
+    [Theory]
+    [InlineData("name", "Unknown")]
+    [InlineData("number", "0")]
+    [InlineData("undefined", "7")]
+    public async Task EstimateSaveRefusesAStatusThatIsNotAChoice(string variant, string status)
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                40,
+                "pegasus_estimate_save",
+                new
+                {
+                    caseId,
+                    expectedVersion = 0,
+                    operationKey = $"mcp:estimate-not-a-choice-{variant}",
+                    reason = "Automation priced the estimate.",
+                    name = "Refused draft",
+                    repairerVatStatus = status,
+                    lines = new object[] { new { type = "new_part", description = "Bumper", price = 100 } }
+                }));
+
+        Assert.Contains(RepairerVatStatuses.NotAChoice, await ReadErrorTextAsync(response), StringComparison.Ordinal);
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseRepairSpecifications"));
+    }
+
+    /// <summary>
+    /// An edit that omits the repairer VAT status keeps the recorded choice;
+    /// over a stored Unknown it records Registered (R200).
+    /// </summary>
+    [Fact]
+    public async Task AnOmittedRepairerVatStatusKeepsTheRecordedChoice()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        Guid estimateId;
+        Guid lineId;
+        using (var created = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                41,
+                "pegasus_estimate_save",
+                new
+                {
+                    caseId,
+                    expectedVersion = 0,
+                    operationKey = "mcp:estimate-status-kept-1",
+                    reason = "Automation priced the estimate.",
+                    name = "Kept draft",
+                    repairerVatStatus = "NotRegistered",
+                    lines = new object[] { new { type = "new_part", description = "Bumper", price = 100 } }
+                })))
+        {
+            var estimate = (await ReadStructuredContentAsync(created)).GetProperty("estimate");
+            Assert.Equal("NotRegistered", estimate.GetProperty("repairerVatStatus").GetString());
+            estimateId = estimate.GetProperty("estimateId").GetGuid();
+            lineId = Assert.Single(estimate.GetProperty("lines").EnumerateArray()).GetProperty("lineId").GetGuid();
+        }
+
+        async Task<string?> EditOmittingTheStatusAsync(int id, string operationKey)
+        {
+            using var edited = await PostMcpAsync(
+                client,
+                token,
+                ToolCallPayload(
+                    id,
+                    "pegasus_estimate_save",
+                    new
+                    {
+                        caseId,
+                        expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
+                        operationKey,
+                        reason = "Automation corrected the price.",
+                        estimateId,
+                        name = "Kept draft",
+                        lines = new object[] { new { lineId, type = "new_part", description = "Bumper", price = 110 } }
+                    }));
+            var estimate = (await ReadStructuredContentAsync(edited)).GetProperty("estimate");
+            // An edit gives the line a new identity; the next edit names that one.
+            lineId = Assert.Single(estimate.GetProperty("lines").EnumerateArray()).GetProperty("lineId").GetGuid();
+            return estimate.GetProperty("repairerVatStatus").GetString();
+        }
+
+        Assert.Equal("NotRegistered", await EditOmittingTheStatusAsync(42, "mcp:estimate-status-kept-2"));
+
+        await factory.Database.ExecuteAsync(
+            $"UPDATE CaseRepairSpecifications SET RepairerVatStatus = N'Unknown' WHERE Id = '{estimateId}'");
+        Assert.Equal("Registered", await EditOmittingTheStatusAsync(43, "mcp:estimate-status-kept-3"));
+        Assert.Equal("Registered", await factory.Database.ScalarAsync<string>(
+            $"SELECT RepairerVatStatus FROM CaseRepairSpecifications WHERE Id = '{estimateId}'"));
+    }
+
+    /// <summary>The vocabulary lists the statuses a save accepts.</summary>
+    [Fact]
+    public async Task TheVocabularyListsOnlyTheChoosableRepairerVatStatuses()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using var response = await PostMcpAsync(client, token, ToolCallPayload(44, "pegasus_vocabulary_get", new { }));
+
+        Assert.Equal(
+            RepairerVatStatuses.ChoosableNames,
+            (await ReadStructuredContentAsync(response)).GetProperty("repairerVatStatuses")
+                .EnumerateArray().Select(item => item.GetString()));
+    }
+
+    /// <summary>
     /// The Automation actor edits any live estimate in place, a member of
     /// staff's Current one included (operator, 7 October 2026). Naming the
     /// kept line's lineId keeps that line's evidence, the estimate keeps its
