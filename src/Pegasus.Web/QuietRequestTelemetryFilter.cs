@@ -13,11 +13,15 @@ namespace Pegasus.Web;
 /// diagnostics version endpoint, static files, the App Service Always On
 /// ping (<c>GET /</c> answered with a redirect), and the SQL calls of the
 /// keep-warm passes. A failed one (unsuccessful, or a 5xx) is always kept, so
-/// a failing probe still shows. Everything else passes through. It runs before
-/// adaptive sampling, so what it drops does not count against the sampling
-/// budget either.
+/// a failing probe still shows. It also drops an exception row that is only a
+/// cancellation (<see cref="ClientAbort"/>) raised while its request was
+/// aborted; any other exception is kept. Everything else passes through. It
+/// runs before adaptive sampling, so what it drops does not count against the
+/// sampling budget either.
 /// </summary>
-public sealed class QuietRequestTelemetryFilter(ITelemetryProcessor next) : ITelemetryProcessor
+public sealed class QuietRequestTelemetryFilter(
+    ITelemetryProcessor next,
+    IHttpContextAccessor? httpContextAccessor = null) : ITelemetryProcessor
 {
     private static readonly PathString[] QuietPrefixes =
     [
@@ -54,14 +58,25 @@ public sealed class QuietRequestTelemetryFilter(ITelemetryProcessor next) : ITel
         return false;
     }
 
-    private static bool IsQuiet(ITelemetry item) => item switch
+    private bool IsQuiet(ITelemetry item) => item switch
     {
         RequestTelemetry request => !IsFailure(request.Success, request.ResponseCode)
             && (IsQuietPath(RequestPath(request)) || IsAlwaysOnPing(request)),
         DependencyTelemetry dependency => !IsFailure(dependency.Success, dependency.ResultCode)
             && (IsQuietPath(PathOf(dependency.Context.Operation.Name)) || InWarmUpPass()),
+        ExceptionTelemetry exception => IsAbortedCancellation(exception),
         _ => false
     };
+
+    /// <summary>
+    /// Whether the exception is a cancellation raised on a request whose caller
+    /// has hung up. The request is the one running on this flow, so an exception
+    /// outside a request, or on a live one, is kept.
+    /// </summary>
+    private bool IsAbortedCancellation(ExceptionTelemetry telemetry) =>
+        telemetry.Exception is { } exception
+        && httpContextAccessor?.HttpContext is { RequestAborted.IsCancellationRequested: true }
+        && ClientAbort.IsCancellation(exception);
 
     /// <summary>
     /// Whether the call was made inside a keep-warm pass. A pass has no request,

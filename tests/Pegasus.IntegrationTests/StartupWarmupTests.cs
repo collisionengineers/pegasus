@@ -325,11 +325,84 @@ public sealed class StartupWarmupTests
         Assert.Equal(
             [LogLevel.Warning, LogLevel.Debug, LogLevel.Debug],
             inbox.Select(entry => entry.Level).ToArray());
+        // A real failure keeps its exception.
+        Assert.All(inbox, entry => Assert.IsType<InvalidOperationException>(entry.Exception));
         var passes = run.Logger.Entries
             .Where(entry => entry.Message.StartsWith("Warm-up pass finished in ", StringComparison.Ordinal))
             .ToArray();
         Assert.Equal(3, passes.Length);
         Assert.All(passes, entry => Assert.Equal(LogLevel.Debug, entry.Level));
+    }
+
+    [Theory]
+    [InlineData("cancellation", false)]
+    [InlineData("database error", true)]
+    public async Task AStepThatRunsPastItsBoundIsOneWarningWithoutAnExceptionAndLaterOnesAreDebug(
+        string endedAs, bool endsAsDatabaseError)
+    {
+        // The held mailbox read ends only when the 200 ms bound cancels its
+        // token, as a slow SQL read does; a cancelled command reaches the step
+        // as a database error, not always as a cancellation.
+        var reads = new RecordingReads { HeldInboxFailsAsDatabaseError = endsAsDatabaseError };
+        await using var run = new KeepWarmRun(reads, TimeSpan.FromMinutes(3), TimeSpan.FromMilliseconds(200));
+        await run.StartAsync();
+
+        _ = reads.HoldInbox();
+        await run.PassAsync(TimeSpan.FromMinutes(3));
+        await run.PassAsync(TimeSpan.FromMinutes(3));
+        await run.PassAsync(TimeSpan.FromMinutes(3));
+
+        var bounded = run.Logger.Entries
+            .Where(entry => entry.Message.StartsWith(
+                "Startup warm-up step inbox was still running after ", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(
+            [LogLevel.Warning, LogLevel.Debug, LogLevel.Debug],
+            bounded.Select(entry => entry.Level).ToArray());
+        Assert.All(bounded, entry => Assert.Null(entry.Exception));
+        // It is not also reported as a failure, and the steps after it still ran.
+        Assert.DoesNotContain(
+            run.Logger.Entries,
+            entry => entry.Message.StartsWith("Warm-up step inbox failed after ", StringComparison.Ordinal));
+        Assert.Equal(4, reads.Calls("case-kind"));
+        Assert.True(
+            reads.Calls("mailboxes") == 3,
+            $"The held mailbox read should have ended as a {endedAs} in each of the three passes.");
+    }
+
+    [Theory]
+    [InlineData("failure first", true)]
+    [InlineData("bound first", false)]
+    public async Task AStepsFirstFailureAndFirstBoundExpiryAreEachAWarningWhicheverComesFirst(
+        string order, bool failureFirst)
+    {
+        // The mailbox read throws while InboxFails is set, and otherwise waits
+        // for the 200 ms bound to cancel it.
+        var reads = new RecordingReads();
+        await using var run = new KeepWarmRun(reads, TimeSpan.FromMinutes(3), TimeSpan.FromMilliseconds(200));
+        await run.StartAsync();
+        _ = reads.HoldInbox();
+
+        foreach (var fails in new[] { failureFirst, !failureFirst, failureFirst, !failureFirst })
+        {
+            reads.InboxFails = fails;
+            await run.PassAsync(TimeSpan.FromMinutes(3));
+        }
+
+        var failed = run.Logger.Entries
+            .Where(entry => entry.Message.StartsWith("Warm-up step inbox failed after ", StringComparison.Ordinal))
+            .ToArray();
+        var bounded = run.Logger.Entries
+            .Where(entry => entry.Message.StartsWith(
+                "Startup warm-up step inbox was still running after ", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal([LogLevel.Warning, LogLevel.Debug], failed.Select(entry => entry.Level).ToArray());
+        Assert.Equal([LogLevel.Warning, LogLevel.Debug], bounded.Select(entry => entry.Level).ToArray());
+        Assert.All(failed, entry => Assert.IsType<InvalidOperationException>(entry.Exception));
+        Assert.All(bounded, entry => Assert.Null(entry.Exception));
+        Assert.True(
+            reads.Calls("mailboxes") == 4,
+            $"The mailbox read should have run in each of the four passes ({order}).");
     }
 
     [Fact]
@@ -414,7 +487,8 @@ public sealed class StartupWarmupTests
         Assert.Equal(1, reads.Calls("renderer"));
         Assert.DoesNotContain(
             run.Logger.Entries,
-            entry => entry.Message.StartsWith("Warm-up step ", StringComparison.Ordinal));
+            entry => entry.Message.StartsWith("Warm-up step ", StringComparison.Ordinal)
+                || entry.Message.Contains("was still running", StringComparison.Ordinal));
         // No pass follows.
         run.Time.Advance(TimeSpan.FromMinutes(10));
         Assert.Equal(2, reads.Calls("snapshot"));
@@ -471,7 +545,7 @@ public sealed class StartupWarmupTests
         Assert.True(new StartupWarmupState(warms: false).IsReady);
     }
 
-    private readonly record struct LogEntry(LogLevel Level, string Message);
+    private readonly record struct LogEntry(LogLevel Level, string Message, Exception? Exception);
 
     private readonly record struct ActivityStamp(string? Name, string? TraceId);
 
@@ -484,7 +558,7 @@ public sealed class StartupWarmupTests
     {
         private readonly ServiceProvider provider;
 
-        public KeepWarmRun(RecordingReads reads, TimeSpan interval)
+        public KeepWarmRun(RecordingReads reads, TimeSpan interval, TimeSpan? stepBound = null)
         {
             Time = new ManualTimeProvider();
             var services = new ServiceCollection();
@@ -499,7 +573,9 @@ public sealed class StartupWarmupTests
             services.AddSingleton(new ListRetainedMail(reads));
             services.AddSingleton(new GetRetainedMailFreshness(reads, Time));
             provider = services.BuildServiceProvider();
-            State = new StartupWarmupState(warms: true, keepWarmInterval: interval);
+            State = stepBound is { } bound
+                ? new StartupWarmupState(warms: true, keepWarmInterval: interval) { KeepWarmStepBound = bound }
+                : new StartupWarmupState(warms: true, keepWarmInterval: interval);
             Logger = new RecordingLogger();
             Warmup = new StartupWarmup(provider.GetRequiredService<IServiceScopeFactory>(), State, Time, Logger);
         }
@@ -682,6 +758,13 @@ public sealed class StartupWarmupTests
 
         /// <summary>Whether the Work Centre's attention read throws once it has been entered.</summary>
         public bool SnapshotFails { get; set; }
+
+        /// <summary>
+        /// Whether a held mailbox read, once its token is cancelled, fails as a
+        /// cancelled SQL command does (a database error) rather than as a
+        /// cancellation.
+        /// </summary>
+        public bool HeldInboxFailsAsDatabaseError { get; set; }
 
         public bool[] MarkSeenValues => Snapshot(markSeenValues);
 
@@ -870,7 +953,14 @@ public sealed class StartupWarmupTests
             if (held is not null)
             {
                 held.TrySetResult();
-                await Task.Delay(Timeout.Infinite, cancellationToken);
+                try
+                {
+                    await Task.Delay(Timeout.Infinite, cancellationToken);
+                }
+                catch (OperationCanceledException) when (HeldInboxFailsAsDatabaseError)
+                {
+                    throw new CancelledCommandException();
+                }
             }
 
             return [];
@@ -975,7 +1065,7 @@ public sealed class StartupWarmupTests
         {
             lock (gate)
             {
-                entries.Add(new LogEntry(logLevel, formatter(state, exception)));
+                entries.Add(new LogEntry(logLevel, formatter(state, exception), exception));
             }
         }
     }
