@@ -63,6 +63,17 @@ deductions, outcome, salvage and roadworthiness) without retyping (operator
 ruling, 15 October 2026). The report's wording blocks are in
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks).
 
+| Figure | Recorded in | [Read by](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks) |
+| --- | --- | --- |
+| Final value (the Engineer's Value) | Valuation | Settlement, on a total loss |
+| Deductions (prior total loss, condition) | Valuation | None |
+| Outcome | Decisions | Settlement and Salvage |
+| Salvage | Decisions | Salvage and Settlement |
+| Roadworthiness | Decisions | Engineer's Comments, when unroadworthy |
+
+The Vehicle History Check and the Engineer's comments are text staff record;
+the report prints the recorded check verbatim and the comments as recorded.
+
 **Corrections.** A correction never edits an issued report in place. It
 creates a reasoned superseding report or addendum with actor, time, source,
 structured before-and-after values, and the earlier artifact or version kept.
