@@ -486,7 +486,7 @@ public sealed class ShellAndStatusPageWebTests
     {
         using var aborted = new CancellationTokenSource();
         aborted.Cancel();
-        var logger = new RecordingLogger<ShellPageFilter>();
+        var logger = new CapturingLogger<ShellPageFilter>();
         IMyStaffNotifications notifications = read == "bell"
             ? new CancelledCommandNotifications()
             : new StubNotifications([]);
@@ -498,19 +498,19 @@ public sealed class ShellAndStatusPageWebTests
             RunShellFilterAsync(notifications, releaseNotes, logger, aborted.Token));
 
         Assert.Equal(CancelledCommandWording, thrown.Message);
-        Assert.Empty(logger.Messages);
+        Assert.Empty(logger.Entries);
     }
 
     [Fact]
     public async Task TheSameCancelledCommandOnALiveRequestIsStillAnUnavailableBell()
     {
-        var logger = new RecordingLogger<ShellPageFilter>();
+        var logger = new CapturingLogger<ShellPageFilter>();
 
         var page = await RunShellFilterAsync(
             new CancelledCommandNotifications(), new NoReleaseNotes(), logger, CancellationToken.None);
 
         Assert.True(page.ViewData.ContainsKey("NotificationsUnavailable"));
-        Assert.Equal(["The notification query is unavailable."], logger.Messages);
+        Assert.Equal(["The notification query is unavailable."], logger.Entries.Select(e => e.Message).ToArray());
     }
 
     /// <summary>
@@ -628,40 +628,6 @@ public sealed class ShellAndStatusPageWebTests
 
         public Task<IReadOnlyList<ReleaseNote>> ListPublishedAsync(ActionActor actor, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-    }
-
-    private sealed class RecordingLogger<T> : ILogger<T>
-    {
-        private readonly List<string> messages = [];
-
-        public string[] Messages
-        {
-            get
-            {
-                lock (messages)
-                {
-                    return messages.ToArray();
-                }
-            }
-        }
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(
-            LogLevel logLevel,
-            EventId eventId,
-            TState state,
-            Exception? exception,
-            Func<TState, Exception?, string> formatter)
-        {
-            lock (messages)
-            {
-                messages.Add(formatter(state, exception));
-            }
-        }
     }
 
     private sealed class StubNotifications(IReadOnlyList<StaffNotification> rows) : IMyStaffNotifications
