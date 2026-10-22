@@ -366,7 +366,6 @@ internal sealed class AiJobMcpTools(
         [Description("Valuation time, HH:mm or HH:mm:ss.")] string recordedTime,
         [Description("The mileage the valuation assumes.")] long mileage,
         [Description("Retail value in pounds.")] decimal retailValue,
-        [Description("Trade value in pounds.")] decimal tradeValue,
         [Description("Optional guide month the research is for, yyyy-MM; the valuation for that month replaces an earlier card for it.")] string? guideMonth = null,
         CancellationToken cancellationToken = default)
     {
@@ -396,7 +395,6 @@ internal sealed class AiJobMcpTools(
                         ParseTime(recordedTime),
                         mileage,
                         retailValue,
-                        tradeValue,
                         guideMonth is null ? null : ParseGuideMonth(guideMonth)),
                     cancellationToken);
                 return new MarketResearchCompletionToolResult(

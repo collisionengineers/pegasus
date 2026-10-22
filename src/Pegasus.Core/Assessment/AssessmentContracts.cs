@@ -65,6 +65,7 @@ public static class AssessmentVocabulary
     public const string DamageUnrelated = "damage.unrelated";
     public const string ValueRetail = "assessment.values.retail";
     public const string ValueTrade = "assessment.values.trade";
+    public const string ValueFromMarketResearch = "assessment.values.from_market_research";
     public const string ValueEngineer = "assessment.values.engineer";
     public const string RateCard = "rates.card";
     public const string RateClass = "rates.class";
@@ -191,6 +192,7 @@ public static class AssessmentVocabulary
         new(DamageUnrelated, AssessmentFieldType.Text, 2000),
         new(ValueRetail, AssessmentFieldType.Money, 20, MustBePositive: true),
         new(ValueTrade, AssessmentFieldType.Money, 20, MustBePositive: true),
+        new(ValueFromMarketResearch, AssessmentFieldType.Flag, 5),
         new(ValueEngineer, AssessmentFieldType.Money, 20, MustBePositive: true),
         new(RateCard, AssessmentFieldType.Text, 100),
         new(RateClass, AssessmentFieldType.Enumerated, 20,
@@ -242,7 +244,8 @@ public static class AssessmentVocabulary
 
     /// <summary>
     /// The report's Retail and Trade values: the chosen guide card's figures
-    /// (operator, 8 October 2026). The Case save writes them from the card a
+    /// (operator, 8 October 2026), and whether that card is AI market research,
+    /// which carries no Trade (R311). The Case save writes them from the card a
     /// calculation is chosen against
     /// (<see cref="ValuationPolicy.ReportValues"/>); no field save types or
     /// clears one.
@@ -250,7 +253,8 @@ public static class AssessmentVocabulary
     public static IReadOnlySet<string> GuideCardDerivedPaths { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         ValueRetail,
-        ValueTrade
+        ValueTrade,
+        ValueFromMarketResearch
     };
 
     /// <summary>

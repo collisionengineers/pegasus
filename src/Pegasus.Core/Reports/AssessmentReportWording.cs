@@ -291,7 +291,7 @@ public static class AssessmentReportWording
         ReportRow[] rows =
         [
             new("Retail Value", Money(snapshot.RetailValue)),
-            new("Trade Value", Money(snapshot.TradeValue)),
+            new("Trade Value", snapshot.TradeValue is { } trade ? Money(trade) : string.Empty),
             new("Engineer's Value", Money(snapshot.EngineerValue)),
             new("VIN", vehicle.Vin?.Trim() ?? string.Empty),
             new("Year", vehicle.Year.Trim()),

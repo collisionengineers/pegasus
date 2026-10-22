@@ -157,7 +157,7 @@ public sealed class CaseValuationSectionWebTests
         var store = new RecordingCaseDetailsStore();
         var valuation = new RecordingValuationSection(store.CaseId);
         var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
-        var earlierResearch = valuation.AddGuide(ValuationSource.AiMarketResearch, 12_100m, 9_900m);
+        var earlierResearch = valuation.AddGuide(ValuationSource.AiMarketResearch, 12_100m, null);
         var pending = valuation.SetPending(new DateOnly(2026, 9, 1));
         using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
 
@@ -173,6 +173,56 @@ public sealed class CaseValuationSectionWebTests
         Assert.Contains($"data-valuation-card=\"{glasses.ValuationId:D}\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain($"data-valuation-card=\"{earlierResearch.ValuationId:D}\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"2026-09\"", InputTag(html, "guideMonth", "data-valuation-month"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// R185: the AI market research card carries its Retail only, in read and
+    /// edit mode and while a job is pending; the guide card keeps both.
+    /// </summary>
+    [Fact]
+    public async Task AResearchCardShowsItsRetailOnly()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        valuation.AddGuide(ValuationSource.AiMarketResearch, 12_100m, null);
+
+        var read = await ReadValuationAsync(store, valuation);
+        AssertRetailOnlyResearchCard(read, recorded: true);
+        Assert.Contains("data-trade=\"10250.00\"", EntryCard(read, "glasses"), StringComparison.Ordinal);
+
+        using (var workspace = await EnterEngineerEditModeAsync(store, valuation.Register))
+        {
+            var edit = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+            AssertRetailOnlyResearchCard(edit, recorded: true);
+            Assert.Contains("data-trade=\"10250.00\"", EntryCard(edit, "glasses"), StringComparison.Ordinal);
+        }
+
+        valuation.SetPending(new DateOnly(2026, 9, 1));
+        using (var workspace = await EnterEngineerEditModeAsync(store, valuation.Register))
+        {
+            var pending = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+            AssertRetailOnlyResearchCard(pending, recorded: false);
+        }
+    }
+
+    private static void AssertRetailOnlyResearchCard(string html, bool recorded)
+    {
+        var start = html.IndexOf("valuation-card--research", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Valuation section must render the AI market research card.");
+        var end = html.IndexOf("data-valuation-calc", start, StringComparison.Ordinal);
+        var card = html[start..end];
+        Assert.Equal(1, Regex.Count(card, "class=\"valuation-card-fig\"", RegexOptions.CultureInvariant));
+        Assert.Contains(CaseWorkspaceLabels.Valuation.Retail, card, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Valuation.Trade, card, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-trade", card, StringComparison.Ordinal);
+        if (recorded)
+        {
+            Assert.Contains(
+                ValuationCalculationPolicy.FormatMoney(12_100m),
+                WebUtility.HtmlDecode(card),
+                StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -1461,7 +1511,7 @@ public sealed class CaseValuationSectionWebTests
             return adopted;
         }
 
-        public CaseValuation AddGuide(ValuationSource source, decimal retail, decimal trade)
+        public CaseValuation AddGuide(ValuationSource source, decimal retail, decimal? trade)
         {
             var valuation = new CaseValuation(
                 Guid.NewGuid(),

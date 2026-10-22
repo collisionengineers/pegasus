@@ -1919,6 +1919,76 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
+    /// R311: an AI market research card has no Trade, so choosing it writes its
+    /// Retail, no Trade and the basis marker, and the report no longer names
+    /// Trade; a guide card chosen after it clears the marker.
+    /// </summary>
+    [Fact]
+    public async Task AnAiMarketResearchBasisWritesItsRetailAndNoTradeAndTradeStopsBlockingTheReport()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-research-basis-1");
+        var researchId = Guid.NewGuid();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            context.CaseValuations.Add(new CaseValuationEntity
+            {
+                Id = researchId,
+                WorkId = harness.CaseId,
+                Source = nameof(ValuationSource.AiMarketResearch),
+                Date = new DateOnly(2030, 5, 6),
+                Time = new TimeOnly(10, 30),
+                GuideMonth = new DateOnly(2030, 4, 1),
+                Mileage = 42_000,
+                RetailValue = 13_000m,
+                TradeValue = null,
+                RecordedBy = "automation",
+                RecordedAtUtc = DateTimeOffset.UtcNow
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "research-basis-save-1", engineer) with
+            {
+                Valuation = new(
+                    [],
+                    new ValuationCalculationSelection(researchId, false, null, [], 0m),
+                    EngineerValue("13000"))
+            },
+            CancellationToken.None);
+
+        var fields = await AssessmentFieldsAsync(harness);
+        Assert.Equal("13000.00", fields[AssessmentVocabulary.ValueRetail].Value);
+        Assert.False(fields.ContainsKey(AssessmentVocabulary.ValueTrade));
+        Assert.Equal("true", fields[AssessmentVocabulary.ValueFromMarketResearch].Value);
+        var blockers = AssessmentPolicy.EvaluatePostReviewReadiness(saved.Assessment);
+        Assert.DoesNotContain(blockers, item => item.Field == AssessmentVocabulary.ValueTrade);
+
+        var second = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, saved.Version, lease.Token, "research-basis-save-2", engineer) with
+            {
+                Valuation = new(
+                    [GuideCard(ValuationSource.Glasses, new DateOnly(2030, 4, 1), 13_000m)],
+                    new ValuationCalculationSelection(Guid.Empty, false, null, [], 0m)
+                    {
+                        GuideSource = ValuationSource.Glasses,
+                    },
+                    EngineerValue("13000"))
+            },
+            CancellationToken.None);
+
+        var after = await AssessmentFieldsAsync(harness);
+        Assert.Equal("12000.00", after[AssessmentVocabulary.ValueTrade].Value);
+        Assert.False(after.ContainsKey(AssessmentVocabulary.ValueFromMarketResearch));
+        Assert.DoesNotContain(
+            AssessmentPolicy.EvaluatePostReviewReadiness(second.Assessment),
+            item => item.Field == AssessmentVocabulary.ValueTrade);
+    }
+
+    /// <summary>
     /// Choosing a card is a decision, so a Save that carries it while the
     /// Engineer's Value box no longer holds the calculated figure (the preview
     /// had not landed, or the box was typed over) is refused with a message and

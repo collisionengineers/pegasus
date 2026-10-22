@@ -18,7 +18,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.AiJobEntity",
                 typeof(AiJobEntity),
                 baseEntityType,
-                propertyCount: 36,
+                propertyCount: 31,
                 unnamedIndexCount: 4,
                 keyCount: 1);
 
@@ -156,52 +156,6 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(AiJobEntity).GetField("<MarketResearchDocumentVersionId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 nullable: true);
             marketResearchDocumentVersionId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var marketResearchMileage = runtimeEntityType.AddProperty(
-                "MarketResearchMileage",
-                typeof(long?),
-                propertyInfo: typeof(AiJobEntity).GetProperty("MarketResearchMileage", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(AiJobEntity).GetField("<MarketResearchMileage>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true);
-            marketResearchMileage.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var marketResearchRecordedDate = runtimeEntityType.AddProperty(
-                "MarketResearchRecordedDate",
-                typeof(DateOnly?),
-                propertyInfo: typeof(AiJobEntity).GetProperty("MarketResearchRecordedDate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(AiJobEntity).GetField("<MarketResearchRecordedDate>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true);
-            marketResearchRecordedDate.AddAnnotation("Relational:ColumnType", "date");
-            marketResearchRecordedDate.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var marketResearchRecordedTime = runtimeEntityType.AddProperty(
-                "MarketResearchRecordedTime",
-                typeof(TimeOnly?),
-                propertyInfo: typeof(AiJobEntity).GetProperty("MarketResearchRecordedTime", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(AiJobEntity).GetField("<MarketResearchRecordedTime>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true);
-            marketResearchRecordedTime.AddAnnotation("Relational:ColumnType", "time");
-            marketResearchRecordedTime.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var marketResearchRetailValue = runtimeEntityType.AddProperty(
-                "MarketResearchRetailValue",
-                typeof(decimal?),
-                propertyInfo: typeof(AiJobEntity).GetProperty("MarketResearchRetailValue", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(AiJobEntity).GetField("<MarketResearchRetailValue>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                precision: 18,
-                scale: 2);
-            marketResearchRetailValue.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
-
-            var marketResearchTradeValue = runtimeEntityType.AddProperty(
-                "MarketResearchTradeValue",
-                typeof(decimal?),
-                propertyInfo: typeof(AiJobEntity).GetProperty("MarketResearchTradeValue", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                fieldInfo: typeof(AiJobEntity).GetField("<MarketResearchTradeValue>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                nullable: true,
-                precision: 18,
-                scale: 2);
-            marketResearchTradeValue.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var marketResearchValuationId = runtimeEntityType.AddProperty(
                 "MarketResearchValuationId",

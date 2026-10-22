@@ -1933,8 +1933,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             new DateOnly(2031, 5, 6),
             new TimeOnly(10, 30),
             42000,
-            12000m,
-            10000m);
+            12000m);
 
         var completed = await complete.ExecuteAsync(command, CancellationToken.None);
         var replay = await complete.ExecuteAsync(command, CancellationToken.None);
@@ -1978,9 +1977,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(workflow.Version, attached.BeforeVersion);
         Assert.Equal(workflow.Version, attached.AfterVersion);
         Assert.Equal(ActorKind.Automation.ToString(), attached.ActorKind);
+        // The card holds only its retail value: no trade is recorded for it.
+        var card = await context.CaseValuations.AsNoTracking().SingleAsync(item => item.WorkId == caseId);
+        Assert.Equal(12000m, card.RetailValue);
+        Assert.Null(card.TradeValue);
         await Assert.ThrowsAnyAsync<DbException>(async () =>
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE AiJobs SET MarketResearchMileage = NULL WHERE JobId = {taken.JobId}"));
+                $"UPDATE AiJobs SET MarketResearchCompletionHash = NULL WHERE JobId = {taken.JobId}"));
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
         var jobHistory = await context.ActionHistory.AsNoTracking()
             .Where(item => item.AggregateType == "ai_job"
@@ -2045,8 +2048,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             new DateOnly(2031, 5, 6),
             new TimeOnly(10, 30),
             42000,
-            12000m,
-            10000m);
+            12000m);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             complete.ExecuteAsync(command, CancellationToken.None));
@@ -2110,8 +2112,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             new DateOnly(2031, 5, 6),
             new TimeOnly(10, 30),
             42000,
-            12000m,
-            10000m);
+            12000m);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             complete.ExecuteAsync(command, CancellationToken.None));
@@ -2174,8 +2175,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             new DateOnly(2031, 5, 6),
             new TimeOnly(10, 30),
             42000,
-            12000m,
-            10000m);
+            12000m);
 
         // EF Core wraps a provider/interceptor failure raised while
         // SaveChangesAsync executes its command batch in a DbUpdateException;

@@ -376,11 +376,11 @@ public sealed class EfValuationStore(
         }
         if (guideEntries.LastOrDefault(entry => entry.Source == source) is { } entry)
         {
-            return (ValuationPolicy.ReportValues(entry.RetailValue, entry.TradeValue), postedGuide);
+            return (ValuationPolicy.ReportValues(source, entry.RetailValue, entry.TradeValue), postedGuide);
         }
         return recorded is null
             ? throw new InvalidOperationException("Enter the retail value on the card you chose to use.")
-            : (ValuationPolicy.ReportValues(recorded.RetailValue, recorded.TradeValue), postedGuide);
+            : (ValuationPolicy.ReportValues(source, recorded.RetailValue, recorded.TradeValue), postedGuide);
     }
 
     private static async Task<CaseValuationEntity> RequiredGuideAsync(

@@ -48,8 +48,9 @@ public static class ValuationSources
 /// consumes, typed or filled from the card (operator, 26 September 2026).
 /// A guide source's card holds whatever staff entered or Get valuation brought
 /// back, so any of its mileage, retail, trade and guide month may be absent
-/// (operator, 23 September 2026); an Engineer's Value or AI market research
-/// row always carries its retail and trade.
+/// (operator, 23 September 2026); an Engineer's Value row always carries its
+/// retail and trade, and an AI market research row its retail alone
+/// (operator, 21 October 2026).
 /// </summary>
 public sealed record ValuationDetails(
     ValuationSource Source,
@@ -90,17 +91,25 @@ public static class ValuationPolicy
     /// <summary>
     /// The report's Retail and Trade values: the figures of the guide card a
     /// calculation is chosen against, as the save leaves that card (operator,
-    /// 8 October 2026). Nobody types them; a figure the card leaves blank is
-    /// blank on the report, which keeps it a report blocker.
+    /// 8 October 2026). Nobody types them; a figure a guide card leaves blank
+    /// is blank on the report, which keeps it a report blocker. An AI market
+    /// research card has no Trade, so it writes none and marks the basis, and
+    /// the report does not need one (R311).
     /// </summary>
-    public static IReadOnlyDictionary<string, string?> ReportValues(decimal? retail, decimal? trade) =>
-        new Dictionary<string, string?>(StringComparer.Ordinal)
+    public static IReadOnlyDictionary<string, string?> ReportValues(
+        ValuationSource source, decimal? retail, decimal? trade)
+    {
+        var marketResearch = source == ValuationSource.AiMarketResearch;
+        return new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             [AssessmentVocabulary.ValueRetail] = AssessmentPolicy.NormalizeDerivedField(
                 AssessmentVocabulary.ValueRetail, retail?.ToString("0.00", CultureInfo.InvariantCulture)),
             [AssessmentVocabulary.ValueTrade] = AssessmentPolicy.NormalizeDerivedField(
-                AssessmentVocabulary.ValueTrade, trade?.ToString("0.00", CultureInfo.InvariantCulture)),
+                AssessmentVocabulary.ValueTrade,
+                marketResearch ? null : trade?.ToString("0.00", CultureInfo.InvariantCulture)),
+            [AssessmentVocabulary.ValueFromMarketResearch] = marketResearch ? "true" : null,
         };
+    }
 
     public static ValuationDetails ValidateDetails(ValuationDetails details)
     {
@@ -123,11 +132,17 @@ public static class ValuationPolicy
         }
         // The mileage is recorded when the Case has one; a value filled from
         // a guide card needs none (operator, 26 September 2026).
-        if (!ValuationSources.IsGuide(details.Source)
+        if (details.Source == ValuationSource.EngineersValue
             && (details.RetailValue is null || details.TradeValue is null))
         {
             throw new ArgumentException(
-                "An Engineer's Value or market research valuation carries its retail and trade values.",
+                "An Engineer's Value carries its retail and trade values.",
+                nameof(details));
+        }
+        if (details.Source == ValuationSource.AiMarketResearch && details.RetailValue is null)
+        {
+            throw new ArgumentException(
+                "A market research valuation carries its retail value.",
                 nameof(details));
         }
         Money(details.RetailValue, "retail value");

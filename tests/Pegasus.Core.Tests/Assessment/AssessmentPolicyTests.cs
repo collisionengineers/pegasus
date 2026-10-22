@@ -512,6 +512,7 @@ public sealed class AssessmentPolicyTests
     [Theory]
     [InlineData(AssessmentVocabulary.ValueRetail)]
     [InlineData(AssessmentVocabulary.ValueTrade)]
+    [InlineData(AssessmentVocabulary.ValueFromMarketResearch)]
     public void RetailAndTradeAreTheChosenCardsAndNoFieldSaveWritesThem(string path)
     {
         // The report's Retail and Trade are the chosen guide card's figures
@@ -530,14 +531,25 @@ public sealed class AssessmentPolicyTests
     [Fact]
     public void TheReportValuesAreTheCardsFiguresCanonicalized()
     {
-        var both = ValuationPolicy.ReportValues(4500m, 3200.5m);
+        var both = ValuationPolicy.ReportValues(ValuationSource.Glasses, 4500m, 3200.5m);
         Assert.Equal("4500.00", both[AssessmentVocabulary.ValueRetail]);
         Assert.Equal("3200.50", both[AssessmentVocabulary.ValueTrade]);
+        Assert.Null(both[AssessmentVocabulary.ValueFromMarketResearch]);
 
         // A figure the card leaves blank is blank on the report.
-        var retailOnly = ValuationPolicy.ReportValues(4500m, null);
+        var retailOnly = ValuationPolicy.ReportValues(ValuationSource.Glasses, 4500m, null);
         Assert.Equal("4500.00", retailOnly[AssessmentVocabulary.ValueRetail]);
         Assert.Null(retailOnly[AssessmentVocabulary.ValueTrade]);
+    }
+
+    [Fact]
+    public void AnAiMarketResearchCardWritesNoTradeAndMarksTheBasis()
+    {
+        var research = ValuationPolicy.ReportValues(ValuationSource.AiMarketResearch, 4500m, 3200.5m);
+
+        Assert.Equal("4500.00", research[AssessmentVocabulary.ValueRetail]);
+        Assert.Null(research[AssessmentVocabulary.ValueTrade]);
+        Assert.Equal("true", research[AssessmentVocabulary.ValueFromMarketResearch]);
     }
 
     [Fact]
@@ -1063,6 +1075,24 @@ public sealed class AssessmentPolicyTests
         Assert.DoesNotContain(tradeOnly, item => item.Field == AssessmentVocabulary.ValueTrade);
         Assert.Contains(tradeOnly, item => item.Field == AssessmentVocabulary.ValueRetail);
         Assert.Contains(tradeOnly, item => item.Field == AssessmentVocabulary.ValueEngineer);
+    }
+
+    /// <summary>
+    /// R311: an AI market research card has no Trade, so the report does not
+    /// need one when that card is the basis; its Retail is still needed, and a
+    /// guide basis with no Trade still names it.
+    /// </summary>
+    [Fact]
+    public void TradeIsNotNamedWhenTheBasisIsAiMarketResearch()
+    {
+        var research = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
+            [Field(AssessmentVocabulary.ValueFromMarketResearch, "true")]));
+        Assert.DoesNotContain(research, item => item.Field == AssessmentVocabulary.ValueTrade);
+        Assert.Contains(research, item => item.Field == AssessmentVocabulary.ValueRetail);
+
+        var guide = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
+            [Field(AssessmentVocabulary.ValueFromMarketResearch, "false")]));
+        Assert.Contains(guide, item => item.Field == AssessmentVocabulary.ValueTrade);
     }
 
     /// <summary>

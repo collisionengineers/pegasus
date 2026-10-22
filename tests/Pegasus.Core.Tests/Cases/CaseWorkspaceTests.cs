@@ -100,6 +100,7 @@ public sealed class CaseWorkspaceTests
     [Theory]
     [InlineData(AssessmentVocabulary.ValueRetail)]
     [InlineData(AssessmentVocabulary.ValueTrade)]
+    [InlineData(AssessmentVocabulary.ValueFromMarketResearch)]
     public void TheCaseSaveRefusesATypedRetailOrTrade(string path)
     {
         // The report's Retail and Trade follow the chosen guide card (operator,
