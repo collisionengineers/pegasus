@@ -241,50 +241,49 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         HashSet<Guid> caseIds,
         CancellationToken cancellationToken)
     {
-        var documents = await (
+        // One statement: each figure is a stream of one tick per counted row,
+        // and the database counts the ticks per figure and Case. A report send
+        // names the generation it delivered, so it joins to the Case; other
+        // staff mail names its Case directly.
+        var occurrences =
             from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
             join version in db.Set<DocumentVersionEntity>().AsNoTracking() on occurrence.VersionId equals version.Id
             where !version.IsLogicallyRemoved && EF.Parameter(caseIds).Contains(occurrence.CaseId)
-            group occurrence by occurrence.CaseId into byCase
-            select new
-            {
-                CaseId = byCase.Key,
-                Images = byCase.Count(item => item.SemanticRole == DocumentSemanticRole.Image),
-                InReport = byCase.Count(item => item.SemanticRole == DocumentSemanticRole.Image && item.InReport),
-                Documents = byCase.Count(item => item.SemanticRole != DocumentSemanticRole.Image)
-            })
-            .ToDictionaryAsync(item => item.CaseId, cancellationToken);
-        var notes = await CountsAsync(
-            db.CaseWorkflowEvents.AsNoTracking()
-                .Where(item => item.EventType == AddCaseNote.EventType && EF.Parameter(caseIds).Contains(item.CaseId))
-                .Select(item => item.CaseId),
-            cancellationToken);
-        var chases = await CountsAsync(
-            db.CaseManualChases.AsNoTracking()
-                .Where(item => EF.Parameter(caseIds).Contains(item.CaseId))
-                .Select(item => item.CaseId),
-            cancellationToken);
+            select occurrence;
         var openTask = nameof(CaseTaskState.Open);
-        var openTasks = await CountsAsync(
-            db.CaseTasks.AsNoTracking()
-                .Where(item => item.State == openTask && EF.Parameter(caseIds).Contains(item.CaseId))
-                .Select(item => item.CaseId),
-            cancellationToken);
-
-        // Staff mail names its Case directly, except a report send, which
-        // names the generation it delivered.
         var sent = db.Set<StaffMailSendOperationEntity>().AsNoTracking()
             .Where(item => item.State == StaffMailState.Sent);
-        var correspondence = await CountsAsync(
-            sent.Where(item => item.Purpose != StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(item.ContextId))
-                .Select(item => item.ContextId),
-            cancellationToken);
-        var reportMail = await CountsAsync(
-            from operation in sent
-            join generation in db.Set<CaseReportGenerationEntity>().AsNoTracking() on operation.ContextId equals generation.Id
-            where operation.Purpose == StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(generation.CaseId)
-            select generation.CaseId,
-            cancellationToken);
+        var ticks = occurrences
+            .Where(item => item.SemanticRole == DocumentSemanticRole.Image)
+            .Select(item => new ActivityTick(ActivityFigure.Images, item.CaseId))
+            .Concat(occurrences
+                .Where(item => item.SemanticRole == DocumentSemanticRole.Image && item.InReport)
+                .Select(item => new ActivityTick(ActivityFigure.InReport, item.CaseId)))
+            .Concat(occurrences
+                .Where(item => item.SemanticRole != DocumentSemanticRole.Image)
+                .Select(item => new ActivityTick(ActivityFigure.Documents, item.CaseId)))
+            .Concat(db.CaseWorkflowEvents.AsNoTracking()
+                .Where(item => item.EventType == AddCaseNote.EventType && EF.Parameter(caseIds).Contains(item.CaseId))
+                .Select(item => new ActivityTick(ActivityFigure.Notes, item.CaseId)))
+            .Concat(db.CaseManualChases.AsNoTracking()
+                .Where(item => EF.Parameter(caseIds).Contains(item.CaseId))
+                .Select(item => new ActivityTick(ActivityFigure.Chases, item.CaseId)))
+            .Concat(db.CaseTasks.AsNoTracking()
+                .Where(item => item.State == openTask && EF.Parameter(caseIds).Contains(item.CaseId))
+                .Select(item => new ActivityTick(ActivityFigure.OpenTasks, item.CaseId)))
+            .Concat(sent
+                .Where(item => item.Purpose != StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(item.ContextId))
+                .Select(item => new ActivityTick(ActivityFigure.Correspondence, item.ContextId)))
+            .Concat(
+                from operation in sent
+                join generation in db.Set<CaseReportGenerationEntity>().AsNoTracking() on operation.ContextId equals generation.Id
+                where operation.Purpose == StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(generation.CaseId)
+                select new ActivityTick(ActivityFigure.Correspondence, generation.CaseId));
+        var counts = (await ticks
+                .GroupBy(tick => new { tick.Figure, tick.CaseId })
+                .Select(group => new { group.Key.Figure, group.Key.CaseId, Count = group.Count() })
+                .ToListAsync(cancellationToken))
+            .ToDictionary(item => (item.Figure, item.CaseId), item => item.Count);
 
         // MI-01's queries: mailbox mail classified as a query standing linked
         // to the Case by the Inbox's own association rule.
@@ -308,24 +307,32 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
 
         return caseIds.ToDictionary(caseId => caseId, caseId =>
         {
-            var document = documents.GetValueOrDefault(caseId);
+            int Of(int figure) => counts.GetValueOrDefault((figure, caseId));
             return new CaseListActivity(
-                document?.Images ?? 0,
-                document?.InReport ?? 0,
-                document?.Documents ?? 0,
+                Of(ActivityFigure.Images),
+                Of(ActivityFigure.InReport),
+                Of(ActivityFigure.Documents),
                 queries.GetValueOrDefault(caseId),
-                correspondence.GetValueOrDefault(caseId) + reportMail.GetValueOrDefault(caseId),
-                chases.GetValueOrDefault(caseId),
-                openTasks.GetValueOrDefault(caseId),
-                notes.GetValueOrDefault(caseId));
+                Of(ActivityFigure.Correspondence),
+                Of(ActivityFigure.Chases),
+                Of(ActivityFigure.OpenTasks),
+                Of(ActivityFigure.Notes));
         });
     }
 
-    private static Task<Dictionary<Guid, int>> CountsAsync(IQueryable<Guid> caseIds, CancellationToken cancellationToken) =>
-        caseIds
-            .GroupBy(caseId => caseId)
-            .Select(group => new { CaseId = group.Key, Count = group.Count() })
-            .ToDictionaryAsync(item => item.CaseId, item => item.Count, cancellationToken);
+    /// <summary>The figures of a Case's Activity that one set query counts together.</summary>
+    private static class ActivityFigure
+    {
+        public const int Images = 0;
+        public const int InReport = 1;
+        public const int Documents = 2;
+        public const int Notes = 3;
+        public const int Chases = 4;
+        public const int OpenTasks = 5;
+        public const int Correspondence = 6;
+    }
+
+    private sealed record ActivityTick(int Figure, Guid CaseId);
 
     private static CaseListWorkFacts Work(
         Guid workId,

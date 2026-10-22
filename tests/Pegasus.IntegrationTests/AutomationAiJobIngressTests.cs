@@ -165,6 +165,106 @@ public sealed class AutomationAiJobIngressTests
     }
 
     /// <summary>
+    /// A2-11 (R278): the counts are one statement. A live Queued job and a Taken
+    /// one are active, a Queued job past its expiry is not, and every Failed job
+    /// is counted; the active count is still the policy's, read in memory.
+    /// </summary>
+    [Fact]
+    public async Task TheCountsReadActiveAndFailedJobsInOneStatement()
+    {
+        var clock = new CaseDataCompletenessPersistenceTests.MutableTimeProvider(SeedUtcNow);
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true, clock, commandInterceptor: counter);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        var queries = scope.ServiceProvider.GetRequiredService<IAiJobQueries>();
+
+        async Task<Guid> QueueAsync(string operationKey, TimeSpan expiry) =>
+            (await store.CreateAsync(
+                new(
+                    AiJobKind.UnidentifiedQueuePass,
+                    AiJobSubjectKind.Queue,
+                    null,
+                    AiJobPolicy.QueueSubjectReference,
+                    "Pass the queue.",
+                    null,
+                    null,
+                    Staff,
+                    operationKey,
+                    expiry),
+                CancellationToken.None)).JobId;
+
+        Task TakeAsync(Guid jobId, string operationKey) =>
+            store.TransitionAsync(
+                new(jobId, 0, AiJobState.Taken, Client, operationKey,
+                    LeaseExpiresAtUtc: clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
+                CancellationToken.None);
+
+        await QueueAsync("counts-lapsed", TimeSpan.FromMinutes(1));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await QueueAsync("counts-live", AiJobPolicy.DefaultExpiry);
+        var taken = await QueueAsync("counts-taken", AiJobPolicy.DefaultExpiry);
+        await TakeAsync(taken, "counts-taken-take");
+        foreach (var name in new[] { "counts-failed-1", "counts-failed-2" })
+        {
+            var failed = await QueueAsync(name, AiJobPolicy.DefaultExpiry);
+            await TakeAsync(failed, $"{name}-take");
+            await store.TransitionAsync(
+                new(failed, 1, AiJobState.Failed, Client, $"{name}-report", Reason: "The model refused."),
+                CancellationToken.None);
+        }
+
+        counter.Reset();
+        var counts = await queries.GetCountsAsync(CancellationToken.None);
+
+        Assert.Equal(new AiJobCounts(2, 2), counts);
+        Assert.Equal(1, counter.Count);
+    }
+
+    /// <summary>A2-11: with no open job the one statement still returns the Failed count, and with nothing at all it returns zeros.</summary>
+    [Fact]
+    public async Task TheCountsOfOnlyFailedJobsAreNoneActiveAndTheFailedCount()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        var queries = scope.ServiceProvider.GetRequiredService<IAiJobQueries>();
+
+        counter.Reset();
+        Assert.Equal(new AiJobCounts(0, 0), await queries.GetCountsAsync(CancellationToken.None));
+        Assert.Equal(1, counter.Count);
+
+        for (var index = 0; index < 2; index++)
+        {
+            var created = await store.CreateAsync(
+                new(
+                    AiJobKind.UnidentifiedQueuePass,
+                    AiJobSubjectKind.Queue,
+                    null,
+                    AiJobPolicy.QueueSubjectReference,
+                    "Pass the queue.",
+                    null,
+                    null,
+                    Staff,
+                    $"counts-only-failed-{index}",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            await store.TransitionAsync(
+                new(created.JobId, 0, AiJobState.Taken, Client, $"counts-only-failed-{index}-take",
+                    LeaseExpiresAtUtc: SeedUtcNow + AiJobPolicy.LeaseDuration),
+                CancellationToken.None);
+            await store.TransitionAsync(
+                new(created.JobId, 1, AiJobState.Failed, Client, $"counts-only-failed-{index}-report", Reason: "The model refused."),
+                CancellationToken.None);
+        }
+
+        counter.Reset();
+        Assert.Equal(new AiJobCounts(0, 2), await queries.GetCountsAsync(CancellationToken.None));
+        Assert.Equal(1, counter.Count);
+    }
+
+    /// <summary>
     /// Action logs fold the AI job ledger in, so every state a job can reach has
     /// to leave one permanent, attributable row that names the record it was
     /// about — otherwise a job that failed or was cancelled simply vanishes from

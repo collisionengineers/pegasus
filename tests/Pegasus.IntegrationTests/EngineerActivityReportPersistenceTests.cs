@@ -62,6 +62,16 @@ public sealed class EngineerActivityReportPersistenceTests
                 .OrderBy(item => item.EngineerId)
                 .Append(new EngineerActivityCounts(Guid.Empty, 1, 0) { SenderKind = Pegasus.Core.Identity.ActorKind.Automation }),
             all);
+
+        // F254 (R326): one staff member asked for is exactly that sender's row of
+        // the unfiltered read, with no other sender's sends or queries; one
+        // with no activity is absent.
+        foreach (var engineer in new[] { engineerA, engineerB })
+        {
+            var chosen = await queries.GetAsync(From, To, CancellationToken.None, engineer);
+            Assert.Equal(all.Where(item => item.EngineerId == engineer), chosen);
+        }
+        Assert.Empty(await queries.GetAsync(From, To, CancellationToken.None, Guid.NewGuid()));
     }
 
     /// <summary>

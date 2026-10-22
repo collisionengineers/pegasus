@@ -120,7 +120,8 @@ public sealed class EngineerActivityReportTests
         public Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            Guid? engineerId = null)
         {
             Request = (fromUtc, toUtc);
             return Task.FromResult(rows);

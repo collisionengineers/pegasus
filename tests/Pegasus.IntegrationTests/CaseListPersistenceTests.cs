@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -151,6 +152,39 @@ public sealed class CaseListPersistenceTests
         Assert.Equal(new[] { inspection, audit, inspectionAndAudit }.Order(), june.Select(record => record.CaseId).Order());
         Assert.DoesNotContain(june, record => record.CaseId == outside);
         Assert.Equal(3, june.Count);
+    }
+
+    /// <summary>
+    /// A3-12 (R326): the Activity figures are one set query. The list sends the
+    /// Case rows, the Audit works, the one Activity statement and the query
+    /// receipts: four, where each figure used to be its own read (ten).
+    /// </summary>
+    [Fact]
+    public async Task TheActivityFiguresAreReadInOneStatementWhateverTheCaseCount()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            AddCase(context, principal, 1, "inspection", Received);
+            AddCase(context, principal, 2, "audit", Received);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<ICaseListQueries>();
+        var activityOnly = new CaseListQuery(
+            null, null, IncludeTriage: false, CaseListFacts.Activity, new HashSet<string>(), new HashSet<string>());
+
+        counter.Reset();
+        var records = await queries.GetAsync(activityOnly, CancellationToken.None);
+
+        Assert.Equal(2, records.Count);
+        Assert.True(
+            counter.Count <= 4,
+            $"The Activity list sent {counter.Count} statements; at most 4 are allowed (rows, Audit works, Activity, query receipts).");
     }
 
     [Fact]
