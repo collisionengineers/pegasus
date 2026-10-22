@@ -688,7 +688,10 @@ public sealed class CasesIndexWebTests
             new Regex(@"<div class=""pane-head"">\s*<h2>Review</h2>\s*<span class=""meta"">1 case</span>\s*<form method=""get"" class=""filter-bar cases-filters"""),
             html);
         Assert.Contains("<option value=\"ZZPANE\">ZZPANE</option>", html, StringComparison.Ordinal);
-        Assert.Contains("<span>Newest first</span>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<span>{Pegasus.Web.Presentation.OperatorLabels.CaseQueueFooter.PageLine(1, false)}</span>",
+            html,
+            StringComparison.Ordinal);
         Assert.Matches(
             new Regex(@"<dt>Vehicle</dt>.*<dt>Type</dt>.*<dt>State</dt>.*<dt>Current work</dt>.*<dt>Engineer</dt>", RegexOptions.Singleline),
             html);
