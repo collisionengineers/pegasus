@@ -254,13 +254,15 @@ public sealed class TriageQueuesWebTests
             $"/Search?state={CaseLifecycleState.ReportSent}");
         var searchHtml = await searchResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, searchResponse.StatusCode);
-        Assert.Contains(sentReference, searchHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(queryReference, searchHtml, StringComparison.Ordinal);
+        // The fixture names each Principal by its Case's reference, so the
+        // Principal filter lists them all; a listed Case is its row link.
+        Assert.Contains($">{sentReference}</a>", searchHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{queryReference}</a>", searchHtml, StringComparison.Ordinal);
         using var querySearchResponse = await client.GetAsync("/Search?state=Query");
         var querySearchHtml = await querySearchResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, querySearchResponse.StatusCode);
-        Assert.Contains(queryReference, querySearchHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(sentReference, querySearchHtml, StringComparison.Ordinal);
+        Assert.Contains($">{queryReference}</a>", querySearchHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{sentReference}</a>", querySearchHtml, StringComparison.Ordinal);
     }
 
     /// <summary>

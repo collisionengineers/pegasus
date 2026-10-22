@@ -96,8 +96,9 @@ public sealed class AdministrationSearchAccountWebTests
                 StringComparison.Ordinal);
         }
 
+        // The form tag helper closes the form with the request verification token.
         Assert.Matches(
-            "</div>\\s*<button type=\"submit\" class=\"btn btn--primary\"[^>]*>Change password</button>\\s*</form>",
+            "</div>\\s*<button type=\"submit\" class=\"btn btn--primary\"[^>]*>Change password</button>\\s*(<input[^>]*>\\s*)?</form>",
             html);
     }
 

@@ -596,8 +596,8 @@ public sealed class CasesIndexWebTests
         Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=inspection\">QDOS3100044</a>", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=audit\">a.QDOS3100044</a>", html, StringComparison.Ordinal);
         Assert.Equal(2, Regex.Count(html, $"<tr[^>]*data-select-id=\"{search.AuditCaseId:D}\""));
-        Assert.Contains("<h2>QDOS3100044 &#xB7; AB12CDE</h2>", html, StringComparison.Ordinal);
-        Assert.Contains("<h2>a.QDOS3100044 &#xB7; AB12CDE</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<h2><span id=\"selected-case-po\">QDOS3100044</span> · AB12CDE</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<h2><span id=\"selected-case-po\">a.QDOS3100044</span> · AB12CDE</h2>", html, StringComparison.Ordinal);
         Assert.Contains(">3 results<", html, StringComparison.Ordinal);
         // With nothing selected the first entry is, and a refresh keeps it.
         Assert.Matches("<tr[^>]*data-select-view=\"inspection\"[^>]*aria-selected=\"true\"", html);
@@ -661,7 +661,7 @@ public sealed class CasesIndexWebTests
         Assert.Matches("<tr[^>]*data-select-view=\"audit\"[^>]*aria-selected=\"true\"", html);
         Assert.Matches("<tr[^>]*data-select-view=\"inspection\"[^>]*aria-selected=\"false\"", html);
         var pane = html[html.IndexOf("data-preview-target", StringComparison.Ordinal)..];
-        Assert.Contains("<h2>a.QDOS3100044 &#xB7; AB12CDE</h2>", pane, StringComparison.Ordinal);
+        Assert.Contains("<h2><span id=\"selected-case-po\">a.QDOS3100044</span> · AB12CDE</h2>", pane, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=audit\"", pane, StringComparison.Ordinal);
         Assert.Contains("name=\"selectedView\" value=\"audit\"", html, StringComparison.Ordinal);
         Assert.Contains($"selected={search.AuditCaseId:D}&amp;selectedView=audit", html, StringComparison.Ordinal);
