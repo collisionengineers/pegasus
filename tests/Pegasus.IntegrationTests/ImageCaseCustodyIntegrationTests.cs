@@ -782,6 +782,55 @@ public sealed class ImageCaseCustodyIntegrationTests
     }
 
     /// <summary>
+    /// A record merged before either folder is stored: the custody that
+    /// stores the first folder leaves the fold waiting, and the custody that
+    /// stores the second makes it due and publishes it, so the fold files on
+    /// its first run.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheSecondFolderStoredWakesAFoldThatWaitedForBoth(bool caseFolderFirst)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", caseFolderFirst ? "FOLD-BOTH-01" : "FOLD-BOTH-02");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var recordCreateWorkId = await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody);
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        Guid caseCreateWorkId;
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            caseCreateWorkId = await context.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.CaseId == caseId && item.Kind == ExternalWorkKinds.CreateCaseCustody)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+        var (firstCreate, secondCreate) = caseFolderFirst
+            ? (caseCreateWorkId, recordCreateWorkId)
+            : (recordCreateWorkId, caseCreateWorkId);
+        var publisher = new RecordingWorkPublisher();
+        var custody = ProcessorWith(services, services.GetRequiredService<ICaseCustody>(), publisher);
+
+        await custody.ExecuteAsync(firstCreate, CancellationToken.None);
+        await AssertDueAsync(contextFactory, mergeWorkId, now + ImageCustodyRetryPolicy.FolderWait);
+
+        await custody.ExecuteAsync(secondCreate, CancellationToken.None);
+        Assert.Equal(mergeWorkId, Assert.Single(publisher.Published));
+        await AssertDueAsync(contextFactory, mergeWorkId, now);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await AssertTheFoldFiledOnItsFirstAttemptAsync(contextFactory, mergeWorkId, record.Id, caseId);
+    }
+
+    /// <summary>
     /// A record whose own custody failed for good has no folder coming, so
     /// its fold keeps the failure path: the attempt counts and the fold
     /// re-arms with the image custody backoff.

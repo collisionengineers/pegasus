@@ -128,17 +128,20 @@ internal sealed class EfQueuedCustodyProcessor(
         {
             var leaseGuard = new CustodyEffectLeaseGuard(
                 token => workStore.HoldsProcessingLeaseAsync(workId, leaseToken, token));
-            await leaseGuard.RequireCurrentAsync(cancellationToken);
-            switch (payload)
+            if (payload is ImageMergePayload imageMerge)
             {
-                case ImageCreatePayload imageCreate:
-                    await ProcessImageCreateAsync(
-                        workId, leaseToken, imageCreate, leaseGuard, cancellationToken);
-                    return;
-                case ImageMergePayload imageMerge:
-                    await ProcessImageMergeAsync(
-                        workId, leaseToken, imageMerge, leaseGuard, cancellationToken);
-                    return;
+                // The fold reads its lease just before its Box work: a wait,
+                // a failure or a recording checks it in the write it makes.
+                await ProcessImageMergeAsync(
+                    workId, leaseToken, imageMerge, leaseGuard, cancellationToken);
+                return;
+            }
+            await leaseGuard.RequireCurrentAsync(cancellationToken);
+            if (payload is ImageCreatePayload imageCreate)
+            {
+                await ProcessImageCreateAsync(
+                    workId, leaseToken, imageCreate, leaseGuard, cancellationToken);
+                return;
             }
 
             var casePayload = (WorkPayload)payload;
@@ -807,8 +810,7 @@ internal sealed class EfQueuedCustodyProcessor(
             BeforeVersion = beforeVersion,
             AfterVersion = authority.Version
         });
-        var woken = await WakeWaitingFoldsAsync(
-            context.ExternalWorkItems.Where(item => item.CaseId == caseEntity.Id), now, cancellationToken);
+        var woken = await WakeFoldsIntoCaseAsync(context, caseEntity.Id, now, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         await PublishWokenFoldsAsync(woken, cancellationToken);
@@ -860,8 +862,7 @@ internal sealed class EfQueuedCustodyProcessor(
             BeforeVersion = beforeVersion,
             AfterVersion = authority.Version
         });
-        var woken = await WakeWaitingFoldsAsync(
-            context.ExternalWorkItems.Where(item => item.CaseId == caseEntity.Id), now, cancellationToken);
+        var woken = await WakeFoldsIntoCaseAsync(context, caseEntity.Id, now, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         await PublishWokenFoldsAsync(woken, cancellationToken);
@@ -1334,6 +1335,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 "The formal case evidence folder has not been stored yet; the fold retries after it is.");
         }
 
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
         // The record's folder is known by the identity recorded when it was
         // stored. A fold that moved the files and stopped before recording
         // them has already removed it, and custody replays that as a fold
@@ -1445,11 +1447,14 @@ internal sealed class EfQueuedCustodyProcessor(
         }
         CompleteWork(work, now, root.RemoteId);
         // Only a record merged before its folder was stored has a fold
-        // waiting for it.
+        // waiting for it. The record's folder is the second to be stored
+        // only where the Case's folder already is; a fold still waiting for
+        // the Case's folder is woken by the Case's custody.
         IReadOnlyList<Guid> woken = intake.MergedIntoCaseId is null
             ? []
             : await WakeWaitingFoldsAsync(
-                context.ExternalWorkItems.Where(item => item.ImageIntakeId == imageIntakeId),
+                context.ExternalWorkItems.Where(item => item.ImageIntakeId == imageIntakeId
+                    && !string.IsNullOrWhiteSpace(item.Case!.CustodyRootRemoteId)),
                 now,
                 cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
@@ -1462,11 +1467,30 @@ internal sealed class EfQueuedCustodyProcessor(
     }
 
     /// <summary>
-    /// Makes each fold waiting for the folder this completion stored due now,
-    /// in the completion's transaction, and returns them to publish once it
-    /// commits. A fold mid-attempt is not pending; the recovery tick picks it
-    /// up after its own wait: FolderWait, or the rest of this create's lease
-    /// when that is longer.
+    /// The Case's folder is stored: wakes the Case's folds whose record's
+    /// folder is stored too. A fold still waiting for its record's folder is
+    /// woken by the record's custody.
+    /// </summary>
+    private static Task<IReadOnlyList<Guid>> WakeFoldsIntoCaseAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        WakeWaitingFoldsAsync(
+            context.ExternalWorkItems.Where(item => item.CaseId == caseId
+                && item.ImageIntake!.CustodyRootRemoteId != null),
+            now,
+            cancellationToken);
+
+    /// <summary>
+    /// Makes each pending fold the query names due now, in the completion's
+    /// transaction, and returns them to publish once it commits. The custody
+    /// that stores the second of a fold's two folders wakes it, so a fold
+    /// still waiting for the other folder is not run only to wait again. A
+    /// fold mid-attempt is not pending, and two custodies committing at once
+    /// can each miss the other's folder; the recovery tick then picks the
+    /// fold up after its own wait: FolderWait, or the rest of the lease of
+    /// the create it read when that is longer.
     /// </summary>
     private static async Task<IReadOnlyList<Guid>> WakeWaitingFoldsAsync(
         IQueryable<ExternalWorkItemEntity> owned,
