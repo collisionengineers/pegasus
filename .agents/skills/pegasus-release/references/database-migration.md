@@ -2,11 +2,12 @@
 
 Use this route only when the approved manifest carries a migration identity not
 present in the deployed release. For a destructive migration, the release skill
-must already have recorded exact Worker `Stopped` and old-Web containment
-immediately before this recipe: the existing App Service Web App is `Stopped`
-and unserved, or the first App Service cutover's Container App has no active
-revisions or replicas, disabled ingress, and an unserved old origin. Unknown or
-stale containment blocks SQL.
+must already have recorded exact Worker `Stopped`, the classifier Function App
+`Stopped` when it exists, and old-Web containment immediately before this
+recipe: the existing App Service Web App is `Stopped` and unserved, or the
+first App Service cutover's Container App has no active revisions or replicas,
+disabled ingress, and an unserved old origin. Unknown or stale containment
+blocks SQL.
 
 A migration, or any change to the Pegasus model, also regenerates the compiled model
 the hosts load (`PegasusSqlServer.Configure` passes it to `UseModel`), because a

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { readConfig, type ClassifierConfig } from "./config.js";
 import { fingerprint, isCandidate, isEligible } from "./eligibility.js";
-import { PegasusMail } from "./pegasus.js";
+import { PegasusMail, PegasusUnavailableError } from "./pegasus.js";
 import { SystemPrompt } from "./prompt.js";
 import {
   attemptsAt,
@@ -72,7 +72,16 @@ export async function runClassifier(log: Logger): Promise<RunSummary> {
     ? new TableReviewedStore(config.storageAccount)
     : new MemoryReviewedStore();
   const pegasus = new PegasusMail(config);
-  await pegasus.connect();
+  try {
+    await pegasus.connect();
+  } catch (error) {
+    // A Web the release stopped, or one restarting, skips this tick.
+    if (error instanceof PegasusUnavailableError) {
+      log("pegasus unavailable", { status: error.status });
+      return { eligible: 0, outcome: "pegasus unavailable", costUsd: 0 };
+    }
+    throw error;
+  }
   try {
     const batch = await collectBatch(config, pegasus, reviewed);
     if (batch.size === 0) {
