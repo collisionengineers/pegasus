@@ -621,7 +621,7 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `shield` | `shield` | `DC47E83DA00C351F99CB71550D9C473778E5B9ED77EA53C5C6363E6DB5797572` | Roles, access |
 | — | `trash-2` | `BDC20CCC528299464BC8852314626B17A8247752FB07181C8E4472CD55BF3211` | Delete estimate, remove line, Delete message |
 | — | `rotate-cw` | `D716E6418C8814CA369A43E86BF60C03D0D7F2C85B9C53309F62063532B0BB3E` | Rotate view right (paired with `rotate-ccw`) |
-| `spark` (undefined) | `sparkles` | `08C2C4D0FF60EACA5067A5BE176C844952C55FC81B9047CF1FB105C80C0CE6D4` | Automation & AI nav entry, AI job rows |
+| `spark` (undefined) | `sparkles` | `08C2C4D0FF60EACA5067A5BE176C844952C55FC81B9047CF1FB105C80C0CE6D4` | Administration nav and hub: AI jobs; AI job rows |
 | `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
@@ -641,7 +641,7 @@ symbols: the fifty-three above plus these twenty-two.
 | — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Open the Triage; Triage Record finding |
 | — | `zoom-in` | `F32744E452483FCC60A24618A5C05630138A6C07806F647D510CE82726F0E8B2` | Case viewer Zoom |
 | — | `bar-chart` | `DB920FF9B7CE38B0D2703AE4B696B0682A3DCFE46B9BADE4260DFCF685BABB42` | Administration nav: Management Reports |
-| — | `bot` | `91A0B1650FB3AE4CAC2615A264F8F023989CEFB119F21012937B322B5F941CCC` | Administration nav: Automation & AI |
+| — | `bot` | `91A0B1650FB3AE4CAC2615A264F8F023989CEFB119F21012937B322B5F941CCC` | Administration nav and hub: Automation & AI |
 | — | `file-spreadsheet` | `16CF1ECDEF4DF9F53F2B22B78B633FBB9754BEC4ACF9D3BB9FEAEF3B0EB00DD9` | Management Reports: Download workbook |
 | — | `heart-pulse` | `995A8F1F889A4EC78A7CD23E35DC50DAA9B7983AD78FDAA370D70F6608EC2718` | Administration nav: Service health |
 | — | `pound-sterling` | `72454D0BBC72046B76787C89101DC263E6060D4F4AF8B2DDD47EF2BB9976171A` | Administration nav: Valuation presets |
