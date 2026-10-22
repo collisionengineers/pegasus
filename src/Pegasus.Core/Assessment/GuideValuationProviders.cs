@@ -310,13 +310,13 @@ public sealed class FileGuideValuationReport(ICaseArtifactCustody custody, IExtr
         // The extractor tests each page it reads and stops at the first that
         // names the registration, so the last answer is the report's answer:
         // no page is tested twice.
-        var namesRegistration = GlassRepairEstimateSessionPolicy.NamesRegistration(request.Registration);
+        var plate = GlassRepairEstimateSessionPolicy.CompactRegistration(request.Registration);
         var named = false;
         var extraction = await _pdfText.ExtractAsync(
             content,
             MaximumTextCharacters,
             cancellationToken,
-            text => named = namesRegistration(text));
+            text => named = GlassRepairEstimateSessionPolicy.NamesCompactedRegistration(text, plate));
         if (extraction?.Pages.Any(page => !string.IsNullOrWhiteSpace(page.Text)) != true)
         {
             throw new InvalidOperationException(

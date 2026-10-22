@@ -27,6 +27,22 @@ internal static class CazanaJson
     public static string? String(JsonElement? element, params ReadOnlySpan<string> path) =>
         Get(element, path) is { ValueKind: JsonValueKind.String } value ? value.GetString() : null;
 
-    public static IEnumerable<JsonElement> Items(JsonElement? element, params ReadOnlySpan<string> path) =>
-        Get(element, path) is { ValueKind: JsonValueKind.Array } items ? items.EnumerateArray() : [];
+    /// <summary>
+    /// The array at the path, walked by the struct enumerator itself (boxed by
+    /// no interface, no iterator on top); a path that meets no array answers a
+    /// default enumerator, which yields nothing.
+    /// </summary>
+    public static JsonElement.ArrayEnumerator Items(JsonElement? element, params ReadOnlySpan<string> path) =>
+        Get(element, path) is { ValueKind: JsonValueKind.Array } items ? items.EnumerateArray() : default;
+
+    /// <summary>How many items the array at the path holds; none when the path meets no array.</summary>
+    public static int Length(JsonElement? element, params ReadOnlySpan<string> path) =>
+        Get(element, path) is { ValueKind: JsonValueKind.Array } items ? items.GetArrayLength() : 0;
+
+    /// <summary>The first item of the array at the path, or none.</summary>
+    public static JsonElement? First(JsonElement? element, params ReadOnlySpan<string> path)
+    {
+        var items = Items(element, path);
+        return items.MoveNext() ? items.Current : null;
+    }
 }

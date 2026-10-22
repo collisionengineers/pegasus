@@ -32,6 +32,11 @@ internal sealed class CazanaCompanionReport(
     private const string SecondaryColour = "#211527";
     private const string PriceColour = "#581c87";
 
+    /// <summary>Room for the longest ordinal date, "31st September 9999" (19 characters).</summary>
+    private const int OrdinalLength = 24;
+
+    private const string RangeSeparator = " - ";
+
     private static readonly CultureInfo EnGb = CultureInfo.GetCultureInfo("en-GB");
 
     /// <summary>The filters of a lookup that applied none: seven empty strings, the same in every report.</summary>
@@ -116,7 +121,7 @@ internal sealed class CazanaCompanionReport(
         var containsSalesEvents = false;
         if (timeline is not null)
         {
-            carHistory = [];
+            carHistory = new List<object?>(CazanaJson.Length(timeline, "events"));
             foreach (var item in CazanaJson.Items(timeline, "events"))
             {
                 if (TimelineEvent(item, out var sale) is { } entry)
@@ -128,7 +133,8 @@ internal sealed class CazanaCompanionReport(
             }
         }
 
-        var view = new Dictionary<string, object?>(StringComparer.Ordinal)
+        // Sized for every key it can hold (39, and the image, the history and the listing), so it never regrows.
+        var view = new Dictionary<string, object?>(42, StringComparer.Ordinal)
         {
             ["vrm"] = vrm,
             ["vehicleDescription"] = NonEmpty(CazanaJson.String(valuation, "description")) ?? NotAvailable,
@@ -162,9 +168,9 @@ internal sealed class CazanaCompanionReport(
             ["containsSalesEvents"] = containsSalesEvents,
             ["isHistoricalValuationDate"] = !IsToday(valuedOn, now),
             ["sortBy"] = "Newest",
-            ["listings"] = similar.Listings.Select(SimilarListing).ToList<object?>(),
+            ["listings"] = SimilarListingViews(similar.Listings),
             ["similarListingFilters"] = SimilarListingFilters,
-            ["totalSimilarListings"] = Scalar(similar.Total),
+            ["totalSimilarListings"] = similar.Total,
             ["customerReference"] = null,
             ["placeholderLogo"] = PlaceholderLogo,
             ["placeholderBgClass"] = PlaceholderBackground,
@@ -186,7 +192,7 @@ internal sealed class CazanaCompanionReport(
         var adText = CazanaJson.String(listing, "adText");
         if (NonEmpty(adText) is not null)
         {
-            view["listing"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            view["listing"] = new Dictionary<string, object?>(8, StringComparer.Ordinal)
             {
                 ["listinglastSeen"] = MonthsAgo(CazanaJson.String(listing, "soldDate"), now),
                 ["listingOriginalPrice"] = Number(CazanaJson.Get(listing, "listingOriginalPrice")),
@@ -202,7 +208,18 @@ internal sealed class CazanaCompanionReport(
         return view;
     }
 
-    private static Dictionary<string, object?> SimilarListing(JsonElement listing) => new(StringComparer.Ordinal)
+    private static List<object?> SimilarListingViews(IReadOnlyList<JsonElement> listings)
+    {
+        var views = new List<object?>(listings.Count);
+        for (var index = 0; index < listings.Count; index++)
+        {
+            views.Add(SimilarListing(listings[index]));
+        }
+
+        return views;
+    }
+
+    private static Dictionary<string, object?> SimilarListing(JsonElement listing) => new(6, StringComparer.Ordinal)
     {
         ["listingVrm"] = Scalar(CazanaJson.Get(listing, "vrm")),
         ["listingYear"] = Scalar(CazanaJson.Get(listing, "year")),
@@ -229,7 +246,7 @@ internal sealed class CazanaCompanionReport(
         if (type.ValueEquals("Mot"u8))
         {
             var passed = CazanaJson.Get(item, "passed") is { ValueKind: JsonValueKind.True };
-            return new(StringComparer.Ordinal)
+            return new(5, StringComparer.Ordinal)
             {
                 ["motDate"] = Ordinal(CazanaJson.String(item, "date")),
                 ["motStatus"] = passed ? "Passed" : "Failed",
@@ -237,26 +254,23 @@ internal sealed class CazanaCompanionReport(
                     ? "fa-solid fa-circle-check text-green-600"
                     : "fa-solid fa-circle-xmark text-red-600",
                 ["motMileage"] = Number(CazanaJson.Get(item, "odometer", "value")),
-                ["motComments"] = CazanaJson.Items(item, "rfcAndComments")
-                    .Select(comment => CazanaJson.String(comment, "text"))
-                    .ToList<object?>(),
+                ["motComments"] = CommentTexts(item),
             };
         }
 
         if (type.ValueEquals("Sale"u8))
         {
             sale = true;
-            return new(StringComparer.Ordinal)
+            return new(2, StringComparer.Ordinal)
             {
-                ["advertisementDateRange"] =
-                    $"{Ordinal(CazanaJson.String(item, "date"))} - {Ordinal(CazanaJson.String(item, "lastSeen"))}",
-                ["saleListings"] = CazanaJson.Items(item, "listings").Select(SaleListing).ToList<object?>(),
+                ["advertisementDateRange"] = DateRange(CazanaJson.String(item, "date"), CazanaJson.String(item, "lastSeen")),
+                ["saleListings"] = SaleListings(item),
             };
         }
 
         if (type.ValueEquals("PlateChange"u8))
         {
-            return new(StringComparer.Ordinal)
+            return new(3, StringComparer.Ordinal)
             {
                 ["plateChangeDate"] = Ordinal(CazanaJson.String(item, "date")),
                 ["plateChangePrevious"] = CazanaJson.String(item, "previousVRM"),
@@ -265,20 +279,49 @@ internal sealed class CazanaCompanionReport(
         }
 
         return type.ValueEquals("KeeperChange"u8)
-            ? new(StringComparer.Ordinal) { ["keeperChangeDate"] = Ordinal(CazanaJson.String(item, "date")) }
+            ? new(1, StringComparer.Ordinal) { ["keeperChangeDate"] = Ordinal(CazanaJson.String(item, "date")) }
             : null;
+    }
+
+    /// <summary>
+    /// A MOT's advisory texts. The list is left unsized: an empty one holds no
+    /// array, its first array holds four, and a count would cost a second walk
+    /// down the path for the few texts a test has.
+    /// </summary>
+    private static List<object?> CommentTexts(JsonElement item)
+    {
+        var comments = new List<object?>();
+        foreach (var comment in CazanaJson.Items(item, "rfcAndComments"))
+        {
+            comments.Add(CazanaJson.String(comment, "text"));
+        }
+
+        return comments;
+    }
+
+    /// <summary>A Sale's adverts, left unsized for the reason <see cref="CommentTexts"/> gives.</summary>
+    private static List<object?> SaleListings(JsonElement item)
+    {
+        var adverts = new List<object?>();
+        foreach (var listing in CazanaJson.Items(item, "listings"))
+        {
+            adverts.Add(SaleListing(listing));
+        }
+
+        return adverts;
     }
 
     private static Dictionary<string, object?> SaleListing(JsonElement listing)
     {
-        var advert = new Dictionary<string, object?>(StringComparer.Ordinal)
+        // Four keys, and the image when the advert has one.
+        var advert = new Dictionary<string, object?>(5, StringComparer.Ordinal)
         {
             ["advertisementDate"] = Ordinal(CazanaJson.String(listing, "firstSeen")),
             ["advertisementPrice"] = Number(CazanaJson.Get(listing, "price")),
             ["advertisementMileage"] = Number(CazanaJson.Get(listing, "mileage")),
             ["advertisementAdText"] = CazanaJson.String(listing, "adText"),
         };
-        if (CazanaJson.Items(listing, "images").FirstOrDefault() is { ValueKind: JsonValueKind.String } image)
+        if (CazanaJson.First(listing, "images") is { ValueKind: JsonValueKind.String } image)
         {
             advert["advertisementImage"] = image.GetString();
         }
@@ -350,6 +393,38 @@ internal sealed class CazanaCompanionReport(
             return NotAvailable;
         }
 
+        Span<char> text = stackalloc char[OrdinalLength];
+        return new string(text[..WriteOrdinal(text, date)]);
+    }
+
+    /// <summary>
+    /// A Sale's advert dates as "7th May 2026 - 1st June 2026": both are
+    /// written into one stack buffer and become the one string, with none
+    /// built for either date on the way.
+    /// </summary>
+    private static string DateRange(string? first, string? last)
+    {
+        Span<char> text = stackalloc char[(2 * OrdinalLength) + RangeSeparator.Length];
+        var written = WriteOrdinal(text, first);
+        RangeSeparator.CopyTo(text[written..]);
+        written += RangeSeparator.Length;
+        written += WriteOrdinal(text[written..], last);
+        return new string(text[..written]);
+    }
+
+    private static int WriteOrdinal(Span<char> destination, string? value)
+    {
+        if (!TryDate(value, out var date))
+        {
+            NotAvailable.CopyTo(destination);
+            return NotAvailable.Length;
+        }
+
+        return WriteOrdinal(destination, date);
+    }
+
+    private static int WriteOrdinal(Span<char> destination, DateOnly date)
+    {
         var suffix = date.Day is >= 11 and <= 13
             ? "th"
             : (date.Day % 10) switch
@@ -359,9 +434,10 @@ internal sealed class CazanaCompanionReport(
                 3 => "rd",
                 _ => "th",
             };
-        // The month name is written straight into the result in British English; the day and
+        // The month name is written straight into the buffer in British English; the day and
         // year are plain digits in every culture.
-        return string.Create(EnGb, $"{date.Day}{suffix} {date:MMMM} {date.Year}");
+        destination.TryWrite(EnGb, $"{date.Day}{suffix} {date:MMMM} {date.Year}", out var written);
+        return written;
     }
 
     /// <summary>Whether a "yyyy-MM-dd" date text is the London calendar day of <paramref name="now"/>, compared without building today's text.</summary>

@@ -41,7 +41,7 @@ public sealed class CazanaCompanionAccount
     private static string Require(Func<string, string?> read, string key)
     {
         var value = read(key);
-        if (string.IsNullOrWhiteSpace(value) || value.Any(char.IsControl))
+        if (string.IsNullOrWhiteSpace(value) || HasControlCharacter(value))
         {
             throw new InvalidOperationException($"{key} is required for Cazana valuation.");
         }
@@ -53,5 +53,19 @@ public sealed class CazanaCompanionAccount
         }
 
         return value;
+    }
+
+    /// <summary>A plain loop, run for both keys on each press: no enumerator and no delegate.</summary>
+    private static bool HasControlCharacter(string value)
+    {
+        foreach (var character in value)
+        {
+            if (char.IsControl(character))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

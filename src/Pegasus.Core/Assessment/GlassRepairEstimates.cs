@@ -11,34 +11,30 @@ public enum GlassRepairEstimateSessionState
 public static class GlassRepairEstimateSessionPolicy
 {
     public static bool SameRegistration(string? left, string? right) =>
-        string.Equals(Compact(left), Compact(right), StringComparison.OrdinalIgnoreCase);
+        string.Equals(CompactRegistration(left), CompactRegistration(right), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The registration with its whitespace left out: compacted once, however
+    /// many texts <see cref="NamesCompactedRegistration"/> then tests.
+    /// </summary>
+    public static string CompactRegistration(string? registration) =>
+        new((registration ?? string.Empty).Where(character => !char.IsWhiteSpace(character)).ToArray());
 
     /// <summary>
     /// Whether printed text names the registration, ignoring case and any
-    /// spacing in either. The registration is compacted once, however many
-    /// texts are tested.
+    /// spacing in either. The text is compacted into a stack buffer sized for
+    /// it (a rented one for a long page), so no string is built for any page.
     /// </summary>
-    public static Func<string?, bool> NamesRegistration(string? registration)
+    public static bool NamesCompactedRegistration(string? text, string compactRegistration)
     {
-        var plate = Compact(registration);
-        return text => plate.Length > 0 && ContainsCompacted(text, plate);
-    }
-
-    /// <summary>
-    /// Whether the text, with its whitespace left out, holds the plate. The
-    /// text is compacted into a stack buffer (a rented one for a long page), so
-    /// no string is built for any page.
-    /// </summary>
-    private static bool ContainsCompacted(string? text, string plate)
-    {
-        if (string.IsNullOrEmpty(text))
+        if (compactRegistration.Length == 0 || string.IsNullOrEmpty(text))
         {
             return false;
         }
 
         char[]? rented = null;
         Span<char> compact = text.Length <= StackBufferLength
-            ? stackalloc char[StackBufferLength]
+            ? stackalloc char[text.Length]
             : (rented = ArrayPool<char>.Shared.Rent(text.Length));
         try
         {
@@ -52,7 +48,7 @@ public static class GlassRepairEstimateSessionPolicy
             }
 
             ReadOnlySpan<char> compacted = compact[..length];
-            return compacted.Contains(plate, StringComparison.OrdinalIgnoreCase);
+            return compacted.Contains(compactRegistration, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -64,9 +60,6 @@ public static class GlassRepairEstimateSessionPolicy
     }
 
     private const int StackBufferLength = 1024;
-
-    private static string Compact(string? value) =>
-        new((value ?? string.Empty).Where(character => !char.IsWhiteSpace(character)).ToArray());
 
     /// <summary>
     /// The registration and mileage a staff member's own session continues

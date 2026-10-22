@@ -26,6 +26,9 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     private const string Environment = "production";
     private const string Client = "cazana";
 
+    /// <summary>The constant headers are set as the strings they are: nothing parsed, validated or built per call.</summary>
+    private const string JsonMediaType = "application/json";
+
     /// <summary>How many of the ten comparable listings Companion's market overview prints.</summary>
     private const int ListingsShown = 8;
 
@@ -41,9 +44,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         {
             token = CazanaJson.String(answer.RootElement, "token")
                 ?? throw new CazanaCompanionFailure("sign_in", null, "token=absent");
-            branchId = CazanaJson.Items(answer.RootElement, "branches")
-                .Select(branch => (Active: Whole(CazanaJson.Get(branch, "active")), Id: Whole(CazanaJson.Get(branch, "id"))))
-                .FirstOrDefault(branch => branch.Active == 1 && branch.Id is not null).Id
+            branchId = ActiveBranchId(answer.RootElement)
                 ?? throw new CazanaCompanionFailure("branch", null, "branches=none_active");
         }
 
@@ -61,7 +62,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
             search = new
             {
                 vrm,
-                date = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                date,
                 mileage = miles,
                 options = new { forceEstimate = false },
             },
@@ -152,9 +153,25 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         };
         using var answer = await ExchangeAsync(
             "listings", App(HttpMethod.Post, "app/listings/similar", jwt, request), cancellationToken);
+
+        // The total is a count, read as the number it is while the answer is open (no copy of it
+        // is kept); the first eight listings are cloned out into a list sized for them.
+        var listings = new List<JsonElement>(ListingsShown);
+        foreach (var listing in CazanaJson.Items(answer.RootElement, "listings"))
+        {
+            listings.Add(listing.Clone());
+            if (listings.Count == ListingsShown)
+            {
+                break;
+            }
+        }
+
         return new SimilarListings(
-            CazanaJson.Get(answer.RootElement, "total")?.Clone(),
-            [.. CazanaJson.Items(answer.RootElement, "listings").Take(ListingsShown).Select(listing => listing.Clone())]);
+            CazanaJson.Get(answer.RootElement, "total") is { ValueKind: JsonValueKind.Number } total
+                && total.TryGetInt64(out var count)
+                    ? count
+                    : null,
+            listings);
     }
 
     /// <summary>
@@ -168,10 +185,15 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         try
         {
             using var answer = await ExchangeAsync("image", message, cancellationToken);
-            return CazanaJson.Items(answer.RootElement, "image")
-                .Where(image => image.ValueKind == JsonValueKind.String)
-                .Select(image => image.GetString())
-                .FirstOrDefault();
+            foreach (var image in CazanaJson.Items(answer.RootElement, "image"))
+            {
+                if (image.ValueKind == JsonValueKind.String)
+                {
+                    return image.GetString();
+                }
+            }
+
+            return null;
         }
         catch (CazanaCompanionFailure)
         {
@@ -224,10 +246,10 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     private static HttpRequestMessage Guest(string path, object body)
     {
         var message = new HttpRequestMessage(HttpMethod.Post, new Uri(BaseUri, path)) { Content = JsonContent.Create(body) };
-        message.Headers.Add("X-ENVIRONMENT", Environment);
-        message.Headers.Add("X-CLIENT", Client);
-        message.Headers.Add("X-CZN", Czn);
-        message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        message.Headers.TryAddWithoutValidation("X-ENVIRONMENT", Environment);
+        message.Headers.TryAddWithoutValidation("X-CLIENT", Client);
+        message.Headers.TryAddWithoutValidation("X-CZN", Czn);
+        message.Headers.TryAddWithoutValidation("Accept", JsonMediaType);
         return message;
     }
 
@@ -240,9 +262,9 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         }
 
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
-        message.Headers.Add("X-ENVIRONMENT", Environment);
-        message.Headers.Add("X-CLIENT", Client);
-        message.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        message.Headers.TryAddWithoutValidation("X-ENVIRONMENT", Environment);
+        message.Headers.TryAddWithoutValidation("X-CLIENT", Client);
+        message.Headers.TryAddWithoutValidation("Accept", JsonMediaType);
         return message;
     }
 
@@ -309,6 +331,20 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     private static long? Whole(JsonElement? value) =>
         value is { ValueKind: JsonValueKind.Number } number && number.TryGetInt64(out var whole) ? whole : null;
 
+    /// <summary>The id of the first branch whose <c>active</c> is 1, or none.</summary>
+    private static long? ActiveBranchId(JsonElement answer)
+    {
+        foreach (var branch in CazanaJson.Items(answer, "branches"))
+        {
+            if (Whole(CazanaJson.Get(branch, "active")) == 1 && Whole(CazanaJson.Get(branch, "id")) is { } id)
+            {
+                return id;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>The year Companion sends: of first registration, else the specification's year.</summary>
     private static object? Year(JsonElement? specs) =>
         DateTimeOffset.TryParse(
@@ -363,7 +399,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
 }
 
 /// <summary>The comparable listings the report prints: the answer's total and its first listings.</summary>
-internal sealed record SimilarListings(JsonElement? Total, IReadOnlyList<JsonElement> Listings);
+internal sealed record SimilarListings(long? Total, IReadOnlyList<JsonElement> Listings);
 
 /// <summary>A Companion call that did not answer as Companion answers, named by its stage.</summary>
 internal sealed class CazanaCompanionFailure : Exception

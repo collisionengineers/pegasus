@@ -143,6 +143,72 @@ public sealed class CazanaCompanionReportTests
         Assert.DoesNotContain("Vehicle advert full details", html, StringComparison.Ordinal);
     }
 
+    private const string SaleTimelineJson = """
+        {
+          "response": {
+            "vrm": "AB12CDE",
+            "vin": "SB1ZB3AE40E045642",
+            "firstRegistration": "2024-01-04T00:00:00Z",
+            "events": [
+              {
+                "type": "Mot",
+                "date": "2026-05-07T16:01:43Z",
+                "odometer": { "unit": "mi", "value": 20283 },
+                "passed": false,
+                "rfcAndComments": [ { "text": "Tyre worn" }, { "text": "Brake pad <thin>" } ]
+              },
+              { "type": "KeeperChange", "date": "2025-02-03" },
+              {
+                "type": "Sale",
+                "date": "2031-03-04",
+                "lastSeen": "2031-04-20",
+                "listings": [
+                  {
+                    "firstSeen": "2031-03-04",
+                    "price": 12500,
+                    "mileage": 31000,
+                    "adText": "One owner",
+                    "images": [ "https://img.example/a.jpg", "https://img.example/b.jpg" ]
+                  },
+                  { "firstSeen": "2031-03-10", "price": 12250, "mileage": 31500, "adText": "Price drop" }
+                ]
+              }
+            ]
+          }
+        }
+        """;
+
+    /// <summary>
+    /// A MOT's advisories, an owner change and a Sale print as Companion maps
+    /// them: the Sale's two dates as one range, each advert with its price,
+    /// mileage and text, and only the first image of an advert that has any.
+    /// </summary>
+    [Fact]
+    public async Task AMotWithAdvisoriesAnOwnerChangeAndASaleRenderTheirTextsDatesAndAdverts()
+    {
+        var (report, requests) = CreateReport(path => path.EndsWith("/timeline", StringComparison.Ordinal)
+            ? CazanaGuideValuationProviderTests.Json(HttpStatusCode.OK, SaleTimelineJson)
+            : null);
+
+        await report.FetchPdfAsync(default);
+
+        var html = PostedHtml(RequestTo(requests, "/app/pdf/create"));
+        Assert.Contains("Failed MOT Test", html, StringComparison.Ordinal);
+        Assert.Contains("<li>Tyre worn</li>", html, StringComparison.Ordinal);
+        Assert.Contains("<li>Brake pad &lt;thin&gt;</li>", html, StringComparison.Ordinal);
+        Assert.Contains("3rd February 2025", html, StringComparison.Ordinal);
+        Assert.Contains("4th March 2031 - 20th April 2031", html, StringComparison.Ordinal);
+        Assert.Contains("10th March 2031", html, StringComparison.Ordinal);
+        Assert.Contains("£12,500", html, StringComparison.Ordinal);
+        Assert.Contains("£12,250", html, StringComparison.Ordinal);
+        Assert.Contains("31,500", html, StringComparison.Ordinal);
+        Assert.Contains("One owner", html, StringComparison.Ordinal);
+        Assert.Contains("Price drop", html, StringComparison.Ordinal);
+        Assert.Contains("Vehicle advert full details", html, StringComparison.Ordinal);
+        Assert.Contains("https:&#x2F;&#x2F;img.example&#x2F;a.jpg", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("img.example&#x2F;b.jpg", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ATimelineWithoutAVinLeavesTimelineEntriesOutAndTakesFirstRegistrationFromSpecs()
     {
@@ -417,7 +483,10 @@ public sealed class CazanaCompanionReportTests
         }
 
         var read = await new PdfPigPageTextExtractor().ExtractAsync(
-            builder.Build(), 20_000, default, GlassRepairEstimateSessionPolicy.NamesRegistration("AB12CDE"));
+            builder.Build(),
+            20_000,
+            default,
+            text => GlassRepairEstimateSessionPolicy.NamesCompactedRegistration(text, "AB12CDE"));
 
         Assert.NotNull(read);
         Assert.Equal(3, read.PageCount);
