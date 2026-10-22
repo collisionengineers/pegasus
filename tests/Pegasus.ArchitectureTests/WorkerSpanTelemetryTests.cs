@@ -17,6 +17,11 @@ public sealed class WorkerSpanTelemetryTests
 {
     private const string ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000";
 
+    private const string StorageType = "InProc | Microsoft.Storage";
+
+    private const string BlobAlreadyExistsError =
+        "Status: 409 (The specified blob already exists.)\nErrorCode: BlobAlreadyExists";
+
     [Theory]
     [InlineData("Pegasus.Core.Intake", "process_intake")]
     [InlineData("Pegasus.Core.ImageIntake", "image_intake_pairing")]
@@ -132,6 +137,76 @@ public sealed class WorkerSpanTelemetryTests
         filter.Process(new TraceTelemetry("a line"));
 
         Assert.Equal(3, next.Items.Count);
+    }
+
+    /// <summary>
+    /// A conditional blob write whose blob already exists is the by-design replay path
+    /// (the store verifies the blob that is there), so its failed dependency row is
+    /// dropped for an upload and for a server-side copy alike.
+    /// </summary>
+    [Theory]
+    [InlineData("BlobClient.Upload")]
+    [InlineData("BlobBaseClient.StartCopyFromUri")]
+    public void TheFilterDropsABlobAlreadyExistsConflict(string name)
+    {
+        var next = new RecordingProcessor();
+        var filter = new SqlDependencyTelemetryFilter(next);
+
+        filter.Process(Dependency(name, StorageType, false, BlobAlreadyExistsError));
+
+        Assert.Empty(next.Items);
+    }
+
+    [Theory]
+    [InlineData("server-busy", StorageType, false, "Status: 503 (Server Busy)\nErrorCode: ServerBusy")]
+    [InlineData("lease-held", StorageType, false, "Status: 409 (There is already a lease present.)\nErrorCode: LeaseAlreadyPresent")]
+    [InlineData("no-error", StorageType, false, null)]
+    [InlineData("succeeded", StorageType, true, null)]
+    [InlineData("box-409", "Http", false, null)]
+    [InlineData("http-code", "Http", false, BlobAlreadyExistsError)]
+    public void TheFilterKeepsEveryOtherDependencyBesideABlobConflict(
+        string name, string type, bool success, string? error)
+    {
+        var next = new RecordingProcessor();
+        var filter = new SqlDependencyTelemetryFilter(next);
+
+        filter.Process(Dependency(name, type, success, error));
+
+        Assert.Single(next.Items);
+    }
+
+    [Fact]
+    public void TheFilterKeepsAnExceptionAndATraceThatNameABlobConflict()
+    {
+        var next = new RecordingProcessor();
+        var filter = new SqlDependencyTelemetryFilter(next);
+        var exception = new ExceptionTelemetry(new InvalidOperationException(BlobAlreadyExistsError));
+        exception.Properties["Error"] = BlobAlreadyExistsError;
+        var trace = new TraceTelemetry(BlobAlreadyExistsError);
+        trace.Properties["Error"] = BlobAlreadyExistsError;
+
+        filter.Process(exception);
+        filter.Process(trace);
+
+        Assert.Equal(2, next.Items.Count);
+    }
+
+    private static DependencyTelemetry Dependency(string name, string type, bool success, string? error)
+    {
+        var dependency = new DependencyTelemetry
+        {
+            Name = name,
+            Type = type,
+            Success = success,
+            Duration = TimeSpan.FromMilliseconds(40)
+        };
+
+        if (error is not null)
+        {
+            dependency.Properties["Error"] = error;
+        }
+
+        return dependency;
     }
 
     private static TelemetryConfiguration ConfigurationWith(ITelemetryChannel channel)

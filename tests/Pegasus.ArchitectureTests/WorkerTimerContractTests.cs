@@ -84,20 +84,25 @@ public sealed partial class WorkerTimerContractTests
     /// <summary>
     /// A timer without a monitor blob writes nothing to storage on each run: a
     /// missed firing after a restart is not replayed, which these idempotent recovery
-    /// sweeps allow. The staged-artifact sweep keeps its monitor.
+    /// sweeps allow. The staged-artifact sweep runs once a minute like the others and
+    /// reads nothing the monitor keeps, so no Worker timer keeps one.
     /// </summary>
     [Fact]
-    public void OnlyTheStagedArtifactSweepKeepsItsMonitorBlob()
+    public void EveryWorkerTimerRunsWithoutAMonitorBlob()
     {
-        var monitored = WorkerFunctionSet.Declarations()
+        var timers = WorkerFunctionSet.Declarations()
             .SelectMany(function => function.Method.GetParameters()
                 .Select(parameter => parameter.GetCustomAttribute<TimerTriggerAttribute>())
                 .OfType<TimerTriggerAttribute>()
-                .Select(trigger => (function.Name, trigger.UseMonitor)))
-            .Where(timer => timer.UseMonitor)
-            .Select(timer => timer.Name);
+                .Select(trigger => (function.Name, trigger.UseMonitor)));
 
-        Assert.Equal([nameof(StagedArtifactReconciliationFunction)], monitored);
+        Assert.Equal(
+            [
+                (nameof(PendingWorkRecoveryFunction), false),
+                (nameof(SentEvidencePollFunction), false),
+                (nameof(StagedArtifactReconciliationFunction), false)
+            ],
+            timers);
     }
 
     /// <summary>
