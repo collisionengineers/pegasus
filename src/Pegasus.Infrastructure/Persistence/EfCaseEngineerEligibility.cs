@@ -19,11 +19,18 @@ public sealed class EfCaseEngineerEligibility(
         }
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.Users
+        return await ReadAsync(context, staffId, cancellationToken);
+    }
+
+    /// <summary>The same read inside a caller's transaction.</summary>
+    internal static async Task<CaseEngineerEligibility> ReadAsync(
+        PegasusDbContext context,
+        Guid staffId,
+        CancellationToken cancellationToken) =>
+        await context.Users
             .AsNoTracking()
             .Where(user => user.Id == staffId)
             .Select(user => new CaseEngineerEligibility(true, user.IsEnabled))
             .SingleOrDefaultAsync(cancellationToken)
             ?? new CaseEngineerEligibility(false, false);
-    }
 }

@@ -54,18 +54,6 @@ public sealed record CaseArchiveReadiness(
     bool IsCustodyConfirmed,
     bool HasBlockingExternalWork);
 
-public interface ICaseArchiveReadinessQueries
-{
-    Task<bool> HasCaseMutationOperationAsync(
-        Guid caseId,
-        string operationKey,
-        CancellationToken cancellationToken);
-
-    Task<CaseArchiveReadiness> GetArchiveReadinessAsync(
-        Guid caseId,
-        CancellationToken cancellationToken);
-}
-
 public interface ICaseArchiveStore
 {
     Task<CaseWorkflowRecord> ArchiveAsync(

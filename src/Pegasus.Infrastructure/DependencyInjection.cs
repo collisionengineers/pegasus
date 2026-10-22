@@ -416,8 +416,6 @@ public static class DependencyInjection
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
-        services.AddScoped<ICaseArchiveReadinessQueries>(
-            provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IAcquireCaseEditLease, AcquireCaseEditLease>();
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
         services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();

@@ -101,21 +101,7 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Null(sent.ReportApproval);
         Assert.Equal(evidenceId, sent.ReportSentEvidence?.EvidenceId);
 
-        var closeLease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, sent.Version, actor, "claim-post-report-close"),
-            default);
-        // Core no longer closes a Report sent Case, so the store closes it, as
-        // the Cases closed before that rule were.
-        var closed = await harness.Store.CloseAsync(
-            new(
-                harness.CaseId,
-                sent.Version,
-                actor,
-                "close-post-report",
-                "Principal cancelled after report delivery",
-                closeLease.Token,
-                CaseClosureOutcome.PrincipalCancelled),
-            default);
+        var closed = await ArrangeClosedFromReportSentAsync(harness, harness.CaseId);
         var reopenLease = await harness.Store.ClaimAsync(
             new(harness.CaseId, closed.Version, actor, "claim-post-report-reopen"),
             default);
@@ -386,6 +372,139 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
+    /// The Case commands read no Case of their own (eff-07-l, register A3-06): the
+    /// transition store asks each state rule of the workflow it reads under its lock,
+    /// before the archive, lease and version checks, and says it in the words the
+    /// command always used. A refusal changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task EachLifecycleCommandIsRefusedFromTheLockedStateInItsOwnWords()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var caseId = harness.CaseId;
+        var evidenceId = Guid.NewGuid();
+
+        async Task<string> LeaseAsync(string key) => (await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(caseId, 0, actor, $"claim-{key}") { TakeOver = true },
+            default)).Token;
+
+        async Task RefusedAsync(string words, Func<Task> command)
+        {
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(command);
+            Assert.Equal(words, exception.Message);
+        }
+
+        // Review: nothing to release, reopen, unlink, link, approve or resolve, and no report sent to query.
+        var token = await LeaseAsync("in-review");
+        await RefusedAsync(
+            "Only a held case can be released.",
+            () => new ReleaseCaseHold(harness.Store).ExecuteAsync(
+                new ChangeCaseStateRequest(caseId, 0, actor, "release-in-review", "Back to work", token), default));
+        await RefusedAsync(
+            "A case can enter Review only from With Engineer or Report sent.",
+            () => new ReturnCaseToReview(harness.Store).ExecuteAsync(
+                new ReturnCaseToReviewRequest(caseId, 0, actor, "return-in-review", "Back to Review", token), default));
+        await RefusedAsync(
+            "Only a closed case other than Created in error can be reopened.",
+            () => new ReopenCase(harness.Store).ExecuteAsync(
+                new ReopenCaseRequest(
+                    caseId, 0, actor, "reopen-in-review", "Resume", token, CaseReopenDestination.Review),
+                default));
+        await RefusedAsync(
+            "Report-Sent evidence can be unlinked only while report preparation is active.",
+            () => new UnlinkReportEvidence(harness.Store).ExecuteAsync(
+                new UnlinkReportEvidenceRequest(caseId, 0, actor, "unlink-in-review", "Wrong item", token, evidenceId),
+                default));
+        await RefusedAsync(
+            "Exact report-Sent evidence can enter post-report work only from Report preparation.",
+            () => new LinkReportEvidence(harness.Store).ExecuteAsync(
+                new LinkReportEvidenceRequest(caseId, 0, actor, "link-in-review", "Sent item", token, evidenceId),
+                default));
+        await RefusedAsync(
+            "A report can be approved only while report preparation is active.",
+            () => new RecordCaseReportApproval(harness.Store).ExecuteAsync(
+                new RecordCaseReportApprovalRequest(
+                    caseId, 0, actor, "approve-in-review", "Approved", token,
+                    new(Guid.NewGuid(), "case-report-v1.pdf", new string('A', 64))),
+                default));
+        await RefusedAsync(
+            "The case has no open query to resolve.",
+            () => new ResolveCaseQueries(harness.Store).ExecuteAsync(
+                new ResolveCaseQueriesRequest(caseId, 0, actor, "resolve-in-review", string.Empty, token), default));
+        await RefusedAsync(
+            "Only a terminal case can be archived.",
+            () => new ArchiveCase(harness.Store).ExecuteAsync(
+                new ArchiveCaseRequest(caseId, 0, actor, "archive-in-review", "Retain", token), default));
+
+        // Report sent: no new hold, and a closure is for a Case whose report is not yet sent.
+        await SetStateAsync(harness, caseId, CaseLifecycleState.ReportSent);
+        token = await LeaseAsync("report-sent");
+        await RefusedAsync(
+            "A case can be held only from Not ready, Review or With Engineer.",
+            () => new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
+                new PutCaseOnHoldRequest(caseId, 0, actor, "hold-report-sent", "Waiting", token), default));
+        await RefusedAsync(
+            "A case can be closed only before its report is sent.",
+            () => new CloseCase(harness.Store).ExecuteAsync(
+                new CloseCaseRequest(
+                    caseId, 0, actor, "close-report-sent", "Cancelled", token, CaseClosureOutcome.PrincipalCancelled),
+                default));
+
+        // A closed Case: no second closure, no hold, and no unlink before a reasoned reopening.
+        await SetStateAsync(harness, caseId, CaseLifecycleState.PrincipalCancelled);
+        token = await LeaseAsync("closed");
+        await RefusedAsync(
+            "A closed case cannot be closed again.",
+            () => new CloseCase(harness.Store).ExecuteAsync(
+                new CloseCaseRequest(
+                    caseId, 0, actor, "close-closed", "Cancelled", token, CaseClosureOutcome.PrincipalCancelled),
+                default));
+        await RefusedAsync(
+            "A case can be held only from Not ready, Review or With Engineer.",
+            () => new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
+                new PutCaseOnHoldRequest(caseId, 0, actor, "hold-closed", "Waiting", token), default));
+        await RefusedAsync(
+            "A closed case must be reasonedly reopened before report-Sent evidence can be unlinked.",
+            () => new UnlinkReportEvidence(harness.Store).ExecuteAsync(
+                new UnlinkReportEvidenceRequest(caseId, 0, actor, "unlink-closed", "Wrong item", token, evidenceId),
+                default));
+
+        var persisted = Assert.IsType<CaseWorkflowRecord>(await harness.Store.GetAsync(caseId, default));
+        Assert.Equal(CaseLifecycleState.PrincipalCancelled, persisted.State);
+        Assert.Equal(0L, persisted.Version);
+    }
+
+    /// <summary>
+    /// An operation the store already committed is answered, not refused again, though the
+    /// Case has moved on: a Hold replayed from Held is the committed Hold, and a new
+    /// operation key on the same Held Case is refused.
+    /// </summary>
+    [Fact]
+    public async Task AReplayedHoldIsAnsweredFromHeldAndANewKeyIsRefused()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(new(harness.CaseId, 0, actor, "claim-hold-replay"), default);
+        var hold = new PutCaseOnHold(harness.Store, harness.TimeProvider);
+        var request = new PutCaseOnHoldRequest(harness.CaseId, 0, actor, "hold-once", "Waiting", lease.Token);
+
+        var held = await hold.ExecuteAsync(request, default);
+        var replay = await hold.ExecuteAsync(request, default);
+
+        Assert.Equal(CaseLifecycleState.Held, held.State);
+        Assert.Equal(held.Version, replay.Version);
+        Assert.Equal(CaseLifecycleState.Held, replay.State);
+        Assert.Equal(1L, await harness.WorkflowEventCountAsync("hold-once"));
+
+        var again = await harness.Store.ClaimAsync(new(harness.CaseId, held.Version, actor, "claim-hold-again"), default);
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => hold.ExecuteAsync(
+            request with { ExpectedVersion = held.Version, OperationKey = "hold-twice", EditLeaseToken = again.Token },
+            default));
+        Assert.Equal("A case can be held only from Not ready, Review or With Engineer.", refused.Message);
+    }
+
+    /// <summary>
     /// Resolve query closes every open query on the Case at once (operator, 11
     /// October 2026) and clears the mark; a second Resolve with nothing open
     /// is refused and changes nothing.
@@ -485,6 +604,26 @@ public sealed class CaseWorkflowPersistenceTests
         await AssertOpenQueryMarkMatchesRowsAsync(harness, harness.CaseId);
     }
 
+    /// <summary>
+    /// Core refuses to close a Report sent Case and the store asks the same rule
+    /// of the workflow it reads under its lock, so a Case closed from Report sent,
+    /// as Cases were before that rule, is arranged in the database.
+    /// </summary>
+    private static async Task<CaseWorkflowRecord> ArrangeClosedFromReportSentAsync(
+        WorkflowHarness harness,
+        Guid caseId)
+    {
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+            workflow.State = nameof(CaseLifecycleState.PrincipalCancelled);
+            workflow.ClosureOutcome = nameof(CaseClosureOutcome.PrincipalCancelled);
+            await context.SaveChangesAsync();
+        }
+
+        return Assert.IsType<CaseWorkflowRecord>(await harness.Store.GetAsync(caseId, default));
+    }
+
     private static async Task SetStateAsync(WorkflowHarness harness, Guid caseId, CaseLifecycleState state)
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
@@ -522,6 +661,9 @@ public sealed class CaseWorkflowPersistenceTests
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-return-refused"),
             default);
+        // Return to Review asks its state rule (With Engineer or Report sent)
+        // before the readiness gate, so the Case is put in a state that passes it.
+        await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.ReportPreparation);
         await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
             harness.Store.ReturnToReviewAsync(
                 new(
@@ -532,6 +674,7 @@ public sealed class CaseWorkflowPersistenceTests
                     "Return to Review while the record is incomplete",
                     lease.Token),
                 default));
+        await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.Review);
 
         await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
             harness.Store.AssignEngineerAsync(
@@ -1031,24 +1174,7 @@ public sealed class CaseWorkflowPersistenceTests
         var linkedAssociation = Assert.IsType<AutoLinkedReportEvidence>(autoLinked.Link);
         Assert.Equal(firstStarted.Version + 1, linkedAssociation.Version);
 
-        // The store closes the Report sent Case, as the Cases closed before
-        // Core refused that were.
-        var closed = await harness.Store.CloseAsync(
-            new(
-                harness.CaseId,
-                linkedAssociation.Version,
-                staff,
-                "close-before-auto-unlink",
-                "Correct the automatic report-evidence association",
-                (await harness.Store.ClaimAsync(
-                    new(
-                        harness.CaseId,
-                        linkedAssociation.Version,
-                        staff,
-                        "claim-close-before-auto-unlink"),
-                    default)).Token,
-                CaseClosureOutcome.PrincipalCancelled),
-            default);
+        var closed = await ArrangeClosedFromReportSentAsync(harness, harness.CaseId);
         var reopened = await new ReopenCase(harness.Store).ExecuteAsync(
             new(
                 harness.CaseId,
@@ -1553,18 +1679,10 @@ public sealed class CaseWorkflowPersistenceTests
                 retained.EvidenceId),
             default));
 
-        // The store closes the Report sent Case, as the Cases closed before
-        // Core refused that were.
-        var closed = await harness.Store.CloseAsync(
-            new(
-                harness.CaseId,
-                linked.Version,
-                actor,
-                "close-before-unlink",
-                "Principal cancelled after the report",
-                postReportLease.Token,
-                CaseClosureOutcome.PrincipalCancelled),
+        await harness.Store.ReleaseAsync(
+            new(harness.CaseId, actor, "release-post-report-correction", postReportLease.Token),
             default);
+        var closed = await ArrangeClosedFromReportSentAsync(harness, harness.CaseId);
         var reopened = await new ReopenCase(harness.Store).ExecuteAsync(
             new(
                 harness.CaseId,

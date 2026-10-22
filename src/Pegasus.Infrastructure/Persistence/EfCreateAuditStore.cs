@@ -25,12 +25,10 @@ public sealed class EfCreateAuditStore(
     private const string EventKind = "audit_created";
 
     public async Task<CreateAuditOutcome> CreateAsync(
-        CreateAuditCommand command,
+        CreateAuditRequest request,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        var request = command.Request;
-        var fingerprint = Fingerprint(command);
+        ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
@@ -41,6 +39,22 @@ public sealed class EfCreateAuditStore(
         {
             throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
         }
+
+        var workflow = await context.CaseWorkflows
+            .Include(item => item.Case).ThenInclude(item => item.Principal)
+            .Include(item => item.DueWork)
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
+        var caseEntity = workflow.Case;
+        var auditReference = CaseReferenceFormat.AuditReport(caseEntity.Reference);
+        var identity = new CaseIdentity(
+            caseEntity.Id,
+            caseEntity.Principal.Code,
+            caseEntity.Year,
+            caseEntity.Sequence,
+            caseEntity.Reference,
+            caseEntity.AuditReference);
+        var fingerprint = Fingerprint(request, auditReference);
 
         var replay = await context.CaseWorkflowEvents.AsNoTracking()
             .SingleOrDefaultAsync(
@@ -54,46 +68,37 @@ public sealed class EfCreateAuditStore(
                 throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
             }
 
-            var replayed = await ReplayAsync(context, command, cancellationToken);
+            var replayed = await ReplayAsync(context, request.CaseId, identity, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return replayed;
         }
-
-        var workflow = await context.CaseWorkflows
-            .Include(item => item.Case)
-            .Include(item => item.DueWork)
-            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        var now = timeProvider.GetUtcNow();
-        ArchivedCaseGuard.RequireMutable(workflow);
-        CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
-        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
 
         // Tracked: the primary row takes the Inspection report's evidence.
         var works = await context.CaseWorks
             .Where(item => item.CaseId == request.CaseId)
             .ToListAsync(cancellationToken);
-        if (works.Any(item => item.Kind == CaseWorkKinds.Audit))
+        // The one Create audit rule, asked of what this transaction read: never
+        // from Held or a closed disposition, and whether the Inspection report
+        // was sent does not matter.
+        if (AuditPolicy.Refusal(
+                CaseTypeCodes.Parse(caseEntity.Type),
+                Enum.Parse<CaseLifecycleState>(workflow.State),
+                workflow.ArchivedAtUtc is not null,
+                works.Any(item => item.Kind == CaseWorkKinds.Audit),
+                workflow.AssignedEngineerId is not null) is { } refusal)
         {
-            throw new AuditCreationException(request.CaseId, AuditRefusal.AuditAlreadyExists);
+            throw new AuditCreationException(request.CaseId, refusal);
         }
 
-        // The store guards its own transaction: never from Held or a closed
-        // disposition. Whether the Inspection report was sent does not matter.
-        if (workflow.State == nameof(CaseLifecycleState.Held))
-        {
-            throw new AuditCreationException(request.CaseId, AuditRefusal.Held);
-        }
-
-        if (CaseLifecycleRules.TerminalStateNames().Contains(workflow.State))
-        {
-            throw new AuditCreationException(request.CaseId, AuditRefusal.Closed);
-        }
+        // Return to Engineer's eligibility check: the Case goes back to its Engineer.
+        CaseEngineerEligibilityPolicy.Require(
+            await EfCaseEngineerEligibility.ReadAsync(context, workflow.AssignedEngineerId!.Value, cancellationToken));
+        var now = timeProvider.GetUtcNow();
+        CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
 
         var primary = works.SingleOrDefault(item => item.Kind == CaseWorkKinds.Primary)
             ?? throw new InvalidDataException($"Case '{request.CaseId}' has no primary work.");
-        var caseEntity = workflow.Case;
-        var auditReference = CaseReferenceFormat.AuditReport(caseEntity.Reference);
         var beforeVersion = workflow.Version;
         var beforeJson = JsonSerializer.Serialize(new
         {
@@ -176,16 +181,16 @@ public sealed class EfCreateAuditStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
-            new(command.Case with { AuditReference = auditReference }, auditWork.Id, auditReference, IsReplay: false),
+            new(identity with { AuditReference = auditReference }, auditWork.Id, auditReference, IsReplay: false),
             custodyWork.Id);
     }
 
     private static async Task<CreateAuditOutcome> ReplayAsync(
         PegasusDbContext context,
-        CreateAuditCommand command,
+        Guid caseId,
+        CaseIdentity identity,
         CancellationToken cancellationToken)
     {
-        var caseId = command.Request.CaseId;
         var audit = await context.CaseWorks.AsNoTracking()
             .Where(item => item.CaseId == caseId && item.Kind == CaseWorkKinds.Audit)
             .Select(item => new { item.Id, item.Case.AuditReference })
@@ -198,7 +203,7 @@ public sealed class EfCreateAuditStore(
             .Select(item => item.Id)
             .SingleAsync(cancellationToken);
         return new(
-            new(command.Case with { AuditReference = auditReference }, audit.Id, auditReference, IsReplay: true),
+            new(identity with { AuditReference = auditReference }, audit.Id, auditReference, IsReplay: true),
             custodyWorkId);
     }
 
@@ -510,8 +515,8 @@ public sealed class EfCreateAuditStore(
     private static string CustodyOperationKey(Guid caseId) =>
         string.Create(CultureInfo.InvariantCulture, $"audit-reference-custody:{caseId:N}");
 
-    private static string Fingerprint(CreateAuditCommand command) =>
+    private static string Fingerprint(CreateAuditRequest request, string auditReference) =>
         CaseOperationReplay.Hash(string.Create(
             CultureInfo.InvariantCulture,
-            $"create_audit|{command.Request.CaseId:D}|{command.Request.ExpectedVersion}|{command.Request.Actor.Kind}|{command.Request.Actor.SubjectId}|{command.AuditReference}"));
+            $"create_audit|{request.CaseId:D}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{auditReference}"));
 }
