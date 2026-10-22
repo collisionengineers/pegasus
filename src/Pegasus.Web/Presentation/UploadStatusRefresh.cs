@@ -33,3 +33,22 @@ public static class UploadStatusRefresh
                 MaximumMilliseconds)
             : MinimumMilliseconds;
 }
+
+/// <summary>
+/// What an upload status page's script asks between reloads: whether anything
+/// is still moving, how long to wait before asking again, and each file's
+/// queue state. The one answer both status pages return from their Status
+/// handler.
+/// </summary>
+public sealed record UploadStatusAnswer(bool Moving, int? NextDelayMs, IReadOnlyList<UploadStatusAnswerMember> Members)
+{
+    public static UploadStatusAnswer Of(int? nextDelayMs, IEnumerable<UploadStatusAnswerMember> members) =>
+        new(nextDelayMs is not null, nextDelayMs, members.ToArray());
+}
+
+/// <summary>One file's queue state, lower case; a file with no status row yet is received.</summary>
+public sealed record UploadStatusAnswerMember(Guid Id, string State)
+{
+    public static UploadStatusAnswerMember Of(Guid id, QueuedIntakeStatusKind? status) =>
+        new(id, (status ?? QueuedIntakeStatusKind.Received).ToString().ToLowerInvariant());
+}

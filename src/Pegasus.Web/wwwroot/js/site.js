@@ -72,8 +72,8 @@
 
     // Bounded status pages ask to be reloaded while their state is still
     // moving; the delay is data on the element, so nothing here is inline.
-    // A page that also names a status address (data-status-url) asks that
-    // address instead, and reloads once when nothing is moving any longer.
+    // The page names a status address (data-status-url), which this asks
+    // instead of reloading, and reloads once when nothing is moving any longer.
     var autoRefresh = document.querySelector('[data-auto-refresh]');
     if (autoRefresh) {
         var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
@@ -132,7 +132,6 @@
                         if (!document.hidden) { schedule(reload, delay); }
                     });
             };
-            var refresh = statusUrl ? poll : reload;
             // A hidden tab does not poll. Returning to it refreshes immediately
             // instead of showing content that can be a full delay out of date.
             var trackVisibility = function () {
@@ -140,12 +139,12 @@
                     window.clearTimeout(timer);
                     timer = 0;
                 } else {
-                    refresh();
+                    poll();
                 }
             };
             document.addEventListener('visibilitychange', trackVisibility);
             if (!document.hidden) {
-                schedule(refresh, delay);
+                schedule(poll, delay);
             }
         }
     }
