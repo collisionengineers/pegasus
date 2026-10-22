@@ -120,7 +120,7 @@ public sealed class CaseSectionQueryValidationTests
     }
 
     /// <summary>
-    /// The enabled staff are read only while a task is open or names an
+    /// The enabled staff are read only while an Assign form can render or a task names an
     /// assignee: a closed, unassigned task draws neither an Assign nor a name.
     /// </summary>
     [Theory]
@@ -137,6 +137,39 @@ public sealed class CaseSectionQueryValidationTests
             .ExecuteAsync(
                 new(caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), Frame: Frame(caseId)),
                 CancellationToken.None);
+
+        Assert.Equal(expectedReads, staff.Reads);
+    }
+
+    /// <summary>
+    /// Where no Assign form can render (a Held or closed Case, a colleague
+    /// editing) an open, unassigned task needs no roster; a task that names an
+    /// assignee still reads it for the name (R364).
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.Held, false, false, 0)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, false, false, 0)]
+    [InlineData(CaseLifecycleState.Review, true, false, 0)]
+    [InlineData(CaseLifecycleState.Review, false, false, 1)]
+    [InlineData(CaseLifecycleState.Held, false, true, 1)]
+    [InlineData(CaseLifecycleState.Review, true, true, 1)]
+    public async Task TheTasksSectionSkipsTheEnabledStaffWhereNoAssignFormRenders(
+        CaseLifecycleState state,
+        bool colleagueIsEditing,
+        bool assigned,
+        int expectedReads)
+    {
+        var caseId = Guid.NewGuid();
+        var staff = new CountingStaff(new CaseEngineerChoice(Guid.NewGuid(), "enabled.engineer"));
+        var task = CaseTask(caseId, assigned ? Guid.NewGuid() : null, CaseTaskState.Open);
+
+        await new GetCaseTasksSection(new RecordingStore(), new FixedTasks(task), staff).ExecuteAsync(
+            new(
+                caseId,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                Frame: Frame(caseId, caseId, state),
+                ColleagueIsEditing: colleagueIsEditing),
+            CancellationToken.None);
 
         Assert.Equal(expectedReads, staff.Reads);
     }
@@ -163,15 +196,18 @@ public sealed class CaseSectionQueryValidationTests
 
     private static CaseSectionFrame Frame(Guid caseId) => Frame(caseId, caseId);
 
-    private static CaseSectionFrame Frame(Guid summaryCaseId, Guid workflowCaseId)
+    private static CaseSectionFrame Frame(
+        Guid summaryCaseId,
+        Guid workflowCaseId,
+        CaseLifecycleState state = CaseLifecycleState.Review)
     {
         var identity = new CaseIdentity(workflowCaseId, "QDOS", 2031, 1, "QDOS3100001");
         return new(
             new(
                 summaryCaseId, identity.Reference, null, CaseType.Inspection, "QDOS",
-                CaseLifecycleState.Review, null, null, null, null,
+                state, null, null, null, null,
                 DateTimeOffset.UnixEpoch, "Email", DateTimeOffset.UnixEpoch),
-            new(workflowCaseId, identity, CaseLifecycleState.Review, null, null, null, null, null, null, null, 1),
+            new(workflowCaseId, identity, state, null, null, null, null, null, null, null, 1),
             null,
             "case-root",
             CaseCustodyState.Confirmed);

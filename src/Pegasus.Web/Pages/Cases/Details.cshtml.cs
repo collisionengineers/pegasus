@@ -1738,7 +1738,11 @@ public sealed partial class DetailsModel(
             Data: Case!.Data,
             Documents: Case.Documents,
             Frame: Case.Frame,
-            Work: work);
+            Work: work,
+            // The roster read by the Tasks body depends on it, and the extras
+            // below name the same colleague once they have run.
+            ColleagueIsEditing: Case.ActiveEditLease is { } lease
+                && !CaseEditAuthority.IsHolder(lease.HolderKind, lease.Holder, actor));
         var rendered = LazySectionViews.Keys.Where(key => !SectionIsDeferred(key)).ToHashSet(StringComparer.Ordinal);
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
         var vehicle = rendered.Contains("vehicle")
