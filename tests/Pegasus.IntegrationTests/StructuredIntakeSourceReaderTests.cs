@@ -330,6 +330,20 @@ public sealed class StructuredIntakeSourceReaderTests
             verdict.Reason);
     }
 
+    /// <summary>
+    /// The full-size drawing proves its own page: where it draws nothing, as
+    /// the page with no content here, it returns no JPEG rather than a blank
+    /// white page, which the reader reads as an unmeasured document page that
+    /// goes to OCR (ADR-0081).
+    /// </summary>
+    [Fact]
+    public void AFullSizeRenderThatDrawsNothingReturnsNoJpeg()
+    {
+        var blank = BuildPdf(new PdfFixturePage(null));
+
+        Assert.Null(PdfPageRasteriser.RenderJpeg(blank, 0, 612, 792, 85));
+    }
+
     private const string ForwardedBody =
         "Please see the instruction below.\r\n"
         + "\r\n"

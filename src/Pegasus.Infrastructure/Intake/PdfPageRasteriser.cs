@@ -30,22 +30,37 @@ internal static class PdfPageRasteriser
             return null;
         }
 
-        using (var canvas = new SKCanvas(bitmap))
-        {
-            canvas.DrawColor(SKColors.White, SKBlendMode.DstOver);
-        }
-
+        FillWhiteBehind(bitmap);
         using var pixels = bitmap.PeekPixels();
         using var png = pixels.Encode(new SKPngEncoderOptions(SKPngEncoderFilterFlags.NoFilters, 0));
         return png?.ToArray();
     }
 
-    /// <summary>The page drawn over paper white and encoded as a JPEG, or null when it does not draw.</summary>
+    /// <summary>
+    /// The page drawn over paper white and encoded as a JPEG, or null when
+    /// nothing on the page draws. The small drawing that classified the page
+    /// does not vouch for this one: the full-size decode can draw nothing
+    /// where the small one drew (a stream cut off past its low-resolution
+    /// data, a failed allocation near the peak), and a blank white page is
+    /// not the page's photograph.
+    /// </summary>
     public static byte[]? RenderJpeg(ReadOnlyMemory<byte> pdf, int pageIndex, int width, int height, int quality)
     {
-        using var bitmap = Draw(pdf, pageIndex, width, height, SKColors.White);
-        using var jpeg = bitmap?.Encode(SKEncodedImageFormat.Jpeg, quality);
+        using var bitmap = Draw(pdf, pageIndex, width, height, SKColors.Transparent);
+        if (bitmap is null || !AnyPixelDrawn(bitmap))
+        {
+            return null;
+        }
+
+        FillWhiteBehind(bitmap);
+        using var jpeg = bitmap.Encode(SKEncodedImageFormat.Jpeg, quality);
         return jpeg?.ToArray();
+    }
+
+    private static void FillWhiteBehind(SKBitmap bitmap)
+    {
+        using var canvas = new SKCanvas(bitmap);
+        canvas.DrawColor(SKColors.White, SKBlendMode.DstOver);
     }
 
     /// <summary>
