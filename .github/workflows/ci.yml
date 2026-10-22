@@ -30,6 +30,7 @@ jobs:
       infrastructure: ${{ steps.detect.outputs.infrastructure }}
       localDevelopment: ${{ steps.detect.outputs.localDevelopment }}
       referenceData: ${{ steps.detect.outputs.referenceData }}
+      skillScripts: ${{ steps.detect.outputs.skillScripts }}
       classifier: ${{ steps.detect.outputs.classifier }}
       heavy: ${{ steps.detect.outputs.heavy }}
     steps:
@@ -84,6 +85,7 @@ jobs:
           "infrastructure=$($flags.Infrastructure.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "localDevelopment=$($flags.LocalDevelopment.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "referenceData=$($flags.ReferenceData.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "skillScripts=$($flags.SkillScripts.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "classifier=$($flags.Classifier.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
           # Whether the unit and SQL lanes run is decided by
@@ -158,7 +160,7 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-ClearBuildOutput.ps1
       - uses: actions/setup-python@v6
-        if: needs.changes.outputs.referenceData == 'true'
+        if: needs.changes.outputs.referenceData == 'true' || needs.changes.outputs.skillScripts == 'true'
         with:
           python-version: '3.13'
       - name: Principal-reference generator tests
@@ -168,6 +170,18 @@ jobs:
         if: needs.changes.outputs.referenceData == 'true'
         shell: pwsh
         run: python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'
+      - name: Skill and helper script tests
+        # Everything under .agents/ has this one gate: the helper-script and
+        # frontmatter tests (PyYAML pinned for the frontmatter parse) and the
+        # two tests that sit beside their own skills. Chained, not separate
+        # lines: pwsh reports only the last command's exit code.
+        if: needs.changes.outputs.skillScripts == 'true'
+        shell: pwsh
+        run: >
+          python -m pip install --disable-pip-version-check PyYAML==6.0.3 &&
+          python -m unittest discover -s scripts/skill_scripts/tests -p 'test_*.py' &&
+          python -m unittest discover -s .agents/skills/github-researcher/scripts -p 'test_*.py' &&
+          ./.agents/skills/pegasus-corpus-holding/scripts/Test-ExportMailboxToCorpusHolding.ps1
 
   infrastructure:
     # Local mode checks committed fail-closed invariants and compiles Bicep.

@@ -1,0 +1,290 @@
+"""inventory.py with canned gh and git answers: the blockers, summarize_checks, a Markdown golden and --json-out."""
+import hashlib
+import json
+import types
+import unittest
+from unittest import mock
+
+from skill_scripts_support import IsolatedGitCase, load_script, run_main
+
+inventory = load_script("combine-prs", "inventory")
+
+OWNER, NAME = "acme", "widgets"
+LONG_TITLE = "Add the widget gallery with sortable columns and a saved layout per operator"
+
+
+def sha(label: str) -> str:
+    return hashlib.sha1(label.encode()).hexdigest()
+
+
+TARGET = sha("dev")
+
+
+def pull_request(number, base, head_ref, **overrides):
+    value = {
+        "number": number, "title": f"PR {number}", "url": f"https://github.com/{OWNER}/{NAME}/pull/{number}",
+        "state": "OPEN", "isDraft": False, "baseRefName": base, "headRefName": head_ref,
+        "headRefOid": sha(f"head {number}"), "isCrossRepository": False, "headRepositoryOwner": {"login": OWNER},
+        "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": None, "labels": [],
+        "closingIssuesReferences": [], "statusCheckRollup": [], "author": {"login": "alice"},
+    }
+    value.update(overrides)
+    return value
+
+
+def feedback(threads=(), reviews=(), comments=()):
+    return {"data": {"repository": {"pullRequest": {
+        "reviewThreads": {"nodes": list(threads)}, "reviews": {"nodes": list(reviews)},
+        "comments": {"nodes": list(comments)}}}}}
+
+
+class World:
+    """gh and git as three pull requests see them: 1016 on dev, 1018 stacked on it, 1019 on dev."""
+
+    def __init__(self):
+        passed = {"name": "unit", "status": "COMPLETED", "conclusion": "SUCCESS"}
+        self.prs = {
+            1016: pull_request(1016, "dev", "task/widget", statusCheckRollup=[passed, dict(passed, name="lint")],
+                               closingIssuesReferences=[{"number": 900}]),
+            1018: pull_request(1018, "task/widget", "task/widget-gallery", title=LONG_TITLE,
+                               reviewDecision="CHANGES_REQUESTED",
+                               statusCheckRollup=[passed, {"name": "sql", "status": "COMPLETED",
+                                                           "conclusion": "FAILURE"}]),
+            1019: pull_request(1019, "dev", "task/other"),
+        }
+        self.feedback = {
+            1016: feedback(
+                threads=[{"isResolved": False, "isOutdated": True, "path": "a.txt", "line": 7,
+                          "comments": {"nodes": [{"author": {"login": "bob"}, "body": "Please\n  rename   this"}]}},
+                         {"isResolved": True, "isOutdated": False, "path": "b.txt", "line": 1,
+                          "comments": {"nodes": [{"author": {"login": "bob"}, "body": "done"}]}}],
+                reviews=[{"author": {"login": "bob"}, "state": "COMMENTED", "body": "Looks fine"},
+                         {"author": {"login": "bob"}, "state": "APPROVED", "body": ""}],
+                comments=[{"author": {"login": "carol"}, "body": "ping"},
+                          {"author": {"login": "alice"}, "body": "my own note"}]),
+            1018: feedback(), 1019: feedback(),
+        }
+        self.files = {1016: ["a.txt", "shared.txt"], 1018: ["b.txt"], 1019: ["c.txt", "shared.txt"]}
+        self.counts = {1016: "2\t3", 1018: "0\t1", 1019: "5\t0"}  # behind, ahead
+        self.contained = {(sha("head 1016"), sha("head 1018"))}  # 1018's head contains 1016's
+        self.fetched = {}
+        self.last_fetch = None
+
+    def head(self, number):
+        return self.prs[number]["headRefOid"]
+
+    def number_of_head(self, head):
+        return next(n for n in self.prs if self.head(n) == head)
+
+    def run(self, args, check=True):
+        if args[:2] == ["git", "ls-remote"]:
+            return f"{TARGET}\trefs/heads/dev\n"
+        if args[:3] == ["git", "fetch", "--quiet"]:
+            if args[-1].startswith("refs/pull/"):
+                self.last_fetch = int(args[-1].split("/")[2])
+            return ""
+        if args == ["git", "rev-parse", "FETCH_HEAD"]:
+            return self.fetched.get(self.last_fetch, self.head(self.last_fetch)) + "\n"
+        if args[:2] == ["git", "merge-base"]:
+            return sha(f"merge-base {args[3]}") + "\n"
+        if args[:3] == ["git", "rev-list", "--left-right"]:
+            return self.counts[self.number_of_head(args[-1].split("...")[1])] + "\n"
+        if args[:2] == ["git", "diff"]:
+            return "\n".join(self.files[self.number_of_head(args[-1])]) + "\n"
+        raise AssertionError(f"unexpected command {args}")
+
+    def gh_json(self, args):
+        if args[:2] == ["repo", "view"]:
+            return {"owner": {"login": OWNER}, "name": NAME, "defaultBranchRef": {"name": "dev"}}
+        if args[:2] == ["pr", "view"]:
+            return json.loads(json.dumps(self.prs[int(args[2])]))
+        if args[:2] == ["api", "graphql"]:
+            return self.feedback[int(next(a for a in args if a.startswith("n=")).split("=")[1])]
+        raise AssertionError(f"unexpected gh {args}")
+
+    def is_ancestor(self, args):
+        return types.SimpleNamespace(returncode=0 if (args[-2], args[-1]) in self.contained else 1)
+
+
+class InventoryCase(IsolatedGitCase):
+    maxDiff = None
+
+    def inventory(self, world, *extra, numbers=(1018, 1016, 1019)):
+        with mock.patch.object(inventory, "run", world.run), \
+                mock.patch.object(inventory, "gh_json", world.gh_json), \
+                mock.patch.object(inventory, "subprocess", types.SimpleNamespace(run=world.is_ancestor)):
+            return run_main(inventory, ["--target", "dev", "--repo", f"{OWNER}/{NAME}", *extra,
+                                        *map(str, numbers)])
+
+    @staticmethod
+    def stop_list(out):
+        return out.split("## Stop and ask\n\n", 1)[1].rstrip("\n").splitlines() if "## Stop and ask" in out else []
+
+
+class InventoryOutput(InventoryCase):
+    def test_three_prs_with_no_blocker_exit_0_and_print_the_golden(self):
+        world = World()
+        code, out, _ = self.inventory(world)
+        h = {number: world.head(number) for number in world.prs}
+        self.assertEqual(0, code)
+        self.assertEqual(
+            "# PR inventory for `dev`\n"
+            "\n"
+            f"Target `dev` @ `{TARGET}` in acme/widgets (default branch: `dev`).\n"
+            "\n"
+            "| Order | PR | Title | Base | Head ref | Head SHA | Ahead/behind | Mergeable | Checks | Review | Flags |\n"
+            "|---|---|---|---|---|---|---|---|---|---|---|\n"
+            f"| 1 | #1016 | PR 1016 | dev | task/widget | `{h[1016][:12]}` | +3/-2 | MERGEABLE"
+            " | 2 ok / 0 pending / 0 failed | - | - |\n"
+            f"| 2 | #1018 | Add the widget gallery with sortable columns and a saved la… | task/widget"
+            f" | task/widget-gallery | `{h[1018][:12]}` | +1/-0 | MERGEABLE | 1 ok / 0 pending / 1 failed"
+            " | CHANGES_REQUESTED | failing checks, changes requested |\n"
+            f"| 3 | #1019 | PR 1019 | dev | task/other | `{h[1019][:12]}` | +0/-5 | MERGEABLE | none | - | - |\n"
+            "\n"
+            "## Stacks and ancestry\n"
+            "\n"
+            "- #1018 is stacked on #1016 (base `task/widget`)\n"
+            "- #1018 already contains #1016's head\n"
+            "\n"
+            "## Review feedback to read before merging\n"
+            "\n"
+            "- #1016: 1 unresolved thread(s), 1 review body(ies), 1 comment(s) from others\n"
+            "  - thread `a.txt:7` (outdated) bob: Please rename this\n"
+            "  - review COMMENTED bob: Looks fine\n"
+            "  - comment carol: ping\n"
+            "- #1018 failing checks: sql\n"
+            "- #1018: no review feedback\n"
+            "- #1019: no review feedback\n"
+            "\n"
+            "## Linked issues\n"
+            "\n"
+            "- #1016: #900\n"
+            "- #1018: none linked (check the body)\n"
+            "- #1019: none linked (check the body)\n"
+            "\n"
+            "## File overlap\n"
+            "\n"
+            "- #1016 × #1019: 1 file(s): `shared.txt`\n"
+            "\n"
+            "## Pinned arguments for simulate_merge.py and audit_combined.py\n"
+            "\n"
+            "```\n"
+            f"--target {TARGET} 1016={h[1016]} 1018={h[1018]} 1019={h[1019]}\n"
+            "```\n", out)
+
+    def test_json_out_holds_the_order_the_blockers_and_the_derived_fields(self):
+        world = World()
+        path = self.tmp / "inventory.json"
+        code, _, _ = self.inventory(world, "--json-out", str(path))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(0, code)
+        self.assertEqual({"target": "dev", "targetSha": TARGET, "repo": "acme/widgets", "defaultBranch": "dev",
+                          "order": [1016, 1018, 1019], "blockers": []},
+                         {key: data[key] for key in ("target", "targetSha", "repo", "defaultBranch", "order",
+                                                     "blockers")})
+        derived = {pr["number"]: {key: pr[key] for key in (
+            "mergeBase", "ahead", "behind", "changedFiles", "checkSummary", "failedChecks", "stackParent", "flags")}
+            for pr in data["prs"]}
+        self.assertEqual([1016, 1018, 1019], [pr["number"] for pr in data["prs"]])
+        self.assertEqual({
+            1016: {"mergeBase": sha(f"merge-base {world.head(1016)}"), "ahead": 3, "behind": 2,
+                   "changedFiles": ["a.txt", "shared.txt"], "checkSummary": "2 ok / 0 pending / 0 failed",
+                   "failedChecks": [], "stackParent": None, "flags": []},
+            1018: {"mergeBase": sha(f"merge-base {world.head(1018)}"), "ahead": 1, "behind": 0,
+                   "changedFiles": ["b.txt"], "checkSummary": "1 ok / 0 pending / 1 failed",
+                   "failedChecks": ["sql"], "stackParent": 1016, "flags": ["failing checks", "changes requested"]},
+            1019: {"mergeBase": sha(f"merge-base {world.head(1019)}"), "ahead": 0, "behind": 5,
+                   "changedFiles": ["c.txt", "shared.txt"], "checkSummary": "none",
+                   "failedChecks": [], "stackParent": None, "flags": []},
+        }, derived)
+        self.assertEqual("Please\n  rename   this",
+                         data["prs"][0]["feedback"]["reviewThreads"]["nodes"][0]["comments"]["nodes"][0]["body"])
+
+
+class InventoryBlockers(InventoryCase):
+    def assert_stops(self, mutate, expected_flag, expected_blocker):
+        world = World()
+        mutate(world)
+        code, out, _ = self.inventory(world)
+        self.assertEqual(2, code)
+        self.assertEqual([f"- {expected_blocker}"], self.stop_list(out))
+        if expected_flag:
+            self.assertIn(expected_flag, out)
+
+    def test_a_draft_stops(self):
+        self.assert_stops(lambda w: w.prs[1019].update(isDraft=True), "| draft |", "#1019: draft")
+
+    def test_a_closed_pr_stops(self):
+        self.assert_stops(lambda w: w.prs[1019].update(state="CLOSED"), "| closed |", "#1019: PR is CLOSED")
+
+    def test_a_hold_label_stops(self):
+        self.assert_stops(lambda w: w.prs[1019].update(labels=[{"name": "do-not-merge"}]), "| hold? |",
+                          "#1019: title or label suggests a hold (do-not-merge)")
+
+    def test_a_hold_word_in_the_title_stops(self):
+        self.assert_stops(lambda w: w.prs[1019].update(title="WIP: gallery"), "| hold? |",
+                          "#1019: title or label suggests a hold (WIP: gallery)")
+
+    def test_a_base_outside_the_set_stops(self):
+        self.assert_stops(lambda w: w.prs[1019].update(baseRefName="release/9"), "base release/9 outside set",
+                          "#1019: based on release/9, which is neither dev nor a listed PR")
+
+    def test_a_head_that_moved_during_the_inventory_stops(self):
+        moved = sha("moved")
+        self.assert_stops(lambda w: w.fetched.update({1019: moved}), None,
+                          f"#1019: head moved during inventory ({sha('head 1019')[:12]} -> {moved[:12]}); rerun")
+
+    def test_a_conflicting_pr_is_flagged_but_does_not_stop(self):
+        world = World()
+        world.prs[1019]["mergeable"] = "CONFLICTING"
+        code, out, _ = self.inventory(world)
+        self.assertEqual(0, code)
+        self.assertIn("| conflicts-with-base (no CI runs) |", out)
+        self.assertNotIn("## Stop and ask", out)
+
+    def test_every_blocker_is_listed(self):
+        world = World()
+        world.prs[1016]["isDraft"] = True
+        world.prs[1019]["state"] = "MERGED"
+        code, out, _ = self.inventory(world)
+        self.assertEqual(2, code)
+        self.assertEqual(["- #1016: draft", "- #1019: PR is MERGED"], self.stop_list(out))
+
+
+class SummarizeChecks(unittest.TestCase):
+    def test_rows(self):
+        rows = {
+            "none": (None, ("none", [])),
+            "empty": ([], ("none", [])),
+            "success": ([{"name": "a", "status": "COMPLETED", "conclusion": "SUCCESS"}],
+                        ("1 ok / 0 pending / 0 failed", [])),
+            "skipped counts as ok": ([{"name": "a", "status": "COMPLETED", "conclusion": "SKIPPED"}],
+                                     ("1 ok / 0 pending / 0 failed", [])),
+            "failure": ([{"name": "unit", "status": "COMPLETED", "conclusion": "FAILURE"}],
+                        ("0 ok / 0 pending / 1 failed", ["unit"])),
+            "timed out and cancelled": ([{"name": "x", "conclusion": "TIMED_OUT"}, {"name": "y", "conclusion": "CANCELLED"}],
+                                        ("0 ok / 0 pending / 2 failed", ["x", "y"])),
+            "in progress": ([{"name": "a", "status": "IN_PROGRESS", "conclusion": ""}],
+                            ("0 ok / 1 pending / 0 failed", [])),
+            "queued with no conclusion": ([{"name": "a", "status": "QUEUED"}], ("0 ok / 1 pending / 0 failed", [])),
+            "status context pending": ([{"context": "ci/x", "state": "PENDING"}], ("0 ok / 1 pending / 0 failed", [])),
+            "status context success": ([{"context": "ci/y", "state": "SUCCESS"}], ("1 ok / 0 pending / 0 failed", [])),
+            "status context error": ([{"context": "ci/z", "state": "ERROR"}], ("0 ok / 0 pending / 1 failed", ["ci/z"])),
+            "nameless failure": ([{"conclusion": "FAILURE"}], ("0 ok / 0 pending / 1 failed", ["?"])),
+            "mixed": ([{"name": "a", "status": "COMPLETED", "conclusion": "SUCCESS"},
+                       {"name": "b", "status": "IN_PROGRESS"},
+                       {"name": "c", "status": "COMPLETED", "conclusion": "FAILURE"}],
+                      ("1 ok / 1 pending / 1 failed", ["c"])),
+        }
+        for name, (rollup, expected) in rows.items():
+            with self.subTest(name):
+                self.assertEqual(expected, inventory.summarize_checks(rollup))
+
+    def test_one_line_collapses_whitespace_and_cuts_with_an_ellipsis(self):
+        self.assertEqual("a b c", inventory.one_line("  a\n b\t c ", 10))
+        self.assertEqual("abcd…", inventory.one_line("abcdefgh", 5))
+        self.assertEqual("", inventory.one_line(None, 5))
+
+
+if __name__ == "__main__":
+    unittest.main()
