@@ -82,12 +82,19 @@ public sealed partial class CazanaGuideValuationProvider(
         }
         catch (CazanaCompanionFailure failure) when (Code(failure) == CazanaFailureCode.NotFound)
         {
-            LogUnavailable(logger, request.CaseId, guideMonth, CazanaFailureCode.NotFound, Detail(failure));
+            LogUnavailable(logger, request.CaseId, guideMonth, CazanaFailureCode.NotFound, Detail(failure), null);
             throw new GuideValuationNotValuedException(Source, GuideValuationNotValuedReason.NoVehicleData, failure);
         }
-        catch (Exception exception) when (Unavailable(exception, cancellationToken))
+        catch (Exception exception) when (Unavailable(exception))
         {
-            LogUnavailable(logger, request.CaseId, guideMonth, Code(exception), Detail(exception));
+            var code = Code(exception);
+            LogUnavailable(
+                logger,
+                request.CaseId,
+                guideMonth,
+                code,
+                Detail(exception),
+                code == CazanaFailureCode.Transport ? exception : null);
             throw new GuideValuationProviderUnavailableException(Source, exception);
         }
     }
@@ -104,24 +111,19 @@ public sealed partial class CazanaGuideValuationProvider(
             : null;
 
     /// <summary>
-    /// Whatever Cazana, the account or the network did — never the caller
-    /// giving up, which is the caller's own outcome.
+    /// Whatever Cazana, the account or the network did, each of which the
+    /// client names by its stage (a request that fails or a call that runs past
+    /// its bound is the stage's transport failure) — never the caller giving
+    /// up, which is the caller's own outcome and passes through.
     /// </summary>
-    private static bool Unavailable(Exception exception, CancellationToken cancellationToken) =>
-        exception switch
-        {
-            CazanaCompanionFailure or HttpRequestException or TimeoutException => true,
-            // A missing or unresolved account setting: the reason is logged by
-            // key, never shown on the card.
-            InvalidOperationException => true,
-            OperationCanceledException => !cancellationToken.IsCancellationRequested,
-            _ => false,
-        };
+    private static bool Unavailable(Exception exception) =>
+        // An InvalidOperationException is a missing or unresolved account
+        // setting: the reason is logged by key, never shown on the card.
+        exception is CazanaCompanionFailure or InvalidOperationException;
 
     private static string Code(Exception exception) => exception switch
     {
         CazanaCompanionFailure failure => Code(failure),
-        HttpRequestException or OperationCanceledException or TimeoutException => CazanaFailureCode.Transport,
         _ => CazanaFailureCode.Configuration,
     };
 
@@ -134,6 +136,7 @@ public sealed partial class CazanaGuideValuationProvider(
         (_, HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) => CazanaFailureCode.Forbidden,
         (_, HttpStatusCode.TooManyRequests) => CazanaFailureCode.Throttled,
         (_, not null) => CazanaFailureCode.ProviderFailed,
+        (_, null) when failure.Transport => CazanaFailureCode.Transport,
         (_, null) => CazanaFailureCode.Unreadable,
     };
 
@@ -145,11 +148,15 @@ public sealed partial class CazanaGuideValuationProvider(
         _ => exception.GetType().Name,
     };
 
+    /// <summary>
+    /// The exception rides along only for a transport failure, where the code
+    /// and stage cannot say what the network did.
+    /// </summary>
     [LoggerMessage(
         Level = LogLevel.Warning,
         Message = "Cazana valuation for case {CaseId} in {GuideMonth} was unavailable at {FailureCode} {Detail}")]
     private static partial void LogUnavailable(
-        ILogger logger, Guid caseId, DateOnly guideMonth, string failureCode, string? detail);
+        ILogger logger, Guid caseId, DateOnly guideMonth, string failureCode, string? detail, Exception? exception);
 
     internal static class CazanaFailureCode
     {

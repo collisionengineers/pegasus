@@ -87,19 +87,28 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     }
 
     /// <summary>
-    /// The vehicle's timeline, or none when Cazana times out or holds no
-    /// history for it, as Companion's own <c>getTimeline</c> treats them.
+    /// The vehicle's timeline answer, whose <c>response</c> is the timeline, or
+    /// none when Cazana times out or holds no history for it, as Companion's
+    /// own <c>getTimeline</c> treats them. The parsed answer itself is handed
+    /// over, not a copy of its <c>response</c>: the caller reads it while it
+    /// renders the page and disposes it straight after.
     /// </summary>
-    public async Task<JsonElement?> TimelineAsync(string jwt, string uuid, CancellationToken cancellationToken)
+    public async Task<JsonDocument?> TimelineAsync(string jwt, string uuid, CancellationToken cancellationToken)
     {
         try
         {
-            using var answer = await ExchangeAsync(
+            var answer = await ExchangeAsync(
                 "timeline",
                 App(HttpMethod.Get, "app/companion/" + Uri.EscapeDataString(uuid) + "/timeline", jwt),
                 cancellationToken);
-            var response = CazanaJson.Get(answer.RootElement, "response");
-            return string.IsNullOrEmpty(CazanaJson.String(response, "vin")) ? null : response!.Value.Clone();
+            if (CazanaJson.Get(answer.RootElement, "response", "vin") is { ValueKind: JsonValueKind.String } vin
+                && !vin.ValueEquals(""u8))
+            {
+                return answer;
+            }
+
+            answer.Dispose();
+            return null;
         }
         catch (CazanaCompanionFailure failure) when (failure.Status == HttpStatusCode.RequestTimeout)
         {
@@ -164,8 +173,7 @@ internal sealed class CazanaCompanionClient(HttpClient http)
                 .Select(image => image.GetString())
                 .FirstOrDefault();
         }
-        catch (Exception exception) when (exception is HttpRequestException or CazanaCompanionFailure
-            || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (CazanaCompanionFailure)
         {
             return null;
         }
@@ -244,10 +252,15 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     /// first), or a stage-named failure. Only a refusal is read as text, for
     /// its detail. <see cref="CallTimeout"/> bounds the headers and the body
     /// together, as the one timer of the call: the named client sets no timeout
-    /// of its own (<c>AddCazanaGuideValuation</c>). A connection that drops
-    /// while an answer streams is an <see cref="IOException"/>, not an
-    /// <see cref="HttpRequestException"/> (which only the buffered read of a
-    /// refusal throws), and is the stage's failure too.
+    /// of its own (<c>AddCazanaGuideValuation</c>). Whatever stops the call is
+    /// that stage's <see cref="CazanaCompanionFailure"/>, so the host log can
+    /// always name where it stopped: a connection that drops while an answer
+    /// streams is an <see cref="IOException"/>; a request that fails or a
+    /// refusal whose body drops is an <see cref="HttpRequestException"/>; the
+    /// bound running out is an <see cref="OperationCanceledException"/> while
+    /// the caller has not asked to stop (the caller's own cancellation passes
+    /// through unchanged). The last two are the stage's transport failure and
+    /// carry the exception.
     /// </summary>
     private async Task<JsonDocument> ExchangeAsync(
         string stage,
@@ -258,17 +271,17 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         using (var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
             bounded.CancelAfter(CallTimeout);
-            using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, bounded.Token);
-            if (!Succeeded(response.StatusCode))
-            {
-                throw new CazanaCompanionFailure(
-                    stage,
-                    response.StatusCode,
-                    $"status={(int)response.StatusCode} {ErrorDetail(await response.Content.ReadAsStringAsync(bounded.Token))}");
-            }
-
             try
             {
+                using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, bounded.Token);
+                if (!Succeeded(response.StatusCode))
+                {
+                    throw new CazanaCompanionFailure(
+                        stage,
+                        response.StatusCode,
+                        $"status={(int)response.StatusCode} {ErrorDetail(await response.Content.ReadAsStringAsync(bounded.Token))}");
+                }
+
                 await using var content = await response.Content.ReadAsStreamAsync(bounded.Token);
                 return await JsonDocument.ParseAsync(content, cancellationToken: bounded.Token);
             }
@@ -279,6 +292,14 @@ internal sealed class CazanaCompanionClient(HttpClient http)
             catch (IOException)
             {
                 throw new CazanaCompanionFailure(stage, null, "body=unreadable");
+            }
+            catch (HttpRequestException exception)
+            {
+                throw new CazanaCompanionFailure(stage, exception);
+            }
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new CazanaCompanionFailure(stage, exception);
             }
         }
     }
@@ -345,12 +366,35 @@ internal sealed class CazanaCompanionClient(HttpClient http)
 internal sealed record SimilarListings(JsonElement? Total, IReadOnlyList<JsonElement> Listings);
 
 /// <summary>A Companion call that did not answer as Companion answers, named by its stage.</summary>
-internal sealed class CazanaCompanionFailure(string stage, HttpStatusCode? status, string detail)
-    : Exception($"Cazana {stage} failed: {detail}")
+internal sealed class CazanaCompanionFailure : Exception
 {
-    public string Stage { get; } = stage;
+    public CazanaCompanionFailure(string stage, HttpStatusCode? status, string detail)
+        : base($"Cazana {stage} failed: {detail}")
+    {
+        Stage = stage;
+        Status = status;
+        Detail = detail;
+    }
 
-    public HttpStatusCode? Status { get; } = status;
+    /// <summary>
+    /// A call that got no answer: the request failed or the call ran past
+    /// <see cref="CazanaCompanionClient.CallTimeout"/>. The exception is kept
+    /// for the host log.
+    /// </summary>
+    public CazanaCompanionFailure(string stage, Exception transport)
+        : base($"Cazana {stage} failed: transport={transport.GetType().Name}", transport)
+    {
+        Stage = stage;
+        Detail = "transport=" + transport.GetType().Name;
+        Transport = true;
+    }
 
-    public string Detail { get; } = detail;
+    public string Stage { get; }
+
+    public HttpStatusCode? Status { get; }
+
+    public string Detail { get; }
+
+    /// <summary>Whether the call got no answer at all, as against an answer that was refused or unreadable.</summary>
+    public bool Transport { get; }
 }

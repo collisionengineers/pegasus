@@ -1,3 +1,4 @@
+using System.Buffers;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
@@ -20,8 +21,49 @@ public static class GlassRepairEstimateSessionPolicy
     public static Func<string?, bool> NamesRegistration(string? registration)
     {
         var plate = Compact(registration);
-        return text => plate.Length > 0 && Compact(text).Contains(plate, StringComparison.OrdinalIgnoreCase);
+        return text => plate.Length > 0 && ContainsCompacted(text, plate);
     }
+
+    /// <summary>
+    /// Whether the text, with its whitespace left out, holds the plate. The
+    /// text is compacted into a stack buffer (a rented one for a long page), so
+    /// no string is built for any page.
+    /// </summary>
+    private static bool ContainsCompacted(string? text, string plate)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        char[]? rented = null;
+        Span<char> compact = text.Length <= StackBufferLength
+            ? stackalloc char[StackBufferLength]
+            : (rented = ArrayPool<char>.Shared.Rent(text.Length));
+        try
+        {
+            var length = 0;
+            foreach (var character in text)
+            {
+                if (!char.IsWhiteSpace(character))
+                {
+                    compact[length++] = character;
+                }
+            }
+
+            ReadOnlySpan<char> compacted = compact[..length];
+            return compacted.Contains(plate, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (rented is not null)
+            {
+                ArrayPool<char>.Shared.Return(rented);
+            }
+        }
+    }
+
+    private const int StackBufferLength = 1024;
 
     private static string Compact(string? value) =>
         new((value ?? string.Empty).Where(character => !char.IsWhiteSpace(character)).ToArray());

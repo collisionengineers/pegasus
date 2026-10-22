@@ -184,14 +184,71 @@ public sealed class CazanaGuideValuationProviderTests
     }
 
     [Fact]
-    public async Task TheNetworkAndATimeoutAreUnavailable()
+    public async Task AnAnswerThatIsNotJsonIsUnavailable()
     {
-        await AssertUnavailableAsync(
-            Harness.Create(_ => throw new HttpRequestException("connection refused")),
-            "cazana.valuation.transport HttpRequestException");
-        await AssertUnavailableAsync(
-            Harness.Create(_ => throw new TaskCanceledException("timed out")),
-            "cazana.valuation.transport TaskCanceledException");
+        var harness = Harness.Create(path => path == "/app/companion"
+            ? Json(HttpStatusCode.OK, "<html>maintenance</html>")
+            : null);
+
+        await AssertUnavailableAsync(harness, "cazana.valuation.unreadable stage=lookup json=invalid");
+    }
+
+    /// <summary>
+    /// A request that fails, or a call that runs past its bound (an
+    /// <see cref="OperationCanceledException"/> while the caller has not asked
+    /// to stop), at any stage ends the valuation as unavailable by the
+    /// transport code, the log naming the stage and carrying the exception, and
+    /// asks for nothing after that call. At <c>lookup</c> the log names the
+    /// metered call as the one that was sent and got no answer.
+    /// </summary>
+    [Theory]
+    [InlineData("sign_in", "/guest/onboard/branch", 1)]
+    [InlineData("confirm", "/guest/onboard/confirm", 2)]
+    [InlineData("lookup", "/app/companion", 3)]
+    [InlineData("read", "/app/companion/" + Uuid, 4)]
+    public async Task ATransportFailureOrATimeoutIsUnavailableAtItsStageAndStopsTheCalls(
+        string stage, string failingPath, int calls)
+    {
+        foreach (Exception failure in new Exception[]
+        {
+            new HttpRequestException("connection refused"),
+            new TaskCanceledException("timed out"),
+        })
+        {
+            var harness = Harness.Create(path =>
+            {
+                if (path == failingPath)
+                {
+                    throw failure;
+                }
+
+                return null;
+            });
+
+            await AssertUnavailableAsync(
+                harness, $"cazana.valuation.transport stage={stage} transport={failure.GetType().Name}");
+
+            Assert.Equal(calls, harness.Requests.Count);
+            var logged = Assert.Single(harness.Logger.Exceptions);
+            Assert.IsType<CazanaCompanionFailure>(logged);
+            Assert.IsType(failure.GetType(), logged.InnerException);
+        }
+    }
+
+    /// <summary>
+    /// Only a transport failure carries its exception to the log: a refusal or
+    /// an unreadable answer is already named by its code, stage and detail.
+    /// </summary>
+    [Fact]
+    public async Task ARefusalLogsItsCodeAndStageWithoutAnException()
+    {
+        var harness = Harness.Create(path => path == "/app/companion"
+            ? Json(HttpStatusCode.InternalServerError, """{"error":"Server Error"}""")
+            : null);
+
+        await AssertUnavailableAsync(harness, "cazana.valuation.provider_failed stage=lookup status=500 error=Server Error");
+
+        Assert.Empty(harness.Logger.Exceptions);
     }
 
     /// <summary>
@@ -216,8 +273,9 @@ public sealed class CazanaGuideValuationProviderTests
     }
 
     /// <summary>
-    /// A refusal's body is read whole, and a drop there reaches the provider as
-    /// the request exception that buffering throws: unavailable as transport.
+    /// A refusal's body is read whole, and a drop there is the request
+    /// exception that buffering throws: unavailable as transport at the stage
+    /// that was refused.
     /// </summary>
     [Fact]
     public async Task ARefusalWhoseBodyDropsIsUnavailableAsTransport()
@@ -226,7 +284,7 @@ public sealed class CazanaGuideValuationProviderTests
             ? Dropped(HttpStatusCode.InternalServerError, """{"error":""")
             : null);
 
-        await AssertUnavailableAsync(harness, "cazana.valuation.transport HttpRequestException");
+        await AssertUnavailableAsync(harness, "cazana.valuation.transport stage=lookup transport=HttpRequestException");
         Assert.Equal(3, harness.Requests.Count);
     }
 
@@ -531,12 +589,20 @@ public sealed class CazanaGuideValuationProviderTests
     {
         public List<string> Messages { get; } = [];
 
+        public List<Exception> Exceptions { get; } = [];
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
         public void Log<TState>(
-            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
             Messages.Add(formatter(state, exception));
+            if (exception is not null)
+            {
+                Exceptions.Add(exception);
+            }
+        }
     }
 }

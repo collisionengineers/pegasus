@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Text;
 
@@ -27,6 +28,9 @@ namespace Pegasus.Infrastructure.Cazana;
 /// </summary>
 internal static class CazanaMustache
 {
+    /// <summary>The eight characters mustache.js escapes.</summary>
+    private static readonly SearchValues<char> Escaped = SearchValues.Create("&<>\"'/`=");
+
     public static string Render(Template template, object? view, IReadOnlyDictionary<string, Template>? partials = null) =>
         Build(template, view, partials).ToString();
 
@@ -58,7 +62,7 @@ internal static class CazanaMustache
     /// <summary>A name as the segments a lookup walks; the bare dot names the current frame.</summary>
     private static string[] PathOf(string name) => name == "." ? [] : name.Split('.');
 
-    private static List<Node> ParseNodes(string template)
+    private static Node[] ParseNodes(string template)
     {
         var root = new List<Node>();
         var open = new Stack<(string Name, bool Inverted, List<Node> Children, List<Node> Parent)>();
@@ -107,7 +111,7 @@ internal static class CazanaMustache
 
                     var section = open.Pop();
                     current = section.Parent;
-                    current.Add(new Section(PathOf(section.Name), section.Inverted, section.Children));
+                    current.Add(new Section(PathOf(section.Name), section.Inverted, section.Children.ToArray()));
                     break;
                 case '>':
                     current.Add(new Partial(tag[1..].Trim()));
@@ -123,24 +127,25 @@ internal static class CazanaMustache
             throw new FormatException($"The section '{open.Peek().Name}' is not closed.");
         }
 
-        return root;
+        return root.ToArray();
     }
 
     private static void RenderNodes(
-        IReadOnlyList<Node> nodes,
+        Node[] nodes,
         List<object?> frames,
         IReadOnlyDictionary<string, Template>? partials,
         StringBuilder output)
     {
-        foreach (var node in nodes)
+        // Indexed loops over arrays and lists: no enumerator is boxed per render or per list section.
+        for (var position = 0; position < nodes.Length; position++)
         {
-            switch (node)
+            switch (nodes[position])
             {
                 case Text text:
                     output.Append(text.Value);
                     break;
                 case Variable variable:
-                    AppendEscaped(output, Print(Lookup(frames, variable.Path)));
+                    AppendValue(output, Lookup(frames, variable.Path));
                     break;
                 case Partial partial:
                     if (partials is not null && partials.TryGetValue(partial.Name, out var body))
@@ -165,9 +170,9 @@ internal static class CazanaMustache
 
                     if (value is IReadOnlyList<object?> items)
                     {
-                        foreach (var item in items)
+                        for (var item = 0; item < items.Count; item++)
                         {
-                            RenderPushed(section.Children, frames, item, partials, output);
+                            RenderPushed(section.Children, frames, items[item], partials, output);
                         }
                     }
                     else if (value is bool)
@@ -186,7 +191,7 @@ internal static class CazanaMustache
     }
 
     private static void RenderPushed(
-        IReadOnlyList<Node> nodes,
+        Node[] nodes,
         List<object?> frames,
         object? frame,
         IReadOnlyDictionary<string, Template>? partials,
@@ -259,47 +264,70 @@ internal static class CazanaMustache
         _ => true,
     };
 
-    private static string Print(object? value) => value switch
+    /// <summary>
+    /// A variable as the page prints it. Text is escaped; a flag and a number
+    /// are written straight into the page (a number's digits, minus sign and
+    /// point are never escaped, so no string is built for it first).
+    /// </summary>
+    private static void AppendValue(StringBuilder output, object? value)
     {
-        null => "",
-        string text => text,
-        bool flag => flag ? "true" : "false",
-        int number => number.ToString(CultureInfo.InvariantCulture),
-        long number => number.ToString(CultureInfo.InvariantCulture),
-        decimal number => number.ToString(CultureInfo.InvariantCulture),
-        _ => throw new FormatException($"A {value.GetType().Name} cannot be printed by a template variable."),
-    };
-
-    /// <summary>mustache.js's own escape table.</summary>
-    private static void AppendEscaped(StringBuilder output, string text)
-    {
-        foreach (var character in text)
+        switch (value)
         {
-            var entity = character switch
-            {
-                '&' => "&amp;",
-                '<' => "&lt;",
-                '>' => "&gt;",
-                '"' => "&quot;",
-                '\'' => "&#39;",
-                '/' => "&#x2F;",
-                '`' => "&#x60;",
-                '=' => "&#x3D;",
-                _ => null,
-            };
-            if (entity is null)
-            {
-                output.Append(character);
-            }
-            else
-            {
-                output.Append(entity);
-            }
+            case null:
+                break;
+            case string text:
+                AppendEscaped(output, text);
+                break;
+            case bool flag:
+                output.Append(flag ? "true" : "false");
+                break;
+            case int number:
+                output.Append(CultureInfo.InvariantCulture, $"{number}");
+                break;
+            case long number:
+                output.Append(CultureInfo.InvariantCulture, $"{number}");
+                break;
+            case decimal number:
+                output.Append(CultureInfo.InvariantCulture, $"{number}");
+                break;
+            default:
+                throw new FormatException($"A {value.GetType().Name} cannot be printed by a template variable.");
         }
     }
 
+    /// <summary>
+    /// mustache.js's own escape table: each run of text with nothing to
+    /// escape is appended whole, and each escaped character as its entity.
+    /// </summary>
+    private static void AppendEscaped(StringBuilder output, string text)
+    {
+        var rest = text.AsSpan();
+        int index;
+        while ((index = rest.IndexOfAny(Escaped)) >= 0)
+        {
+            output.Append(rest[..index]);
+            output.Append(Entity(rest[index]));
+            rest = rest[(index + 1)..];
+        }
+
+        output.Append(rest);
+    }
+
+    private static string Entity(char character) => character switch
+    {
+        '&' => "&amp;",
+        '<' => "&lt;",
+        '>' => "&gt;",
+        '"' => "&quot;",
+        '\'' => "&#39;",
+        '/' => "&#x2F;",
+        '`' => "&#x60;",
+        '=' => "&#x3D;",
+        _ => throw new ArgumentOutOfRangeException(nameof(character), character, "Not one of the escaped characters."),
+    };
+
     /// <summary>A template parsed once, to be rendered with any view.</summary>
-    internal sealed record Template(int Length, IReadOnlyList<Node> Nodes);
+    internal sealed record Template(int Length, Node[] Nodes);
 
     internal abstract record Node;
 
@@ -309,5 +337,5 @@ internal static class CazanaMustache
 
     private sealed record Partial(string Name) : Node;
 
-    private sealed record Section(string[] Path, bool Inverted, IReadOnlyList<Node> Children) : Node;
+    private sealed record Section(string[] Path, bool Inverted, Node[] Children) : Node;
 }

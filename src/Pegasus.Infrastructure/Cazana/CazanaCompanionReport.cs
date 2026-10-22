@@ -53,6 +53,8 @@ internal sealed class CazanaCompanionReport(
     /// <summary>
     /// The timeline, comparable listings and stock image do not depend on each
     /// other, so they are asked for together and the page waits for the slowest.
+    /// The timeline answer is read in place while the page renders and disposed
+    /// before the PDF service is called, whichever way the reads end.
     /// </summary>
     public async Task<byte[]> FetchPdfAsync(CancellationToken cancellationToken)
     {
@@ -60,8 +62,22 @@ internal sealed class CazanaCompanionReport(
         var timeline = client.TimelineAsync(jwt, uuid, cancellationToken);
         var similar = client.SimilarListingsAsync(jwt, response, cancellationToken);
         var image = client.ImageAsync(jwt, vrm ?? "", cancellationToken);
-        await Task.WhenAll(timeline, similar, image);
-        var html = RenderHtml(response, vrm, await timeline, await similar, await image, timeProvider.GetUtcNow());
+        StringBuilder html;
+        try
+        {
+            await Task.WhenAll(timeline, similar, image);
+            var timelineAnswer = await timeline;
+            var timelineElement = CazanaJson.Get(timelineAnswer?.RootElement, "response");
+            html = RenderHtml(response, vrm, timelineElement, await similar, await image, timeProvider.GetUtcNow());
+        }
+        finally
+        {
+            if (timeline.IsCompletedSuccessfully)
+            {
+                (await timeline)?.Dispose();
+            }
+        }
+
         return await client.CreatePdfAsync(jwt, html, cancellationToken);
     }
 
@@ -94,7 +110,24 @@ internal sealed class CazanaCompanionReport(
         var valuation = CazanaJson.Get(response, "valuation");
         var specs = CazanaJson.Get(response, "specs");
         var valuedOn = CazanaJson.String(valuation, "date");
-        var events = CazanaJson.Items(timeline, "events").ToArray();
+
+        // The events are read once: each is mapped as it is met, and a Sale is noted on the way.
+        List<object?>? carHistory = null;
+        var containsSalesEvents = false;
+        if (timeline is not null)
+        {
+            carHistory = [];
+            foreach (var item in CazanaJson.Items(timeline, "events"))
+            {
+                if (TimelineEvent(item, out var sale) is { } entry)
+                {
+                    carHistory.Add(entry);
+                }
+
+                containsSalesEvents |= sale;
+            }
+        }
+
         var view = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["vrm"] = vrm,
@@ -126,10 +159,8 @@ internal sealed class CazanaCompanionReport(
             ["powerOutputBhp"] = Scalar(CazanaJson.Get(specs, "powerOutputBhp")),
             ["currentColour"] = Capitalise(CazanaJson.String(specs, "currentColour")),
             ["vehicleSeats"] = Scalar(CazanaJson.Get(specs, "seats")),
-            ["containsSalesEvents"] = events.Any(
-                item => CazanaJson.Get(item, "type") is { ValueKind: JsonValueKind.String } type && type.ValueEquals("Sale"u8)),
-            ["isHistoricalValuationDate"] = valuedOn
-                != LondonCalendar.DateAt(now).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["containsSalesEvents"] = containsSalesEvents,
+            ["isHistoricalValuationDate"] = !IsToday(valuedOn, now),
             ["sortBy"] = "Newest",
             ["listings"] = similar.Listings.Select(SimilarListing).ToList<object?>(),
             ["similarListingFilters"] = SimilarListingFilters,
@@ -146,9 +177,9 @@ internal sealed class CazanaCompanionReport(
             view["vehicleImage"] = image;
         }
 
-        if (timeline is not null)
+        if (carHistory is not null)
         {
-            view["carHistory"] = events.Select(TimelineEvent).OfType<object>().ToList<object?>();
+            view["carHistory"] = carHistory;
         }
 
         var listing = CazanaJson.Get(response, "listing");
@@ -181,9 +212,14 @@ internal sealed class CazanaCompanionReport(
         ["listingPrice"] = Scalar(CazanaJson.Get(listing, "price", "display")),
     };
 
-    /// <summary>One timeline entry as Companion maps it; a type Companion does not map is dropped.</summary>
-    private static Dictionary<string, object?>? TimelineEvent(JsonElement item)
+    /// <summary>
+    /// One timeline entry as Companion maps it; a type Companion does not map is
+    /// dropped. <paramref name="sale"/> says the entry is a Sale.
+    /// </summary>
+    private static Dictionary<string, object?>? TimelineEvent(JsonElement item, out bool sale)
     {
+        sale = false;
+
         // The type is compared where it lies in the answer, as bytes: no string per event.
         if (CazanaJson.Get(item, "type") is not { ValueKind: JsonValueKind.String } type)
         {
@@ -209,6 +245,7 @@ internal sealed class CazanaCompanionReport(
 
         if (type.ValueEquals("Sale"u8))
         {
+            sale = true;
             return new(StringComparer.Ordinal)
             {
                 ["advertisementDateRange"] =
@@ -254,8 +291,8 @@ internal sealed class CazanaCompanionReport(
     {
         { ValueKind: JsonValueKind.Number } number when number.TryGetDecimal(out var figure) =>
             figure.ToString("#,##0.###", EnGb),
-        { ValueKind: JsonValueKind.String } text when decimal.TryParse(
-            text.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out _) => text.GetString()!,
+        { ValueKind: JsonValueKind.String } text when text.GetString() is { } literal && decimal.TryParse(
+            literal, NumberStyles.Number, CultureInfo.InvariantCulture, out _) => literal,
         _ => NotAvailable,
     };
 
@@ -278,8 +315,31 @@ internal sealed class CazanaCompanionReport(
             return NotAvailable;
         }
 
-        var parts = value.Split('T')[0].Split('-');
-        return parts.Length >= 3 ? $"{parts[2]}/{parts[1]}/{parts[0]}" : NotAvailable;
+        // The date part is read in place as its first three '-' segments: one string, no arrays.
+        var date = value.AsSpan();
+        var time = date.IndexOf('T');
+        if (time >= 0)
+        {
+            date = date[..time];
+        }
+
+        var firstDash = date.IndexOf('-');
+        if (firstDash < 0)
+        {
+            return NotAvailable;
+        }
+
+        var afterYear = date[(firstDash + 1)..];
+        var secondDash = afterYear.IndexOf('-');
+        if (secondDash < 0)
+        {
+            return NotAvailable;
+        }
+
+        var afterMonth = afterYear[(secondDash + 1)..];
+        var thirdDash = afterMonth.IndexOf('-');
+        var day = thirdDash < 0 ? afterMonth : afterMonth[..thirdDash];
+        return string.Create(CultureInfo.InvariantCulture, $"{day}/{afterYear[..secondDash]}/{date[..firstDash]}");
     }
 
     /// <summary>A date as "7th May 2026".</summary>
@@ -299,7 +359,17 @@ internal sealed class CazanaCompanionReport(
                 3 => "rd",
                 _ => "th",
             };
-        return string.Create(CultureInfo.InvariantCulture, $"{date.Day}{suffix} {date.ToString("MMMM", EnGb)} {date.Year}");
+        // The month name is written straight into the result in British English; the day and
+        // year are plain digits in every culture.
+        return string.Create(EnGb, $"{date.Day}{suffix} {date:MMMM} {date.Year}");
+    }
+
+    /// <summary>Whether a "yyyy-MM-dd" date text is the London calendar day of <paramref name="now"/>, compared without building today's text.</summary>
+    private static bool IsToday(string? valuedOn, DateTimeOffset now)
+    {
+        Span<char> today = stackalloc char[10];
+        return LondonCalendar.DateAt(now).TryFormat(today, out var written, "yyyy-MM-dd", CultureInfo.InvariantCulture)
+            && today[..written].SequenceEqual(valuedOn.AsSpan());
     }
 
     private static string MonthsAgo(string? value, DateTimeOffset now)
@@ -331,14 +401,15 @@ internal sealed class CazanaCompanionReport(
 
     private static bool HasOffset(string value)
     {
-        var time = value.IndexOfAny(['T', ' ']);
+        var text = value.AsSpan();
+        var time = text.IndexOfAny('T', ' ');
         if (time < 0)
         {
             return false;
         }
 
-        var tail = value[time..].TrimEnd();
-        return tail.EndsWith('Z') || tail.EndsWith('z') || tail.Contains('+', StringComparison.Ordinal) || tail.Contains('-', StringComparison.Ordinal);
+        var tail = text[time..].TrimEnd();
+        return (tail.Length > 0 && tail[^1] is 'Z' or 'z') || tail.IndexOfAny('+', '-') >= 0;
     }
 
     private static string Condition(JsonElement? namaGrade) => namaGrade switch
@@ -353,8 +424,25 @@ internal sealed class CazanaCompanionReport(
         _ => "Good",
     };
 
-    private static string Capitalise(string? value) =>
-        string.IsNullOrEmpty(value) ? NotAvailable : char.ToUpperInvariant(value[0]) + value[1..];
+    private static string Capitalise(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return NotAvailable;
+        }
+
+        // Already capitalised: the same string, nothing built.
+        return char.ToUpperInvariant(value[0]) == value[0]
+            ? value
+            : string.Create(
+                value.Length,
+                value,
+                static (characters, source) =>
+                {
+                    source.AsSpan().CopyTo(characters);
+                    characters[0] = char.ToUpperInvariant(characters[0]);
+                });
+    }
 
     private static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 

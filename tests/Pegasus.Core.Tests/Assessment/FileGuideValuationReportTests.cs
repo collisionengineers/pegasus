@@ -75,6 +75,36 @@ public sealed class FileGuideValuationReportTests
     }
 
     /// <summary>
+    /// A page longer than the stack buffer the text is compacted into is read
+    /// the same way: the plate is found at its end in any spacing, and a long
+    /// page that does not name it is refused.
+    /// </summary>
+    [Theory]
+    [InlineData("KY12 cab", true)]
+    [InlineData("MP23 KTV", false)]
+    public async Task ALongPageIsTestedForTheRegistrationLikeAShortOne(string endsWith, bool filed)
+    {
+        var custody = new RecordingCustody();
+        var printed = string.Concat(Enumerable.Repeat("Market overview of the vehicle\n", 100)) + endsWith;
+        var filing = Filing(custody, printed).ExecuteAsync(
+            new(Engineer, Guid.NewGuid(), ValuationSource.Cazana, "KY12CAB", new DateOnly(2026, 10, 1),
+                new StubReport(Pdf)),
+            default);
+
+        if (filed)
+        {
+            await filing;
+            Assert.Single(custody.Requests);
+        }
+        else
+        {
+            var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => filing);
+            Assert.Contains("registration=different", refused.Message, StringComparison.Ordinal);
+            Assert.Empty(custody.Requests);
+        }
+    }
+
+    /// <summary>
     /// The provider's shared account can hand back another vehicle's print. It
     /// is refused with a flags-only reason that never carries a plate.
     /// </summary>

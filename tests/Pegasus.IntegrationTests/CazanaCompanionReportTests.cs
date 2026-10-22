@@ -252,6 +252,132 @@ public sealed class CazanaCompanionReportTests
         Assert.DoesNotContain(requests, request => request.Uri.AbsolutePath == "/app/pdf/create");
     }
 
+    /// <summary>
+    /// A request that fails, or a call that runs past its bound, on a report
+    /// read or on the PDF service is that stage's transport failure: named by
+    /// its stage, carrying the exception, and nothing is posted after a read.
+    /// </summary>
+    [Theory]
+    [InlineData("timeline", "/app/companion/" + Uuid + "/timeline")]
+    [InlineData("listings", "/app/listings/similar")]
+    [InlineData("pdf", "/app/pdf/create")]
+    public async Task ATransportFailureOrATimeoutOnAReportCallIsNamedByItsStage(string stage, string failingPath)
+    {
+        foreach (Exception cause in new Exception[]
+        {
+            new HttpRequestException("connection refused"),
+            new TaskCanceledException("timed out"),
+        })
+        {
+            var (report, requests) = CreateReport(path =>
+            {
+                if (path == failingPath)
+                {
+                    throw cause;
+                }
+
+                return null;
+            });
+
+            var failed = await Assert.ThrowsAsync<CazanaCompanionFailure>(() => report.FetchPdfAsync(default));
+
+            Assert.Equal(stage, failed.Stage);
+            Assert.True(failed.Transport);
+            Assert.Null(failed.Status);
+            Assert.Equal("transport=" + cause.GetType().Name, failed.Detail);
+            Assert.IsType(cause.GetType(), failed.InnerException);
+            Assert.Equal(
+                stage == "pdf" ? 1 : 0,
+                requests.Count(request => request.Uri.AbsolutePath == "/app/pdf/create"));
+        }
+    }
+
+    /// <summary>
+    /// A stock image lookup that gets no answer is the same silent fallback as
+    /// a refused one: only the image is lost.
+    /// </summary>
+    [Theory]
+    [InlineData("connection")]
+    [InlineData("timeout")]
+    public async Task AnImageLookupThatGetsNoAnswerFallsBackToTheWhiteLogotypeOnTheDarkTile(string kind)
+    {
+        Exception cause = kind == "connection"
+            ? new HttpRequestException("connection refused")
+            : new TaskCanceledException("timed out");
+        var (report, requests) = CreateReport(path =>
+        {
+            if (path == "/cz/image/2.0")
+            {
+                throw cause;
+            }
+
+            return null;
+        });
+
+        var pdf = await report.FetchPdfAsync(default);
+
+        Assert.Equal(PdfBytes, pdf);
+        var html = PostedHtml(RequestTo(requests, "/app/pdf/create"));
+        Assert.Contains("cazana-logotype-white.svg", html, StringComparison.Ordinal);
+        Assert.Contains("justify-center bg-tertiary border-transparent", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every kind of tag renders to exactly these bytes: each of the eight
+    /// escaped characters at the start, middle and end of a value and side by
+    /// side, non-ASCII text, whole numbers and decimals written as they are,
+    /// flags, lists with a nested list, inverted sections, a partial and a
+    /// comment.
+    /// </summary>
+    [Fact]
+    public void MustacheRendersEveryKindOfTagToTheSameBytes()
+    {
+        const string printed = "£13,657 café 😀";
+        var view = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["a"] = "&&a<b>c\"d'e/f`g=",
+            ["a2"] = printed,
+            ["n"] = 42,
+            ["l"] = -9876543210L,
+            ["d"] = 12.50m,
+            ["dn"] = -0.5m,
+            ["t"] = true,
+            ["f"] = false,
+            ["e"] = "",
+            ["items"] = new List<object?>
+            {
+                new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["name"] = "a&b",
+                    ["n"] = 1,
+                    ["tags"] = new List<object?> { "x", "y/z" },
+                },
+                new Dictionary<string, object?>(StringComparer.Ordinal) { ["name"] = "<c>" },
+            },
+            ["empty"] = new List<object?>(),
+            ["flag"] = true,
+            ["obj"] = new Dictionary<string, object?>(StringComparer.Ordinal) { ["k"] = "v/w" },
+        };
+        var partials = new Dictionary<string, CazanaMustache.Template>(StringComparer.Ordinal)
+        {
+            ["part"] = CazanaMustache.Parse("<{{a2}}>"),
+        };
+
+        var rendered = CazanaMustache.Render(
+            CazanaMustache.Parse(
+                "A{{a}}|{{a2}}|{{n}}|{{l}}|{{d}}|{{dn}}|{{t}}|{{f}}|{{missing}}|"
+                + "{{#items}}[{{name}}:{{n}}{{#tags}}<{{.}}>{{/tags}}]{{/items}}|{{^items}}none{{/items}}|"
+                + "{{^empty}}none{{/empty}}|{{#flag}}yes{{/flag}}|{{#obj}}{{k}}{{/obj}}|{{>part}}|{{! note }}{{e}}Z"),
+            view,
+            partials);
+
+        Assert.Equal(
+            "A&amp;&amp;a&lt;b&gt;c&quot;d&#39;e&#x2F;f&#x60;g&#x3D;|" + printed
+            + "|42|-9876543210|12.50|-0.5|true|false||[a&amp;b:1<x><y&#x2F;z>][&lt;c&gt;:42]||none|yes|v&#x2F;w|<"
+            + printed + ">|Z",
+            rendered);
+    }
+
     [Fact]
     public void MustacheEscapesAsMustacheJsAndResolvesLengthsListsAndParentFrames()
     {
@@ -297,6 +423,26 @@ public sealed class CazanaCompanionReportTests
         Assert.Equal(3, read.PageCount);
         Assert.Equal(2, read.Pages.Count);
         Assert.Equal(2, read.Pages[^1].Number);
+    }
+
+    /// <summary>
+    /// A page holding fewer readable characters than the floor (80, not
+    /// counting whitespace) is flagged as needing OCR; one holding the floor is not.
+    /// </summary>
+    [Theory]
+    [InlineData(79, true)]
+    [InlineData(80, false)]
+    public async Task APageIsFlaggedAsNeedingOcrBelowTheReadableFloor(int readable, bool needsOcr)
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        builder.AddPage(PageSize.A4).AddText(
+            string.Concat(Enumerable.Repeat("abcdefghij", 8))[..readable], 12, new PdfPoint(36, 780), font);
+
+        var read = await new PdfPigPageTextExtractor().ExtractAsync(builder.Build(), 20_000, default);
+
+        Assert.NotNull(read);
+        Assert.Equal(needsOcr, Assert.Single(read.Pages).NeedsOcr);
     }
 
     private static CazanaGuideValuationProviderTests.RecordedRequest RequestTo(
