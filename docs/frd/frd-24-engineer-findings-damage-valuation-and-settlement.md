@@ -207,9 +207,11 @@ Cazana values on a day: a card in the current month is valued today, an
 earlier month on its last day, and a later month today, filling the card with
 the current month. Once the figures have answered, it renders Cazana's
 Companion Report (without private value) and files the PDF on the Case's
-Documents as `Cazana valuation {registration} {yyyy-MM}.pdf` when the report's
-text names the Case registration, and fills the work's VIN when the work holds
-none (operator, 21 October 2026). When Cazana holds no data for the
+Documents as `Cazana valuation {registration} {yyyy-MM}.pdf`, a Valuation
+Evidence document ([FRD-05](frd-05-documents-extraction-and-custody.md#document-types);
+operator, 22 October 2026), when the report's text names the Case
+registration, and fills the work's VIN when the work holds none (operator, 21
+October 2026). When Cazana holds no data for the
 registration, its card shows an info notice instead,
 `Cazana cannot value this vehicle: it holds no data for its registration.`
 (operator, 9 October 2026); whatever else stops a Cazana valuation, the card

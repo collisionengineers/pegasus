@@ -401,7 +401,7 @@ Estimate is the estimate import's stored file in any format, Audatex
 included, and a Glass's session's XML export, calculation-sheet PDF and
 rejected XML. A file imported from where it already sits in Case Files keeps
 its type, as does an intake file the Worker recognised as an estimate
-(operator, 22 October 2026; R221). Valuation Evidence is a Glass's guide
+(operator, 22 October 2026; R221). Valuation Evidence is a Glass's or Cazana guide
 valuation report and the findings a Market research job files: Market
 research is part of Valuation Evidence and is no longer a type of its own
 (operator, 22 October 2026; R220). There are no staff-added custom types, and
