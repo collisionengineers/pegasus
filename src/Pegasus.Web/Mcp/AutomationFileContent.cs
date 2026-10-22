@@ -199,17 +199,26 @@ internal static class AutomationFileContent
         {
             var item = items[index];
             var summary = Summary(item.FileName, item.MediaType, item.ContentLength, item.Sha256);
+            var admitted = CanDeliverInline(item.MediaType, item.ContentLength, inlineLimit);
+            if (stopped || remaining == 0)
+            {
+                // Nothing reads what remains from here on, so no line is
+                // counted. With nothing left, an item the walk admits cannot
+                // send even its summary: it is the item that does not fit whole.
+                var notice = !admitted
+                    ? InlineLimitNotice(item.ContentLength, item.MediaType, inlineLimit)
+                    : stopped ? AfterTheStopNotice : DoesNotFitWholeNotice(inlineLimit);
+                deliveries[index] = Withheld(summary, notice, item.ContentUrl);
+                stopped |= admitted;
+                continue;
+            }
+
             // The summary opens every block an item sends; it is counted once.
             var entry = new Entry(item, summary, Encoding.UTF8.GetByteCount(summary));
             Walked walked;
-            if (!CanDeliverInline(item.MediaType, item.ContentLength, inlineLimit))
+            if (!admitted)
             {
-                walked = WithheldLine(
-                    entry, InlineLimitNotice(item.ContentLength, item.MediaType, inlineLimit), stops: false);
-            }
-            else if (stopped)
-            {
-                walked = WithheldLine(entry, AfterTheStopNotice, stops: false);
+                walked = WithheldLine(entry, InlineLimitNotice(item.ContentLength, item.MediaType, inlineLimit));
             }
             else if (IsImage(item.MediaType))
             {
@@ -228,8 +237,14 @@ internal static class AutomationFileContent
             }
 
             deliveries[index] = walked.Delivery;
-            remaining = Math.Max(0, remaining - walked.Charged);
-            stopped |= walked.Stops;
+            if (walked.Stops)
+            {
+                stopped = true;
+            }
+            else
+            {
+                remaining = Math.Max(0, remaining - walked.Charged);
+            }
         }
 
         return deliveries;
@@ -299,8 +314,8 @@ internal static class AutomationFileContent
 
         return rendering.Refusal switch
         {
-            DeliveryImageRefusal.Undecodable => WithheldLine(entry, UndecodableImageNotice, stops: false),
-            DeliveryImageRefusal.Oversized => WithheldLine(entry, OversizedImageNotice, stops: false),
+            DeliveryImageRefusal.Undecodable => WithheldLine(entry, UndecodableImageNotice),
+            DeliveryImageRefusal.Oversized => WithheldLine(entry, OversizedImageNotice),
             _ => DoesNotFitWhole(entry, inlineLimit)
         };
     }
@@ -310,7 +325,10 @@ internal static class AutomationFileContent
     /// header's tail and one page heading, the least any PDF sends. Otherwise
     /// it is read once, its text extracted to one character past the room
     /// left (characters never outnumber UTF-8 bytes), and it is delivered only
-    /// when every page came back whole and its blocks fit what remains.
+    /// when every page came back whole and its blocks fit what remains. Each
+    /// heading and page text is counted once, in one pass that ends at the
+    /// first page cut short or past what remains, and the blocks are built
+    /// only when the whole file fits.
     /// </summary>
     private static async Task<Walked> WalkPdfAsync(
         IExtractPdfPageText pdfText,
@@ -333,25 +351,35 @@ internal static class AutomationFileContent
             cancellationToken);
         if (extracted is null)
         {
-            return WithheldLine(entry, UnreadablePdfNotice, stops: false);
+            return WithheldLine(entry, UnreadablePdfNotice);
         }
-        if (extracted.Pages.Count < extracted.PageCount || extracted.Pages.Any(page => page.Truncated))
+        if (extracted.Pages.Count < extracted.PageCount)
         {
             return DoesNotFitWhole(entry, inlineLimit);
         }
 
         var headerTail = PdfHeaderTail(extracted.PageCount);
-        var blocks = PdfBlocks(entry.Summary + headerTail, extracted);
         var charged = entry.SummaryBytes + Encoding.UTF8.GetByteCount(headerTail);
-        // The header is counted above; each page block once here.
-        for (var at = 1; at < blocks.Count; at++)
+        var headings = new string[extracted.Pages.Count];
+        for (var at = 0; at < headings.Length; at++)
         {
-            charged += Encoding.UTF8.GetByteCount(((TextContentBlock)blocks[at]).Text);
+            var page = extracted.Pages[at];
+            if (page.Truncated)
+            {
+                return DoesNotFitWhole(entry, inlineLimit);
+            }
+            headings[at] = PageHeading(page, extracted.PageCount);
+            charged += Encoding.UTF8.GetByteCount(headings[at]) + Encoding.UTF8.GetByteCount(page.Text);
+            if (charged > remaining)
+            {
+                return DoesNotFitWhole(entry, inlineLimit);
+            }
         }
 
-        return charged <= remaining
-            ? new(new AutomationFileDelivery(true, null, blocks), charged, Stops: false)
-            : DoesNotFitWhole(entry, inlineLimit);
+        return new(
+            new AutomationFileDelivery(true, null, PdfBlocks(entry.Summary + headerTail, extracted, headings)),
+            charged,
+            Stops: false);
     }
 
     /// <summary>
@@ -385,35 +413,54 @@ internal static class AutomationFileContent
             : DoesNotFitWhole(entry, inlineLimit);
     }
 
+    /// <summary>
+    /// The item that does not fit whole: withheld with its reason, and the
+    /// walk stops. Nothing reads what remains after it, so its line is not
+    /// counted.
+    /// </summary>
     private static Walked DoesNotFitWhole(Entry entry, int inlineLimit) =>
-        WithheldLine(entry, DoesNotFitWholeNotice(inlineLimit), stops: true);
+        new(
+            Withheld(entry.Summary, DoesNotFitWholeNotice(inlineLimit), entry.Item.ContentUrl),
+            Charged: 0,
+            Stops: true);
 
     /// <summary>A metadata-only answer, one whole line charged at its UTF-8 bytes.</summary>
-    private static Walked WithheldLine(Entry entry, string notice, bool stops)
+    private static Walked WithheldLine(Entry entry, string notice)
     {
         var tail = WithheldTail(notice, entry.Item.ContentUrl);
         return new(
             new AutomationFileDelivery(false, notice, [new TextContentBlock { Text = entry.Summary + tail }]),
             entry.SummaryBytes + Encoding.UTF8.GetByteCount(tail),
-            stops);
+            Stops: false);
     }
 
-    /// <summary>The page text of a PDF: its header block, then one block per page.</summary>
-    private static List<ContentBlock> PdfBlocks(string header, PdfTextExtraction extracted)
+    /// <summary>
+    /// The page text of a PDF: its header block, then one block per page, each
+    /// its heading and then its text. The batch passes the headings it has
+    /// already built to count them.
+    /// </summary>
+    private static List<ContentBlock> PdfBlocks(
+        string header,
+        PdfTextExtraction extracted,
+        string[]? headings = null)
     {
         var blocks = new List<ContentBlock>(extracted.Pages.Count + 2)
         {
             new TextContentBlock { Text = header }
         };
-        foreach (var page in extracted.Pages)
+        for (var at = 0; at < extracted.Pages.Count; at++)
         {
-            blocks.Add(new TextContentBlock { Text = PageText(page, extracted.PageCount) });
+            var page = extracted.Pages[at];
+            blocks.Add(new TextContentBlock
+            {
+                Text = (headings?[at] ?? PageHeading(page, extracted.PageCount)) + page.Text
+            });
         }
         return blocks;
     }
 
-    /// <summary>One page's block: its heading, then its text.</summary>
-    private static string PageText(PdfPageText page, int pageCount)
+    /// <summary>One page's heading, which its text follows in the page's block.</summary>
+    private static string PageHeading(PdfPageText page, int pageCount)
     {
         var heading = new StringBuilder()
             .Append(CultureInfo.InvariantCulture, $"Page {page.Number} of {pageCount}");
@@ -425,7 +472,7 @@ internal static class AutomationFileContent
         {
             heading.Append(" (truncated at the inline limit)");
         }
-        return $"{heading}:\n{page.Text}";
+        return heading.Append(":\n").ToString();
     }
 
     /// <summary>
@@ -441,7 +488,7 @@ internal static class AutomationFileContent
     /// </summary>
     private static readonly int ShortestPdfTailBytes =
         Encoding.UTF8.GetByteCount(PdfHeaderTail(1))
-        + Encoding.UTF8.GetByteCount(PageText(new PdfPageText(1, string.Empty, NeedsOcr: false, Truncated: false), 1));
+        + Encoding.UTF8.GetByteCount(PageHeading(new PdfPageText(1, string.Empty, NeedsOcr: false, Truncated: false), 1));
 
     /// <summary>What follows the summary in an image's caption.</summary>
     private static string CaptionTail(int width, int height, bool downscaled) =>

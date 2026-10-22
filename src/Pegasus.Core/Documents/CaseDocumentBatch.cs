@@ -35,15 +35,22 @@ public interface IOpenCaseDocumentBatch
 }
 
 /// <summary>
-/// An opened batch. <see cref="Metadata"/> is in request order;
-/// <see cref="ReadContentAsync"/> reads one item's bytes, verified against
-/// its custody hash and length, with no database read;
-/// <see cref="RecordDownloadedAsync"/> writes the <c>document_downloaded</c>
-/// row of each item handed back, in one save, and nothing for the others.
+/// An opened batch. <see cref="Metadata"/> and <see cref="ItemOperationKeys"/>
+/// are in request order; <see cref="ReadContentAsync"/> reads one item's
+/// bytes, verified against its custody hash and length, with no database
+/// read; <see cref="RecordDownloadedAsync"/> writes the
+/// <c>document_downloaded</c> row of each item handed back, in one save, and
+/// nothing for the others.
 /// </summary>
 public interface ICaseDocumentBatch
 {
     IReadOnlyList<CaseDocumentMetadata> Metadata { get; }
+
+    /// <summary>
+    /// Each item's <see cref="OpenCaseDocumentBatchQuery.ItemOperationKey"/>,
+    /// formatted once for its row and the caller's result.
+    /// </summary>
+    IReadOnlyList<string> ItemOperationKeys { get; }
 
     ValueTask<ReadOnlyMemory<byte>> ReadContentAsync(
         int index,

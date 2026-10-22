@@ -331,7 +331,7 @@ internal sealed class DocumentMcpTools(
                         delivery.ContentIncluded,
                         item.ContentUrl,
                         delivery.Notice,
-                        OpenCaseDocumentBatchQuery.ItemOperationKey(operationKey, index),
+                        batch.ItemOperationKeys[index],
                         correlationId);
                 }
 

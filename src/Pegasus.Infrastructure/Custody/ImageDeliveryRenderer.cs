@@ -14,6 +14,8 @@ namespace Pegasus.Infrastructure.Custody;
 /// <remarks>
 /// The source is decoded once, at the scale the first edge needs, and every
 /// smaller attempt resizes that bitmap, so a 6 MB photograph is read once.
+/// The smallest rendering is tried first, so an image that no rendering fits
+/// is refused after one draw and one encode rather than every one.
 /// The codec reads the caller's bytes where they lie rather than a copy.
 /// Nothing here throws at the caller: bytes that are not a decodable image,
 /// an image past the decode bound, or a budget no quality fits mean "no
@@ -104,39 +106,64 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
                 return Undecodable;
             }
 
+            // The edges halve from the first down to the floor; the last one
+            // tried is the smallest.
             var lastEdge = Math.Min(MinimumEdge, firstEdge);
-            for (var edge = firstEdge; edge >= lastEdge; edge /= 2)
+            var smallestEdge = firstEdge;
+            while (smallestEdge / 2 >= lastEdge)
+            {
+                smallestEdge /= 2;
+            }
+
+            // The smallest rendering first, the smallest edge at the lowest
+            // quality: when it does not fit, no rendering does, so the image
+            // is refused after one draw and one encode. When it fits, the
+            // search runs from the largest, and the smallest edge reuses this
+            // drawing and this encoding.
+            cancellationToken.ThrowIfCancellationRequested();
+            var (smallestWidth, smallestHeight) = TargetSize(
+                displayedWidth, displayedHeight, displayedLongest, smallestEdge);
+            using var smallest = Draw(decoded, origin, transposed, smallestWidth, smallestHeight);
+            if (smallest is null)
+            {
+                return Undecodable;
+            }
+            using var smallestEncoded = smallest.Encode(SKEncodedImageFormat.Jpeg, Qualities[^1]);
+            if (smallestEncoded is null)
+            {
+                return Undecodable;
+            }
+            if (smallestEncoded.Size > maximumBytes)
+            {
+                return NoQualityFits;
+            }
+
+            for (var edge = firstEdge; edge > smallestEdge; edge /= 2)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var scale = Math.Min(1d, (double)edge / displayedLongest);
-                var targetWidth = Math.Max(1, (int)Math.Round(displayedWidth * scale));
-                var targetHeight = Math.Max(1, (int)Math.Round(displayedHeight * scale));
+                var (targetWidth, targetHeight) = TargetSize(displayedWidth, displayedHeight, displayedLongest, edge);
                 using var image = Draw(decoded, origin, transposed, targetWidth, targetHeight);
                 if (image is null)
                 {
                     return Undecodable;
                 }
-
-                foreach (var quality in Qualities)
+                if (FirstFit(image, Qualities, maximumBytes, targetWidth, targetHeight, displayedWidth, displayedHeight)
+                    is { } rendering)
                 {
-                    using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, quality);
-                    if (encoded is null)
-                    {
-                        return Undecodable;
-                    }
-                    if (encoded.Size <= maximumBytes)
-                    {
-                        return DeliveryImageRendering.Rendered(new DeliveryImage(
-                            encoded.ToArray(),
-                            "image/jpeg",
-                            targetWidth,
-                            targetHeight,
-                            Downscaled: targetWidth < displayedWidth || targetHeight < displayedHeight));
-                    }
+                    return rendering;
                 }
             }
 
-            return NoQualityFits;
+            cancellationToken.ThrowIfCancellationRequested();
+            return FirstFit(
+                    smallest,
+                    Qualities.AsSpan(..^1),
+                    maximumBytes,
+                    smallestWidth,
+                    smallestHeight,
+                    displayedWidth,
+                    displayedHeight)
+                ?? Rendered(smallestEncoded, smallestWidth, smallestHeight, displayedWidth, displayedHeight);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -151,6 +178,60 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
             DecodeGate.Release();
         }
     }
+
+    /// <summary>The displayed size at <paramref name="edge"/>, never enlarged.</summary>
+    private static (int Width, int Height) TargetSize(
+        int displayedWidth,
+        int displayedHeight,
+        int displayedLongest,
+        int edge)
+    {
+        var scale = Math.Min(1d, (double)edge / displayedLongest);
+        return (
+            Math.Max(1, (int)Math.Round(displayedWidth * scale)),
+            Math.Max(1, (int)Math.Round(displayedHeight * scale)));
+    }
+
+    /// <summary>
+    /// The drawing encoded at the first of <paramref name="qualities"/> that
+    /// fits, undecodable when an encode fails, or <c>null</c> when none fits.
+    /// </summary>
+    private static DeliveryImageRendering? FirstFit(
+        SKImage image,
+        ReadOnlySpan<int> qualities,
+        int maximumBytes,
+        int width,
+        int height,
+        int displayedWidth,
+        int displayedHeight)
+    {
+        foreach (var quality in qualities)
+        {
+            using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, quality);
+            if (encoded is null)
+            {
+                return Undecodable;
+            }
+            if (encoded.Size <= maximumBytes)
+            {
+                return Rendered(encoded, width, height, displayedWidth, displayedHeight);
+            }
+        }
+        return null;
+    }
+
+    private static DeliveryImageRendering Rendered(
+        SKData encoded,
+        int width,
+        int height,
+        int displayedWidth,
+        int displayedHeight) =>
+        DeliveryImageRendering.Rendered(new DeliveryImage(
+            encoded.ToArray(),
+            "image/jpeg",
+            width,
+            height,
+            Downscaled: width < displayedWidth || height < displayedHeight));
 
     private static int MeasureSmallestJpeg()
     {

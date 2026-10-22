@@ -173,8 +173,17 @@ internal sealed class EfDocumentCustodyStore(
         ArgumentNullException.ThrowIfNull(query.Items);
         ValidateActor(query.Actor);
         var operationKey = ValidateOperationKey(query.OperationKey);
-        // The longest row key the batch can write must fit as well.
-        ValidateOperationKey(OpenCaseDocumentBatchQuery.ItemOperationKey(operationKey, query.Items.Count));
+        // Each item's row key, formatted once for its row and the caller's
+        // result. The last is the longest, and it must fit as well.
+        var itemKeys = new string[query.Items.Count];
+        for (var index = 0; index < itemKeys.Length; index++)
+        {
+            itemKeys[index] = OpenCaseDocumentBatchQuery.ItemOperationKey(operationKey, index);
+        }
+        if (itemKeys.Length > 0)
+        {
+            ValidateOperationKey(itemKeys[^1]);
+        }
         var occurrenceIds = query.Items.Select(item => item.OccurrenceId).ToArray();
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await (
@@ -250,7 +259,7 @@ internal sealed class EfDocumentCustodyStore(
         }
 
         return new OpenedDocumentBatch(
-            dbContextFactory, contentStore, timeProvider, query.Actor, operationKey, metadata, reads);
+            dbContextFactory, contentStore, timeProvider, query.Actor, itemKeys, metadata, reads);
     }
 
     /// <summary>
@@ -1524,11 +1533,13 @@ internal sealed class EfDocumentCustodyStore(
         IDocumentContentStore contentStore,
         TimeProvider timeProvider,
         ActionActor actor,
-        string operationKey,
+        string[] itemKeys,
         CaseDocumentMetadata[] metadata,
         ManagedDocumentContentRead[] reads) : ICaseDocumentBatch
     {
         public IReadOnlyList<CaseDocumentMetadata> Metadata => metadata;
+
+        public IReadOnlyList<string> ItemOperationKeys => itemKeys;
 
         public ValueTask<ReadOnlyMemory<byte>> ReadContentAsync(
             int index,
@@ -1556,7 +1567,7 @@ internal sealed class EfDocumentCustodyStore(
                     "document_downloaded",
                     actor,
                     now,
-                    OpenCaseDocumentBatchQuery.ItemOperationKey(operationKey, index),
+                    itemKeys[index],
                     afterJson: DocumentActionHistory.Serialize(new DocumentDownloadHistoryValue(
                         item.CaseId,
                         item.OccurrenceId,
