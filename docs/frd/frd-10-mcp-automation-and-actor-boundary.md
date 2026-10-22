@@ -229,7 +229,10 @@ records nothing. An approval, archive or evidence link the Actor records is
 attributed to it and reads back as the Automation actor.
 
 **Document acts.** `pegasus_document_action` tags and untags an image, puts
-it in the report or takes it out, marks the Audit's original report, removes
+it in the report or takes it out, marks the Audit's original report, changes
+a document's type with a reason (`set_type`: any type but Original source;
+operator, 22 October 2026, R204;
+[FRD-05](frd-05-documents-extraction-and-custody.md#document-types)), removes
 a document occurrence while custody content and history are kept, retries
 failed custody, and adds a word to the shared image-tag vocabulary, through
 the staff Custody commands.
@@ -511,7 +514,7 @@ its one command when none is given.
 | `automation.intake` | `pegasus_triage_assign`, `pegasus_triage_note_add` | Assign or unassign the Triage; add a Triage note | one-command lease |
 | `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced | one-command lease |
 | `automation.documents` | `pegasus_document_download`, `pegasus_document_download_batch` | One exact document version, or 1 to 25 versions sharing the inline budget, as native content | none |
-| `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
+| `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, set_type, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
 | `automation.documents` | `pegasus_report_list` | A work's report generations and artifacts, its report approval and its report-Sent evidence | none |
 | `automation.documents` | `pegasus_report_action` | Generate the report, Repair Spec or images; record report approval; link or unlink report-Sent evidence | one-command lease |
 | `automation.documents` | `pegasus_report_wording_get`, `pegasus_image_preparation_get` | A work's report wording blocks with their composed sentences; each image's report place, role, rotation, crop, page of its own and preparation version | none |

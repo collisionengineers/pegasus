@@ -1099,6 +1099,400 @@ public sealed class DocumentCustodyDurabilityTests
         }
     }
 
+    /// <summary>
+    /// A document's type changes as any Case change does (R204): under the
+    /// lease and the version, once for an operation key, moving the version,
+    /// ending the lease and putting the typed reason on the Notes timeline. A
+    /// retry is answered as applied rather than refused as already that type,
+    /// and the key reused for another type conflicts. A Report sent Case's
+    /// documents may be retyped.
+    /// </summary>
+    [Fact]
+    public async Task SettingADocumentTypeIsDurableReplaySafeAndOnTheTimeline()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            var occurrenceId = await SeedCurrentDocumentAsync(
+                database, caseId, 0, "calculation-sheet.pdf", role: DocumentSemanticRole.Other);
+            await using (var seed = await database.CreateContextAsync())
+            {
+                (await seed.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).State =
+                    nameof(CaseLifecycleState.ReportSent);
+                await seed.SaveChangesAsync();
+            }
+
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+            var command = new SetDocumentTypeCommand(
+                caseId,
+                occurrenceId,
+                await VersionIdAsync(database, occurrenceId),
+                DocumentSemanticRole.Estimate,
+                actor,
+                "The Glass's calculation sheet was filed as Other.",
+                $"document-type:{Guid.NewGuid():N}",
+                lease.Version,
+                lease.Token);
+            var setType = scope.ServiceProvider.GetRequiredService<ISetDocumentType>();
+
+            await setType.ExecuteAsync(command, CancellationToken.None);
+            await setType.ExecuteAsync(command, CancellationToken.None);
+            await Assert.ThrowsAsync<CaseOperationConflictException>(() => setType.ExecuteAsync(
+                command with { NewRole = DocumentSemanticRole.ValuationEvidence }, CancellationToken.None));
+
+            Assert.Equal(DocumentSemanticRole.Estimate, (await OccurrenceAsync(database, occurrenceId)).SemanticRole);
+            await using var verification = await database.CreateContextAsync();
+            var workflow = await verification.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+            Assert.Equal(lease.Version + 1, workflow.Version);
+            Assert.Null(workflow.EditLeaseHolder);
+            var history = await scope.ServiceProvider.GetRequiredService<ICaseQueryStore>()
+                .ListHistoryAsync(caseId, CancellationToken.None);
+            var note = Assert.Single(history, entry => entry.EventType == "case_document_type_set");
+            Assert.Equal(command.Reason, note.Reason);
+            Assert.Equal(actor.SubjectId.ToString(), note.Actor);
+            var change = await verification.ActionHistory.SingleAsync(item => item.EventKind == "case_document_type_set");
+            Assert.Contains("\"SemanticRole\":\"Other\"", change.BeforeJson, StringComparison.Ordinal);
+            Assert.Contains("\"SemanticRole\":\"Estimate\"", change.AfterJson, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The refusals a change of type answers before it writes anything: another
+    /// Case's document, a version that is not the live one, Image for a file
+    /// that is not a JPEG or PNG, the type the document already has, Audit
+    /// report on a Case that is not an Audit, and a Closed Case.
+    /// </summary>
+    [Fact]
+    public async Task ASetTypeRefusesWhatTheOwnersKeep()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            var otherCaseId = await SeedCaseAsync(database, sequence: 2);
+            var document = await SeedCurrentDocumentAsync(database, caseId, 0, "instruction.pdf");
+            var superseded = await SeedCurrentDocumentAsync(database, caseId, 1, "superseded.pdf");
+            var removed = await SeedCurrentDocumentAsync(database, caseId, 2, "removed.pdf");
+            var otherCaseDocument = await SeedCurrentDocumentAsync(database, otherCaseId, 0, "other-case.pdf");
+            await using (var seed = await database.CreateContextAsync())
+            {
+                var supersededVersion = await VersionIdAsync(database, superseded);
+                var removedVersion = await VersionIdAsync(database, removed);
+                (await seed.Set<DocumentVersionEntity>().SingleAsync(item => item.Id == supersededVersion)).IsCurrent = false;
+                var removal = await seed.Set<DocumentVersionEntity>().SingleAsync(item => item.Id == removedVersion);
+                removal.IsLogicallyRemoved = true;
+                removal.IsCurrent = false;
+                await seed.SaveChangesAsync();
+            }
+
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+            var store = scope.ServiceProvider.GetRequiredService<ISetDocumentTypeStore>();
+            async Task<SetDocumentTypeCommand> CommandAsync(Guid occurrenceId, DocumentSemanticRole role) => new(
+                caseId,
+                occurrenceId,
+                await VersionIdAsync(database, occurrenceId),
+                role,
+                actor,
+                "Filed as the wrong type.",
+                $"document-type-refused:{Guid.NewGuid():N}",
+                lease.Version,
+                lease.Token);
+
+            foreach (var refused in new[]
+            {
+                await CommandAsync(otherCaseDocument, DocumentSemanticRole.Estimate),
+                await CommandAsync(superseded, DocumentSemanticRole.Estimate),
+                await CommandAsync(removed, DocumentSemanticRole.Estimate),
+                await CommandAsync(document, DocumentSemanticRole.Image),
+                await CommandAsync(document, DocumentSemanticRole.Instruction),
+                await CommandAsync(document, DocumentSemanticRole.AuditReport)
+            })
+            {
+                await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    store.SetDocumentTypeAsync(refused, reading: null, CancellationToken.None));
+            }
+
+            await using (var seed = await database.CreateContextAsync())
+            {
+                (await seed.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).State =
+                    nameof(CaseLifecycleState.PrincipalCancelled);
+                await seed.SaveChangesAsync();
+            }
+            await Assert.ThrowsAsync<CaseTerminalMutationException>(async () =>
+                await store.SetDocumentTypeAsync(
+                    await CommandAsync(document, DocumentSemanticRole.Estimate), reading: null, CancellationToken.None));
+
+            await using var verification = await database.CreateContextAsync();
+            Assert.Equal(
+                lease.Version,
+                await verification.CaseWorkflows.Where(item => item.CaseId == caseId).Select(item => item.Version).SingleAsync());
+            Assert.All(
+                await verification.Set<DocumentOccurrenceEntity>().ToArrayAsync(),
+                occurrence => Assert.Equal(DocumentSemanticRole.Instruction, occurrence.SemanticRole));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A change to Audit report is Mark as original report's act (R204): the
+    /// Audit report role, the Original report cells from the document's own
+    /// reading, the original-report history under the typed reason, and the
+    /// one-current-report refusal. Changing that document to another type
+    /// brings back Original report missing and keeps the cells it filled.
+    /// </summary>
+    [Fact]
+    public async Task SettingAuditReportRunsTheMarkBody()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            var report = await SeedCurrentDocumentAsync(database, caseId, 0, "laird-report.pdf");
+            var second = await SeedCurrentDocumentAsync(database, caseId, 1, "second-report.pdf");
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var reading = new OriginalReportReading(
+                new string('a', 64), "Laird Assessors", "2026-09-01", "roadworthy", "repairable", false);
+            const string reason = "The original report arrived as an instruction.";
+
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var store = scope.ServiceProvider.GetRequiredService<ISetDocumentTypeStore>();
+                var lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+                await store.SetDocumentTypeAsync(
+                    new(caseId, report, await VersionIdAsync(database, report), DocumentSemanticRole.AuditReport,
+                        actor, reason, $"document-type-audit:{Guid.NewGuid():N}", lease.Version, lease.Token),
+                    reading,
+                    CancellationToken.None);
+
+                lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+                var secondVersion = await VersionIdAsync(database, second);
+                await Assert.ThrowsAsync<InvalidOperationException>(() => store.SetDocumentTypeAsync(
+                    new(caseId, second, secondVersion, DocumentSemanticRole.AuditReport,
+                        actor, reason, $"document-type-second-audit:{Guid.NewGuid():N}", lease.Version, lease.Token),
+                    reading,
+                    CancellationToken.None));
+            }
+
+            await using (var verification = await database.CreateContextAsync())
+            {
+                Assert.Equal(DocumentSemanticRole.AuditReport, (await OccurrenceAsync(database, report)).SemanticRole);
+                var recorded = await verification.CaseWorkflowEvents
+                    .SingleAsync(item => item.CaseId == caseId && item.EventType == "original_report_recorded");
+                Assert.Equal(reason, recorded.Reason);
+                var cells = await verification.CaseAssessmentFields
+                    .Where(item => item.WorkId == caseId)
+                    .ToDictionaryAsync(item => item.FieldPath, item => item.Value);
+                Assert.Equal("Laird Assessors", cells[AssessmentVocabulary.OriginalReportAssessor]);
+            }
+
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+                await scope.ServiceProvider.GetRequiredService<ISetDocumentType>().ExecuteAsync(
+                    new(caseId, report, await VersionIdAsync(database, report), DocumentSemanticRole.Other,
+                        actor, "Not the original report after all.", $"document-type-away:{Guid.NewGuid():N}",
+                        lease.Version, lease.Token),
+                    CancellationToken.None);
+            }
+
+            await using (var verification = await database.CreateContextAsync())
+            {
+                var roles = await verification.Set<DocumentOccurrenceEntity>()
+                    .Where(item => item.CaseId == caseId)
+                    .Select(item => item.SemanticRole)
+                    .ToArrayAsync();
+                Assert.True(OriginalReportPolicy.IsMissing(
+                    CaseType.Audit, null, roles.Contains(DocumentSemanticRole.AuditReport)));
+                Assert.Equal(
+                    "Laird Assessors",
+                    await verification.CaseAssessmentFields
+                        .Where(item => item.WorkId == caseId && item.FieldPath == AssessmentVocabulary.OriginalReportAssessor)
+                        .Select(item => item.Value)
+                        .SingleAsync());
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Only Image is read by the report's image set, so a change to or from it
+    /// makes a current generation stale, as a tag does; a change between two
+    /// other types leaves the generation current.
+    /// </summary>
+    [Theory]
+    [InlineData("image to other", true)]
+    [InlineData("other to image", true)]
+    [InlineData("pdf to estimate", false)]
+    public async Task ChangingToOrFromImageMakesTheCurrentGenerationStale(string change, bool stale)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            await SeedCurrentImageAsync(database, caseId);
+            var (occurrenceId, newRole) = change switch
+            {
+                "image to other" => (await SeedCurrentImageAsync(database, caseId), DocumentSemanticRole.Other),
+                "other to image" => (await SeedCurrentImageAsync(database, caseId), DocumentSemanticRole.Image),
+                _ => (await SeedCurrentDocumentAsync(database, caseId, 9, "estimate.pdf"), DocumentSemanticRole.Estimate)
+            };
+            if (change == "other to image")
+            {
+                await using var seed = await database.CreateContextAsync();
+                (await seed.Set<DocumentOccurrenceEntity>().SingleAsync(item => item.Id == occurrenceId)).SemanticRole =
+                    DocumentSemanticRole.Other;
+                await seed.SaveChangesAsync();
+            }
+            var generationId = await SeedCurrentGenerationAsync(database, caseId);
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+            var lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+
+            await scope.ServiceProvider.GetRequiredService<ISetDocumentType>().ExecuteAsync(
+                new(caseId, occurrenceId, await VersionIdAsync(database, occurrenceId), newRole, actor,
+                    "Filed as the wrong type.", $"document-type-image:{Guid.NewGuid():N}", lease.Version, lease.Token),
+                CancellationToken.None);
+
+            await using var verification = await database.CreateContextAsync();
+            var generation = await verification.Set<CaseReportGenerationEntity>()
+                .SingleAsync(item => item.Id == generationId);
+            Assert.Equal(
+                stale ? nameof(CaseReportGenerationState.Stale) : nameof(CaseReportGenerationState.Confirmed),
+                generation.State);
+            Assert.Equal(newRole, (await OccurrenceAsync(database, occurrenceId)).SemanticRole);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A replayed add still answers after the document's type was changed or
+    /// it was marked as the original report: the replay is compared with the
+    /// type the add filed, so the same inputs replay and another type still
+    /// conflicts.
+    /// </summary>
+    [Fact]
+    public async Task AReplayedAddStillAnswersAfterItsTypeIsSet()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var addDocument = scope.ServiceProvider.GetRequiredService<IAddCaseDocument>();
+            async Task<AddCaseDocumentCommand> AddCommandAsync(string fileName)
+            {
+                var lease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+                return new(
+                    caseId,
+                    fileName,
+                    "application/pdf",
+                    System.Text.Encoding.UTF8.GetBytes(fileName),
+                    DocumentSemanticRole.Other,
+                    DocumentSource.StaffUpload,
+                    $"replayed-add:{Guid.NewGuid():N}",
+                    actor,
+                    $"document-add:{Guid.NewGuid():N}",
+                    lease.Version,
+                    lease.Token);
+            }
+
+            var retyped = await AddCommandAsync("retyped.pdf");
+            var retypedAdd = await addDocument.ExecuteAsync(retyped, CancellationToken.None);
+            var typeLease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+            await scope.ServiceProvider.GetRequiredService<ISetDocumentType>().ExecuteAsync(
+                new(caseId, retypedAdd.Occurrence.Id, retypedAdd.Version.Id, DocumentSemanticRole.Estimate, actor,
+                    "An Audatex estimate.", $"document-type-replay:{Guid.NewGuid():N}", typeLease.Version, typeLease.Token),
+                CancellationToken.None);
+
+            var marked = await AddCommandAsync("marked.pdf");
+            var markedAdd = await addDocument.ExecuteAsync(marked, CancellationToken.None);
+            var markLease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
+            await scope.ServiceProvider.GetRequiredService<IMarkAsOriginalReportStore>().MarkAsOriginalReportAsync(
+                new(caseId, markLease.Version, actor, $"original-report-replay:{Guid.NewGuid():N}", markLease.Token,
+                    markedAdd.Occurrence.Id, markedAdd.Version.Id),
+                reading: null,
+                CancellationToken.None);
+
+            foreach (var (command, added) in new[] { (retyped, retypedAdd), (marked, markedAdd) })
+            {
+                var replay = await addDocument.ExecuteAsync(command, CancellationToken.None);
+                Assert.True(replay.IsReplay);
+                Assert.Equal(added.Occurrence.Id, replay.Occurrence.Id);
+                await Assert.ThrowsAsync<InvalidOperationException>(() => addDocument.ExecuteAsync(
+                    command with { SemanticRole = DocumentSemanticRole.Correspondence }, CancellationToken.None));
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>A lease on the Case at the version it has now.</summary>
+    private static async Task<CaseEditLease> ClaimLeaseAsync(
+        LocalDbTestDatabase database,
+        IServiceProvider services,
+        Guid caseId,
+        ActionActor actor)
+    {
+        long version;
+        await using (var context = await database.CreateContextAsync())
+        {
+            version = await context.CaseWorkflows
+                .Where(item => item.CaseId == caseId)
+                .Select(item => item.Version)
+                .SingleAsync();
+        }
+
+        return await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(caseId, version, actor, $"document-type-lease:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+    }
+
     /// <summary>The Overview blocker report readiness names over these preparations.</summary>
     internal static IReadOnlyList<string> ImageBlockers(IReadOnlyList<CaseAssetPreparation> preparations) =>
     [
@@ -1477,7 +1871,8 @@ public sealed class DocumentCustodyDurabilityTests
 
     private static async Task<Guid> SeedCaseAsync(
         LocalDbTestDatabase database,
-        string caseType = "inspection")
+        string caseType = "inspection",
+        int sequence = 1)
     {
         await using var context = await database.CreateContextAsync();
         var seeded = await SeededPrincipals.QdosAsync(context);
@@ -1511,8 +1906,8 @@ public sealed class DocumentCustodyDurabilityTests
                 PrincipalId = seeded.Id,
                 SequenceLineageId = seeded.SequenceLineageId,
                 Year = 2031,
-                Sequence = 1,
-                Reference = caseType == "audit" ? "a.QDOS001" : "QDOS001",
+                Sequence = sequence,
+                Reference = (caseType == "audit" ? "a." : string.Empty) + $"QDOS{sequence:000}",
                 Type = caseType,
                 InitialState = "NotReady",
                 // Lowercase, as ToCode writes it in production. The seed said

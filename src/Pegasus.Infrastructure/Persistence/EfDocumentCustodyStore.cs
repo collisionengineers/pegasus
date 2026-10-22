@@ -25,12 +25,16 @@ internal sealed class EfDocumentCustodyStore(
     ILogicallyRemoveDocument,
     IMarkAsOriginalReportStore,
     IRecogniseOriginalReportStore,
+    ISetDocumentTypeStore,
     ITagCaseImage,
     IUntagCaseImage,
     ICreateImageTag,
     ISetCaseImageInReport
 {
     internal const string OriginalReportRecordedEventKind = "original_report_recorded";
+    /// <summary>The history word for a document's type changed to anything but Audit report.</summary>
+    internal const string DocumentTypeSetEventKind = "case_document_type_set";
+    private const string DocumentTypePolicyVersion = "document-type-v1";
     /// <summary>The two history words an image tag writes on the case.</summary>
     internal const string ImageTaggedEventKind = "case_image_tagged";
     internal const string ImageUntaggedEventKind = "case_image_untagged";
@@ -57,7 +61,11 @@ internal sealed class EfDocumentCustodyStore(
         {
             var replayVersion = await context.Set<DocumentVersionEntity>()
                 .SingleAsync(version => version.Id == replayOccurrence.VersionId, cancellationToken);
-            EnsureReplayMatches(command, replayOccurrence, replayVersion, contentHash);
+            // A type changed since the add is compared as the add filed it.
+            var filedRole = replayOccurrence.SemanticRole == command.SemanticRole
+                ? replayOccurrence.SemanticRole
+                : await FiledRoleAsync(context, replayOccurrence, cancellationToken);
+            EnsureReplayMatches(command, replayOccurrence, filedRole, replayVersion, contentHash);
             return new(ToOccurrence(replayOccurrence), ToVersion(replayVersion), true);
         }
         var workflow = await RequireWorkflowAsync(context, command.CaseId, cancellationToken);
@@ -443,7 +451,7 @@ internal sealed class EfDocumentCustodyStore(
 
         var result = await RecordOriginalReportAsync(
             context, workflow, occurrence, version, command.Actor, operationKey, requestHash,
-            reading, "original-report-role-v2", now, cancellationToken);
+            reading, "original-report-role-v2", OriginalReportHistoryLine(version), now, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -586,7 +594,7 @@ internal sealed class EfDocumentCustodyStore(
 
         var result = await RecordOriginalReportAsync(
             context, workflow, occurrence, version, command.Actor, operationKey, requestHash,
-            reading, "original-report-recognition-v1", now, cancellationToken);
+            reading, "original-report-recognition-v1", OriginalReportHistoryLine(version), now, cancellationToken);
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -602,11 +610,143 @@ internal sealed class EfDocumentCustodyStore(
         return result;
     }
 
+    Task ISetDocumentTypeStore.SetDocumentTypeAsync(
+        SetDocumentTypeCommand command,
+        OriginalReportReading? reading,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => SetDocumentTypeOnceAsync(command, reading, token),
+            cancellationToken);
+
+    /// <summary>
+    /// A document's type changed on Mark as original report's path (R204): the
+    /// workflow lock, the replay by operation key, the Case's guards, the
+    /// version and the timeline row. A change to Audit report is Mark's own
+    /// recording; a change to or from Image saves as a tag does, so a current
+    /// report whose images it changes goes stale.
+    /// </summary>
+    private async Task SetDocumentTypeOnceAsync(
+        SetDocumentTypeCommand command,
+        OriginalReportReading? reading,
+        CancellationToken cancellationToken)
+    {
+        DocumentTypePolicy.Validate(command);
+        var operationKey = command.OperationKey.Trim();
+        var reason = command.Reason.Trim();
+        var requestHash = CaseOperationReplay.Hash(JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            command.CaseId,
+            command.OccurrenceId,
+            command.VersionId,
+            newRole = command.NewRole.ToString(),
+            reason,
+            command.ExpectedCaseVersion,
+            actorKind = command.Actor.Kind.ToString(),
+            actorSubjectId = command.Actor.SubjectId,
+            actorRoles = command.Actor.Roles.OrderBy(role => role).Select(role => role.ToString()).ToArray(),
+            operationKey,
+            command.EditLeaseToken
+        }));
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, command.CaseId, cancellationToken);
+        // Answered before any refusal: once applied, the type this key set is
+        // the type the document has, which a first submission would refuse.
+        if (await CaseOperationReplay.FindAsync(
+                context,
+                command.CaseId,
+                operationKey,
+                requestHash,
+                cancellationToken))
+        {
+            return;
+        }
+
+        var workflow = await RequireWorkflowAsync(context, command.CaseId, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        CaseMutationGuard.Require(
+            workflow,
+            command.Actor,
+            command.ExpectedCaseVersion,
+            command.EditLeaseToken,
+            now);
+        var occurrence = await RequireOccurrenceAsync(
+            context, command.CaseId, command.OccurrenceId, cancellationToken);
+        var version = await context.Set<DocumentVersionEntity>()
+            .SingleAsync(item => item.Id == occurrence.VersionId, cancellationToken);
+        if (!version.IsCurrent || version.IsLogicallyRemoved || version.Id != command.VersionId)
+        {
+            throw new InvalidOperationException(
+                "The document occurrence is unavailable.");
+        }
+        DocumentTypePolicy.RequireChange(occurrence.SemanticRole, command.NewRole, version.MediaType);
+
+        if (command.NewRole == DocumentSemanticRole.AuditReport)
+        {
+            OriginalReportPolicy.RequireEligible(
+                CaseTypeCodes.Parse(workflow.Case.Type), LifecycleStateOf(workflow), occurrence.SemanticRole);
+            if (await CurrentAuditReports(context, command.CaseId).AnyAsync(cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    "A different document is already marked as the original report.");
+            }
+
+            await RecordOriginalReportAsync(
+                context, workflow, occurrence, version, command.Actor, operationKey, requestHash,
+                reading, DocumentTypePolicyVersion, reason, now, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
+
+        // Only Image is read by the report's image set, so only a change to or
+        // from it reads that set before and after.
+        var reportImagesBefore = occurrence.SemanticRole == DocumentSemanticRole.Image
+            || command.NewRole == DocumentSemanticRole.Image
+                ? await EfCaseAssetPreparationStore.LoadCurrentAsync(context, command.CaseId, cancellationToken)
+                : null;
+        var beforeVersion = workflow.Version;
+        var beforeRole = occurrence.SemanticRole;
+        occurrence.SemanticRole = command.NewRole;
+        CaseMutationGuard.Complete(workflow);
+        CaseMutationHistory.Add(
+            context,
+            workflow,
+            command.Actor,
+            operationKey,
+            reason,
+            DocumentTypeSetEventKind,
+            requestHash,
+            beforeVersion,
+            workflow.Version,
+            JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = beforeRole.ToString() }),
+            JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = occurrence.SemanticRole.ToString() }),
+            DocumentTypePolicyVersion,
+            now);
+        if (reportImagesBefore is null)
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        else
+        {
+            await SaveStalingChangedReportImagesAsync(
+                context, command.CaseId, reportImagesBefore, now, cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>The history line a Mark and a recognition write.</summary>
+    private static string OriginalReportHistoryLine(DocumentVersionEntity version) =>
+        $"Original report: {version.FileName}";
+
     /// <summary>
     /// Records <paramref name="occurrence"/> as the Case's original report —
-    /// the one body a staff Mark and a recognition share: the role, the
-    /// Original report cells filled from its own reading, the Case version and
-    /// the history line.
+    /// the one body a staff Mark, a recognition and a change of type to Audit
+    /// report share: the role, the Original report cells filled from its own
+    /// reading, the Case version and the history line, which a change of type
+    /// gives as the reason typed for it.
     /// </summary>
     private static async Task<OriginalReportRecorded> RecordOriginalReportAsync(
         PegasusDbContext context,
@@ -618,6 +758,7 @@ internal sealed class EfDocumentCustodyStore(
         string requestHash,
         OriginalReportReading? reading,
         string policyVersion,
+        string historyLine,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -653,7 +794,6 @@ internal sealed class EfDocumentCustodyStore(
             occurrence.Id,
             version.FileName,
             workflow.Version);
-        var historyLine = $"Original report: {version.FileName}";
         CaseMutationHistory.Add(
             context,
             workflow,
@@ -1206,13 +1346,50 @@ internal sealed class EfDocumentCustodyStore(
                 && value.CorrelationId == operationKey,
             cancellationToken);
 
+    /// <summary>
+    /// The type an add filed <paramref name="occurrence"/> with. A later change
+    /// of type, or a Mark, keeps the type it replaced in its history, so the
+    /// first of those for the occurrence holds it; with none, the type is the
+    /// one filed. Read only when a replayed add names another type.
+    /// </summary>
+    private static async Task<DocumentSemanticRole> FiledRoleAsync(
+        PegasusDbContext context,
+        DocumentOccurrenceEntity occurrence,
+        CancellationToken cancellationToken)
+    {
+        var caseId = occurrence.CaseId.ToString("D");
+        var occurrenceId = occurrence.Id.ToString("D");
+        var changes = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "case"
+                && item.AggregateId == caseId
+                && (item.EventKind == DocumentTypeSetEventKind
+                    || item.EventKind == OriginalReportRecordedEventKind)
+                && item.BeforeJson != null
+                && item.BeforeJson.Contains(occurrenceId))
+            .OrderBy(item => item.OccurredAtUtc)
+            .Select(item => item.BeforeJson!)
+            .ToListAsync(cancellationToken);
+        foreach (var before in changes)
+        {
+            if (JsonSerializer.Deserialize<RoleHistoryValue>(before) is { } value
+                && value.Id == occurrence.Id
+                && Enum.TryParse<DocumentSemanticRole>(value.SemanticRole, out var filed))
+            {
+                return filed;
+            }
+        }
+
+        return occurrence.SemanticRole;
+    }
+
     internal static void EnsureReplayMatches(
         AddCaseDocumentCommand command,
         DocumentOccurrenceEntity occurrence,
+        DocumentSemanticRole filedRole,
         DocumentVersionEntity version,
         string contentHash)
     {
-        if (occurrence.SemanticRole != command.SemanticRole
+        if (filedRole != command.SemanticRole
             || occurrence.Source != command.Source
             || !string.Equals(occurrence.SourceOccurrenceIdentity, command.SourceOccurrenceIdentity, StringComparison.Ordinal)
             || !string.Equals(version.FileName, GetSafeFileName(command.FileName), StringComparison.Ordinal)
@@ -1429,4 +1606,7 @@ internal sealed class EfDocumentCustodyStore(
         Guid TagId,
         string Name,
         string Colour);
+
+    /// <summary>The occurrence and type a change of type or a Mark writes as its before value.</summary>
+    private sealed record RoleHistoryValue(Guid Id, string? SemanticRole);
 }
