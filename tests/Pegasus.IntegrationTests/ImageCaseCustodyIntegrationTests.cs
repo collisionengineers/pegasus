@@ -786,9 +786,9 @@ public sealed class ImageCaseCustodyIntegrationTests
         Assert.Equal("pending", fold.State);
         Assert.Equal(1, fold.AttemptCount);
         Assert.Equal("custody_dependency_failure", fold.FailureCode);
-        var backoff = ImageCustodyRetryPolicy.NextAttemptDelay(1, "custody_dependency_failure");
-        Assert.NotNull(backoff);
-        Assert.Equal(now + backoff.Value, fold.DueAtUtc);
+        Assert.Equal(
+            now + ImageCustodyRetryPolicy.NextAttemptDelay(1, "custody_dependency_failure")!.Value,
+            fold.DueAtUtc);
     }
 
     /// <summary>
