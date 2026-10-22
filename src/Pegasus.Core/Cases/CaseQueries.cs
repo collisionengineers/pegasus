@@ -126,6 +126,18 @@ public sealed record CaseSearchItem(
     /// for them (<see cref="CaseSearchFilters.IncludeTriage"/>).
     /// </summary>
     public Pegasus.Core.Triage.TriageState? TriageState { get; init; }
+
+    /// <summary>
+    /// The Case workflow's version, and whether the Case is archived: the facts
+    /// a destination search checks without a second read. Null (and false) for
+    /// a Triage Case, which has no workflow.
+    /// </summary>
+    public long? WorkflowVersion { get; init; }
+
+    public bool Archived { get; init; }
+
+    /// <summary>The Triage record's version, null for a Case with no Triage record.</summary>
+    public long? TriageVersion { get; init; }
 }
 
 public sealed record SearchCasesResult(
