@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Pegasus.Core.Documents;
 using SkiaSharp;
 
@@ -13,6 +14,7 @@ namespace Pegasus.Infrastructure.Custody;
 /// <remarks>
 /// The source is decoded once, at the scale the first edge needs, and every
 /// smaller attempt resizes that bitmap, so a 6 MB photograph is read once.
+/// The codec reads the caller's bytes where they lie rather than a copy.
 /// Nothing here throws at the caller: bytes that are not a decodable image,
 /// an image past the decode bound, or a budget no quality fits mean "no
 /// rendering" with that reason, and the caller serves the metadata and the
@@ -20,12 +22,23 @@ namespace Pegasus.Infrastructure.Custody;
 /// </remarks>
 internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
 {
-    /// <summary>Below this edge a photograph stops being evidence; give up instead.</summary>
+    /// <summary>
+    /// Below this edge a photograph stops being evidence; give up instead. An
+    /// image already smaller is tried at its own size.
+    /// </summary>
     private const int MinimumEdge = 256;
 
     private static readonly int[] Qualities = [85, 75, 65, 55, 45];
 
     private static readonly SemaphoreSlim DecodeGate = new(2, 2);
+
+    /// <summary>
+    /// The smallest JPEG this encoder writes, measured once: one mid-grey
+    /// pixel at the lowest quality, so every table holds a single symbol. Any
+    /// other rendering carries the same markers and at least as many coded
+    /// bits.
+    /// </summary>
+    private static readonly Lazy<int> SmallestJpeg = new(MeasureSmallestJpeg);
 
     private static readonly DeliveryImageRendering Undecodable =
         DeliveryImageRendering.Refused(DeliveryImageRefusal.Undecodable);
@@ -35,6 +48,8 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
 
     private static readonly DeliveryImageRendering NoQualityFits =
         DeliveryImageRendering.Refused(DeliveryImageRefusal.NoQualityFits);
+
+    public int MinimumBytes => SmallestJpeg.Value;
 
     public async Task<DeliveryImageRendering> RenderAsync(
         ReadOnlyMemory<byte> content,
@@ -46,15 +61,22 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
         {
             return Undecodable;
         }
-        if (longestEdge <= 0 || maximumBytes <= 0)
+        if (longestEdge <= 0 || maximumBytes < MinimumBytes)
         {
             return NoQualityFits;
         }
 
         await DecodeGate.WaitAsync(cancellationToken);
+        var pinned = MemoryMarshal.TryGetArray(content, out var segment)
+            ? GCHandle.Alloc(segment.Array, GCHandleType.Pinned)
+            : default;
         try
         {
-            using var data = SKData.CreateCopy(content.Span);
+            // The pinned array outlives the data and the codec, which are
+            // disposed at the end of this block, before it is released.
+            using var data = pinned.IsAllocated
+                ? SKData.Create(pinned.AddrOfPinnedObject() + segment.Offset, segment.Count)
+                : SKData.CreateCopy(content.Span);
             using var codec = SKCodec.Create(data);
             if (codec is null || (long)codec.Info.Width * codec.Info.Height <= 0)
             {
@@ -82,7 +104,8 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
                 return Undecodable;
             }
 
-            for (var edge = firstEdge; edge >= MinimumEdge; edge /= 2)
+            var lastEdge = Math.Min(MinimumEdge, firstEdge);
+            for (var edge = firstEdge; edge >= lastEdge; edge /= 2)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var scale = Math.Min(1d, (double)edge / displayedLongest);
@@ -121,7 +144,28 @@ internal sealed class ImageDeliveryRenderer : IRenderImageForDelivery
         }
         finally
         {
+            if (pinned.IsAllocated)
+            {
+                pinned.Free();
+            }
             DecodeGate.Release();
+        }
+    }
+
+    private static int MeasureSmallestJpeg()
+    {
+        try
+        {
+            using var pixel = new SKBitmap(new SKImageInfo(1, 1, SKColorType.Rgba8888, SKAlphaType.Opaque));
+            pixel.Erase(new SKColor(128, 128, 128));
+            using var image = SKImage.FromBitmap(pixel);
+            using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, Qualities[^1]);
+            return encoded is null ? 1 : (int)Math.Max(1, encoded.Size);
+        }
+        catch (Exception)
+        {
+            // No floor rather than a throw: a render then answers for itself.
+            return 1;
         }
     }
 

@@ -161,7 +161,8 @@ internal sealed class EfDocumentCustodyStore(
     /// The batch download's versions in one read: the metadata query's rule
     /// (the Case's own occurrence at its current, confirmed, not-removed
     /// version) for the whole set, with the Case identity and each document's
-    /// custody folder joined in, so the opens that follow need no SQL. Any
+    /// custody folder joined in, so the opens that follow need no SQL. Only
+    /// the columns the metadata and the custody address carry are read. Any
     /// item that does not pass refuses the batch before anything is opened.
     /// </summary>
     async Task<ICaseDocumentBatch?> IOpenCaseDocumentBatch.ExecuteAsync(
@@ -191,43 +192,61 @@ internal sealed class EfDocumentCustodyStore(
                 && !version.IsLogicallyRemoved
             select new
             {
-                Occurrence = occurrence,
-                Version = version,
+                OccurrenceId = occurrence.Id,
+                occurrence.Ordinal,
+                occurrence.DocumentId,
+                occurrence.SemanticRole,
+                VersionId = version.Id,
+                version.Version,
+                version.FileName,
+                version.MediaType,
+                version.ContentLength,
+                version.Sha256,
+                version.BoxFileId,
+                version.BoxVersionId,
                 document.CustodyFolder,
                 caseEntity.Reference,
                 caseEntity.CustodyRootRemoteId,
                 caseEntity.AuditCustodyRemoteId
             })
-            .ToDictionaryAsync(row => row.Occurrence.Id, cancellationToken);
+            .ToDictionaryAsync(row => row.OccurrenceId, cancellationToken);
 
         var metadata = new CaseDocumentMetadata[query.Items.Count];
         var reads = new ManagedDocumentContentRead[query.Items.Count];
         for (var index = 0; index < metadata.Length; index++)
         {
             var item = query.Items[index];
-            if (!rows.TryGetValue(item.OccurrenceId, out var row) || row.Version.Id != item.VersionId)
+            if (!rows.TryGetValue(item.OccurrenceId, out var row) || row.VersionId != item.VersionId)
             {
                 return null;
             }
 
             metadata[index] = new(
                 query.CaseId,
-                row.Occurrence.Id,
-                row.Occurrence.DocumentId,
-                row.Version.Id,
-                row.Version.FileName,
-                row.Version.MediaType,
-                row.Version.ContentLength,
-                row.Version.Sha256);
+                row.OccurrenceId,
+                row.DocumentId,
+                row.VersionId,
+                row.FileName,
+                row.MediaType,
+                row.ContentLength,
+                row.Sha256);
             reads[index] = new(
-                Address(
+                new ManagedDocumentContentAddress(
                     query.CaseId,
                     row.Reference,
                     CaseCustodyFolders.RootOf(row.CustodyFolder, row.CustodyRootRemoteId, row.AuditCustodyRemoteId),
-                    row.Occurrence,
-                    row.Version),
-                row.Version.Sha256,
-                row.Version.ContentLength);
+                    row.OccurrenceId,
+                    row.Ordinal,
+                    row.DocumentId,
+                    row.VersionId,
+                    row.Version,
+                    row.SemanticRole,
+                    row.FileName,
+                    row.MediaType,
+                    row.BoxFileId,
+                    row.BoxVersionId),
+                row.Sha256,
+                row.ContentLength);
         }
 
         return new OpenedDocumentBatch(

@@ -225,10 +225,13 @@ public sealed class AutomationDocumentIngressTests
         var (noteOccurrence, noteVersion) = await AddWithoutLeaseAsync(
             client, token, caseId, 3, "note.txt", "text/plain", "batch note text"u8.ToArray(), "Other", "mcp:add-note");
 
-        // At a limit every item fits, each comes back whole and the content
-        // blocks keep the request order: caption and image, PDF header and
-        // page, text summary and text (R192).
-        const int everythingFits = AutomationMcpErrors.MaximumDocumentBytes;
+        // At the default limit the walk binds (R192). The first photograph is
+        // offered everything after its caption, less base64's growth, so it is
+        // the renderer's answer for that bound, not a share; the PDF and then
+        // photo-rear.jpg are offered what it leaves, and note.txt what remains
+        // after them. The content blocks keep the request order: caption and
+        // image, PDF header and page, caption and image, summary and text.
+        var renderer = mcpFactory.Services.GetRequiredService<IRenderImageForDelivery>();
         using (var batchDownload = await AutomationMcpTestSupport.PostMcpAsync(
             client,
             token,
@@ -238,7 +241,6 @@ public sealed class AutomationDocumentIngressTests
                 new
                 {
                     caseId,
-                    maxInlineBytes = everythingFits,
                     documents = new[]
                     {
                         new { occurrenceId = imageOccurrence, versionId = imageVersion },
@@ -253,7 +255,9 @@ public sealed class AutomationDocumentIngressTests
             var docs = structured.GetProperty("documents").EnumerateArray().ToArray();
             string[] requestOrder = ["photo.jpg", "estimate.pdf", "photo-rear.jpg", "note.txt"];
             Assert.Equal(requestOrder, docs.Select(item => item.GetProperty("fileName").GetString()!).ToArray());
-            Assert.All(docs, item => Assert.True(item.GetProperty("contentIncluded").GetBoolean()));
+            Assert.Equal(
+                [true, true, true, true],
+                docs.Select(item => item.GetProperty("contentIncluded").GetBoolean()).ToArray());
 
             var content = blocks.EnumerateArray().ToArray();
             Assert.Equal(
@@ -270,10 +274,23 @@ public sealed class AutomationDocumentIngressTests
                     .ToArray());
             Assert.Contains("Estimate total 1234.56", content[3].GetProperty("text").GetString(), StringComparison.Ordinal);
             Assert.Equal("batch note text", content[7].GetProperty("text").GetString());
-            var inlineBytes = InlineContentBytes(blocks);
+
+            var first = await renderer.RenderAsync(
+                photograph,
+                AutomationFileContent.LongestEdge,
+                ImageBound(AutomationFileContent.DefaultInlineBytes, content[0]),
+                CancellationToken.None);
+            Assert.Equal(first.Image!.Content, ImageBytes(content[1]));
+            var rear = await renderer.RenderAsync(
+                photograph,
+                AutomationFileContent.LongestEdge,
+                ImageBound(AutomationFileContent.DefaultInlineBytes - InlineContentBytes(content[..4]), content[4]),
+                CancellationToken.None);
+            Assert.Equal(rear.Image!.Content, ImageBytes(content[5]));
+            var inlineBytes = InlineContentBytes(content);
             Assert.True(
-                inlineBytes <= everythingFits,
-                $"Batch content was {inlineBytes} bytes at its encoded size, above maxInlineBytes {everythingFits}.");
+                inlineBytes <= AutomationFileContent.DefaultInlineBytes,
+                $"Batch content was {inlineBytes} bytes at its encoded size, above the default {AutomationFileContent.DefaultInlineBytes}.");
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -454,7 +471,7 @@ public sealed class AutomationDocumentIngressTests
             Assert.StartsWith($"{documents[index].GetProperty("fileName").GetString()} (", line, StringComparison.Ordinal);
             Assert.EndsWith($"contentUrl: {documents[index].GetProperty("contentUrl").GetString()}", line, StringComparison.Ordinal);
         }
-        Assert.True(InlineContentBytes(blocks) <= inlineLimit);
+        Assert.True(InlineContentBytes(content) <= inlineLimit);
 
         var operationKey = structured.GetProperty("operationKey").GetString();
         Assert.Equal(
@@ -465,6 +482,34 @@ public sealed class AutomationDocumentIngressTests
                 WHERE EventKind = N'document_downloaded'
                   AND CorrelationId LIKE N'{operationKey}:%'
                 """));
+    }
+
+    /// <summary>
+    /// An image already smaller than the renderer's floor edge is rendered at
+    /// its own size, not refused as if no quality fitted, so it cannot stop a
+    /// batch it fits (R211). The renderer's floor in bytes is a rendering it
+    /// can give: one grey pixel renders at it, and a byte less fits nothing.
+    /// </summary>
+    [Fact]
+    public async Task ASmallImageRendersAtItsOwnSizeAndTheByteFloorIsARendering()
+    {
+        var renderer = new ImageDeliveryRenderer();
+
+        var small = await renderer.RenderAsync(
+            NoisyJpeg(200, 150),
+            AutomationFileContent.LongestEdge,
+            AutomationFileContent.DefaultInlineBytes,
+            CancellationToken.None);
+        var image = Assert.IsType<DeliveryImage>(small.Image);
+        Assert.Equal((200, 150, false), (image.Width, image.Height, image.Downscaled));
+
+        var pixel = GreyPixelPng();
+        var atFloor = await renderer.RenderAsync(
+            pixel, AutomationFileContent.LongestEdge, renderer.MinimumBytes, CancellationToken.None);
+        Assert.NotNull(atFloor.Image);
+        var belowFloor = await renderer.RenderAsync(
+            pixel, AutomationFileContent.LongestEdge, renderer.MinimumBytes - 1, CancellationToken.None);
+        Assert.Equal(DeliveryImageRefusal.NoQualityFits, belowFloor.Refusal);
     }
 
     /// <summary>
@@ -734,10 +779,10 @@ public sealed class AutomationDocumentIngressTests
     /// What the content array costs at its encoded size, as the batch charges
     /// it (R192): text at its UTF-8 bytes, an image block at its base64 length.
     /// </summary>
-    private static int InlineContentBytes(JsonElement blocks)
+    private static int InlineContentBytes(IEnumerable<JsonElement> blocks)
     {
         var total = 0;
-        foreach (var block in blocks.EnumerateArray())
+        foreach (var block in blocks)
         {
             switch (block.GetProperty("type").GetString())
             {
@@ -752,6 +797,22 @@ public sealed class AutomationDocumentIngressTests
 
         return total;
     }
+
+    /// <summary>
+    /// The bound the batch offers an image (R192): what remains after its
+    /// summary and the longest caption tail an image can carry, less
+    /// base64's four bytes for three. The summary is the caption up to its tail.
+    /// </summary>
+    private static int ImageBound(int remaining, JsonElement caption)
+    {
+        var text = caption.GetProperty("text").GetString()!;
+        var summary = text[..text.IndexOf(" Shown at ", StringComparison.Ordinal)];
+        const string LongestTail = " Shown at 1568x1568; the original is unchanged at contentUrl.";
+        return (remaining - Encoding.UTF8.GetByteCount(summary) - Encoding.UTF8.GetByteCount(LongestTail)) / 4 * 3;
+    }
+
+    private static byte[] ImageBytes(JsonElement image) =>
+        Convert.FromBase64String(image.GetProperty("data").GetString()!);
 
     /// <summary>The local content store, counting every content open.</summary>
     private sealed class CountingDocumentContentStore(IDocumentContentStore inner) : IDocumentContentStore
@@ -823,6 +884,16 @@ public sealed class AutomationDocumentIngressTests
         random.NextBytes(pixels);
         using var image = SKImage.FromBitmap(bitmap);
         using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 92);
+        return encoded.ToArray();
+    }
+
+    /// <summary>One mid-grey pixel, losslessly, so it reaches the renderer unchanged.</summary>
+    private static byte[] GreyPixelPng()
+    {
+        using var bitmap = new SKBitmap(new SKImageInfo(1, 1, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        bitmap.Erase(new SKColor(128, 128, 128));
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
         return encoded.ToArray();
     }
 

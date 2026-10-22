@@ -25,7 +25,10 @@ public enum DeliveryImageRefusal
     /// <summary>The image has more pixels than <see cref="DeliveryImageRendering.MaximumPixels"/>.</summary>
     Oversized,
 
-    /// <summary>No size and quality down to the renderer's floor fits the byte budget.</summary>
+    /// <summary>
+    /// No size and quality down to the renderer's floor fits the byte budget;
+    /// an image already under the floor's edge is tried at its own size.
+    /// </summary>
     NoQualityFits
 }
 
@@ -66,6 +69,13 @@ public sealed record DeliveryImageRendering
 /// </summary>
 public interface IRenderImageForDelivery
 {
+    /// <summary>
+    /// The fewest bytes any rendering takes, whatever the image. A smaller
+    /// budget is <see cref="DeliveryImageRefusal.NoQualityFits"/> before the
+    /// bytes are looked at, so a caller can know it without reading them.
+    /// </summary>
+    int MinimumBytes { get; }
+
     Task<DeliveryImageRendering> RenderAsync(
         ReadOnlyMemory<byte> content,
         int longestEdge,

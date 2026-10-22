@@ -115,9 +115,9 @@ its scope, checks the casework right, and answers with the exact SHA-256 as
 ETag. The document route resolves the document inside the Case it names; the
 intake-source route rechecks no Case or receipt membership. The document route
 supports ranges. A metadata-only answer fetches zero content bytes, except a
-PDF or an image read once to learn that it does not fit whole or cannot be
-read. There are no public signed links, no document export archive, and no
-fetches of arbitrary URLs.
+PDF, an image or a text file read once to learn that it does not fit whole or
+cannot be read. There are no public signed links, no document export archive,
+and no fetches of arbitrary URLs.
 
 **Edit leases.** <a id="edit-leases"></a> A write tool presented without an
 edit lease token claims the record's lease through the same Core port as

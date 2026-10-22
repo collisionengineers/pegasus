@@ -187,6 +187,40 @@ public sealed class AutomationFileContentBatchTests
         Assert.Equal(AutomationFileContent.DoesNotFitWholeNotice(50), pdfOnly[0].Notice);
         Assert.Empty(pdfFetch.Reads);
         Assert.Empty(extractor.Calls);
+
+        // The least a PDF sends is its summary, its header and one empty page:
+        // a byte short of that it is not fetched, and at it it comes back.
+        var empty = new Extractor().Reads("empty.pdf", string.Empty);
+        var emptyDoc = Binary("empty.pdf", "application/pdf", 3000);
+        var (wide, _) = await WalkAsync(100_000, new Renderer(), empty, emptyDoc);
+        var least = Charged(wide[0]);
+        var (oneShort, oneShortFetch) = await WalkAsync(least - 1, new Renderer(), empty, emptyDoc);
+        Assert.Equal(AutomationFileContent.DoesNotFitWholeNotice(least - 1), oneShort[0].Notice);
+        Assert.Empty(oneShortFetch.Reads);
+        var (atLeast, atLeastFetch) = await WalkAsync(least, new Renderer(), empty, emptyDoc);
+        Assert.True(atLeast[0].ContentIncluded);
+        Assert.Equal(0, Assert.Single(atLeastFetch.Reads));
+    }
+
+    [Fact]
+    public async Task AnImageWhoseBoundIsBelowTheRenderersFloorIsNotFetched()
+    {
+        var renderer = new Renderer { MinimumBytes = 600 }.RendersToTheBound("photo.jpg");
+        var doc = Binary("photo.jpg", "image/jpeg", 50_000);
+        var (wide, _) = await WalkAsync(100_000, renderer, new Extractor(), doc);
+        // The limit whose bound is the floor: the caption, then 800 bytes of base64.
+        var atFloor = CaptionBytes(wide[0]) + 800;
+
+        var (below, belowFetch) = await WalkAsync(atFloor - 1, renderer, new Extractor(), doc);
+        Assert.False(below[0].ContentIncluded);
+        Assert.Equal(AutomationFileContent.DoesNotFitWholeNotice(atFloor - 1), below[0].Notice);
+        Assert.Empty(belowFetch.Reads);
+        Assert.Single(renderer.Calls);
+
+        var (at, atFetch) = await WalkAsync(atFloor, renderer, new Extractor(), doc);
+        Assert.True(at[0].ContentIncluded);
+        Assert.Equal(0, Assert.Single(atFetch.Reads));
+        Assert.Equal(600, renderer.Calls[^1].MaximumBytes);
     }
 
     [Fact]
@@ -376,6 +410,8 @@ public sealed class AutomationFileContentBatchTests
         private readonly Dictionary<string, Func<int, DeliveryImageRendering>> answers = new(StringComparer.Ordinal);
 
         public List<(string Name, int MaximumBytes)> Calls { get; } = [];
+
+        public int MinimumBytes { get; init; } = 1;
 
         /// <summary>An image of <paramref name="bytes"/> bytes whenever the bound allows it.</summary>
         public Renderer Renders(string fileName, int bytes)

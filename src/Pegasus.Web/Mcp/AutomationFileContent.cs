@@ -257,9 +257,10 @@ internal static class AutomationFileContent
     public static bool IsImage(string mediaType) => CaseDocumentThumbnails.IsThumbnailable(mediaType);
 
     /// <summary>
-    /// The image's bytes are read only when its bound is at least one byte:
-    /// what remains after the longest caption it can carry, less the base64
-    /// growth, so the caption is charged before the render and never cut.
+    /// The image's bound is what remains after the longest caption it can
+    /// carry, less the base64 growth, so the caption is charged before the
+    /// render and never cut. Its bytes are read only when that bound reaches
+    /// the renderer's floor, the fewest bytes any rendering takes.
     /// </summary>
     private static async Task<Walked> WalkImageAsync(
         IRenderImageForDelivery images,
@@ -271,7 +272,7 @@ internal static class AutomationFileContent
         CancellationToken cancellationToken)
     {
         var maximumBytes = Math.Max(0, remaining - entry.SummaryBytes - LongestCaptionTailBytes) / 4 * 3;
-        if (maximumBytes < 1)
+        if (maximumBytes < images.MinimumBytes)
         {
             return DoesNotFitWhole(entry, inlineLimit);
         }
@@ -305,7 +306,8 @@ internal static class AutomationFileContent
     }
 
     /// <summary>
-    /// A PDF is not read when what remains cannot hold its summary. Otherwise
+    /// A PDF is not read when what remains cannot hold its summary, the
+    /// header's tail and one page heading, the least any PDF sends. Otherwise
     /// it is read once, its text extracted to one character past the room
     /// left (characters never outnumber UTF-8 bytes), and it is delivered only
     /// when every page came back whole and its blocks fit what remains.
@@ -319,8 +321,8 @@ internal static class AutomationFileContent
         int index,
         CancellationToken cancellationToken)
     {
-        var room = remaining - entry.SummaryBytes;
-        if (room <= 0)
+        var room = remaining - entry.SummaryBytes - ShortestPdfTailBytes;
+        if (room < 0)
         {
             return DoesNotFitWhole(entry, inlineLimit);
         }
@@ -405,19 +407,25 @@ internal static class AutomationFileContent
         };
         foreach (var page in extracted.Pages)
         {
-            var heading = new StringBuilder()
-                .Append(CultureInfo.InvariantCulture, $"Page {page.Number} of {extracted.PageCount}");
-            if (page.NeedsOcr)
-            {
-                heading.Append(" (little readable text; this page needs OCR)");
-            }
-            if (page.Truncated)
-            {
-                heading.Append(" (truncated at the inline limit)");
-            }
-            blocks.Add(new TextContentBlock { Text = $"{heading}:\n{page.Text}" });
+            blocks.Add(new TextContentBlock { Text = PageText(page, extracted.PageCount) });
         }
         return blocks;
+    }
+
+    /// <summary>One page's block: its heading, then its text.</summary>
+    private static string PageText(PdfPageText page, int pageCount)
+    {
+        var heading = new StringBuilder()
+            .Append(CultureInfo.InvariantCulture, $"Page {page.Number} of {pageCount}");
+        if (page.NeedsOcr)
+        {
+            heading.Append(" (little readable text; this page needs OCR)");
+        }
+        if (page.Truncated)
+        {
+            heading.Append(" (truncated at the inline limit)");
+        }
+        return $"{heading}:\n{page.Text}";
     }
 
     /// <summary>
@@ -426,6 +434,14 @@ internal static class AutomationFileContent
     /// </summary>
     private static readonly int LongestCaptionTailBytes =
         Encoding.UTF8.GetByteCount(CaptionTail(LongestEdge, LongestEdge, downscaled: true));
+
+    /// <summary>
+    /// The least a PDF sends after its summary: the header's tail for one
+    /// page and that page's heading with no text and no remark.
+    /// </summary>
+    private static readonly int ShortestPdfTailBytes =
+        Encoding.UTF8.GetByteCount(PdfHeaderTail(1))
+        + Encoding.UTF8.GetByteCount(PageText(new PdfPageText(1, string.Empty, NeedsOcr: false, Truncated: false), 1));
 
     /// <summary>What follows the summary in an image's caption.</summary>
     private static string CaptionTail(int width, int height, bool downscaled) =>
