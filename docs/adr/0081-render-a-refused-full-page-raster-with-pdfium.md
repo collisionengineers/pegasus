@@ -13,7 +13,7 @@ tags: [extraction, pdf, renderer, pdfium]
 
 ## Status
 
-Accepted (operator rulings R194 and R209, 22 October 2026). This record
+Accepted (operator rulings R194, R209 and R368, 22 October 2026). This record
 refines ADR-0061 (a full-page raster is a document or a photograph by its
 colour) and ADR-0025 ("one live PDF implementation, not two"; R209 accepts
 the second native PDF engine), and sits beside ADR-0040 and ADR-0003 (PdfPig
@@ -40,7 +40,8 @@ raster is refused (R209). A small render goes through the unchanged
 scan-page classifier, and only a photograph verdict renders the page at full
 size, kept as JPEG at the existing report-photo quality 85 within the
 40,000,000-pixel bound. A render that draws nothing, or any failure, keeps
-the document-page and OCR path. No receipt line is added: the existing
+the document-page and OCR path, and a page that draws only white counts as
+blank (R368). No receipt line is added: the existing
 scan-page sentence stands, and `ReaderVersion` names the engine and its
 version (R209).
 

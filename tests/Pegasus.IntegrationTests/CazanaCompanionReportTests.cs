@@ -510,6 +510,30 @@ public sealed class CazanaCompanionReportTests
     }
 
     /// <summary>
+    /// The text read opens the PDF where it lies in a larger buffer, as a
+    /// stored-content slice does, and reads what the whole array reads.
+    /// </summary>
+    [Fact]
+    public async Task ASliceOfALargerBufferIsReadAsTheWholePdfIs()
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        builder.AddPage(PageSize.A4).AddText("Companion Report AB12CDE", 12, new PdfPoint(36, 780), font);
+        var pdf = builder.Build();
+        var padded = new byte[pdf.Length + 64];
+        pdf.CopyTo(padded, 32);
+        var extractor = new PdfPigPageTextExtractor();
+
+        var whole = await extractor.ExtractAsync(pdf, 20_000, default);
+        var slice = await extractor.ExtractAsync(padded.AsMemory(32, pdf.Length), 20_000, default);
+
+        Assert.NotNull(whole);
+        Assert.NotNull(slice);
+        Assert.Equal(whole.PageCount, slice.PageCount);
+        Assert.Equal(whole.Pages.Select(page => page.Text), slice.Pages.Select(page => page.Text));
+    }
+
+    /// <summary>
     /// A page holding fewer readable characters than the floor (80, not
     /// counting whitespace) is flagged as needing OCR; one holding the floor is not.
     /// </summary>
