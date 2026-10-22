@@ -2117,7 +2117,7 @@ public static class OperatorLabels
     /// The Cases queue's footer line (v41 U3, signed off 19 October 2026): the
     /// page number shows only when another page exists.
     /// </summary>
-    public static class CaseQueue
+    public static class CaseQueueFooter
     {
         public static string PageLine(int page, bool hasOtherPage) =>
             hasOtherPage ? string.Create(CultureInfo.InvariantCulture, $"Page {page} · newest first") : "Newest first";
