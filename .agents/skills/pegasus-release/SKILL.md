@@ -495,11 +495,10 @@ containment steps or its disabled-first staging exception for this route.
 
 `PEGASUS_WEB_LOCATION` is set only when the approval names a Web region other
 than the platform region (the quota route chosen in section 12); leave it unset
-otherwise. `PreProvision` reads the App Service quota for the effective Web
-region and refuses a region without quota for the plan SKU. `az webapp deploy`
-authenticates with the operator's Entra token; basic publishing credentials are
-disabled by the template. `--clean true` removes the previous package contents
-and `--restart true` restarts the site onto the new package.
+otherwise. `az webapp deploy` authenticates with the operator's Entra token;
+basic publishing credentials are disabled by the template. `--clean true`
+removes the previous package contents and `--restart true` restarts the site
+onto the new package.
 
 ```powershell
 azd env set PEGASUS_WEB_ACTIVATION approved -e $releaseEnvironment
@@ -716,9 +715,7 @@ foreach ($region in @('uksouth', 'ukwest')) {
   storage, Key Vault, telemetry and the Worker stay in `uksouth`; Web traffic
   to them crosses regions. Record the chosen region in the release record.
 
-`Test-AzureDeploymentPlan.ps1 -Mode PreProvision` repeats the read for the
-effective Web region and refuses to continue at 0. A quota that reads 0 is
-not repaired by retrying the provision.
+A quota that reads 0 is not repaired by retrying the provision.
 
 ### 12.2 Read the retiring Container App
 
