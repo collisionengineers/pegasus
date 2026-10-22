@@ -62,9 +62,7 @@ internal sealed class EfDocumentCustodyStore(
             var replayVersion = await context.Set<DocumentVersionEntity>()
                 .SingleAsync(version => version.Id == replayOccurrence.VersionId, cancellationToken);
             // A type changed since the add is compared as the add filed it.
-            var filedRole = replayOccurrence.SemanticRole == command.SemanticRole
-                ? replayOccurrence.SemanticRole
-                : await FiledRoleAsync(context, replayOccurrence, cancellationToken);
+            var filedRole = await FiledRoleAsync(context, replayOccurrence, cancellationToken);
             EnsureReplayMatches(command, replayOccurrence, filedRole, replayVersion, contentHash);
             return new(ToOccurrence(replayOccurrence), ToVersion(replayVersion), true);
         }
@@ -1350,7 +1348,8 @@ internal sealed class EfDocumentCustodyStore(
     /// The type an add filed <paramref name="occurrence"/> with. A later change
     /// of type, or a Mark, keeps the type it replaced in its history, so the
     /// first of those for the occurrence holds it; with none, the type is the
-    /// one filed. Read only when a replayed add names another type.
+    /// one filed. Read on every replayed add, so a replay naming the type a
+    /// later change gave the occurrence still conflicts.
     /// </summary>
     private static async Task<DocumentSemanticRole> FiledRoleAsync(
         PegasusDbContext context,

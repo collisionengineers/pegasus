@@ -1406,8 +1406,8 @@ public sealed class DocumentCustodyDurabilityTests
     /// <summary>
     /// A replayed add still answers after the document's type was changed or
     /// it was marked as the original report: the replay is compared with the
-    /// type the add filed, so the same inputs replay and another type still
-    /// conflicts.
+    /// type the add filed, so the same inputs replay and another type, the one
+    /// it has now included, still conflicts.
     /// </summary>
     [Fact]
     public async Task AReplayedAddStillAnswersAfterItsTypeIsSet()
@@ -1455,13 +1455,21 @@ public sealed class DocumentCustodyDurabilityTests
                 reading: null,
                 CancellationToken.None);
 
-            foreach (var (command, added) in new[] { (retyped, retypedAdd), (marked, markedAdd) })
+            foreach (var (command, added, current) in new[]
+            {
+                (retyped, retypedAdd, DocumentSemanticRole.Estimate),
+                (marked, markedAdd, DocumentSemanticRole.AuditReport)
+            })
             {
                 var replay = await addDocument.ExecuteAsync(command, CancellationToken.None);
                 Assert.True(replay.IsReplay);
                 Assert.Equal(added.Occurrence.Id, replay.Occurrence.Id);
-                await Assert.ThrowsAsync<InvalidOperationException>(() => addDocument.ExecuteAsync(
-                    command with { SemanticRole = DocumentSemanticRole.Correspondence }, CancellationToken.None));
+                // The type it has now is not the type the add filed, so it conflicts too.
+                foreach (var role in new[] { DocumentSemanticRole.Correspondence, current })
+                {
+                    await Assert.ThrowsAsync<InvalidOperationException>(() => addDocument.ExecuteAsync(
+                        command with { SemanticRole = role }, CancellationToken.None));
+                }
             }
         }
         finally
