@@ -1,6 +1,7 @@
 """inventory.py with canned gh and git answers: the blockers, summarize_checks, a Markdown golden and --json-out."""
 import hashlib
 import json
+import re
 import types
 import unittest
 from unittest import mock
@@ -33,15 +34,31 @@ def pull_request(number, base, head_ref, **overrides):
 
 
 def feedback(threads=(), reviews=(), comments=()):
-    return {"data": {"repository": {"pullRequest": {
-        "reviewThreads": {"nodes": list(threads)}, "reviews": {"nodes": list(reviews)},
-        "comments": {"nodes": list(comments)}}}}}
+    return {"reviewThreads": {"nodes": list(threads)}, "reviews": {"nodes": list(reviews)},
+            "comments": {"nodes": list(comments)}}
+
+
+def graphql_node(pr, feedback_nodes):
+    """A pull request as the aliased query answers it: connections under nodes, checks under the last commit."""
+    node = {key: value for key, value in pr.items() if key not in ("labels", "closingIssuesReferences",
+                                                                     "statusCheckRollup")}
+    node["labels"] = {"nodes": pr["labels"]}
+    node["closingIssuesReferences"] = {"nodes": pr["closingIssuesReferences"]}
+    rollup = {"contexts": {"nodes": pr["statusCheckRollup"]}} if pr["statusCheckRollup"] else None
+    node["commits"] = {"nodes": [{"commit": {"statusCheckRollup": rollup}}]}
+    node.update(feedback_nodes)
+    return node
 
 
 class World:
-    """gh and git as three pull requests see them: 1016 on dev, 1018 stacked on it, 1019 on dev."""
+    """gh and git as three pull requests see them: 1016 on dev, 1018 stacked on it, 1019 on dev.
 
-    def __init__(self):
+    The fetch writes FETCH_HEAD in the directory it is given, one line per ref, as git does.
+    """
+
+    def __init__(self, directory):
+        self.fetch_head = directory / "FETCH_HEAD"
+        self.commands = []
         passed = {"name": "unit", "status": "COMPLETED", "conclusion": "SUCCESS"}
         self.prs = {
             1016: pull_request(1016, "dev", "task/widget", statusCheckRollup=[passed, dict(passed, name="lint")],
@@ -68,7 +85,13 @@ class World:
         self.counts = {1016: "2\t3", 1018: "0\t1", 1019: "5\t0"}  # behind, ahead
         self.contained = {(sha("head 1016"), sha("head 1018"))}  # 1018's head contains 1016's
         self.fetched = {}
-        self.last_fetch = None
+
+    def add_pull_request(self, number):
+        """Another pull request on dev that changes its own file."""
+        self.prs[number] = pull_request(number, "dev", f"task/extra-{number}")
+        self.feedback[number] = feedback()
+        self.files[number] = [f"extra-{number}.txt"]
+        self.counts[number] = "0\t1"
 
     def head(self, number):
         return self.prs[number]["headRefOid"]
@@ -76,15 +99,24 @@ class World:
     def number_of_head(self, head):
         return next(n for n in self.prs if self.head(n) == head)
 
+    def fetch(self, refs):
+        url = f"https://github.com/{OWNER}/{NAME}"
+        lines = []
+        for ref in refs:
+            if ref.startswith("refs/pull/"):
+                number = int(ref.split("/")[2])
+                lines.append(f"{self.fetched.get(number, self.head(number))}\t\t'{ref}' of {url}")
+            else:
+                lines.append(f"{TARGET}\t\tbranch '{ref.removeprefix('refs/heads/')}' of {url}")
+        self.fetch_head.write_bytes(("\n".join(lines) + "\n").encode("utf-8"))
+
     def run(self, args, check=True):
-        if args[:2] == ["git", "ls-remote"]:
-            return f"{TARGET}\trefs/heads/dev\n"
+        self.commands.append(list(args))
         if args[:3] == ["git", "fetch", "--quiet"]:
-            if args[-1].startswith("refs/pull/"):
-                self.last_fetch = int(args[-1].split("/")[2])
+            self.fetch(args[4:])
             return ""
-        if args == ["git", "rev-parse", "FETCH_HEAD"]:
-            return self.fetched.get(self.last_fetch, self.head(self.last_fetch)) + "\n"
+        if args == ["git", "rev-parse", "--git-path", "FETCH_HEAD"]:
+            return f"{self.fetch_head}\n"
         if args[:2] == ["git", "merge-base"]:
             return sha(f"merge-base {args[3]}") + "\n"
         if args[:3] == ["git", "rev-list", "--left-right"]:
@@ -94,12 +126,14 @@ class World:
         raise AssertionError(f"unexpected command {args}")
 
     def gh_json(self, args):
+        self.commands.append(["gh", *args])
         if args[:2] == ["repo", "view"]:
             return {"owner": {"login": OWNER}, "name": NAME, "defaultBranchRef": {"name": "dev"}}
-        if args[:2] == ["pr", "view"]:
-            return json.loads(json.dumps(self.prs[int(args[2])]))
         if args[:2] == ["api", "graphql"]:
-            return self.feedback[int(next(a for a in args if a.startswith("n=")).split("=")[1])]
+            query = next(a for a in args if a.startswith("query=")).removeprefix("query=")
+            numbers = [int(n) for n in re.findall(r"pr\d+: pullRequest\(number: (\d+)\)", query)]
+            return {"data": {"repository": {f"pr{n}": json.loads(json.dumps(graphql_node(self.prs[n], self.feedback[n])))
+                                            for n in numbers}}}
         raise AssertionError(f"unexpected gh {args}")
 
     def is_ancestor(self, args):
@@ -123,7 +157,7 @@ class InventoryCase(IsolatedGitCase):
 
 class InventoryOutput(InventoryCase):
     def test_three_prs_with_no_blocker_exit_0_and_print_the_golden(self):
-        world = World()
+        world = World(self.tmp)
         code, out, _ = self.inventory(world)
         h = {number: world.head(number) for number in world.prs}
         self.assertEqual(0, code)
@@ -173,7 +207,7 @@ class InventoryOutput(InventoryCase):
             "```\n", out)
 
     def test_json_out_holds_the_order_the_blockers_and_the_derived_fields(self):
-        world = World()
+        world = World(self.tmp)
         path = self.tmp / "inventory.json"
         code, _, _ = self.inventory(world, "--json-out", str(path))
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -203,7 +237,7 @@ class InventoryOutput(InventoryCase):
 
 class InventoryBlockers(InventoryCase):
     def assert_stops(self, mutate, expected_flag, expected_blocker):
-        world = World()
+        world = World(self.tmp)
         mutate(world)
         code, out, _ = self.inventory(world)
         self.assertEqual(2, code)
@@ -235,7 +269,7 @@ class InventoryBlockers(InventoryCase):
                           f"#1019: head moved during inventory ({sha('head 1019')[:12]} -> {moved[:12]}); rerun")
 
     def test_a_conflicting_pr_is_flagged_but_does_not_stop(self):
-        world = World()
+        world = World(self.tmp)
         world.prs[1019]["mergeable"] = "CONFLICTING"
         code, out, _ = self.inventory(world)
         self.assertEqual(0, code)
@@ -243,12 +277,67 @@ class InventoryBlockers(InventoryCase):
         self.assertNotIn("## Stop and ask", out)
 
     def test_every_blocker_is_listed(self):
-        world = World()
+        world = World(self.tmp)
         world.prs[1016]["isDraft"] = True
         world.prs[1019]["state"] = "MERGED"
         code, out, _ = self.inventory(world)
         self.assertEqual(2, code)
         self.assertEqual(["- #1016: draft", "- #1019: PR is MERGED"], self.stop_list(out))
+
+
+class InventoryNetworkCalls(InventoryCase):
+    @staticmethod
+    def network(world):
+        return [call[:3] if call[0] == "gh" else call[:2] for call in world.commands
+                if call[0] == "gh" or call[:2] in (["git", "fetch"], ["git", "ls-remote"])]
+
+    def test_the_network_calls_stay_three_whatever_the_number_of_pull_requests(self):
+        # The repository lookup, one query for every pull request, one fetch of the target and every head;
+        # recomputed per pull request it was 3 + 3 per pull request.
+        for count in (3, 6):
+            with self.subTest(pull_requests=count):
+                world = World(self.tmp)
+                for number in range(1020, 1020 + count - 3):
+                    world.add_pull_request(number)
+                code, _, _ = self.inventory(world, numbers=tuple(world.prs))
+                self.assertEqual(0, code)
+                self.assertEqual([["gh", "repo", "view"], ["gh", "api", "graphql"], ["git", "fetch"]],
+                                 self.network(world))
+
+    def test_one_fetch_brings_the_target_and_every_head_after_the_query_has_been_taken(self):
+        world = World(self.tmp)
+        self.inventory(world)
+        fetches = [call for call in world.commands if call[:2] == ["git", "fetch"]]
+        self.assertEqual([["git", "fetch", "--quiet", "origin", "refs/heads/dev",
+                           "refs/pull/1018/head", "refs/pull/1016/head", "refs/pull/1019/head"]], fetches)
+        queried = next(i for i, call in enumerate(world.commands) if call[:3] == ["gh", "api", "graphql"])
+        self.assertLess(queried, world.commands.index(fetches[0]))
+
+    def test_the_query_names_each_pull_request_once_and_defines_the_fields_once(self):
+        query = inventory.pull_requests_query([1016, 1019, 1016])
+        self.assertEqual(["1016", "1019"], re.findall(r"pr(\d+): pullRequest\(number: \d+\) \{ \.\.\.PullRequestFields \}",
+                                                      query))
+        self.assertEqual(1, query.count("fragment PullRequestFields on PullRequest"))
+
+    def test_a_pull_request_with_no_checks_reads_none(self):
+        node = graphql_node(pull_request(7, "dev", "task/x"), feedback())
+        self.assertIsNone(node["commits"]["nodes"][0]["commit"]["statusCheckRollup"])
+        pr = inventory.flatten(node)
+        self.assertEqual([], pr["statusCheckRollup"])
+        self.assertEqual(("none", []), inventory.summarize_checks(pr["statusCheckRollup"]))
+
+
+class FetchedOids(InventoryCase):
+    def test_every_ref_is_read_by_name_whatever_its_order_or_kind(self):
+        path = self.tmp / "FETCH_HEAD"
+        url = "https://github.com/acme/widgets"
+        path.write_bytes((f"{'a' * 40}\t\tbranch 'dev' of {url}\n"
+                          f"{'b' * 40}\tnot-for-merge\t'refs/pull/7/head' of {url}\n"
+                          f"{'c' * 40}\t\ttag 'v1' of {url}\n"
+                          f"{'d' * 40}\t\tbranch 'task/with space' of {url}\n").encode("utf-8"))
+        with mock.patch.object(inventory, "run", lambda args, check=True: f"{path}\n"):
+            self.assertEqual({"refs/heads/dev": "a" * 40, "refs/pull/7/head": "b" * 40,
+                              "refs/heads/task/with space": "d" * 40}, inventory.fetched_oids())
 
 
 class SummarizeChecks(unittest.TestCase):
