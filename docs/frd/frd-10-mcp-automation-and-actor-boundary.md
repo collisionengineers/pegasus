@@ -93,7 +93,9 @@ embedded resource
   the byte budget (`maxInlineBytes`, 100 KiB by default, 10 MiB at most);
 - a PDF as its page text, one block per page within the same budget as
   characters, naming a page that needs OCR and a page cut at the budget
-  (operator, 1 October 2026: PDF pages travel as text, not as images);
+  (the batch withholds whole and the cut stays the single download's: a
+  whole file either fits or is withheld with its reason) (operator,
+  1 October 2026: PDF pages travel as text, not as images);
 - a text file that already fits the budget as its text;
 - anything else, or any file over 10 MiB, as metadata only.
 

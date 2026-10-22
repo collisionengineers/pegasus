@@ -20,6 +20,46 @@ named below, and one read-only count of 22 October 2026 posted on
 | [Release 117](#release-117---21-october-2026-deployment-live), Query Store row | Statement: "the one Case on the estate means the registration lookup (PR 1440) and the Open tasks statement (PR 1454) were not exercised, as Release 115's record anticipated". The wipe records give the Case count at four times: 1 Case at the 19 October wipe with mail cutoff 08:31:22Z (`CaseSequences` 104), 4 Cases with 54 documents at 13:29Z (108), 1 Case with 12 documents at 13:36Z (109) and, on 21 October, 2 Cases with 28 documents at 10:24Z (111). Release 117's containment read found 2 `CaseRepairSpecifications` rows at 09:23:34Z. The counts between those times are not recorded. The retained after snapshot (`artifacts/performance/query-store-release-115-after-20261021T0941Z.csv`, 48 h, 357 statements) reads: the Open tasks statement without `ActionHistory` (PR 1454) 1,003 executions, average 289.87 microseconds, total 290,742 microseconds; the candidate-page read that compares `VehicleLookupRequests.Registration` with `NormalizedRegistration` (PR 1440) 2,812 executions, average 144.52 microseconds, total 406,403 microseconds. The file holds no `INSERT` into `VehicleLookupRequests`. Executions count runs and do not show how many rows the tables held. For the earlier Open tasks text, [Release 115](#release-115---19-october-2026-deployment-live) names a baseline of 485 executions at 31.1 ms; the retained Release 114 after snapshot (`query-store-release-114-after-20261019T0739Z.csv`, 24 h to 07:39Z on 19 October) reads 459 executions, average 112.17 microseconds, total 51,487 microseconds. |
 | [Reference-data load (REF-04)](#reference-data-load-ref-04---17-october-2026-production-applied), read-back row | Statement: "`ActionHistory` rows of batch `ref04:prod-20261017`: 329 `contact_created`, 39 `contact_saved` and 1328 `inspection_location_created`, 1696 in all", with "`OrganizationAdministrationOperations` holds 1696 `ref04` rows", read at 20:07:31Z on 17 October. A read-only count at 06:11:57Z on 22 October returned 0 `ActionHistory` rows where `CorrelationId` starts `ref04:prod-20261017:` and 1,696 `OrganizationAdministrationOperations` rows where `OperationKey` starts `ref04:prod-20261017:`. The 17 October `ActionHistory` count no longer reproduces; the operations table still holds 1,696 rows for the batch. The wipe skill lists `ActionHistory` among the tables a wipe clears and the wipe script's preserve list names `OrganizationAdministrationOperations`. The wipes this file records after that read are the three of 19 October and the one of 21 October. |
 
+## Release 121 - 22 October 2026 (deployment live)
+
+Release 121 deployed the wave 5c issue fixes: the twelve pull requests of combine
+[PR 1539](https://github.com/collisionengineers/pegasus/pull/1539) (`merge-1519-1537`, merged 15:57Z as
+`722486af3`) and [PR 1530](https://github.com/collisionengineers/pegasus/pull/1530) (MCP batch download,
+merged 16:59Z). The range starts at Release 120's serving source `09c8673ec`.
+
+The route was the normal one (release skill section 8), with no stopped-site exception. The migration
+identity was unchanged at `20261021120000_GrantWebRepairSpecDiscardDelete` (live head read 17:49:20Z,
+232 applied), and no migration ran. There was no infrastructure change and no setting change.
+
+| PR | Change |
+| --- | --- |
+| [1519](https://github.com/collisionengineers/pegasus/pull/1519) | A second QDOS instruction with a different claim reference no longer links to the existing Case; `AssociateRetainedMailWithCase` now takes the receipt's recorded Case-match decision (#1470). |
+| [1520](https://github.com/collisionengineers/pegasus/pull/1520) | Docs: [ADR-0080](adr/0080-automation-mcp-one-server-per-scope.md) proposes one Automation MCP server per scope (#1487, Refs). |
+| [1521](https://github.com/collisionengineers/pegasus/pull/1521) | Docs: FRD-11 gains a table marking the accepted record's four consumers, and FRD-24 a table tracing the narrative figures (#1353, #1354). |
+| [1522](https://github.com/collisionengineers/pegasus/pull/1522) | The Worker no longer writes the expected blob 409 telemetry: the staged-artifact sweep sets `UseMonitor = false` and `SqlDependencyTelemetryFilter` drops a failed `BlobAlreadyExists` storage dependency (#1491). |
+| [1523](https://github.com/collisionengineers/pegasus/pull/1523) | `GET` and `DELETE` on `/mcp` answer 405 with `Allow: POST` instead of the sign-in redirect (#1485). |
+| [1524](https://github.com/collisionengineers/pegasus/pull/1524) | After each report or fee-note send, one management event is written on the Case when the Sent item is observed; it appears in Action logs (#1350). |
+| [1525](https://github.com/collisionengineers/pegasus/pull/1525) | Parallel resolves of one Unidentified item replay instead of failing and waiting five minutes for the queue to redeliver (#1484, Refs). |
+| [1527](https://github.com/collisionengineers/pegasus/pull/1527) | Refused full-page PDF rasters are rendered with PDFium (PDFtoImage 5.2.1, PDFium 147.0.7690) so photo PDFs keep their photographs (#989). |
+| [1528](https://github.com/collisionengineers/pegasus/pull/1528) | Skills: whole descriptions, spaced paths, tests for the helper scripts and one `.agents` CI step (#1513, #1526). |
+| [1530](https://github.com/collisionengineers/pegasus/pull/1530) | `pegasus_document_download_batch` is one walk that charges the encoded size in request order; a whole file either fits or is withheld with its reason (#1503, #1504). |
+| [1531](https://github.com/collisionengineers/pegasus/pull/1531) | Docs: the dated addendum at the top of this file for statements that lean on wiped rows (#1510). |
+| [1532](https://github.com/collisionengineers/pegasus/pull/1532) | A request whose caller hung up (499) is no longer logged as an unhandled exception and no longer fires the Sev2 alert; a keep-warm step that runs into its 15 s bound logs one correlated Warning (#1492, #1486). |
+| [1537](https://github.com/collisionengineers/pegasus/pull/1537) | Photographs of a merged Image intake become Case images while a member of staff is editing the Case, and as soon as its folder is stored (#1469). |
+
+Issues closed at the landings: #989, #1350, #1353, #1354, #1469, #1470, #1485, #1486, #1491, #1492,
+#1503, #1504, #1510, #1513 and #1526. #1484 and #1487 were referenced only.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `178905769428abfd817d5aca3cbc34ed5525bb22`, the merge of PR 1530 into `dev` on top of PR 1539; `main` and `dev` both read it back. Manifest SHA-256 `99F28125A7C450468AC2A862722FA79BBE86C37A69F48FDE9353F3D75ED2F49D` (schema 3, bundle `efbundle.exe`, rid `win-x64`); `web.zip` `BA28BCB7CB27FDF6EEFAA946A66E472F6C22BA0F5F1AB69BB33203A5849C606C`. Built in a detached worktree at `../pegasus-worktrees/release-17890576` 17:31:00Z to 17:38:35Z; Local and Artifact plan validations passed. |
+| Promotion | One atomic leased push at 17:30:56Z; `main` and `dev` both read `178905769428abfd817d5aca3cbc34ed5525bb22`. |
+| Migration | None ran. Identity unchanged at `20261021120000_GrantWebRepairSpecDiscardDelete`; live head read 17:49:20Z: 232 applied. |
+| Deployment | Azure CLI account `digital@collisionengineers.co.uk` on the fixed subscription. Serving Web before: `09c8673ec7b2b938d4447e3b86d209e1d6bc0fc7` (Release 120). PreDeploy passed 17:49:42Z; activations set (Web `approved`, Worker `approved-live-worker`); PreProvision passed 17:49:58Z; `azd provision` succeeded 17:50:16Z with Web Running throughout. `web.zip` deployed with `--clean true --restart true` 17:54:53Z; Web ready at the exact SHA 17:55:02Z. `worker.zip` deployed 17:56:56Z; `classifier.zip` deployed 17:58:58Z; the classifier is Running. |
+| Smoke | Full production smoke passed 17:59:42Z. Worker disabled census all `false` (`PendingWorkRecovery`, `UnifiedWork`, `UnifiedWorkPoison`, `StagedArtifactReconciliation`, `SentEvidencePoll`). |
+| Still owed | Live proofs, none done at this record:<br>• #1350: the Action logs rows after the next report or fee-note send.<br>• #989: libpdfium present on the linux-x64 Web and Worker, and the three photo PDFs.<br>• #1491: the eff-09 telemetry window starts now that the demotion is live; 24 hours, then the measurements.<br>• #1484: criterion 4, the live `AppExceptions` read (the lead's).<br>• The sc-02 live Companion press from [Release 120](#release-120---22-october-2026-deployment-live).<br>Release 108 to 120 owed items otherwise stand. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-121-17890576`; the driver at `artifacts/releases/release-121-driver` (`stage-normal.ps1`, run from the release worktree). |
+
 ## Release 120 - 22 October 2026 (deployment live)
 
 Release 120 deployed [PR 1483](https://github.com/collisionengineers/pegasus/pull/1483) (Cazana's

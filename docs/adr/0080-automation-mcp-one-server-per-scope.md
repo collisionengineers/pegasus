@@ -1,6 +1,6 @@
 ---
 id: ADR-0080
-status: proposed
+status: accepted
 date: 2026-10-22
 supersedes: []
 superseded_by: []
@@ -13,16 +13,15 @@ tags: [mcp, automation, oauth]
 
 ## Status
 
-Proposed on 22 October 2026; not accepted. Issue #1487 asks for a new ADR
+Accepted on 22 October 2026 (operator ruling R301, round 66: accepted as
+proposed). Proposed the same day. Issue #1487 asks for a new ADR
 on splitting the Automation MCP server. This record refines ADR-0011,
 ADR-0026, ADR-0027 and ADR-0059 and replaces none of them: the one server at
-`/mcp` is source structure that no ADR decided. Every decision clause below
-is a proposal. It takes OQ-134's recommendation (21 October 2026), which is
-a recommendation, not an operator ruling: "an ADR proposing one server per
+`/mcp` is source structure that no ADR decided. It takes OQ-134's
+recommendation (21 October 2026): "an ADR proposing one server per
 scope with `Instructions`, tools filtered by token scope, no new tools until
-the split lands". Acceptance is the operator's. The answers to the questions
-under Decision are written in at acceptance, with their ruling, and the code
-waits for them.
+the split lands". The clause labels below keep the word proposed as
+written; R301 accepted each clause as proposed.
 
 ## Context
 
@@ -102,7 +101,7 @@ external MCP client's client-selection or tool-access policy"
 
 ## Decision
 
-Each clause is a proposal.
+Each clause is accepted as proposed (R301).
 
 1. **Servers (proposed).** The servers are the rows of one table keyed by
    scope set. Each row has its own path under `/mcp/`, its own
