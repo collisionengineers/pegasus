@@ -210,8 +210,12 @@ internal sealed class CazanaCompanionClient(HttpClient http)
     }
 
     /// <summary>
-    /// One call, named by its stage: the answer parsed from its bytes, or a
-    /// stage-named failure. Only a refusal is read as text, for its detail.
+    /// One call, named by its stage: the answer parsed from the network stream
+    /// (the PDF answer is megabytes of Base64 and is never buffered whole
+    /// first), or a stage-named failure. Only a refusal is read as text, for
+    /// its detail. <see cref="HttpClient.Timeout"/> ends at the response
+    /// headers once the body streams, so the same bound is linked over the
+    /// body read.
     /// </summary>
     private async Task<JsonDocument> ExchangeAsync(
         string stage,
@@ -219,20 +223,22 @@ internal sealed class CazanaCompanionClient(HttpClient http)
         CancellationToken cancellationToken)
     {
         using (message)
-        using (var response = await http.SendAsync(message, cancellationToken))
+        using (var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
+            bounded.CancelAfter(http.Timeout);
+            using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, bounded.Token);
             if (!Succeeded(response.StatusCode))
             {
                 throw new CazanaCompanionFailure(
                     stage,
                     response.StatusCode,
-                    $"status={(int)response.StatusCode} {ErrorDetail(await response.Content.ReadAsStringAsync(cancellationToken))}");
+                    $"status={(int)response.StatusCode} {ErrorDetail(await response.Content.ReadAsStringAsync(bounded.Token))}");
             }
 
             try
             {
-                await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
-                return await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+                await using var content = await response.Content.ReadAsStreamAsync(bounded.Token);
+                return await JsonDocument.ParseAsync(content, cancellationToken: bounded.Token);
             }
             catch (JsonException)
             {

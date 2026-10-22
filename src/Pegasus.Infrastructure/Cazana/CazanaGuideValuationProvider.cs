@@ -72,14 +72,12 @@ public sealed partial class CazanaGuideValuationProvider(
                 throw new CazanaCompanionFailure("read", null, "figures=absent");
             }
 
-            var vin = CazanaJson.String(valuation, "vin") is { Length: 17 } rawVin
-                && !rawVin.Contains('*', StringComparison.Ordinal)
-                ? rawVin
-                : null;
+            // The VIN is Core's to judge (GlassVinFillPolicy): a masked or
+            // short VIN carries as none and never opens the fill.
             return new GuideValuationQuote(retail, trade, guideMonth, request.Mileage)
             {
                 Report = new CazanaCompanionReport(client, jwt, uuid, response, timeProvider),
-                Vin = vin,
+                Vin = GlassVinFillPolicy.Carried(CazanaJson.String(valuation, "vin")),
             };
         }
         catch (CazanaCompanionFailure failure) when (Code(failure) == CazanaFailureCode.NotFound)

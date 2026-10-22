@@ -32,7 +32,7 @@ internal sealed class CazanaCompanionReport(
 
     private static readonly CultureInfo EnGb = CultureInfo.GetCultureInfo("en-GB");
 
-    private static readonly Lazy<Dictionary<string, CazanaMustache.Template>> Templates = new(LoadTemplates);
+    private static readonly Lazy<Page> Pages = new(LoadPage);
 
     public string Identity => "cazana-companion:" + uuid;
 
@@ -51,7 +51,10 @@ internal sealed class CazanaCompanionReport(
         return await client.CreatePdfAsync(jwt, html, cancellationToken);
     }
 
-    /// <summary>Companion's <c>getCompanionPDF</c> page: each section rendered, then the report around them.</summary>
+    /// <summary>
+    /// Companion's <c>getCompanionPDF</c> page: the report around its sections,
+    /// each section rendered in place into the page with the one view.
+    /// </summary>
     internal static string RenderHtml(
         JsonElement response,
         string? vrm,
@@ -60,28 +63,8 @@ internal sealed class CazanaCompanionReport(
         string? image,
         DateTimeOffset now)
     {
-        var templates = Templates.Value;
-        var view = View(response, vrm, timeline, similar, image, now);
-        string Section(string name) => CazanaMustache.Render(templates[name], view);
-        var partials = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["headerSection"] = CazanaMustache.Render(
-                templates["header"],
-                new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    ["title"] = "Companion Report",
-                    ["mainLogo"] = Logo,
-                    ["logoClass"] = LogoClass,
-                }),
-            ["marketOverviewSection"] = Section("market-overview"),
-            ["vehicleInformationCardSection"] = Section("vehicle-information-card"),
-            ["vehicleOverviewCardSection"] = Section("vehicle-overview-card"),
-            ["vehicleSpecificationColumnSection"] = Section("vehicle-specification"),
-            ["vehicleTimelineColumnSection"] = Section("vehicle-timeline"),
-            ["VehicleAdvertFullPageSection"] = Section("vehicle-advert-full-details"),
-            ["recentlistingColumnSection"] = Section("recent-listing"),
-        };
-        return CazanaMustache.Render(templates["companion-report"], view, partials);
+        var page = Pages.Value;
+        return CazanaMustache.Render(page.Template, View(response, vrm, timeline, similar, image, now), page.Partials);
     }
 
     private static Dictionary<string, object?> View(
@@ -189,8 +172,6 @@ internal sealed class CazanaCompanionReport(
         ["listingSeller"] = Scalar(CazanaJson.Get(listing, "dealer", "type")),
         ["listingMileage"] = Scalar(CazanaJson.Get(listing, "mileage", "display")),
         ["listingPrice"] = Scalar(CazanaJson.Get(listing, "price", "display")),
-        ["listingSellerName"] = Scalar(CazanaJson.Get(listing, "dealer", "name")),
-        ["listingTimeOnMarket"] = Scalar(CazanaJson.Get(listing, "firstSeen")),
     };
 
     /// <summary>One timeline entry as Companion maps it; a type Companion does not map is dropped.</summary>
@@ -359,6 +340,35 @@ internal sealed class CazanaCompanionReport(
 
     private static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
+    /// <summary>
+    /// The page and its seven sections parsed once, and the header rendered
+    /// once: it is made only of constants, so every report carries the same bytes.
+    /// </summary>
+    private static Page LoadPage()
+    {
+        var templates = LoadTemplates();
+        var header = CazanaMustache.Render(
+            templates["header"],
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["title"] = "Companion Report",
+                ["mainLogo"] = Logo,
+                ["logoClass"] = LogoClass,
+            });
+        var partials = new Dictionary<string, CazanaMustache.Template>(StringComparer.Ordinal)
+        {
+            ["headerSection"] = CazanaMustache.Literal(header),
+            ["marketOverviewSection"] = templates["market-overview"],
+            ["vehicleInformationCardSection"] = templates["vehicle-information-card"],
+            ["vehicleOverviewCardSection"] = templates["vehicle-overview-card"],
+            ["vehicleSpecificationColumnSection"] = templates["vehicle-specification"],
+            ["vehicleTimelineColumnSection"] = templates["vehicle-timeline"],
+            ["VehicleAdvertFullPageSection"] = templates["vehicle-advert-full-details"],
+            ["recentlistingColumnSection"] = templates["recent-listing"],
+        };
+        return new Page(templates["companion-report"], partials);
+    }
+
     private static Dictionary<string, CazanaMustache.Template> LoadTemplates()
     {
         string[] names =
@@ -379,4 +389,8 @@ internal sealed class CazanaCompanionReport(
 
         return templates;
     }
+
+    private sealed record Page(
+        CazanaMustache.Template Template,
+        IReadOnlyDictionary<string, CazanaMustache.Template> Partials);
 }

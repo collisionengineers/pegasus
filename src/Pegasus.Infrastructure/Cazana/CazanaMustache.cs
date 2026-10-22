@@ -11,10 +11,13 @@ namespace Pegasus.Infrastructure.Cazana;
 /// and nulls; truthiness and name lookup follow JavaScript and mustache.js.
 ///
 /// <para>
-/// A partial is inserted as it stands: Companion hands its sections over
-/// already rendered. Triple mustaches, ampersand variables and delimiter
-/// changes appear in none of the templates and are refused rather than
-/// guessed.
+/// A partial is rendered in place, straight into the page being built, with
+/// the frames its tag stands in: Companion hands its sections over already
+/// rendered, and the page tags each at its top level, so the bytes are the
+/// same without a string per section. A literal partial
+/// (<see cref="Literal"/>) is inserted as it stands. Triple mustaches,
+/// ampersand variables and delimiter changes appear in none of the templates
+/// and are refused rather than guessed.
 /// </para>
 ///
 /// <para>
@@ -24,7 +27,7 @@ namespace Pegasus.Infrastructure.Cazana;
 /// </summary>
 internal static class CazanaMustache
 {
-    public static string Render(Template template, object? view, IReadOnlyDictionary<string, string>? partials = null)
+    public static string Render(Template template, object? view, IReadOnlyDictionary<string, Template>? partials = null)
     {
         ArgumentNullException.ThrowIfNull(template);
         var output = new StringBuilder(template.Length);
@@ -36,6 +39,13 @@ internal static class CazanaMustache
     {
         ArgumentNullException.ThrowIfNull(template);
         return new Template(template.Length, ParseNodes(template));
+    }
+
+    /// <summary>A partial that is already rendered text, inserted as it stands and never read for tags.</summary>
+    public static Template Literal(string html)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        return new Template(html.Length, [new Text(html)]);
     }
 
     /// <summary>A name as the segments a lookup walks; the bare dot names the current frame.</summary>
@@ -112,7 +122,7 @@ internal static class CazanaMustache
     private static void RenderNodes(
         IReadOnlyList<Node> nodes,
         List<object?> frames,
-        IReadOnlyDictionary<string, string>? partials,
+        IReadOnlyDictionary<string, Template>? partials,
         StringBuilder output)
     {
         foreach (var node in nodes)
@@ -126,9 +136,9 @@ internal static class CazanaMustache
                     AppendEscaped(output, Print(Lookup(frames, variable.Path)));
                     break;
                 case Partial partial:
-                    if (partials is not null && partials.TryGetValue(partial.Name, out var html))
+                    if (partials is not null && partials.TryGetValue(partial.Name, out var body))
                     {
-                        output.Append(html);
+                        RenderNodes(body.Nodes, frames, partials, output);
                     }
 
                     break;
@@ -172,7 +182,7 @@ internal static class CazanaMustache
         IReadOnlyList<Node> nodes,
         List<object?> frames,
         object? frame,
-        IReadOnlyDictionary<string, string>? partials,
+        IReadOnlyDictionary<string, Template>? partials,
         StringBuilder output)
     {
         frames.Add(frame);
