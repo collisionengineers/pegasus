@@ -180,12 +180,14 @@ public sealed class WorkerSpanTelemetryTests
             var services = new ServiceCollection();
             services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddSingleton<ITelemetryChannel>(channel);
-            // The pipeline Program composes. Its span bridge and ingestion
-            // credential set neither field, so they are left out here.
+            // The pipeline Program composes. Its SQL filter passes exceptions
+            // (TheSqlFilterKeepsEveryOtherKindOfTelemetry), and its span bridge
+            // and ingestion credential set neither field, so they are left out.
+            // This project also references the Web's ASP.NET Core SDK, whose
+            // processor extension has the same name as the Worker's.
             services
                 .AddApplicationInsightsTelemetryWorkerService()
-                .ConfigureFunctionsApplicationInsights()
-                .AddApplicationInsightsTelemetryProcessor<SqlDependencyTelemetryFilter>();
+                .ConfigureFunctionsApplicationInsights();
             // The modules that poll or call out in the background are off; none
             // of them sets a role name or an operation id.
             services.Configure<ApplicationInsightsServiceOptions>(options =>
