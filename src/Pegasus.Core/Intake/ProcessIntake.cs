@@ -1049,7 +1049,7 @@ public sealed class ProcessIntake(
 
             return new(
                 IntakeDecision.NeedsSorting,
-                "No accepted intake route established the principal for automatic case creation.",
+                "Unrecognised Principal",
                 readerEvidence,
                 [],
                 null,

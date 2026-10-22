@@ -374,7 +374,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
             var receipt = await context.IntakeReceipts.SingleAsync(item => item.Id == strandedReceiptId);
             receipt.Decision = "needs_sorting";
             receipt.DecisionReason =
-                "No accepted intake route established the principal for automatic case creation.";
+                "Unrecognised Principal";
             receipt.FailureCode = null;
             receipt.FailureReason = null;
             receipt.Version++;

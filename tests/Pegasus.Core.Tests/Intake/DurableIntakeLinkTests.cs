@@ -156,7 +156,7 @@ public sealed class DurableIntakeLinkTests
             Now,
             Now,
             IntakeDecision.NeedsSorting,
-            "No accepted intake route established the principal for automatic case creation.",
+            "Unrecognised Principal",
             [],
             [],
             null,
