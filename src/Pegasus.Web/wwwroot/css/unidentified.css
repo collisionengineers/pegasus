@@ -14,6 +14,11 @@
 .unidentified-facts .fact:last-child { border-bottom: 0; }
 .unidentified-facts dd { margin: 0; overflow-wrap: anywhere; }
 .unidentified-files { margin: 0; padding-left: 18px; font-size: 12px; }
+/* Resolve (v41 U12): one even column, Link to Case first, Close with reason set apart at the bottom. */
+.button-row.unidentified-resolve { display: grid; gap: 8px; align-items: stretch; }
+.unidentified-resolve form { margin: 0; }
+.unidentified-resolve .btn { width: 100%; justify-content: flex-start; }
+.unidentified-resolve-end { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .unidentified-dismiss summary { list-style: none; }
 .unidentified-dismiss summary::-webkit-details-marker { display: none; }
 .unidentified-dismiss[open] form { margin-top: 6px; min-width: 220px; }

@@ -7,6 +7,38 @@
 @{
     ViewData["Title"] = $"Image-initiated Case {Model.Detail.Record.ImageIntakeReference}";
     var awaiting = Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction;
+
+    // The Cases the record can be added to: under the bar that offers Add to an
+    // existing case while the record awaits an instruction, else after the images.
+    void EligibleCandidates()
+    {
+        if (Model.AssociationCandidates.Count == 0)
+        {
+            return;
+        }
+
+        <section class="panel" aria-labelledby="image-intake-candidates-title">
+            <div class="panel-head"><h2 id="image-intake-candidates-title">Eligible case candidates</h2></div>
+            @if (Model.AutomationWithheld is { } withheld)
+            {
+                <div class="panel-section">
+                    <p class="notice notice--info" data-image-automation-withheld="@withheld">@OperatorLabels.ImageIntakeWithheldReason(withheld)</p>
+                </div>
+            }
+            <table class="table table--compact">
+                <thead><tr><th scope="col">Case/PO</th><th scope="col">@OperatorLabels.Principal</th></tr></thead>
+                <tbody>
+                    @foreach (var candidate in Model.AssociationCandidates)
+                    {
+                        <tr>
+                            <td class="mono"><a asp-page="/Cases/Details" asp-route-id="@candidate.CaseId">@candidate.CaseReference</a></td>
+                            <td data-image-candidate-principal>@(candidate.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    }
 }
 
 @section Styles {
@@ -91,7 +123,7 @@
                     @if (Model.CanTakeOverEdit)
                     {
                         <input type="hidden" name="takeOver" value="true" />
-                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Opening">Take over</button>
+                        <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Opening">Take over</button>
                     }
                     else
                     {
@@ -100,7 +132,7 @@
                         {
                             <input type="hidden" name="takeOver" value="true" />
                         }
-                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Opening">Edit record</button>
+                        <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Opening">Edit record</button>
                     }
                 </form>
             }
@@ -126,14 +158,14 @@
     </div>
 
     <div class="image-record-body">
+        @if (awaiting)
+        {
+            EligibleCandidates();
+        }
         <div class="image-record-grid">
             <section class="panel" aria-labelledby="image-intake-record-title">
                 <div class="panel-head"><h2 id="image-intake-record-title">Record</h2></div>
                 <dl class="fact-grid image-record-facts">
-                    <div class="fact"><dt>Image-initiated reference</dt><dd class="mono">@Model.Detail.Record.ImageIntakeReference</dd></div>
-                    <div class="fact"><dt>Vehicle registration</dt><dd class="mono">@Model.Detail.Record.NormalizedVehicleRegistration</dd></div>
-                    <div class="fact"><dt>Registered</dt><dd>@OperatorLabels.OfficeTime(Model.Detail.RegisteredAtUtc)</dd></div>
-                    <div class="fact"><dt>Lifecycle state</dt><dd>@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)</dd></div>
                     <div class="fact"><dt>Source</dt><dd>@OperatorLabels.SourceChannel(Model.Detail.Record.Origin.SourceIdentity.Channel)</dd></div>
                     @if (Model.SourceAsset is { } sourceAsset)
                     {
@@ -270,29 +302,9 @@
             </section>
         }
 
-        @if (Model.AssociationCandidates.Count > 0)
+        @if (!awaiting)
         {
-            <section class="panel" aria-labelledby="image-intake-candidates-title">
-                <div class="panel-head"><h2 id="image-intake-candidates-title">Eligible case candidates</h2></div>
-                @if (Model.AutomationWithheld is { } withheld)
-                {
-                    <div class="panel-section">
-                        <p class="notice notice--info" data-image-automation-withheld="@withheld">@OperatorLabels.ImageIntakeWithheldReason(withheld)</p>
-                    </div>
-                }
-                <table class="table table--compact">
-                    <thead><tr><th scope="col">Case/PO</th><th scope="col">@OperatorLabels.Principal</th></tr></thead>
-                    <tbody>
-                        @foreach (var candidate in Model.AssociationCandidates)
-                        {
-                            <tr>
-                                <td class="mono"><a asp-page="/Cases/Details" asp-route-id="@candidate.CaseId">@candidate.CaseReference</a></td>
-                                <td data-image-candidate-principal>@(candidate.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </section>
+            EligibleCandidates();
         }
 
         @if (Model.History.Count > 0)

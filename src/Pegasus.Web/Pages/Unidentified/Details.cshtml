@@ -82,10 +82,6 @@
                         </div>
                     }
                     <dl class="fact-grid unidentified-facts">
-                        <div class="fact"><dt>Reference</dt><dd class="mono">@Model.Item.Reference</dd></div>
-                        <div class="fact"><dt>Kind</dt><dd>@Model.MaterialLabel</dd></div>
-                        <div class="fact"><dt>@(Model.IsEmail ? "E-mail" : "Filename")</dt><dd>@Model.Handle</dd></div>
-                        <div class="fact"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</dd></div>
                         <div class="fact"><dt>Source</dt><dd>@Model.SourceLabel</dd></div>
                         <div class="fact"><dt>Needs attention</dt><dd>@OperatorLabels.UnidentifiedReason(Model.Item.ReasonCode)</dd></div>
                     </dl>
@@ -186,7 +182,7 @@
                 <section class="panel" aria-labelledby="unidentified-resolve-title" data-unidentified-resolve>
                     <div class="panel-head"><h2 id="unidentified-resolve-title">Resolve</h2></div>
                     <div class="panel-section">
-                        <div class="button-row">
+                        <div class="button-row unidentified-resolve">
                             @if (Model.CanLinkCase)
                             {
                                 <a class="btn btn--primary" href="?dialog=@Record.LinkDialog" data-dialog-open="unidentified-link-dialog" data-unidentified-action="link">
@@ -223,7 +219,9 @@
                                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg><span>@OperatorLabels.AiJobs.SendUnidentified</span>
                                 </button>
                             </form>
-                            <a class="btn btn--danger" href="?dialog=@Record.CloseDialog" data-dialog-open="unidentified-close-dialog" data-unidentified-action="close">Close with reason</a>
+                            <div class="unidentified-resolve-end">
+                                <a class="btn btn--danger" href="?dialog=@Record.CloseDialog" data-dialog-open="unidentified-close-dialog" data-unidentified-action="close">Close with reason</a>
+                            </div>
                         </div>
                     </div>
                 </section>
