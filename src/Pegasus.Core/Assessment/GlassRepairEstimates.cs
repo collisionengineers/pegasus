@@ -10,8 +10,42 @@ public enum GlassRepairEstimateSessionState
 
 public static class GlassRepairEstimateSessionPolicy
 {
-    public static bool SameRegistration(string? left, string? right) =>
-        string.Equals(CompactRegistration(left), CompactRegistration(right), StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Whether two registrations are the same, ignoring case and any spacing
+    /// in either. Each is compacted into a stack buffer (a rented one past
+    /// 1,024 characters) and the two are compared there, so no string is built.
+    /// </summary>
+    public static bool SameRegistration(string? left, string? right)
+    {
+        var leftText = left.AsSpan();
+        var rightText = right.AsSpan();
+        char[]? leftRented = null;
+        char[]? rightRented = null;
+        Span<char> leftBuffer = leftText.Length <= StackBufferLength
+            ? stackalloc char[leftText.Length]
+            : (leftRented = ArrayPool<char>.Shared.Rent(leftText.Length));
+        Span<char> rightBuffer = rightText.Length <= StackBufferLength
+            ? stackalloc char[rightText.Length]
+            : (rightRented = ArrayPool<char>.Shared.Rent(rightText.Length));
+        try
+        {
+            ReadOnlySpan<char> leftCompact = leftBuffer[..CompactInto(leftText, leftBuffer)];
+            ReadOnlySpan<char> rightCompact = rightBuffer[..CompactInto(rightText, rightBuffer)];
+            return MemoryExtensions.Equals(leftCompact, rightCompact, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (leftRented is not null)
+            {
+                ArrayPool<char>.Shared.Return(leftRented);
+            }
+
+            if (rightRented is not null)
+            {
+                ArrayPool<char>.Shared.Return(rightRented);
+            }
+        }
+    }
 
     /// <summary>
     /// The registration with its whitespace left out: compacted once, however
@@ -29,14 +63,7 @@ public static class GlassRepairEstimateSessionPolicy
         Span<char> compact = registration.Length <= StackBufferLength
             ? stackalloc char[registration.Length]
             : new char[registration.Length];
-        var length = 0;
-        foreach (var character in registration)
-        {
-            if (!char.IsWhiteSpace(character))
-            {
-                compact[length++] = character;
-            }
-        }
+        var length = CompactInto(registration, compact);
 
         return length == registration.Length ? registration : new string(compact[..length]);
     }
@@ -59,16 +86,7 @@ public static class GlassRepairEstimateSessionPolicy
             : (rented = ArrayPool<char>.Shared.Rent(text.Length));
         try
         {
-            var length = 0;
-            foreach (var character in text)
-            {
-                if (!char.IsWhiteSpace(character))
-                {
-                    compact[length++] = character;
-                }
-            }
-
-            ReadOnlySpan<char> compacted = compact[..length];
+            ReadOnlySpan<char> compacted = compact[..CompactInto(text, compact)];
             return compacted.Contains(compactRegistration, StringComparison.OrdinalIgnoreCase);
         }
         finally
@@ -78,6 +96,21 @@ public static class GlassRepairEstimateSessionPolicy
                 ArrayPool<char>.Shared.Return(rented);
             }
         }
+    }
+
+    /// <summary>The characters of the text that are not whitespace, written to the start of the buffer; how many.</summary>
+    private static int CompactInto(ReadOnlySpan<char> text, Span<char> destination)
+    {
+        var length = 0;
+        foreach (var character in text)
+        {
+            if (!char.IsWhiteSpace(character))
+            {
+                destination[length++] = character;
+            }
+        }
+
+        return length;
     }
 
     private const int StackBufferLength = 1024;

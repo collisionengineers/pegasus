@@ -110,16 +110,21 @@ public sealed partial class CazanaGuideValuationProvider(
             ? stackalloc char[registration.Length]
             : new char[registration.Length];
         var length = 0;
+        var changed = false;
         foreach (var character in registration)
         {
-            if (!char.IsWhiteSpace(character))
+            if (char.IsWhiteSpace(character))
             {
-                compact[length++] = char.ToUpperInvariant(character);
+                changed = true;
+                continue;
             }
+
+            var upper = char.ToUpperInvariant(character);
+            changed |= upper != character;
+            compact[length++] = upper;
         }
 
-        compact = compact[..length];
-        return compact.SequenceEqual(registration.AsSpan()) ? registration : new string(compact);
+        return changed ? new string(compact[..length]) : registration;
     }
 
     private const int StackBufferLength = 128;
