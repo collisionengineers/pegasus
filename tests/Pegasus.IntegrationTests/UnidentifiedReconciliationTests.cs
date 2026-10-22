@@ -287,48 +287,8 @@ public sealed class UnidentifiedReconciliationTests
             "Development",
             true,
             recognitionEngine: new FakeVrmRecognitionEngine());
-        using var client = IntakeWebDriver.CreateClient(factory);
         var actor = StaffActor();
-
-        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
-        var upload = await IntakeWebDriver.PostUploadManyAsync(
-            client,
-            form.AntiforgeryToken,
-            form.ExternalReceiptToken,
-            [
-                ("overview.png", "image/png", TinyPngBytes),
-                ("close-up.png", "image/png", TinyPngBytes)
-            ]);
-        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
-        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
-        await using (var reconcileScope = factory.Services.CreateAsyncScope())
-        {
-            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
-        }
-
-        Guid[] receiptIds;
-        await using (var groupScope = factory.Services.CreateAsyncScope())
-        {
-            var services = groupScope.ServiceProvider;
-            var group = await services.GetRequiredService<IIntakeSubmissionGroupStore>()
-                .GetAsync(groupId)
-                ?? throw new InvalidOperationException("The submission group was not persisted.");
-            var statuses = services.GetRequiredService<IQueuedIntakeStatusQueries>();
-            receiptIds = (await Task.WhenAll(group.Members
-                .OrderBy(member => member.Ordinal)
-                .Select(async member =>
-                {
-                    var status = await statuses.GetAsync(member.StagedReceiptId, CancellationToken.None);
-                    return status?.ProcessedReceiptId ?? member.StagedReceiptId;
-                })))
-                .ToArray();
-        }
-
-        var caseId = await SeedCaseAsync(factory.Services, receiptIds[0], "RECON26020");
-        foreach (var receiptId in receiptIds)
-        {
-            await LinkAsync(factory.Services, receiptId, caseId, actor, $"group-recheck-link:{receiptId:N}");
-        }
+        var (groupId, receiptIds, caseId) = await UploadAGroupLinkedToOneCaseAsync(factory);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
@@ -371,6 +331,105 @@ public sealed class UnidentifiedReconciliationTests
             new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0),
             await reconciler.ExecuteAsync(50));
         Assert.Empty(await store.ListResolutionsToRecheckAsync(50));
+    }
+
+    /// <summary>
+    /// #1484: eight reconciliations of one grouped upload in the same second,
+    /// as when its members' work runs together. Every member is on one Case
+    /// and the group's item is open, so each call that finds it open resolves
+    /// it under the same key; the item lock makes the later ones replay, so
+    /// none fails and the item is resolved to the Case once.
+    /// </summary>
+    [Fact]
+    public async Task EightParallelGroupReconciliationsResolveTheItemOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        var (groupId, _, caseId) = await UploadAGroupLinkedToOneCaseAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+
+        // The last link resolved the item. Reopening it leaves every member on
+        // the Case and the item open, the state each member's pass resolves.
+        var resolved = await store.GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(groupId));
+        var reopened = await store.ReopenAsync(
+            new(
+                resolved!.Id,
+                resolved.Version,
+                StaffActor(),
+                "group-parallel-reopen",
+                "Reopened so the members reconcile it together.",
+                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow()),
+            CancellationToken.None);
+        var historyBefore = (await store.HistoryAsync(reopened.Item.Id)).Count;
+
+        var synchronized = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(async () =>
+        {
+            await using var member = factory.Services.CreateAsyncScope();
+            return await member.ServiceProvider.GetRequiredService<ReconcileUnidentifiedDestinations>()
+                .SynchronizeForSubmissionGroupAsync(groupId, CancellationToken.None);
+        })));
+
+        Assert.Contains(true, synchronized);
+        var item = await store.GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(groupId));
+        Assert.Equal(UnidentifiedState.Resolved, item!.State);
+        Assert.Equal(caseId.ToString("N"), item.ResolutionTargetId);
+        Assert.Equal(reopened.Item.Version + 1, item.Version);
+        Assert.Equal(historyBefore + 1, (await store.HistoryAsync(item.Id)).Count);
+    }
+
+    /// <summary>
+    /// A two-image grouped upload with no readable plate, so the group owns
+    /// one Unidentified item, then every member linked to one seeded Case; the
+    /// last link resolves the item.
+    /// </summary>
+    private static async Task<(Guid GroupId, Guid[] ReceiptIds, Guid CaseId)> UploadAGroupLinkedToOneCaseAsync(
+        IntakeWebApplicationFactory factory)
+    {
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", TinyPngBytes),
+                ("close-up.png", "image/png", TinyPngBytes)
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        await using (var reconcileScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
+        }
+
+        Guid[] receiptIds;
+        await using (var groupScope = factory.Services.CreateAsyncScope())
+        {
+            var services = groupScope.ServiceProvider;
+            var group = await services.GetRequiredService<IIntakeSubmissionGroupStore>()
+                .GetAsync(groupId)
+                ?? throw new InvalidOperationException("The submission group was not persisted.");
+            var statuses = services.GetRequiredService<IQueuedIntakeStatusQueries>();
+            receiptIds = (await Task.WhenAll(group.Members
+                .OrderBy(member => member.Ordinal)
+                .Select(async member =>
+                {
+                    var status = await statuses.GetAsync(member.StagedReceiptId, CancellationToken.None);
+                    return status?.ProcessedReceiptId ?? member.StagedReceiptId;
+                })))
+                .ToArray();
+        }
+
+        var caseId = await SeedCaseAsync(factory.Services, receiptIds[0], "RECON26020");
+        foreach (var receiptId in receiptIds)
+        {
+            await LinkAsync(factory.Services, receiptId, caseId, StaffActor(), $"group-link:{receiptId:N}");
+        }
+
+        return (groupId, receiptIds, caseId);
     }
 
     private static ActionActor StaffActor() => ActionActor.Staff(
