@@ -242,14 +242,14 @@ public sealed class RunDueChasersTests
         {
             if (transition.CaseId == badCaseId)
             {
-                await _slowStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                await _slowStarted.Task.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
                 _badThrown.SetResult();
                 throw new InvalidOperationException(Failure);
             }
 
             Assert.Equal(slowCaseId, transition.CaseId);
             _slowStarted.SetResult();
-            await _badThrown.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await _badThrown.Task.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None);
             await Task.Yield();
             SlowTokenCancelled = cancellationToken.IsCancellationRequested;
             SlowCompleted = true;
