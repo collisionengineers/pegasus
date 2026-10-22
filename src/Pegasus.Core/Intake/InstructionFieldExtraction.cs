@@ -420,12 +420,15 @@ internal static partial class InstructionFieldEngine
                 // Principal printing two parties in paired columns — only that
                 // column's cell is viable; without one, every viable column is
                 // returned and the field is ambiguous rather than guessed at.
+                var wantedHeader = definition.ColumnHeader is null
+                    ? null
+                    : Normalize(definition.ColumnHeader);
                 var siblings = this.cells
                     .Where(entry => entry.Key.Row == label.Row
                         && entry.Key.Column > label.Column
                         && IsValueCell(entry.Value.Fragment.Text, this.regexCache)
-                        && (definition.ColumnHeader is null
-                            || HeaderMatches(entry.Key.Column, definition.ColumnHeader)))
+                        && (wantedHeader is null
+                            || HeaderMatches(entry.Key.Column, wantedHeader)))
                     .OrderBy(entry => entry.Key.Column)
                     .Select(entry => entry.Value)
                     .ToArray();
@@ -444,11 +447,11 @@ internal static partial class InstructionFieldEngine
                         : [];
             }
 
-            private bool HeaderMatches(int column, string columnHeader) =>
+            private bool HeaderMatches(int column, string normalizedColumnHeader) =>
                 this.cells.TryGetValue((this.headerRow, column), out var header)
                 && string.Equals(
                     Normalize(header.Fragment.Text),
-                    Normalize(columnHeader),
+                    normalizedColumnHeader,
                     StringComparison.Ordinal);
         }
     }
