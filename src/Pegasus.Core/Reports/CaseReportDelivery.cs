@@ -94,16 +94,18 @@ public sealed record ReportRecipientCandidate(string Address, string Source);
 /// What the Case's report has already been sent, for the naming a re-send
 /// carries (v28 P23): how many times a report of this Case has been sent, the
 /// report date of the one sent last, when that send was observed in the Sent
-/// folder, and the addresses it went to. <paramref name="AcceptedCount"/>
-/// also counts the sends the provider accepted whose Sent item is not yet
-/// observed; the Next action reads it (operator, 12 October 2026).
+/// folder, and the addresses it went to, To and Cc apart (v41 K5).
+/// <paramref name="AcceptedCount"/> also counts the sends the provider
+/// accepted whose Sent item is not yet observed; the Next action reads it
+/// (operator, 12 October 2026).
 /// </summary>
 public sealed record CaseReportSendHistory(
     int SentCount,
     DateOnly? LastSentReportDate,
     int AcceptedCount = 0,
     DateTimeOffset? LastSentAtUtc = null,
-    IReadOnlyList<string>? LastRecipients = null)
+    IReadOnlyList<string>? LastTo = null,
+    IReadOnlyList<string>? LastCc = null)
 {
     public static CaseReportSendHistory None { get; } = new(0, null);
 
