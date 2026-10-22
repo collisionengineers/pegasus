@@ -121,12 +121,18 @@ appears within the round trip
 
 ### Assign Engineer
 
-In Review, staff choose **Assign Engineer** and pick an eligible enabled
-staff account. In one operation, under a Case edit lease — the session's, or
+In Review or With Engineer, staff choose **Assign Engineer** and pick an
+eligible enabled staff account, the signed-in person listed first as "Name
+(you)", or Unassigned; **Take** assigns an Unassigned Case to the person
+taking it in one step. Neither asks for a reason: the history line reads
+"Taken by {name}", "Assigned to {name}" or "Set to Unassigned" (#1213,
+operator, 15 and 16 October 2026,
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+In one operation, under a Case edit lease — the session's, or
 one claimed for the action ([FRD-16](frd-16-case-record-workspace.md#actions-menu))
-— and the current version, Pegasus assigns the Engineer, sets the Sign-off
-Engineer, and moves the Case
-to With Engineer. A headless start command can hand a Review Case
+— and the current version, Pegasus assigns the Engineer, or none, sets the
+Sign-off Engineer, and moves a Review Case to With Engineer; a With Engineer
+Case stays With Engineer. A headless start command can hand a Review Case
 to its already-assigned eligible staff member; it is not a second screen step.
 
 Replaying the same request does not hand off twice. A request that is
@@ -175,9 +181,11 @@ never changes the Case state and records no handoff.
 - **Create audit** adds the Audit to an Inspection + Audit Case
   ([Create audit](#create-audit)).
 - **Return to Engineer** records a reason and applies the destination gates
-  when more engineering changes are needed. It is not needed to receive,
-  attach or answer a query. **Return to Review** records a reason from With
-  Engineer or Report sent (operator, 11 October 2026).
+  when more engineering changes are needed. A Case with no Engineer returns
+  Unassigned, for an Engineer to take; one with an Engineer needs that
+  Engineer still eligible (#1213, operator, 15 October 2026). It is not
+  needed to receive, attach or answer a query. **Return to Review** records a
+  reason from With Engineer or Report sent (operator, 11 October 2026).
 - **A Case save** needs no reason. Its history line names the fields that
   changed, for example "Vehicle registration, Incident date". Reasons are
   required where an action's rule asks for one: holds and releases, closure,
@@ -271,10 +279,10 @@ other Actions-menu progressions. Once the Inspection report is stored,
 whether or not it is sent, Create audit is the Case's Next action, stated in
 the aside and the Cases quick detail with the same control (operator, 2 and
 12 October 2026).
-With no assigned Engineer it is refused with Return to Engineer's refusal,
-"Report preparation requires an assigned Engineer.", and the assigned
-Engineer must still be eligible, as for Return to Engineer. It asks for no
-reason and no outcome.
+With no assigned Engineer it is refused, "Report preparation requires an
+assigned Engineer.": an Engineer must take an Unassigned Case first (#1213,
+operator, 15 October 2026). The assigned Engineer must still be eligible, as
+for Return to Engineer. It asks for no reason and no outcome.
 
 **What it does.** In one operation, under a Case edit lease (the session's,
 or one claimed for the action) and the current version, Create audit:
@@ -426,7 +434,8 @@ Automation Actor action.
 | From | To | Trigger |
 | --- | --- | --- |
 | Not ready | Review | Every required item present (automatic) |
-| Review | With Engineer | Assign Engineer, or the headless start command |
+| Review | With Engineer | Assign Engineer or Take, to an Engineer or Unassigned (#1213), or the headless start command |
+| With Engineer | With Engineer, another Engineer or Unassigned | Assign Engineer or Take (#1213) |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
 | Held | previous state | Release Hold (reason) |
 | With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence; an Inspection + Audit Case with no Audit yet stays With Engineer with the Inspection's Sent evidence recorded (operator, 13 October 2026) |
@@ -439,7 +448,7 @@ Automation Actor action.
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |
 | closed disposition | archived | Archive |
-| closed disposition other than Created in error | working state | Return to work (reason), through the normal gates |
+| closed disposition other than Created in error | working state | Return to work (reason), through the normal gates; to With Engineer Unassigned when the Case has no Engineer (#1213) |
 
 ## Edge cases and fail-closed behaviour
 
