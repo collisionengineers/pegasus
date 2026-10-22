@@ -1183,26 +1183,79 @@ public sealed class GlassRepairEstimateCallbackWebTests
     }
 
     /// <summary>
+    /// The end of each piece of the host's background Glass's work, as the
+    /// test sees it: the work's own dependency scope is disposed once, when
+    /// the piece has run.
+    /// </summary>
+    private sealed class WorkEnded
+    {
+        private readonly Lock sync = new();
+        private TaskCompletionSource turn = NewTurn();
+
+        /// <summary>Completes when the next piece of work ends.</summary>
+        public Task Next
+        {
+            get
+            {
+                lock (sync)
+                {
+                    return turn.Task;
+                }
+            }
+        }
+
+        public void Signal()
+        {
+            TaskCompletionSource ended;
+            lock (sync)
+            {
+                ended = turn;
+                turn = NewTurn();
+            }
+
+            ended.TrySetResult();
+        }
+
+        private static TaskCompletionSource NewTurn() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    /// <summary>
+    /// Resolved first by the scope the host runs one piece of Glass's work in,
+    /// so it is disposed last: the work's scope has ended when it signals.
+    /// </summary>
+    private sealed class WorkScopeEnd(WorkEnded ended) : IDisposable
+    {
+        public void Dispose() => ended.Signal();
+    }
+
+    /// <summary>
     /// One Case, one Engineer with a Glass's account, and the scripted provider
     /// on the named client the gateway resolves.
     /// </summary>
     internal sealed class Workspace : IAsyncDisposable
     {
+        /// <summary>How long a Glass's window may wait on its background work before the test fails.</summary>
+        private static readonly TimeSpan WorkTimeout = TimeSpan.FromSeconds(30);
+
         private readonly IntakeWebApplicationFactory baseFactory;
         private readonly WebApplicationFactory<Program> factory;
+        private readonly WorkEnded workEnded;
 
         private Workspace(
             IntakeWebApplicationFactory baseFactory,
             WebApplicationFactory<Program> factory,
             HttpClient client,
             ScriptedGlass mva,
-            Guid caseId)
+            Guid caseId,
+            WorkEnded workEnded)
         {
             this.baseFactory = baseFactory;
             this.factory = factory;
             Client = client;
             Mva = mva;
             CaseId = caseId;
+            this.workEnded = workEnded;
         }
 
         public HttpClient Client { get; }
@@ -1220,6 +1273,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
+            var workEnded = new WorkEnded();
             var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
             var factory = baseFactory.WithWebHostBuilder(builder =>
             {
@@ -1246,6 +1300,16 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         GlassRepairEstimateOptions.HttpClientName,
                         options => options.HttpMessageHandlerBuilderActions.Add(
                             handlerBuilder => handlerBuilder.PrimaryHandler = mva));
+                    // The host's own Glass's work, built as it builds it, in a
+                    // scope that signals the test when it ends: only the work
+                    // resolves it, never a request.
+                    services.AddSingleton(workEnded);
+                    services.AddScoped<WorkScopeEnd>();
+                    services.AddScoped(provider =>
+                    {
+                        _ = provider.GetRequiredService<WorkScopeEnd>();
+                        return ActivatorUtilities.CreateInstance<Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork>(provider);
+                    });
                     if (fault is not null)
                     {
                         // The host's own gateway, behind a switch the test flips:
@@ -1275,7 +1339,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 BaseAddress = new Uri(PegasusOrigin),
             });
             client.DefaultRequestHeaders.Add("X-Test-Roles", role);
-            return new(baseFactory, factory, client, mva, caseId);
+            return new(baseFactory, factory, client, mva, caseId, workEnded);
         }
 
         public async Task<string> CaseHtmlAsync()
@@ -1439,13 +1503,30 @@ public sealed class GlassRepairEstimateCallbackWebTests
             return json.RootElement.GetProperty("pending").GetBoolean();
         }
 
-        /// <summary>Waits in the Glass's window as its script does, then continues.</summary>
+        /// <summary>
+        /// Waits in the Glass's window for its background work, then continues:
+        /// while the window says work is pending it waits for the host to end
+        /// one piece of it. The turn is taken before the state is read, so an
+        /// end between the two is never missed.
+        /// </summary>
         public async Task<HttpResponseMessage> FollowAsync(string opening)
         {
-            for (var attempt = 0; await PendingAsync(opening); attempt++)
+            while (true)
             {
-                Assert.True(attempt < 300, "The Glass's background work did not finish.");
-                await Task.Delay(TimeSpan.FromMilliseconds(100));
+                var ends = workEnded.Next;
+                if (!await PendingAsync(opening))
+                {
+                    break;
+                }
+
+                try
+                {
+                    await ends.WaitAsync(WorkTimeout);
+                }
+                catch (TimeoutException)
+                {
+                    Assert.Fail("The Glass's background work did not finish.");
+                }
             }
 
             return await Client.GetAsync(opening + "?handler=Go");
