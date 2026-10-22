@@ -148,11 +148,12 @@ internal sealed partial class StartupWarmup(
     // signed-in page makes; nothing here writes.
     private readonly ActionActor actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
-    // The steps that have failed or run past their bound in a keep-warm pass. The
-    // first of either for a step is a warning; later ones are debug lines, so a
-    // broken step does not write a warning every three minutes. Only the
-    // keep-warm loop touches it.
+    // The steps that have failed in a keep-warm pass, and the steps that have run
+    // past their bound. The first of each for a step is a warning; later ones are
+    // debug lines, so a broken step does not write a warning every three minutes.
+    // Only the keep-warm loop touches them.
     private readonly HashSet<string> failedSteps = [];
+    private readonly HashSet<string> boundedSteps = [];
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -337,27 +338,33 @@ internal sealed partial class StartupWarmup(
             // cancellation, so the bound is asked about, not the exception type.
             if (!stoppingToken.IsCancellationRequested)
             {
-                LogKeepWarmFailure(
-                    step, exception, Stopwatch.GetElapsedTime(started).TotalMilliseconds, bound.IsCancellationRequested);
+                var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                if (bound.IsCancellationRequested)
+                {
+                    LogKeepWarmBounded(step, elapsedMs);
+                }
+                else
+                {
+                    LogKeepWarmFailure(step, exception, elapsedMs);
+                }
             }
         }
     }
 
-    /// <summary>
-    /// Warning for a step's first failure or bound expiry in the process, Debug
-    /// after. A step past its bound is logged without its exception.
-    /// </summary>
-    private void LogKeepWarmFailure(string step, Exception exception, double elapsedMs, bool pastBound = false)
+    private void LogKeepWarmFailure(string step, Exception exception, double elapsedMs)
     {
         var level = failedSteps.Add(step) ? LogLevel.Warning : LogLevel.Debug;
-        if (pastBound)
-        {
-            LogWarmupStepBounded(logger, level, step, elapsedMs);
-        }
-        else
-        {
-            LogKeepWarmStepFailed(logger, level, step, elapsedMs, exception);
-        }
+        LogKeepWarmStepFailed(logger, level, step, elapsedMs, exception);
+    }
+
+    /// <summary>
+    /// A step that ran past its bound, logged without an exception: a warning
+    /// the first time in the process, Debug after.
+    /// </summary>
+    private void LogKeepWarmBounded(string step, double elapsedMs)
+    {
+        var level = boundedSteps.Add(step) ? LogLevel.Warning : LogLevel.Debug;
+        LogWarmupStepBounded(logger, level, step, elapsedMs);
     }
 
     /// <summary>

@@ -370,27 +370,39 @@ public sealed class StartupWarmupTests
             $"The held mailbox read should have ended as a {endedAs} in each of the three passes.");
     }
 
-    [Fact]
-    public async Task AStepReportsOnceWhicheverWayItFirstWentWrong()
+    [Theory]
+    [InlineData("failure first", true)]
+    [InlineData("bound first", false)]
+    public async Task AStepsFirstFailureAndFirstBoundExpiryAreEachAWarningWhicheverComesFirst(
+        string order, bool failureFirst)
     {
-        var reads = new RecordingReads { InboxFails = true };
+        // The mailbox read throws while InboxFails is set, and otherwise waits
+        // for the 200 ms bound to cancel it.
+        var reads = new RecordingReads();
         await using var run = new KeepWarmRun(reads, TimeSpan.FromMinutes(3), TimeSpan.FromMilliseconds(200));
         await run.StartAsync();
-
-        await run.PassAsync(TimeSpan.FromMinutes(3));
-        reads.InboxFails = false;
         _ = reads.HoldInbox();
-        await run.PassAsync(TimeSpan.FromMinutes(3));
 
-        var failed = Assert.Single(
-            run.Logger.Entries,
-            entry => entry.Message.StartsWith("Warm-up step inbox failed after ", StringComparison.Ordinal));
-        var bounded = Assert.Single(
-            run.Logger.Entries,
-            entry => entry.Message.StartsWith(
-                "Startup warm-up step inbox was still running after ", StringComparison.Ordinal));
-        Assert.Equal(LogLevel.Warning, failed.Level);
-        Assert.Equal(LogLevel.Debug, bounded.Level);
+        foreach (var fails in new[] { failureFirst, !failureFirst, failureFirst, !failureFirst })
+        {
+            reads.InboxFails = fails;
+            await run.PassAsync(TimeSpan.FromMinutes(3));
+        }
+
+        var failed = run.Logger.Entries
+            .Where(entry => entry.Message.StartsWith("Warm-up step inbox failed after ", StringComparison.Ordinal))
+            .ToArray();
+        var bounded = run.Logger.Entries
+            .Where(entry => entry.Message.StartsWith(
+                "Startup warm-up step inbox was still running after ", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal([LogLevel.Warning, LogLevel.Debug], failed.Select(entry => entry.Level).ToArray());
+        Assert.Equal([LogLevel.Warning, LogLevel.Debug], bounded.Select(entry => entry.Level).ToArray());
+        Assert.All(failed, entry => Assert.IsType<InvalidOperationException>(entry.Exception));
+        Assert.All(bounded, entry => Assert.Null(entry.Exception));
+        Assert.True(
+            reads.Calls("mailboxes") == 4,
+            $"The mailbox read should have run in each of the four passes ({order}).");
     }
 
     [Fact]
