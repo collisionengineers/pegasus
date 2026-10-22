@@ -35,7 +35,7 @@ public sealed class SqlDependencyTelemetryFilter(ITelemetryProcessor next) : ITe
         dependency switch
         {
             { Type: "SQL", Success: true } => dependency.Duration < SlowSqlThreshold,
-            { Type: StorageDependencyType, Success: false } =>
+            { Success: false, Type: StorageDependencyType } =>
                 dependency.Properties.TryGetValue("Error", out var error)
                 && error.Contains(BlobAlreadyExists, StringComparison.Ordinal),
             _ => false
