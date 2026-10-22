@@ -7,6 +7,9 @@
     // The Case / PO field joins the reason dialog it opens by form="…", so it sits
     // in the Decision column and the confirmation stays in a dialog.
     var linkFormId = Model.CurrentDestination is null ? "linkCaseForm" : "changeLinkedCaseForm";
+    // A linked message whose decision leaves no Case to change to has no form for the picker to join.
+    var picksCase = Model.AssociationReceipt is not null
+        && (Model.CurrentDestination is null || Model.OffersChangeLinkedCase);
     var workTypeRefused = ViewData.ModelState["WorkType"]?.Errors.Count > 0;
 }
 
@@ -74,7 +77,7 @@
                     <strong class="quiet">@Pegasus.Web.Pages.Mail.MessageModel.AssociationLabel(summary.CaseReference)</strong>
                 }
             </div>
-            @if (dossier is not null || Model.AssociationReceipt is not null)
+            @if (dossier is not null || picksCase)
             {
                 <div class="mail-decision-block">
                     @if (dossier is not null)
@@ -92,7 +95,7 @@
                             <span asp-validation-for="WorkType"></span>
                         </div>
                     }
-                    @if (Model.AssociationReceipt is not null)
+                    @if (picksCase)
                     {
                         <div class="field case-picker" data-case-picker data-case-picker-fill
                              data-case-picker-url="@Url.Page("/Mail/Message", "LinkCaseOptions", new { id = summary.Id })">
@@ -116,7 +119,10 @@
                     }
                     @if (Model.CurrentDestination is not null)
                     {
-                        <button class="btn btn--small" type="button" data-dialog-open="changeLinkedCaseDialog">@OperatorLabels.Inbox.ChangeLinkedCase</button>
+                        if (Model.OffersChangeLinkedCase)
+                        {
+                            <button class="btn btn--small" type="button" data-dialog-open="changeLinkedCaseDialog">@OperatorLabels.Inbox.ChangeLinkedCase</button>
+                        }
                         <button class="btn btn--small" type="button" data-dialog-open="unlinkCaseDialog">@OperatorLabels.Inbox.Unlink</button>
                     }
                     else

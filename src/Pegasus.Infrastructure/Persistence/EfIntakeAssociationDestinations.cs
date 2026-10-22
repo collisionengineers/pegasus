@@ -258,14 +258,7 @@ public sealed class EfIntakeAssociationDestinations(
         ActionActor actor,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(actor);
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (caseId == Guid.Empty)
-        {
-            return null;
-        }
-
-        var destination = await ReadAuthorityAsync(caseId, cancellationToken);
+        var destination = await GetAuthorityAsync(caseId, actor, cancellationToken);
         if (destination is null)
         {
             return null;
@@ -292,6 +285,18 @@ public sealed class EfIntakeAssociationDestinations(
         {
             return destination;
         }
+    }
+
+    public async Task<IntakeAssociationDestination?> GetAuthorityAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return caseId == Guid.Empty
+            ? null
+            : await ReadAuthorityAsync(caseId, cancellationToken);
     }
 
     private async Task<IntakeAssociationDestination?> ReadAuthorityAsync(

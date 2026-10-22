@@ -34,7 +34,6 @@ public enum MessageOffer
 
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
-    GetRetainedMailPreview getRetainedMailPreview,
     IStartQueryResponse startQueryResponse,
     IAiJobQueries aiJobQueries,
     IAiJobStore aiJobStore,
@@ -294,6 +293,16 @@ public sealed class MessageModel(
     /// workflow, so <see cref="CurrentCase"/> is null for it.
     /// </summary>
     public IntakeAssociationDestination? CurrentDestination { get; private set; }
+
+    /// <summary>
+    /// Whether Change linked Case is drawn: the message is linked and its
+    /// decision leaves a Case to link it to (Core's
+    /// <see cref="IntakeAssociationDestinationPolicy.CanOfferToChange"/>).
+    /// </summary>
+    public bool OffersChangeLinkedCase =>
+        CurrentDestination is not null
+        && AssociationReceipt is { } receipt
+        && IntakeAssociationDestinationPolicy.CanOfferToChange(receipt);
 
     public MailFolderScope ListFolder { get; private set; } = MailFolderScope.Inbox;
 
@@ -737,10 +746,13 @@ public sealed class MessageModel(
                 throw new IntakeVersionConflictException();
             }
 
+            // Only the destination's authority row is read: the claim needs its
+            // version and the post shows none of its facts.
             var targetCaseId = await ResolveCaseIdAsync(actor, caseReference, cancellationToken);
             var destination = targetCaseId is { } caseId
-                ? await destinations.GetAsync(binding, caseId, actor, cancellationToken)
-                : null;
+                && IntakeAssociationDestinationPolicy.CanOffer(binding)
+                    ? await destinations.GetAuthorityAsync(caseId, actor, cancellationToken)
+                    : null;
             if (destination is null)
             {
                 ModelState.AddModelError(string.Empty, ChooseOneCaseMessage);
@@ -835,9 +847,19 @@ public sealed class MessageModel(
                 throw new IntakeVersionConflictException();
             }
 
+            // The unlink is made first and the link then needs a message the
+            // policy lets be linked, so a message it does not is refused before
+            // anything is claimed or unlinked.
+            if (!IntakeAssociationDestinationPolicy.CanOfferToChange(binding))
+            {
+                ModelState.AddModelError(
+                    string.Empty, OperatorLabels.IntakeCannotBecomeCaseReason(binding.Decision));
+                return await ReloadAsync(actor, id, cancellationToken);
+            }
+
             var targetCaseId = await ResolveCaseIdAsync(actor, caseReference, cancellationToken);
             var target = targetCaseId is { } newCaseId && newCaseId != currentCaseId
-                ? await destinations.GetAsync(newCaseId, actor, cancellationToken)
+                ? await destinations.GetAuthorityAsync(newCaseId, actor, cancellationToken)
                 : null;
             if (target is null)
             {
@@ -875,7 +897,7 @@ public sealed class MessageModel(
                 }
 
                 // The unlink advanced the receipt: the link is made against it as it now stands.
-                var unlinked = await GetExactAssociationAsync(actor, id, cancellationToken)
+                var unlinked = await getIntake.ExecuteAsync(new(binding.Id, actor), cancellationToken)
                     ?? throw new IntakeVersionConflictException();
 
                 claimHandedOn = true;
@@ -1803,19 +1825,17 @@ public sealed class MessageModel(
             null);
     }
 
+    /// <summary>
+    /// The receipt the message became, as it stands: only the message's receipt
+    /// identifier is read, then the receipt itself.
+    /// </summary>
     private async Task<IntakeReceipt?> GetExactAssociationAsync(
         ActionActor actor,
         Guid messageId,
-        CancellationToken cancellationToken)
-    {
-        var preview = await getRetainedMailPreview.ExecuteAsync(
-            actor, messageId, cancellationToken: cancellationToken);
-        if (preview?.Summary.IntakeReceiptId is not { } receiptId)
-        {
-            return null;
-        }
-        return await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        await getRetainedMail.FindReceiptIdAsync(actor, messageId, cancellationToken) is { } receiptId
+            ? await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken)
+            : null;
 
     /// <summary>
     /// Where a write lands. The dialog's writes return to the Inbox with this

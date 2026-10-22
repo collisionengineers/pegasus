@@ -74,6 +74,19 @@ public interface IIntakeAssociationDestinationQueries
         ActionActor actor,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<IntakeAssociationDestination?>(null);
+
+    /// <summary>
+    /// The same Case or Triage Case as <see cref="GetAsync(Guid, ActionActor, CancellationToken)"/>
+    /// answers, from its authority row alone: its reference, state and the
+    /// version a link is checked against, without the registration, claimant
+    /// and Principal that read adds for a destination card. For a caller that
+    /// claims the destination and shows nothing of it.
+    /// </summary>
+    Task<IntakeAssociationDestination?> GetAuthorityAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IntakeAssociationDestination?>(null);
 }
 
 /// <summary>Shared read/write eligibility facts for manual association.</summary>

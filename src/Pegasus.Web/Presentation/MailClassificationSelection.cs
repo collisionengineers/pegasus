@@ -48,9 +48,15 @@ public static class MailClassificationSelection
     private static readonly CaseType[] WorkTypes =
         [CaseType.Inspection, CaseType.Audit, CaseType.InspectionAndAudit];
 
-    /// <summary>The work types by the Case type's own name, for the Case type select.</summary>
+    /// <summary>
+    /// The work types for the Case type select, worded as the base message page
+    /// and the Create case form word them: "Inspection and Audit", where the
+    /// Case type's own name reads "Inspection and audit".
+    /// </summary>
     public static IReadOnlyList<SelectionOption> WorkTypeOptions { get; } =
-        [.. WorkTypes.Select(type => new SelectionOption(type.ToString(), OperatorLabels.CaseTypeName(type)))];
+        [.. WorkTypes.Select(type => new SelectionOption(
+            type.ToString(),
+            type == CaseType.InspectionAndAudit ? "Inspection and Audit" : OperatorLabels.CaseTypeName(type)))];
 
     /// <summary>Parses the case type a New instruction correction names.</summary>
     public static bool TryParseWorkType(string? value, out CaseType? caseType)

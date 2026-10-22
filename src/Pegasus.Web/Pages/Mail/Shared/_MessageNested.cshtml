@@ -117,23 +117,27 @@
         };
         <partial name="Shared/_ReasonDialog" view-data="unlinkDialogData" />
 
-        var changeDialogData = new ViewDataDictionary(ViewData)
+        // Drawn with its button: only where the message's decision leaves a Case to change to.
+        if (Model.OffersChangeLinkedCase)
         {
-            ["DialogId"] = "changeLinkedCaseDialog",
-            ["DialogFormId"] = "changeLinkedCaseForm",
-            ["DialogTitle"] = OperatorLabels.Inbox.ChangeLinkedCase,
-            ["DialogConsequence"] = consequence,
-            ["DialogActionUrl"] = Url.Page("/Mail/Message", "ChangeLinkedCase", route),
-            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            var changeDialogData = new ViewDataDictionary(ViewData)
             {
-                ["expectedIntakeVersion"] = intakeVersion,
-                ["leaseOperationKey"] = leaseKey,
-                ["operationKey"] = operationKey,
-                ["linkLeaseOperationKey"] = Guid.NewGuid().ToString("N"),
-                ["linkOperationKey"] = Guid.NewGuid().ToString("D")
-            }
-        };
-        <partial name="Shared/_ReasonDialog" view-data="changeDialogData" />
+                ["DialogId"] = "changeLinkedCaseDialog",
+                ["DialogFormId"] = "changeLinkedCaseForm",
+                ["DialogTitle"] = OperatorLabels.Inbox.ChangeLinkedCase,
+                ["DialogConsequence"] = consequence,
+                ["DialogActionUrl"] = Url.Page("/Mail/Message", "ChangeLinkedCase", route),
+                ["DialogHiddenFields"] = new Dictionary<string, string?>
+                {
+                    ["expectedIntakeVersion"] = intakeVersion,
+                    ["leaseOperationKey"] = leaseKey,
+                    ["operationKey"] = operationKey,
+                    ["linkLeaseOperationKey"] = Guid.NewGuid().ToString("N"),
+                    ["linkOperationKey"] = Guid.NewGuid().ToString("D")
+                }
+            };
+            <partial name="Shared/_ReasonDialog" view-data="changeDialogData" />
+        }
     }
     else
     {

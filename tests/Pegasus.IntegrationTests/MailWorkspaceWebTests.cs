@@ -709,6 +709,64 @@ public sealed class MailWorkspaceWebTests
         await AssertAssociationStateAsync(factory, receiptId, newCaseId, expectedHistoryCount: 3);
     }
 
+    /// <summary>
+    /// Automatic association links a message without asking its decision, so a
+    /// linked message can carry one that leaves nothing to link (Unsupported). It
+    /// is offered no Change linked Case, and a post that names a Case anyway is
+    /// refused with Core's sentence before the new Case is claimed or the
+    /// message is unlinked: it stays linked and its Case is not cancelled.
+    /// </summary>
+    [Fact]
+    public async Task ALinkedMessageWhoseDecisionCannotBeLinkedOffersNoChangeAndARefusedPostWritesNothing()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreOutcomeReceiptAsync(
+            factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.Unsupported);
+        _ = Assert.Single(await SeedAsync(
+            factory, SecondMailboxId, SecondMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var otherOriginId = await ReceiptIdAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var linkedCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, receiptId, "MAIL35001", nameof(CaseLifecycleState.Review));
+        var otherCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, otherOriginId, "MAIL35002", nameof(CaseLifecycleState.Review));
+        await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, receiptId, linkedCaseId);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.Contains($">{OperatorLabels.Inbox.Unlink}</button>", page, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{OperatorLabels.Inbox.ChangeLinkedCase}</button>", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("changeLinkedCaseForm", page, StringComparison.Ordinal);
+
+        // A stale page or another client can still post it: the Unlink dialog's
+        // keys, to the Change handler, with the Case typed.
+        var unlink = DialogSubmission(page, "UnlinkCase", "Moved to the right Case.");
+        var change = new AssociationPost(
+            unlink.Action.Replace("handler=UnlinkCase", "handler=ChangeLinkedCase", StringComparison.Ordinal),
+            new(unlink.Fields)
+            {
+                ["caseReference"] = "MAIL35002",
+                ["linkLeaseOperationKey"] = Guid.NewGuid().ToString("N"),
+                ["linkOperationKey"] = Guid.NewGuid().ToString("D")
+            });
+        using (var refused = await client.PostAsync(change.Action, new FormUrlEncodedContent(change.Fields)))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            Assert.Contains(
+                OperatorLabels.IntakeCannotBecomeCaseReason(IntakeDecision.Unsupported),
+                await refused.Content.ReadAsStringAsync(),
+                StringComparison.Ordinal);
+        }
+
+        await AssertAssociationStateAsync(factory, receiptId, linkedCaseId, expectedHistoryCount: 0);
+        Assert.Equal(CaseLifecycleState.Review, await ReadCaseStateAsync(factory.Services, linkedCaseId));
+        Assert.Null(await CaseLeaseTokenAsync(factory, linkedCaseId));
+        Assert.Null(await CaseLeaseTokenAsync(factory, otherCaseId));
+    }
+
     [Fact]
     public async Task LinkedPostReportMessageCreatesAQueryResponseJobFromTheRecord()
     {
