@@ -16,6 +16,10 @@ namespace Pegasus.Infrastructure.Reports;
 /// </summary>
 internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : IAssessmentReportRenderer
 {
+    private const int SignatureCapacity = 16;
+
+    private static readonly PreparedSignatureCache Signatures = new(SignatureCapacity);
+
     private readonly ReportRenderGate gate = gate ?? throw new ArgumentNullException(nameof(gate));
 
     public string EngineVersion { get; } =
@@ -80,7 +84,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         }
         if (kind == CaseReportArtifactKind.AssessmentReport && !snapshot.IncludeVehicleImages)
         {
-            return new(null, [], PrepareSignature(snapshot.Signatory), ReportResources.Logo());
+            return new(null, [], SignatureFor(snapshot.Signatory), ReportResources.Logo());
         }
         var ordered = snapshot.OrderedPhotos;
         var overview = ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.Overview);
@@ -100,7 +104,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
                 await PreparePhotoAsync(photo, null, cancellationToken).ConfigureAwait(false),
                 fullPage));
         }
-        return new(leadImage, photos, PrepareSignature(snapshot.Signatory), ReportResources.Logo());
+        return new(leadImage, photos, SignatureFor(snapshot.Signatory), ReportResources.Logo());
     }
 
     private static async Task<byte[]> PreparePhotoAsync(
@@ -130,14 +134,18 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             EngineVersion);
     }
 
+    private static byte[] SignatureFor(ReportSignatory signatory) =>
+        Signatures.GetOrPrepare(signatory.SignatureContent, PrepareSignature);
+
     /// <summary>
-    /// The signature as the page prints it: decoded once, EXIF orientation
+    /// The signature as the page prints it, prepared once per stored signature
+    /// (<see cref="PreparedSignatureCache"/>): decoded once, EXIF orientation
     /// applied, re-encoded losslessly so any accepted source format prints
     /// the same way and undecodable bytes fail closed.
     /// </summary>
-    private static byte[] PrepareSignature(ReportSignatory signatory)
+    private static byte[] PrepareSignature(byte[] stored)
     {
-        using var data = SKData.CreateCopy(signatory.SignatureContent);
+        using var data = SKData.CreateCopy(stored);
         using var codec = SKCodec.Create(data)
             ?? throw new ReportRenderRejectedException("The report signature image could not be decoded.");
         using var decoded = SKBitmap.Decode(codec)
