@@ -155,7 +155,8 @@ public sealed class AutomationMcpIngressTests
         Assert.Contains("automation.cases", metadata, StringComparison.Ordinal);
         Assert.Contains("/mcp", metadata, StringComparison.Ordinal);
 
-        var accessToken = await RequestTokenAsync(client, AllScopes);
+        // The list holds only the token's scopes, so the whole inventory needs all seven.
+        var accessToken = await RequestTokenAsync(client, string.Join(' ', AutomationMcp.Scopes));
         using var toolsResponse = await PostMcpAsync(client, accessToken, ToolsListPayload(2));
         Assert.Equal(HttpStatusCode.OK, toolsResponse.StatusCode);
         using var toolsDocument = await ReadJsonRpcAsync(toolsResponse);
@@ -177,6 +178,40 @@ public sealed class AutomationMcpIngressTests
         var properties = updateDetails.GetProperty("inputSchema").GetProperty("properties");
         Assert.True(properties.TryGetProperty("inspectionDate", out _));
         Assert.False(properties.TryGetProperty("instructionDate", out _));
+    }
+
+    [Fact]
+    public async Task ToolsListHoldsOnlyTheScopesTheTokenCarries()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+        var mailToken = await RequestTokenAsync(client, AutomationMcp.MailScope);
+        string[] mailTools =
+        [
+            "pegasus_mail_action",
+            "pegasus_mail_correct_classification",
+            "pegasus_mail_get",
+            "pegasus_mail_link_case",
+            "pegasus_mail_link_destinations",
+            "pegasus_mail_list"
+        ];
+
+        // The second list is served from the one built for the scope set.
+        foreach (var rpcId in new[] { 1, 2 })
+        {
+            using var response = await PostMcpAsync(client, mailToken, ToolsListPayload(rpcId));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var document = await ReadJsonRpcAsync(response);
+            var result = document.RootElement.GetProperty("result");
+            Assert.Equal(
+                mailTools,
+                result.GetProperty("tools").EnumerateArray()
+                    .Select(tool => tool.GetProperty("name").GetString())
+                    .OrderBy(name => name, StringComparer.Ordinal)
+                    .ToArray());
+            Assert.Equal("private", result.GetProperty("cacheScope").GetString());
+        }
     }
 
     [Fact]

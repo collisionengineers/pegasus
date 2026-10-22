@@ -64,7 +64,7 @@ internal sealed class IntakeMcpTools(
         [Description("Items to return; omit for the default 50, maximum 100.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_intake_queue_list", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_intake_queue_list",
@@ -128,7 +128,7 @@ internal sealed class IntakeMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_intake_submit", cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
         var normalizedToken = externalReceiptToken?.Trim();
         return await auditor.RecordAsync(

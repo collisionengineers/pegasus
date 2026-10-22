@@ -122,7 +122,7 @@ internal sealed class IntakeActionMcpTools(
         [Description(ReceiptIdDescription)] Guid receiptId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_intake_get", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_intake_get",
@@ -209,7 +209,7 @@ internal sealed class IntakeActionMcpTools(
         [Description("resolve_inspection_address only: inspectionAddressSuggestionFingerprint from pegasus_intake_get, naming the suggestion accepted or corrected; omit when nothing was suggested.")] string? addressSuggestionFingerprint = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_intake_action", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -362,7 +362,7 @@ internal sealed class IntakeActionMcpTools(
         [Description("Not for Triage: an active Claim Source's organisation identifier from the Contacts directory.")] Guid? claimSourceId = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_case_create", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,

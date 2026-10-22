@@ -96,7 +96,7 @@ internal sealed class AiJobMcpTools(
         [Description("Page size from 1 to 100; 0 selects 50.")] int pageSize = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_ai_job_list", cancellationToken);
         return await auditor.RecordDenialAsync(
             context,
             "pegasus_ai_job_list",
@@ -150,7 +150,7 @@ internal sealed class AiJobMcpTools(
         [Description("UnidentifiedResolution only: the open item's exact U-reference, for example U17.")] string? unidentifiedReference = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_ai_job_create", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -312,7 +312,7 @@ internal sealed class AiJobMcpTools(
         CancellationToken cancellationToken = default)
     {
         var parsedAction = ParseAction(action);
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_ai_job_transition", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         Task<AiJobToolItem> Run() => AutomationMcpErrors.ExecuteAsync(async () =>
         {
@@ -370,7 +370,7 @@ internal sealed class AiJobMcpTools(
         [Description("Optional guide month the research is for, yyyy-MM; the valuation for that month replaces an earlier card for it.")] string? guideMonth = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_ai_job_complete_market_research", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,

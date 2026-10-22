@@ -33,7 +33,7 @@ internal sealed class WorkCentreMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_work_centre_dismiss", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,

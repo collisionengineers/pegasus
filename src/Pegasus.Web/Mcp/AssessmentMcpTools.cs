@@ -230,7 +230,7 @@ internal sealed class AssessmentMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_estimate_import", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -291,7 +291,7 @@ internal sealed class AssessmentMcpTools(
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
-            AutomationMcp.AssessmentScope,
+            "pegasus_estimate_save",
             cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
@@ -380,7 +380,7 @@ internal sealed class AssessmentMcpTools(
         [Description("The estimate identifier (pegasus_estimate_list).")] Guid estimateId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_estimate_get", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_estimate_get",
@@ -428,7 +428,7 @@ internal sealed class AssessmentMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_estimate_act", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -509,7 +509,7 @@ internal sealed class AssessmentMcpTools(
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
-            AutomationMcp.AssessmentScope,
+            "pegasus_estimate_list",
             cancellationToken);
         return await auditor.RecordAsync(
             context,
@@ -550,7 +550,7 @@ internal sealed class AssessmentMcpTools(
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
-            AutomationMcp.AssessmentScope,
+            "pegasus_assessment_get",
             cancellationToken);
         return await auditor.RecordAsync(
             context,
@@ -596,7 +596,7 @@ internal sealed class AssessmentMcpTools(
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
-            AutomationMcp.AssessmentScope,
+            "pegasus_assessment_update",
             cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(

@@ -16,7 +16,8 @@ internal sealed record AutomationActorContext(
 /// Automation actor before any tool touches a use case. Fails closed on a
 /// missing principal, a disabled registration (the immediate kill switch),
 /// or a token that lacks the tool's per-area scope, writing an attributable
-/// security event for every material denial.
+/// security event for every material denial. A tool's scope is read from
+/// <see cref="AutomationToolScopes"/>, the table the tools/list filter reads.
 /// </summary>
 internal sealed class AutomationActorResolver(
     IHttpContextAccessor httpContextAccessor,
@@ -24,7 +25,26 @@ internal sealed class AutomationActorResolver(
     ISecurityEventWriter securityEvents,
     TimeProvider timeProvider)
 {
-    public async Task<AutomationActorContext> RequireAsync(
+    public Task<AutomationActorContext> RequireAsync(
+        string toolName,
+        CancellationToken cancellationToken) =>
+        RequireScopeAsync(AutomationToolScopes.RequiredScope(toolName), cancellationToken);
+
+    /// <summary>
+    /// The edit-lease tools, whose call takes the scope of the record kind:
+    /// <paramref name="recordScope"/> must be one its table row lists.
+    /// </summary>
+    public Task<AutomationActorContext> RequireAsync(
+        string toolName,
+        string recordScope,
+        CancellationToken cancellationToken) =>
+        RequireScopeAsync(AutomationToolScopes.RequiredScope(toolName, recordScope), cancellationToken);
+
+    /// <summary>
+    /// The gate itself. The two content routes, which are not tools, call it
+    /// with their endpoint's scope.
+    /// </summary>
+    public async Task<AutomationActorContext> RequireScopeAsync(
         string requiredScope,
         CancellationToken cancellationToken)
     {

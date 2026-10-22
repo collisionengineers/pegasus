@@ -94,7 +94,7 @@ internal sealed class DocumentMcpTools(
         [Description("Optional durable source-occurrence identity prefixed 'automation:'; reusing an identity records a new version of the same document. Defaults to one derived from the operation key.")] string? sourceOccurrenceIdentity = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_document_add", cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -187,7 +187,7 @@ internal sealed class DocumentMcpTools(
         [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB. An image is re-encoded to fit it; PDF text is cut at this many characters; a text file must already fit it.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_document_download", cancellationToken);
         var operationKey = $"mcp:document-download:{Guid.NewGuid():N}";
         return await auditor.RecordAsync(
             context,
@@ -247,7 +247,7 @@ internal sealed class DocumentMcpTools(
         [Description("Total byte budget for inline content across the batch, charged at the encoded size of what is sent (UTF-8 text, base64 image data) in request order; 0 selects 100 KiB, at most 10 MiB.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_document_download_batch", cancellationToken);
         var operationKey = $"mcp:document-download-batch:{Guid.NewGuid():N}";
         return await auditor.RecordAsync(
             context,
