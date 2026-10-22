@@ -252,7 +252,7 @@ else
         var intakeImages = Model.ImagesByIntake.GetValueOrDefault(intake.Id, []);
         <div class="sub-panel intake-group" data-intake-group="@intake.Id">
             <h3>
-                <a asp-page="/ImageIntake/Details" asp-route-id="@intake.Id">@FilesLabels.ImageIntake @intake.ImageIntakeReference</a>
+                <a asp-page="/ImageIntake/Details" asp-route-id="@intake.Id">@FilesLabels.VehicleImages @intake.ImageIntakeReference</a>
                 <span class="rt">@intakeImages.Count @FilesLabels.Photographs</span>
             </h3>
             <ul class="thumbs" data-evidence-set>

@@ -240,7 +240,7 @@ public sealed class EfImageIntakeStore(
         var beforeJson = Snapshot(receipt);
         receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
         receipt.DecisionReason =
-            $"Image intake {reference} was registered for this image-only material.";
+            $"Vehicle images {reference} was registered for this image-only material.";
         receipt.FailureCode = null;
         receipt.FailureReason = null;
         receipt.Version++;
@@ -356,7 +356,7 @@ public sealed class EfImageIntakeStore(
             var beforeJson = Snapshot(receipt);
             receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
             receipt.DecisionReason =
-                $"Image intake {imageIntakeReference} was registered for this image-only material.";
+                $"Vehicle images {imageIntakeReference} was registered for this image-only material.";
             receipt.FailureCode = null;
             receipt.FailureReason = null;
             receipt.Version++;
@@ -487,7 +487,7 @@ public sealed class EfImageIntakeStore(
         var beforeJson = Snapshot(receipt);
         receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
         receipt.DecisionReason =
-            $"Image intake {registration.ImageIntakeReference} remains registered for this image-only material.";
+            $"Vehicle images {registration.ImageIntakeReference} remains registered for this image-only material.";
         receipt.FailureCode = null;
         receipt.FailureReason = null;
         receipt.Version++;

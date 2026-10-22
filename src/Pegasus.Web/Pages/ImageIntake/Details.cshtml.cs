@@ -119,7 +119,7 @@ public sealed class DetailsModel(
     public bool ViewerHoldsEditScope { get; private set; }
 
     /// <summary>The record as the operator reading an ownership sentence names it.</summary>
-    private const string RecordName = "Image Intake record";
+    private const string RecordName = "Vehicle images record";
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -243,7 +243,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Image Intake changed while you were working. Reload and try again.");
+                "This Vehicle images changed while you were working. Reload and try again.");
             return await OnGetAsync(id, cancellationToken);
         }
         catch (EditScopeConflictException)
@@ -264,7 +264,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Image Intake changed while you were working. Reload and try again.");
+                "This Vehicle images changed while you were working. Reload and try again.");
             return await OnGetAsync(id, cancellationToken);
         }
         catch (InvalidOperationException exception)
@@ -310,7 +310,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Image Intake changed while you were working. Reload and try again.");
+                "This Vehicle images changed while you were working. Reload and try again.");
             return await OnGetAsync(id, cancellationToken);
         }
         catch (EditScopeConflictException)
@@ -331,7 +331,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Image Intake changed while you were working. Reload and try again.");
+                "This Vehicle images changed while you were working. Reload and try again.");
             return await OnGetAsync(id, cancellationToken);
         }
         catch (InvalidOperationException exception)
@@ -378,7 +378,7 @@ public sealed class DetailsModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "This Image Intake changed while you were working. Reload and try again.");
+                "This Vehicle images changed while you were working. Reload and try again.");
         }
         catch (InvalidOperationException exception)
         {
@@ -436,7 +436,7 @@ public sealed class DetailsModel(
         }
         catch (EditScopeExpiredException)
         {
-            return new ConflictObjectResult("Editing this Image Intake record has ended. Reload it before making further changes.");
+            return new ConflictObjectResult("Editing this Vehicle images record has ended. Reload it before making further changes.");
         }
     }
 
@@ -449,7 +449,7 @@ public sealed class DetailsModel(
             EditScopeKind.ImageIntake, imageIntakeId, actor, cancellationToken);
         if (active is null)
         {
-            return "Another member of staff is editing this Image Intake. Reload to try again.";
+            return "Another member of staff is editing this Vehicle images. Reload to try again.";
         }
 
         var isSelf = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);

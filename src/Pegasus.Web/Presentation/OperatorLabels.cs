@@ -81,11 +81,11 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// What an Unidentified item's retained material is, for the Queues
-    /// page's Images/E-mails filter and the row/detail "what is going on"
-    /// text. Supersedes the old origin-kind label ("Intake receipt"), which
-    /// named the internal record rather than the material and used the
-    /// banned word "intake".
+    /// What an Unidentified item's retained material is, for the Material
+    /// column, the row/detail "what is going on" text and the Automation list
+    /// filter (<c>UnidentifiedMcpTools.ListAsync</c>). Supersedes the old
+    /// origin-kind label ("Intake receipt"), which named the internal record
+    /// rather than the material and used the banned word "intake".
     /// </summary>
     public static string UnidentifiedMediaKind(Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind kind) => kind switch
     {
@@ -1475,7 +1475,7 @@ public static class OperatorLabels
             "review" => "navy",
             "with engineer" => "navy",
             "held" => "amber",
-            "complete" or "completed" or "post report completion" => "green",
+            "completed" => "green",
             "cancelled" or "principal cancellation" or "archived" => "neutral",
             "created in error" => "neutral",
             "reopened" or "open" => "navy",
@@ -2413,7 +2413,6 @@ public static class OperatorLabels
         public const string PreviousAddress = "Previous";
         public const string ManualEntry = "Manual entry";
         public const string NotRecorded = "Not recorded";
-        public const string NotRecordedSuffix = " · not recorded";
         // The Case's repairer.
         public const string Repairer = "Repairer";
         public const string RepairerDirectory = "Repairer contact";
@@ -2618,7 +2617,7 @@ public static class OperatorLabels
         public const string RetrySearch = "Retry search";
         public const string SearchUnavailable = "Case search is unavailable.";
         public const string SearchUnavailableSentence = "Your upload is retained. Try again in a moment.";
-        public const string ImageIntake = "Image intake";
+        public const string VehicleImages = "Vehicle images";
         public const string RegisteredAutomatically = "Registered automatically";
         public const string Proposal = "Review new Case proposal";
         public const string ProposalSentence = "Use the extracted instruction details to create a new Case.";
