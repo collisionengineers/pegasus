@@ -123,7 +123,7 @@ Write-Heading 'Change set'
 Write-Host "  head        $($head.Substring(0, 9))$(if ($uncommitted.Count) { " plus $($uncommitted.Count) uncommitted path(s)" })"
 Write-Host "  base        $Base at $($mergeBase.Substring(0, [math]::Min(9, $mergeBase.Length)))"
 Write-Host "  paths       $($changed.Count)"
-Write-Host "  lanes       build=$($flags.Build) infrastructure=$($flags.Infrastructure) localDevelopment=$($flags.LocalDevelopment) referenceData=$($flags.ReferenceData)"
+Write-Host "  lanes       build=$($flags.Build) infrastructure=$($flags.Infrastructure) localDevelopment=$($flags.LocalDevelopment) referenceData=$($flags.ReferenceData) skillScripts=$($flags.SkillScripts)"
 
 # ------------------------------------------------------------- cheap invariants
 
@@ -139,6 +139,18 @@ if ($flags.ReferenceData) {
     Invoke-Step 'Principal-reference generator tests' {
         Push-Location $repositoryRoot
         try { python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py' }
+        finally { Pop-Location }
+    }
+}
+if ($flags.SkillScripts) {
+    # CI installs PyYAML at the pinned version first; a workstation needs it already.
+    Invoke-Step 'Skill and helper script tests' {
+        Push-Location $repositoryRoot
+        try {
+            python -m unittest discover -s scripts/skill_scripts/tests -p 'test_*.py' &&
+                python -m unittest discover -s .agents/skills/github-researcher/scripts -p 'test_*.py' &&
+                & ./.agents/skills/pegasus-corpus-holding/scripts/Test-ExportMailboxToCorpusHolding.ps1
+        }
         finally { Pop-Location }
     }
 }

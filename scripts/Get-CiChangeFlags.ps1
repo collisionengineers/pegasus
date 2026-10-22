@@ -38,6 +38,8 @@ $localDevelopmentPattern = '^scripts/(PegasusPlatform|Test-PegasusPlatform|Clear
 # The principal-identification corpus generator and its tests share one
 # scripts-owned component; its PowerShell wrapper is the only other caller.
 $referenceDataPattern = '^scripts/reference_data/|^scripts/Build-PrincipalIdentificationCorpus\.ps1$'
+# The imported skills, their helper scripts and the tests under scripts/skill_scripts.
+$skillScriptsPattern = '^\.agents/|^scripts/skill_scripts/'
 # The classifier agent's typecheck and build read its own folder alone.
 $classifierPattern = '^src/pegasus-classifier-agent/|^\.github/workflows/ci\.yml$'
 
@@ -57,5 +59,6 @@ function Test-AnyPath {
     Infrastructure = $ForceAll -or (Test-AnyPath -Path $ChangedPath -Pattern $infrastructurePattern)
     LocalDevelopment = $ForceAll -or (Test-AnyPath -Path $ChangedPath -Pattern $localDevelopmentPattern)
     ReferenceData = $ForceAll -or (Test-AnyPath -Path $ChangedPath -Pattern $referenceDataPattern)
+    SkillScripts = $ForceAll -or (Test-AnyPath -Path $ChangedPath -Pattern $skillScriptsPattern)
     Classifier = $ForceAll -or (Test-AnyPath -Path $ChangedPath -Pattern $classifierPattern)
 }

@@ -1,6 +1,6 @@
 ---
 name: resolve-issue
-description: Take a GitHub issue number all the way to a finished pull request - investigate first (via investigate-issue), create a task worktree and branch from the integration branch, implement the smallest complete fix with its tests and docs, push, open one PR whose body says "Closes #N", watch CI to green and fix the first failure, then remove the worktree and local branch. Use it whenever the user asks to resolve, fix, implement, do, work, pick up, close out or "take to a PR" an issue or #N, says "work until it's done", or points at ready-for-agent issues, even if they never say "resolve". Not for merging or combining PRs (combine-prs lands them), not for analysis only (investigate-issue), and not for non-GitHub hosts.
+description: "Take a GitHub issue number all the way to a finished pull request - investigate first (via investigate-issue), create a task worktree and branch from the integration branch, implement the smallest complete fix with its tests and docs, push, open one PR whose body says \"Closes #N\", watch CI to green and fix the first failure, then remove the worktree and local branch. Use it whenever the user asks to resolve, fix, implement, do, work, pick up, close out or \"take to a PR\" an issue or #N, says \"work until it's done\", or points at ready-for-agent issues, even if they never say \"resolve\". Not for merging or combining PRs (combine-prs lands them), not for analysis only (investigate-issue), and not for non-GitHub hosts."
 ---
 
 # Resolve an issue

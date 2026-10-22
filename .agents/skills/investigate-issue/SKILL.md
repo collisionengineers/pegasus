@@ -1,6 +1,6 @@
 ---
 name: investigate-issue
-description: Thoroughly investigate one GitHub issue before any code is written and post the findings as one comment on the issue - current behaviour at the tip, the governing requirement, blast radius (owner, callers, data, tests), two or more approaches with footprint and risk, a recommendation, the decisions only the operator can make, and a test plan. Use it whenever the user asks to investigate, look into, scope, assess, vet, size or triage an issue, asks "what would it take" or "how risky is #N", pastes an issue number or URL and wants analysis, or before implementing an issue (resolve-issue runs it first). Not for writing the fix itself (that is resolve-issue), not for reviewing a PR, and not for issues on non-GitHub hosts.
+description: "Thoroughly investigate one GitHub issue before any code is written and post the findings as one comment on the issue - current behaviour at the tip, the governing requirement, blast radius (owner, callers, data, tests), two or more approaches with footprint and risk, a recommendation, the decisions only the operator can make, and a test plan. Use it whenever the user asks to investigate, look into, scope, assess, vet, size or triage an issue, asks \"what would it take\" or \"how risky is #N\", pastes an issue number or URL and wants analysis, or before implementing an issue (resolve-issue runs it first). Not for writing the fix itself (that is resolve-issue), not for reviewing a PR, and not for issues on non-GitHub hosts."
 ---
 
 # Investigate an issue
