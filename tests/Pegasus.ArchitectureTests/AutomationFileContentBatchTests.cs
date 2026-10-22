@@ -70,7 +70,7 @@ public sealed class AutomationFileContentBatchTests
     }
 
     [Fact]
-    public async Task TheFirstItemThatDoesNotFitStopsTheWalkAndLaterItemsAreNeverFetched()
+    public async Task TheFirstItemThatDoesNotFitStopsTheWalkAndNoLaterItemIsUsed()
     {
         const int inlineLimit = 600;
         var renderer = new Renderer().Renders("d.jpg", 10);
@@ -90,8 +90,114 @@ public sealed class AutomationFileContentBatchTests
         Assert.Equal(AutomationFileContent.DoesNotFitWholeNotice(inlineLimit), deliveries[1].Notice);
         Assert.Equal(AutomationFileContent.AfterTheStopNotice, deliveries[2].Notice);
         Assert.Equal(AutomationFileContent.AfterTheStopNotice, deliveries[3].Notice);
-        Assert.Equal([0, 1], fetch.Reads);
+        // Reads run up to three ahead, so the two items after the one that
+        // stopped were already on their way; neither is rendered or sent.
+        Assert.Equal([0, 1, 2, 3], fetch.Reads);
         Assert.Empty(renderer.Calls);
+    }
+
+    [Fact]
+    public async Task ReadsRunThreeAheadOfTheWalkInRequestOrderAndNeverMore()
+    {
+        var docs = Enumerable.Range(0, 6).Select(number => Text($"note{number}.txt", $"text {number}")).ToArray();
+        var fetch = new HeldFetch(docs);
+        for (var index = 0; index < docs.Length; index++)
+        {
+            fetch.Hold(index);
+        }
+
+        var walk = WalkAsync(100_000, new Renderer(), new Extractor(), fetch.ReadAsync, docs);
+        await WaitUntilAsync(() => fetch.Started.Count >= 3);
+
+        // The walk is still on the first item and three reads are open.
+        Assert.False(walk.IsCompleted);
+        Assert.Equal([0, 1, 2], fetch.Started);
+
+        fetch.ReleaseAll();
+        var deliveries = await walk;
+
+        Assert.All(deliveries, delivery => Assert.True(delivery.ContentIncluded));
+        Assert.Equal([0, 1, 2, 3, 4, 5], fetch.Started);
+        Assert.Equal(3, fetch.MostOpen);
+        for (var index = 0; index < docs.Length; index++)
+        {
+            Assert.Equal($"text {index}", TextOf(deliveries[index].Blocks[1]));
+        }
+    }
+
+    [Fact]
+    public async Task AReadAheadThatFailsRaisesNothingUnlessTheWalkTakesIt()
+    {
+        const int inlineLimit = 600;
+        var extractor = new Extractor().Reads("big.pdf", [.. Enumerable.Repeat(new string('x', 400), 3)]);
+        Doc[] docs =
+        [
+            Text("a.txt", "alpha"),
+            Binary("big.pdf", "application/pdf", 9000),
+            Text("c.txt", "gamma")
+        ];
+        var fetch = new HeldFetch(docs);
+        fetch.Fail(2, new IOException("custody read failed"));
+
+        // The failed read is of an item after the one that stops the walk.
+        var deliveries = await WalkAsync(inlineLimit, new Renderer(), extractor, fetch.ReadAsync, docs);
+
+        Assert.True(deliveries[0].ContentIncluded);
+        Assert.Equal(AutomationFileContent.DoesNotFitWholeNotice(inlineLimit), deliveries[1].Notice);
+        Assert.Equal(AutomationFileContent.AfterTheStopNotice, deliveries[2].Notice);
+        Assert.Contains(2, fetch.Started);
+
+        // The same failure, on an item the walk reaches, is raised as it is.
+        var taken = new HeldFetch(docs);
+        taken.Fail(2, new IOException("custody read failed"));
+        var thrown = await Assert.ThrowsAsync<IOException>(() =>
+            WalkAsync(100_000, new Renderer(), extractor, taken.ReadAsync, docs));
+        Assert.Equal("custody read failed", thrown.Message);
+    }
+
+    [Fact]
+    public async Task ReadsStillOpenWhenTheWalkStopsAreCancelled()
+    {
+        const int inlineLimit = 600;
+        var extractor = new Extractor().Reads("big.pdf", [.. Enumerable.Repeat(new string('x', 400), 3)]);
+        Doc[] docs =
+        [
+            Text("a.txt", "alpha"),
+            Binary("big.pdf", "application/pdf", 9000),
+            Text("c.txt", "gamma"),
+            Text("d.txt", "delta")
+        ];
+        var fetch = new HeldFetch(docs);
+        fetch.Hold(2);
+        fetch.Hold(3);
+
+        var deliveries = await WalkAsync(inlineLimit, new Renderer(), extractor, fetch.ReadAsync, docs);
+
+        Assert.Equal(AutomationFileContent.AfterTheStopNotice, deliveries[3].Notice);
+        Assert.Equal([2, 3], fetch.Cancelled.Order().ToArray());
+    }
+
+    [Fact]
+    public async Task AWalkWithReadsOpenStopsWhenTheCallerCancels()
+    {
+        Doc[] docs = [Text("a.txt", "alpha"), Text("b.txt", "beta")];
+        var fetch = new HeldFetch(docs);
+        fetch.Hold(0);
+        fetch.Hold(1);
+        using var source = new CancellationTokenSource();
+
+        var walk = AutomationFileContent.DeliverBatchAsync(
+            new Renderer(),
+            new Extractor(),
+            [.. docs.Select(doc => doc.Item)],
+            100_000,
+            fetch.ReadAsync,
+            source.Token);
+        await WaitUntilAsync(() => fetch.Started.Count >= 2);
+        await source.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => walk);
+        Assert.Equal([0, 1], fetch.Cancelled.Order().ToArray());
     }
 
     [Fact]
@@ -311,7 +417,8 @@ public sealed class AutomationFileContentBatchTests
         Assert.Equal(AutomationFileContent.AfterTheStopNotice, deliveries[3].Notice);
         Assert.All(deliveries, delivery => Assert.False(delivery.ContentIncluded));
         Assert.Equal(["broken.jpg", "huge.jpg", "tight.jpg"], renderer.Calls.Select(call => call.Name).ToArray());
-        Assert.Equal([0, 1, 2], fetch.Reads);
+        // The text after the stop was read ahead and is not used.
+        Assert.Equal([0, 1, 2, 3], fetch.Reads);
     }
 
     [Fact]
@@ -335,6 +442,30 @@ public sealed class AutomationFileContentBatchTests
         Assert.Equal(AutomationFileContent.InlineLimitNotice(3000, "video/mp4", inlineLimit), deliveries[1].Notice);
         Assert.Equal(AutomationFileContent.DoesNotFitWholeNotice(inlineLimit), deliveries[2].Notice);
         Assert.Equal(AutomationFileContent.AfterTheStopNotice, deliveries[3].Notice);
+    }
+
+    private static Task<AutomationFileDelivery[]> WalkAsync(
+        int inlineLimit,
+        Renderer renderer,
+        Extractor extractor,
+        Func<int, CancellationToken, ValueTask<ReadOnlyMemory<byte>>> read,
+        params Doc[] docs) =>
+        AutomationFileContent.DeliverBatchAsync(
+            renderer,
+            extractor,
+            [.. docs.Select(doc => doc.Item)],
+            inlineLimit,
+            read,
+            CancellationToken.None);
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "The condition did not hold within ten seconds.");
+            await Task.Delay(5);
+        }
     }
 
     private static async Task<(AutomationFileDelivery[] Deliveries, Fetch Fetch)> WalkAsync(
@@ -402,6 +533,94 @@ public sealed class AutomationFileContentBatchTests
         {
             Reads.Add(index);
             return ValueTask.FromResult<ReadOnlyMemory<byte>>(docs[index].Content);
+        }
+    }
+
+    /// <summary>
+    /// A fetch whose reads can be held open until released or cancelled, or made to fail,
+    /// and that notes the order they started in, how many were open at once and which
+    /// were cancelled.
+    /// </summary>
+    private sealed class HeldFetch(Doc[] docs)
+    {
+        private readonly object gate = new();
+        private readonly Dictionary<int, TaskCompletionSource> held = [];
+        private readonly Dictionary<int, Exception> failures = [];
+        private readonly List<int> started = [];
+        private readonly List<int> cancelled = [];
+        private int open;
+
+        public int MostOpen { get; private set; }
+
+        public List<int> Started
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return [.. started];
+                }
+            }
+        }
+
+        public List<int> Cancelled
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return [.. cancelled];
+                }
+            }
+        }
+
+        public void Hold(int index) => held[index] = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Fail(int index, Exception failure) => failures[index] = failure;
+
+        public void ReleaseAll()
+        {
+            foreach (var hold in held.Values)
+            {
+                hold.TrySetResult();
+            }
+        }
+
+        public async ValueTask<ReadOnlyMemory<byte>> ReadAsync(int index, CancellationToken cancellationToken)
+        {
+            lock (gate)
+            {
+                started.Add(index);
+                MostOpen = Math.Max(MostOpen, ++open);
+            }
+
+            try
+            {
+                if (held.TryGetValue(index, out var hold))
+                {
+                    await hold.Task.WaitAsync(cancellationToken);
+                }
+                if (failures.TryGetValue(index, out var failure))
+                {
+                    throw failure;
+                }
+                return docs[index].Content;
+            }
+            catch (OperationCanceledException)
+            {
+                lock (gate)
+                {
+                    cancelled.Add(index);
+                }
+                throw;
+            }
+            finally
+            {
+                lock (gate)
+                {
+                    open--;
+                }
+            }
         }
     }
 

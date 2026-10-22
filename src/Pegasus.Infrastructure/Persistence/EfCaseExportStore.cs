@@ -10,7 +10,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// The one act that produces the case export. It reads a case, maps the
 /// thirteen fields, selects every eligible retained photograph, writes the
-/// archive reading one photograph at a time, and records each successful
+/// archive reading one photograph ahead of the one it writes, and records each successful
 /// export in action history. It changes no case state or version, so it is
 /// available in every lifecycle state.
 /// </summary>
