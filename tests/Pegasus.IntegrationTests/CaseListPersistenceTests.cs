@@ -157,7 +157,10 @@ public sealed class CaseListPersistenceTests
     /// <summary>
     /// A3-12 (R326): the Activity figures are one set query. The list sends the
     /// Case rows, the Audit works, the one Activity statement and the query
-    /// receipts: four, where each figure used to be its own read (ten).
+    /// receipts: four, where each figure used to be its own read (nine in this
+    /// scenario: rows, Audit works, six figure reads, receipts; the association
+    /// reads exit early because no query receipt exists). The statement count
+    /// is the same for 2 Cases and for 6.
     /// </summary>
     [Fact]
     public async Task TheActivityFiguresAreReadInOneStatementWhateverTheCaseCount()
@@ -173,18 +176,39 @@ public sealed class CaseListPersistenceTests
             await context.SaveChangesAsync();
         }
 
-        await using var scope = database.CreateAsyncScope();
-        var queries = scope.ServiceProvider.GetRequiredService<ICaseListQueries>();
         var activityOnly = new CaseListQuery(
             null, null, IncludeTriage: false, CaseListFacts.Activity, new HashSet<string>(), new HashSet<string>());
 
-        counter.Reset();
-        var records = await queries.GetAsync(activityOnly, CancellationToken.None);
+        async Task<(int Cases, int Statements)> MeasureAsync()
+        {
+            await using var scope = database.CreateAsyncScope();
+            var queries = scope.ServiceProvider.GetRequiredService<ICaseListQueries>();
+            counter.Reset();
+            var records = await queries.GetAsync(activityOnly, CancellationToken.None);
+            return (records.Count, counter.Count);
+        }
 
-        Assert.Equal(2, records.Count);
+        var few = await MeasureAsync();
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            for (var sequence = 3; sequence <= 6; sequence++)
+            {
+                AddCase(context, principal, sequence, "inspection", Received);
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        var many = await MeasureAsync();
+
+        Assert.Equal(2, few.Cases);
+        Assert.Equal(6, many.Cases);
         Assert.True(
-            counter.Count <= 4,
-            $"The Activity list sent {counter.Count} statements; at most 4 are allowed (rows, Audit works, Activity, query receipts).");
+            few.Statements <= 4,
+            $"The Activity list sent {few.Statements} statements; at most 4 are allowed (rows, Audit works, Activity, query receipts).");
+        Assert.Equal(few.Statements, many.Statements);
     }
 
     [Fact]

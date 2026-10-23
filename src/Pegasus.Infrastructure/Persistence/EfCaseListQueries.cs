@@ -253,15 +253,17 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         var openTask = nameof(CaseTaskState.Open);
         var sent = db.Set<StaffMailSendOperationEntity>().AsNoTracking()
             .Where(item => item.State == StaffMailState.Sent);
+        // Images and Documents are mutually exclusive, so one pass over the
+        // occurrences ticks either; the in-report images are the second pass.
         var ticks = occurrences
-            .Where(item => item.SemanticRole == DocumentSemanticRole.Image)
-            .Select(item => new ActivityTick { Figure = ActivityFigure.Images, CaseId = item.CaseId })
+            .Select(item => new ActivityTick
+            {
+                Figure = item.SemanticRole == DocumentSemanticRole.Image ? ActivityFigure.Images : ActivityFigure.Documents,
+                CaseId = item.CaseId
+            })
             .Concat(occurrences
                 .Where(item => item.SemanticRole == DocumentSemanticRole.Image && item.InReport)
                 .Select(item => new ActivityTick { Figure = ActivityFigure.InReport, CaseId = item.CaseId }))
-            .Concat(occurrences
-                .Where(item => item.SemanticRole != DocumentSemanticRole.Image)
-                .Select(item => new ActivityTick { Figure = ActivityFigure.Documents, CaseId = item.CaseId }))
             .Concat(db.CaseWorkflowEvents.AsNoTracking()
                 .Where(item => item.EventType == AddCaseNote.EventType && EF.Parameter(caseIds).Contains(item.CaseId))
                 .Select(item => new ActivityTick { Figure = ActivityFigure.Notes, CaseId = item.CaseId }))
