@@ -160,6 +160,7 @@ public sealed class CaseSectionQueryValidationTests
         bool assigned,
         int expectedReads)
     {
+        Assert.NotEmpty(name);
         var caseId = Guid.NewGuid();
         var staff = new CountingStaff(new CaseEngineerChoice(Guid.NewGuid(), "enabled.engineer"));
         var task = CaseTask(caseId, assigned ? Guid.NewGuid() : null, CaseTaskState.Open);
