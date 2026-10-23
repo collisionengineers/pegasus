@@ -427,7 +427,14 @@ public sealed record TriageDetail(
     /// The code of the Triage Case's Principal, read in the same round trip as
     /// the record.
     /// </summary>
-    string? PrincipalCode = null)
+    string? PrincipalCode = null,
+    /// <summary>
+    /// The Principal's standing note ("Notes on every Case"), read live from
+    /// the Principal's organisation in the same round trip; the same text
+    /// <c>CaseRecordNotes.PrincipalNotes</c> carries for a Case. Null or blank
+    /// when the organisation has none.
+    /// </summary>
+    string? PrincipalNotes = null)
 {
     /// <summary>
     /// The claimant read from the request the Triage Case was opened from (its

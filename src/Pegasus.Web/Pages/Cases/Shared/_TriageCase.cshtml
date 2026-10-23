@@ -279,6 +279,12 @@
         </div>
 
         <div class="record-body">
+            @* The Principal's standing note (R309), read live and locked, on
+               every tab and every state, absent when the Principal has none. *@
+            @if (!string.IsNullOrWhiteSpace(view.Triage.PrincipalNotes))
+            {
+                <div class="fc ro" data-record-notes="principal"><span class="lbl">@CaseWorkspaceLabels.Frame.PrincipalNotes</span><div class="fv multi">@view.Triage.PrincipalNotes</div></div>
+            }
             @if (hasImages)
             {
                 var origin = record.Origin!;

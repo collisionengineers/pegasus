@@ -424,7 +424,9 @@ absent word (Not recorded, Unassigned), so the control reads as the box does. Th
 Claim Source contacts. A Notes band shows the Principal's and the Claim
 source's Notes on every Case, read-only and absent when the record has none
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
-beside this Case's own Principal and Claim source notes. Then Accident
+beside this Case's own Principal and Claim source notes. A Triage Case shows
+the Principal's notes too, read-only and absent when the Principal has none
+(operator ruling, 22 October 2026). Then Accident
 circumstances beside Notes from client.
 
 ### Claim

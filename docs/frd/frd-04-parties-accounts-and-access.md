@@ -254,7 +254,8 @@ A Principal and a Claim Source contact each carry **Notes on every Case**:
 free text stored once on the organisation. The Case record's Overview shows
 the Principal notes and the Claim source notes read-only in its Notes band,
 beside that Case's own editable notes, and shows nothing when the record has
-none. The Claim source is chosen on the Case from the active Claim Source
+none. A Triage Case shows the Principal's notes too, read-only and absent when
+the Principal has none (operator ruling, 22 October 2026). The Claim source is chosen on the Case from the active Claim Source
 contacts, or none. The Case keeps a copy of the chosen name and contact, its
 notes follow the chosen record, and a changed choice must still be an active
 Claim Source when the Case is saved. The Case may override the chosen
