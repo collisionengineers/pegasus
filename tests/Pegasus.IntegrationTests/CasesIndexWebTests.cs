@@ -798,7 +798,7 @@ public sealed class CasesIndexWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "QD21 RSN", "QUICK-DETAIL-05");
-        await SeedReportSentCaseWithOpenTaskAsync(factory, caseId);
+        await SeedReportSentCaseWithOpenTaskAsync(baseFactory, caseId);
 
         counter.Reset();
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=with_engineer&selected={caseId:D}");
