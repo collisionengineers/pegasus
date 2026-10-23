@@ -190,13 +190,38 @@ public sealed class ValuationTests
     {
         Assert.Throws<InvalidOperationException>(() =>
             ValuationPolicy.ValidateGuideEntry(Engineer, Details(source, guideMonth: new DateOnly(2030, 4, 1))));
-        // Unlike a guide card, they always carry their figures.
+        // Unlike a guide card, they always carry their retail value.
         Assert.Throws<ArgumentException>(() =>
             ValuationPolicy.ValidateDetails(Details(source) with { RetailValue = null }));
         // A mileage is recorded when the Case has one; none is needed
         // (operator, 26 September 2026).
         var withoutMileage = Details(source) with { Mileage = null };
         Assert.Equal(withoutMileage, ValuationPolicy.ValidateDetails(withoutMileage));
+    }
+
+    /// <summary>
+    /// An Engineer's Value carries its retail and trade values; an AI market
+    /// research valuation carries its retail value only (R185, R312).
+    /// </summary>
+    [Fact]
+    public void AnEngineersValueCarriesBothFiguresAndAiMarketResearchItsRetailAlone()
+    {
+        var engineers = Details(ValuationSource.EngineersValue);
+        var noTrade = Assert.Throws<ArgumentException>(() =>
+            ValuationPolicy.ValidateDetails(engineers with { TradeValue = null }));
+        Assert.Contains("An Engineer's Value carries its retail and trade values.", noTrade.Message, StringComparison.Ordinal);
+        Assert.Throws<ArgumentException>(() =>
+            ValuationPolicy.ValidateDetails(engineers with { RetailValue = null }));
+
+        var research = Details(ValuationSource.AiMarketResearch) with { TradeValue = null };
+        Assert.Equal(research, ValuationPolicy.ValidateDetails(research));
+        Assert.Equal(research, ValuationPolicy.ValidateAutomationMarketResearch(research));
+        var noRetail = Assert.Throws<ArgumentException>(() =>
+            ValuationPolicy.ValidateDetails(research with { RetailValue = null }));
+        Assert.Contains("A market research valuation carries its retail value.", noRetail.Message, StringComparison.Ordinal);
+        // A trade that is present is still a pence amount.
+        Assert.Throws<ArgumentException>(() =>
+            ValuationPolicy.ValidateDetails(research with { TradeValue = -0.01m }));
     }
 
     /// <summary>

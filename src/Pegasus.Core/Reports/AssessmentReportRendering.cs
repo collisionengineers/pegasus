@@ -467,7 +467,7 @@ public sealed record AssessmentReportSnapshot(
     string? LocationAddress,
     decimal EngineerValue,
     decimal RetailValue,
-    decimal TradeValue,
+    decimal? TradeValue,
     string? SalvageCategory,
     decimal? SalvageValue,
     ReportRepairCosts Costs,

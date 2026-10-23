@@ -221,9 +221,10 @@ own accepted decision.
 
 Every entry keeps its date and time, and the retail and trade values and
 guide month it was given; a guide card may hold any of them blank. An
-Engineer's Value or AI market research entry always carries its figures. An
-Engineer's Value calculated from a guide card records the Case's accepted
-mileage in miles when the Case has one; none is needed (operator, 26
+Engineer's Value entry always carries its retail and trade values; an AI
+market research entry carries its retail value only (operator, 21 October
+2026). An Engineer's Value calculated from a guide card records the Case's
+accepted mileage in miles when the Case has one; none is needed (operator, 26
 September 2026). Glass's valuation and Glass's repair estimating are two systems
 and both are used: the valuation source and the estimate import source keep
 separate label entries and are never merged. An AI market research entry is

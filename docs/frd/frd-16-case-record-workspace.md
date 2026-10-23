@@ -565,7 +565,8 @@ chosen they are blank and stay report blockers. The section head reads the
 Engineer's Value the Case holds and follows each save without a reload.
 
 Valuation lists each entry with its source, date, time, retail and trade
-values, and guide month (`EXT-10`). A calculated Engineer's Value entry
+values, and guide month (`EXT-10`); the AI market research card has no Trade
+(operator, 21 October 2026). A calculated Engineer's Value entry
 carries a mileage when the Case has one. Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
 (automation only). Read and edit show the same cards, three to a row (two at

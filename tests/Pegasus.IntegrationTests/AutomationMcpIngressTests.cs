@@ -220,6 +220,24 @@ public sealed class AutomationMcpIngressTests
         var properties = updateDetails.GetProperty("inputSchema").GetProperty("properties");
         Assert.True(properties.TryGetProperty("inspectionDate", out _));
         Assert.False(properties.TryGetProperty("instructionDate", out _));
+
+        // R185: market research carries its retail value only, so the tool
+        // takes no trade value; its arguments are exactly these.
+        var marketResearch = toolsDocument.RootElement
+            .GetProperty("result")
+            .GetProperty("tools")
+            .EnumerateArray()
+            .Single(tool => tool.GetProperty("name").GetString() == "pegasus_ai_job_complete_market_research");
+        Assert.Equal(
+            [
+                "caseId", "contentBase64", "expectedJobVersion", "fileName", "guideMonth", "jobId",
+                "mediaType", "mileage", "operationKey", "recordedDate", "recordedTime", "retailValue",
+            ],
+            marketResearch.GetProperty("inputSchema").GetProperty("properties")
+                .EnumerateObject()
+                .Select(property => property.Name)
+                .OrderBy(name => name, StringComparer.Ordinal)
+                .ToArray());
     }
 
     [Fact]

@@ -113,6 +113,31 @@ public sealed class AssessmentReportProjectionTests
     }
 
     /// <summary>
+    /// R311: an AI market research basis carries no Trade, so the report
+    /// projects without one and prints no Trade Value row.
+    /// </summary>
+    [Fact]
+    public void AMarketResearchBasisProjectsWithoutATradeValue()
+    {
+        var input = ReadyInput();
+        AssessmentFieldValue[] fields =
+        [
+            .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.ValueTrade),
+            Field(AssessmentVocabulary.ValueFromMarketResearch, "true"),
+        ];
+
+        var result = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = fields } });
+
+        Assert.True(result.IsReady);
+        var snapshot = result.Snapshot!;
+        Assert.Null(snapshot.TradeValue);
+        snapshot.Validate();
+        Assert.DoesNotContain(
+            AssessmentReportWording.VehicleData(snapshot), row => row.Label == "Trade Value");
+    }
+
+    /// <summary>
     /// The Damage section's Incident narrative is the Nature of Incident block
     /// the report prints (operator, 24 September 2026): the sentence composed
     /// from the headline impact, or the Engineer's own wording, whether or not

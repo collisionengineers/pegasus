@@ -748,8 +748,7 @@ public sealed class AutomationAiJobIngressTests
             recordedDate = "2031-05-06",
             recordedTime = "10:30",
             mileage = 42000,
-            retailValue = 12000m,
-            tradeValue = 10000m
+            retailValue = 12000m
         };
 
         using (var response = await PostMcpAsync(
@@ -775,7 +774,7 @@ public sealed class AutomationAiJobIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch' AND RetailValue = 12000 AND TradeValue IS NULL"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = N'ai_job' AND AggregateId = N'{taken.JobId:D}' AND EventKind = N'ai_job_completed' AND ActorKind = N'Automation' AND ActorSubjectId = N'{ClientId}'"));
     }
@@ -910,8 +909,7 @@ public sealed class AutomationAiJobIngressTests
             recordedDate = "2031-05-06",
             recordedTime = "10:30",
             mileage = 42000,
-            retailValue = 12000m,
-            tradeValue = 10000m
+            retailValue = 12000m
         };
 
         using (var response = await PostMcpAsync(
@@ -1080,7 +1078,6 @@ public sealed class AutomationAiJobIngressTests
                 recordedDate = "2031-05-06",
                 recordedTime = "10:30",
                 mileage = 42000,
-                retailValue = 12000m,
-                tradeValue = 10000m
+                retailValue = 12000m
             });
 }

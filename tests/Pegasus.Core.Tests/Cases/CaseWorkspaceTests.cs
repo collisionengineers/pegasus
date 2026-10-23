@@ -100,6 +100,7 @@ public sealed class CaseWorkspaceTests
     [Theory]
     [InlineData(AssessmentVocabulary.ValueRetail)]
     [InlineData(AssessmentVocabulary.ValueTrade)]
+    [InlineData(AssessmentVocabulary.ValueFromMarketResearch)]
     public void TheCaseSaveRefusesATypedRetailOrTrade(string path)
     {
         // The report's Retail and Trade follow the chosen guide card (operator,
@@ -187,6 +188,21 @@ public sealed class CaseWorkspaceTests
         Assert.Equal(
             "Engineer's Value applied",
             CaseWorkspaceChangeSummary.Describe(data, data, fields, fields, false, 0, null, valuationAdopted: true));
+    }
+
+    [Fact]
+    public void TheHistoryLineAddsNoWordForTheMarketResearchMarker()
+    {
+        var data = new CaseEditableData();
+        var beforeFields = new Dictionary<string, object?>(StringComparer.Ordinal);
+        var afterFields = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.ValueFromMarketResearch] = "true",
+        };
+
+        Assert.Equal(
+            "No field changed",
+            CaseWorkspaceChangeSummary.Describe(data, data, beforeFields, afterFields, false, 0, null));
     }
 
     [Fact]

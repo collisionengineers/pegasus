@@ -223,11 +223,6 @@ internal sealed class AiJobEntity
     public Guid? MarketResearchDocumentOccurrenceId { get; set; }
     public Guid? MarketResearchDocumentVersionId { get; set; }
     public Guid? MarketResearchValuationId { get; set; }
-    public DateOnly? MarketResearchRecordedDate { get; set; }
-    public TimeOnly? MarketResearchRecordedTime { get; set; }
-    public long? MarketResearchMileage { get; set; }
-    public decimal? MarketResearchRetailValue { get; set; }
-    public decimal? MarketResearchTradeValue { get; set; }
     public string? MarketResearchCompletionHash { get; set; }
     // When the client wrote its draft (Draft ready), so the draft can age (Work Centre D9).
     public DateTimeOffset? DraftReadyAtUtc { get; set; }

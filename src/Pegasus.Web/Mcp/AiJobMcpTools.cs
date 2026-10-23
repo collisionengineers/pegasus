@@ -366,7 +366,6 @@ internal sealed class AiJobMcpTools(
         [Description("Valuation time, HH:mm or HH:mm:ss.")] string recordedTime,
         [Description("The mileage the valuation assumes.")] long mileage,
         [Description("Retail value in pounds.")] decimal retailValue,
-        [Description("Trade value in pounds.")] decimal tradeValue,
         [Description("Base64 findings document, at most 10 MiB after decoding; omit it when uploadId is given.")] string? contentBase64 = null,
         [Description("A staged findings document from pegasus_upload_begin whose parts are all sent; omit it when contentBase64 is given.")] Guid? uploadId = null,
         [Description("Optional guide month the research is for, yyyy-MM; the valuation for that month replaces an earlier card for it.")] string? guideMonth = null,
@@ -407,7 +406,6 @@ internal sealed class AiJobMcpTools(
                         ParseTime(recordedTime),
                         mileage,
                         retailValue,
-                        tradeValue,
                         guideMonth is null ? null : ParseGuideMonth(guideMonth)),
                     cancellationToken);
                 return new MarketResearchCompletionToolResult(

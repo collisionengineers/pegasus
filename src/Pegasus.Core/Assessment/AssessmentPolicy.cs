@@ -363,14 +363,21 @@ public static class AssessmentPolicy
             "Record a damage on the Damage section; the impact location is derived from it.");
         // The report prints the retail, trade and Engineer's values side by
         // side, so each is named until entered. Retail and trade are the
-        // chosen guide card's (operator, 8 October 2026); the Engineer's
-        // Value is its own box on Valuation.
+        // chosen guide card's (operator, 8 October 2026), and an AI market
+        // research card has no trade (R311); the Engineer's Value is its own
+        // box on Valuation.
         RequireField(
             AssessmentVocabulary.ValueRetail, "Retail value", "Valuation",
             "Enter it on the Valuation section.");
-        RequireField(
-            AssessmentVocabulary.ValueTrade, "Trade value", "Valuation",
-            "Enter it on the Valuation section.");
+        if (!string.Equals(
+                fields.GetValueOrDefault(AssessmentVocabulary.ValueFromMarketResearch),
+                "true",
+                StringComparison.Ordinal))
+        {
+            RequireField(
+                AssessmentVocabulary.ValueTrade, "Trade value", "Valuation",
+                "Enter it on the Valuation section.");
+        }
         RequireField(
             AssessmentVocabulary.ValueEngineer, "Engineer's Value", "Valuation",
             "Enter it on the Valuation section.");
