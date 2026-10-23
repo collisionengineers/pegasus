@@ -738,7 +738,15 @@ public sealed class AutomationDocumentIngressTests
                 {
                     caseId = Guid.NewGuid(),
                     documents = new[] { new { occurrenceId = Guid.NewGuid(), versionId = Guid.NewGuid() } }
-                })
+                }),
+            AutomationMcpTestSupport.ToolCallPayload(
+                83,
+                "pegasus_upload_begin",
+                new { totalBytes = 1, sha256 = new string('a', 64), operationKey = "mcp:upload-scope-denied" }),
+            AutomationMcpTestSupport.ToolCallPayload(
+                84,
+                "pegasus_upload_part",
+                new { uploadId = Guid.NewGuid(), partNumber = 1, contentBase64 = "eA==", sha256 = new string('a', 64) })
         };
 
         // The documents server refuses a token without its scope before any tool runs.

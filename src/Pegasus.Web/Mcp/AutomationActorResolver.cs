@@ -199,11 +199,35 @@ internal sealed class AutomationMcpAuditor(
     /// telemetry and keeps only a deliberate recovery or a material denial in permanent history, so
     /// success is logged and refusal is still appended.
     /// </summary>
-    public async Task<TResult> RecordDenialAsync<TResult>(
+    public Task<TResult> RecordDenialAsync<TResult>(
         AutomationActorContext context,
         string toolName,
         string aggregateId,
         string? operationKey,
+        Func<Task<TResult>> action,
+        CancellationToken cancellationToken) =>
+        RecordMechanicAsync(context, toolName, aggregateId, operationKey, logSuccess: true, action, cancellationToken);
+
+    /// <summary>
+    /// As <c>RecordDenialAsync</c>, for a call repeated for every part of one upload:
+    /// its success is not logged, because its request telemetry already counts it and a
+    /// 10 MiB document would otherwise log 214 lines; a refusal is still appended.
+    /// </summary>
+    public Task<TResult> RecordRefusalAsync<TResult>(
+        AutomationActorContext context,
+        string toolName,
+        string aggregateId,
+        string? operationKey,
+        Func<Task<TResult>> action,
+        CancellationToken cancellationToken) =>
+        RecordMechanicAsync(context, toolName, aggregateId, operationKey, logSuccess: false, action, cancellationToken);
+
+    private async Task<TResult> RecordMechanicAsync<TResult>(
+        AutomationActorContext context,
+        string toolName,
+        string aggregateId,
+        string? operationKey,
+        bool logSuccess,
         Func<Task<TResult>> action,
         CancellationToken cancellationToken)
     {
@@ -214,12 +238,16 @@ internal sealed class AutomationMcpAuditor(
         try
         {
             var result = await action();
-            LogMechanicSucceeded(
-                logger,
-                toolName,
-                aggregateId,
-                CorrelationId(context, operationKey),
-                null);
+            if (logSuccess)
+            {
+                LogMechanicSucceeded(
+                    logger,
+                    toolName,
+                    aggregateId,
+                    CorrelationId(context, operationKey),
+                    null);
+            }
+
             return result;
         }
         catch (Exception exception)

@@ -66,6 +66,7 @@ internal sealed class DocumentMcpTools(
     IOpenCaseDocumentBatch openBatch,
     IRenderImageForDelivery images,
     IExtractPdfPageText pdfText,
+    IOpenDocumentUpload uploads,
     AutomationEditLease leases,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
@@ -81,15 +82,16 @@ internal sealed class DocumentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Retains one document in the canonical case custody boundary, provenance-labelled as Automation-sourced. Content is base64 and is limited to 10 MiB before decoding. Needs the observed case version; present an edit lease token from pegasus_edit_begin for multi-step work, or omit it and the tool holds the lease for this one command. Replaying the same operation key with identical inputs returns the original custody record.")]
+    [Description("Retains one document of at most 10 MiB in the canonical case custody boundary, provenance-labelled as Automation-sourced. Send the content as base64 in contentBase64, or stage it with pegasus_upload_begin and pegasus_upload_part and pass the uploadId; exactly one of the two. Needs the observed case version; present an edit lease token from pegasus_edit_begin for multi-step work, or omit it and the tool holds the lease for this one command. Replaying the same operation key with identical inputs returns the original custody record.")]
     public async Task<DocumentAddToolResult> AddAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The leaf file name; path components are rejected.")] string fileName,
         [Description("The document media type.")] string mediaType,
-        [Description("The complete document content encoded as base64.")] string contentBase64,
         [Description("The document semantic role name: OriginalSource, Instruction, Image, Correspondence, EngineerReport, AuditReport, Estimate, ValuationEvidence, or Other.")] string semanticRole,
         [Description("The case version observed by the caller; a stale value fails closed.")] long expectedCaseVersion,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        [Description("The complete document content encoded as base64; omit it when uploadId is given.")] string? contentBase64 = null,
+        [Description("A staged upload from pegasus_upload_begin whose parts are all sent; omit it when contentBase64 is given.")] Guid? uploadId = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         [Description("Optional durable source-occurrence identity prefixed 'automation:'; reusing an identity records a new version of the same document. Defaults to one derived from the operation key.")] string? sourceOccurrenceIdentity = null,
         CancellationToken cancellationToken = default)
@@ -131,10 +133,13 @@ internal sealed class DocumentMcpTools(
                         "The source occurrence identity must start with 'automation:' and be at most 512 characters.");
                 }
 
-                var content = AutomationMcpErrors.DecodeContent(
+                var content = await DocumentUploadMcpTools.ReadContentAsync(
+                    uploads,
+                    context,
                     contentBase64,
-                    AutomationMcpErrors.MaximumDocumentBytes,
-                    "The document content");
+                    uploadId,
+                    "The document content",
+                    cancellationToken);
                 var result = await leases.RunCaseAsync(
                     caseId,
                     expectedCaseVersion,

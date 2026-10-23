@@ -306,6 +306,9 @@ public sealed class WorkerCompositionTests
                 scopedServices.GetRequiredService<IIntakeWorkStore>(),
                 scopedServices.GetRequiredService<IStagedArtifactAuthority>());
             Assert.NotNull(scopedServices.GetRequiredService<ReconcileStagedArtifacts>());
+            Assert.NotNull(scopedServices.GetRequiredService<Pegasus.Core.Documents.SweepAbandonedDocumentUploads>());
+            Assert.IsType<Pegasus.Infrastructure.Custody.FileSystemDocumentUploadStaging>(
+                provider.GetRequiredService<Pegasus.Core.Documents.IDocumentUploadStaging>());
             Assert.IsType<EfSettleFiledCaseReportArtifacts>(
                 scopedServices.GetRequiredService<ISettleFiledCaseReportArtifacts>());
             // No thumbnail cache here, so the sweep has nothing to make.
