@@ -1969,15 +1969,6 @@ public sealed class CaseArtifactCustodyRecoveryTests
     }
 
     /// <summary>
-    /// The minimum Box surface holding custody uses: the holding folder's
-    /// proof and upload, which answers with the file's SHA-1 when the upload
-    /// asks for it as Box does, and for a name already in use the folder
-    /// listing and the occupying file. Keeping it local to this
-    /// regression makes the test exercise the real Box adapter rather than a
-    /// replacement custody implementation. Every request is recorded, so a
-    /// test can state exactly what custody asked Box for.
-    /// </summary>
-    /// <summary>
     /// A cache publisher that holds every publish until released, then reads
     /// the staged bytes it was handed, so a stream disposed too early fails it.
     /// </summary>
@@ -2014,6 +2005,15 @@ public sealed class CaseArtifactCustodyRecoveryTests
             throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// The minimum Box surface holding custody uses: the holding folder's
+    /// proof and upload, which answers with the file's SHA-1 when the upload
+    /// asks for it as Box does, and for a name already in use the folder
+    /// listing and the occupying file. Keeping it local to this
+    /// regression makes the test exercise the real Box adapter rather than a
+    /// replacement custody implementation. Every request is recorded, so a
+    /// test can state exactly what custody asked Box for.
+    /// </summary>
     private sealed class HoldingBox
     {
         public const string RootId = "405543781910";
