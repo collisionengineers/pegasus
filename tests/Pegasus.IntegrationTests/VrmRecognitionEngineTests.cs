@@ -269,23 +269,27 @@ public sealed class VrmRecognitionEngineTests
 
     // Detections arrive best score first. Each fixture is a run of (score, text, confidence)
     // readings; the capped selection must offer the same plate as the uncapped one it replaced.
-    public static TheoryData<string, (float Score, string? Text, double Confidence)[]> SelectionFixtures => new()
+    // The theory takes the fixture name (serializable, so each row is enumerated as its own test).
+    private static readonly Dictionary<string, (float Score, string? Text, double Confidence)[]> SelectionFixtures = new()
     {
-        { "single", [(0.82f, "AB12 CDE", 0.93)] },
-        { "three-same-plate", [(0.91f, "AB12 CDE", 0.95), (0.74f, "AB12 CDE", 0.88), (0.52f, "AB12 CDE", 0.7)] },
-        { "five-same-plate", [(0.91f, "AB12CDE", 0.95), (0.74f, "AB12CDE", 0.88), (0.52f, "AB12CDE", 0.7), (0.41f, "AB12CDE", 0.6), (0.36f, "AB12CDE", 0.5)] },
-        { "best-is-third", [(0.9f, "XY99ZZZ", 0.4), (0.8f, "AB12CDE", 0.3), (0.7f, "LM34NOP", 0.69), (0.6f, "QR56STU", 0.2), (0.5f, "VW78XYZ", 0.1)] },
-        { "late-ones-unreadable", [(0.9f, "AB12CDE", 0.9), (0.8f, null, 0), (0.7f, "A", 0.99), (0.6f, null, 0), (0.5f, "A", 0.9)] },
-        { "first-unreadable", [(0.9f, null, 0), (0.8f, "AB12CDE", 0.85), (0.7f, "LM34NOP", 0.6), (0.6f, "QR56STU", 0.2)] },
+        ["single"] = [(0.82f, "AB12 CDE", 0.93)],
+        ["three-same-plate"] = [(0.91f, "AB12 CDE", 0.95), (0.74f, "AB12 CDE", 0.88), (0.52f, "AB12 CDE", 0.7)],
+        ["five-same-plate"] = [(0.91f, "AB12CDE", 0.95), (0.74f, "AB12CDE", 0.88), (0.52f, "AB12CDE", 0.7), (0.41f, "AB12CDE", 0.6), (0.36f, "AB12CDE", 0.5)],
+        ["best-is-third"] = [(0.9f, "XY99ZZZ", 0.4), (0.8f, "AB12CDE", 0.3), (0.7f, "LM34NOP", 0.69), (0.6f, "QR56STU", 0.2), (0.5f, "VW78XYZ", 0.1)],
+        ["late-ones-unreadable"] = [(0.9f, "AB12CDE", 0.9), (0.8f, null, 0), (0.7f, "A", 0.99), (0.6f, null, 0), (0.5f, "A", 0.9)],
+        ["first-unreadable"] = [(0.9f, null, 0), (0.8f, "AB12CDE", 0.85), (0.7f, "LM34NOP", 0.6), (0.6f, "QR56STU", 0.2)],
     };
 
     [Theory]
-    [MemberData(nameof(SelectionFixtures))]
-    public void CappingTheRecogniserOffersTheSamePlateAsReadingEveryDetection(
-        string fixture,
-        (float Score, string? Text, double Confidence)[] readings)
+    [InlineData("single")]
+    [InlineData("three-same-plate")]
+    [InlineData("five-same-plate")]
+    [InlineData("best-is-third")]
+    [InlineData("late-ones-unreadable")]
+    [InlineData("first-unreadable")]
+    public void CappingTheRecogniserOffersTheSamePlateAsReadingEveryDetection(string fixture)
     {
-        Assert.NotEmpty(fixture);
+        var readings = SelectionFixtures[fixture];
         var plates = readings.Select(reading => new DetectedPlate(10, 10, 60, 40, reading.Score)).ToArray();
         var recognizerCalls = 0;
         var capped = OnnxVrmRecognitionEngine.RecognizeCandidates(
