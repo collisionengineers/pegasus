@@ -4,8 +4,10 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Core.Documents;
 
 /// <summary>
-/// One confirmed, current image version whose plain gallery thumbnail has not
-/// been made: the identity a thumbnail read needs.
+/// One confirmed, current image version whose gallery thumbnail has not been
+/// made: the identity a thumbnail read needs. The plain gallery rendering
+/// carries no rotation and no crop; a photograph's saved rotation and crop is
+/// a candidate of its own, named by the same two values a tile asks with.
 /// </summary>
 public sealed record DocumentThumbnailCandidate(
     Guid CaseId,
@@ -13,7 +15,9 @@ public sealed record DocumentThumbnailCandidate(
     Guid VersionId,
     string Sha256,
     long ContentLength,
-    string MediaType);
+    string MediaType,
+    CaseAssetRotation Rotation = CaseAssetRotation.None,
+    CaseAssetCrop? Crop = null);
 
 /// <summary>
 /// The versions the background sweep should make thumbnails for.
@@ -22,7 +26,9 @@ public interface IListDocumentThumbnailCandidates
 {
     /// <summary>
     /// Confirmed, current, thumbnailable versions with no live plain
-    /// thumbnail, newest first, at most <paramref name="maximumItems"/>.
+    /// thumbnail, then the saved rotation and crop of a photograph that has
+    /// no live thumbnail of that variant, at most
+    /// <paramref name="maximumItems"/> in all.
     /// </summary>
     Task<IReadOnlyList<DocumentThumbnailCandidate>> ListAsync(
         int maximumItems,
@@ -44,8 +50,9 @@ public sealed record PrepareDocumentThumbnailsResult(
     string? FirstFailure);
 
 /// <summary>
-/// Makes the plain gallery thumbnails of newly filed photographs before
-/// anyone opens the gallery, so the first view reads a small cached rendering
+/// Makes the plain gallery thumbnails of newly filed photographs, and the
+/// thumbnails of their saved rotation and crop, before anyone opens the
+/// gallery, so the first view reads a small cached rendering
 /// instead of waiting for Box and the renderer.
 /// </summary>
 /// <remarks>
@@ -95,7 +102,9 @@ public sealed class PrepareDocumentThumbnails(
                         candidate.VersionId,
                         candidate.Sha256,
                         candidate.ContentLength,
-                        candidate.MediaType),
+                        candidate.MediaType,
+                        candidate.Rotation,
+                        candidate.Crop),
                     cancellationToken);
                 if (thumbnail is null)
                 {

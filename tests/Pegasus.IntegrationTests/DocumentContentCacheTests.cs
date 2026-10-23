@@ -2056,6 +2056,84 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The sweep also makes a photograph's saved rotation and crop under its
+    /// own variant, once: a version whose plain thumbnail is cached is still
+    /// listed for a saved variant that is not, a changed crop is a new
+    /// variant, and a variant saved longer ago than a prepared thumbnail
+    /// lives unviewed is left to its first view.
+    /// </summary>
+    [Fact]
+    public async Task TheThumbnailSweepAlsoMakesASavedRotationAndCropOncePerVariant()
+    {
+        var image = TransparentPng(width: 960, height: 480);
+        var estate = await Estate.CreateDocumentAsync(image, "image/png");
+        await using (estate)
+        {
+            var now = estate.Clock.GetUtcNow();
+            var occurrenceId = Guid.NewGuid();
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentVersionEntity>().SingleAsync()).CreatedAtUtc = now.AddHours(-1);
+                db.Add(new DocumentOccurrenceEntity
+                {
+                    Id = occurrenceId, CaseId = estate.Request.CaseId!.Value,
+                    DocumentId = estate.Request.DocumentId!.Value, VersionId = estate.Request.VersionId!.Value,
+                    Ordinal = 1, SourceOccurrenceIdentity = "saved-variant", OperationKey = "saved-variant",
+                    SemanticRole = DocumentSemanticRole.Image, Source = DocumentSource.StaffUpload,
+                    RecordedAtUtc = now.AddHours(-1), PreparedAtUtc = now.AddMinutes(-5),
+                    RotationDegrees = 90, CropLeft = 0.25m, CropTop = 0m, CropWidth = 0.5m, CropHeight = 1m
+                });
+                await db.SaveChangesAsync();
+            }
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var cache = new DocumentThumbnailCache(factory, new CacheContainer(estate.Blob), estate.Clock);
+            var candidates = new EfDocumentThumbnailCandidates(factory, estate.Clock);
+            var sweep = new PrepareDocumentThumbnails(
+                candidates, new CaseDocumentThumbnailReader(new ImmediateSource(image), cache));
+            var saved = CaseDocumentThumbnails.VariantToken(
+                CaseAssetRotation.Clockwise90, new CaseAssetCrop(0.25m, 0m, 0.5m, 1m));
+
+            // The plain rendering first, then the saved variant, and the run's
+            // size bounds the two together.
+            var listed = await candidates.ListAsync(5, CancellationToken.None);
+            Assert.Equal(
+                [CaseAssetRotation.None, CaseAssetRotation.Clockwise90],
+                listed.Select(candidate => candidate.Rotation));
+            Assert.Equal(new CaseAssetCrop(0.25m, 0m, 0.5m, 1m), listed[1].Crop);
+            Assert.Single(await candidates.ListAsync(1, CancellationToken.None));
+
+            Assert.Equal(
+                new PrepareDocumentThumbnailsResult(2, 2, 0, 0, null),
+                await sweep.ExecuteAsync(5, CancellationToken.None));
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                Assert.Equal(
+                    new[] { DocumentThumbnailCache.Variant, saved }.Order(StringComparer.Ordinal),
+                    (await db.Set<DocumentContentCacheEntryEntity>().Select(entry => entry.Variant).ToArrayAsync())
+                        .Order(StringComparer.Ordinal));
+            }
+            Assert.Equal(0, (await sweep.ExecuteAsync(5, CancellationToken.None)).Candidates);
+
+            // A changed crop is a variant nobody has made yet.
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var occurrence = await db.Set<DocumentOccurrenceEntity>().SingleAsync();
+                occurrence.CropLeft = 0.1m;
+                occurrence.PreparedAtUtc = now;
+                await db.SaveChangesAsync();
+            }
+            var changed = Assert.Single(await candidates.ListAsync(5, CancellationToken.None));
+            Assert.Equal(new CaseAssetCrop(0.1m, 0m, 0.5m, 1m), changed.Crop);
+
+            // Saved longer ago than a prepared thumbnail lives unviewed: left to
+            // its first view, so an expired one is not made again for nobody.
+            estate.Clock.Advance(TimeSpan.FromHours(25));
+            Assert.Empty(await candidates.ListAsync(5, CancellationToken.None));
+        }
+    }
+
+    /// <summary>
     /// The Worker's estimate sweep reads a filed PDF once, as the system
     /// worker, and records whether the import would read it: an Audatex
     /// estimate is one, an instruction letter is not. A version with an
