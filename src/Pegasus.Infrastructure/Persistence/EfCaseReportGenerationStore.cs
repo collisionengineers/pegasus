@@ -949,7 +949,9 @@ public sealed class EfCaseReportGenerationStore(
                     context, DeserializeSnapshot(row.Generation), signatory, signatureHashes, cancellationToken))
             {
                 // The row is the work's one current generation, already tracked.
-                MarkGenerationStale(context, row.Generation.CaseId, row.Generation,
+                row.Generation.State = nameof(CaseReportGenerationState.Stale);
+                AddStaleHistory(context, row.Generation.CaseId, row.Generation.Id,
+                    row.Generation.SnapshotHash, row.Generation.SnapshotJson,
                     CaseReportStaleReasons.SignatoryChanged, nowUtc);
             }
         }
