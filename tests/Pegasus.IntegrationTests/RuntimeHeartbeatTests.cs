@@ -18,7 +18,7 @@ public sealed class RuntimeHeartbeatTests
         const string stat =
             "4242 (dotnet) S 1 4242 4242 0 -1 4194560 2000 0 17 0 300 40 0 0 20 0 30 0 100 1000000 5000";
 
-        Assert.Equal(17, ProcFs.ParseMajorFaults(stat));
+        Assert.Equal(17, Faults(stat));
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class RuntimeHeartbeatTests
         const string stat =
             "77 (my (odd) app) R 1 77 77 0 -1 0 5 0 9 0 1 1 0 0 20 0 1 0 5 100 10";
 
-        Assert.Equal(9, ProcFs.ParseMajorFaults(stat));
+        Assert.Equal(9, Faults(stat));
     }
 
     [Theory]
@@ -39,7 +39,7 @@ public sealed class RuntimeHeartbeatTests
     [InlineData("1 (x) S 1 1 1 0 -1 0 5 0 notanumber 0")]
     public void MajorFaultsAreOmittedWhenTheTextIsMissingOrShort(string? stat)
     {
-        Assert.Null(ProcFs.ParseMajorFaults(stat));
+        Assert.Null(Faults(stat));
     }
 
     [Fact]
@@ -111,13 +111,13 @@ public sealed class RuntimeHeartbeatTests
     [InlineData("1 (short) S 1 1", null)]
     [InlineData("no closing bracket here", null)]
     [InlineData("", null)]
-    public void MajorFaultsAreParsedFromBytesAsFromText(string stat, int? expected)
+    public void MajorFaultsAreParsedFromTheFilesBytes(string stat, int? expected)
     {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(stat);
-
-        Assert.Equal(expected, ProcFs.ParseMajorFaults(bytes));
-        Assert.Equal(expected, ProcFs.ParseMajorFaults(stat));
+        Assert.Equal(expected, Faults(stat));
     }
+
+    private static long? Faults(string? stat) =>
+        stat is null ? null : ProcFs.ParseMajorFaults(System.Text.Encoding.UTF8.GetBytes(stat));
 
     [Fact]
     public void TheMajorFaultReaderOpensTheFileOnceAndEveryReadSeesTheCurrentFigure()
@@ -163,6 +163,38 @@ public sealed class RuntimeHeartbeatTests
     }
 
     [Fact]
+    public void ARefresherThatReadFirstNeverOverwritesOneThatPublishedNewer()
+    {
+        long now = 5_000;
+        long faults = 10;
+        long? inner = null;
+        ProcFs.SampledMajorFaults? sample = null;
+        var overlapped = false;
+        sample = new ProcFs.SampledMajorFaults(
+            () =>
+            {
+                // The first refresher has read 10 when a second one runs to the end with 25.
+                var read = faults;
+                if (!overlapped)
+                {
+                    overlapped = true;
+                    faults = 25;
+                    inner = sample!.Read();
+                }
+
+                return read;
+            },
+            () => now);
+
+        // The overlapped refresher publishes first and the one that read first loses.
+        var outer = sample.Read();
+
+        Assert.Equal(25, inner);
+        Assert.Equal(25, outer);
+        Assert.Equal(25, sample.Read());
+    }
+
+    [Fact]
     public void AnAbsentSourceStaysAbsentInTheSharedSample()
     {
         var sample = new ProcFs.SampledMajorFaults(() => null, () => 1);
@@ -199,7 +231,6 @@ public sealed class RuntimeHeartbeatTests
         var files = new Dictionary<string, string>
         {
             ["/proc/self/status"] = "VmRSS:\t 524288 kB\nRssAnon:\t 400000 kB\nRssFile:\t 120000 kB\nRssShmem:\t 4288 kB\n",
-            ["/proc/self/stat"] = "1 (dotnet) S 1 1 1 0 -1 0 5 0 12 0",
             ["/proc/meminfo"] = "MemTotal: 1789012 kB\nMemAvailable: 204800 kB\n",
             ["/sys/fs/cgroup/memory.current"] = "1073741824\n",
             ["/sys/fs/cgroup/memory.max"] = "1610612736\n",
@@ -207,7 +238,7 @@ public sealed class RuntimeHeartbeatTests
             ["/proc/loadavg"] = "0.75 0.60 0.55 2/300 999\n"
         };
 
-        var line = RuntimeHeartbeat.Describe(path => files.GetValueOrDefault(path));
+        var line = RuntimeHeartbeat.Describe(path => files.GetValueOrDefault(path), () => 12);
 
         Assert.StartsWith("vmrss_mb=512 rssanon_mb=390 rssfile_mb=117 rssshmem_mb=4 majflt=12 ", line, StringComparison.Ordinal);
         Assert.Contains(" mem_total_mb=1747 mem_available_mb=200 ", line, StringComparison.Ordinal);
@@ -227,7 +258,7 @@ public sealed class RuntimeHeartbeatTests
             ["/sys/fs/cgroup/memory.max"] = "max\n"
         };
 
-        var line = RuntimeHeartbeat.Describe(path => files.GetValueOrDefault(path));
+        var line = RuntimeHeartbeat.Describe(path => files.GetValueOrDefault(path), () => 12);
 
         Assert.Contains("cg_current_mb=1 cg_max_mb=max", line, StringComparison.Ordinal);
     }
@@ -242,7 +273,7 @@ public sealed class RuntimeHeartbeatTests
             ["/sys/fs/cgroup/memory/memory.stat"] = "cache 1048576\nrss 524288\npgmajfault 4\n"
         };
 
-        var line = RuntimeHeartbeat.Describe(path => files.GetValueOrDefault(path));
+        var line = RuntimeHeartbeat.Describe(path => files.GetValueOrDefault(path), () => 12);
 
         Assert.Contains("cg_current_mb=2 cg_max_mb=4 cg_anon_mb=0 cg_file_mb=1 cg_pgmajfault=4", line, StringComparison.Ordinal);
     }
@@ -250,7 +281,7 @@ public sealed class RuntimeHeartbeatTests
     [Fact]
     public void FiguresWhoseSourcesAreMissingAreLeftOutAndTheRuntimeOnesRemain()
     {
-        var line = RuntimeHeartbeat.Describe(_ => null);
+        var line = RuntimeHeartbeat.Describe(_ => null, () => null);
 
         foreach (var absent in new[] { "vmrss", "rssanon", "majflt", "mem_total", "mem_available", "cg_", "load1" })
         {

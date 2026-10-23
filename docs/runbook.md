@@ -1066,8 +1066,9 @@ A slow start shows there which phase took the time. The start limit
 After its first pass the warm-up repeats its reads every three minutes for the
 life of the process, except that a tick skips its pass when a page request
 ran since the previous tick (a Debug line, "Warm-up pass skipped", says so;
-only a signed-in page request counts, so health probes, static files, the
-Always On ping and anonymous requests do not). `Startup:WarmupInterval` sets the wait (default
+only a signed-in GET of a Razor page counts, so health probes, static files, the
+Always On ping, anonymous requests, POSTs such as the edit heartbeats and
+handler fetches such as the status poll do not). `Startup:WarmupInterval` sets the wait (default
 `00:03:00`). Write it with colons, such as `00:05:00`. `00:00:00` restores the
 once-only behaviour, and `Startup:Warmup` `false` still turns the whole warm-up
 off. Some values keep the default instead, and the warm-up logs one warning

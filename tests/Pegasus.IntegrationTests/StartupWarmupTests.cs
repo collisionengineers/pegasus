@@ -197,7 +197,7 @@ public sealed class StartupWarmupTests
     }
 
     [Fact]
-    public async Task ASignedInPageRequestIsNotedButAQuietPathOrAnAnonymousOneIsNot()
+    public async Task OnlyASignedInGetOfARazorPageIsNotedNotAQuietPathAnAnonymousOneOrABackgroundBeat()
     {
         var state = new StartupWarmupState(warms: true);
         var nexts = 0;
@@ -208,29 +208,64 @@ public sealed class StartupWarmupTests
         };
 
         var signedIn = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity("test"));
-        foreach (var quiet in new[] { "/health/ready", "/css/site.css", "/js/app.js", "/fonts/a.woff2", "/images/a.png", "/diagnostics/x" })
-        {
-            var context = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = signedIn };
-            context.Request.Path = quiet;
-            await PageRequestSignal.InvokeAsync(context, next, state);
-            Assert.False(state.PageRequestSeen, quiet);
-        }
+        var pageEndpoint = new Microsoft.AspNetCore.Http.Endpoint(
+            null,
+            new Microsoft.AspNetCore.Http.EndpointMetadataCollection(new Microsoft.AspNetCore.Mvc.RazorPages.PageActionDescriptor()),
+            "page");
+        var notPageEndpoint = new Microsoft.AspNetCore.Http.Endpoint(null, Microsoft.AspNetCore.Http.EndpointMetadataCollection.Empty, "other");
 
-        // The Always On ping and a scanner are not signed in, so they note nothing.
-        foreach (var anonymous in new[] { "/", "/Account/SignIn", "/wp-login.php", "/Cases" })
+        Microsoft.AspNetCore.Http.DefaultHttpContext Request(
+            string method, string path, string query = "", bool user = true, Microsoft.AspNetCore.Http.Endpoint? endpoint = null)
         {
             var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
-            context.Request.Path = anonymous;
-            await PageRequestSignal.InvokeAsync(context, next, state);
-            Assert.False(state.PageRequestSeen, anonymous);
+            if (user)
+            {
+                context.User = signedIn;
+            }
+
+            context.Request.Method = method;
+            context.Request.Path = path;
+            context.Request.QueryString = new Microsoft.AspNetCore.Http.QueryString(query);
+            Microsoft.AspNetCore.Http.EndpointHttpContextExtensions.SetEndpoint(context, endpoint);
+            return context;
         }
 
-        var page = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = signedIn };
-        page.Request.Path = "/Cases";
+        var ignored = new[]
+        {
+            // Quiet paths, even for a page endpoint.
+            Request("GET", "/health/ready", endpoint: pageEndpoint),
+            Request("GET", "/css/site.css"),
+            Request("GET", "/js/app.js"),
+            Request("GET", "/fonts/a.woff2"),
+            Request("GET", "/images/a.png"),
+            Request("GET", "/diagnostics/x", endpoint: pageEndpoint),
+            // The Always On ping, a scanner and a sign-in page are not signed in.
+            Request("GET", "/", user: false, endpoint: pageEndpoint),
+            Request("GET", "/Account/SignIn", user: false, endpoint: pageEndpoint),
+            Request("GET", "/wp-login.php", user: false),
+            Request("GET", "/Cases", user: false, endpoint: pageEndpoint),
+            // A signed-in request that is not a page read: the Case edit lease and
+            // record heartbeats (POST), a handler fetch (the status poll, a dialog)
+            // and a request no Razor page answers.
+            Request("POST", "/Cases/Case", "?handler=Heartbeat", endpoint: pageEndpoint),
+            Request("POST", "/Cases/Case", endpoint: pageEndpoint),
+            Request("GET", "/Cases/Case", "?id=7&handler=Status", endpoint: pageEndpoint),
+            Request("GET", "/Inbox", "?Handler=Dialog", endpoint: pageEndpoint),
+            Request("GET", "/api/status", endpoint: notPageEndpoint),
+            Request("GET", "/api/status")
+        };
+
+        foreach (var context in ignored)
+        {
+            await PageRequestSignal.InvokeAsync(context, next, state);
+            Assert.False(state.PageRequestSeen, $"{context.Request.Method} {context.Request.Path}{context.Request.QueryString}");
+        }
+
+        var page = Request("GET", "/Cases", "?filter=open", endpoint: pageEndpoint);
         await PageRequestSignal.InvokeAsync(page, next, state);
 
         Assert.True(state.PageRequestSeen);
-        Assert.Equal(11, nexts);
+        Assert.Equal(ignored.Length + 1, nexts);
         Assert.True(state.TakePageRequestSignal());
         Assert.False(state.TakePageRequestSignal());
     }
