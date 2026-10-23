@@ -193,7 +193,7 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the draft's suggested Principal) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing, or while the inspection address is not settled (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration (default: the draft's); it is refused where the message does not offer Open the Triage. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the settled address and the item's new version.")]
+    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the draft's suggested Principal) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing, or while the inspection address is not settled (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration, which it requires; it is refused where the message does not offer Open the Triage. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the settled address and the item's new version.")]
     public async Task<IntakeActionToolResult> ActAsync(
         [Description(ReceiptIdDescription)] Guid receiptId,
         [Description("accept, resolve_inspection_address, allocate or open_triage.")] string action,
@@ -203,7 +203,7 @@ internal sealed class IntakeActionMcpTools(
         [Description("accept only: Inspection, Audit or InspectionAndAudit; omit to use the classified case type, or Inspection when there is none.")] string? caseType = null,
         [Description("accept only: claimant name.")] string? claimantName = null,
         [Description("accept only: claim number.")] string? claimNumber = null,
-        [Description("accept and open_triage: vehicle registration; open_triage takes no other field and defaults to the draft's.")] string? vehicleRegistration = null,
+        [Description("accept and open_triage: vehicle registration; open_triage requires it and takes no other field.")] string? vehicleRegistration = null,
         [Description("accept only: vehicle make.")] string? vehicleMake = null,
         [Description("accept only: vehicle model.")] string? vehicleModel = null,
         [Description("accept only: vehicle mileage.")] long? vehicleMileage = null,
@@ -667,7 +667,7 @@ internal sealed class IntakeActionMcpTools(
             return (await intakeActions.OpenTriageAsync(
                     actor,
                     receipt,
-                    vehicleRegistration ?? receipt.InstructionDraft?.VehicleRegistration,
+                    vehicleRegistration,
                     operationKey,
                     cancellationToken),
                 false);
