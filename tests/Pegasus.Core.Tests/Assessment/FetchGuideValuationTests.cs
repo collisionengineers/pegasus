@@ -135,6 +135,29 @@ public sealed class FetchGuideValuationTests
     }
 
     /// <summary>
+    /// The fill is a short local write queued under the Case's key; it goes in
+    /// ahead of the report so it never waits out the report's provider fetch
+    /// inside its own time cap.
+    /// </summary>
+    [Fact]
+    public async Task AScheduledVinFillIsQueuedAheadOfTheReport()
+    {
+        var order = new List<string>();
+        var vins = new RecordingVins { Order = order };
+        var request = Request(ValuationSource.Glasses);
+        var fetch = new FetchGuideValuation(
+            [new AnsweringProvider(ValuationSource.Glasses, new StubReport("glass-stock:33636950"), vin: "TESTVEH0A1B2C3D45")],
+            new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
+            new RecordingSchedule { Order = order },
+            vins,
+            vins);
+
+        await fetch.ExecuteAsync(request, default);
+
+        Assert.Equal(["vin", "report"], order);
+    }
+
+    /// <summary>
     /// A caller whose next write follows the fill (the MCP tool, which saves the
     /// card straight after) has it filled before the figures are answered.
     /// </summary>
@@ -239,10 +262,13 @@ public sealed class FetchGuideValuationTests
 
         public List<(ActionActor Actor, Guid CaseId, CaseWorkSelector Work, string Vin)> Scheduled { get; } = [];
 
+        public List<string>? Order { get; init; }
+
         public Task ScheduleAsync(
             ActionActor actor, Guid caseId, CaseWorkSelector work, string vin, CancellationToken cancellationToken)
         {
             Scheduled.Add((actor, caseId, work, vin));
+            Order?.Add("vin");
             return Task.CompletedTask;
         }
 
@@ -266,9 +292,12 @@ public sealed class FetchGuideValuationTests
     {
         public List<FileGuideValuationReportRequest> Requests { get; } = [];
 
+        public List<string>? Order { get; init; }
+
         public Task ScheduleAsync(FileGuideValuationReportRequest request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
+            Order?.Add("report");
             return Task.CompletedTask;
         }
     }

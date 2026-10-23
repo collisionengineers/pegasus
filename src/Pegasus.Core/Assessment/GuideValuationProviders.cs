@@ -219,6 +219,17 @@ public sealed class FetchGuideValuation(
             cancellationToken);
         ArgumentNullException.ThrowIfNull(quote);
 
+        // The valued vehicle's VIN fills the work's empty VIN (operator,
+        // 7 October 2026); the figures are answered either way. The fill is a
+        // short local write, so when it is handed on it is queued ahead of the
+        // report: the same Case's work runs in order, and the fill never waits
+        // out the report's provider fetch inside its time cap.
+        var vin = quote.Vin;
+        if (vin is not null && !request.AwaitVinFill)
+        {
+            await _vinSchedule.ScheduleAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
+        }
+
         // Every valuation's own report is filed on the Case as its evidence
         // (operator, 1 October 2026). The figures are answered first; the
         // report follows on its own.
@@ -229,19 +240,10 @@ public sealed class FetchGuideValuation(
                 cancellationToken);
         }
 
-        // The valued vehicle's VIN fills the work's empty VIN (operator,
-        // 7 October 2026); the figures are answered either way, and the fill
-        // follows the answer unless the caller's next write needs it first.
-        if (quote.Vin is { } vin)
+        // A caller whose next write follows the fill has it before the answer.
+        if (vin is not null && request.AwaitVinFill)
         {
-            if (request.AwaitVinFill)
-            {
-                await _vins.FillAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
-            }
-            else
-            {
-                await _vinSchedule.ScheduleAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
-            }
+            await _vins.FillAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
         }
 
         return quote;

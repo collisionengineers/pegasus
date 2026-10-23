@@ -88,21 +88,26 @@ public sealed class OpeningModel(
             return NotFound();
         }
         var session = read.Session;
-        var current = (GlassRepairEstimateSessionMaterial?)read;
         if (glassWork.IsInFlight(session.Id))
         {
             return RedirectToPage("/Integrations/Glass/Opening", new { sessionId });
         }
+        Uri? estimator;
         if (GlassRepairEstimateSessionPolicy.AwaitsProviderWork(session.State))
         {
-            // Settling writes the session, so what was read is no longer
-            // current and the estimator is read afresh.
+            // A settle writes Prepared or Unknown, neither of which has an
+            // estimator to open; only a session something else moved on to
+            // Active first is read afresh for its address.
             session = await glassEstimates.SettleInterruptedAsync(actor, read, cancellationToken);
-            current = null;
-        }
-        if ((current is null
+            estimator = session.State == GlassRepairEstimateSessionState.Active
                 ? await glassEstimates.GetEstimatorUrlAsync(actor, session.Id, cancellationToken)
-                : await glassEstimates.GetEstimatorUrlAsync(actor, current, cancellationToken)) is { } estimator)
+                : null;
+        }
+        else
+        {
+            estimator = await glassEstimates.GetEstimatorUrlAsync(actor, read, cancellationToken);
+        }
+        if (estimator is not null)
         {
             // The Case keeps its edit authority: the operator is inside the
             // provider now and the result lands back on it.

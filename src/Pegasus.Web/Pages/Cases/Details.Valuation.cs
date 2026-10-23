@@ -789,7 +789,14 @@ public sealed partial class DetailsModel
             var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
             var month = ParseGuideMonth(guideMonth) ?? new DateOnly(today.Year, today.Month, 1);
             var quote = await fetchGuideValuation.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, editLeaseToken!, source, month) { Work = WorkSelector },
+                new(id, expectedVersion, actor, operationKey, editLeaseToken!, source, month)
+                {
+                    Work = WorkSelector,
+                    // The card draws no VIN, so its answer does not wait for the
+                    // fill; the redirect draws the Vehicle section's VIN, which
+                    // the fill must already have written.
+                    AwaitVinFill = !json
+                },
                 cancellationToken);
             if (json)
             {

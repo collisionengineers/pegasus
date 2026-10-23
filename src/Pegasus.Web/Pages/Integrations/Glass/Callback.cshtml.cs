@@ -143,9 +143,16 @@ public sealed class CallbackModel(
                 return DetailsModel.GlassOpening(this, step.Session.Id);
             }
 
-            return Report(GlassRepairEstimateSessionPolicy.AwaitsProviderWork(step.Session.State)
-                ? await glassEstimates.SettleInterruptedAsync(actor, step.Session.Id, cancellationToken)
-                : step.Session);
+            if (!GlassRepairEstimateSessionPolicy.AwaitsProviderWork(step.Session.State))
+            {
+                return Report(step.Session);
+            }
+
+            // A return that wrote nothing is settled from what this request
+            // read; one that moved the session on is read afresh.
+            return Report(step.Session.Version == read.Session.Version
+                ? await glassEstimates.SettleInterruptedAsync(actor, read, cancellationToken)
+                : await glassEstimates.SettleInterruptedAsync(actor, step.Session.Id, cancellationToken));
         }
         catch (StaffAuthorizationException)
         {
