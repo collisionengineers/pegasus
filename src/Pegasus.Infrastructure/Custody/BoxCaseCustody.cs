@@ -979,7 +979,9 @@ internal sealed partial class BoxContentClient(
     /// before it is sent, and the answers come back in offset order whatever
     /// order Box finished them in. A part that fails cancels the others; once
     /// all have ended, the failure of the lowest-offset part that failed is
-    /// the one raised, and a cancellation by the caller is raised as it is.
+    /// the one raised (a part's request timeout included, as the
+    /// <see cref="TaskCanceledException"/> the part itself threw), and a
+    /// cancellation by the caller is raised as it is.
     /// </summary>
     private async Task<IReadOnlyList<JsonElement>> SendPartsAsync(
         Uri sessionUri,
@@ -993,6 +995,10 @@ internal sealed partial class BoxContentClient(
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var slots = new SemaphoreSlim(ConcurrentUploadParts);
         var puts = new List<Task<JsonElement>>();
+        // A part that ends in a cancellation neither the caller nor a sibling's
+        // failure caused (Box's request timeout) leaves its task Canceled, not
+        // Faulted, so the part records its own exception here.
+        var ownFailures = new Exception?[(contentLength + partSize - 1) / partSize];
         try
         {
             for (long offset = 0; offset < contentLength;)
@@ -1011,8 +1017,10 @@ internal sealed partial class BoxContentClient(
                 }
                 whole.AppendData(part.Memory.Span);
                 partHash.AppendData(part.Memory.Span);
+                var index = puts.Count;
                 puts.Add(PutPartAsync(
-                    sessionUri, part, offset, contentLength, Digest(partHash), slots, stop));
+                    sessionUri, part, offset, contentLength, Digest(partHash), slots, stop,
+                    failure => ownFailures[index] = failure));
                 offset += length;
             }
             return await Task.WhenAll(puts);
@@ -1028,11 +1036,15 @@ internal sealed partial class BoxContentClient(
             {
                 // Each part's own outcome is read below, in offset order.
             }
-            foreach (var put in puts)
+            for (var index = 0; index < puts.Count; index++)
             {
-                if (put.IsFaulted)
+                if (ownFailures[index] is { } own)
                 {
-                    ExceptionDispatchInfo.Capture(put.Exception!.InnerExceptions[0]).Throw();
+                    ExceptionDispatchInfo.Capture(own).Throw();
+                }
+                if (puts[index].IsFaulted)
+                {
+                    ExceptionDispatchInfo.Capture(puts[index].Exception!.InnerExceptions[0]).Throw();
                 }
             }
             throw;
@@ -1046,7 +1058,8 @@ internal sealed partial class BoxContentClient(
         long contentLength,
         string digest,
         SemaphoreSlim slots,
-        CancellationTokenSource stop)
+        CancellationTokenSource stop,
+        Action<Exception> recordOwnFailure)
     {
         try
         {
@@ -1067,8 +1080,14 @@ internal sealed partial class BoxContentClient(
                 return answer.RootElement.GetProperty("part").Clone();
             }
         }
-        catch
+        catch (Exception exception)
         {
+            // Before the stop is signalled, a failure is the part's own: the
+            // caller's cancellation and a sibling's failure both signal it first.
+            if (!stop.IsCancellationRequested)
+            {
+                recordOwnFailure(exception);
+            }
             await stop.CancelAsync();
             throw;
         }

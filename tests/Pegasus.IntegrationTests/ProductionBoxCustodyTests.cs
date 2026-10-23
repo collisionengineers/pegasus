@@ -857,6 +857,32 @@ public sealed class ProductionBoxCustodyTests
         Assert.Equal(1, handler.Aborts);
     }
 
+    /// <summary>
+    /// A part whose request times out reaches the caller as the timeout the
+    /// HTTP client threw (a <see cref="TaskCanceledException"/> holding a
+    /// <see cref="TimeoutException"/>), which the intake retry policy counts as
+    /// transient, and not as a bare cancellation. The part beside it is
+    /// cancelled and the session aborted once.
+    /// </summary>
+    [Fact]
+    public async Task APartThatTimesOutIsRaisedAsItsTimeoutNotAsACancellation()
+    {
+        var handler = new HoldingPartsHandler { TimeOutOffset = 0 };
+        var client = HoldingPartsClient(handler);
+        var folder = new BoxContentClient.ProvedFolder(HoldingPartsHandler.FolderId);
+        var bytes = new byte[60_000_000];
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.UploadAsync(
+            folder, "slow.pdf", bytes, "application/pdf", timeout.Token));
+
+        Assert.IsType<TimeoutException>(failure.InnerException);
+        Assert.False(timeout.IsCancellationRequested);
+        Assert.True(IntakeExceptionPolicy.IsTransientFailure(failure));
+        Assert.Equal(0, handler.Commits);
+        Assert.Equal(1, handler.Aborts);
+    }
+
     private static BoxContentClient HoldingPartsClient(HoldingPartsHandler handler) => new(
         BoxCustodyOptions.Create(
             "https://api.box.com/2.0/",
@@ -890,6 +916,9 @@ public sealed class ProductionBoxCustodyTests
 
         /// <summary>The offset of the one part Box refuses at once, if any.</summary>
         public long? FailOffset { get; init; }
+
+        /// <summary>The offset of the one part whose request times out at once, if any.</summary>
+        public long? TimeOutOffset { get; init; }
 
         public int InFlight { get { lock (gate) { return inFlight; } } }
 
@@ -942,6 +971,13 @@ public sealed class ProductionBoxCustodyTests
                 if (offset == FailOffset)
                 {
                     return new(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("refused") };
+                }
+                if (offset == TimeOutOffset)
+                {
+                    // What HttpClient throws when its Timeout elapses.
+                    throw new TaskCanceledException(
+                        "The request was canceled due to the configured HttpClient.Timeout.",
+                        new TimeoutException());
                 }
                 var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 held[offset] = release;
