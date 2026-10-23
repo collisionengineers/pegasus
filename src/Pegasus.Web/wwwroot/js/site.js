@@ -368,9 +368,11 @@
             // the one naming the same image. Other forms are found by action.
             var image = control.hasAttribute('data-busy-solo') ? form.elements.namedItem('occurrenceId') : null;
             next = Array.prototype.find.call(document.forms, function (candidate) {
+                if (candidate.getAttribute('action') !== action) {
+                    return false;
+                }
                 var theirs = image && candidate.elements.namedItem('occurrenceId');
-                return candidate.getAttribute('action') === action
-                    && (!image || (theirs && theirs.value === image.value));
+                return !image || (theirs && theirs.value === image.value);
             }) || null;
         }
         if (!(next instanceof HTMLFormElement) || next === form) {
