@@ -19,7 +19,8 @@ public sealed class AppliedValuationCalculationRowsMigrationTests
     private const string CaseId = RepairSpecInUseOnCreateMigrationTests.CaseId;
     private const string Recorded = "2031-05-06T10:30:00+00:00";
 
-    private static readonly Guid GuideId = Guid.Parse("a7000000-0000-0000-0000-000000000001");
+    private static readonly JsonSerializerOptions SnapshotJson = new(JsonSerializerDefaults.Web);
+    private static readonly Guid GuideId =Guid.Parse("a7000000-0000-0000-0000-000000000001");
     private static readonly Guid TowBarId = Guid.Parse("a7000000-0000-0000-0000-000000000002");
     private static readonly DateTimeOffset GuideStamp = new(2031, 5, 6, 10, 30, 0, 123, TimeSpan.Zero);
 
@@ -131,7 +132,7 @@ public sealed class AppliedValuationCalculationRowsMigrationTests
             (Id, WorkId, SnapshotJson, CalculationPolicyVersion, GeneratedByKind, GeneratedBySubjectId,
              SnapshotHash, AcceptedEngineerValue, AcceptedBy, AcceptedAtUtc, Reason, PolicyVersion)
         VALUES
-            ('{{id}}', '{{CaseId}}', N'{{JsonSerializer.Serialize(snapshot, new JsonSerializerOptions(JsonSerializerDefaults.Web))}}',
+            ('{{id}}', '{{CaseId}}', N'{{JsonSerializer.Serialize(snapshot, SnapshotJson)}}',
              N'1', N'Staff', N'migration-test', REPLICATE(N'{{hash}}', 64), {{snapshot.Calculation.Proposal}},
              N'migration-test', '{{Recorded}}', N'Migration test', N'1');
 
