@@ -652,32 +652,41 @@ public sealed class IndexModel(
 
         // Once the report is the Case's concern: its readiness while the
         // assessment can open, the current report and whether a send of it
-        // was accepted.
+        // was accepted. Once Report sent is recorded the Case's open tasks are
+        // its step, as the Case page's aside lists them (operator, 6 October
+        // 2026). The snapshot, the current report, its sends and whether a task
+        // is open are independent reads.
         IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
         CaseReportGenerationRecord? currentReport = null;
         var reportSent = false;
-        if (CaseNextAction.ReadsTheReport(workflow))
+        var hasOpenTasks = false;
+        var readsTheReport = CaseNextAction.ReadsTheReport(workflow);
+        var readsOpenTasks = workflow.ReportSentEvidence is not null;
+        if (readsTheReport || readsOpenTasks)
         {
-            // The snapshot, the current report and its sends are independent reads.
             using var reads = new BoundedReads(cancellationToken);
-            var snapshotTask = AssessmentAccessPolicy.For(actor, workflow).CanOpen
+            var snapshotTask = readsTheReport && AssessmentAccessPolicy.For(actor, workflow).CanOpen
                 ? reads.Start(token => _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, reuse: null, token))
                 : null;
-            var currentTask = reads.Start(token => _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, token));
-            var historyTask = reads.Start(token => _reportSendHistory.GetAsync(caseId, CaseWorkSelector.Current, token));
+            var currentTask = readsTheReport
+                ? reads.Start(token => _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, token))
+                : null;
+            var historyTask = readsTheReport
+                ? reads.Start(token => _reportSendHistory.GetAsync(caseId, CaseWorkSelector.Current, token))
+                : null;
+            var openTasksTask = readsOpenTasks
+                ? reads.Start(token => _caseTasks.HasOpenAsync(caseId, token))
+                : null;
             await reads.WhenAllAsync();
             if (snapshotTask?.Result is { } reportInputs)
             {
                 reportBlockers = CaseWorkspaceLabels.Report.InPageOrder(
                     CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons);
             }
-            currentReport = currentTask.Result;
-            reportSent = historyTask.Result.Accepted;
+            currentReport = currentTask?.Result;
+            reportSent = historyTask?.Result.Accepted ?? false;
+            hasOpenTasks = openTasksTask?.Result ?? false;
         }
-        // Once Report sent is recorded the Case's open tasks are its step, as
-        // the Case page's aside lists them (operator, 6 October 2026).
-        var hasOpenTasks = workflow.ReportSentEvidence is not null
-            && await _caseTasks.HasOpenAsync(caseId, cancellationToken);
         var next = CaseNextAction.Of(
             workflow,
             summary.CaseType,
