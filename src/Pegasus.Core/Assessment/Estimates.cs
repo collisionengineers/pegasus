@@ -12,10 +12,8 @@ namespace Pegasus.Core.Assessment;
 /// Which repairer VAT position the repair spec stands on (B04), recorded on
 /// the spec itself, the only owner of the fact. A spec with no recorded
 /// status stands on <see cref="RepairerVatStatuses.Default"/> (operator, 19
-/// October 2026). <see cref="RepairerVatStatus.Unknown"/> remains a stored
-/// state: its totals charge VAT on nothing, it never gates Use repair spec
-/// (v28 P10), and it blocks the report, which would otherwise understate the
-/// repair cost (operator, 27 September 2026). Nothing writes it: a save
+/// October 2026). <see cref="RepairerVatStatus.Unknown"/> is stored nowhere:
+/// live specs and frozen versions were rewritten to Registered (R386), a save
 /// refuses it and a restore records <see cref="RepairerVatStatuses.Default"/>
 /// (R199, R200). The claimant's VAT position never controls estimate VAT.
 /// </summary>
@@ -29,8 +27,7 @@ public enum RepairerVatStatus
 /// <summary>
 /// The repairer VAT status a spec stands on when none was recorded, and the
 /// statuses staff and the tools may choose. <see cref="RepairerVatStatus.Unknown"/>
-/// stays on the enum so a row still stored as Unknown parses and still blocks
-/// the report; it is not a choice.
+/// is the enum's zero value and not a choice.
 /// </summary>
 public static class RepairerVatStatuses
 {
@@ -122,15 +119,6 @@ public sealed record EstimateVatPolicy(
         return new(RepairerVatStatuses.Default, categories, categories != own);
     }
 
-    /// <summary>
-    /// An unknown repairer VAT status with no hand-made override: the totals
-    /// carry no VAT. A new spec does not land here; the unrecorded status is
-    /// <see cref="RepairerVatStatuses.Default"/>. It never gates Use repair
-    /// spec (v28 P10, 18 September 2026).
-    /// </summary>
-    public bool TreatmentPending =>
-        RepairerStatus == RepairerVatStatus.Unknown && !CategoriesOverridden;
-
     public bool Charges(EstimateVatCategories category) => (Categories & category) == category;
 }
 
@@ -172,9 +160,7 @@ public sealed record EstimateRateSnapshot(
 /// <c>Taxable × VatPercent / 100</c>. The percentage never states a
 /// repairer's VAT position: an estimate that records no <see cref="Vat"/>
 /// policy stands on <see cref="RepairerVatStatuses.Default"/> and charges
-/// VAT on all four categories. A policy still stored as
-/// <see cref="RepairerVatStatus.Unknown"/> charges VAT on nothing and blocks
-/// the report; that never gates Use repair spec (v28 P10).
+/// VAT on all four categories.
 /// </remarks>
 public sealed record EstimateDetails(
     string Name,

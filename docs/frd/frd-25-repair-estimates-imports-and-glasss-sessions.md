@@ -514,8 +514,7 @@ repair totals are never invented to get around the estimate contract. The
 repairer's VAT status is recorded on each repair specification, the one
 owner of that fact. The default is Registered and does not block **Use
 repair spec**; Not registered remains a choice. A hand-picked set of VAT
-categories the report has no wording for still blocks. Unknown still blocks
-the report only if a spec is still stored as Unknown
+categories the report has no wording for still blocks
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report)).
 Report readiness reads the status from the Current repair specification; the
 Case records it nowhere else. Supplied, observed, derived and professionally

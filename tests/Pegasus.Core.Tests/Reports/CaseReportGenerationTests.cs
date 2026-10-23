@@ -193,39 +193,6 @@ public sealed class CaseReportGenerationTests
     }
 
     /// <summary>
-    /// A repair spec whose repairer VAT status is Unknown charges VAT on
-    /// nothing, so the report would understate the repair cost: it blocks
-    /// generation (operator, 27 September 2026). The preview names the same
-    /// item, which tells staff where the status is recorded.
-    /// </summary>
-    [Fact]
-    public void AnUnknownRepairerVatStatusBlocksGenerationAndThePreviewAlike()
-    {
-        var estimate = Estimate();
-        var unknown = estimate with
-        {
-            Details = estimate.Details with { Vat = EstimateVatPolicy.For(RepairerVatStatus.Unknown) },
-        };
-
-        var generation = CaseReportReadiness.Evaluate(ReadyInput() with { CurrentEstimate = unknown });
-        var preview = AssessmentReportProjection.Prepare(
-            AssessmentReportProjectionTests.ReadyAssessment(),
-            unknown,
-            new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
-
-        var reason = AssertBlocked(generation, CaseReportReadiness.RepairerVatRequirement);
-        Assert.Equal(CaseReportReadiness.RepairerVatStatusUnknown, reason);
-        Assert.Equal(reason, Assert.Single(generation.Reasons));
-        Assert.Equal(reason, Assert.Single(preview.Reasons));
-        Assert.Equal(
-            "The Current repair spec does not say whether the repairer is VAT registered, so the report cannot work out the VAT.",
-            reason.WhyOutstanding);
-        Assert.Equal(
-            "Choose Registered or Not registered as the Repairer VAT status on the Repair Spec section.",
-            reason.HowToResolve);
-    }
-
-    /// <summary>
     /// The template words VAT on every cost and VAT on parts and paint only.
     /// Any other hand-picked set has no accepted wording, whatever the
     /// status, so it blocks generation and the preview too.
@@ -233,7 +200,6 @@ public sealed class CaseReportGenerationTests
     [Theory]
     [InlineData(RepairerVatStatus.Registered, EstimateVatCategories.Labour)]
     [InlineData(RepairerVatStatus.NotRegistered, EstimateVatCategories.Parts | EstimateVatCategories.Specialist)]
-    [InlineData(RepairerVatStatus.Unknown, EstimateVatCategories.All)]
     public void AVatTreatmentTheTemplateCannotWordBlocksGenerationAndThePreviewAlike(
         RepairerVatStatus status, EstimateVatCategories categories)
     {
@@ -253,12 +219,7 @@ public sealed class CaseReportGenerationTests
             new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
 
         var reason = AssertBlocked(generation, CaseReportReadiness.RepairerVatRequirement);
-        // An unknown status is named first: recording it is what staff do.
-        Assert.Equal(
-            status == RepairerVatStatus.Unknown
-                ? CaseReportReadiness.RepairerVatStatusUnknown
-                : CaseReportReadiness.RepairerVatHandPicked,
-            reason);
+        Assert.Equal(CaseReportReadiness.RepairerVatHandPicked, reason);
         Assert.Equal(reason, Assert.Single(preview.Reasons));
         Assert.Contains("on the Repair Spec section", reason.HowToResolve, StringComparison.Ordinal);
     }

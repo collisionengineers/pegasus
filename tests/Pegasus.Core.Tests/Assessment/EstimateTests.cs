@@ -645,18 +645,16 @@ public sealed class EstimateTests
         var details = new EstimateDetails("Repairer", 40m, null, 20m);
 
         Assert.Equal(EstimateVatPolicy.For(RepairerVatStatus.Registered), details.VatPolicy);
-        Assert.False(details.VatPolicy.TreatmentPending);
     }
 
     [Fact]
     public void AnUnknownRepairerVatStatusNoLongerGatesUseAsCurrent()
     {
         // v28 P10: Use repair spec is simply available; an unknown status
-        // means the totals carry no VAT, which the policy still names.
+        // means the totals carry no VAT.
         var unknown = Estimate(
             Header(rate: 40m, vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
             Line("repair", workUnits: 1m));
-        Assert.True(unknown.Details.VatPolicy.TreatmentPending);
         Assert.Equal(0m, EstimateTotals.Compute(unknown).Printed.Vat);
         EstimatePolicy.ValidateSetCurrent(unknown, Engineer);
 
@@ -667,7 +665,6 @@ public sealed class EstimateTests
                 Vat = new(RepairerVatStatus.Unknown, EstimateVatCategories.Parts, true),
             },
         };
-        Assert.False(overridden.Details.VatPolicy.TreatmentPending);
         EstimatePolicy.ValidateSetCurrent(overridden, Engineer);
     }
 

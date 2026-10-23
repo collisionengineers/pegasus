@@ -378,14 +378,12 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
-    /// Issue 898: a repairer VAT blocker opens the Repair Spec for editing on
-    /// the Current spec, with the control that clears it named for focus,
+    /// Issue 898: the repairer VAT blocker opens the Repair Spec for editing
+    /// on the Current spec, with the control that clears it named for focus,
     /// from the readiness list and from the Next action alike.
     /// </summary>
-    [Theory]
-    [InlineData(false, "#estimate-vat-status")]
-    [InlineData(true, "[data-vat-reset]")]
-    public async Task ARepairerVatBlockerOpensTheRepairSpecOnTheControlThatClearsIt(bool handPicked, string focus)
+    [Fact]
+    public async Task ARepairerVatBlockerOpensTheRepairSpecOnTheControlThatClearsIt()
     {
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         var caseId = Guid.NewGuid();
@@ -394,17 +392,13 @@ public sealed partial class AssessmentReportDraftWebTests
         {
             Details = ready.Details with
             {
-                Vat = handPicked
-                    ? new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true)
-                    : EstimateVatPolicy.For(RepairerVatStatus.Unknown),
+                Vat = new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true),
             },
         };
         var source = new FakeProjectionSource(ReadyInput(caseId));
         source.Readiness = source.Readiness with { CurrentEstimate = estimate };
         var blocker = Assert.Single(CaseReportReadiness.Evaluate(source.Readiness).Reasons);
-        Assert.Equal(
-            handPicked ? CaseReportReadiness.RepairerVatHandPicked : CaseReportReadiness.RepairerVatStatusUnknown,
-            blocker);
+        Assert.Equal(CaseReportReadiness.RepairerVatHandPicked, blocker);
         using var factory = Compose(
             baseFactory, new FakeGetCase(caseId), FullAssessmentProjection(caseId), source, new FakeRenderer([1]),
             currentSpecification: estimate);
@@ -423,7 +417,7 @@ public sealed partial class AssessmentReportDraftWebTests
             Assert.Contains($"action=\"/Cases/{caseId:D}?handler=ClaimLease\"", place, StringComparison.Ordinal);
             Assert.Contains("name=\"section\" value=\"estimate\"", place, StringComparison.Ordinal);
             Assert.Contains($"name=\"estimate\" value=\"{estimate.SpecificationId:D}\"", place, StringComparison.Ordinal);
-            Assert.Contains($"data-edit-focus=\"{focus}\"", place, StringComparison.Ordinal);
+            Assert.Contains("data-edit-focus=\"[data-vat-reset]\"", place, StringComparison.Ordinal);
             Assert.DoesNotContain("data-section-jump", place, StringComparison.Ordinal);
         }
     }

@@ -563,28 +563,6 @@ public sealed class AssessmentReportProjectionTests
     }
 
     /// <summary>
-    /// A repair spec whose repairer VAT status is Unknown charges VAT on
-    /// nothing, so its report would understate the repair cost: it blocks the
-    /// report (operator, 27 September 2026). The preview and generation name
-    /// the one item, and its resolution says where to record the status.
-    /// </summary>
-    [Fact]
-    public void AnUnknownRepairerVatStatusIsNotReady()
-    {
-        var estimate = CurrentEstimate(
-            new("Repairer", 45m, 15m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
-            materials: 60m);
-
-        var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = estimate });
-
-        var reason = AssertNotReady(result, CaseReportReadiness.RepairerVatRequirement);
-        Assert.Equal(CaseReportReadiness.RepairerVatStatusUnknown, reason);
-        Assert.Equal("Repairer VAT status", reason.Requirement);
-        Assert.Contains("on the Repair Spec section", reason.HowToResolve, StringComparison.Ordinal);
-        Assert.Equal(reason, Assert.Single(result.Reasons));
-    }
-
-    /// <summary>
     /// Recording the status does not by itself word a hand-picked set of
     /// costs: the template words VAT on everything and VAT on parts and paint
     /// only, so any other set blocks the report too.

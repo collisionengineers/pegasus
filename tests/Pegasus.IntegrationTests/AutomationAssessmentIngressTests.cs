@@ -1500,7 +1500,6 @@ public sealed class AutomationAssessmentIngressTests
             var saved = await store.GetVersionAsync(caseId, estimateId, CancellationToken.None);
             Assert.NotNull(saved);
             Assert.Equal(RepairerVatStatus.Registered, saved.Details.VatPolicy.RepairerStatus);
-            Assert.False(saved.Details.VatPolicy.TreatmentPending);
             // An omitted status is Registered and is no refusal. The AI lines
             // are the Draft's own; Use repair spec is a staff member's choice.
             EstimatePolicy.ValidateSetCurrent(
@@ -1610,7 +1609,6 @@ public sealed class AutomationAssessmentIngressTests
                 }));
         var estimate = (await ReadStructuredContentAsync(response)).GetProperty("estimate");
         Assert.Equal("Registered", estimate.GetProperty("repairerVatStatus").GetString());
-        Assert.False(estimate.GetProperty("vatTreatmentPending").GetBoolean());
         var line = Assert.Single(estimate.GetProperty("lines").EnumerateArray());
         Assert.False(line.GetProperty("unpriced").GetBoolean());
         Assert.Equal(100m, line.GetProperty("price").GetDecimal());

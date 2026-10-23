@@ -64,10 +64,6 @@ internal static class EstimateDocumentLayout
             row.Spacing(3, Unit.Millimetre);
             Badge(row.AutoItem(), snapshot.Status, Charcoal);
             Badge(row.AutoItem(), Route(snapshot.Route), Brand);
-            if (snapshot.VatTreatmentPending)
-            {
-                Badge(row.AutoItem(), "VAT treatment pending", Charcoal);
-            }
             if (snapshot.UnpricedItemCount > 0)
             {
                 Badge(row.AutoItem(), $"Unpriced items: {snapshot.UnpricedItemCount}", Charcoal);
@@ -154,7 +150,7 @@ internal static class EstimateDocumentLayout
                 columns.RelativeColumn();
             });
             IdentityRow(table, "Claimant", snapshot.ClaimantName, "Registration", snapshot.Registration);
-            IdentityRow(table, "Vehicle", snapshot.VehicleDescription, "Repairer VAT", VatStatus(snapshot.Totals.VatPolicy));
+            IdentityRow(table, "Vehicle", snapshot.VehicleDescription, "Repairer VAT", VatStatus(snapshot.Totals.VatPolicy.RepairerStatus));
         });
 
     private static void IdentityRow(
@@ -330,11 +326,10 @@ internal static class EstimateDocumentLayout
         _ => throw new ReportRenderRejectedException("The estimate document has an unsupported source route."),
     };
 
-    private static string VatStatus(EstimateVatPolicy policy) => policy.RepairerStatus switch
+    private static string VatStatus(RepairerVatStatus status) => status switch
     {
         RepairerVatStatus.Registered => "Registered",
         RepairerVatStatus.NotRegistered => "Not registered",
-        RepairerVatStatus.Unknown when policy.CategoriesOverridden => "Categories selected",
         _ => "Unknown",
     };
 

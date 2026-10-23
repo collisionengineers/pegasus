@@ -213,29 +213,25 @@ public sealed class AssessmentReportRenderingTests
     }
 
     /// <summary>
-    /// An unknown repairer VAT status, and a hand-picked set of costs the
-    /// template has no words for, has no VAT row: the report is refused
-    /// rather than printed with a row nobody accepted.
+    /// A hand-picked set of costs the template has no words for has no VAT
+    /// row: the report is refused rather than printed with a row nobody
+    /// accepted.
     /// </summary>
     [Fact]
     public void AVatTreatmentTheTemplateCannotWordHasNoRowAndFailsClosed()
     {
-        Assert.Null(ReportRepairCosts.VatLabelOf(EstimateVatPolicy.For(RepairerVatStatus.Unknown), 20m));
-        Assert.Null(ReportRepairCosts.VatLabelOf(
-            new EstimateVatPolicy(RepairerVatStatus.Unknown, EstimateVatCategories.All, CategoriesOverridden: true),
-            20m));
-        Assert.Null(ReportRepairCosts.VatLabelOf(
-            new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Labour, CategoriesOverridden: true),
-            20m));
+        var labourOnly = new EstimateVatPolicy(
+            RepairerVatStatus.Registered, EstimateVatCategories.Labour, CategoriesOverridden: true);
+        Assert.Null(ReportRepairCosts.VatLabelOf(labourOnly, 20m));
 
         var registered = Costs(20m);
-        var unknown = registered with
+        var handPicked = registered with
         {
-            Totals = registered.Totals with { VatPolicy = EstimateVatPolicy.For(RepairerVatStatus.Unknown) },
+            Totals = registered.Totals with { VatPolicy = labourOnly },
         };
 
-        Assert.Null(unknown.VatLabel);
-        var refusal = Assert.Throws<ReportRenderRejectedException>(unknown.Validate);
+        Assert.Null(handPicked.VatLabel);
+        var refusal = Assert.Throws<ReportRenderRejectedException>(handPicked.Validate);
         Assert.Contains("the Repair Spec section", refusal.Message, StringComparison.Ordinal);
     }
 

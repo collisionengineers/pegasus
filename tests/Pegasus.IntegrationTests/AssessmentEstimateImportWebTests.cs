@@ -1314,9 +1314,9 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// Issue 898: choosing Registered on a spec whose VAT status was Unknown,
-    /// with the VAT charged on boxes left as they were, records what a
-    /// registered repairer charges, so the report can word its VAT.
+    /// Issue 898: choosing Registered on a spec whose VAT status was Not
+    /// registered, with the VAT charged on boxes left as they were, records
+    /// what a registered repairer charges, so the report can word its VAT.
     /// </summary>
     [Fact]
     public async Task ChoosingARepairerStatusWithTheBoxesLeftAloneChargesThatStatusesCategories()
@@ -1324,9 +1324,10 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
         var draft = DraftSpecification(caseId);
+        var notRegistered = EstimateVatPolicy.For(RepairerVatStatus.NotRegistered);
         var existing = draft with
         {
-            Details = draft.Details with { Vat = EstimateVatPolicy.For(RepairerVatStatus.Unknown) },
+            Details = draft.Details with { Vat = notRegistered },
         };
         store.WorkingEstimate = existing;
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
@@ -1352,7 +1353,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                     ("lineQuantity", "1"),
                     ("linePartPounds", "620.20"))
                     .Concat(HeaderFields(
-                        new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.None, false),
+                        notRegistered with { RepairerStatus = RepairerVatStatus.Registered },
                         EstimateDiscounts.None))));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
@@ -1554,7 +1555,6 @@ public sealed partial class AssessmentEstimateImportWebTests
             EstimateVatCategories.Parts | EstimateVatCategories.Materials,
             saved.Details.Vat.Categories);
         Assert.True(saved.Details.Vat.CategoriesOverridden);
-        Assert.False(saved.Details.Vat.TreatmentPending);
         Assert.Equal(EstimateDiscounts.None, saved.Details.Discounts);
 
         Assert.Equal(store.LastCreatedEstimateId, store.InUse!.SpecificationId);
@@ -1625,7 +1625,6 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var client = CreateEngineerClient(factory);
 
         Assert.Equal(RepairerVatStatus.Registered, draft.Details.VatPolicy.RepairerStatus);
-        Assert.False(draft.Details.VatPolicy.TreatmentPending);
         var html = await EnterEditModeAsync(
             client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
 

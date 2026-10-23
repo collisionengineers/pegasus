@@ -13,10 +13,7 @@ public sealed class EstimateDocumentRenderingTests
     public void ForMapsEveryDocumentColumnAdjustmentAndCompletenessFact()
     {
         var estimate = Estimate(
-            Details(
-                rate: 50m,
-                otherCosts: 8.76m,
-                vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
+            Details(rate: 50m, otherCosts: 8.76m),
             Line("new_part", 1, description: null, guideCode: "PANEL", partNumber: "PN-42",
                 quantity: null, workUnits: 0.25m, materials: 3.21m, price: 20m),
             Line("specialist_fixed", 2, description: "Tyre", workUnits: 1m, price: null, unpriced: true));
@@ -27,7 +24,6 @@ public sealed class EstimateDocumentRenderingTests
 
         Assert.Equal(3.21m, snapshot.Totals.Printed.Materials);
         Assert.Equal(8.76m, snapshot.OtherCosts);
-        Assert.True(snapshot.VatTreatmentPending);
         Assert.Equal(1, snapshot.UnpricedItemCount);
         Assert.Collection(snapshot.Lines,
             line =>
