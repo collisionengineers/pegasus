@@ -258,7 +258,9 @@ public sealed partial class AutomationConnectorAuthorizationTests
             "pegasus_report_action",
             "pegasus_report_list",
             "pegasus_report_wording_get",
-            "pegasus_report_wording_save"
+            "pegasus_report_wording_save",
+            "pegasus_upload_begin",
+            "pegasus_upload_part"
         ];
 
         // The connector token reaches the server of each consented scope and
