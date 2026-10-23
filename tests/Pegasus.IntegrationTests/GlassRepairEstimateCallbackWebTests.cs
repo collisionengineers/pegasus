@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
@@ -1238,6 +1239,12 @@ public sealed class GlassRepairEstimateCallbackWebTests
         /// <summary>How long a Glass's window may wait on its background work before the test fails.</summary>
         private static readonly TimeSpan WorkTimeout = TimeSpan.FromSeconds(30);
 
+        /// <summary>
+        /// How long one wait for an end lasts before the state is read again,
+        /// because the work releases its record just after it signals.
+        /// </summary>
+        private static readonly TimeSpan ReadAgain = TimeSpan.FromSeconds(1);
+
         private readonly IntakeWebApplicationFactory baseFactory;
         private readonly WebApplicationFactory<Program> factory;
         private readonly WorkEnded workEnded;
@@ -1507,10 +1514,13 @@ public sealed class GlassRepairEstimateCallbackWebTests
         /// Waits in the Glass's window for its background work, then continues:
         /// while the window says work is pending it waits for the host to end
         /// one piece of it. The turn is taken before the state is read, so an
-        /// end between the two is never missed.
+        /// end between the two is never missed. The work signals just before it
+        /// releases its record, so a wait that outlasts <see cref="ReadAgain"/>
+        /// reads the state again; all of it is bounded by <see cref="WorkTimeout"/>.
         /// </summary>
         public async Task<HttpResponseMessage> FollowAsync(string opening)
         {
+            var deadline = Stopwatch.StartNew();
             while (true)
             {
                 var ends = workEnded.Next;
@@ -1519,13 +1529,17 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     break;
                 }
 
+                if (deadline.Elapsed > WorkTimeout)
+                {
+                    Assert.Fail("The Glass's background work did not finish.");
+                }
+
                 try
                 {
-                    await ends.WaitAsync(WorkTimeout);
+                    await ends.WaitAsync(ReadAgain);
                 }
                 catch (TimeoutException)
                 {
-                    Assert.Fail("The Glass's background work did not finish.");
                 }
             }
 
