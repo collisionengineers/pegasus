@@ -13,8 +13,8 @@ namespace Pegasus.IntegrationTests;
 /// The Case-filing replay's page against SQL Server: one statement for the
 /// page and one grouped read of its plans, eligibility decided in SQL as
 /// <see cref="CaseFilingTargetRule"/> decides it, the pipeline's associations
-/// windowed on the server's clock, and the replay history it records
-/// (#1498, #1499; R189, R190, R377-R379).
+/// windowed from the cutoff Core passes in, and the replay history it records
+/// (#1498, #1499; R189, R190, R377, R378).
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseFilingReplayListingTests
@@ -108,9 +108,9 @@ public sealed class CaseFilingReplayListingTests
     }
 
     /// <summary>
-    /// R189 as read by R377 and R379: a pipeline association is listed for
-    /// the existing two hours after it was made, by the SQL server's clock; a
-    /// member of staff's is not windowed.
+    /// R189 as read by R377: a pipeline association is listed for the
+    /// existing two hours after it was made; a member of staff's is not
+    /// windowed.
     /// </summary>
     [Fact]
     public async Task TheCutoffKeepsStaffAndDropsAnOldSystemAssociation()
@@ -266,31 +266,40 @@ public sealed class CaseFilingReplayListingTests
     }
 
     /// <summary>
-    /// T6: an exhausted replay leaves the work item completed, so a later
-    /// link of the receipt is listed again and its filing runs.
+    /// The listing names only a source the filer selects, so a listed pair
+    /// is never one the filer answers has nothing to file, which would leave
+    /// no row and be listed again every tick.
     /// </summary>
-    [Fact]
-    public async Task AnExhaustedReplayKeepsTheWorkItemCompletedAndALaterStaffLinkIsReplayed()
+    [Theory]
+    [InlineData("short-hash")]
+    [InlineData("blank-file-name")]
+    [InlineData("blank-media-type")]
+    [InlineData("blank-storage-key")]
+    public async Task ASourceTheFilerWouldNotSelectIsNotListed(string row)
     {
         await using var harness = await Harness.CreateAsync();
         var seeded = await harness.AddReceiptAsync(
             await harness.AddCaseAsync(CaseLifecycleState.Review),
-            ActorKind.SystemWorker,
+            ActorKind.Staff,
             DateTimeOffset.UtcNow.AddMinutes(-5));
-        await harness.Sweep(new ScriptedPromotionStore(new InvalidOperationException("Not retried.")))
-            .ExecuteAsync(20);
+        Assert.Single(await harness.ListAsync());
+        await using (var context = await harness.Database.CreateContextAsync())
+        {
+            var source = context.IntakeAssets.Where(item => item.IntakeReceiptId == seeded.ReceiptId);
+            _ = row switch
+            {
+                "short-hash" => await source.ExecuteUpdateAsync(update =>
+                    update.SetProperty(item => item.ContentHash, "d")),
+                "blank-file-name" => await source.ExecuteUpdateAsync(update =>
+                    update.SetProperty(item => item.FileName, " ")),
+                "blank-media-type" => await source.ExecuteUpdateAsync(update =>
+                    update.SetProperty(item => item.MediaType, " ")),
+                _ => await source.ExecuteUpdateAsync(update =>
+                    update.SetProperty(item => item.StorageKey, " "))
+            };
+        }
+
         Assert.Empty(await harness.ListAsync());
-
-        await harness.RelinkAsync(seeded.ReceiptId, DateTimeOffset.UtcNow.AddSeconds(1), ActorKind.Staff);
-        var promotion = new ScriptedPromotionStore(null);
-        var replay = await harness.Sweep(promotion).ExecuteAsync(20);
-
-        Assert.Equal(new ReplayCaseFilingsResult(1, 1, 0, 0, 0), replay);
-        Assert.Equal(1, promotion.Calls);
-        await using var verify = await harness.Database.CreateContextAsync();
-        Assert.Equal(
-            "completed",
-            (await verify.IntakeWorkItems.SingleAsync(item => item.StagedReceiptId == seeded.StagedReceiptId)).State);
     }
 
     [Theory]
@@ -376,7 +385,7 @@ public sealed class CaseFilingReplayListingTests
         public Task<IReadOnlyList<CaseFilingReplayCandidate>> ListAsync(int maximumItems = 50) =>
             Store.ListDueAsync(
                 null,
-                ReplayCaseFilings.SystemAssociationWindow,
+                DateTimeOffset.UtcNow - ReplayCaseFilings.SystemAssociationWindow,
                 DateTimeOffset.UtcNow,
                 maximumItems,
                 default);

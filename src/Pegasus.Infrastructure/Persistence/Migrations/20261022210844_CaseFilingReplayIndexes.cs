@@ -7,10 +7,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
 /// The Case-filing replay reads active intake associations by kind and link
-/// time, the pipeline's from the start of its two-hour window, and joins each
-/// to its receipt's work item, every minute. Each read gets an index that
-/// answers it without scanning the table (R367). Additive: two indexes, no
-/// data change.
+/// time, the pipeline's from the start of its two-hour window and a member of
+/// staff's in full, and joins each to its receipt's work item, every minute.
+/// The association index is filtered to active rows and keyed by kind, so the
+/// pipeline's read is one range from the cutoff; the work-item index is a
+/// seek per association (R367). Additive: two indexes, no data change.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
 [Migration("20261022210844_CaseFilingReplayIndexes")]

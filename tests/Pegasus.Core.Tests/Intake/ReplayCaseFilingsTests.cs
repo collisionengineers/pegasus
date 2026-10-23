@@ -105,7 +105,7 @@ public sealed class ReplayCaseFilingsTests
     }
 
     [Fact]
-    public async Task TheStoreIsAskedForTheTwoHourWindowAndTheSweepsOwnTime()
+    public async Task TheStoreIsAskedForTheTwoHourCutoffAndTheSweepsOwnTime()
     {
         var harness = new Harness();
         harness.Add();
@@ -114,7 +114,7 @@ public sealed class ReplayCaseFilingsTests
 
         var page = Assert.Single(harness.Store.Pages);
         Assert.Null(page.After);
-        Assert.Equal(TimeSpan.FromHours(2), page.Window);
+        Assert.Equal(Now.AddHours(-2), page.Cutoff);
         Assert.Equal(Now, page.NowUtc);
         Assert.Equal(5, page.MaximumItems);
     }
@@ -148,7 +148,23 @@ public sealed class ReplayCaseFilingsTests
         Assert.Equal([due.ReceiptId], harness.Promotion.Prepared);
         Assert.DoesNotContain(early.ReceiptId, harness.Promotion.Prepared);
         Assert.Equal(1, result.Candidates);
-        Assert.Equal(1, result.Filed);
+        Assert.Empty(harness.Store.Records);
+    }
+
+    /// <summary>
+    /// A filer answer that nothing is left to file filed nothing, so the
+    /// result does not count it as filed.
+    /// </summary>
+    [Fact]
+    public async Task NothingLeftToFileIsNotCountedAsFiled()
+    {
+        var harness = new Harness();
+        harness.Add();
+
+        var result = await harness.Sweep.ExecuteAsync(5);
+
+        Assert.Single(harness.Promotion.Prepared);
+        Assert.Equal(new ReplayCaseFilingsResult(1, 0, 0, 0, 0), result);
         Assert.Empty(harness.Store.Records);
     }
 
@@ -212,7 +228,7 @@ public sealed class ReplayCaseFilingsTests
 
     private sealed record ListedPage(
         CaseFilingReplayCursor? After,
-        TimeSpan Window,
+        DateTimeOffset Cutoff,
         DateTimeOffset NowUtc,
         int MaximumItems);
 
@@ -224,12 +240,12 @@ public sealed class ReplayCaseFilingsTests
 
         public Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
             CaseFilingReplayCursor? after,
-            TimeSpan systemAssociationWindow,
+            DateTimeOffset systemAssociationCutoff,
             DateTimeOffset nowUtc,
             int maximumItems,
             CancellationToken cancellationToken)
         {
-            Pages.Add(new(after, systemAssociationWindow, nowUtc, maximumItems));
+            Pages.Add(new(after, systemAssociationCutoff, nowUtc, maximumItems));
             IReadOnlyList<CaseFilingReplayCandidate> page = Candidates
                 .OrderBy(candidate => candidate.LinkedAtUtc)
                 .ThenBy(candidate => candidate.ReceiptId)

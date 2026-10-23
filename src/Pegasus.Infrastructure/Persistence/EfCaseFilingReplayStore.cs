@@ -13,9 +13,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// The Case-filing replay's page and history rows. The page's eligibility
 /// predicate is <see cref="CaseFilingTargetRule"/> in SQL, built from the same
 /// state list (<see cref="IntakePromotionTarget.AutomaticPromotionEligibleStates"/>).
-/// The replay window is read on the SQL server's clock (R379) and the edit
-/// lease at the time Core passes in, so this adapter reads no clock of its
-/// own.
+/// The replay window's cutoff and the edit lease's time are both the ones
+/// Core passes in, so this adapter reads no clock of its own (R191).
 /// </summary>
 internal sealed class EfCaseFilingReplayStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : ICaseFilingReplayStore
@@ -28,14 +27,13 @@ internal sealed class EfCaseFilingReplayStore(
 
     public async Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
         CaseFilingReplayCursor? after,
-        TimeSpan systemAssociationWindow,
+        DateTimeOffset systemAssociationCutoff,
         DateTimeOffset nowUtc,
         int maximumItems,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         var automaticStates = IntakePromotionTarget.AutomaticPromotionEligibleStates;
-        var windowStartSeconds = -systemAssociationWindow.TotalSeconds;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var listed =
             from association in context.IntakeManualAssociations.AsNoTracking()
@@ -50,9 +48,12 @@ internal sealed class EfCaseFilingReplayStore(
                 && work.State == "completed"
                 && receipt.Decision != "image_intake_registered"
                 // R189, R377: a pipeline association files within two hours
-                // of being made; a member of staff's has no window.
-                && (association.ActorKind != SystemWorkerKind
-                    || association.LinkedAtUtc >= DateTimeOffset.UtcNow.AddSeconds(windowStartSeconds))
+                // of being made; a member of staff's has no window. Each
+                // disjunct names its ActorKind, so both are ranges on the
+                // association index's leading column.
+                && ((association.ActorKind == SystemWorkerKind
+                        && association.LinkedAtUtc >= systemAssociationCutoff)
+                    || association.ActorKind != SystemWorkerKind)
                 // CaseFilingTargetRule: not the Case's own origin receipt; a
                 // workflow Case that is not archived, in a state the
                 // association files into and not being edited; or a Triage
@@ -69,11 +70,16 @@ internal sealed class EfCaseFilingReplayStore(
                     || (workflow == null
                         && association.ActorKind != SystemWorkerKind
                         && context.Triage.Any(triage => triage.CaseId == association.CaseId)))
+                // A source the filer selects (PromoteAssociatedIntakeCaseEvidence's
+                // SelectAssets), so a listed pair never has nothing to file.
                 && context.IntakeAssets.Any(asset => asset.IntakeReceiptId == receipt.Id
                     && asset.Kind == "source"
                     && asset.Disposition == "source"
                     && asset.ContentLength > 0
-                    && asset.StorageKey != "")
+                    && asset.ContentHash.Length == 64
+                    && !string.IsNullOrWhiteSpace(asset.StorageKey)
+                    && !string.IsNullOrWhiteSpace(asset.FileName)
+                    && !string.IsNullOrWhiteSpace(asset.MediaType))
                 && !context.IntakeSubmissionGroups.Any(submissionGroup => submissionGroup.DiscardedAtUtc != null
                     && context.IntakeSubmissionGroupMembers.Any(member => member.GroupId == submissionGroup.Id
                         && member.StagedReceiptId == work.StagedReceiptId))

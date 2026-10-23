@@ -66,18 +66,19 @@ public interface ICaseFilingReplayStore
     /// (<c>LinkedAtUtc</c>, receipt) order: each actively associated with a
     /// Case <see cref="CaseFilingTargetRule"/> answers Current for at
     /// <paramref name="nowUtc"/>, with a completed evaluation and a retained
-    /// source, not a discarded group's member, and with neither a completed
-    /// filing on that Case nor a <c>replay_exhausted</c> row since the
-    /// association was made. A pipeline association older than
-    /// <paramref name="systemAssociationWindow"/> by the store's own clock is
-    /// not listed (FRD-22; R379); a member of staff's is listed until it
-    /// files. Each candidate carries its plan's counts, read for the whole
-    /// page at once.
+    /// source the filer can file, not a discarded group's member, and with
+    /// neither a completed filing on that Case nor a <c>replay_exhausted</c>
+    /// row since the association was made. A pipeline association made before
+    /// <paramref name="systemAssociationCutoff"/> is not listed (FRD-22); a
+    /// member of staff's is listed until it files. Each candidate carries its
+    /// plan's counts, read for the whole page at once. The store reads no
+    /// clock of its own.
     /// </summary>
+    /// <param name="systemAssociationCutoff">The start of the pipeline associations' replay window, from Core's clock.</param>
     /// <param name="nowUtc">The time the edit lease is judged at, the clock the filer's own check reads.</param>
     Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
         CaseFilingReplayCursor? after,
-        TimeSpan systemAssociationWindow,
+        DateTimeOffset systemAssociationCutoff,
         DateTimeOffset nowUtc,
         int maximumItems,
         CancellationToken cancellationToken);
@@ -163,10 +164,13 @@ public sealed class ReplayCaseFilings(
                     // A stored terminal custody state: retrying cannot change it.
                     failure = new(candidate, CaseFilingReplayEvent.Exhausted, attempt, "case_custody_failed", nowUtc);
                 }
-                else
+                else if (outcome is AutomaticCaseEvidencePromotionOutcome.Pending
+                    or AutomaticCaseEvidencePromotionOutcome.Confirmed)
                 {
                     filed++;
                 }
+
+                // NotApplicable filed nothing, so it is not counted as filed.
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsTransientFailure(exception))
             {
@@ -245,11 +249,12 @@ public sealed class ReplayCaseFilings(
         CancellationToken cancellationToken)
     {
         var due = new List<CaseFilingReplayCandidate>();
+        var systemAssociationCutoff = nowUtc - SystemAssociationWindow;
         CaseFilingReplayCursor? cursor = null;
         while (true)
         {
             var page = await store.ListDueAsync(
-                cursor, SystemAssociationWindow, nowUtc, maximumItems, cancellationToken);
+                cursor, systemAssociationCutoff, nowUtc, maximumItems, cancellationToken);
             foreach (var candidate in page)
             {
                 if (IsDue(candidate, nowUtc))

@@ -634,7 +634,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.DoesNotContain(
             await services.GetRequiredService<ICaseFilingReplayStore>().ListDueAsync(
                 null,
-                ReplayCaseFilings.SystemAssociationWindow,
+                services.GetRequiredService<TimeProvider>().GetUtcNow() - ReplayCaseFilings.SystemAssociationWindow,
                 services.GetRequiredService<TimeProvider>().GetUtcNow(),
                 20,
                 default),
@@ -669,6 +669,93 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         await using var verify = await factory.Database.CreateContextAsync();
         Assert.True((await verify.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
     }
+
+    /// <summary>
+    /// T6 (#1499; R190): a Case-filing replay that ends in
+    /// <c>replay_exhausted</c> leaves the receipt's work item completed, so
+    /// when a member of staff later unlinks the pipeline's association and
+    /// links the receipt to the Case, the Worker's replay of the link files
+    /// the evidence there.
+    /// </summary>
+    [Fact]
+    public async Task AnExhaustedReplayKeepsTheWorkItemCompletedAndALaterStaffLinkStillFiles()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var (receipt, stagedReceiptId) = await LinkWithoutFilingAsync(services, caseId);
+
+        // A fault that will not clear on retry exhausts the replay at once.
+        var exhausting = new ReplayCaseFilings(
+            services.GetRequiredService<ICaseFilingReplayStore>(),
+            services.GetRequiredService<IIntakeReceiptQueries>(),
+            new PromoteAssociatedIntakeCaseEvidence(
+                services.GetRequiredService<IIntakeArtifactStore>(),
+                services.GetRequiredService<ICaseArtifactCustody>(),
+                new FaultingPromotionStore(new InvalidOperationException("The promotion plan cannot be read."))),
+            services.GetRequiredService<TimeProvider>());
+        Assert.NotEqual(0, (await exhausting.ExecuteAsync(20)).Exhausted);
+        await using (var exhausted = await factory.Database.CreateContextAsync())
+        {
+            Assert.True(await exhausted.IntakeMutationHistory.AnyAsync(value => value.IntakeReceiptId == receipt.Id
+                && value.CaseId == caseId
+                && value.EventType == "replay_exhausted"));
+            Assert.Equal("completed", await exhausted.IntakeWorkItems
+                .Where(value => value.StagedReceiptId == stagedReceiptId)
+                .Select(value => value.State)
+                .SingleAsync());
+            Assert.False(await exhausted.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
+        }
+
+        var actor = ActionActor.Staff(
+            Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var leases = services.GetRequiredService<IAcquireCaseEditLease>();
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var unlinkLease = await leases.ExecuteAsync(
+            new(caseId, await CaseVersionAsync(services, caseId), actor, $"lease:{Guid.NewGuid():N}"), default);
+        await services.GetRequiredService<IReverseIntakeLink>().ExecuteAsync(
+            new(
+                receipt.Id,
+                caseId,
+                Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receipt.Id, default)).Version,
+                unlinkLease.Version,
+                unlinkLease.Token,
+                actor,
+                $"unlink:{Guid.NewGuid():N}",
+                "Unlinked to link again."),
+            default);
+        var linkLease = await leases.ExecuteAsync(
+            new(caseId, await CaseVersionAsync(services, caseId), actor, $"lease:{Guid.NewGuid():N}"), default);
+        await services.GetRequiredService<ILinkIntake>().ExecuteAsync(
+            new(
+                receipt.Id,
+                caseId,
+                Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receipt.Id, default)).Version,
+                linkLease.Version,
+                linkLease.Token,
+                actor,
+                $"link:{Guid.NewGuid():N}",
+                "Linked to the Case by staff."),
+            default);
+        await services.GetRequiredService<IReleaseCaseEditLease>().ExecuteAsync(
+            new(caseId, actor, $"release:{Guid.NewGuid():N}", linkLease.Token), default);
+
+        // The link's hand-over to the Worker: the replay of the receipt's
+        // completed work, which a failed work item would have made a NoOp.
+        await IntakeWebDriver.ReplayCompletedWorkAsync(services, receipt.Id);
+
+        await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
+        await using var verify = await factory.Database.CreateContextAsync();
+        Assert.Equal("completed", await verify.IntakeWorkItems
+            .Where(value => value.StagedReceiptId == stagedReceiptId)
+            .Select(value => value.State)
+            .SingleAsync());
+    }
+
+    private static async Task<long> CaseVersionAsync(IServiceProvider services, Guid caseId) =>
+        Assert.IsType<CaseWorkflowRecord>(await services.GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(caseId, default)).Version;
 
     private const string ConnexusReport =
         "Engineer Repairable Report Our Ref: 48450/1 Roadworthy: No Connexus Vehicle Assessors";
@@ -789,6 +876,13 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
         var dispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(stagedId, now, TimeSpan.FromMinutes(1), default));
         await store.MarkDispatchedAsync(dispatch.Id, Assert.IsType<string>(dispatch.LeaseToken), now, default);
+    }
+
+    private sealed class FaultingPromotionStore(Exception fault) : IAutomaticCaseEvidencePromotionStore
+    {
+        public Task<AutomaticCaseEvidencePromotionPreparation> PrepareAsync(
+            AutomaticCaseEvidencePromotionRequest request, CancellationToken cancellationToken) =>
+            Task.FromException<AutomaticCaseEvidencePromotionPreparation>(fault);
     }
 
     private sealed class AssociationOnlyPromotionStore : IAutomaticCaseEvidencePromotionStore
