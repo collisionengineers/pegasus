@@ -2059,9 +2059,12 @@ public sealed class CaseWorkspacePersistenceTests
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.NotReady)} WHERE CaseId = {harness.CaseId}");
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.Review)} WHERE CaseId = {harness.CaseId}");
         }
 
+        // The store refuses an unknown Engineer before the readiness gate, so the
+        // hand-off names an enabled one.
+        var engineerId = await SeedDefaultSignOffEngineerAsync(harness);
         // The refused transition never cleared the lease, so the same holder's
         // token is still the live one for the second attempt.
         await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
@@ -2073,7 +2076,7 @@ public sealed class CaseWorkspacePersistenceTests
                     "assign-engineer-refused",
                     "Assign Engineer while the case is demoted",
                     transitionLease.Token,
-                    Guid.NewGuid()),
+                    engineerId),
                 CaseLifecycleState.ReportPreparation,
                 CancellationToken.None));
 

@@ -690,6 +690,10 @@ public sealed class CaseWorkflowPersistenceTests
                     lease.Token),
                 default));
         await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.Review);
+        // The store refuses an unknown Engineer before the readiness gate, so the
+        // hand-off names an enabled one.
+        var engineerId = Guid.NewGuid();
+        await harness.SeedStaffAccountAsync(engineerId, true, StaffRole.Engineer);
 
         await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
             harness.Store.AssignEngineerAsync(
@@ -700,7 +704,7 @@ public sealed class CaseWorkflowPersistenceTests
                     "assign-engineer-refused",
                     "Assign Engineer while the record is incomplete",
                     lease.Token,
-                    Guid.NewGuid()),
+                    engineerId),
                 CaseLifecycleState.ReportPreparation,
                 default));
 
