@@ -220,10 +220,10 @@ lease; the later image merge also yields to a live lease and rechecks the
 current associations in its own transaction. Filing the associated mail's
 evidence is a separate Case mutation: it yields to a live editor and rechecks
 the association, the archive, the Case's state and a live edit lease before
-each custody attempt and confirmation. A later retry finds the lease
-released, so a finished staff edit never strands retained files. Retroactive filing within the replay window only: the sweep files to
-a Case that becomes eligible inside the bounded replay window it already
-has, the existing two hours
+each custody attempt and confirmation. A later retry finds the lease released,
+so a finished staff edit never strands retained files. Retroactive filing
+within the replay window only: the sweep files to a Case that becomes eligible
+inside the bounded replay window it already has, the existing two hours
 ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)) from the
 association's link, for system associations only; staff links keep the
 live-edit rule above; after the window the mail stays No Case Found for a
