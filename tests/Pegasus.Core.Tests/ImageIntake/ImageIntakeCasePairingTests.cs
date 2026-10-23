@@ -509,6 +509,49 @@ public sealed class ImageIntakeCasePairingTests
     }
 
     [Fact]
+    public async Task AStaffGroupCompletionReadsTheDestinationOnceAndLinksEachMemberAgainstTheVersionTheLastLinkRecorded()
+    {
+        var receiptId = Guid.NewGuid();
+        var firstImage = Guid.NewGuid();
+        var secondImage = Guid.NewGuid();
+        var detail = new ImageIntakeDetail(
+            new ImageIntakeRecord(
+                Guid.NewGuid(),
+                new ImageIntakeOrigin(
+                    receiptId,
+                    new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, "token"),
+                    new string('a', 64),
+                    Guid.NewGuid()),
+                "AB12CDE",
+                "AB12CDE-01"),
+            DateTimeOffset.UtcNow,
+            CaseId,
+            "QDS26001",
+            AssociatedCaseVersion: 7);
+        var queries = new FakeQueries
+        {
+            StaffDecidedGroup = true,
+            ByOriginReceipt = { [receiptId] = detail },
+            Images = [new(firstImage, "one.png", "image/png"), new(secondImage, "two.png", "image/png")]
+        };
+        var mutationStore = new FakeMutationStore();
+
+        var result = await new ImageIntakeCasePairing(
+                queries, new FakeCandidates(), mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
+            .PairRegisteredReceiptAsync(receiptId, CancellationToken.None);
+
+        Assert.Equal(new ImageIntakePairingResult(1, 1, 0), result);
+        Assert.Equal([firstImage, secondImage], mutationStore.AutoLinks.Select(link => link.ReceiptId));
+        Assert.Equal([7L, 8L], mutationStore.AutoLinks.Select(link => link.ExpectedCaseVersion));
+        Assert.All(mutationStore.AutoLinks, link => Assert.Equal(0, link.ExpectedStaffOriginAssociationVersion));
+        // The pass read, the first link's destination, the merge and the check
+        // afterwards: the second image adds no read.
+        Assert.Equal(4, queries.OriginReads);
+        // The three members are read once each.
+        Assert.Equal(3, queries.MemberReceiptReads);
+    }
+
+    [Fact]
     public async Task AnAlreadyLinkedAwaitingIntakeRetriesTheMergeWithoutRelinking()
     {
         // AutoLinkAsync already succeeded on a previous pass (or a manual
@@ -619,6 +662,12 @@ public sealed class ImageIntakeCasePairingTests
     {
         public IntakeSourceChannel OriginChannel { get; init; } = IntakeSourceChannel.Mailbox;
 
+        public bool StaffDecidedGroup { get; init; }
+
+        public int OriginReads { get; private set; }
+
+        public int MemberReceiptReads { get; private set; }
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
             int maximumItems, Guid? caseId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>(Unassociated
@@ -704,6 +753,7 @@ public sealed class ImageIntakeCasePairingTests
             Guid intakeReceiptId,
             CancellationToken cancellationToken)
         {
+            OriginReads++;
             if (ByOriginReceipt.TryGetValue(intakeReceiptId, out var detail))
             {
                 return Task.FromResult<ImageIntakeDetail?>(detail);
@@ -719,6 +769,7 @@ public sealed class ImageIntakeCasePairingTests
 
         Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken)
         {
+            MemberReceiptReads++;
             var summary = Unassociated.SingleOrDefault(item => item.OriginReceiptId == id);
             var caseId = ManualLinkedCaseIds.GetValueOrDefault(id)
                 ?? ByOriginReceipt.GetValueOrDefault(id)?.AssociatedCaseId
@@ -730,7 +781,8 @@ public sealed class ImageIntakeCasePairingTests
                 false, "retained", "1", null, null,
                 ManualLinkedCaseId: caseId,
                 ManualAssociationVersion: caseId is null ? null : 0,
-                ManualAssociationActorKind: caseId is not null && OriginChannel == IntakeSourceChannel.ManualUpload
+                ManualAssociationActorKind: caseId is not null
+                    && (OriginChannel == IntakeSourceChannel.ManualUpload || StaffDecidedGroup)
                     ? ActorKind.Staff
                     : null));
         }

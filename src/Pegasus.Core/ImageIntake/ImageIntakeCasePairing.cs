@@ -242,12 +242,27 @@ public sealed class ImageIntakeCasePairing(
             var images = manualImages
                 ?? await imageIntakeStore.ListImagesAsync(detail.Record.Id, cancellationToken);
             var receiptIds = images.Select(image => image.ReceiptId)
-                .Prepend(detail.Record.Origin.ReceiptId).Distinct();
+                .Prepend(detail.Record.Origin.ReceiptId).Distinct().ToArray();
+            // The members not already read are read together, as the manual
+            // path does; a missing receipt still fails at its turn below.
+            var unreadIds = receiptIds.Where(id => !knownReceipts.ContainsKey(id)).ToArray();
+            var unreadReceipts = await Task.WhenAll(unreadIds.Select(
+                id => receiptQueries.GetAsync(id, cancellationToken)));
+            for (var index = 0; index < unreadIds.Length; index++)
+            {
+                if (unreadReceipts[index] is { } unread)
+                {
+                    knownReceipts[unreadIds[index]] = unread;
+                }
+            }
+
+            // The staff group destination is read once, for the first member
+            // that needs a link; each link then returns the version it
+            // recorded, which the next member links against.
+            long? staffCaseVersion = null;
             foreach (var memberId in receiptIds)
             {
-                var member = (knownReceipts.TryGetValue(memberId, out var known)
-                        ? known
-                        : await receiptQueries.GetAsync(memberId, cancellationToken))
+                var member = (knownReceipts.TryGetValue(memberId, out var known) ? known : null)
                     ?? throw new KeyNotFoundException("The registered image receipt is unavailable.");
                 if (member.CurrentCaseId == targetId)
                 {
@@ -265,14 +280,18 @@ public sealed class ImageIntakeCasePairing(
                 string reason;
                 if (staffOriginVersion is not null)
                 {
-                    var currentGroup = await imageIntakeStore.GetByOriginReceiptAsync(
-                        detail.Record.Origin.ReceiptId, cancellationToken);
-                    if (currentGroup is null || currentGroup.AssociatedCaseId != targetId
-                        || currentGroup.AssociatedCaseVersion is null)
+                    if (staffCaseVersion is null)
                     {
-                        throw new IntakeAssociationConflictException("The current staff group destination changed.");
+                        var currentGroup = await imageIntakeStore.GetByOriginReceiptAsync(
+                            detail.Record.Origin.ReceiptId, cancellationToken);
+                        if (currentGroup is null || currentGroup.AssociatedCaseId != targetId
+                            || currentGroup.AssociatedCaseVersion is null)
+                        {
+                            throw new IntakeAssociationConflictException("The current staff group destination changed.");
+                        }
+                        staffCaseVersion = currentGroup.AssociatedCaseVersion.Value;
                     }
-                    caseVersion = currentGroup.AssociatedCaseVersion.Value;
+                    caseVersion = staffCaseVersion.Value;
                     reason = "Complete the current reasoned staff group association.";
                 }
                 else
@@ -297,6 +316,10 @@ public sealed class ImageIntakeCasePairing(
                         $"image-intake-associate:{memberId:N}", reason, staffOriginVersion),
                     timeProvider.GetUtcNow(), cancellationToken);
                 linkTarget = linkTarget is null ? null : linkTarget with { CaseVersion = recordedVersion };
+                if (staffOriginVersion is not null)
+                {
+                    staffCaseVersion = recordedVersion;
+                }
             }
 
             await SyncMergeAfterLinkAsync(detail.Record.Origin.ReceiptId, targetId.Value, actor,
