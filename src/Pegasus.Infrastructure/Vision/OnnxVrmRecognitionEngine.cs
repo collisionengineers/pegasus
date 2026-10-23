@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.ML.OnnxRuntime;
 using Pegasus.Core.ImageIntake;
 using SkiaSharp;
@@ -75,9 +76,16 @@ public sealed class OnnxVrmRecognitionEngine : IVrmRecognitionEngine, IDisposabl
                 "The recognition engine dependency could not be initialised.");
         }
 
+        // Array-backed bytes are wrapped in place rather than copied; the pinned array outlives
+        // the data and the codec, which are disposed inside the try before the handle is freed.
+        var pinned = MemoryMarshal.TryGetArray(imageBytes, out var segment)
+            ? GCHandle.Alloc(segment.Array, GCHandleType.Pinned)
+            : default;
         try
         {
-            using var imageData = SKData.CreateCopy(imageBytes.Span);
+            using var imageData = pinned.IsAllocated
+                ? SKData.Create(pinned.AddrOfPinnedObject() + segment.Offset, segment.Count)
+                : SKData.CreateCopy(imageBytes.Span);
             using var codec = SKCodec.Create(imageData);
             if (codec is null)
             {
@@ -105,31 +113,38 @@ public sealed class OnnxVrmRecognitionEngine : IVrmRecognitionEngine, IDisposabl
             try
             {
                 var detectionSize = DetectionDecodeSize(codec);
-                var scaledDetection = detectionSize != codec.Info.Size;
-                using var scaled = scaledDetection
-                    ? SKBitmap.Decode(
+                IReadOnlyList<DetectedPlate> detectedPlates;
+                if (detectionSize != codec.Info.Size)
+                {
+                    // The scaled bitmap is released before any native decode below.
+                    using var scaled = SKBitmap.Decode(
                         codec,
                         new SKImageInfo(
                             detectionSize.Width,
                             detectionSize.Height,
                             codec.Info.ColorType,
-                            codec.Info.AlphaType))
-                    : null;
-                if (!scaledDetection)
+                            codec.Info.AlphaType));
+                    if (scaled is null)
+                    {
+                        return DecodeFailure(state);
+                    }
+
+                    detectedPlates = state.Detector.Detect(
+                        scaled, codec.Info.Width, codec.Info.Height, DetectionScoreThreshold);
+                }
+                else
                 {
                     native = SKBitmap.Decode(codec);
+                    if (native is null)
+                    {
+                        return DecodeFailure(state);
+                    }
+
+                    detectedPlates = state.Detector.Detect(
+                        native, codec.Info.Width, codec.Info.Height, DetectionScoreThreshold);
                 }
 
-                var detectionImage = scaled ?? native;
-                if (detectionImage is null)
-                {
-                    return DecodeFailure(state);
-                }
-
-                var detectedPlates = state.Detector
-                    .Detect(detectionImage, codec.Info.Width, codec.Info.Height, DetectionScoreThreshold)
-                    .ToArray();
-                if (detectedPlates.Length == 0)
+                if (detectedPlates.Count == 0)
                 {
                     return Failure(
                         state,
@@ -175,6 +190,13 @@ public sealed class OnnxVrmRecognitionEngine : IVrmRecognitionEngine, IDisposabl
                 VrmRecognitionOutcomeKind.TechnicalFailure,
                 "recognition_failure",
                 "Plate detection or recognition failed for this image.");
+        }
+        finally
+        {
+            if (pinned.IsAllocated)
+            {
+                pinned.Free();
+            }
         }
     }
 
