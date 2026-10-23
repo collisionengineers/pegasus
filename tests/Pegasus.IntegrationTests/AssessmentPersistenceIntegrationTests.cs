@@ -73,6 +73,55 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             $"The assessment workspace load sent {counter.ExecutedReaderCommands} reader commands; at most 5 are allowed.");
     }
 
+    /// <summary>
+    /// The assessment store reads the current specification's lines in one
+    /// statement, with no read of the specification row of its own, and the
+    /// same one statement answers empty for a Case with no estimate.
+    /// </summary>
+    [Fact]
+    public async Task TheAssessmentStoreReadsTheCurrentSpecificationsLinesInOneStatement()
+    {
+        var counter = new ReaderCommandCounter();
+        await using var harness = await Harness.CreateAsync(counter);
+        var withEstimate = (await harness.AcceptAsync("assessment-store-lines-with")).Identity.CaseId;
+        var without = (await harness.AcceptAsync("assessment-store-lines-without")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var lease = await harness.AcquireLeaseAsync(withEstimate, 0, engineer, "assessment-store-lines-lease");
+        await new EfCaseWorkspaceStore(harness.Factory, harness.Clock).SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                withEstimate, lease.Version, engineer, "assessment-store-lines-save", null, lease.Token)
+            {
+                Estimate = new(null, new("Repairer", 40m, 0m, 20m),
+                    [
+                        new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null),
+                        new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "official", null, Quantity: 1),
+                    ]),
+            },
+            CancellationToken.None);
+        var store = new EfCaseAssessmentStore(harness.Factory, harness.Clock);
+
+        counter.Reset();
+        var read = await store.GetAsync(withEstimate, CaseWorkSelector.Current, CancellationToken.None);
+
+        Assert.NotNull(read);
+        Assert.Equal(2, read.EstimateLines.Count);
+        Assert.Equal(
+            read.EstimateLines.OrderBy(line => line.Position).Select(line => line.Id),
+            read.EstimateLines.Select(line => line.Id));
+        Assert.Single(counter.CommandTexts, text => text.Contains("CaseEstimateLines", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            counter.CommandTexts,
+            text => text.Contains("CaseRepairSpecifications", StringComparison.Ordinal)
+                && !text.Contains("CaseEstimateLines", StringComparison.Ordinal));
+
+        counter.Reset();
+        var empty = await store.GetAsync(without, CaseWorkSelector.Current, CancellationToken.None);
+
+        Assert.NotNull(empty);
+        Assert.Empty(empty.EstimateLines);
+        Assert.Single(counter.CommandTexts, text => text.Contains("CaseEstimateLines", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task ReportDraftGenerationThroughProductionProjectionResolvesSignOffAndFailsClosedWithoutIt()
     {
@@ -2589,11 +2638,19 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
     private sealed class ReaderCommandCounter : DbCommandInterceptor
     {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> commandTexts = new();
         private int executedReaderCommands;
 
         public int ExecutedReaderCommands => Volatile.Read(ref executedReaderCommands);
 
-        public void Reset() => Interlocked.Exchange(ref executedReaderCommands, 0);
+        /// <summary>The SQL of each reader command since the last <see cref="Reset"/>.</summary>
+        public IReadOnlyCollection<string> CommandTexts => commandTexts.ToArray();
+
+        public void Reset()
+        {
+            Interlocked.Exchange(ref executedReaderCommands, 0);
+            commandTexts.Clear();
+        }
 
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command,
@@ -2602,6 +2659,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref executedReaderCommands);
+            commandTexts.Enqueue(command.CommandText);
             return ValueTask.FromResult(result);
         }
     }

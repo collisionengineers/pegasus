@@ -1856,7 +1856,7 @@ public sealed partial class DetailsModel(
                 actor,
                 token))
             : null;
-        var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
+        var caseAiJobs = reads.Start(token => aiJobs.ListOpenForSubjectAsync(id, token));
         await reads.WhenAllAsync();
 
         if (claimSources is not null)
@@ -3428,8 +3428,8 @@ public sealed partial class DetailsModel(
         {
             reason = RepairSpecificationComparison.SupplementaryReasons[0].Code;
         }
-        var baseVersion = (await specificationSnapshots.ListAsync(caseId, existing.SpecificationId, cancellationToken))
-            .FirstOrDefault(version => version.Id == baseId);
+        var baseVersion = await specificationSnapshots.GetAsync(
+            caseId, existing.SpecificationId, baseId, cancellationToken);
         if (baseVersion is null)
         {
             return null;

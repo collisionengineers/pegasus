@@ -1519,7 +1519,7 @@ public sealed class CaseValuationSectionWebTests
         public Task<IReadOnlyList<ValuationPreset>> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ValuationPreset>>([.. presets]);
 
-        public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(subjectId == caseId && pending is not null ? [pending] : []);
 
         public Task<AiJobRecord?> GetPendingMarketResearchAsync(Guid subjectId, CancellationToken cancellationToken) =>

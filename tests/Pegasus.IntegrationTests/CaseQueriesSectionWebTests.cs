@@ -405,7 +405,7 @@ public sealed class CaseQueriesSectionWebTests
     /// <summary>The Case's AI jobs as the page reads them; nothing else is asked of the ledger.</summary>
     private sealed class FixedAiJobs(IReadOnlyList<AiJobRecord> jobs) : IAiJobQueries
     {
-        public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
             Task.FromResult(jobs);
 
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>

@@ -848,7 +848,7 @@ public sealed class MailWorkspaceWebTests
         {
             var jobs = await scope.ServiceProvider
                 .GetRequiredService<IAiJobQueries>()
-                .ListForSubjectAsync(caseId, CancellationToken.None);
+                .ListOpenForSubjectAsync(caseId, CancellationToken.None);
             var job = Assert.Single(jobs);
             Assert.Equal(AiJobKind.QueryResponse, job.Kind);
             Assert.Equal(AiJobSubjectKind.Case, job.SubjectKind);
@@ -869,7 +869,7 @@ public sealed class MailWorkspaceWebTests
         {
             jobId = Assert.Single(await scope.ServiceProvider
                 .GetRequiredService<IAiJobQueries>()
-                .ListForSubjectAsync(caseId, CancellationToken.None)).JobId;
+                .ListOpenForSubjectAsync(caseId, CancellationToken.None)).JobId;
         }
         Assert.DoesNotContain("handler=CreateQueryResponse", rendered, StringComparison.Ordinal);
         Assert.Contains($"data-query-ai-pending=\"{jobId:D}\"", rendered, StringComparison.Ordinal);
@@ -910,7 +910,7 @@ public sealed class MailWorkspaceWebTests
         {
             var job = Assert.Single(await scope.ServiceProvider
                 .GetRequiredService<IAiJobQueries>()
-                .ListForSubjectAsync(caseId, CancellationToken.None));
+                .ListOpenForSubjectAsync(caseId, CancellationToken.None));
             Assert.Equal(AiJobKind.QueryResponse, job.Kind);
             Assert.Equal(caseId, job.SubjectId);
             Assert.Equal(messageId.ToString("D"), job.Instruction);

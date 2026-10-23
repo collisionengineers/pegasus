@@ -109,6 +109,34 @@ public sealed class EfRepairSpecificationSnapshotStore(
         return rows.Select(Map).ToArray();
     }
 
+    public async Task<RepairSpecificationSnapshot?> GetAsync(
+        Guid caseId, Guid specificationId, Guid snapshotId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var row = await context.CaseRepairSpecificationSnapshots.AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.Id == snapshotId
+                    && item.SpecificationId == specificationId
+                    && item.Work.CaseId == caseId,
+                cancellationToken);
+        return row is null ? null : Map(row);
+    }
+
+    public async Task<IReadOnlyList<RepairSpecificationSnapshotSummary>> ListSummariesAsync(
+        Guid caseId, Guid specificationId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await context.CaseRepairSpecificationSnapshots.AsNoTracking()
+            .Where(item => item.Work.CaseId == caseId && item.SpecificationId == specificationId)
+            .OrderBy(item => item.Number)
+            .Select(item => new { item.Id, item.Number, item.Kind, item.CreatedAtUtc, item.Gross })
+            .ToListAsync(cancellationToken);
+        return rows
+            .Select(row => new RepairSpecificationSnapshotSummary(
+                row.Id, row.Number, Enum.Parse<RepairSpecificationSnapshotKind>(row.Kind), row.CreatedAtUtc, row.Gross))
+            .ToArray();
+    }
+
     public async Task<IReadOnlyList<RepairSpecificationSnapshot>> ListForSpecificationsAsync(
         Guid caseId, IReadOnlyCollection<Guid> specificationIds, CancellationToken cancellationToken)
     {

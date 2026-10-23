@@ -394,7 +394,7 @@ public sealed class ServiceHealthTests
         public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the snapshot.");
 
-        public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenForSubjectAsync(
             Guid subjectId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the snapshot.");

@@ -2645,6 +2645,19 @@ public sealed partial class AssessmentEstimateImportWebTests
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>(
                 Snapshots.Where(item => item.CaseId == ownerCaseId && item.SpecificationId == specificationId).ToArray());
 
+        public Task<RepairSpecificationSnapshot?> GetAsync(
+            Guid ownerCaseId, Guid specificationId, Guid snapshotId, CancellationToken cancellationToken) =>
+            Task.FromResult(Snapshots.FirstOrDefault(item =>
+                item.Id == snapshotId && item.CaseId == ownerCaseId && item.SpecificationId == specificationId));
+
+        public Task<IReadOnlyList<RepairSpecificationSnapshotSummary>> ListSummariesAsync(
+            Guid ownerCaseId, Guid specificationId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RepairSpecificationSnapshotSummary>>(
+                Snapshots.Where(item => item.CaseId == ownerCaseId && item.SpecificationId == specificationId)
+                    .Select(item => new RepairSpecificationSnapshotSummary(
+                        item.Id, item.Number, item.Kind, item.CreatedAtUtc, item.Gross))
+                    .ToArray());
+
         public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListForSpecificationsAsync(
             Guid ownerCaseId, IReadOnlyCollection<Guid> specificationIds, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>(
