@@ -298,6 +298,10 @@ internal sealed class DatabaseLessCaseReads :
         Guid intakeReceiptId, CancellationToken cancellationToken) =>
         Refused<ImageIntakeDetail?>(nameof(IImageIntakeQueries));
 
+    Task<ImageIntakeRecord?> IImageIntakeQueries.GetRecordByOriginReceiptAsync(
+        Guid intakeReceiptId, CancellationToken cancellationToken) =>
+        Refused<ImageIntakeRecord?>(nameof(IImageIntakeQueries));
+
     Task<IReadOnlyList<ImageIntakeSummary>> IImageIntakeQueries.SearchByRegistrationAsync(
         string normalizedVehicleRegistration, CancellationToken cancellationToken) =>
         Refused<IReadOnlyList<ImageIntakeSummary>>(nameof(IImageIntakeQueries));
