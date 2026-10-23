@@ -546,9 +546,7 @@ public sealed class EfCaseQueryStore(
     /// The Notes body has its own read so a mounted section does not materialize
     /// documents, correspondence or other Case bodies merely to show history.
     /// Actor names are deliberately resolved in Core, where the actor policy
-    /// already lives. The order is the SQL order alone: newest event first, then
-    /// descending entry id; events with the same instant are tied in SQL Server's
-    /// <c>uniqueidentifier</c> order, as in <see cref="ListHistoryByCursorAsync"/>.
+    /// already lives.
     /// </summary>
     public async Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(
         Guid caseId,
@@ -562,7 +560,11 @@ public sealed class EfCaseQueryStore(
             .ThenByDescending(item => item.Id)
             .Take(200)
             .ToArrayAsync(cancellationToken);
-        return entities.Select(MapHistoryEntry).ToArray();
+        return entities
+            .Select(MapHistoryEntry)
+            .OrderByDescending(item => item.OccurredAtUtc)
+            .ThenByDescending(item => item.EntryId)
+            .ToArray();
     }
 
     /// <summary>
