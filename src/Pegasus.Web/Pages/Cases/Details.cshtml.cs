@@ -1223,6 +1223,12 @@ public sealed partial class DetailsModel(
         return (await frameRead, await workspaceRead);
     }
 
+    /// <summary>
+    /// The sign-off list the report snapshot read this request, kept whether or
+    /// not the assessment can open so the extras do not read it again.
+    /// </summary>
+    private IReadOnlyList<SignOffEngineerProfile>? snapshotSignOffEngineers;
+
     private async Task LoadEngineerSectionsAsync(
         Guid id,
         ActionActor actor,
@@ -1288,6 +1294,7 @@ public sealed partial class DetailsModel(
         UnroadworthyReasonWordings = [.. UnroadworthyReasonBank.Standard, .. saved.Select(item => item.Text)];
         PrincipalSalvageMatrix = salvageMatrix is null ? null : await salvageMatrix;
         var inputs = await reportInputs;
+        snapshotSignOffEngineers = inputs?.Readiness.EligibleSignOffEngineers;
         if (inputs is not null && canOpen)
         {
             var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
@@ -1838,6 +1845,7 @@ public sealed partial class DetailsModel(
             actor,
             AssessmentCanOpen,
             EligibleSignOffEngineers,
+            snapshotSignOffEngineers,
             LeaseToken);
         var activeLease = details.ActiveEditLease;
         var viewerHoldsLease = activeLease is not null
@@ -4965,6 +4973,7 @@ public sealed partial class DetailsModel(
         ActionActor Actor,
         bool AssessmentCanOpen,
         IReadOnlyList<SignOffEngineerProfile> EligibleSignOffEngineers,
+        IReadOnlyList<SignOffEngineerProfile>? SnapshotSignOffEngineers,
         string? LeaseToken);
 
     private sealed record WorkspaceExtras(
@@ -4986,55 +4995,30 @@ public sealed partial class DetailsModel(
         // Where Assign Engineer runs, its choices are the enabled staff, the
         // signed-in person first, as the Triage Assign list reads them (#1213).
         // They name the assigned Engineer too, so that account's name is read on
-        // its own only when the list does not hold it. Where the assessment
-        // cannot open, the sign-off list is read beside the roster; both read on
-        // their own contexts, and the awaits below keep the roster's failure
-        // first, the name's second and the list's last.
+        // its own only when the list does not hold it.
         var viewerStaffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(inputs.Actor);
-        using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
-        var rosterRead = CaseLifecycleRules.CanBeAssigned(workflow.State)
-            ? reads.Start(token => caseEngineerChoices.GetAsync(inputs.Actor, token))
-            : null;
-        var signOffRead = inputs.AssessmentCanOpen
-            ? null
-            : reads.Start(token => staffAccountQueries.ListSignOffEngineersAsync(token));
-        IReadOnlyList<SignOffEngineerProfile> profiles;
-        IReadOnlyList<CaseEngineerChoice> roster;
+        IReadOnlyList<CaseEngineerChoice> roster = CaseLifecycleRules.CanBeAssigned(workflow.State)
+            ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, cancellationToken))
+                .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
+            : [];
         string? engineerDisplayName = null;
-        try
+        if (workflow.AssignedEngineerId is { } engineerId)
         {
-            roster = rosterRead is null
-                ? []
-                : [.. (await rosterRead).OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)];
-            if (workflow.AssignedEngineerId is { } engineerId)
+            engineerDisplayName = roster.FirstOrDefault(listed => listed.StaffId == engineerId)?.DisplayName;
+            if (engineerDisplayName is null)
             {
-                engineerDisplayName = roster.FirstOrDefault(listed => listed.StaffId == engineerId)?.DisplayName;
-                if (engineerDisplayName is null)
-                {
-                    var names = await staffAccountQueries.GetNamesAsync([engineerId], cancellationToken);
-                    engineerDisplayName = names.TryGetValue(engineerId, out var name)
-                        ? name
-                        : ActorDisplayNames.UnknownStaff;
-                }
+                var names = await staffAccountQueries.GetNamesAsync([engineerId], cancellationToken);
+                engineerDisplayName = names.TryGetValue(engineerId, out var name)
+                    ? name
+                    : ActorDisplayNames.UnknownStaff;
             }
-
-            profiles = signOffRead is null ? inputs.EligibleSignOffEngineers : await signOffRead;
-        }
-        catch
-        {
-            // A read still running must not outlive the request.
-            try
-            {
-                await reads.WhenAllAsync();
-            }
-            catch
-            {
-                // The failure being thrown is the first one in order.
-            }
-
-            throw;
         }
 
+        // The sign-off list is the one the report snapshot already read this
+        // request (R276); it is read here only when no snapshot ran.
+        var profiles = inputs.AssessmentCanOpen ? inputs.EligibleSignOffEngineers
+            : inputs.SnapshotSignOffEngineers
+                ?? await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
         var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,

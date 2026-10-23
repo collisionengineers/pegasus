@@ -417,30 +417,41 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
-    /// Where the assessment cannot open, the Case page reads the assigned
-    /// Engineer's name through the cached name read and starts it beside the
-    /// sign-off list rather than after it (efficiency A1-04, A2-09): the name
-    /// read is held until the list has started, so a page that read them one
-    /// after the other would never release it.
+    /// Where the assessment cannot open, the sign-off list the report snapshot
+    /// already read this request is reused (efficiency A2-09, R276): the page
+    /// reads it a second time only when no snapshot ran. The assigned
+    /// Engineer's name is read through the cached name read (A1-04).
     /// </summary>
-    [Fact]
-    public async Task TheAssignedEngineerNameIsReadByNameBesideTheSignOffList()
+    [Theory]
+    [InlineData("a", true, 0)]
+    [InlineData("b", false, 1)]
+    public async Task TheSignOffListTheSnapshotReadIsNotReadAgain(string row, bool snapshotRuns, int expectedListReads)
     {
+        Assert.NotEmpty(row);
         var engineerId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore
         {
             State = CaseLifecycleState.Held,
             AssignedEngineerId = engineerId
         };
-        var staff = new GatedStaffAccounts(engineerId, "Ed Mawdsley");
+        var staff = new CountingStaffAccounts(engineerId, "Ed Mawdsley");
         using var host = new ReadingHost(store, services =>
-            Substitute<IStaffAccountQueries>(services, staff));
+        {
+            Substitute<IStaffAccountQueries>(services, staff);
+            if (snapshotRuns)
+            {
+                Substitute<ICaseReportSnapshotSource>(
+                    services,
+                    new AssessmentReportDraftWebTests.FakeProjectionSource(
+                        AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
+            }
+        });
 
         _ = await host.ReadAsync($"/Cases/{store.CaseId:D}");
 
+        Assert.Equal(expectedListReads, staff.SignOffListReads);
         Assert.Equal(1, staff.EngineerNameReads);
         Assert.Equal(0, staff.SummaryReads);
-        Assert.True(staff.SignOffListStartedBesideTheNameRead);
     }
 
     /// <summary>
@@ -1044,44 +1055,39 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
-    /// Staff reads that answer the assigned Engineer's name only once the
-    /// sign-off list has been asked for, and count the summary reads of that Engineer a name
-    /// never needs.
+    /// Staff reads that count the sign-off list reads, the assigned Engineer's
+    /// name reads and the summary reads of that Engineer a name never needs.
     /// </summary>
-    private sealed class GatedStaffAccounts(Guid engineerId, string userName) : IStaffAccountQueries
+    private sealed class CountingStaffAccounts(Guid engineerId, string userName) : IStaffAccountQueries
     {
-        private readonly TaskCompletionSource signOffListStarted =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
         private int engineerNameReads;
+        private int signOffListReads;
         private int summaryReads;
 
         public int EngineerNameReads => Volatile.Read(ref engineerNameReads);
 
+        public int SignOffListReads => Volatile.Read(ref signOffListReads);
+
         public int SummaryReads => Volatile.Read(ref summaryReads);
 
-        public bool SignOffListStartedBesideTheNameRead { get; private set; }
-
-        public async Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(
+        public Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(
             IReadOnlyCollection<Guid> staffIds,
             CancellationToken cancellationToken)
         {
             if (!staffIds.Contains(engineerId))
             {
-                return new Dictionary<Guid, string>();
+                return Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
             }
 
             Interlocked.Increment(ref engineerNameReads);
-            SignOffListStartedBesideTheNameRead =
-                await Task.WhenAny(signOffListStarted.Task, Task.Delay(TimeSpan.FromSeconds(10), cancellationToken))
-                    == signOffListStarted.Task;
-            return new Dictionary<Guid, string> { [engineerId] = userName };
+            return Task.FromResult<IReadOnlyDictionary<Guid, string>>(
+                new Dictionary<Guid, string> { [engineerId] = userName });
         }
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken)
         {
-            signOffListStarted.TrySetResult();
+            Interlocked.Increment(ref signOffListReads);
             return Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
         }
 
