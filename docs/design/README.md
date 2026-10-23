@@ -164,8 +164,9 @@ the card's list scrolls inside it.
 
 Once an Inspection + Audit Case has its Audit, a **Views** card heads the
 aside, above Figures, in the context-card pattern: two rows, "Inspection ·
-{Case/PO}" with a plain green "Sent" chip when the Inspection report was
-sent (no chip when the Audit was created first) and "Audit · a.{Case/PO}"
+{Case/PO}" with a "Report sent" chip, dot and green as the state chip draws
+it, when the Inspection report was sent (no chip when the Audit was created
+first; operator, 22 October 2026) and "Audit · a.{Case/PO}"
 with the Case's state chip as the ribbon draws it. The current view reads plain
 (`aria-current="page"`) and the other is a link; the Audit view is the
 default. Before the Audit exists, and on a standalone Audit or a Triage Case,

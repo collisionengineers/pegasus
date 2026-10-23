@@ -45,7 +45,6 @@ public static class CaseWorkspaceLabels
         public const string Views = "Views";
         public const string InspectionView = "Inspection";
         public const string AuditView = "Audit";
-        public const string Sent = "Sent";
         /// <summary>The aside card listing the Triage Cases linked to this Case (operator, 7 October 2026).</summary>
         public const string LinkedCases = "Linked cases";
         /// <summary>The Create audit dialog's facts (v29 P5).</summary>

@@ -47,8 +47,8 @@ An Inspection + Audit Case whose Audit has been created has two views of one rec
 24 September 2026; FRD-16):
 
 - The **Views** card is the first card in the aside and renders only once the Case has its Audit.
-  Its rows are "Inspection · {Case/PO}" with a "Sent" chip only when the Inspection report was sent
-  (none when the Audit was created first) and "Audit · a.{Case/PO}" with the Case
+  Its rows are "Inspection · {Case/PO}" with a "Report sent" chip, dot included, only when the Inspection report
+  was sent (none when the Audit was created first) and "Audit · a.{Case/PO}" with the Case
   state chip; the current view is plain, the other a link (`?view=inspection|audit`,
   server-rendered). The Audit view is the default. Without an Audit there is no card and `view`
   is ignored; a standalone Audit and a Triage Case have one view.

@@ -135,7 +135,7 @@ public sealed class CaseViewsWebTests
     /// Once the Case has its Audit, the Views card is the aside's first card
     /// and the page opens on the Audit: its row reads plain with the Case's
     /// state chip exactly as the ribbon renders it, and the Inspection row is
-    /// the link to <c>?view=inspection</c> with its Sent chip.
+    /// the link to <c>?view=inspection</c> with its Report sent chip.
     /// </summary>
     [Fact]
     public async Task TheViewsCardHeadsTheAsideAndTheCaseOpensOnItsAudit()
@@ -158,7 +158,7 @@ public sealed class CaseViewsWebTests
             $"<a href=\"/Cases/{store.CaseId:D}?view=inspection\">{Frame.InspectionView} · {Reference}</a>",
             inspection,
             StringComparison.Ordinal);
-        Assert.Contains($"<span class=\"status status--plain status--green\">{Frame.Sent}</span>", inspection, StringComparison.Ordinal);
+        Assert.Contains($"<span class=\"status status--green\">{OperatorLabels.CaseStage(CaseLifecycleState.ReportSent)}</span>", inspection, StringComparison.Ordinal);
         Assert.DoesNotContain("aria-current", inspection, StringComparison.Ordinal);
 
         var audit = ViewRow(card, "audit");
@@ -172,7 +172,7 @@ public sealed class CaseViewsWebTests
     /// <summary>
     /// Create audit no longer waits for the Inspection report to be sent
     /// (operator, 1 October 2026): an Audit created before that leaves the
-    /// Inspection row without a Sent chip, never with one it did not earn.
+    /// Inspection row without a Report sent chip, never with one it did not earn.
     /// </summary>
     [Fact]
     public async Task TheInspectionRowHasNoSentChipWhenItsReportWasNeverSent()
@@ -189,7 +189,7 @@ public sealed class CaseViewsWebTests
 
         var inspection = ViewRow(ViewsCard(html), "inspection");
         Assert.Contains($"{Frame.InspectionView} · {Reference}</a>", inspection, StringComparison.Ordinal);
-        Assert.DoesNotContain(Frame.Sent, inspection, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.CaseStage(CaseLifecycleState.ReportSent), inspection, StringComparison.Ordinal);
         Assert.DoesNotContain("status--green", inspection, StringComparison.Ordinal);
         // Razor keeps a data- attribute whose value is null, empty: no view is named.
         Assert.DoesNotMatch("data-case-view=\"[^\"]", html);
@@ -316,7 +316,7 @@ public sealed class CaseViewsWebTests
         var reports = new ReportsPerWork(store.CaseId);
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
             Substitute<ICaseReportGenerationStore>(services, reports), keepDatabase: true);
-        var sentLine = $"{Reference} · {Frame.Sent} {OperatorLabels.OfficeTime(InspectionSentAtUtc)}";
+        var sentLine = $"{Reference} · {OperatorLabels.CaseStage(CaseLifecycleState.ReportSent)} {OperatorLabels.OfficeTime(InspectionSentAtUtc)}";
 
         var auditHtml = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
         var auditReport = Section(auditHtml, "section-report-title");
@@ -484,7 +484,7 @@ public sealed class CaseViewsWebTests
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
         var inspectionReport = Section(inspectionHtml, "section-report-title");
-        Assert.DoesNotContain(Frame.Sent, ReportStatus(inspectionReport), StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.CaseStage(CaseLifecycleState.ReportSent), ReportStatus(inspectionReport), StringComparison.Ordinal);
         Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
         Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
         Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);

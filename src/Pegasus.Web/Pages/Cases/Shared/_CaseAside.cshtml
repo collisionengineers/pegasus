@@ -58,7 +58,8 @@
     @* Views (v29 option 4): once the Case has its Audit, its two views,
        each named by the reference its report carries; the current one
        plain, the other a link. The Audit row reads the Case's state
-       chip exactly as the ribbon does. *@
+       chip exactly as the ribbon does; the Inspection row's chip is the
+       same chip in the Report sent stage (operator, 22 October 2026). *@
     @if (Model.Works is { HasAudit: true })
     {
         var inspectionName = $"{Frame.InspectionView} · {workflow.Identity.Reference}";
@@ -79,7 +80,7 @@
                     {
                         @* No chip when the Audit was created before the Inspection
                            report was sent (operator, 1 October 2026). *@
-                        <span class="status status--plain status--green">@Frame.Sent</span>
+                        <partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(Pegasus.Core.Workflow.CaseLifecycleState.ReportSent)" />
                     }
                 </div>
                 <div class="next-row" data-case-view-row="audit">

@@ -277,13 +277,13 @@ Audit and a Triage Case, has one view and no Views card; a `view` value in
 its address is ignored.
 
 **The Views card** heads the aside, above Figures, and exists only once the
-Audit exists. It holds two rows: "Inspection · {Case/PO}" with a "Sent"
-chip when the Inspection report was sent (none when the Audit was created
-first), and "Audit · a.{Case/PO}" with the Case's state chip. The current view
-reads plain and the other is a link. `?view=audit` and `?view=inspection`
-address the two views; the Audit view
-is the default, and a write returns to it. The ribbon is unchanged: its
-heading stays the Case/PO.
+Audit exists. It holds two rows: "Inspection · {Case/PO}" with a
+"Report sent" chip, dot included, when the Inspection report was sent (none
+when the Audit was created first; operator, 22 October 2026), and "Audit ·
+a.{Case/PO}" with the Case's state chip. The current view reads plain
+and the other is a link. `?view=audit` and `?view=inspection` address the
+two views; the Audit view is the default, and a write returns to it. The
+ribbon is unchanged: its heading stays the Case/PO.
 
 **The Audit view** is the Case as it is worked: every section reads and
 edits the Audit's values, and the Actions menu, Next action and the report
