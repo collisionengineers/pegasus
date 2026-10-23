@@ -126,29 +126,43 @@ public sealed class TriageFromIntakeIntegrationTests
 
     /// <summary>
     /// R195 (operator, 22 October 2026): a reply into a thread that already
-    /// holds a Triage, or a message linked to a Case, opens no second Triage.
-    /// The shape a reply actually arrives in is "FW: RE: ...": every QDOS
-    /// message reaches us as a staff forward.
+    /// holds a Triage, or a message linked to a Case, opens no second Triage;
+    /// nor does a request in reply form that intake already linked to a Case
+    /// outside its thread. The shape a reply actually arrives in is
+    /// "FW: RE: ...": every QDOS message reaches us as a staff forward.
     /// </summary>
     [Theory]
     [InlineData("origin")]
     [InlineData("linked")]
+    [InlineData("matched")]
     public async Task AForwardedReplyOnATriageThreadOpensNoSecondTriage(string threadHolds)
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var conversation = $"conversation-{threadHolds}";
-        var firstToken = Guid.NewGuid().ToString("N");
-        await RetainInConversationAsync(factory, firstToken, "Engineer Triage", conversation);
-        var first = threadHolds == "origin"
-            ? IntakeTestEvidence.CreateEngineerTriageRequest("engineer-triage.eml")
-            : IntakeTestEvidence.CreateEmail(
-                "thread-correspondence.eml", "Further to our call this morning, please see the vehicle details below.");
-        var firstReceiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, first, firstToken);
-        if (threadHolds == "linked")
+        Guid? matchedCaseId = null;
+        if (threadHolds == "matched")
         {
-            var caseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, null, "t.QDOS31900");
-            await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, firstReceiptId, caseId);
+            // An instructed Case for the reply's registration and claim
+            // reference, outside its conversation: intake links the reply to
+            // it before the Triage is considered.
+            matchedCaseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+                factory, client, "VO75DFJ", "46246/1");
+        }
+        else
+        {
+            var firstToken = Guid.NewGuid().ToString("N");
+            await RetainInConversationAsync(factory, firstToken, "Engineer Triage", conversation);
+            var first = threadHolds == "origin"
+                ? IntakeTestEvidence.CreateEngineerTriageRequest("engineer-triage.eml")
+                : IntakeTestEvidence.CreateEmail(
+                    "thread-correspondence.eml", "Further to our call this morning, please see the vehicle details below.");
+            var firstReceiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, first, firstToken);
+            if (threadHolds == "linked")
+            {
+                var caseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, null, "t.QDOS31900");
+                await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, firstReceiptId, caseId);
+            }
         }
 
         var replyToken = Guid.NewGuid().ToString("N");
@@ -167,6 +181,10 @@ public sealed class TriageFromIntakeIntegrationTests
                 .GetAsync(replyReceiptId, CancellationToken.None));
         Assert.NotEqual(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.Single(receipt.Evidence, item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
+        if (matchedCaseId is not null)
+        {
+            Assert.Equal(matchedCaseId, receipt.CurrentCaseId);
+        }
         Assert.Null(
             await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
                 .GetByOriginReceiptAsync(replyReceiptId, CancellationToken.None));
@@ -211,6 +229,13 @@ public sealed class TriageFromIntakeIntegrationTests
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None))?.CaseId);
         Assert.Equal("SC10TCJ", triage.NormalizedVehicleRegistration);
         Assert.StartsWith("t.QDOS", triage.Reference, StringComparison.Ordinal);
+
+        // It leaves No Case Found: the message reads the Triage it opened,
+        // the Case that scope reads too (RetainedMailPersistenceTests
+        // NoCaseFoundListsReceivedMailWhoseReceiptStandsLinkedToNoCase).
+        var incoming = await scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>().ListAsync(
+            new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
+        Assert.Equal(triage.CaseId, Assert.Single(incoming.Items, item => item.IntakeReceiptId == receiptId).CaseId);
     }
 
     [Fact]

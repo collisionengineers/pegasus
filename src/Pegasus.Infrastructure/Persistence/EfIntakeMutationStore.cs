@@ -1494,16 +1494,9 @@ internal sealed class EfIntakeMutationStore(
         Guid[] threadCaseIds = [];
         if (!string.IsNullOrWhiteSpace(message.ConversationIdentity))
         {
-            var threadTokens = await context.RetainedMailboxMessages
+            var threadReceiptIds = await CurrentIntakeAssociations
+                .ThreadReceipts(context, message.MailboxId, message.ConversationIdentity)
                 .AsNoTracking()
-                .Where(item => item.MailboxId == message.MailboxId
-                    && item.ConversationIdentity == message.ConversationIdentity)
-                .Select(item => item.ExternalReceiptToken)
-                .ToListAsync(cancellationToken);
-            var threadReceiptIds = await context.IntakeReceipts
-                .AsNoTracking()
-                .Where(item => item.SourceChannel == "mailbox"
-                    && threadTokens.Contains(item.ExternalReceiptToken))
                 .Select(item => item.Id)
                 .ToListAsync(cancellationToken);
             var current = await CurrentIntakeAssociations.ReadAsync(

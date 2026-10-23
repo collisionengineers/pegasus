@@ -619,26 +619,19 @@ public sealed class EfTriageStore(
             return false;
         }
 
-        var threadReceiptIds = await (
-                from message in context.RetainedMailboxMessages.AsNoTracking()
-                where message.MailboxId == thread.MailboxId
-                    && message.ConversationIdentity == thread.ConversationIdentity
-                    && message.ExternalReceiptToken != thread.ExternalReceiptToken
-                join receipt in context.IntakeReceipts on message.ExternalReceiptToken equals receipt.ExternalReceiptToken
-                where receipt.SourceChannel == mailbox
-                select receipt.Id)
-            .ToListAsync(cancellationToken);
-        if (threadReceiptIds.Count == 0)
-        {
-            return false;
-        }
-
-        // A Triage's origin message is linked by the Triage itself, not by an
-        // association row, so the two are read separately.
-        return await context.Triage.AsNoTracking().AnyAsync(
-                item => item.OriginReceiptId != null && threadReceiptIds.Contains(item.OriginReceiptId.Value),
-                cancellationToken)
-            || (await CurrentIntakeAssociations.ReadAsync(context, threadReceiptIds, cancellationToken)).Current.Count > 0;
+        // One statement over the other receipts of the thread. A Triage's
+        // origin message is linked by the Triage itself, not by an
+        // association row, so both are asked.
+        var linked = CurrentIntakeAssociations.LinkedReceiptIds(context);
+        var ownToken = thread.ExternalReceiptToken;
+        return await CurrentIntakeAssociations
+            .ThreadReceipts(context, thread.MailboxId, thread.ConversationIdentity)
+            .AsNoTracking()
+            .AnyAsync(
+                receipt => receipt.ExternalReceiptToken != ownToken
+                    && (context.Triage.Any(item => item.OriginReceiptId == receipt.Id)
+                        || linked.Contains(receipt.Id)),
+                cancellationToken);
     }
 
     /// <summary>

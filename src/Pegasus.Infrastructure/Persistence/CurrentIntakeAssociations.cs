@@ -33,6 +33,34 @@ internal sealed record IntakeAssociations(
 
 internal static class CurrentIntakeAssociations
 {
+    /// <summary>
+    /// The mailbox receipts of one exact mailbox conversation, the thread
+    /// whose associations the mail association evidence and the Triage thread
+    /// test read, as a query either can compose into its own statement.
+    /// </summary>
+    internal static IQueryable<IntakeReceiptEntity> ThreadReceipts(
+        PegasusDbContext context,
+        Guid? mailboxId,
+        string conversationIdentity) =>
+        context.IntakeReceipts.Where(receipt => receipt.SourceChannel == "mailbox"
+            && context.RetainedMailboxMessages.Any(message => message.MailboxId == mailboxId
+                && message.ConversationIdentity == conversationIdentity
+                && message.ExternalReceiptToken == receipt.ExternalReceiptToken));
+
+    /// <summary>
+    /// The receipts that stand linked to a Case now, read as
+    /// <see cref="ReadAsync"/> reads them: an active association row, else an
+    /// accepted link where no association row exists. A query to compose
+    /// into one statement where only whether a link stands matters.
+    /// </summary>
+    internal static IQueryable<Guid> LinkedReceiptIds(PegasusDbContext context) =>
+        context.IntakeReceipts
+            .Where(receipt => context.IntakeManualAssociations.Any(item =>
+                    item.IntakeReceiptId == receipt.Id && item.IsActive)
+                || (!context.IntakeManualAssociations.Any(item => item.IntakeReceiptId == receipt.Id)
+                    && context.CaseIntakeLinks.Any(item => item.IntakeReceiptId == receipt.Id)))
+            .Select(receipt => receipt.Id);
+
     internal static async Task<IntakeAssociations> ReadAsync(
         PegasusDbContext context,
         IReadOnlyCollection<Guid> receiptIds,
