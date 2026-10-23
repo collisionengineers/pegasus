@@ -142,8 +142,8 @@ public sealed class EfStaffAccountQueries(
 
     /// <summary>
     /// Usernames kept in <see cref="StaffAccountReads"/> are served from it and
-    /// the rest read through <see cref="GetManyAsync"/>, which, like the
-    /// single-account read, is never kept. Every account writer in this
+    /// the rest read by id and username alone (no summary columns), in one
+    /// statement. Every account writer in this
     /// process evicts after its commit and the Web runs as one instance
     /// (ADR-0058), so a change made in Pegasus is seen on the next call; a
     /// change made outside it (direct SQL, the intake wipe) is seen once the
@@ -175,10 +175,19 @@ public sealed class EfStaffAccountQueries(
 
         // Taken before the read: a commit that evicts meanwhile refuses the names.
         var generation = accountReads.Generation;
-        foreach (var account in await GetManyAsync(unkept, cancellationToken))
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var accounts = await (
+            from user in context.Users.AsNoTracking()
+            where unkept.Contains(user.Id)
+            select new { user.Id, user.UserName })
+            .ToListAsync(cancellationToken);
+
+        foreach (var account in accounts)
         {
-            names[account.Id] = account.UserName;
-            accountReads.SetName(account.Id, account.UserName, generation);
+            var userName = account.UserName ?? throw new InvalidOperationException(
+                "A staff account has no username.");
+            names[account.Id] = userName;
+            accountReads.SetName(account.Id, userName, generation);
         }
 
         return names;
