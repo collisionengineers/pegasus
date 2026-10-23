@@ -215,6 +215,29 @@ public sealed partial class DetailsModel
         }
     }
 
+    /// <summary>
+    /// Whether the Overview draws Overdue beside Due by (CASE-17, R307, R308):
+    /// an open Case whose persisted due instant the Work Centre's one rule
+    /// (<see cref="Pegasus.Core.Operations.NeedsAttentionPolicy.Priority"/>) reads as Overdue.
+    /// Report sent and the closures never draw it.
+    /// </summary>
+    public bool DueIsOverdue
+    {
+        get
+        {
+            if (Case is not { Summary.DueAtUtc: { } due } details
+                || CaseLifecycleRules.IsClosed(details.Workflow.State))
+            {
+                return false;
+            }
+
+            var now = clock.GetUtcNow();
+            var (_, dayEndUtc, _) = Pegasus.Core.LondonCalendar.DayAndWeekBoundariesAt(now);
+            return Pegasus.Core.Operations.NeedsAttentionPolicy.Priority(due, now, dayEndUtc)
+                == Pegasus.Core.Operations.NeedsAttentionPriority.Overdue;
+        }
+    }
+
     /// <summary>The Case type chip; absent for a plain Inspection.</summary>
     /// <summary>A standalone Audit Case carries the Original report section (v28 P51).</summary>
     public bool IsAuditCase => Case?.Summary.CaseType == CaseType.Audit;

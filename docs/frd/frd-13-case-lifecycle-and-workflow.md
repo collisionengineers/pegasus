@@ -343,8 +343,9 @@ The Engineer who issues a report is not automatically its signatory.
 deadline. On an Inspection + Audit Case, Due by and the completeness gate
 follow the Inspection's values; editing the Audit's copy changes neither.
 The Case page shows **Overdue** beside Due by, by the Overdue rule in
-[FRD-15](frd-15-work-centre-queues-and-search.md#work-centre). This is a
-ruling awaiting delivery (operator ruling, 15 October 2026).
+[FRD-15](frd-15-work-centre-queues-and-search.md#work-centre) on the Case's
+due instant, and only on an open Case: Not ready, Review, With Engineer or On
+hold (operator rulings, 15 and 22 October 2026).
 
 **Chase interval.** One global setting in Workflow configuration, in whole
 calendar days, range 1 to 365, default 7, calculated in Europe/London. When a
