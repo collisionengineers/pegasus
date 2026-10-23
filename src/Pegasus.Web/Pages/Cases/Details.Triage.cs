@@ -671,12 +671,15 @@ public sealed partial class DetailsModel
         var mailbox = await ports.ApprovedMailboxes.GetSenderAsync(
             detail.Summary.MailboxId,
             cancellationToken);
+        // A refusal before the send redraws with what this request has read.
+        var resolved = new TriageResolvedReply(detail, mailbox);
         if (mailbox is null)
         {
             ModelState.AddModelError(
                 string.Empty,
                 "No approved mailbox with staff send capability is available for this origin.");
-            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
+            return await ReloadTriageCaseAsync(
+                id, actionActor, ports, draft, cancellationToken, resolved);
         }
 
         if (!IsRetainedTriageOperationKey(operationKey, detail.Summary.Id))
@@ -684,7 +687,8 @@ public sealed partial class DetailsModel
             ModelState.AddModelError(
                 nameof(operationKey),
                 "The send operation key is invalid or has expired.");
-            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
+            return await ReloadTriageCaseAsync(
+                id, actionActor, ports, draft, cancellationToken, resolved);
         }
 
         var toRecipients = ParseTriageRecipients(to);
@@ -721,7 +725,8 @@ public sealed partial class DetailsModel
 
         if (!ModelState.IsValid)
         {
-            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
+            return await ReloadTriageCaseAsync(
+                id, actionActor, ports, draft, cancellationToken, resolved);
         }
 
         var original = new StaffMailOriginalMessage(
@@ -796,9 +801,10 @@ public sealed partial class DetailsModel
         ActionActor actor,
         TriageCasePorts ports,
         TriageReplyDraft draft,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TriageResolvedReply? resolved = null)
     {
-        if (!await LoadTriageCaseAsync(id, actor, ports, cancellationToken))
+        if (!await LoadTriageCaseAsync(id, actor, ports, cancellationToken, resolvedReply: resolved))
         {
             return NotFound();
         }
@@ -814,12 +820,19 @@ public sealed partial class DetailsModel
         return Page();
     }
 
+    /// <summary>
+    /// The origin message and its sending mailbox (none when it cannot send)
+    /// a refused reply already read, which its redisplay does not read again.
+    /// </summary>
+    private sealed record TriageResolvedReply(RetainedMailDetail Detail, ApprovedMailbox? Mailbox);
+
     private async Task<bool> LoadTriageCaseAsync(
         Guid id,
         ActionActor actor,
         TriageCasePorts ports,
         CancellationToken cancellationToken,
-        IReadOnlyList<CaseEngineerChoice>? roster = null)
+        IReadOnlyList<CaseEngineerChoice>? roster = null,
+        TriageResolvedReply? resolvedReply = null)
     {
         if (id == Guid.Empty)
         {
@@ -898,10 +911,11 @@ public sealed partial class DetailsModel
             && ports.StaffMailSend is not null
             && ports.ApprovedMailboxes is not null)
         {
-            view.RetainedMail = await ports.RetainedMail.ExecuteByOriginReceiptAsync(
-                actor,
-                origin.ReceiptId,
-                cancellationToken);
+            view.RetainedMail = resolvedReply?.Detail
+                ?? await ports.RetainedMail.ExecuteByOriginReceiptAsync(
+                    actor,
+                    origin.ReceiptId,
+                    cancellationToken);
             if (view.RetainedMail is { } retainedMail)
             {
                 if (ports.AttachmentResolver is not null)
@@ -920,9 +934,11 @@ public sealed partial class DetailsModel
                 view.ReplyOperationBlocked = IsActiveTriageMailOperation(view.ReplyOperation);
                 view.ReplyOperationKey = NewRetainedTriageOperationKey(retainedMail.Summary.Id);
 
-                view.ReplyMailbox = await ports.ApprovedMailboxes.GetSenderAsync(
-                    retainedMail.Summary.MailboxId,
-                    cancellationToken);
+                view.ReplyMailbox = resolvedReply is not null
+                    ? resolvedReply.Mailbox
+                    : await ports.ApprovedMailboxes.GetSenderAsync(
+                        retainedMail.Summary.MailboxId,
+                        cancellationToken);
 
                 var replyRecipients = TriageReplyRecipients(retainedMail);
                 view.ReplyTo = string.Join("; ", replyRecipients.Select(r => r.Address));

@@ -332,6 +332,10 @@ public sealed class MessageModel(
 
     private bool attachmentOptionsRead;
 
+    private bool retainedOperationRead;
+
+    private bool aiDraftApplied;
+
     public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
 
     public bool StaffMailAvailable => staffMailSend is not UnavailableStaffMailSend;
@@ -1250,7 +1254,12 @@ public sealed class MessageModel(
         await LoadAssociationSafelyAsync(actor, cancellationToken);
         await LoadAttachmentOutcomesAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
-        await LoadRetainedOperationAsync(actor, cancellationToken);
+        // A refused send read the message's latest operation earlier in this
+        // request, and it has written none since.
+        if (!retainedOperationRead)
+        {
+            await LoadRetainedOperationAsync(actor, cancellationToken);
+        }
         await LoadCorrespondenceContextAsync(actor, initializeForm: false, cancellationToken);
         return Page();
     }
@@ -1297,6 +1306,7 @@ public sealed class MessageModel(
         // The durable send boundary owns idempotency: a same-key replay
         // returns its operation, and a fresh key is a further reply.
         await LoadRetainedOperationAsync(actor, cancellationToken);
+        retainedOperationRead = true;
 
         // Every refusal reloads the context, which lists the options; the
         // send itself never renders them.
@@ -1407,6 +1417,8 @@ public sealed class MessageModel(
         }
         catch (ArgumentException exception)
         {
+            // The send may have written its operation before it refused.
+            retainedOperationRead = false;
             ModelState.AddModelError(string.Empty, exception.Message);
             return await ReloadAsync(actor, id, cancellationToken);
         }
@@ -1543,6 +1555,13 @@ public sealed class MessageModel(
     private async Task ApplyAiDraftAsync(
         StaffMailComposeMode mode, bool prefill, CancellationToken cancellationToken)
     {
+        // A refused send redraws the same context in this request, and the
+        // draft it settled on stands.
+        if (aiDraftApplied)
+        {
+            return;
+        }
+        aiDraftApplied = true;
         if (AiJobId is not { } jobId || jobId == Guid.Empty)
         {
             AiJobId = null;
