@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Options;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
