@@ -117,7 +117,9 @@ function Write-FakeCli {
         The fake `az` appends its arguments to PEGASUS_TEST_AZ_ARGUMENTS_PATH,
         answers `bicep build` with the compiled-template fixture, a Quota read
         with the quota fixture, a PendingWorkRecoverySchedule query with the
-        once-per-minute cron, and every other call with the settings fixture.
+        once-per-minute cron, `functionapp list` and the classifier's
+        `resource show` from the classifier-state fixture (empty: no
+        classifier), and every other call with the settings fixture.
         The fake `azd` prints the environment fixture.
     #>
     param([Parameter(Mandatory)][string] $Directory)
@@ -132,6 +134,8 @@ Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value $joined
 if ($joined.Contains('bicep build')) { Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH; exit 0 }
 if ($joined.Contains('Microsoft.Quota')) { Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_QUOTA_PATH; exit 0 }
 if ($joined.Contains('PendingWorkRecoverySchedule')) { '0 * * * * *'; exit 0 }
+if ($joined.Contains('functionapp list')) { if ($env:PEGASUS_TEST_AZ_CLASSIFIER_STATE) { 'pegasus-prod-classifier-252ow37gij' }; exit 0 }
+if ($joined.Contains('resource show') -and $joined.Contains('pegasus-prod-classifier-252ow37gij')) { $env:PEGASUS_TEST_AZ_CLASSIFIER_STATE; exit 0 }
 Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_SETTINGS_PATH
 exit 0
 '@ -Encoding ascii
@@ -154,7 +158,8 @@ function Invoke-Isolated {
         [Parameter(Mandatory)][string[]] $Arguments,
         [Parameter(Mandatory)][object[]] $Settings,
         [System.Collections.IDictionary] $AzdEnvironment,
-        [string] $QuotaDocument
+        [string] $QuotaDocument,
+        [string] $ClassifierState
     )
 
     $script:caseIndex++
@@ -186,6 +191,7 @@ function Invoke-Isolated {
     $env:PEGASUS_TEST_AZD_VALUES_PATH = $environmentPath
     $env:PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH = $templatePath
     $env:PEGASUS_TEST_AZ_QUOTA_PATH = $quotaPath
+    $env:PEGASUS_TEST_AZ_CLASSIFIER_STATE = $ClassifierState
     try {
         $output = @(& pwsh -NoLogo -NoProfile -File $Script @Arguments 2>&1 | ForEach-Object { "$_" })
         $exitCode = $LASTEXITCODE
@@ -193,7 +199,7 @@ function Invoke-Isolated {
     finally {
         $env:PATH = $savedPath
         foreach ($name in 'PEGASUS_TEST_AZ_ARGUMENTS_PATH', 'PEGASUS_TEST_AZ_SETTINGS_PATH', 'PEGASUS_TEST_AZD_VALUES_PATH',
-            'PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH', 'PEGASUS_TEST_AZ_QUOTA_PATH') {
+            'PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH', 'PEGASUS_TEST_AZ_QUOTA_PATH', 'PEGASUS_TEST_AZ_CLASSIFIER_STATE') {
             Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
         }
     }
@@ -211,14 +217,20 @@ function Invoke-WorkerSmoke {
     param(
         [Parameter(Mandatory)][object[]] $Settings,
         [Parameter(Mandatory)][string] $ExpectedActivation,
-        [string] $SubscriptionId = $approvedSubscription
+        [string] $SubscriptionId = $approvedSubscription,
+        [string] $ExpectedClassifierState,
+        [string] $ClassifierState
     )
 
-    return Invoke-Isolated -Script $productionSmoke -Settings $Settings -Arguments @(
+    $arguments = @(
         '-WorkerOnly',
         '-SubscriptionId', $SubscriptionId,
         '-ResourceGroupName', 'rg-pegasus-prod',
         '-ExpectedWorkerActivation', $ExpectedActivation)
+    if ($ExpectedClassifierState) {
+        $arguments += '-ExpectedClassifierState', $ExpectedClassifierState
+    }
+    return Invoke-Isolated -Script $productionSmoke -Settings $Settings -Arguments $arguments -ClassifierState $ClassifierState
 }
 
 function Invoke-PreProvision {
@@ -301,6 +313,29 @@ try {
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("do not match the intended 'disabled' activation value")) $case 'did not report the value mismatch.' $result.Diagnostic
     Assert-True (-not $result.Output.Contains('SentEvidencePollFunction') -and -not $result.Output.Contains('false')) $case 'echoed a live setting.' $result.Diagnostic
+
+    # #1490: the containment route reads the classifier Function App state.
+    $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'true') -ExpectedActivation 'disabled' -ExpectedClassifierState 'Stopped' -ClassifierState 'Stopped'
+    $case = 'Classifier Stopped as expected'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Classifier Function App state smoke passed (Stopped).')) $case 'did not report success.' $result.Diagnostic
+    Assert-True ($result.AzureArguments.Contains('resource show') -and $result.AzureArguments.Contains('--name pegasus-prod-classifier-252ow37gij')) $case 'did not read the classifier state.' $result.Diagnostic
+
+    $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'true') -ExpectedActivation 'disabled' -ExpectedClassifierState 'Stopped' -ClassifierState 'Running'
+    $case = 'Classifier Running when Stopped is expected'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("The classifier Function App state is 'Running', not Stopped.")) $case 'did not name the state.' $result.Diagnostic
+
+    $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'false') -ExpectedActivation 'approved-live-worker' -ExpectedClassifierState 'Running' -ClassifierState 'Running'
+    $case = 'Classifier Running as expected'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Classifier Function App state smoke passed (Running).')) $case 'did not report success.' $result.Diagnostic
+
+    $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'true') -ExpectedActivation 'disabled' -ExpectedClassifierState 'Stopped'
+    $case = 'Classifier absent'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Classifier Function App absent; no state to check.')) $case 'did not report the absent classifier.' $result.Diagnostic
+    Assert-True (-not $result.AzureArguments.Contains('resource show')) $case 'read a state for an absent classifier.' $result.Diagnostic
 
     # --- Test-AzureDeploymentPlan.ps1 -Mode PreProvision ---------------------
 

@@ -741,9 +741,10 @@ these live mailbox, tenant, permission or send operations.
 For a destructive migration, [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)
 requires more than disabled Functions: the old Worker must read back `Stopped`
 and the Web App must read back `Stopped` and unserved before SQL. The release
-procedure stages only approved new Worker bytes while the old schema remains
-intact, deploys the new Web package to the stopped Web App after migration,
-then explicitly starts the compatible new Web and Worker after grants and
+procedure also stops the classifier Function App, when it exists, before SQL,
+stages only approved new Worker bytes while the old schema remains intact,
+deploys the new Web package to the stopped Web App after migration, then
+explicitly starts the compatible new Web and Worker after grants and
 migration-head verification. A failed final activation is an unfinished
 outage, not a successful release.
 

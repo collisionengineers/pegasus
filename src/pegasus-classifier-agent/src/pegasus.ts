@@ -64,6 +64,17 @@ export interface LinkDestination {
 
 const Scope = "automation.mail";
 
+/**
+ * The token request met a Web that is not serving: 403 from a stopped Web,
+ * 503 from a restarting one. Every other status is a plain Error.
+ */
+export class PegasusUnavailableError extends Error {
+  constructor(readonly status: number) {
+    super(`The Pegasus token request failed with ${status}.`);
+    this.name = "PegasusUnavailableError";
+  }
+}
+
 export class PegasusMail {
   private token: { value: string; expiresAt: number } | undefined;
   private client: Client | undefined;
@@ -163,6 +174,9 @@ export class PegasusMail {
         scope: Scope,
       }),
     });
+    if (response.status === 403 || response.status === 503) {
+      throw new PegasusUnavailableError(response.status);
+    }
     if (!response.ok) {
       throw new Error(`The Pegasus token request failed with ${response.status}.`);
     }

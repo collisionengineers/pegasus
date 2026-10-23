@@ -84,6 +84,9 @@ and the [verification procedure](docs/runbook.md).
   approve a concrete window outside typical usage. The release is incomplete
   until approved new Web/Worker bytes are explicitly active, healthy and smoked;
   never revive old bytes after destructive SQL begins.
+- The release containment sequence explicitly stops and verifies
+  `pegasus-prod-classifier-252ow37gij` alongside Web and Worker before SQL
+  migration begins, and restarts it after Web is healthy.
 - The first App Service destructive cutover was Release 50
   ([record](docs/operations.md#release-50--14-september-2026-historical-app-service-cutover)):
   the old Container App source and active revisions were approval-bound and
