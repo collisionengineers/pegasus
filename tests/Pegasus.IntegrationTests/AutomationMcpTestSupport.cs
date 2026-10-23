@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
@@ -169,6 +170,54 @@ internal static class AutomationMcpTestSupport
             method = "tools/call",
             @params = new { name = tool, arguments }
         });
+
+    public static string Sha256Hex(byte[] content) => Convert.ToHexString(SHA256.HashData(content));
+
+    /// <summary>
+    /// Stages a document in parts on the documents server (R203): begins the
+    /// upload under the key, then sends every part with its own SHA-256.
+    /// </summary>
+    public static async Task<Guid> StageUploadAsync(
+        HttpClient client,
+        string token,
+        byte[] document,
+        string operationKey)
+    {
+        Guid uploadId;
+        int partBytes;
+        int partCount;
+        using (var begin = await PostMcpAsync(
+            client,
+            DocumentsServer,
+            token,
+            ToolCallPayload(
+                1,
+                "pegasus_upload_begin",
+                new { totalBytes = document.Length, sha256 = Sha256Hex(document), operationKey })))
+        {
+            var ticket = await ReadStructuredContentAsync(begin);
+            uploadId = ticket.GetProperty("uploadId").GetGuid();
+            partBytes = ticket.GetProperty("partBytes").GetInt32();
+            partCount = ticket.GetProperty("partCount").GetInt32();
+        }
+
+        for (var partNumber = 1; partNumber <= partCount; partNumber++)
+        {
+            var offset = (partNumber - 1) * partBytes;
+            var part = document[offset..Math.Min(document.Length, offset + partBytes)];
+            using var sent = await PostMcpAsync(
+                client,
+                DocumentsServer,
+                token,
+                ToolCallPayload(
+                    1 + partNumber,
+                    "pegasus_upload_part",
+                    new { uploadId, partNumber, contentBase64 = Convert.ToBase64String(part), sha256 = Sha256Hex(part) }));
+            await ReadStructuredContentAsync(sent);
+        }
+
+        return uploadId;
+    }
 
     public static async Task<Guid> SeedAcceptedCaseAsync(
         WebApplicationFactory<Program> factory,

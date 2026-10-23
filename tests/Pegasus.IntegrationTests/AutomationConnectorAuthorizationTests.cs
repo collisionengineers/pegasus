@@ -117,6 +117,74 @@ public sealed partial class AutomationConnectorAuthorizationTests
             """));
     }
 
+    /// <summary>
+    /// A staged upload is the Automation client's, not one grant's: each
+    /// connector consents with its own grant, so a document staged under one
+    /// is begun again, and added, under another of the same client.
+    /// </summary>
+    [Fact]
+    public async Task AnUploadStagedUnderOneGrantIsUsedUnderAnotherOfTheSameClient()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var browser = CreateBrowser(mcpFactory);
+        using var connector = CreateConnector(mcpFactory);
+        var tokens = new List<string>();
+        for (var index = 0; index < 2; index++)
+        {
+            var (verifier, challenge) = Pkce();
+            using var consent = await browser.GetAsync(
+                AuthorizeUrl(challenge, "automation.documents", server: DocumentsServer));
+            var html = await consent.Content.ReadAsStringAsync();
+            using var approval = await browser.PostAsync(AuthorizeHandlerUrl("Accept"), ConsentForm(html));
+            var code = ParseQuery(approval.Headers.Location!)["code"]!;
+            using var exchanged = await connector.PostAsync(
+                AutomationMcp.TokenEndpointPath,
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["grant_type"] = "authorization_code",
+                    ["code"] = code,
+                    ["code_verifier"] = verifier,
+                    ["redirect_uri"] = ConnectorRedirectUri,
+                    ["client_id"] = ClientId,
+                    ["client_secret"] = ClientSecret
+                }));
+            using var json = JsonDocument.Parse(await exchanged.Content.ReadAsStringAsync());
+            tokens.Add(json.RootElement.GetProperty("access_token").GetString()!);
+        }
+
+        var document = Encoding.UTF8.GetBytes(new string('p', 70_000));
+        const string operationKey = "mcp:upload-across-grants";
+        var uploadId = await StageUploadAsync(connector, tokens[0], document, operationKey);
+        using (var begin = await PostMcpAsync(connector, DocumentsServer, tokens[1], ToolCallPayload(
+            30,
+            "pegasus_upload_begin",
+            new { totalBytes = document.Length, sha256 = Sha256Hex(document), operationKey })))
+        {
+            var ticket = await ReadStructuredContentAsync(begin);
+            Assert.Equal(uploadId, ticket.GetProperty("uploadId").GetGuid());
+            Assert.True(ticket.GetProperty("isReplay").GetBoolean());
+            Assert.Equal(2, ticket.GetProperty("receivedParts").GetArrayLength());
+        }
+
+        using var add = await PostMcpAsync(connector, DocumentsServer, tokens[1], ToolCallPayload(
+            31,
+            "pegasus_document_add",
+            new
+            {
+                caseId,
+                fileName = "staged.txt",
+                mediaType = "text/plain",
+                semanticRole = "Other",
+                expectedCaseVersion = 0,
+                operationKey = "mcp:upload-across-grants-add",
+                uploadId
+            }));
+        var added = await ReadStructuredContentAsync(add);
+        Assert.Equal(Sha256Hex(document), added.GetProperty("sha256").GetString(), ignoreCase: true);
+    }
+
     [Fact]
     public async Task AdministratorConsentIssuesCodeThenTokensThatReachMcpAndRefresh()
     {
@@ -190,7 +258,9 @@ public sealed partial class AutomationConnectorAuthorizationTests
             "pegasus_report_action",
             "pegasus_report_list",
             "pegasus_report_wording_get",
-            "pegasus_report_wording_save"
+            "pegasus_report_wording_save",
+            "pegasus_upload_begin",
+            "pegasus_upload_part"
         ];
 
         // The connector token reaches the server of each consented scope and

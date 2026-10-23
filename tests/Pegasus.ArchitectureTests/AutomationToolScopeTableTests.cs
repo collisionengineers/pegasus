@@ -27,7 +27,7 @@ public sealed partial class AutomationToolScopeTableTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(65, registered.Length);
+        Assert.Equal(67, registered.Length);
         Assert.Equal(registered, AutomationToolScopes.Tools.Order(StringComparer.Ordinal).ToArray());
     }
 
@@ -55,7 +55,7 @@ public sealed partial class AutomationToolScopeTableTests
         }
 
         // The nine Triage writes share one gate, which takes the tool's name.
-        Assert.Equal(65 - 9, gated);
+        Assert.Equal(67 - 9, gated);
     }
 
     [Fact]
@@ -72,11 +72,11 @@ public sealed partial class AutomationToolScopeTableTests
         ];
         Assert.Equal(mailTools, Listed(AutomationMcp.MailScope));
         var casesAndDocuments = Listed(AutomationMcp.CasesScope, AutomationMcp.DocumentsScope);
-        Assert.Equal(21, casesAndDocuments.Length);
+        Assert.Equal(23, casesAndDocuments.Length);
         Assert.Contains("pegasus_edit_begin", casesAndDocuments);
         Assert.Contains("pegasus_edit_begin", Listed(AutomationMcp.IntakeScope));
         Assert.Equal(10, Listed(AutomationMcp.AssessmentScope).Length);
-        Assert.Equal(65, Listed([.. AutomationMcp.Scopes]).Length);
+        Assert.Equal(67, Listed([.. AutomationMcp.Scopes]).Length);
         Assert.Empty(Listed());
     }
 
@@ -103,7 +103,7 @@ public sealed partial class AutomationToolScopeTableTests
     {
         // ADR-0080 decision 1: one server per scope, named and pathed by its word.
         string[] words = ["cases", "intake", "documents", "assessment", "mail", "jobs", "send"];
-        int[] toolCounts = [11, 25, 10, 10, 6, 4, 2];
+        int[] toolCounts = [11, 25, 12, 10, 6, 4, 2];
         Assert.Equal(words, AutomationMcp.Servers.Select(server => server.Word).ToArray());
         foreach (var server in AutomationMcp.Servers)
         {

@@ -18,6 +18,7 @@
   "Pegasus.IntegrationTests.AutomationConnectorAuthorizationTests": 66.23,
   "Pegasus.IntegrationTests.AutomationDocumentIngressTests": 39.32,
   "Pegasus.IntegrationTests.AutomationDocumentStreamingTests": 17.21,
+  "Pegasus.IntegrationTests.AutomationDocumentUploadIngressTests": 40.0,
   "Pegasus.IntegrationTests.AutomationIntakeParityIngressTests": 71.56,
   "Pegasus.IntegrationTests.AutomationIntakeSubmitIngressTests": 23.87,
   "Pegasus.IntegrationTests.AutomationMailIngressTests": 50.61,

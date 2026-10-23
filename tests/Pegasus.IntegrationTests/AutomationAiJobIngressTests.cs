@@ -780,6 +780,89 @@ public sealed class AutomationAiJobIngressTests
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = N'ai_job' AND AggregateId = N'{taken.JobId:D}' AND EventKind = N'ai_job_completed' AND ActorKind = N'Automation' AND ActorSubjectId = N'{ClientId}'"));
     }
 
+    /// <summary>
+    /// R203: a findings document too large for one argument is staged on the
+    /// documents server and completes the job on the jobs server by its
+    /// uploadId; the replay returns the original completion.
+    /// </summary>
+    [Fact]
+    public async Task MarketResearchCompletesFromAStagedUploadAndReplays()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        AiJobRecord taken;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var created = await services.GetRequiredService<IAiJobStore>().CreateAsync(
+                new(
+                    AiJobKind.MarketResearch,
+                    AiJobSubjectKind.Case,
+                    caseId,
+                    "fixture-reference",
+                    "Research comparable vehicles.",
+                    null,
+                    null,
+                    Staff,
+                    "market-research-staged-seed",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
+                new(created.JobId, created.Version, Client, "market-research-staged-take"),
+                CancellationToken.None);
+        }
+
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, $"{AutomationMcp.DocumentsScope} {JobsScope}");
+        var findings = new byte[Pegasus.Core.Documents.DocumentUploadLimits.PartBytes * 3 + 17];
+        new Random(findings.Length).NextBytes(findings);
+        var uploadId = await StageUploadAsync(client, token, findings, "mcp:market-research-staged-upload");
+        var arguments = new
+        {
+            jobId = taken.JobId,
+            expectedJobVersion = taken.Version,
+            caseId,
+            operationKey = "mcp:market-research-staged",
+            fileName = "market-research.pdf",
+            mediaType = "application/pdf",
+            uploadId,
+            recordedDate = "2031-05-06",
+            recordedTime = "10:30",
+            mileage = 42000,
+            retailValue = 12000m,
+            tradeValue = 10000m
+        };
+
+        Guid versionId;
+        using (var response = await PostMcpAsync(
+            client,
+            JobsServer,
+            token,
+            ToolCallPayload(23, "pegasus_ai_job_complete_market_research", arguments)))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.Equal("Completed", result.GetProperty("job").GetProperty("state").GetString());
+            Assert.False(result.GetProperty("isReplay").GetBoolean());
+            versionId = result.GetProperty("documentVersionId").GetGuid();
+        }
+        using (var response = await PostMcpAsync(
+            client,
+            JobsServer,
+            token,
+            ToolCallPayload(24, "pegasus_ai_job_complete_market_research", arguments)))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.True(result.GetProperty("isReplay").GetBoolean());
+            Assert.Equal(versionId, result.GetProperty("documentVersionId").GetGuid());
+        }
+
+        Assert.Equal(Sha256Hex(findings), await factory.Database.ScalarAsync<string>(
+            $"SELECT UPPER(Sha256) FROM DocumentVersions WHERE Id = '{versionId:D}'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
+    }
+
     [Fact]
     public async Task MarketResearchCompletionSucceedsWhileAutomationIsSwitchedOff()
     {

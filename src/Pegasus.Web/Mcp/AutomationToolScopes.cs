@@ -64,6 +64,8 @@ internal static class AutomationToolScopes
         (AutomationMcp.DocumentsScope,
         [
             "pegasus_document_add",
+            "pegasus_upload_begin",
+            "pegasus_upload_part",
             "pegasus_document_download",
             "pegasus_document_download_batch",
             "pegasus_document_action",

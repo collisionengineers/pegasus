@@ -174,6 +174,7 @@ public static class AutomationMcpExtensions
             .WithTools<EditLeaseMcpTools>()
             .WithTools<IntakeMcpTools>()
             .WithTools<DocumentMcpTools>()
+            .WithTools<DocumentUploadMcpTools>()
             .WithTools<DocumentActionMcpTools>()
             .WithTools<ReportMcpTools>()
             .WithTools<ReportPreparationMcpTools>()

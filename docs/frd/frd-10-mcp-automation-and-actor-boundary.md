@@ -123,6 +123,21 @@ PDF, an image or a text file read once to learn that it does not fit whole or
 cannot be read. There are no public signed links, no document export archive,
 and no fetches of arbitrary URLs.
 
+**Large documents.** A document too large for one tool argument is staged in
+parts (operator, 22 October 2026). `pegasus_upload_begin` declares its size,
+at most 10 MiB, and its SHA-256 under an operation key and returns an
+`uploadId`; the same key with the same declaration returns the same upload
+and the parts already received. `pegasus_upload_part` sends one part of
+49,152 bytes, the last shorter, with the part's own SHA-256: a damaged part
+is refused by its hash before it is stored, and the same bytes sent again
+change nothing. `pegasus_document_add` and
+`pegasus_ai_job_complete_market_research` take the `uploadId` instead of
+`contentBase64`. Only that call writes custody, once the staged document
+matches its declared size and SHA-256, and its replay returns the original
+record. Staging writes no Case record, and no history row unless it is
+refused. An upload lives 24 hours. `pegasus_intake_submit` takes no
+`uploadId` (operator, 22 October 2026).
+
 **Edit leases.** <a id="edit-leases"></a> A write tool presented without an
 edit lease token claims the record's lease through the same Core port as
 staff, runs its one command, and releases the lease afterwards; while another
@@ -443,7 +458,7 @@ stopped automation client is refused before any tool runs.
 | `pegasus_ai_job_list` | `automation.jobs` | List jobs by state and kind; a client sees every queued job and its own taken jobs |
 | `pegasus_ai_job_create` | `automation.jobs` | Create a job of any kind with the subject the staff action names: Estimate (a Case, optional direction and target), MarketResearch (a Case and guide month; a pending job for the Case is returned instead), QueryResponse (a retained Query e-mail linked to its Case), UnidentifiedResolution (an open U-reference) or UnidentifiedQueuePass (an instruction). Jobs are how external agents on automated runs hand work to each other (operator, 7 October 2026) |
 | `pegasus_ai_job_transition` | `automation.jobs` | One tool with an `action`: Take claims a queued job under a bounded lease held by the client's name (refused when the job is not queued or the kill switch is on); Progress renews the lease and records a short note (refused after cancellation, lease expiry or while the kill switch is on); Complete marks a non-MarketResearch job `Draft ready`, naming its result kind; Fail marks it `Failed` with a reason; Release returns a taken job to `Queued` before the lease ends. Those five act only on the client's own job. Cancel stops any queued, taken or `Draft ready` job with a reason; Confirm marks a `Draft ready` QueryResponse or UnidentifiedQueuePass `Completed`, as the Work Centre's **Complete job** does |
-| `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document and one AI market research card and mark the client's MarketResearch job `Completed`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or closed Case (operator, 28 September 2026) |
+| `pegasus_ai_job_complete_market_research` | `automation.jobs` | File one findings document, from `contentBase64` or a staged `uploadId`, and one AI market research card and mark the client's MarketResearch job `Completed`. It takes no Case edit lease and no Case version: a source card is not a Case field edit, and the Engineer who asked is usually still editing, so it never waits on or ends their session. The Case history records the attachment at the Case's current version. Refused for an archived or closed Case (operator, 28 September 2026) |
 | `pegasus_estimate_save` | `automation.assessment` | Create an estimate on a Case, which lands as an AI-draft `Draft`, or edit any live estimate in place, the Current one included; citing the Estimate job it fulfils is optional |
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
 | `pegasus_estimate_get` | `automation.assessment` | One estimate in full: its header, every line with its `lineId` and evidence, its totals and the snapshots it can be restored to |
@@ -528,7 +543,7 @@ cross-tool rules and make none. `/mcp` is replaced, not aliased: an
 Administrator adds a connector once per server and consents to it once for
 each.
 
-The Actor's whole inventory, 65 tools, by scope; a server serves the rows
+The Actor's whole inventory, 67 tools, by scope; a server serves the rows
 of its scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
@@ -559,7 +574,8 @@ its one command when none is given.
 | `automation.intake` | `pegasus_triage_await_information`, `pegasus_triage_record_finding`, `pegasus_triage_response_evidence`, `pegasus_triage_complete`, `pegasus_triage_cancel`, `pegasus_triage_reopen` | The Triage contract above | one-command lease |
 | `automation.intake` | `pegasus_triage_case_link` | Link or unlink the Triage and an instruction Case; both records' versions and leases | one-command lease on each record |
 | `automation.intake` | `pegasus_triage_assign`, `pegasus_triage_note_add` | Assign or unassign the Triage; add a Triage note | one-command lease |
-| `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced | one-command lease |
+| `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced, from `contentBase64` or a staged `uploadId` | one-command lease |
+| `automation.documents` | `pegasus_upload_begin`, `pegasus_upload_part` | Stage one document in parts for `pegasus_document_add` or `pegasus_ai_job_complete_market_research` | none |
 | `automation.documents` | `pegasus_document_download`, `pegasus_document_download_batch` | One exact document version, or 1 to 25 versions sharing the inline budget, as native content | none |
 | `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, set_type, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
 | `automation.documents` | `pegasus_report_list` | A work's report generations and artifacts, its report approval and its report-Sent evidence | none |
@@ -593,6 +609,8 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
   text file; over 10 MiB; an image no quality fits in the budget; bytes that
   are not a readable PDF) returns metadata and the authenticated content URL,
   never a fabricated rendering.
+- An incomplete, mismatched, foreign or expired staged upload is refused by
+  the call that uses it, and nothing is written.
 - A write without a lease token is refused, writing nothing, while another
   editor holds the record or the version is stale, exactly as its claim would
   be.
@@ -658,4 +676,5 @@ acceptance are separate evidence tiers
   [ADR-0035](../adr/0035-ai-job-ledger.md),
   [ADR-0059](../adr/0059-native-mcp-file-content-and-consolidated-tool-inventory.md),
   [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md),
-  [ADR-0080](../adr/0080-automation-mcp-one-server-per-scope.md).
+  [ADR-0080](../adr/0080-automation-mcp-one-server-per-scope.md),
+  [ADR-0083](../adr/0083-stage-large-automation-documents-in-parts.md).
