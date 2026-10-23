@@ -394,9 +394,9 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + dialogDescription);
     }
 
-    private const int InboxMessageCommands = 19;
+    private const int InboxMessageCommands = 18;
 
-    private const int InboxListCommands = 13;
+    private const int InboxListCommands = 12;
 
     /// <summary>
     /// The Inbox list reads nothing once per row: the same request over six
@@ -1301,13 +1301,13 @@ public sealed class MailWorkspaceWebTests
         var oldest = html.IndexOf("Message 0 from instructions", StringComparison.Ordinal);
         Assert.True(newest < oldest, "The list must default to newest received first.");
 
-        // Reading changes nothing. Beyond the layout's sign-out, the only POST
-        // forms are the rows' Dismiss actions (Inbox, 13 September), one per row,
-        // and the one bulk form above the list (v41 I18).
+        // Reading changes nothing. The only POST forms are the rows' Dismiss
+        // actions (Inbox, 13 September), one per row, and the one bulk form
+        // above the list (v41 I18); the shell's dialogs arrive when they open.
         Assert.Equal(3, CountOccurrences(html, "data-mail-row-action=\"dismiss\""));
-        // Sign-out, the shell's Report a problem, the bulk form and the three dismissals.
-        Assert.Equal(2 + 1 + 3, CountOccurrences(html, "method=\"post\""));
-        Assert.Contains("/Account/SignOut", html, StringComparison.Ordinal);
+        // The bulk form and the three dismissals.
+        Assert.Equal(1 + 3, CountOccurrences(html, "method=\"post\""));
+        Assert.DoesNotContain("/Account/SignOut", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -2250,8 +2250,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains($">{OperatorLabels.Inbox.NoCase}</strong>", message, StringComparison.Ordinal);
         // Back reconstructs the exact list position.
         Assert.Contains($"/Inbox?mailbox={FirstMailboxFilter}", message, StringComparison.Ordinal);
-        // Beyond the layout's sign-out and Report a problem, the record's only POST is Dismiss (Inbox, 13 September).
-        Assert.Equal(3, CountOccurrences(message, "method=\"post\""));
+        // The record's only POST is Dismiss (Inbox, 13 September); the shell's dialogs arrive when they open.
+        Assert.Equal(1, CountOccurrences(message, "method=\"post\""));
         Assert.Contains("data-message-dismissal=\"dismiss\"", message, StringComparison.Ordinal);
 
         var attachments = await GetHtmlAsync(
@@ -2281,8 +2281,8 @@ public sealed class MailWorkspaceWebTests
 
         // The Decision card shows only populated rows.
         Assert.Contains("<h2 class=\"decision-head\">Decision</h2>", html, StringComparison.Ordinal);
-        // Sign-out, Report a problem and the record's Dismiss.
-        Assert.Equal(3, CountOccurrences(html, "method=\"post\""));
+        // The record's Dismiss.
+        Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
     }
 
     [Fact]

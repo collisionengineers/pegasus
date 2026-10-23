@@ -5,10 +5,7 @@
     // A capability that is not composed in this deployment is absent, never a
     // disabled nav span: a permanently inert item says the product is broken
     // rather than that this deployment does not carry the feature.
-    var inboxEnabled = Environment.IsProduction()
-        || (Environment.IsDevelopment()
-            && Configuration.GetValue<bool>("Features:LocalIntake"));
-    ViewData["ShellInboxEnabled"] = inboxEnabled;
+    var inboxEnabled = Pegasus.Web.Presentation.ShellRail.InboxEnabled(Environment, Configuration);
     var isAdministrator = User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator);
 
     // Marks the route the operator is on. aria-current is the accessible signal;

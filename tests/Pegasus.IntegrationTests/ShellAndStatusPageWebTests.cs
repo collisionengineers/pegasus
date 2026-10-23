@@ -226,7 +226,7 @@ public sealed class ShellAndStatusPageWebTests
         // the confirmation. It is a one-time state of the sign-in page, not a
         // page of its own, so a bookmark cannot assert a sign-out that did not
         // just happen.
-        var signOutPage = await client.GetStringAsync("/Search");
+        var signOutPage = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=account");
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = AntiforgeryValue(signOutPage)
@@ -667,6 +667,39 @@ public sealed class ShellAndStatusPageWebTests
             page.ViewData.ContainsKey("NotificationsUnread"));
     }
 
+    /// <summary>
+    /// A page with no layout or the sign-in layout reads nothing on any
+    /// handler: a POST that answers its page, or a status code re-executed with
+    /// the original method, draws no shell either.
+    /// </summary>
+    [Theory]
+    [InlineData("n-get-page", "GET", null, "page")]
+    [InlineData("n-post-page", "POST", null, "page")]
+    [InlineData("n-post-named-page", "POST", "Accept", "page")]
+    [InlineData("n-named-get-page", "GET", "State", "page")]
+    [InlineData("n-post-redirect", "POST", null, "redirect")]
+    public async Task APageThatNeverDrawsTheShellReadsNothingOnAnyHandler(
+        string name, string method, string? handlerName, string result)
+    {
+        var events = new List<string>();
+        var notifications = new StubNotifications([], events);
+        var descriptor = new HandlerMethodDescriptor { HttpMethod = method, Name = handlerName };
+        var page = new NeverDrawsShellProbePage();
+
+        await RunShellFilterAsync(
+            notifications, new NoReleaseNotes(), new CapturingLogger<ShellPageFilter>(),
+            descriptor, page,
+            () =>
+            {
+                events.Add("handler");
+                return result == "page" ? new PageResult() : new RedirectResult("/");
+            },
+            method, CancellationToken.None);
+
+        Assert.True("handler" == string.Join(",", events), $"{name}: the handler and the bell ran as {string.Join(",", events)}.");
+        Assert.False(page.ViewData.ContainsKey("NotificationsUnread"));
+    }
+
     [Fact]
     public async Task AGetToAPageWithNoHandlerStartsTheShellReadsBeforeItRenders()
     {
@@ -696,9 +729,12 @@ public sealed class ShellAndStatusPageWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var html = await client.GetStringAsync("/Search");
+        var page = await client.GetStringAsync("/Search");
+        var dialog = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=account");
 
-        var dialog = Between(html, "data-dialog=\"account-dialog\"", "data-dialog=\"notifications-dialog\"");
+        // The page carries the empty dialog and where its content comes from, not the content.
+        Assert.Contains("data-dialog=\"account-dialog\" data-dialog-fragment=\"/Notifications?", page, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Sign out<", page, StringComparison.Ordinal);
         var body = Between(dialog, "class=\"dialog-body\"", "class=\"dialog-foot\"");
         var foot = dialog[dialog.IndexOf("class=\"dialog-foot\"", StringComparison.Ordinal)..];
         Assert.Contains("href=\"/ReleaseNotes\"", body, StringComparison.Ordinal);
@@ -720,9 +756,37 @@ public sealed class ShellAndStatusPageWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await client.GetStringAsync("/Search");
+        var palette = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=command");
 
         Assert.Matches("href=\"/Cases\"[^>]*>\\s*<svg[^>]*><use href=\"[^\"]*#icon-list-checks\"", html);
-        Assert.Matches("data-route=\"/Cases\">\\s*<svg[^>]*><use href=\"[^\"]*#icon-list-checks\"", html);
+        Assert.Matches("data-route=\"/Cases\">\\s*<svg[^>]*><use href=\"[^\"]*#icon-list-checks\"", palette);
+    }
+
+    /// <summary>
+    /// The Report a problem dialog is fetched on first open and names the page
+    /// it was opened on: the request carries that page's trace and method, which
+    /// the form posts back; an unknown dialog is not found.
+    /// </summary>
+    [Fact]
+    public async Task TheReportAProblemDialogIsFetchedOnFirstOpenAndCarriesThePagesTraceAndMethod()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await client.GetStringAsync("/Search");
+        Assert.Contains("data-dialog=\"problem-dialog\" data-dialog-fragment=\"/Notifications?", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-problem-form", page, StringComparison.Ordinal);
+
+        var dialog = await client.GetStringAsync(
+            "/Notifications?handler=ShellDialog&name=problem&traceId=00-abc123-def456-01&method=POST");
+
+        Assert.Contains("data-problem-form", dialog, StringComparison.Ordinal);
+        Assert.Contains("name=\"traceId\" value=\"00-abc123-def456-01\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("name=\"method\" value=\"POST\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("name=\"operationKey\"", dialog, StringComparison.Ordinal);
+
+        using var unknown = await client.GetAsync("/Notifications?handler=ShellDialog&name=nothing");
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
 
     /// <summary>The Not found page's one action is the primary button (v41 S7).</summary>
@@ -807,6 +871,8 @@ public sealed class ShellAndStatusPageWebTests
     private class ShellProbePage : PageModel;
 
     private sealed class ShellFreeProbePage : ShellProbePage, IShellFreeGet;
+
+    private sealed class NeverDrawsShellProbePage : ShellProbePage, INeverDrawsShell;
 
     private sealed class CancelledCommandNotifications : IMyStaffNotifications
     {

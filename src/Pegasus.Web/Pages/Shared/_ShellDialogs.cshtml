@@ -1,16 +1,18 @@
 @*
-    The three shell dialogs: account menu, Notifications (the bell) and the
-    command palette. Each is a hidden .dialog-backdrop that site.js opens from any
-    [data-dialog-open="<id>"] control, closes on [data-dialog-close], Escape
-    or a backdrop click, contains focus, sets inert on the shell while open,
-    and returns focus to the invoking control. Rendered once per page by
-    _Layout; the gating below mirrors the rail exactly.
+    The shell dialogs: account menu, Notifications (the bell), command palette,
+    What's new and Report a problem. Each is a hidden .dialog-backdrop that
+    site.js opens from any [data-dialog-open="<id>"] control, closes on
+    [data-dialog-close], Escape or a backdrop click, contains focus, sets inert
+    on the shell while open, and returns focus to the invoking control.
+    Rendered once per page by _Layout; the gating mirrors the rail exactly.
+
+    The Account, command palette and Report a problem dialogs are empty
+    backdrops here: site.js fetches the one in [data-dialog-fragment] the first
+    time it opens (/Notifications?handler=ShellDialog, drawn by
+    _ShellAccountDialog, _ShellCommandDialog and _ShellProblemDialog), so a
+    page carries a few attributes rather than their markup.
 *@
 @{
-    var inboxEnabled = ViewData["ShellInboxEnabled"] is true;
-    var isAdministrator = User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator);
-    var userName = User.Identity?.Name ?? string.Empty;
-    var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
     // The bell (Work Centre D10): the person's own notifications. The page
     // carries the unread count ShellPageFilter counted; the list is fetched
     // when the bell opens (/Notifications?handler=List, drawn by
@@ -28,50 +30,15 @@
     // not acknowledged, read once by ShellPageFilter. It opens on load
     // until Got it is pressed; the page behind it is the one they asked for.
     var releaseNote = ViewData["ReleaseNote"] as Pegasus.Core.ReleaseNotes.ReleaseNote;
+    // The Report a problem report names the page it was opened on, not the
+    // fetch that draws the dialog.
+    var traceId = System.Diagnostics.Activity.Current?.Id ?? Context.TraceIdentifier;
+    var accountDialogUrl = Url.Page("/Notifications", "ShellDialog", new { name = "account" });
+    var commandDialogUrl = Url.Page("/Notifications", "ShellDialog", new { name = "command" });
+    var problemDialogUrl = Url.Page("/Notifications", "ShellDialog", new { name = "problem", traceId, method = Context.Request.Method });
 }
 
-<div class="dialog-backdrop" data-dialog="account-dialog" hidden>
-    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
-        <div class="dialog-head">
-            <h2 id="account-dialog-title" tabindex="-1">Account</h2>
-            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
-            </button>
-        </div>
-        <div class="dialog-body">
-            <div class="definition-list">
-                <dl class="definition"><dt>Name</dt><dd>@userName</dd></dl>
-                <dl class="definition"><dt>Role</dt><dd>@role</dd></dl>
-                <dl class="definition"><dt>Idle lock</dt><dd>@OperatorLabels.Duration(Pegasus.Core.Actors.StaffSessionPolicy.IdleLifetime)</dd></dl>
-            </div>
-            @* Release notes, Report a problem and Change password sit in the
-               body (v41 S1); the foot keeps Close and Sign out. *@
-            <div class="button-row section-gap">
-                <a class="btn" asp-page="/ReleaseNotes">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-flag")" /></svg>
-                    <span>@OperatorLabels.Shell.ReleaseNotes</span>
-                </a>
-                <button type="button" class="btn" data-dialog-open="problem-dialog">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
-                    <span>@OperatorLabels.Shell.ReportProblem</span>
-                </button>
-                <a class="btn" asp-page="/Account/PasswordChange">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-key")" /></svg>
-                    <span>Change password</span>
-                </a>
-            </div>
-        </div>
-        <div class="dialog-foot">
-            <button type="button" class="btn" data-dialog-close>Close</button>
-            <form method="post" asp-page="/Account/SignOut">
-                <button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.SigningOut">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-log-out")" /></svg>
-                    <span>Sign out</span>
-                </button>
-            </form>
-        </div>
-    </section>
-</div>
+<div class="dialog-backdrop" data-dialog="account-dialog" data-dialog-fragment="@accountDialogUrl" hidden></div>
 
 <div class="dialog-backdrop" data-dialog="notifications-dialog" data-dialog-open-on-load="@openOnLoad" data-notifications-url="@Url.Page("/Notifications", "List")" data-notifications-failed="@OperatorLabels.Shell.NotificationsUnavailable" hidden>
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
@@ -113,59 +80,7 @@
     </section>
 </div>
 
-<div class="dialog-backdrop" data-dialog="command-dialog" hidden>
-    <section class="dialog command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-dialog-title">
-        <div class="dialog-head">
-            <h2 id="command-dialog-title" tabindex="-1">Search Pegasus</h2>
-            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
-            </button>
-        </div>
-        <div class="command-search">
-            <label class="sr-only" for="command-input">Search</label>
-            <input id="command-input" type="search" autocomplete="off" data-command-palette-input aria-controls="command-results" />
-        </div>
-        <div id="command-results" class="command-results" role="listbox" aria-label="Search results" data-command-results>
-            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-layout-dashboard")" /></svg>
-                <span><strong>@OperatorLabels.Nav.WorkCentre</strong></span>
-            </button>
-            @if (inboxEnabled)
-            {
-                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Inbox">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-inbox")" /></svg>
-                    <span><strong>@OperatorLabels.Nav.Inbox</strong></span>
-                </button>
-                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Upload">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-upload")" /></svg>
-                    <span><strong>@OperatorLabels.Nav.Upload</strong></span>
-                </button>
-            }
-            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Cases">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-list-checks")" /></svg>
-                <span><strong>@OperatorLabels.Nav.Cases</strong></span>
-            </button>
-            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-folder-open")" /></svg>
-                <span><strong>@OperatorLabels.Nav.Search</strong></span>
-            </button>
-            @if (isAdministrator)
-            {
-                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Administration">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-layout-grid")" /></svg>
-                    <span><strong>@OperatorLabels.Nav.Administration</strong></span>
-                </button>
-            }
-            @* The fallback is always a match: it carries the typed text to
-               /Search so Enter never dead-ends. *@
-            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search?query=" data-command-fallback>
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-search")" /></svg>
-                <span><strong>Search Cases for <span data-command-fallback-term></span></strong></span>
-                <span class="kbd" aria-hidden="true">Enter</span>
-            </button>
-        </div>
-    </section>
-</div>
+<div class="dialog-backdrop" data-dialog="command-dialog" data-dialog-fragment="@commandDialogUrl" hidden></div>
 
 @if (releaseNote is not null)
 {
@@ -193,45 +108,4 @@
     </div>
 }
 
-@* Report a problem (FRD-12): one text box and Send. site.js fills the hidden
-   browser facts (viewport, whether a record is being edited, the last script
-   errors, the Case reference on screen) when the form is submitted. *@
-<div class="dialog-backdrop" data-dialog="problem-dialog" hidden>
-    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="problem-dialog-title">
-        <form method="post" asp-page="/ProblemReports" asp-page-handler="Report" data-problem-form
-              data-problem-case-sections="@CaseSectionKeys">
-            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-            <div class="dialog-head">
-                <h2 id="problem-dialog-title" tabindex="-1">@OperatorLabels.Shell.ReportProblem</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
-                </button>
-            </div>
-            <div class="dialog-body stack">
-                <input type="hidden" name="returnUrl" value="" data-problem-return />
-                <input type="hidden" name="route" value="" data-problem-route />
-                <input type="hidden" name="method" value="@Context.Request.Method" />
-                <input type="hidden" name="traceId" value="@(System.Diagnostics.Activity.Current?.Id ?? Context.TraceIdentifier)" />
-                <input type="hidden" name="caseReference" value="" data-problem-case />
-                <input type="hidden" name="viewport" value="" data-problem-viewport />
-                <input type="hidden" name="editing" value="false" data-problem-editing />
-                <input type="hidden" name="errors" value="" data-problem-errors />
-                <div class="field">
-                    <label for="problem-description">@OperatorLabels.ProblemReports.WhatHappened</label>
-                    <textarea id="problem-description" name="description" rows="6" maxlength="@Pegasus.Core.Support.ProblemReportPolicy.MaximumDescriptionLength" required></textarea>
-                </div>
-            </div>
-            <div class="dialog-foot">
-                <button type="button" class="btn" data-dialog-close>Cancel</button>
-                <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.ProblemReports.Send</button>
-            </div>
-        </form>
-    </section>
-</div>
-
-@functions {
-    // The Case sections never change while the process runs, so the list the
-    // Report a problem script reads is joined once rather than on every page.
-    private static readonly string CaseSectionKeys =
-        string.Join(",", OperatorLabels.CaseWorkspace.Sections.Select(section => section.Key));
-}
+<div class="dialog-backdrop" data-dialog="problem-dialog" data-dialog-fragment="@problemDialogUrl" hidden></div>

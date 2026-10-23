@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Internal;
 using Pegasus.Core.Notifications;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -85,6 +88,55 @@ public sealed class StaffNotificationPersistenceTests
         Assert.Equal(4, commandCounter.CountContaining("COUNT("));
         Assert.Equal(1, await store.CountUnreadAsync(someoneElse, window, default));
         Assert.Equal(4, commandCounter.CountContaining("COUNT("));
+    }
+
+    /// <summary>
+    /// The kept figure lasts 30 seconds and no longer (R409): a row raised by
+    /// another writer (the Worker) shows once the lifetime ends and the count is
+    /// read again. The cache's own clock is advanced, so nothing is slept.
+    /// </summary>
+    [Fact]
+    public async Task TheUnreadCountIsReadAgainWhenItsThirtySecondsEnd()
+    {
+        var commandCounter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(commandCounter));
+        await using var scope = database.CreateAsyncScope();
+        var clock = new AdvancingClock(DateTimeOffset.UtcNow);
+        using var cache = new MemoryCache(new MemoryCacheOptions { Clock = clock });
+        var store = new EfStaffNotificationStore(
+            scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            TimeProvider.System,
+            cache);
+        // Another writer, with its own cache, raises rows without evicting this one.
+        var otherWriter = scope.ServiceProvider.GetRequiredService<IStaffNotificationStore>();
+        var person = Guid.NewGuid();
+        var window = DateTimeOffset.UtcNow.AddDays(-30);
+        await otherWriter.AddAsync(Raised(person, "QDOS26021"), default);
+
+        commandCounter.Reset();
+        Assert.Equal(1, await store.CountUnreadAsync(person, window, default));
+        Assert.Equal(1, commandCounter.CountContaining("COUNT("));
+
+        await otherWriter.AddAsync(Raised(person, "QDOS26022"), default);
+        clock.Advance(TimeSpan.FromSeconds(29));
+        Assert.Equal(1, await store.CountUnreadAsync(person, window, default));
+        Assert.Equal(1, commandCounter.CountContaining("COUNT("));
+
+        clock.Advance(TimeSpan.FromSeconds(2));
+        Assert.Equal(2, await store.CountUnreadAsync(person, window, default));
+        Assert.Equal(2, commandCounter.CountContaining("COUNT("));
+
+        // The new figure is kept in turn.
+        Assert.Equal(2, await store.CountUnreadAsync(person, window, default));
+        Assert.Equal(2, commandCounter.CountContaining("COUNT("));
+    }
+
+    private sealed class AdvancingClock(DateTimeOffset start) : ISystemClock
+    {
+        public DateTimeOffset UtcNow { get; private set; } = start;
+
+        public void Advance(TimeSpan by) => UtcNow += by;
     }
 
     private static NewStaffNotification Raised(Guid staffId, string reference) => new(

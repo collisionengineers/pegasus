@@ -21,7 +21,7 @@ namespace Pegasus.Web.Pages.Connect;
 /// permanent history. Denying returns <c>access_denied</c> to the connector.
 /// </summary>
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presentation.IShellFreeGet
+public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presentation.INeverDrawsShell
 {
     internal static readonly IReadOnlyDictionary<string, string> ScopeDescriptions =
         new Dictionary<string, string>(StringComparer.Ordinal)

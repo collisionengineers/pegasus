@@ -32,7 +32,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 public sealed class OpeningModel(
     IGlassRepairEstimateSessionReader glassSessions,
     GlassRepairEstimateAvailability glassAvailability,
-    ProviderWorkQueue glassWork) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
+    ProviderWorkQueue glassWork) : StaffPageModel, Pegasus.Web.Presentation.INeverDrawsShell
 {
     public GlassRepairEstimateSession Session { get; private set; } = null!;
 

@@ -10,7 +10,7 @@ namespace Pegasus.Web.Pages.Account;
 /// of the error family (v28 P6-D, 18 September 2026) — the area as the
 /// eyebrow, "Access denied", one sentence and Return to Work Centre.
 /// </summary>
-public sealed class AccessDeniedModel : PageModel, Pegasus.Web.Presentation.IShellFreeGet
+public sealed class AccessDeniedModel : PageModel, Pegasus.Web.Presentation.INeverDrawsShell
 {
     /// <summary>The area the refused route belongs to, when it is a Manage route.</summary>
     public string? Area { get; private set; }

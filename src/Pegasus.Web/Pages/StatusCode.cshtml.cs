@@ -17,7 +17,7 @@ namespace Pegasus.Web.Pages;
 [AllowAnonymous]
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
 [IgnoreAntiforgeryToken]
-public sealed class StatusCodeModel : PageModel, Pegasus.Web.Presentation.IShellFreeGet
+public sealed class StatusCodeModel : PageModel, Pegasus.Web.Presentation.INeverDrawsShell
 {
     public string Heading { get; private set; } = "We could not complete that request";
 

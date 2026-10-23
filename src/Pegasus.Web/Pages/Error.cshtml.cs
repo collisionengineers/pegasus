@@ -9,7 +9,7 @@ namespace Pegasus.Web.Pages;
 
 [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
 [IgnoreAntiforgeryToken]
-public class ErrorModel(IMemoryCache cache) : PageModel, IShellFreeGet
+public class ErrorModel(IMemoryCache cache) : PageModel, INeverDrawsShell
 {
     public string? RequestId { get; set; }
 

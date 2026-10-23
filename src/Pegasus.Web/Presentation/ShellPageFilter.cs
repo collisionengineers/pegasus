@@ -32,7 +32,9 @@ namespace Pegasus.Web.Presentation;
 /// Every unnamed GET handler starts the reads before the handler and awaits
 /// them when the page renders (operator rulings, 10 and 22 Oct 2026). A page
 /// marked <see cref="IShellFreeGet"/> reads nothing on its unnamed GET, which
-/// is a redirect, a file, a refusal or a page that never draws the shell.
+/// is a redirect, a file, a refusal or a page that never draws the shell; a
+/// page marked <see cref="INeverDrawsShell"/> (no layout or the sign-in layout)
+/// reads nothing on any handler.
 /// Other results drain the reads unused. Named handlers
 /// (heartbeats, polls, lazy section partials) and every POST never pre-read
 /// and read after their result only if it is a page, so a POST's figures are
@@ -68,7 +70,8 @@ public sealed partial class ShellPageFilter(
         // release note), so its shell reads start before the handler and run
         // beside it.
         var unnamedGet = IsUnnamedGet(context);
-        var shellFree = unnamedGet && context.HandlerInstance is IShellFreeGet;
+        var shellFree = context.HandlerInstance is INeverDrawsShell
+            || (unnamedGet && context.HandlerInstance is IShellFreeGet);
         var early = authenticated && unnamedGet && !shellFree
             ? StartShellReads(context.HttpContext, actor!)
             : null;

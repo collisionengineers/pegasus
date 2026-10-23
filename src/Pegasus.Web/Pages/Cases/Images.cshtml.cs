@@ -21,7 +21,7 @@ namespace Pegasus.Web.Pages.Cases;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class ImagesModel(
     IGetCaseFilesSection getCaseFilesSection,
-    ICaseAssetPreparationQueries caseAssetPreparationQueries) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
+    ICaseAssetPreparationQueries caseAssetPreparationQueries) : StaffPageModel, Pegasus.Web.Presentation.INeverDrawsShell
 {
     public Guid CaseId { get; private set; }
 
