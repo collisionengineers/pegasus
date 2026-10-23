@@ -253,39 +253,38 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         var openTask = nameof(CaseTaskState.Open);
         var sent = db.Set<StaffMailSendOperationEntity>().AsNoTracking()
             .Where(item => item.State == StaffMailState.Sent);
-        // Images and Documents are mutually exclusive, so one pass over the
-        // occurrences ticks either; the in-report images are the second pass.
+        // One pass over the occurrences: each row ticks Images or Documents
+        // (mutually exclusive by role), and an in-report image also carries
+        // InReport 1, so the Images group's sum is the in-report figure.
         var ticks = occurrences
             .Select(item => new ActivityTick
             {
                 Figure = item.SemanticRole == DocumentSemanticRole.Image ? ActivityFigure.Images : ActivityFigure.Documents,
-                CaseId = item.CaseId
+                CaseId = item.CaseId,
+                InReport = item.SemanticRole == DocumentSemanticRole.Image && item.InReport ? 1 : 0
             })
-            .Concat(occurrences
-                .Where(item => item.SemanticRole == DocumentSemanticRole.Image && item.InReport)
-                .Select(item => new ActivityTick { Figure = ActivityFigure.InReport, CaseId = item.CaseId }))
             .Concat(db.CaseWorkflowEvents.AsNoTracking()
                 .Where(item => item.EventType == AddCaseNote.EventType && EF.Parameter(caseIds).Contains(item.CaseId))
-                .Select(item => new ActivityTick { Figure = ActivityFigure.Notes, CaseId = item.CaseId }))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.Notes, CaseId = item.CaseId, InReport = 0 }))
             .Concat(db.CaseManualChases.AsNoTracking()
                 .Where(item => EF.Parameter(caseIds).Contains(item.CaseId))
-                .Select(item => new ActivityTick { Figure = ActivityFigure.Chases, CaseId = item.CaseId }))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.Chases, CaseId = item.CaseId, InReport = 0 }))
             .Concat(db.CaseTasks.AsNoTracking()
                 .Where(item => item.State == openTask && EF.Parameter(caseIds).Contains(item.CaseId))
-                .Select(item => new ActivityTick { Figure = ActivityFigure.OpenTasks, CaseId = item.CaseId }))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.OpenTasks, CaseId = item.CaseId, InReport = 0 }))
             .Concat(sent
                 .Where(item => item.Purpose != StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(item.ContextId))
-                .Select(item => new ActivityTick { Figure = ActivityFigure.Correspondence, CaseId = item.ContextId }))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.Correspondence, CaseId = item.ContextId, InReport = 0 }))
             .Concat(
                 from operation in sent
                 join generation in db.Set<CaseReportGenerationEntity>().AsNoTracking() on operation.ContextId equals generation.Id
                 where operation.Purpose == StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(generation.CaseId)
-                select new ActivityTick { Figure = ActivityFigure.Correspondence, CaseId = generation.CaseId });
+                select new ActivityTick { Figure = ActivityFigure.Correspondence, CaseId = generation.CaseId, InReport = 0 });
         var counts = (await ticks
                 .GroupBy(tick => new { tick.Figure, tick.CaseId })
-                .Select(group => new { group.Key.Figure, group.Key.CaseId, Count = group.Count() })
+                .Select(group => new { group.Key.Figure, group.Key.CaseId, Count = group.Count(), InReport = group.Sum(tick => tick.InReport) })
                 .ToListAsync(cancellationToken))
-            .ToDictionary(item => (item.Figure, item.CaseId), item => item.Count);
+            .ToDictionary(item => (item.Figure, item.CaseId), item => item);
 
         // MI-01's queries: mailbox mail classified as a query standing linked
         // to the Case by the Inbox's own association rule.
@@ -309,10 +308,10 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
 
         return caseIds.ToDictionary(caseId => caseId, caseId =>
         {
-            int Of(int figure) => counts.GetValueOrDefault((figure, caseId));
+            int Of(int figure) => counts.TryGetValue((figure, caseId), out var tally) ? tally.Count : 0;
             return new CaseListActivity(
                 Of(ActivityFigure.Images),
-                Of(ActivityFigure.InReport),
+                counts.TryGetValue((ActivityFigure.Images, caseId), out var images) ? images.InReport : 0,
                 Of(ActivityFigure.Documents),
                 queries.GetValueOrDefault(caseId),
                 Of(ActivityFigure.Correspondence),
@@ -326,7 +325,6 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
     private static class ActivityFigure
     {
         public const int Images = 0;
-        public const int InReport = 1;
         public const int Documents = 2;
         public const int Notes = 3;
         public const int Chases = 4;
@@ -339,6 +337,9 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         public int Figure { get; init; }
 
         public Guid CaseId { get; init; }
+
+        /// <summary>1 on an in-report image's tick, 0 on every other tick.</summary>
+        public int InReport { get; init; }
     }
 
     private static CaseListWorkFacts Work(
