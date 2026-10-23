@@ -520,6 +520,31 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
+    /// A Close is answered from the committed record while the Case is still closed, and is
+    /// refused in the Close words once the Case has moved to Report sent, as Core always did.
+    /// </summary>
+    [Fact]
+    public async Task AReplayedCloseIsAnsweredWhileClosedAndRefusedOnceTheCaseIsReportSent()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(new(harness.CaseId, 0, actor, "claim-close-replay"), default);
+        var close = new CloseCase(harness.Store);
+        var request = new CloseCaseRequest(
+            harness.CaseId, 0, actor, "close-once", "Cancelled", lease.Token, CaseClosureOutcome.PrincipalCancelled);
+
+        var closed = await close.ExecuteAsync(request, default);
+        var replay = await close.ExecuteAsync(request, default);
+
+        Assert.Equal(CaseLifecycleState.PrincipalCancelled, closed.State);
+        Assert.Equal(closed.Version, replay.Version);
+
+        await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.ReportSent);
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => close.ExecuteAsync(request, default));
+        Assert.Equal("A case can be closed only before its report is sent.", refused.Message);
+    }
+
+    /// <summary>
     /// Resolve query closes every open query on the Case at once (operator, 11
     /// October 2026) and clears the mark; a second Resolve with nothing open
     /// is refused and changes nothing.

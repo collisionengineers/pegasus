@@ -48,20 +48,35 @@ public sealed class EfCreateAuditStore(
                 cancellationToken);
         if (replay is not null)
         {
+            // One read: the Case's identity (the hash check's reference and the answer's
+            // Audit reference) and its Audit work's id.
             var committed = await context.Cases.AsNoTracking()
                 .Where(item => item.Id == request.CaseId)
-                .Select(item => new CaseIdentity(
-                    item.Id, item.Principal.Code, item.Year, item.Sequence, item.Reference, item.AuditReference))
+                .Select(item => new
+                {
+                    Identity = new CaseIdentity(
+                        item.Id, item.Principal.Code, item.Year, item.Sequence, item.Reference, item.AuditReference),
+                    AuditWorkId = item.Works
+                        .Where(work => work.Kind == CaseWorkKinds.Audit)
+                        .Select(work => (Guid?)work.Id)
+                        .FirstOrDefault()
+                })
                 .SingleAsync(cancellationToken);
             if (!string.Equals(replay.EventType, EventKind, StringComparison.Ordinal)
                 || !CaseOperationReplay.FixedTimeEquals(
                     replay.RequestHash,
-                    Fingerprint(request, CaseReferenceFormat.AuditReport(committed.Reference))))
+                    Fingerprint(request, CaseReferenceFormat.AuditReport(committed.Identity.Reference))))
             {
                 throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
             }
 
-            var replayed = await ReplayAsync(context, request.CaseId, committed, cancellationToken);
+            var replayed = await ReplayAsync(
+                context,
+                request.CaseId,
+                committed.Identity,
+                committed.AuditWorkId
+                    ?? throw new InvalidDataException($"Case '{request.CaseId}' has no Audit work."),
+                cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return replayed;
         }
@@ -198,13 +213,10 @@ public sealed class EfCreateAuditStore(
         PegasusDbContext context,
         Guid caseId,
         CaseIdentity identity,
+        Guid auditWorkId,
         CancellationToken cancellationToken)
     {
-        var audit = await context.CaseWorks.AsNoTracking()
-            .Where(item => item.CaseId == caseId && item.Kind == CaseWorkKinds.Audit)
-            .Select(item => new { item.Id, item.Case.AuditReference })
-            .SingleAsync(cancellationToken);
-        var auditReference = audit.AuditReference
+        var auditReference = identity.AuditReference
             ?? throw new InvalidDataException($"Case '{caseId}' has an Audit work without its Audit reference.");
         var operationKey = CustodyOperationKey(caseId);
         var custodyWorkId = await context.ExternalWorkItems.AsNoTracking()
@@ -212,7 +224,7 @@ public sealed class EfCreateAuditStore(
             .Select(item => item.Id)
             .SingleAsync(cancellationToken);
         return new(
-            new(identity with { AuditReference = auditReference }, audit.Id, auditReference, IsReplay: true),
+            new(identity with { AuditReference = auditReference }, auditWorkId, auditReference, IsReplay: true),
             custodyWorkId);
     }
 

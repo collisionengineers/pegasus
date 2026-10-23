@@ -997,7 +997,16 @@ public sealed class EfCaseWorkflowStore(
             return Task.CompletedTask;
         },
         cancellationToken,
-        refuse: workflow => CaseLifecycleRules.RequireClosureIsAllowed(StateOf(workflow)));
+        refuse: workflow => CaseLifecycleRules.RequireClosureIsAllowed(StateOf(workflow)),
+        // A replay of a Close is exempt only while the Case is still closed; a
+        // Case reopened to Report sent refuses the retried key as it always did.
+        refuseReplay: workflow =>
+        {
+            if (!CaseLifecycleRules.IsTerminal(StateOf(workflow)))
+            {
+                CaseLifecycleRules.RequireClosureIsAllowed(StateOf(workflow));
+            }
+        });
 
     public Task<CaseWorkflowRecord> ReturnToEngineerAsync(
         ReturnCaseToEngineerRequest request,
@@ -1082,7 +1091,10 @@ public sealed class EfCaseWorkflowStore(
             CaseLifecycleRules.RequireCanBeReopened(StateOf(workflow));
             CaseLifecycleRules.RequireReopenDestinationIsAllowed(
                 request.Destination, workflow.ReportSentEvidence is not null);
-        });
+        },
+        // The destination rule was never exempt for a replay.
+        refuseReplay: workflow => CaseLifecycleRules.RequireReopenDestinationIsAllowed(
+            request.Destination, workflow.ReportSentEvidence is not null));
 
     public Task<CaseWorkflowRecord> ArchiveAsync(
         ArchiveCaseRequest request,
@@ -1262,11 +1274,12 @@ public sealed class EfCaseWorkflowStore(
         string? discriminator = null,
         Action<CaseWorkflowEntity>? refuse = null,
         Func<PegasusDbContext, CaseWorkflowEntity, CancellationToken, Task>? refuseAsync = null,
-        Action? onReplay = null) =>
+        Action? onReplay = null,
+        Action<CaseWorkflowEntity>? refuseReplay = null) =>
         StoreConcurrencyRetry.ExecuteAsync(
             token => MutateOnceAsync(
                 request, eventType, apply, token, discriminator,
-                refuse: refuse, refuseAsync: refuseAsync, onReplay: onReplay),
+                refuse: refuse, refuseAsync: refuseAsync, onReplay: onReplay, refuseReplay: refuseReplay),
             cancellationToken);
 
     private async Task<CaseWorkflowRecord> MutateOnceAsync(
@@ -1278,7 +1291,8 @@ public sealed class EfCaseWorkflowStore(
         Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task>? afterEvent = null,
         Action<CaseWorkflowEntity>? refuse = null,
         Func<PegasusDbContext, CaseWorkflowEntity, CancellationToken, Task>? refuseAsync = null,
-        Action? onReplay = null)
+        Action? onReplay = null,
+        Action<CaseWorkflowEntity>? refuseReplay = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
@@ -1308,6 +1322,8 @@ public sealed class EfCaseWorkflowStore(
                 throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
             }
             var replayWorkflow = await WorkflowQuery(context, tracking: false).SingleAsync(item => item.CaseId == request.CaseId, cancellationToken);
+            // The few refusals Core kept for a replay (Close, Reopen), asked of the workflow already read.
+            refuseReplay?.Invoke(replayWorkflow);
             onReplay?.Invoke();
             return Map(replayWorkflow);
         }
