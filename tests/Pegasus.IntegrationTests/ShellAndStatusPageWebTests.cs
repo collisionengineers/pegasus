@@ -342,7 +342,10 @@ public sealed class ShellAndStatusPageWebTests
         Assert.Contains("aria-label=\"Notifications\"", html, StringComparison.Ordinal);
         // The page carries the count only: the list is asked for when the bell opens.
         Assert.Contains("data-notifications-url=\"/Notifications?handler=List\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain($">{OperatorLabels.Shell.NoNotifications}<", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div class=\"dialog-body dialog-body--list\" data-notifications-body aria-busy=\"true\">",
+            html,
+            StringComparison.Ordinal);
         Assert.Equal(1, notifications.CountCalls);
         Assert.Equal(0, notifications.ListCalls);
 
@@ -350,9 +353,9 @@ public sealed class ShellAndStatusPageWebTests
         using var list = await client.GetAsync("/Notifications?handler=List&returnUrl=%2FSearch");
         list.EnsureSuccessStatusCode();
         var listHtml = await list.Content.ReadAsStringAsync();
-        Assert.Contains($">{OperatorLabels.Shell.NoNotifications}<", listHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-notification-list", listHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("<html", listHtml, StringComparison.Ordinal);
+        Assert.Equal(
+            $"<p class=\"empty-state\" role=\"status\">{OperatorLabels.Shell.NoNotifications}</p>",
+            listHtml.Trim());
         Assert.Equal(1, notifications.ListCalls);
     }
 
@@ -391,8 +394,10 @@ public sealed class ShellAndStatusPageWebTests
         // The page counted the unread rows and drew none of them.
         Assert.Equal(1, notifications.CountCalls);
         Assert.Equal(0, notifications.ListCalls);
-        Assert.DoesNotContain("data-notification=", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">AI Proposal ready<", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div class=\"dialog-body dialog-body--list\" data-notifications-body aria-busy=\"true\">",
+            notificationsDialog,
+            StringComparison.Ordinal);
 
         // Opening the bell asks for the list, whose forms return to the page it was opened on.
         using var list = await client.GetAsync("/Notifications?handler=List&returnUrl=%2FSearch%3Fquery%3Dabc");
@@ -533,9 +538,9 @@ public sealed class ShellAndStatusPageWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(OperatorLabels.Shell.NotificationsUnavailable, html, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.Shell.NoNotifications, html, StringComparison.Ordinal);
-        Assert.DoesNotContain("sensitive store failure", html, StringComparison.Ordinal);
+        Assert.Equal(
+            $"<p class=\"empty-state\" role=\"status\">{OperatorLabels.Shell.NotificationsUnavailable}</p>",
+            html.Trim());
     }
 
     [Theory]
@@ -667,39 +672,6 @@ public sealed class ShellAndStatusPageWebTests
             page.ViewData.ContainsKey("NotificationsUnread"));
     }
 
-    /// <summary>
-    /// A page with no layout or the sign-in layout reads nothing on any
-    /// handler: a POST that answers its page, or a status code re-executed with
-    /// the original method, draws no shell either.
-    /// </summary>
-    [Theory]
-    [InlineData("n-get-page", "GET", null, "page")]
-    [InlineData("n-post-page", "POST", null, "page")]
-    [InlineData("n-post-named-page", "POST", "Accept", "page")]
-    [InlineData("n-named-get-page", "GET", "State", "page")]
-    [InlineData("n-post-redirect", "POST", null, "redirect")]
-    public async Task APageThatNeverDrawsTheShellReadsNothingOnAnyHandler(
-        string name, string method, string? handlerName, string result)
-    {
-        var events = new List<string>();
-        var notifications = new StubNotifications([], events);
-        var descriptor = new HandlerMethodDescriptor { HttpMethod = method, Name = handlerName };
-        var page = new NeverDrawsShellProbePage();
-
-        await RunShellFilterAsync(
-            notifications, new NoReleaseNotes(), new CapturingLogger<ShellPageFilter>(),
-            descriptor, page,
-            () =>
-            {
-                events.Add("handler");
-                return result == "page" ? new PageResult() : new RedirectResult("/");
-            },
-            method, CancellationToken.None);
-
-        Assert.True("handler" == string.Join(",", events), $"{name}: the handler and the bell ran as {string.Join(",", events)}.");
-        Assert.False(page.ViewData.ContainsKey("NotificationsUnread"));
-    }
-
     [Fact]
     public async Task AGetToAPageWithNoHandlerStartsTheShellReadsBeforeItRenders()
     {
@@ -734,7 +706,7 @@ public sealed class ShellAndStatusPageWebTests
 
         // The page carries the empty dialog and where its content comes from, not the content.
         Assert.Contains("data-dialog=\"account-dialog\" data-dialog-fragment=\"/Notifications?", page, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Sign out<", page, StringComparison.Ordinal);
+        Assert.Matches("<div class=\"dialog-backdrop\" data-dialog=\"account-dialog\" data-dialog-fragment=\"[^\"]+\" hidden></div>", page);
         var body = Between(dialog, "class=\"dialog-body\"", "class=\"dialog-foot\"");
         var foot = dialog[dialog.IndexOf("class=\"dialog-foot\"", StringComparison.Ordinal)..];
         Assert.Contains("href=\"/ReleaseNotes\"", body, StringComparison.Ordinal);
@@ -774,8 +746,7 @@ public sealed class ShellAndStatusPageWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var page = await client.GetStringAsync("/Search");
-        Assert.Contains("data-dialog=\"problem-dialog\" data-dialog-fragment=\"/Notifications?", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-problem-form", page, StringComparison.Ordinal);
+        Assert.Matches("<div class=\"dialog-backdrop\" data-dialog=\"problem-dialog\" data-dialog-fragment=\"/Notifications\\?[^\"]+\" hidden></div>", page);
 
         var dialog = await client.GetStringAsync(
             "/Notifications?handler=ShellDialog&name=problem&traceId=00-abc123-def456-01&method=POST");
@@ -871,8 +842,6 @@ public sealed class ShellAndStatusPageWebTests
     private class ShellProbePage : PageModel;
 
     private sealed class ShellFreeProbePage : ShellProbePage, IShellFreeGet;
-
-    private sealed class NeverDrawsShellProbePage : ShellProbePage, INeverDrawsShell;
 
     private sealed class CancelledCommandNotifications : IMyStaffNotifications
     {

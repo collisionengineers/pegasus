@@ -52,8 +52,7 @@ public sealed class ProblemReportsWebTests
 
         // The page carries the empty dialog; the form arrives when it first opens.
         var page = await GetHtmlAsync(client, "/");
-        Assert.Contains("data-dialog=\"problem-dialog\" data-dialog-fragment=\"", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-problem-form", page, StringComparison.Ordinal);
+        Assert.Matches("<div class=\"dialog-backdrop\" data-dialog=\"problem-dialog\" data-dialog-fragment=\"[^\"]+\" hidden></div>", page);
         var home = await GetHtmlAsync(client, ProblemDialog);
         Assert.Contains("data-problem-form", home, StringComparison.Ordinal);
         var sectionKeys = Regex.Match(home, "data-problem-case-sections=\"(?<keys>[^\"]+)\"")

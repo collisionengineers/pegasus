@@ -16,7 +16,7 @@ public sealed class SignInModel(
     SignInManager<PegasusIdentityUser> signInManager,
     ISecurityEventWriter securityEvents,
     TimeProvider timeProvider)
-    : PageModel, Pegasus.Web.Presentation.INeverDrawsShell
+    : PageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     // Explicit messages: the framework defaults name the bind property
     // ("The UserName field is required."), which is a C# identifier, not a

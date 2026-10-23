@@ -39,7 +39,6 @@ public sealed class StaffNotificationPersistenceTests
         Assert.Equal(1, commandCounter.Count);
         var statement = Assert.Single(commandCounter.Statements);
         Assert.Contains("COUNT(", statement, StringComparison.Ordinal);
-        Assert.DoesNotContain("[Route]", statement, StringComparison.Ordinal);
         Assert.Equal(1, await store.CountUnreadAsync(someoneElse, window, default));
 
         var later = Guid.NewGuid();

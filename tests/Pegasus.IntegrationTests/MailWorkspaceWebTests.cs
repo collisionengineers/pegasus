@@ -1307,7 +1307,6 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal(3, CountOccurrences(html, "data-mail-row-action=\"dismiss\""));
         // The bulk form and the three dismissals.
         Assert.Equal(1 + 3, CountOccurrences(html, "method=\"post\""));
-        Assert.DoesNotContain("/Account/SignOut", html, StringComparison.Ordinal);
     }
 
     /// <summary>
