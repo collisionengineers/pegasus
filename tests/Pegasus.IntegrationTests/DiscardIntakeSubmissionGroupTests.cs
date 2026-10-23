@@ -246,6 +246,32 @@ public sealed class DiscardIntakeSubmissionGroupTests
     }
 
     [Fact]
+    public async Task TheGroupedImageListLoadsOnlyTheFirstMemberOfAGroupItCanList()
+    {
+        var statements = new SqlStatementCounter();
+        await using var harness = await Harness.CreateAsync(statements);
+        var first = new DateTimeOffset(2031, 5, 1, 8, 0, 0, TimeSpan.Zero);
+        const string Photo = "image/jpeg";
+        const string Archive = "application/zip";
+        var photos = await harness.AddImageGroupMembersAsync(first, Photo, Photo, Photo, Photo);
+
+        // The first member is listable, so one receipt is loaded, not four.
+        statements.Reset();
+        Assert.Equal([photos[0].ReceiptId], await harness.Store.ListPendingImageGroupReceiptsAsync(10));
+        var onlyRead = Assert.Single(ReceiptAssetReads(statements));
+        Assert.InRange(onlyRead.Rows, 0, 1);
+
+        // A rejected first member sends the group's other members to one more
+        // read, and the lowest-ordinal listable one is listed.
+        var mixed = await harness.AddImageGroupMembersAsync(first.AddHours(1), Archive, Photo, Photo);
+        statements.Reset();
+        Assert.Equal(
+            [photos[0].ReceiptId, mixed[1].ReceiptId],
+            await harness.Store.ListPendingImageGroupReceiptsAsync(10));
+        Assert.Equal(2, ReceiptAssetReads(statements).Count);
+    }
+
+    [Fact]
     public async Task ANonTransientReplayFailureIsNotRetriedOnTheNextSweep()
     {
         await using var harness = await Harness.CreateAsync();
@@ -298,6 +324,13 @@ public sealed class DiscardIntakeSubmissionGroupTests
             Assert.Equal(0, processor.Calls);
         }
     }
+
+    // One Assets read per receipt load. A split-query dependent read stops
+    // before its last empty read, so its Rows can show one fewer than it read.
+    private static IReadOnlyList<SqlRead> ReceiptAssetReads(SqlStatementCounter statements) =>
+        [.. statements.Reads.Where(read =>
+            read.CommandText.Contains("JOIN [IntakeAssets]", StringComparison.Ordinal)
+            && !read.CommandText.Contains("JOIN [IntakeSubmissionGroupMembers]", StringComparison.Ordinal))];
 
     /// <summary>The grouped-image page reads: the only statements that join the group members.</summary>
     private static int GroupPageStatements(SqlStatementCounter statements) =>

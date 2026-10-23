@@ -81,8 +81,8 @@ internal sealed class EfPrincipalSubmissionStore(
         // cannot complete and nothing deletes, so admitting it to a bounded
         // oldest-first window would let one outage's worth of them occupy that
         // window for good. Both tests are correlated lookups on the outer
-        // submission, so each is an index seek per row of the oldest-first
-        // window rather than a join of whole tables.
+        // submission and return the same rows, in the same order, as the
+        // joins they replace.
         return await (
                 from submission in context.PrincipalSubmissions.AsNoTracking()
                 where submission.ReceivedAtUtc <= receivedAtOrBeforeUtc

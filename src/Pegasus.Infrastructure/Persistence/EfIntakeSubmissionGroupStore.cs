@@ -52,9 +52,10 @@ public sealed class EfIntakeSubmissionGroupStore(
         // receipt was already listed.
         // Each page seeks past the last row of the one before on the unique
         // (ReceivedAtUtc, group Id, Ordinal) order, so no page re-reads the
-        // rows already seen.
-        Guid? currentGroupId = null;
-        var currentGroupSpent = false;
+        // rows already seen. Within a page, receipts are loaded for each
+        // group's first row only; the group's later rows are loaded in one
+        // further read, and only for a group whose first row Core rejected.
+        Guid? spentGroupId = null;
         var hasLast = false;
         var lastReceivedAtUtc = default(DateTimeOffset);
         var lastGroupId = Guid.Empty;
@@ -73,41 +74,53 @@ public sealed class EfIntakeSubmissionGroupStore(
                 .ThenBy(candidate => candidate.Ordinal)
                 .Take(maximumItems)
                 .ToArrayAsync(cancellationToken);
-            var receiptIds = page
-                .Where(candidate => !(currentGroupSpent && candidate.Id == currentGroupId))
-                .Select(candidate => candidate.ReceiptId)
-                .Distinct()
+            // A group is contiguous in this order. Rows of a group already
+            // spent on an earlier page are not read at all.
+            var groupsOnPage = page
+                .Where(candidate => candidate.Id != spentGroupId)
+                .GroupBy(candidate => candidate.Id)
+                .Select(rows => rows.ToArray())
                 .ToArray();
-            var receipts = receiptIds.Length == 0
-                ? new Dictionary<Guid, IntakeReceiptEntity>()
-                : (await context.IntakeReceipts.AsNoTracking()
-                        .Include(receipt => receipt.Assets)
-                        .Include(receipt => receipt.MailClassificationDecision)
-                        .Include(receipt => receipt.MailRouteDecision)
-                        .AsSplitQuery()
-                        .Where(receipt => receiptIds.Contains(receipt.Id))
-                        .ToArrayAsync(cancellationToken))
-                    .ToDictionary(receipt => receipt.Id);
-            foreach (var candidate in page)
+            var receipts = new Dictionary<Guid, IntakeReceiptEntity>();
+            var verdicts = new Dictionary<Guid, bool>();
+            bool IsEligible(Guid receiptId)
             {
-                if (candidate.Id != currentGroupId)
+                if (!verdicts.TryGetValue(receiptId, out var eligible))
                 {
-                    currentGroupId = candidate.Id;
-                    currentGroupSpent = false;
+                    eligible = receipts.TryGetValue(receiptId, out var receipt)
+                        && ImageIntakeLifecycleRules.IsImageAutomationEligible(
+                            EfIntakeReceiptStore.Map(receipt, isDuplicate: false));
+                    verdicts[receiptId] = eligible;
                 }
 
-                if (currentGroupSpent
-                    || !receipts.TryGetValue(candidate.ReceiptId, out var receipt)
-                    || !ImageIntakeLifecycleRules.IsImageAutomationEligible(
-                        EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
+                return eligible;
+            }
+
+            await LoadReceiptsAsync(
+                context,
+                receipts,
+                groupsOnPage.Select(rows => rows[0].ReceiptId),
+                cancellationToken);
+            await LoadReceiptsAsync(
+                context,
+                receipts,
+                groupsOnPage
+                    .Where(rows => !IsEligible(rows[0].ReceiptId))
+                    .SelectMany(rows => rows.Skip(1))
+                    .Select(candidate => candidate.ReceiptId),
+                cancellationToken);
+            foreach (var rows in groupsOnPage)
+            {
+                var chosen = rows.FirstOrDefault(candidate => IsEligible(candidate.ReceiptId));
+                if (chosen is null)
                 {
                     continue;
                 }
 
-                currentGroupSpent = true;
-                if (!results.Contains(candidate.ReceiptId))
+                spentGroupId = chosen.Id;
+                if (!results.Contains(chosen.ReceiptId))
                 {
-                    results.Add(candidate.ReceiptId);
+                    results.Add(chosen.ReceiptId);
                     if (results.Count >= maximumItems)
                     {
                         return results;
@@ -125,6 +138,30 @@ public sealed class EfIntakeSubmissionGroupStore(
             lastReceivedAtUtc = last.ReceivedAtUtc;
             lastGroupId = last.Id;
             lastOrdinal = last.Ordinal;
+        }
+    }
+
+    private static async Task LoadReceiptsAsync(
+        PegasusDbContext context,
+        Dictionary<Guid, IntakeReceiptEntity> receipts,
+        IEnumerable<Guid> receiptIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = receiptIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var receipt in await context.IntakeReceipts.AsNoTracking()
+                     .Include(receipt => receipt.Assets)
+                     .Include(receipt => receipt.MailClassificationDecision)
+                     .Include(receipt => receipt.MailRouteDecision)
+                     .AsSplitQuery()
+                     .Where(receipt => ids.Contains(receipt.Id))
+                     .ToArrayAsync(cancellationToken))
+        {
+            receipts[receipt.Id] = receipt;
         }
     }
 
