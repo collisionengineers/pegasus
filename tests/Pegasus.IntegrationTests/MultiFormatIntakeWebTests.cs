@@ -783,11 +783,11 @@ public sealed partial class MultiFormatIntakeWebTests
                 select new { version.FileName, occurrence.SemanticRole })
             .ToArrayAsync();
         Assert.Contains(filed, file => file.FileName == "report.pdf");
-        var images = filed
+        var filedImages = filed
             .Where(file => file.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Image)
             .ToArray();
-        Assert.Equal(2, images.Length);
-        Assert.Contains(images, file => file.FileName == "vehicle.jpg");
+        Assert.Equal(2, filedImages.Length);
+        Assert.Contains(filedImages, file => file.FileName == "vehicle.jpg");
     }
 
     [Fact]
