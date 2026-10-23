@@ -42,7 +42,10 @@ public static class CaseNextAction
     /// its Audit creates it next, whether or not the report is sent; any
     /// other Case sends the report, and once a send of it is accepted its
     /// step is its open tasks while it has any (operator, 6 October 2026),
-    /// else none (operator, 12 October 2026).
+    /// else none (operator, 12 October 2026). A closed or archived Case has
+    /// none. Null when no step remains: the Case page draws no Next action
+    /// card for it and the Cases quick detail no Current work row (operator,
+    /// 19 October 2026; R306).
     /// </summary>
     /// <param name="caseType">The Case's type: Create audit follows the stored report of an Inspection + Audit Case.</param>
     /// <param name="works">The Case's works; null reads as the primary work alone.</param>
@@ -51,7 +54,7 @@ public static class CaseNextAction
     /// <param name="blockerSection">The section that clears a blocker on this Case, or null.</param>
     /// <param name="reportSent">Whether a send of the current work's report was accepted: Pegasus's own send record, which the Sent evidence follows.</param>
     /// <param name="hasOpenTasks">Whether the Case has an open task; read once the report is sent.</param>
-    public static CaseNextActionStep Of(
+    public static CaseNextActionStep? Of(
         CaseWorkflowRecord workflow,
         CaseType caseType,
         CaseWorkSet? works,
@@ -65,6 +68,10 @@ public static class CaseNextAction
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(reportBlockers);
         ArgumentNullException.ThrowIfNull(blockerSection);
+        if (HasNoStep(workflow))
+        {
+            return null;
+        }
         if (BeforeTheReport(workflow, firstRequirement) is { } early)
         {
             return early;
@@ -112,7 +119,8 @@ public static class CaseNextAction
     public static bool ReadsTheReport(CaseWorkflowRecord workflow)
     {
         ArgumentNullException.ThrowIfNull(workflow);
-        return BeforeTheReport(workflow, null) is null
+        return !HasNoStep(workflow)
+            && BeforeTheReport(workflow, null) is null
             && !CaseQueryRules.IsQueryStage(workflow.State, workflow.HasOpenQuery);
     }
 
@@ -127,13 +135,13 @@ public static class CaseNextAction
         return workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held;
     }
 
+    // A closed or archived Case has no step and reads no report.
+    private static bool HasNoStep(CaseWorkflowRecord workflow) =>
+        workflow.Archive is not null || CaseLifecycleRules.IsTerminal(workflow.State);
+
     // The steps the Case takes before the report is its next concern.
     private static CaseNextActionStep? BeforeTheReport(CaseWorkflowRecord workflow, string? firstRequirement)
     {
-        if (workflow.Archive is not null || CaseLifecycleRules.IsTerminal(workflow.State))
-        {
-            return new("None", "notes");
-        }
         // A With Engineer Case with no Engineer is handed on before its report
         // is anyone's concern (#1213, v41 K9).
         if (workflow.State == CaseLifecycleState.Review
@@ -192,10 +200,10 @@ public static class CaseNextAction
     // Once the report is sent, the Case's open tasks are what is left to do;
     // the Next action lists them, each opening the Tasks dialog (operator,
     // 6 and 13 October 2026). With none, nothing is (operator, 12 October 2026).
-    private static CaseNextActionStep AfterTheSend(bool hasOpenTasks) =>
+    private static CaseNextActionStep? AfterTheSend(bool hasOpenTasks) =>
         hasOpenTasks
             ? new(OperatorLabels.WorkCentre.OpenTasks, "overview", ListsOpenTasks: true)
-            : new("None", "notes");
+            : null;
 
     // What follows the stored report of an Inspection + Audit Case that has
     // no Audit yet: Create audit, offered even without an Engineer, where the

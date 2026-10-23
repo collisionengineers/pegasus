@@ -275,12 +275,16 @@ public sealed partial class DetailsModel
     /// The Case requirement the Next action's one step names, drawn in full
     /// with a control to the section that clears it: the first outstanding
     /// one while the Case is Not ready or Held, the states whose step it is
-    /// (<see cref="CaseNextAction"/>); null otherwise.
+    /// (<see cref="CaseNextAction"/>); null otherwise. The aside passes the
+    /// step and the requirements it already holds, so each is worked out
+    /// once per render.
     /// </summary>
-    public CaseRequirement? NextActionRequirement =>
+    public CaseRequirement? NextActionRequirement(
+        CaseNextActionStep next,
+        IReadOnlyList<CaseRequirement> requirements) =>
         CaseNextAction.ReadsTheRequirements(Case!.Workflow)
-        && NextAction is { Blocker: null }
-        && ReportNotReadyRequirements is [var first, ..]
+        && next.Blocker is null
+        && requirements is [var first, ..]
             ? first
             : null;
 
@@ -294,34 +298,35 @@ public sealed partial class DetailsModel
     /// own step and nothing once a send of that report is accepted
     /// (operator, 2 and 12 October 2026). Everything else outstanding is the Report not ready card's.
     /// </summary>
-    public CaseNextActionStep? NextAction
+    /// <param name="requirements">
+    /// The Case requirements outstanding, as the aside holds them
+    /// (<see cref="ReportNotReadyRequirements"/>); the Inspection view reads none.
+    /// </param>
+    public CaseNextActionStep? NextAction(IReadOnlyList<CaseRequirement> requirements)
     {
-        get
+        if (IsInspectionView)
         {
-            if (IsInspectionView)
-            {
-                return CaseNextAction.OfPastWork(
-                    ReportNotReadyBlockers,
-                    BlockerSectionKey,
-                    CurrentReportGeneration,
-                    Works?.Primary.ReportSentEvidence,
-                    ReportSendHistory.Accepted);
-            }
-            var details = Case!;
-            var next = CaseNextAction.Of(
-                details.Workflow,
-                details.Summary.CaseType,
-                Works,
-                OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
-                ReportDraftNotReady ? ReportDraftReasons : [],
+            return CaseNextAction.OfPastWork(
+                ReportNotReadyBlockers,
                 BlockerSectionKey,
                 CurrentReportGeneration,
-                ReportSendHistory.Accepted,
-                OpenTasks.Count > 0);
-            return next.Blocker is not null && AssessmentIsReadOnly
-                ? new(CaseWorkspaceLabels.Report.NotReady, "report")
-                : next;
+                Works?.Primary.ReportSentEvidence,
+                ReportSendHistory.Accepted);
         }
+        var details = Case!;
+        var next = CaseNextAction.Of(
+            details.Workflow,
+            details.Summary.CaseType,
+            Works,
+            requirements is [var first, ..] ? first.Title : null,
+            ReportDraftNotReady ? ReportDraftReasons : [],
+            BlockerSectionKey,
+            CurrentReportGeneration,
+            ReportSendHistory.Accepted,
+            OpenTasks.Count > 0);
+        return next is { Blocker: not null } && AssessmentIsReadOnly
+            ? new(CaseWorkspaceLabels.Report.NotReady, "report")
+            : next;
     }
 
     /// <summary>The Figures aside's repair cost inc VAT from the current estimate.</summary>

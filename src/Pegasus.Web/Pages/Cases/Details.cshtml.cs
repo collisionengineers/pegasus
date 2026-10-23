@@ -659,7 +659,19 @@ public sealed partial class DetailsModel(
 
     public string? SendToClaudeCondition { get; private set; }
 
-    public AssessmentReportDraftPreparation? ReportDraftPreparation { get; private set; }
+    public AssessmentReportDraftPreparation? ReportDraftPreparation
+    {
+        get => reportDraftPreparation;
+        private set
+        {
+            reportDraftPreparation = value;
+            reportDraftReasons = null;
+        }
+    }
+
+    private AssessmentReportDraftPreparation? reportDraftPreparation;
+
+    private IReadOnlyList<AssessmentReadinessItem>? reportDraftReasons;
 
     /// <summary>
     /// The report's narrative blocks as the Report section offers them (v28
@@ -704,13 +716,15 @@ public sealed partial class DetailsModel(
 
     public string? ReportDraftCondition { get; private set; }
 
-    public bool ReportDraftNotReady =>
-        ReportDraftPreparation is { CanGenerate: false }
-        && ReportDraftReasons.Count > 0;
+    public bool ReportDraftNotReady => ReportDraftPreparation is { CanGenerate: false };
 
-    /// <summary>The report blockers in the order the page shows what clears them.</summary>
+    /// <summary>
+    /// The report blockers in the order the page shows what clears them,
+    /// ordered once per preparation.
+    /// </summary>
     public IReadOnlyList<AssessmentReadinessItem> ReportDraftReasons =>
-        Pegasus.Web.Presentation.CaseWorkspaceLabels.Report.InPageOrder(ReportDraftPreparation?.Reasons ?? []);
+        reportDraftReasons ??=
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.Report.InPageOrder(ReportDraftPreparation?.Reasons ?? []);
 
     /// <summary>
     /// The Case's current generated report snapshot (B05): the newest
