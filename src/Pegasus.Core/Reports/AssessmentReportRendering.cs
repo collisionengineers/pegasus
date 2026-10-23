@@ -345,16 +345,12 @@ public sealed record ReportRepairCosts(
     /// calculation): a registered repairer charges VAT on the whole sub total
     /// and the row reads "VAT (20%)"; a repairer who is not registered charges
     /// it on parts and paint only and the row says so. The percentage is the
-    /// estimate's own. An unknown repairer VAT status, and any other
-    /// hand-picked set of costs, has no accepted wording.
+    /// estimate's own. Any other hand-picked set of costs has no accepted
+    /// wording.
     /// </summary>
     public static string? VatLabelOf(EstimateVatPolicy policy, decimal vatPercent)
     {
         ArgumentNullException.ThrowIfNull(policy);
-        if (policy.RepairerStatus == RepairerVatStatus.Unknown)
-        {
-            return null;
-        }
         var percent = vatPercent.ToString("0.##", CultureInfo.InvariantCulture);
         if (policy.Categories == EstimateVatCategories.All)
         {

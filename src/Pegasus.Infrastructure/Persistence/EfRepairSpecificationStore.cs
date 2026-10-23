@@ -1009,9 +1009,7 @@ public sealed class EfRepairSpecificationStore(
     /// <summary>
     /// The reverse of <see cref="ApplyDetails"/>: the canonical header as the
     /// row records it. A row that names no applicable categories carries the
-    /// status's own defaults. A row still stored as
-    /// <see cref="RepairerVatStatus.Unknown"/> charges VAT on nothing; live
-    /// rows are rewritten to Registered, and a stored Unknown still parses.
+    /// status's own defaults.
     /// </summary>
     private static EstimateDetails ReadDetails(CaseRepairSpecificationEntity entity)
     {

@@ -444,15 +444,12 @@ public static class CaseWorkspaceLabels
             item.Field ?? (item == CaseReportReadiness.SignOffEngineerNotChosen ? "signOffEngineerId" : null);
 
         /// <summary>
-        /// The control on the Repair Spec section that clears a repairer VAT
-        /// blocker, as a selector: its Repairer VAT status for an unknown
-        /// status, Reset to repairer status for a hand-picked set of costs.
-        /// Null for every other blocker (issue 898).
+        /// The control on the Repair Spec section that clears the repairer VAT
+        /// blocker, as a selector: Reset to repairer status for a hand-picked
+        /// set of costs. Null for every other blocker (issue 898).
         /// </summary>
         public static string? BlockerFocus(AssessmentReadinessItem item) =>
-            item == CaseReportReadiness.RepairerVatStatusUnknown ? "#estimate-vat-status"
-            : item == CaseReportReadiness.RepairerVatHandPicked ? "[data-vat-reset]"
-            : null;
+            item == CaseReportReadiness.RepairerVatHandPicked ? "[data-vat-reset]" : null;
 
         /// <summary>
         /// The report blockers in the order the Case page shows what clears
@@ -982,7 +979,6 @@ public static class CaseWorkspaceLabels
 
         public static string StatusLabel(RepairerVatStatus status) => status switch
         {
-            RepairerVatStatus.Unknown => "Unknown",
             RepairerVatStatus.Registered => "Registered",
             RepairerVatStatus.NotRegistered => "Not registered",
             _ => status.ToString(),

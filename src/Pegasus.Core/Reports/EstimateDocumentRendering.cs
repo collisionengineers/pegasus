@@ -50,7 +50,6 @@ public sealed record EstimateDocumentSnapshot(
     EstimateDiscounts Discounts,
     decimal? OtherCosts,
     EstimateTotals Totals,
-    bool VatTreatmentPending,
     int UnpricedItemCount,
     string PayloadVersion = EstimateDocumentContract.PayloadVersion)
 {
@@ -100,7 +99,6 @@ public sealed record EstimateDocumentSnapshot(
             estimate.Details.AppliedDiscounts,
             estimate.Details.OtherCosts,
             totals,
-            totals.VatPolicy.TreatmentPending,
             lines.Count(line => line.Unpriced));
     }
 

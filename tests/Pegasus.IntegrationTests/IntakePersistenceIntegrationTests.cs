@@ -261,7 +261,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261019120000_RepairerVatStatusDefaultsToRegistered",
                 "20261021120000_GrantWebRepairSpecDiscardDelete",
                 "20261022120000_DocumentTypesEstimateAndValuationEvidence",
-                "20261022210844_CaseFilingReplayIndexes"
+                "20261022210844_CaseFilingReplayIndexes",
+                "20261023150000_RepairerVatStatusUnknownRemoved"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
