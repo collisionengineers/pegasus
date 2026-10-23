@@ -272,7 +272,7 @@ reason. A reason is kept only where the action's rule requires one.
 
 The staff accounts table lists Username, Role, Sign-off, Glass's and State
 in compact rows
-([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/pages/administration/README.md)). Each row opens a Settings dialog for its one role and its account
+([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)). Each row opens a Settings dialog for its one role and its account
 actions. Create opens its own dialog. If a settings change is refused, the
 entered values and the validation message stay visible inside Settings.
 Saving Settings posts on the click and records the
@@ -283,7 +283,8 @@ asks for a reason, and none opens a confirmation dialog except Delete
 `Reason` is optional on every staff-account command in Core.
 
 The account actions are Create, Enable, Disable, Delete access, Force logout
-and Reset password. Each acts on its click from the Settings dialog.
+and Reset password. Each acts on its click from the Settings dialog, except
+Delete, which confirms in the shared dialog.
 Disable, Enable and Delete are shown apart from Force logout and Reset
 password as adverse actions. There are no periodic reviews, review dates or
 review actions. An account cannot disable or delete itself. Concurrent

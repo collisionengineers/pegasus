@@ -10,7 +10,7 @@
   jobs. Automation appears only when composed.
 - Administration buttons act on the click. There is no confirmation dialog,
   except Delete account
-  ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/pages/administration/README.md)).
+  ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 - Logs has two tabs: Action logs (who did what) and Intake log (what
   happened to each received file).
 - Workflow configuration holds the completeness rules, the chase interval,
