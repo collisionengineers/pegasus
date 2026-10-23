@@ -347,20 +347,22 @@ public static class ThirdPartyReportProfiles
         ArgumentNullException.ThrowIfNull(readResult);
         ArgumentNullException.ThrowIfNull(capture);
 
-        var pages = ThirdPartySourcePage.Read(readResult);
-        if (pages.Count != 0)
+        if (capture.Documents.Count == 0
+            && readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer))
         {
-            var document = Document(pages);
-            if (Compiled.Any(candidate =>
-                    candidate.Signature.Role is not (ThirdPartyDocumentRole.ImageEvidence or ThirdPartyDocumentRole.VehicleCapture)
-                    && candidate.Matches(document)))
-            {
-                return true;
-            }
+            return true;
         }
 
-        return capture.Documents.Count == 0
-            && readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer);
+        var pages = ThirdPartySourcePage.Read(readResult);
+        if (pages.Count == 0)
+        {
+            return false;
+        }
+
+        var document = Document(pages);
+        return Compiled.Any(candidate =>
+            candidate.Signature.Role is not (ThirdPartyDocumentRole.ImageEvidence or ThirdPartyDocumentRole.VehicleCapture)
+            && candidate.Matches(document));
     }
 
     /// <summary>

@@ -1204,12 +1204,6 @@ public sealed class ProcessIntake(
     }
 
     /// <summary>
-    /// Persists a finite policy fact that prevents selected photographs from
-    /// replacing the original document's known non-image route. The signal is
-    /// deliberately separate from the decision and reason: those remain the
-    /// assessment owner's explanation for staff.
-    /// </summary>
-    /// <summary>
     /// The whole-source document-carrier signal, or null when the source
     /// carries no recognised report and no PDF (operator, 22 October 2026).
     /// </summary>
@@ -1220,6 +1214,12 @@ public sealed class ProcessIntake(
             ? IntakeEvidenceSignals.RecognizedNonImageDocument
             : null;
 
+    /// <summary>
+    /// Persists a finite policy fact that prevents selected photographs from
+    /// replacing the original document's known non-image route. The signal is
+    /// deliberately separate from the decision and reason: those remain the
+    /// assessment owner's explanation for staff.
+    /// </summary>
     private static IntakeEvidence[] AppendImageAutomationBlockerEvidence(
         IReadOnlyList<IntakeEvidence> evidence,
         params string?[] signals)
