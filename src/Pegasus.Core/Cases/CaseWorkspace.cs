@@ -524,6 +524,13 @@ public static class CaseWorkspaceChangeSummary
 
         foreach (var name in beforeFields.Keys.Union(afterFields.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
+            // The market research marker is derived beside Retail and Trade,
+            // which name the change; the marker adds no word of its own.
+            if (name == AssessmentVocabulary.ValueFromMarketResearch)
+            {
+                continue;
+            }
+
             beforeFields.TryGetValue(name, out var was);
             afterFields.TryGetValue(name, out var now);
             if (!Equals(was?.ToString(), now?.ToString()))

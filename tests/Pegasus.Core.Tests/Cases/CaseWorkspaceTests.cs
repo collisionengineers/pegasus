@@ -191,6 +191,21 @@ public sealed class CaseWorkspaceTests
     }
 
     [Fact]
+    public void TheHistoryLineAddsNoWordForTheMarketResearchMarker()
+    {
+        var data = new CaseEditableData();
+        var beforeFields = new Dictionary<string, object?>(StringComparer.Ordinal);
+        var afterFields = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.ValueFromMarketResearch] = "true",
+        };
+
+        Assert.Equal(
+            "No field changed",
+            CaseWorkspaceChangeSummary.Describe(data, data, beforeFields, afterFields, false, 0, null));
+    }
+
+    [Fact]
     public void TheHistoryLineNamesTheGuideCardsTheSaveRecorded()
     {
         var data = new CaseEditableData(ClaimantName: "A Claimant");
