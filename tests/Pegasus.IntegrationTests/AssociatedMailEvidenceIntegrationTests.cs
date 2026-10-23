@@ -738,11 +738,10 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                 $"link:{Guid.NewGuid():N}",
                 "Linked to the Case by staff."),
             default);
-        await services.GetRequiredService<IReleaseCaseEditLease>().ExecuteAsync(
-            new(caseId, actor, $"release:{Guid.NewGuid():N}", linkLease.Token), default);
 
-        // The link's hand-over to the Worker: the replay of the receipt's
-        // completed work, which a failed work item would have made a NoOp.
+        // The staff link ended its own lease. The link's hand-over to the
+        // Worker: the replay of the receipt's completed work, which a failed
+        // work item would have made a NoOp.
         await IntakeWebDriver.ReplayCompletedWorkAsync(services, receipt.Id);
 
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
