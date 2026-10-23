@@ -12,8 +12,9 @@ public static class MailTriageMatch
 {
     /// <summary>
     /// The evidence a Triage-request classification puts on its receipt, or null
-    /// when the classification is not one. A reply is correspondence about a
-    /// Triage, not a new assessment request, and names none.
+    /// when the classification is not one. A request in reply form names it
+    /// too: whether its thread already holds a Case or Triage is decided where
+    /// the Triage opens (R195, operator, 22 October 2026).
     /// </summary>
     /// <param name="staffCorrected">
     /// True when staff corrected the message to Triage request: the source is
@@ -21,8 +22,7 @@ public static class MailTriageMatch
     /// </param>
     public static IntakeEvidence? Evidence(MailClassificationResult? classification, bool staffCorrected = false)
     {
-        if (classification is not { IsTriageRequest: true }
-            || classification.IsReplyContext)
+        if (classification is not { IsTriageRequest: true })
         {
             return null;
         }

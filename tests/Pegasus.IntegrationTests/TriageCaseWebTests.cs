@@ -986,6 +986,9 @@ public sealed partial class TriageCaseWebTests
     {
         public Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken) =>
             Task.FromResult<Guid?>(null);
+
+        public Task<bool> ThreadHoldsCaseOrTriageAsync(Guid receiptId, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     private sealed class FailingCaseCustody : ICaseCustody

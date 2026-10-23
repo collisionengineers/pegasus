@@ -255,6 +255,15 @@ public interface ITriagePrincipalGate
     /// when the receipt established none.
     /// </summary>
     Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the receipt's mailbox thread already holds a Case or a Triage:
+    /// another message of its exact mailbox conversation is linked to a Case
+    /// or opened a Triage (R195, operator, 22 October 2026). False for a
+    /// receipt that opened its own Triage, so a redelivery replays it, and for
+    /// one with no retained conversation.
+    /// </summary>
+    Task<bool> ThreadHoldsCaseOrTriageAsync(Guid receiptId, CancellationToken cancellationToken);
 }
 
 public interface IAssignTriage

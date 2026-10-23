@@ -91,12 +91,15 @@ public sealed partial class StaffIntakeActions(
         return record;
     }
 
+    /// <summary>The Triage creation's operation key for the caller's own key.</summary>
+    public static string OpenTriageOperationKey(string operationKey) => $"triage-from-staff:{operationKey}";
+
     /// <summary>
     /// Open the Triage: a Triage request held for want of a registration is
     /// promoted by someone supplying one; the receipt's accepted Triage-match
     /// record is passed back as recorded.
     /// </summary>
-    public async Task OpenTriageAsync(
+    public async Task<TriageRecord> OpenTriageAsync(
         ActionActor actor,
         IntakeReceipt receipt,
         string? vehicleRegistration,
@@ -114,15 +117,16 @@ public sealed partial class StaffIntakeActions(
             evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
         var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken)
             ?? throw new InvalidOperationException("The material has no completed evaluation to open a Triage from.");
-        await createTriage.ExecuteAsync(
+        var triage = await createTriage.ExecuteAsync(
             new(
                 new TriageOrigin(origin.ReceiptId, origin.SourceIdentity, origin.SourceHash, origin.EvaluationRevisionId),
                 ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration),
                 acceptedMatch,
                 actor,
-                $"triage-from-staff:{operationKey}"),
+                OpenTriageOperationKey(operationKey)),
             cancellationToken);
         await SynchronizeAsync(receipt.Id, cancellationToken);
+        return triage;
     }
 
     // A reading the staff registration used is confirmed; bookkeeping over a committed registration.

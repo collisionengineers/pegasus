@@ -396,6 +396,9 @@ replays by its operation key.
   inspects by images needs no settling. An Audit is accepted only for an
   item classified as one. With `allocate` it retries a failed allocation with
   a reason, naming the attempt, as the Intake log's **Retry allocation** does.
+  With `open_triage` it opens the Triage Case from an item classified, or
+  corrected to, Triage request, as **Open the Triage** on its message does
+  ([FRD-03](frd-03-triage.md#triage); operator, 22 October 2026; R223).
 - `pegasus_case_create` creates a Case directly, as staff **New case** does
   ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)): an
   Inspection or Inspection and Audit Case with its identity-critical facts,
@@ -514,7 +517,7 @@ its one command when none is given.
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
 | `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |
 | `automation.intake` | `pegasus_intake_get` | One received item as the Create case page reviews it | none |
-| `automation.intake` | `pegasus_intake_action` | `resolve_inspection_address` (accept, correct or supply it), `accept` a received item as a Case, or `allocate` (retry) a failed allocation | item version and key |
+| `automation.intake` | `pegasus_intake_action` | `resolve_inspection_address` (accept, correct or supply it), `accept` a received item as a Case, `allocate` (retry) a failed allocation, or `open_triage` on a Triage request | item version and key |
 | `automation.intake` | `pegasus_case_create` | Create a Case or Triage Case directly | key only |
 | `automation.intake` | `pegasus_unidentified_list`, `pegasus_unidentified_get` | The open Unidentified queue; one item by U-reference with its sources and history | none |
 | `automation.intake` | `pegasus_unidentified_source_download` | A retained source as native content | none |

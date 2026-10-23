@@ -571,8 +571,9 @@ public sealed class PrincipalMailClassificationPolicyTests
     [Fact]
     public void ForwardedReplyToATriageRequestIsReplyContextNotANewRequest()
     {
-        // Without this the reply-context gate never fires on the shape it was
-        // written for, and thread correspondence opens a second Triage.
+        // Without this the thread test where the Triage opens (R195) never
+        // runs on the shape it was written for, and thread correspondence
+        // opens a second Triage.
         var result = Classify(
             subject: "FW: RE: Engineer Triage - AB12 CDE",
             document: string.Empty);

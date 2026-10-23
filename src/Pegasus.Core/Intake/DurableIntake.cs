@@ -1576,6 +1576,15 @@ public sealed class ProcessQueuedIntake(
             return TriageCreationOutcome.NotQualifying;
         }
 
+        // R195 (operator, 22 October 2026): a request in reply form opens the
+        // Triage unless the thread already holds a Case or Triage; a reply
+        // into such a thread is that thread's correspondence.
+        if (receipt.MailClassificationDecision is { IsReplyContext: true }
+            && await triagePrincipalGate.ThreadHoldsCaseOrTriageAsync(receipt.Id, cancellationToken))
+        {
+            return TriageCreationOutcome.NotQualifying;
+        }
+
         await createTriage.ExecuteAsync(
             new(
                 new(

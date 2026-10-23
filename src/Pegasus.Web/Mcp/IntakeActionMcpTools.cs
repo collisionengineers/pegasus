@@ -6,6 +6,8 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
+using Pegasus.Web.Intake;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Mcp;
@@ -79,17 +81,20 @@ internal enum IntakeAction
 {
     Accept,
     Allocate,
-    ResolveInspectionAddress
+    ResolveInspectionAddress,
+    OpenTriage
 }
 
 /// <summary>
 /// The staff intake acts for the Automation Actor (ADR-0064, FRD-02): read one
 /// received item, turn it into a Case (Create case from a received item),
-/// retry a failed allocation, settle the inspection address, and create a
-/// Case directly. Each calls the same Core commands as the staff Create case
-/// page and the Action Logs retry, under <c>automation.intake</c>, with the
-/// resolved Automation identity. A settled address names the Automation
-/// actor as its settler (ADR-0064), never a member of staff.
+/// retry a failed allocation, settle the inspection address, open the Triage
+/// from an item classified, or corrected to, Triage request (R223), and create
+/// a Case directly. Each calls the same Core commands as the staff Create case
+/// page, the message's Open the Triage and the Action Logs retry, under
+/// <c>automation.intake</c>, with the resolved Automation identity. A settled
+/// address names the Automation actor as its settler (ADR-0064), never a
+/// member of staff.
 /// </summary>
 [McpServerToolType]
 internal sealed class IntakeActionMcpTools(
@@ -101,6 +106,8 @@ internal sealed class IntakeActionMcpTools(
     IPrincipalInspectionModeStore principalInspectionModes,
     ICreateManualCase createManualCase,
     IContactDirectoryQueries contacts,
+    ITriageQueries triages,
+    StaffIntakeActions intakeActions,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -186,17 +193,17 @@ internal sealed class IntakeActionMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the draft's suggested Principal) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing, or while the inspection address is not settled (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the settled address and the item's new version.")]
+    [Description("One staff intake act on a received item, through the same Core commands as staff. accept turns the item into a Case, as Create case on a received item does: the reviewed draft is recorded (the draft fields named here replace the item's; an omitted field keeps its value and an empty string clears it), then the Case is allocated for principalCode (default: the draft's suggested Principal) and caseType (default: the classified type; Audit only for an item classified as an Audit). It is refused while an identity-critical field is missing, or while the inspection address is not settled (a Principal that inspects by images needs none). resolve_inspection_address settles the address as the Create case page does: omit inspectionAddress to accept the suggested address, or give it to correct the suggestion (both need addressSuggestionFingerprint from pegasus_intake_get); where nothing was suggested, give inspectionAddress to supply it, with no fingerprint. Image Based Assessment is never typed. The settlement is recorded as the Automation actor's and advances the item version by one. allocate retries a failed allocation with a reason, naming the attempt it retries. open_triage opens the Triage Case from an item classified, or corrected to, Triage request, as Open the Triage on its message does, for vehicleRegistration (default: the draft's); it is refused where the message does not offer Open the Triage. Each needs the item version from pegasus_intake_get; the result names the allocation status and, once allocated, the Case, or the opened Triage Case, or the settled address and the item's new version.")]
     public async Task<IntakeActionToolResult> ActAsync(
         [Description(ReceiptIdDescription)] Guid receiptId,
-        [Description("accept, resolve_inspection_address or allocate.")] string action,
+        [Description("accept, resolve_inspection_address, allocate or open_triage.")] string action,
         [Description("The item version from pegasus_intake_get; a stale value fails closed.")] long expectedReceiptVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key resumes the same act rather than starting another.")] string operationKey,
         [Description("accept only: the Principal code the Case is allocated for, at most 20 characters; omit to use the draft's suggested Principal.")] string? principalCode = null,
         [Description("accept only: Inspection, Audit or InspectionAndAudit; omit to use the classified case type, or Inspection when there is none.")] string? caseType = null,
         [Description("accept only: claimant name.")] string? claimantName = null,
         [Description("accept only: claim number.")] string? claimNumber = null,
-        [Description("accept only: vehicle registration.")] string? vehicleRegistration = null,
+        [Description("accept and open_triage: vehicle registration; open_triage takes no other field and defaults to the draft's.")] string? vehicleRegistration = null,
         [Description("accept only: vehicle make.")] string? vehicleMake = null,
         [Description("accept only: vehicle model.")] string? vehicleModel = null,
         [Description("accept only: vehicle mileage.")] long? vehicleMileage = null,
@@ -223,7 +230,8 @@ internal sealed class IntakeActionMcpTools(
                     "accept" => IntakeAction.Accept,
                     "allocate" => IntakeAction.Allocate,
                     "resolve_inspection_address" => IntakeAction.ResolveInspectionAddress,
-                    _ => throw new McpException("action must be accept, resolve_inspection_address or allocate.")
+                    "open_triage" => IntakeAction.OpenTriage,
+                    _ => throw new McpException("action must be accept, resolve_inspection_address, allocate or open_triage.")
                 };
                 var draftFields = new object?[]
                 {
@@ -264,6 +272,33 @@ internal sealed class IntakeActionMcpTools(
                         settled.ReceiptVersion,
                         settled.State.ToString(),
                         settled.ResolvedValue,
+                        key,
+                        AutomationMcpAuditor.CorrelationId(context, key));
+                }
+                if (parsed == IntakeAction.OpenTriage)
+                {
+                    // vehicleRegistration is one of the draft fields.
+                    if (draftFields.Count(value => value is not null) > (vehicleRegistration is null ? 0 : 1)
+                        || expectedAttemptId is not null
+                        || reason is not null)
+                    {
+                        throw new McpException("open_triage takes only vehicleRegistration.");
+                    }
+
+                    var (triage, isReplay) = await OpenTriageAsync(
+                        context.Actor, receiptId, expectedReceiptVersion, key, vehicleRegistration, cancellationToken);
+                    return new IntakeActionToolResult(
+                        receiptId,
+                        "open_triage",
+                        AllocationStatus: null,
+                        triage.CaseId,
+                        triage.Reference,
+                        AuditReference: null,
+                        SafeReason: null,
+                        isReplay,
+                        ReceiptVersion: null,
+                        InspectionAddressState: null,
+                        InspectionAddressResolvedValue: null,
                         key,
                         AutomationMcpAuditor.CorrelationId(context, key));
                 }
@@ -601,6 +636,54 @@ internal sealed class IntakeActionMcpTools(
                 AutomationMcpErrors.DeriveOperationGuid("inspection-address", actor, key),
                 key),
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Open the Triage on a received item as the message page runs it (R223:
+    /// a correction to Triage request opens nothing by itself). The offer is
+    /// checked there, so an item whose Triage is open is refused as on the
+    /// page; only then is the refusal read as a replay of the same key, which
+    /// returns the Triage Case it opened.
+    /// </summary>
+    private async Task<(TriageRecord Triage, bool IsReplay)> OpenTriageAsync(
+        ActionActor actor,
+        Guid receiptId,
+        long expectedReceiptVersion,
+        string key,
+        string? vehicleRegistration,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await RequireReceiptAsync(receiptId, actor, cancellationToken);
+        if (receipt.Version != expectedReceiptVersion)
+        {
+            throw new IntakeVersionConflictException();
+        }
+
+        // The caller's key may take the whole operation-key length, so the
+        // creation is keyed by its derived identity instead.
+        var operationKey = AutomationMcpErrors.DeriveOperationGuid("open-triage", actor, key).ToString("N");
+        try
+        {
+            return (await intakeActions.OpenTriageAsync(
+                    actor,
+                    receipt,
+                    vehicleRegistration ?? receipt.InstructionDraft?.VehicleRegistration,
+                    operationKey,
+                    cancellationToken),
+                false);
+        }
+        catch (InvalidOperationException)
+        {
+            var creationKey = StaffIntakeActions.OpenTriageOperationKey(operationKey);
+            if (await triages.GetByOriginReceiptAsync(receipt.Id, cancellationToken) is { } opened
+                && await triages.GetAsync(opened.CaseId, cancellationToken) is { } detail
+                && detail.History.Any(entry => entry.OperationKey == creationKey))
+            {
+                return (detail.Record, true);
+            }
+
+            throw;
+        }
     }
 
     private async Task<IntakeReceipt> RequireReceiptAsync(

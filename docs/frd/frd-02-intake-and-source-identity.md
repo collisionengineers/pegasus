@@ -315,8 +315,9 @@ and is offered only where it applies:
 
 Each records the actor, reason, time, and before and after state, and
 replays by operation key. The Automation Actor retries an allocation,
-settles a received item's inspection address, and turns the item into a Case
-as **Create case** does, through `pegasus_intake_action`
+settles a received item's inspection address, turns the item into a Case
+as **Create case** does, and opens the Triage as **Open the Triage** does
+(operator, 22 October 2026; R223), through `pegasus_intake_action`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
 
 A retained message's attachments each state their own outcome in operator
