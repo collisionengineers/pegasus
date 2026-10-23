@@ -403,7 +403,19 @@ public sealed partial class DetailsModel(
         .Distinct(StringComparer.OrdinalIgnoreCase));
     private const string NotInEditMode = "Enter edit mode to change the assessment.";
 
-    public CaseAssessmentProjection? Assessment { get; private set; }
+    private CaseAssessmentProjection? assessment;
+
+    public CaseAssessmentProjection? Assessment
+    {
+        get => assessment;
+        private set
+        {
+            assessment = value;
+            // The Engineer's Value is read once where the Assessment arrives;
+            // every reader on the page shares this one reading (R366).
+            EngineerValue = EngineerValueOf(value);
+        }
+    }
 
     public RepairSpecificationVersion? CurrentSpecification { get; private set; }
 
@@ -523,65 +535,26 @@ public sealed partial class DetailsModel(
         && SelectedEstimate is { IsCurrent: false, State: RepairSpecificationState.Draft };
 
     /// <summary>
-    /// The spec as the editor holds it: what the totals, the scaling range
-    /// and the column map read. A stored line keeps its Specialist kind, as
-    /// the Save carries it, so hours priced by work units stay priced here too.
+    /// The spec the section prices, set once per request: the stored spec as
+    /// it is, so hours price at their stored precision as the save and the
+    /// report do; a new spec as its header with no lines yet; a redraw as the
+    /// spec a save of the posted rows would record (<see cref="RedrawnSpecification"/>).
+    /// A Case with no spec has the default header and no lines. The totals, the
+    /// scaling range and the column map read it.
     /// </summary>
-    public RepairSpecificationVersion EditorSpecification
-    {
-        get
-        {
-            var details = EditorDetails ?? SelectedEstimate?.Details
-                ?? new EstimateDetails(
-                    Name: Labels.CaseWorkspace.EngineerSections.Estimate,
-                    LabourRate: null,
-                    OtherCosts: null,
-                    VatPercent: EstimatePolicy.DefaultVatPercent);
-            var stored = SelectedEstimate?.Lines.ToDictionary(line => line.Id)
-                ?? new Dictionary<Guid, CaseEstimateLineRecord>();
-            string LineType(EstimateEditorLine line)
-            {
-                var edited = EstimateOperations.TryParse(line.Operation, out var operation)
-                    ? EstimateOperations.ToLineType(operation)
-                    : "specialist_fixed";
-                return line.ExistingLineId is { } id && stored.TryGetValue(id, out var saved)
-                    ? EstimateOperations.Carry(edited, saved.Type)
-                    : edited;
-            }
-            return new(
-                SelectedEstimate?.SpecificationId ?? Guid.Empty,
-                SelectedEstimate?.CaseId ?? Guid.Empty,
-                SelectedEstimate?.Version ?? 1,
-                RepairSpecificationState.Draft,
-                SelectedEstimate?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
-                [.. EditorLines.Select((line, index) => new CaseEstimateLineRecord(
-                    Guid.Empty,
-                    index + 1,
-                    LineType(line),
-                    null,
-                    line.Description,
-                    ParseNumber(line.LabourHours),
-                    ParseNumber(line.PartPounds),
-                    false,
-                    line.PartNumber,
-                    null,
-                    null,
-                    null,
-                    ActorKind.Staff,
-                    SelectedEstimate?.CreatedBy ?? string.Empty,
-                    DateTimeOffset.UtcNow,
-                    ParseNumber(line.PaintHours),
-                    string.IsNullOrWhiteSpace(line.Quantity)
-                        ? null
-                        : (int?)ParseNumber(line.Quantity),
-                    ParseNumber(line.Materials)))],
-                SelectedEstimate?.CreatedBy ?? string.Empty,
-                SelectedEstimate?.CreatedAtUtc ?? DateTimeOffset.UtcNow,
-                details,
-                SelectedEstimate?.IsCurrent ?? false,
-                SelectedEstimate?.AiJobId);
-        }
-    }
+    public RepairSpecificationVersion EditorSpecification =>
+        editorSpecification ??= EstimatePolicy.Provisional(
+            Guid.Empty,
+            null,
+            new EstimateDetails(
+                Name: Labels.CaseWorkspace.EngineerSections.Estimate,
+                LabourRate: null,
+                OtherCosts: null,
+                VatPercent: EstimatePolicy.DefaultVatPercent),
+            [],
+            DateTimeOffset.UtcNow);
+
+    private RepairSpecificationVersion? editorSpecification;
 
     public EstimateTotals EditorTotals => EstimateTotals.Compute(EditorSpecification);
 
@@ -621,8 +594,11 @@ public sealed partial class DetailsModel(
         }
     }
 
-    public decimal? EngineerValue =>
-        Assessment?.Field(AssessmentVocabulary.ValueEngineer) is { } engineerValue
+    /// <summary>The Engineer's Value the Assessment holds, resolved when it is assigned.</summary>
+    public decimal? EngineerValue { get; private set; }
+
+    private static decimal? EngineerValueOf(CaseAssessmentProjection? assessment) =>
+        assessment?.Field(AssessmentVocabulary.ValueEngineer) is { } engineerValue
             && decimal.TryParse(
                 engineerValue.Value,
                 NumberStyles.Number,
@@ -1008,12 +984,6 @@ public sealed partial class DetailsModel(
     /// <summary>Whether provider work for this staff member's session is queued or running now.</summary>
     public bool GlassWorkRunning { get; private set; }
 
-    private static decimal? ParseNumber(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
-                ? parsed
-                : null;
     /// <summary>
     /// The values a refused editor submitted, held for comparison against the values the case now
     /// holds. There is no control that applies, merges, or forces them: the only way forward is to
@@ -1488,6 +1458,7 @@ public sealed partial class DetailsModel(
                 VatPercent: EstimatePolicy.DefaultVatPercent,
                 Rate: card is null ? null : new EstimateRateSnapshot(card.Id, card.Version, card.HourlyRate));
             EditorLines = [new EstimateEditorLine("", null, null, null, null, null, null, null)];
+            editorSpecification = EstimatePolicy.Provisional(Guid.Empty, null, EditorDetails, [], DateTimeOffset.UtcNow);
             return;
         }
 
@@ -1502,6 +1473,9 @@ public sealed partial class DetailsModel(
         }
 
         EditorDetails = SelectedEstimate.Details;
+        // The page prices the stored spec itself: its stored positions run
+        // from one without gaps, so a mark keeps its row.
+        editorSpecification = SelectedEstimate;
         EditorLines = SelectedEstimate.Lines
             .OrderBy(line => line.Position)
             .Select(line => new EstimateEditorLine(
@@ -1511,8 +1485,8 @@ public sealed partial class DetailsModel(
                 line.Quantity?.ToString(CultureInfo.InvariantCulture),
                 // Two decimals in every figure box (v36 item X, 9 October 2026): a
                 // stored 0.700000 no longer clips the box.
-                line.WorkUnits?.ToString("0.00", CultureInfo.InvariantCulture),
-                line.PaintWorkUnits?.ToString("0.00", CultureInfo.InvariantCulture),
+                line.WorkUnits is { } hours ? EstimatePolicy.EditorHoursText(hours) : null,
+                line.PaintWorkUnits is { } paintHours ? EstimatePolicy.EditorHoursText(paintHours) : null,
                 line.Price?.ToString("0.00", CultureInfo.InvariantCulture),
                 line.Materials?.ToString("0.00", CultureInfo.InvariantCulture),
                 line.Id))
@@ -3491,10 +3465,7 @@ public sealed partial class DetailsModel(
         {
             var existing = await ResolveEstimateAsync(id, editor.EstimateId, cancellationToken);
             var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor, WorkSelector), cancellationToken);
-            decimal? engineerValue = workspace?.Assessment.Field(AssessmentVocabulary.ValueEngineer) is { } field
-                && decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var recorded)
-                    ? recorded
-                    : null;
+            var engineerValue = EngineerValueOf(workspace?.Assessment);
             var target = RepairSpecificationScaling.TargetGross(engineerValue, percent);
             var floors = new ScalingFloors(
                 floorRate ?? ScalingFloors.Default.LabourRatePerHour,
@@ -4303,6 +4274,7 @@ public sealed partial class DetailsModel(
         EditorDetails = EditorDetailsFrom(editor, SelectedEstimate);
         EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null, null)];
         ShowingPostedEstimate = true;
+        editorSpecification = RedrawnSpecification(id, EditorDetails);
         return Page();
     }
 
@@ -4361,20 +4333,94 @@ public sealed partial class DetailsModel(
         editor.VatPolicyFrom(existing?.Details.VatPolicy),
         RegionalUplift: editor.RegionalUplift), existing?.Details);
 
+    /// <summary>A posted figure: null when blank, <see cref="decimal.MinusOne"/> when it does not read.</summary>
+    private static decimal? PostedFigure(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : decimal.MinusOne;
+
+    /// <summary>
+    /// The line one editor row posts, for the save's reader and for a redraw.
+    /// A figure that does not read, or an operation the editor does not offer,
+    /// is absent and leaves <paramref name="reads"/> false: the save refuses
+    /// the post, the redraw still draws the row.
+    /// </summary>
+    private static EstimateLineInput ToLineInput(EstimateEditorLine row, out bool reads)
+    {
+        static decimal? Present(decimal? figure) => figure is < 0 ? null : figure;
+        var typed = EstimateOperations.TryParse(row.Operation, out var operation);
+        var workUnits = PostedFigure(row.LabourHours);
+        var paintWorkUnits = PostedFigure(row.PaintHours);
+        var price = PostedFigure(row.PartPounds);
+        var materials = PostedFigure(row.Materials);
+        int? quantity = null;
+        var quantityReads = true;
+        if (!string.IsNullOrWhiteSpace(row.Quantity))
+        {
+            quantityReads = int.TryParse(
+                row.Quantity.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var posted) && posted >= 0;
+            quantity = quantityReads ? posted : null;
+        }
+        reads = typed && quantityReads
+            && workUnits is not < 0 && paintWorkUnits is not < 0 && price is not < 0 && materials is not < 0;
+        return new(
+            EstimateOperations.ToLineType(typed ? operation : EstimateOperation.Specialist),
+            null,
+            string.IsNullOrWhiteSpace(row.Description) ? null : row.Description.Trim(),
+            Present(workUnits),
+            Present(price),
+            false,
+            string.IsNullOrWhiteSpace(row.PartNumber) ? null : row.PartNumber.Trim(),
+            null,
+            null,
+            null,
+            Present(paintWorkUnits),
+            quantity,
+            Present(materials));
+    }
+
+    /// <summary>
+    /// The spec a redraw prices: the rows as a save would record them, every
+    /// row a line (blank ones too, so a mark keeps its row), carried from the
+    /// stored spec by <see cref="EstimatePolicy.Edited"/>. A row the save would
+    /// refuse is still drawn, with no refusal: it is priced as posted.
+    /// </summary>
+    private RepairSpecificationVersion RedrawnSpecification(Guid caseId, EstimateDetails details)
+    {
+        var lines = EditorLines.Select(row => ToLineInput(row, out _)).ToArray();
+        try
+        {
+            if (TryGetActor(out var actor))
+            {
+                return EstimatePolicy.Edited(
+                    caseId,
+                    actor,
+                    SelectedEstimate,
+                    details,
+                    lines,
+                    [.. EditorLines.Select(row => row.ExistingLineId)],
+                    DateTimeOffset.UtcNow);
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException
+            or KeyNotFoundException or StaffAuthorizationException)
+        {
+            // The save would refuse these rows; the redraw draws them as posted.
+        }
+
+        return EstimatePolicy.Provisional(caseId, SelectedEstimate, details, lines, DateTimeOffset.UtcNow);
+    }
+
     private EstimateEditorPost ReadEditorPost()
     {
         var form = Request.Form;
-        static decimal? Money(string? value) =>
-            string.IsNullOrWhiteSpace(value)
-                ? null
-                : decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
-                    ? parsed
-                    : decimal.MinusOne;
         // A discount is typed as a percentage and held as a fraction. A blank
         // box is no discount; anything unreadable stays negative through the
         // conversion, so EstimatePolicy.ValidateDiscounts' [0,1] rule refuses
         // it rather than the screen guessing a value.
-        static decimal Fraction(string? value) => (Money(value) ?? 0m) / 100m;
+        static decimal Fraction(string? value) => (PostedFigure(value) ?? 0m) / 100m;
         // A checked box posts "true" ahead of its hidden "false"; an
         // unchecked box posts the "false" alone, so the first entry is the answer.
         bool Checked(string field) =>
@@ -4427,51 +4473,14 @@ public sealed partial class DetailsModel(
             existingLineIds.Add(existingLineId);
             lineRows.Add(index);
 
-            var typed = EstimateOperations.TryParse(operation, out var parsedOperation);
-            var workUnits = Money(labourHours);
-            var paintWorkUnits = Money(paintHours);
-            var price = Money(partPounds);
-            var materials = Money(lineMaterials);
-            int? parsedQuantity = null;
-            if (!string.IsNullOrWhiteSpace(quantity))
-            {
-                parsedQuantity = int.TryParse(
-                    quantity.Trim(),
-                    NumberStyles.Integer,
-                    CultureInfo.InvariantCulture,
-                    out var quantityValue) && quantityValue >= 0
-                    ? quantityValue
-                    : -1;
-            }
-            if (!typed
-                || workUnits == decimal.MinusOne
-                || paintWorkUnits == decimal.MinusOne
-                || price == decimal.MinusOne
-                || materials == decimal.MinusOne
-                || parsedQuantity == -1
-                || workUnits is < 0
-                || paintWorkUnits is < 0
-                || price is < 0
-                || materials is < 0)
+            var line = ToLineInput(rows[^1], out var reads);
+            if (!reads)
             {
                 linesAreValid = false;
                 continue;
             }
 
-            lines.Add(new(
-                EstimateOperations.ToLineType(parsedOperation),
-                null,
-                string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
-                workUnits,
-                price,
-                false,
-                string.IsNullOrWhiteSpace(partNumber) ? null : partNumber.Trim(),
-                null,
-                null,
-                null,
-                paintWorkUnits,
-                parsedQuantity,
-                materials));
+            lines.Add(line);
         }
 
         Guid? estimateId = Guid.TryParse(form["estimateId"].ToString(), out var parsedId)
@@ -4489,10 +4498,10 @@ public sealed partial class DetailsModel(
 
         return new(
             form["estimateName"].ToString(),
-            Money(form["estimateLabourRate"].ToString()),
+            PostedFigure(form["estimateLabourRate"].ToString()),
             Checked("estimateRegionalUplift"),
-            Money(form["estimateOtherCosts"].ToString()),
-            Money(form["estimateVatPercent"].ToString()),
+            PostedFigure(form["estimateOtherCosts"].ToString()),
+            PostedFigure(form["estimateVatPercent"].ToString()),
             // Enum.TryParse accepts any number; a missing or undefined post is
             // the default, and Core refuses a defined status that is no choice.
             Enum.TryParse<RepairerVatStatus>(form["estimateVatStatus"].ToString(), out var status)

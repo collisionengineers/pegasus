@@ -10,6 +10,7 @@
 *@
 @using System.Globalization
 @using Pegasus.Core.Assessment
+@using Pegasus.Core.Reports
 @using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.RepairSpecDiffView
@@ -58,7 +59,7 @@
         var hours = (line.WorkUnits ?? 0m) + (line.PaintWorkUnits ?? 0m);
         html.AppendHtml(Cell("quantity", line.Quantity is > 1 ? line.Quantity.Value.ToString(CultureInfo.InvariantCulture) : "—"));
         html.AppendHtml(Cell("unit amount", line.Price is { } price ? Money(price) : "—"));
-        html.AppendHtml(Cell("hours", hours == 0m ? "—" : hours.ToString("0.0", CultureInfo.InvariantCulture)));
+        html.AppendHtml(Cell("hours", hours == 0m ? "—" : AssessmentReportWording.Hours(hours)));
         html.AppendHtml(Cell("materials", line.Materials is { } materials ? Money(materials) : "—"));
         html.AppendHtml($"<td class=\"num mono\">{Money(RepairSpecificationComparison.LineValue(line, rate))}</td>");
     }

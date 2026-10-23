@@ -1909,6 +1909,258 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(details.HourlyRate, reloaded.Details.HourlyRate);
     }
 
+    private static readonly CultureInfo Gb = CultureInfo.GetCultureInfo("en-GB");
+
+    internal static string MoneyText(decimal amount) => "£" + amount.ToString("N2", Gb);
+
+    internal static string RollupOf(string html, string key)
+    {
+        var cell = Regex.Match(html, $"data-rollup=\"{key}\">(?<text>[^<]+)<");
+        Assert.True(cell.Success, $"The page must render the {key} rollup.");
+        return WebUtility.HtmlDecode(cell.Groups["text"].Value);
+    }
+
+    /// <summary>
+    /// R193: the editor shows hours to two decimals and posts exactly that,
+    /// every box a whole number of its step so the browser's validity check
+    /// passes, while the stored six-decimal hours stay and the page prices
+    /// them as the save and the report do.
+    /// </summary>
+    [Fact]
+    public async Task TheEditorPostsBackWhatItShowedAndThePageReadsTheStoredHours()
+    {
+        var caseId = Guid.NewGuid();
+        var seeded = ProvenancedDraft(caseId);
+        var store = new RecordingStores(caseId) { WorkingEstimate = seeded };
+        using var baseFactory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            new FixedTimeProvider(SavedAtUtc),
+            useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var expectedGross = MoneyText(EstimateTotals.Compute(seeded).Printed.Gross);
+
+        var editing = await EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={seeded.SpecificationId:D}");
+
+        Assert.Equal(expectedGross, RollupOf(editing, "gross"));
+        var boxes = Regex.Matches(
+                editing,
+                "<input[^>]*id=\"line-(?<kind>labour|paint)-(?<row>[0-9]+)\"[^>]*>")
+            .Select(box => (
+                Kind: box.Groups["kind"].Value,
+                Row: int.Parse(box.Groups["row"].Value, CultureInfo.InvariantCulture),
+                Tag: box.Value))
+            .ToArray();
+        Assert.Equal(4, boxes.Length);
+        var posted = new Dictionary<(string Kind, int Row), string>();
+        foreach (var (kind, row, tag) in boxes)
+        {
+            var value = Regex.Match(tag, "value=\"(?<value>[^\"]+)\"");
+            var step = Regex.Match(tag, "step=\"(?<step>[^\"]+)\"").Groups["step"].Value;
+            Assert.Equal(EstimatePolicy.EditorHoursStep, step);
+            Assert.Contains("min=\"0\"", tag, StringComparison.Ordinal);
+            if (value.Success)
+            {
+                // The rule form.checkValidity() applies to a number box.
+                Assert.Equal(
+                    0m,
+                    decimal.Parse(value.Groups["value"].Value, CultureInfo.InvariantCulture)
+                        % decimal.Parse(step, CultureInfo.InvariantCulture));
+            }
+            posted[(kind, row)] = value.Success ? value.Groups["value"].Value : string.Empty;
+        }
+        Assert.Equal("0.33", posted[("labour", 1)]);
+        Assert.Equal("0.91", posted[("paint", 1)]);
+
+        var details = seeded.Details;
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(editing)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", InputValue(editing, "editLeaseToken")),
+            new("estimateId", seeded.SpecificationId.ToString("D")),
+            new("expectedVersion", InputValue(editing, "expectedVersion")),
+            new("estimateName", details.Name),
+            new("estimateLabourRate", details.LabourRate!.Value.ToString(CultureInfo.InvariantCulture)),
+            new("estimateOtherCosts", details.OtherCosts!.Value.ToString(CultureInfo.InvariantCulture)),
+            new("estimateVatPercent", details.VatPercent.ToString(CultureInfo.InvariantCulture)),
+        };
+        fields.AddRange(HeaderFields(details.VatPolicy, details.AppliedDiscounts));
+        foreach (var (line, row) in seeded.Lines.OrderBy(line => line.Position).Select((line, row) => (line, row)))
+        {
+            fields.Add(new("lineId", line.Id.ToString("D")));
+            fields.Add(new("lineOperation", EstimateOperations.FromLineType(line.Type).ToString()));
+            fields.Add(new("lineDescription", line.Description ?? string.Empty));
+            fields.Add(new("linePartNumber", line.PartNumber ?? string.Empty));
+            fields.Add(new("lineQuantity", line.Quantity?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("lineLabourHours", posted[("labour", row)]));
+            fields.Add(new("linePaintHours", posted[("paint", row)]));
+            fields.Add(new("linePartPounds", line.Price?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+            fields.Add(new("lineMaterials", line.Materials?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
+        }
+
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=Save&section=estimate",
+            new FormUrlEncodedContent(fields));
+
+        Assert.Equal(HttpStatusCode.Redirect, saveResponse.StatusCode);
+        Assert.Single(store.SavedEstimates);
+        var reloaded = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
+        var untouched = Assert.Single(reloaded.Lines, line => line.Description == "REPAIR NEARSIDE DOOR");
+        Assert.Equal(0.333333m, untouched.WorkUnits);
+        Assert.Equal(0.91m, untouched.PaintWorkUnits);
+        Assert.All(reloaded.Lines, line =>
+        {
+            Assert.Equal(SeededAmendedBy, line.AmendedBy);
+            Assert.Equal(SeededAmendedAtUtc, line.AmendedAtUtc);
+        });
+
+        var reloadedHtml = await GetHtmlAsync(
+            client, $"/Cases/{caseId:D}?section=estimate&estimate={seeded.SpecificationId:D}");
+        Assert.Equal(expectedGross, RollupOf(reloadedHtml, "gross"));
+    }
+
+    /// <summary>
+    /// A redraw (add, remove or clear a row) prices the spec a save of the
+    /// posted rows would record, blank rows included so an off-pattern mark
+    /// keeps its own row; rows the save would refuse still draw, with no
+    /// refusal.
+    /// </summary>
+    [Fact]
+    public async Task TheEditorRedrawPricesCarriedHoursAndKeepsTheMarksOnTheirRows()
+    {
+        var caseId = Guid.NewGuid();
+        var seeded = DraftSpecification(caseId) with
+        {
+            Details = new("Repairer", 55m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            Lines =
+            [
+                new(
+                    Guid.NewGuid(), 1, "repair", null, "REPAIR NEARSIDE DOOR", 0.333333m, null, false,
+                    null, null, null, null, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow),
+                // Paint hours on a part line are off-pattern: Core marks them.
+                new(
+                    Guid.NewGuid(), 2, "new_part", null, "FRONT BUMPER", null, 100m, false,
+                    null, null, null, null, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow,
+                    PaintWorkUnits: 0.5m, Quantity: 1),
+            ],
+        };
+        var totals = EstimateTotals.Compute(seeded);
+        var anomaly = Assert.Single(totals.OffPattern);
+        Assert.Equal((2, "paint hours"), (anomaly.Position, anomaly.Field));
+        var store = new RecordingStores(caseId) { WorkingEstimate = seeded };
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var editing = await EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={seeded.SpecificationId:D}");
+
+        async Task<(HttpStatusCode Status, string Html)> RedrawAsync(string labourHours)
+        {
+            var fields = new List<KeyValuePair<string, string>>
+            {
+                new("__RequestVerificationToken", AntiforgeryValue(editing)),
+                new("estimateId", seeded.SpecificationId.ToString("D")),
+                new("estimateName", seeded.Details.Name),
+                new("estimateLabourRate", "55"),
+                new("estimateVatPercent", "20"),
+            };
+            fields.AddRange(HeaderFields(seeded.Details.VatPolicy, seeded.Details.AppliedDiscounts));
+            // A blank row ahead of the stored lines, and a blank one added after them.
+            foreach (var (id, operation, description, quantity, hours, paint, price) in new[]
+            {
+                (string.Empty, "Replace", string.Empty, string.Empty, string.Empty, string.Empty, string.Empty),
+                (seeded.Lines[0].Id.ToString("D"), "Repair", "REPAIR NEARSIDE DOOR", string.Empty, labourHours, string.Empty, string.Empty),
+                (seeded.Lines[1].Id.ToString("D"), "Replace", "FRONT BUMPER", "1", string.Empty, "0.50", "100.00"),
+                (string.Empty, "Replace", string.Empty, string.Empty, string.Empty, string.Empty, string.Empty),
+            })
+            {
+                fields.Add(new("lineId", id));
+                fields.Add(new("lineOperation", operation));
+                fields.Add(new("lineDescription", description));
+                fields.Add(new("linePartNumber", string.Empty));
+                fields.Add(new("lineQuantity", quantity));
+                fields.Add(new("lineLabourHours", hours));
+                fields.Add(new("linePaintHours", paint));
+                fields.Add(new("linePartPounds", price));
+                fields.Add(new("lineMaterials", string.Empty));
+            }
+            using var response = await client.PostAsync(
+                $"/Cases/{caseId:D}?handler=EditLine&section=estimate",
+                new FormUrlEncodedContent(fields));
+            return (response.StatusCode, await response.Content.ReadAsStringAsync());
+        }
+
+        var (status, html) = await RedrawAsync("0.33");
+
+        Assert.Equal(HttpStatusCode.OK, status);
+        // The stored 0.333333 h at 55 an hour, not the 0.33 the box shows.
+        Assert.Equal(MoneyText(totals.Printed.PanelLabour), RollupOf(html, "panelLabour"));
+        Assert.Equal(MoneyText(totals.Printed.Gross), RollupOf(html, "gross"));
+        // Rows: blank (0), the labour line (1), the bumper (2), the blank added (3).
+        string PaintBox(int row) => Regex.Match(html, $"<input[^>]*id=\"line-paint-{row}\"[^>]*>").Value;
+        Assert.Contains(" viol", PaintBox(2), StringComparison.Ordinal);
+        Assert.DoesNotContain("viol", PaintBox(0), StringComparison.Ordinal);
+        Assert.DoesNotContain("viol", PaintBox(1), StringComparison.Ordinal);
+        Assert.DoesNotContain("viol", PaintBox(3), StringComparison.Ordinal);
+
+        // A row the save would refuse (more than 1,000 hours) is still drawn.
+        var (refusedStatus, refusedHtml) = await RedrawAsync("1001");
+        Assert.Equal(HttpStatusCode.OK, refusedStatus);
+        Assert.Contains("value=\"1001\"", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("data-rollup=\"gross\"", refusedHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// #1508: a revision from 0.91 to 0.94 hours reads to two decimals, as
+    /// the report does, in the Supplementary panel and the Compare sheet.
+    /// </summary>
+    [Fact]
+    public async Task ThePanelAndTheCompareSheetReadHoursToTwoDecimals()
+    {
+        var caseId = Guid.NewGuid();
+        var basis = DraftSpecification(caseId);
+        var details = new EstimateDetails(
+            "Repairer", 55m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered));
+        CaseEstimateLineRecord PaintLine(decimal paintHours) => new(
+            Guid.NewGuid(), 1, "paint_repair", null, "PAINT DOOR", null, null, false,
+            null, null, null, null, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow,
+            PaintWorkUnits: paintHours);
+        var frozenLines = new[] { PaintLine(0.91m) };
+        var frozen = new RepairSpecificationSnapshot(
+            Guid.NewGuid(), caseId, basis.SpecificationId, 1, RepairSpecificationSnapshotKind.Imported,
+            "Frozen", "engineer-1", SeededAmendedAtUtc, details, frozenLines,
+            EstimateTotals.Compute(basis with { Details = details, Lines = frozenLines }).Printed.Gross, false);
+        var stored = basis with
+        {
+            Details = details,
+            Lines = [PaintLine(0.94m)],
+            Supplementary = new RepairSpecificationSupplementary(
+                frozen.Id, RepairSpecificationComparison.SupplementaryReasons[0].Code, true, "Revised."),
+        };
+        var store = new RecordingStores(caseId) { WorkingEstimate = stored };
+        store.Snapshots.Add(frozen);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}?section=estimate&estimate={stored.SpecificationId:D}&dialog=compare-estimates"
+            + $"&from={DetailsModel.ComparisonKey(stored.SpecificationId, frozen.Id)}"
+            + $"&to={DetailsModel.ComparisonKey(stored.SpecificationId, null)}"));
+
+        var field = OperatorLabels.CaseWorkspace.EngineerSections.PaintHoursShort.ToLowerInvariant();
+        Assert.Contains($"{field} 0.91 → 0.94", html, StringComparison.Ordinal);
+        Assert.Contains(">0.91<", html, StringComparison.Ordinal);
+        Assert.Contains(">0.94<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("0.9 →", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">0.9<", html, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// One imported estimate as the store holds it: a priced part line and a
     /// labour line, both carrying the source document's provenance and an

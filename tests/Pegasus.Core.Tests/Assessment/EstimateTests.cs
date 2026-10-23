@@ -1083,6 +1083,67 @@ public sealed class EstimateTests
             LineInput("repair") with { Materials = 1.005m }));
     }
 
+    [Fact]
+    public void TheEditorsHoursReadingIsOneConstantAndAMidpointStaysStored()
+    {
+        Assert.Equal(2, EstimatePolicy.EditorHoursDecimals);
+        Assert.Equal(6, EstimatePolicy.WorkUnitDecimals);
+        Assert.Equal("0.33", EstimatePolicy.EditorHoursText(1m / 3m));
+        Assert.Equal("0.13", EstimatePolicy.EditorHoursText(0.125m));
+        Assert.Equal("0.01", EstimatePolicy.EditorHoursStep);
+
+        // A stored 0.125 reads 0.13 in the editor (a midpoint rounds away
+        // from zero); posted back as 0.13 it stays 0.125 and is no amendment.
+        var storedLine = Line("repair", workUnits: 0.125m, paintWorkUnits: 0.91m);
+        var existing = Estimate(Details(), storedLine);
+        var submitted = SaveRequest(Engineer, RepairSpecificationSourceRoute.Manual) with
+        {
+            EstimateId = existing.SpecificationId,
+            ExistingLineIds = [storedLine.Id],
+            Lines =
+            [
+                LineInput("repair") with
+                {
+                    Description = storedLine.Description,
+                    WorkUnits = 0.13m,
+                    PaintWorkUnits = 0.91m,
+                },
+            ],
+        };
+
+        var untouched = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted), existing, Now.AddMinutes(1));
+        var untouchedLine = Assert.Single(untouched.Lines);
+        Assert.Equal(0.125m, untouchedLine.WorkUnits);
+        Assert.Null(untouchedLine.AmendedBy);
+        Assert.True(EstimatePolicy.IsUnchanged(untouched, existing));
+
+        var retyped = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted with
+            {
+                Lines = [submitted.Lines[0] with { WorkUnits = 0.12m }],
+            }),
+            existing,
+            Now.AddMinutes(2));
+        var retypedLine = Assert.Single(retyped.Lines);
+        Assert.Equal(0.12m, retypedLine.WorkUnits);
+        Assert.Equal(Engineer.SubjectId, retypedLine.AmendedBy);
+
+        // A paint-hours-only change is an amendment too.
+        var repainted = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted with
+            {
+                Lines = [submitted.Lines[0] with { PaintWorkUnits = 0.94m }],
+            }),
+            existing,
+            Now.AddMinutes(3));
+        var repaintedLine = Assert.Single(repainted.Lines);
+        Assert.Equal(0.125m, repaintedLine.WorkUnits);
+        Assert.Equal(0.94m, repaintedLine.PaintWorkUnits);
+        Assert.Equal(Engineer.SubjectId, repaintedLine.AmendedBy);
+        Assert.Equal(Now.AddMinutes(3), repaintedLine.AmendedAtUtc);
+    }
+
     // ---- The one canonical raw-estimate import ----
 
     [Theory]

@@ -2,6 +2,7 @@
 using Pegasus.Core.Cases;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Assessment;
@@ -126,6 +127,51 @@ public sealed class RepairSpecificationActTests
         // A line the save refuses is refused by the preview too.
         Assert.Throws<ArgumentException>(() => EstimatePolicy.Edited(
             CaseId, Engineer, saved, saved.Details, [posted[0] with { Quantity = 0 }, posted[1]], ids, Now));
+    }
+
+    [Fact]
+    public void APreviewPricesTheStoredHoursOfALineTheEditorLeftAlone()
+    {
+        // 20/60 h at 55 an hour: the editor shows 0.33, but the line is
+        // still the stored third of an hour, as the save and the report have it.
+        var third = decimal.Round(20m / 60m, EstimatePolicy.WorkUnitDecimals);
+        var saved = Estimate(Header(rate: 55m), Line("repair", workUnits: third));
+        Guid?[] ids = [saved.Lines[0].Id];
+        var posted = saved.Lines.Select(RepairSpecificationScaling.ToInput).ToArray();
+
+        var untouched = EstimatePolicy.Edited(
+            CaseId, Engineer, saved, saved.Details, [posted[0] with { WorkUnits = 0.33m }], ids, Now);
+
+        Assert.Equal(third, untouched.Lines[0].WorkUnits);
+        Assert.Equal(EstimateTotals.Compute(saved).Printed, EstimateTotals.Compute(untouched).Printed);
+        Assert.NotEqual(
+            EstimateTotals.Compute(saved).Printed.Gross,
+            EstimateTotals.Compute(Estimate(Header(rate: 55m), Line("repair", workUnits: 0.33m))).Printed.Gross);
+        Assert.Empty(RepairSpecificationComparison.Compare(saved, untouched).Changed);
+
+        var moved = EstimatePolicy.Edited(
+            CaseId, Engineer, saved, saved.Details, [posted[0] with { WorkUnits = 0.35m }], ids, Now);
+
+        Assert.Equal(0.35m, moved.Lines[0].WorkUnits);
+        Assert.Equal(
+            "hours",
+            Assert.Single(Assert.Single(RepairSpecificationComparison.Compare(saved, moved).Changed).ChangedFields));
+    }
+
+    [Fact]
+    public void AHoursRevisionWithinATenthReadsToTwoDecimalsInTheStatement()
+    {
+        var from = Estimate(Header(rate: 48m), Line("paint_repair", paintWorkUnits: 0.91m));
+        var to = Estimate(Header(rate: 48m), Line("paint_repair", paintWorkUnits: 0.94m));
+
+        var statement = RepairSpecificationComparison.SupplementaryStatement(
+            RepairSpecificationComparison.Compare(from, to), "inspect");
+
+        Assert.Contains(
+            $"({AssessmentReportWording.Hours(0.91m)} h → {AssessmentReportWording.Hours(0.94m)} h)",
+            statement,
+            StringComparison.Ordinal);
+        Assert.Contains("(0.91 h → 0.94 h) has been revised.", statement, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -419,7 +465,7 @@ public sealed class RepairSpecificationActTests
         var statement = RepairSpecificationComparison.SupplementaryStatement(
             RepairSpecificationComparison.Compare(from, to), "inspect");
 
-        Assert.Contains("The repair time for Repair wing (2 h → 5 h) has been revised.", statement, StringComparison.Ordinal);
+        Assert.Contains("The repair time for Repair wing (2.00 h → 5.00 h) has been revised.", statement, StringComparison.Ordinal);
         Assert.Contains("Front wing is no longer required.", statement, StringComparison.Ordinal);
         Assert.Contains("reduced from", statement, StringComparison.Ordinal);
     }

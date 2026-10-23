@@ -1,7 +1,9 @@
-﻿using System.Net;
+﻿using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
@@ -277,6 +279,81 @@ public sealed class CaseEstimateScalingWebTests
         Assert.Empty(store.ScaleRequests);
         Assert.Empty(store.SubmittedEstimates);
         Assert.Equal(620.20m, store.WorkingEstimate!.Lines[0].Price);
+    }
+
+    /// <summary>
+    /// R193: the page prices the stored hours, so its slider top, rollup and
+    /// Versions draft are the figures the Target % preview comes back with
+    /// for the same unchanged post: a stored 0.333333 h at 55 an hour is
+    /// £18.33 in all of them, not the £18.15 its two-decimal box would give.
+    /// </summary>
+    [Fact]
+    public async Task ThePageSliderAndTheVersionsDraftAgreeWithThePreviewOnAStoredSixDecimalHour()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new AssessmentEstimateImportWebTests.RecordingStores(caseId, 1_000m)
+        {
+            WorkingEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
+            {
+                Details = new("Repairer", 55m, null, 20m,
+                    Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+                Lines =
+                [
+                    new(
+                        Guid.NewGuid(), 1, "repair", null, "REPAIR NEARSIDE DOOR", 0.333333m, null, false,
+                        null, null, null, null, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow),
+                    new(
+                        Guid.NewGuid(), 2, "new_part", null, "FRONT BUMPER", null, 400m, false,
+                        null, null, null, null, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow,
+                        Quantity: 1),
+                ],
+            },
+        };
+        var draft = store.WorkingEstimate!;
+        var gross = EstimateTotals.Compute(draft).Printed.Gross;
+        var grossText = AssessmentEstimateImportWebTests.MoneyText(gross);
+        var top = RepairSpecificationScaling.PercentOfValue(1_000m, gross)
+            .ToString("0.#", CultureInfo.InvariantCulture);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = AssessmentEstimateImportWebTests.Compose(baseFactory, store);
+        using var client = AssessmentEstimateImportWebTests.CreateEngineerClient(factory);
+
+        var html = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
+
+        Assert.Equal(grossText, AssessmentEstimateImportWebTests.RollupOf(html, "gross"));
+        Assert.Contains($"max=\"{top}\" step=\"0.1\"", html, StringComparison.Ordinal);
+        Assert.Contains($"<b>{grossText}</b>", WebUtility.HtmlDecode(html), StringComparison.Ordinal);
+
+        // The same post the editor would send: the boxes' own two-decimal hours.
+        var fields = AssessmentEstimateImportWebTests.NewEnumerable(
+            ("__RequestVerificationToken", AssessmentEstimateImportWebTests.AntiforgeryValue(html)),
+            ("estimateId", draft.SpecificationId.ToString("D")),
+            ("estimateName", "Repairer"),
+            ("estimateLabourRate", "55"),
+            ("estimateVatPercent", "20"),
+            ("estimateVatStatus", "Registered"),
+            ("estimateVatLabour", "true"), ("estimateVatLabour", "false"),
+            ("estimateVatParts", "true"), ("estimateVatParts", "false"),
+            ("estimateVatMaterials", "true"), ("estimateVatMaterials", "false"),
+            ("estimateVatSpecialist", "true"), ("estimateVatSpecialist", "false"),
+            ("lineId", draft.Lines[0].Id.ToString("D")), ("lineOperation", "Repair"),
+            ("lineDescription", "REPAIR NEARSIDE DOOR"), ("linePartNumber", ""), ("lineQuantity", ""),
+            ("linePartPounds", ""), ("lineLabourHours", "0.33"), ("linePaintHours", ""), ("lineMaterials", ""),
+            ("lineId", draft.Lines[1].Id.ToString("D")), ("lineOperation", "Replace"),
+            ("lineDescription", "FRONT BUMPER"), ("linePartNumber", ""), ("lineQuantity", "1"),
+            ("linePartPounds", "400.00"), ("lineLabourHours", ""), ("linePaintHours", ""), ("lineMaterials", ""),
+            ("targetPercent", top),
+            ("floorRate", "50"),
+            ("floorPrice", "65")).ToArray();
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=PreviewEstimateScale", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var preview = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal("ok", preview.RootElement.GetProperty("status").GetString());
+        Assert.Equal(top, preview.RootElement.GetProperty("ceiling").GetString());
+        Assert.Equal(grossText, preview.RootElement.GetProperty("rollup").GetProperty("gross").GetString());
     }
 
     [Fact]
