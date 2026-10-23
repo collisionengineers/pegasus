@@ -365,6 +365,7 @@ Return to Engineer needs no session. The rules behind each action are in
   Its dialog takes the Case stage to return to and a reason, and the Case
   returns through the destination gates
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-transitions)).
+  A request with no destination is refused (operator, 22 October 2026).
 - **Archive**, on a closed Case
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)). While the Case
   has an open task it is greyed with the reason "Complete or cancel every

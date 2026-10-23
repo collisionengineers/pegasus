@@ -1021,7 +1021,7 @@ public sealed class EfCaseWorkflowStore(
                 await RequireReviewReadinessAsync(context, workflow, cancellationToken);
             }
 
-            workflow.State = request.Destination.ToString();
+            workflow.State = request.Destination!.Value.ToString();
             workflow.ClosureOutcome = null;
             if (request.Destination == CaseReopenDestination.NotReady)
             {

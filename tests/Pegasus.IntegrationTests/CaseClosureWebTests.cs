@@ -45,6 +45,9 @@ public sealed class CaseClosureWebTests
         using var reopenedToNotReady = await workspace.PostAsync(
             "Closure?handler=Reopen",
             workspace.MutationForm("reopen-not-ready", "Images still outstanding", ("destination", "NotReady")));
+        using var reopenedWithNoDestination = await workspace.PostAsync(
+            "Closure?handler=Reopen",
+            workspace.MutationForm("reopen-no-destination", "Images still outstanding"));
         using var archived = await workspace.PostAsync(
             "Closure?handler=Archive",
             workspace.MutationForm("archive-case", "Retention period reached"));
@@ -52,19 +55,23 @@ public sealed class CaseClosureWebTests
         AssertPrg(closed, store.CaseId);
         AssertPrg(reopenedToReview, store.CaseId);
         AssertPrg(reopenedToNotReady, store.CaseId);
+        AssertPrg(reopenedWithNoDestination, store.CaseId);
         AssertPrg(archived, store.CaseId);
 
         var closure = Assert.Single(store.Closures);
         AssertLeasedMutation(workspace, closure, "close-case", "Principal withdrew the instruction");
         Assert.Equal(CaseClosureOutcome.PrincipalCancelled, closure.Outcome);
 
-        Assert.Equal(2, store.Reopenings.Count);
+        Assert.Equal(3, store.Reopenings.Count);
         var toReview = store.Reopenings[0];
         AssertLeasedMutation(workspace, toReview, "reopen-review", "Principal reinstated the instruction");
         Assert.Equal(CaseReopenDestination.Review, toReview.Destination);
         var toNotReady = store.Reopenings[1];
         Assert.Equal("reopen-not-ready", toNotReady.OperationKey);
         Assert.Equal(CaseReopenDestination.NotReady, toNotReady.Destination);
+        var withNoDestination = store.Reopenings[2];
+        Assert.Equal("reopen-no-destination", withNoDestination.OperationKey);
+        Assert.Null(withNoDestination.Destination);
 
         var archive = Assert.Single(store.Archives);
         AssertLeasedMutation(workspace, archive, "archive-case", "Retention period reached");

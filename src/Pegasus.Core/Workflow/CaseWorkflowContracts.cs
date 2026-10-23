@@ -502,7 +502,7 @@ public sealed record ReopenCaseRequest(
     string OperationKey,
     string Reason,
     string EditLeaseToken,
-    CaseReopenDestination Destination)
+    CaseReopenDestination? Destination)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record ReturnCaseToEngineerRequest(
