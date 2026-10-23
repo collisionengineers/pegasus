@@ -1475,20 +1475,25 @@ public sealed class AutomaticImageIntakeTests
     }
 
     /// <summary>
-    /// The sweep re-reads the receipt only when the replay is still pending
-    /// and the group's window has closed on the store's reading, and its
-    /// escape then holds every member, each read once, before registering
-    /// the group (R191, R379, R382). The group is read once, by the sweep.
+    /// The sweep escapes only a replay that left its group pending, once the
+    /// group's window has closed on the store's reading the replay's
+    /// automation took, and its escape then holds every member before
+    /// registering the group (R191, R379, R382). It reads neither the group
+    /// nor the receipt again, and of the members only one the automation did
+    /// not read.
     /// </summary>
     [Theory]
-    [InlineData("completed", QueuedIntakeProcessingOutcome.Completed, 3, 1, 0)]
-    [InlineData("retry-open", QueuedIntakeProcessingOutcome.RetryScheduled, 0, 1, 0)]
-    [InlineData("retry-closed", QueuedIntakeProcessingOutcome.RetryScheduled, 3, 2, 1)]
-    public async Task GroupedImageSweepReadsTheRefreshedReceiptOnlyWhenTheRetryAndAgeTestsPass(
+    [InlineData("completed", QueuedIntakeProcessingOutcome.Completed, "none", 3, 0, 0)]
+    [InlineData("deferred", QueuedIntakeProcessingOutcome.RetryScheduled, "none", 3, 0, 0)]
+    [InlineData("pending-open", QueuedIntakeProcessingOutcome.RetryScheduled, "all", 0, 0, 0)]
+    [InlineData("pending-closed", QueuedIntakeProcessingOutcome.RetryScheduled, "all", 3, 0, 1)]
+    [InlineData("pending-partial", QueuedIntakeProcessingOutcome.RetryScheduled, "first", 3, 1, 1)]
+    public async Task GroupedImageSweepEscapesFromWhatThePendingReplayRead(
         string row,
         QueuedIntakeProcessingOutcome outcome,
+        string membersRead,
         int ageHours,
-        int expectedReceiptReads,
+        int expectedMemberReads,
         int expectedEscapes)
     {
         Assert.NotEmpty(row);
@@ -1496,6 +1501,18 @@ public sealed class AutomaticImageIntakeTests
         var probe = new HoldingProbe(harness);
         var receiptId = harness.Receipts[0].Id;
         harness.GroupStore.StoreNowUtc = harness.GroupStore.Group!.ReceivedAtUtc.AddHours(ageHours);
+        var group = harness.GroupStore.Group with { ReadAtUtc = harness.GroupStore.StoreNowUtc };
+        ImageIntakeGroupReading? reading = membersRead switch
+        {
+            "all" => new(group, harness.Receipts, []),
+            "first" => new(group, [harness.Receipts[0]], [group.Members[1]]),
+            _ => null
+        };
+        var replay = new QueuedIntakeProcessingResult(
+            outcome,
+            reading is null
+                ? null
+                : new ImageIntakeAutomationOutcome(harness.Receipts[0], GroupPending: true, GroupReading: reading));
         var receiptReads = Forwarder.For<IIntakeReceiptQueries>(harness.ReceiptQueries);
         var groups = Forwarder.For<IIntakeSubmissionGroupStore>(harness.GroupStore);
         groups.Overrides[nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync)] =
@@ -1508,22 +1525,20 @@ public sealed class AutomaticImageIntakeTests
             (IIntakeReceiptQueries)receiptReads.Proxy,
             (IIntakeSubmissionGroupStore)groups.Proxy,
             (IIntakeWorkStore)work.Proxy,
-            new FixedOutcomeProcessor(outcome),
+            new FixedOutcomeProcessor(replay),
             new RegisterUnidentifiedSubmissionGroup(probe.ProcessIntake, register));
 
         var result = await sweep.ExecuteAsync(5);
 
-        Assert.Equal(expectedReceiptReads, receiptReads.Calls.Count(call => call == nameof(IIntakeReceiptQueries.GetAsync)));
+        Assert.Equal(1, receiptReads.Calls.Count(call => call == nameof(IIntakeReceiptQueries.GetAsync)));
         Assert.Equal(expectedEscapes, result.Escaped);
         Assert.Equal(expectedEscapes, register.Calls);
         Assert.Equal(0, result.Failures);
-        Assert.Collection(
-            groups.Calls,
-            call => Assert.Equal(nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync), call),
-            call => Assert.Equal(nameof(IIntakeSubmissionGroupStore.FindForMemberSourceAsync), call));
-        // The escape reads the one sibling it has not already re-read.
         Assert.Equal(
-            expectedEscapes,
+            nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync),
+            Assert.Single(groups.Calls));
+        Assert.Equal(
+            expectedMemberReads,
             receiptReads.Calls.Count(call => call == nameof(IIntakeReceiptQueries.FindBySourceIdentityAsync)));
         var expectedHeld = expectedEscapes == 0
             ? Array.Empty<IntakeSourceIdentity>()
@@ -1570,7 +1585,7 @@ public sealed class AutomaticImageIntakeTests
         var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
         var request = Assert.IsType<Pegasus.Core.Intake.Unidentified.RegisterUnidentifiedRequest>(
             outcome.UnidentifiedGroup);
-        var members = Assert.IsAssignableFrom<IReadOnlyList<IntakeReceipt>>(outcome.UnidentifiedGroupMembers);
+        var members = Assert.IsType<ImageIntakeGroupReading>(outcome.GroupReading).Receipts;
         Assert.Equal(harness.Receipts.Select(receipt => receipt.Id), members.Select(member => member.Id));
         var register = new CountingRegisterUnidentified();
 
@@ -1626,9 +1641,14 @@ public sealed class AutomaticImageIntakeTests
             register,
             submissionGroups: (IIntakeSubmissionGroupStore)groups.Proxy);
 
-        var outcome = await processor.ExecuteAsync(stagedReceiptId);
+        var result = await processor.ProcessAsync(stagedReceiptId);
 
-        Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled, outcome);
+        Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled, result.Outcome);
+        // The reading goes back to the sweep: a group still missing a member
+        // row has had no member receipt read, so every member is unread.
+        Assert.Equal(
+            harness.GroupStore.Group!.Members,
+            Assert.IsType<ImageIntakeGroupReading>(result.PendingGroup?.GroupReading).Unread);
         Assert.Empty(probe.Held);
         Assert.Equal(0, register.Calls);
         // The redelivery's own group read is its discard check; the
@@ -1637,11 +1657,11 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(2, harness.GroupStore.MemberSourceReads);
     }
 
-    private sealed class FixedOutcomeProcessor(QueuedIntakeProcessingOutcome outcome) : IProcessQueuedIntake
+    private sealed class FixedOutcomeProcessor(QueuedIntakeProcessingResult result) : IProcessQueuedIntake
     {
-        public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+        public Task<QueuedIntakeProcessingResult> ProcessAsync(
             Guid stagedReceiptId,
-            CancellationToken cancellationToken = default) => Task.FromResult(outcome);
+            CancellationToken cancellationToken = default) => Task.FromResult(result);
     }
 
     /// <summary>

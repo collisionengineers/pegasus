@@ -318,12 +318,12 @@ public sealed class DependencyDirectionTests
     {
         public List<Guid> ProcessedIds { get; } = [];
 
-        public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+        public Task<QueuedIntakeProcessingResult> ProcessAsync(
             Guid stagedReceiptId,
             CancellationToken cancellationToken)
         {
             ProcessedIds.Add(stagedReceiptId);
-            return Task.FromResult(default(QueuedIntakeProcessingOutcome));
+            return Task.FromResult(new QueuedIntakeProcessingResult(default));
         }
     }
 

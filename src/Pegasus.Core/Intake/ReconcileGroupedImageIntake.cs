@@ -69,14 +69,6 @@ public sealed class ReconcileGroupedImageIntake(
                 continue;
             }
 
-            var group = await groupStore.FindForMemberSourceAsync(
-                receipt.SourceIdentity,
-                cancellationToken);
-            if (group is null)
-            {
-                continue;
-            }
-
             candidates++;
             try
             {
@@ -89,16 +81,19 @@ public sealed class ReconcileGroupedImageIntake(
                     continue;
                 }
 
-                var outcome = await processQueuedIntake.ExecuteAsync(stagedReceiptId.Value, cancellationToken);
+                // The replay's automation reads the group and its members;
+                // a group it left pending comes back with that reading, so
+                // the escape reads neither again.
+                var result = await processQueuedIntake.ProcessAsync(stagedReceiptId.Value, cancellationToken);
                 retried++;
-                if (outcome == QueuedIntakeProcessingOutcome.RetryScheduled
-                    && IntakeEscapeWindow.HasClosed(group)
-                    && await receiptQueries.GetAsync(receipt.Id, cancellationToken) is
-                        { Decision: IntakeDecision.NeedsSorting } current)
+                if (result.PendingGroup is { GroupReading: { } reading } pending
+                    && pending.Receipt.Decision == IntakeDecision.NeedsSorting
+                    && IntakeEscapeWindow.HasClosed(reading.Group))
                 {
                     await unidentifiedGroups.ExecuteAsync(
-                        ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(group, "group_processing_incomplete"),
-                        await ReadMembersAsync(group, current, cancellationToken),
+                        ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(
+                            reading.Group, "group_processing_incomplete"),
+                        await ReadMembersAsync(reading, pending.Receipt, cancellationToken),
                         cancellationToken);
                     escaped++;
                 }
@@ -113,21 +108,23 @@ public sealed class ReconcileGroupedImageIntake(
     }
 
     /// <summary>
-    /// The escaping group's member receipts, each read once: the receipt this
-    /// pass just re-read stands for itself, and a member with no receipt yet
-    /// has nothing to hold.
+    /// The escaping group's member receipts, each read at most once in the
+    /// pass: those the replay's automation read are used as it read them (the
+    /// candidate as the replay left it), only a member it did not read is
+    /// read here, and a member with no receipt yet has nothing to hold.
     /// </summary>
     private async Task<IReadOnlyList<IntakeReceipt>> ReadMembersAsync(
-        IntakeSubmissionGroup group,
+        ImageIntakeGroupReading reading,
         IntakeReceipt current,
         CancellationToken cancellationToken)
     {
-        var members = new List<IntakeReceipt>(group.Members.Count);
-        foreach (var member in group.Members.OrderBy(item => item.Ordinal))
+        var members = new List<IntakeReceipt>(reading.Receipts.Count + reading.Unread.Count);
+        members.AddRange(reading.Receipts.Select(member => member.Id == current.Id ? current : member));
+        foreach (var member in reading.Unread)
         {
             var source = new IntakeSourceIdentity(
-                group.Channel,
-                GroupedIntakeMemberToken.Create(group.SubmissionToken, member.Ordinal));
+                reading.Group.Channel,
+                GroupedIntakeMemberToken.Create(reading.Group.SubmissionToken, member.Ordinal));
             if (source == current.SourceIdentity)
             {
                 members.Add(current);

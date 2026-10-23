@@ -32,11 +32,13 @@ namespace Pegasus.Core.ImageIntake;
 /// staff to choose a destination: nothing is registered, held or made
 /// Unidentified while it waits.
 /// </param>
-/// <param name="UnidentifiedGroupMembers">
-/// When <paramref name="UnidentifiedGroup"/> is the whole submission group,
-/// every member receipt this pass read, as it read them: the members
+/// <param name="GroupReading">
+/// The submission group as this pass read it, when the group resolved
+/// Unidentified (<paramref name="UnidentifiedGroup"/> is the whole group) or
+/// is still pending (<paramref name="GroupPending"/>): what
 /// <see cref="RegisterUnidentifiedSubmissionGroup"/> holds before the group
-/// registers, so neither the group nor its members are read again for it.
+/// registers, whether the routing resolved it or the sweep's escape closed
+/// it, so neither the group nor a member it read is read again for it.
 /// </param>
 public sealed record ImageIntakeAutomationOutcome(
     IntakeReceipt Receipt,
@@ -44,7 +46,18 @@ public sealed record ImageIntakeAutomationOutcome(
     RegisterUnidentifiedRequest? UnidentifiedGroup = null,
     bool AssociatedCase = false,
     bool AwaitingStaffDecision = false,
-    IReadOnlyList<IntakeReceipt>? UnidentifiedGroupMembers = null);
+    ImageIntakeGroupReading? GroupReading = null);
+
+/// <summary>
+/// A submission group as one automation pass read it: the group, the member
+/// receipts the pass read, in ordinal order, and the members whose receipts
+/// it did not read. A member whose receipt the pass looked for and did not
+/// find is in neither: it has nothing to hold.
+/// </summary>
+public sealed record ImageIntakeGroupReading(
+    IntakeSubmissionGroup Group,
+    IReadOnlyList<IntakeReceipt> Receipts,
+    IReadOnlyList<IntakeSubmissionGroupMember> Unread);
 
 /// <summary>
 /// The post-persistence intake hook for image-only material: scan every
@@ -234,8 +247,8 @@ public sealed class ImageIntakeAutomation(
             return null;
         }
 
-        var members = group.Members;
-        if (members.Count < group.ExpectedMemberCount)
+        var members = group.Members.OrderBy(member => member.Ordinal).ToArray();
+        if (members.Length < group.ExpectedMemberCount)
         {
             // Fewer member rows exist than the originating submission
             // declared: later files in the same batch are still being
@@ -243,21 +256,21 @@ public sealed class ImageIntakeAutomation(
             // can only see rows that already exist. Retriable, not terminal:
             // the caller must defer rather than fall back to Unidentified.
             activity?.SetTag("image_intake.group_outcome", "waiting_for_members");
-            return new(receipt, GroupPending: true);
+            return new(receipt, GroupPending: true, GroupReading: new(group, [], members));
         }
 
-        var receipts = new List<IntakeReceipt>(members.Count);
-        foreach (var member in members.OrderBy(member => member.Ordinal))
+        var receipts = new List<IntakeReceipt>(members.Length);
+        for (var index = 0; index < members.Length; index++)
         {
             var memberReceipt = await receiptQueries.FindBySourceIdentityAsync(
                 new(
                     group.Channel,
-                    GroupedIntakeMemberToken.Create(group.SubmissionToken, member.Ordinal)),
+                    GroupedIntakeMemberToken.Create(group.SubmissionToken, members[index].Ordinal)),
                 cancellationToken);
             if (memberReceipt is null)
             {
                 activity?.SetTag("image_intake.group_outcome", "waiting_for_members");
-                return new(receipt, GroupPending: true);
+                return new(receipt, GroupPending: true, GroupReading: new(group, receipts, members[(index + 1)..]));
             }
 
             receipts.Add(memberReceipt);
@@ -331,7 +344,7 @@ public sealed class ImageIntakeAutomation(
         {
             // Recognition has not finished for every member yet. Retriable,
             // not terminal.
-            return new(receipt, GroupPending: true);
+            return new(receipt, GroupPending: true, GroupReading: new(group, receipts, []));
         }
 
         if (routing.Decision is ImageIntakeGroupRoutingDecision.RouteToUnidentified
@@ -346,7 +359,7 @@ public sealed class ImageIntakeAutomation(
                 receipt,
                 UnidentifiedGroup: ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(
                     group, routing.ReasonCode),
-                UnidentifiedGroupMembers: receipts);
+                GroupReading: new(group, receipts, []));
         }
 
         if (group.Channel == IntakeSourceChannel.ManualUpload
@@ -387,7 +400,7 @@ public sealed class ImageIntakeAutomation(
 
         var finalReceipt = await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
         var pending = !registered && finalReceipt.Decision == IntakeDecision.NeedsSorting;
-        return new(finalReceipt, pending);
+        return new(finalReceipt, pending, GroupReading: pending ? new(group, receipts, []) : null);
 
     }
 

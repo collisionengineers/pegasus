@@ -759,7 +759,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
     private sealed class UnreachableProcessQueuedIntake : IProcessQueuedIntake
     {
-        public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+        public Task<QueuedIntakeProcessingResult> ProcessAsync(
             Guid stagedReceiptId,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException(
