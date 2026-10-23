@@ -378,7 +378,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             PdfImageRead? dominantRead = null;
             ScanPageClassification? fullPageRaster = hasInsufficientText && hasDominantRaster
                 ? ClassifyFullPageRaster(
-                    bytes, page, images, sourceLabel, result, limits, chargedImageObjects, conversions, out dominantRead)
+                    bytes, page, images, sourceLabel, result, limits, chargedImageObjects, out dominantRead)
                 : null;
             var isDocumentPage = fullPageRaster?.Kind == ScanPageKind.Document;
             IPdfImage[] pageImages = isDocumentPage ? [] : images;
@@ -392,7 +392,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 PdfImageRead? carried = dominantRead is { } read && ReferenceEquals(read.Image, image) ? read : null;
                 // Each distinct image object is charged once, when it is first
                 // reached and before it is decoded: a letterhead placed on
-                // every page costs its pixels once. A classified page's raster
+                // every page costs its pixels once. A drawn page's raster
                 // carries the key its classification already computed.
                 var objectKey = carried?.ObjectKey ?? ImageObjectKey(image);
                 if (chargedImageObjects.Add(objectKey)
@@ -410,9 +410,9 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 var mediaType = string.Empty;
                 var extension = string.Empty;
                 var (width, height) = (image.WidthInSamples, image.HeightInSamples);
-                if (carried is { } kept)
+                if (carried is { ObjectKey: not null } kept)
                 {
-                    // The classification already extracted this raster, or drew its page.
+                    // The classification drew this raster's page.
                     (extracted, imageBytes, mediaType, extension, width, height) =
                         (true, kept.Bytes, kept.MediaType, kept.Extension, kept.Width, kept.Height);
                 }
@@ -420,6 +420,16 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 {
                     try
                     {
+                        if (carried is { } classified)
+                        {
+                            // The classification already converted this raster; a kept
+                            // candidate joins the shared conversions so a later placement
+                            // of the object reuses it. Only kept candidates are held.
+                            conversions.TryAdd(
+                                objectKey,
+                                new(true, classified.Bytes, classified.MediaType, classified.Extension));
+                        }
+
                         extracted = TryReadPdfImageOnce(
                             image, objectKey, conversions, out imageBytes, out mediaType, out extension);
                     }
@@ -497,7 +507,6 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         ReadAccumulator result,
         PdfLimitState limits,
         IReadOnlySet<string> chargedImageObjects,
-        Dictionary<string, PdfImageConversion> conversions,
         out PdfImageRead? dominantRead)
     {
         dominantRead = null;
@@ -506,9 +515,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         var classification = new ScanPageClassification(ScanPageKind.Document, null);
         try
         {
-            var dominantKey = ImageObjectKey(dominant);
-            if (TryReadPdfImageOnce(
-                    dominant, dominantKey, conversions, out var bytes, out var dominantMediaType, out var dominantExtension))
+            if (TryReadPdfImage(dominant, out var bytes, out var dominantMediaType, out var dominantExtension))
             {
                 dominantRead = new(
                     dominant,
@@ -516,15 +523,13 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                     dominantMediaType,
                     dominantExtension,
                     dominant.WidthInSamples,
-                    dominant.HeightInSamples,
-                    dominantKey);
+                    dominant.HeightInSamples);
                 classification = ScanPageClassifier.Classify(bytes.Span);
             }
             else if (CanRenderPageOf(dominant))
             {
                 classification = ClassifyRenderedPage(
-                    pdf, page.Number - 1, visible, images, dominant, dominantKey, limits, chargedImageObjects,
-                    out dominantRead);
+                    pdf, page.Number - 1, visible, images, dominant, limits, chargedImageObjects, out dominantRead);
             }
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
@@ -562,7 +567,6 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         PdfRectangle visible,
         IReadOnlyList<IPdfImage> images,
         IPdfImage dominant,
-        string dominantKey,
         PdfLimitState limits,
         IReadOnlySet<string> chargedImageObjects,
         out PdfImageRead? rendered)
@@ -586,8 +590,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return verdict;
         }
 
-        if (SamplePixelsChargedThrough(images, dominant, dominantKey, chargedImageObjects)
-            > limits.RemainingImageSamplePixels)
+        var (dominantKey, samplePixels) = SamplePixelsChargedThrough(images, dominant, chargedImageObjects);
+        if (samplePixels > limits.RemainingImageSamplePixels)
         {
             return verdict;
         }
@@ -606,34 +610,33 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     /// <summary>
     /// The sample pixels the page loop charges on this page up to and
     /// including the dominant raster, by the loop's own rule (each distinct
-    /// object once, none already charged on an earlier page). The loop stops
-    /// at the first object over the budget, so the raster is kept only when
-    /// these fit what is left. The dominant raster's key is already known.
+    /// object once, none already charged on an earlier page), with the
+    /// dominant raster's object key. The loop stops at the first object over
+    /// the budget, so the raster is kept only when these fit what is left.
     /// </summary>
-    private static long SamplePixelsChargedThrough(
+    private static (string DominantKey, long Pixels) SamplePixelsChargedThrough(
         IReadOnlyList<IPdfImage> images,
         IPdfImage dominant,
-        string dominantKey,
         IReadOnlySet<string> chargedImageObjects)
     {
         var counted = new HashSet<string>(StringComparer.Ordinal);
         long pixels = 0;
+        var key = string.Empty;
         foreach (var image in images)
         {
-            var isDominant = ReferenceEquals(image, dominant);
-            var key = isDominant ? dominantKey : ImageObjectKey(image);
+            key = ImageObjectKey(image);
             if (!chargedImageObjects.Contains(key) && counted.Add(key))
             {
                 pixels += (long)image.WidthInSamples * image.HeightInSamples;
             }
 
-            if (isDominant)
+            if (ReferenceEquals(image, dominant))
             {
                 break;
             }
         }
 
-        return pixels;
+        return (key, pixels);
     }
 
     /// <summary>
@@ -735,7 +738,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
     /// <summary>
     /// A PDF image already extracted or drawn, with the media type, extension
-    /// and size it was kept as, and the object key its classification computed.
+    /// and size it was kept as, and its object key when drawing it needed one.
     /// </summary>
     private readonly record struct PdfImageRead(
         IPdfImage Image,
@@ -744,7 +747,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         string Extension,
         int Width,
         int Height,
-        string ObjectKey);
+        string? ObjectKey = null);
 
     /// <summary>
     /// One image object is converted once however many times it is placed:

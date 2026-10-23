@@ -347,8 +347,7 @@ public static class ThirdPartyReportProfiles
         ArgumentNullException.ThrowIfNull(readResult);
         ArgumentNullException.ThrowIfNull(capture);
 
-        if (capture.Documents.Count == 0
-            && readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer))
+        if (CarriesPdfDocument(readResult, capture))
         {
             return true;
         }
@@ -363,6 +362,20 @@ public static class ThirdPartyReportProfiles
         return Compiled.Any(candidate =>
             candidate.Signature.Role is not (ThirdPartyDocumentRole.ImageEvidence or ThirdPartyDocumentRole.VehicleCapture)
             && candidate.Matches(document));
+    }
+
+    /// <summary>
+    /// Whether the source carries a PDF that makes it a document carrier (R296,
+    /// R297): read from the reader's PDF readings alone, with no page read and
+    /// no signature match. An incomplete read asks only this.
+    /// </summary>
+    internal static bool CarriesPdfDocument(IntakeSourceReadResult readResult, VehicleCaptureDesignation capture)
+    {
+        ArgumentNullException.ThrowIfNull(readResult);
+        ArgumentNullException.ThrowIfNull(capture);
+
+        return capture.Documents.Count == 0
+            && readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer);
     }
 
     /// <summary>

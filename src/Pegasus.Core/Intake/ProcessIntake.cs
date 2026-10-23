@@ -884,7 +884,10 @@ public sealed class ProcessIntake(
                 IncompleteReadReason,
                 [
                     .. AppendImageAutomationBlockerEvidence(
-                        readerEvidence, NonImageDocumentSignal(readResult, capture)),
+                        readerEvidence,
+                        ThirdPartyReportProfiles.CarriesPdfDocument(readResult, capture)
+                            ? IntakeEvidenceSignals.RecognizedNonImageDocument
+                            : null),
                     IncompleteReadEvidence()
                 ],
                 [],
