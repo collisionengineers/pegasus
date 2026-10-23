@@ -839,12 +839,25 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        var current = await context.Set<CaseReportGenerationEntity>()
-            .Where(item => item.WorkId == workId
-                && item.SupersededById == null
-                && item.State != nameof(CaseReportGenerationState.Stale))
-            .ToArrayAsync(cancellationToken)
-            .ConfigureAwait(false);
+        // A generation this context already staled and has not yet saved still
+        // reads as not Stale to a caller that has not saved (the state used to
+        // reach the database only with the save), so a second rule in the same
+        // save records its own stale history row against it, as before.
+        var unsaved = StaledUnsaved.GetValue(context, NewUnsavedSet);
+        var query = context.Set<CaseReportGenerationEntity>()
+            .Where(item => item.WorkId == workId && item.SupersededById == null);
+        if (unsaved.Count == 0)
+        {
+            query = query.Where(item => item.State != nameof(CaseReportGenerationState.Stale));
+        }
+        else
+        {
+            var pending = unsaved.ToArray();
+            query = query.Where(item => item.State != nameof(CaseReportGenerationState.Stale)
+                || pending.Contains(item.Id));
+        }
+
+        var current = await query.ToArrayAsync(cancellationToken).ConfigureAwait(false);
         if (current.Length == 0)
         {
             return 0;
@@ -859,19 +872,34 @@ public sealed class EfCaseReportGenerationStore(
         // One UPDATE over the set, in the caller's open transaction; the rows
         // read above already carry Stale, so SaveChanges is told not to write
         // the column again (as MakeCurrentAsync does for the Current estimate).
-        var ids = current.Select(item => item.Id).ToArray();
-        await context.Set<CaseReportGenerationEntity>()
-            .Where(item => ids.Contains(item.Id))
-            .ExecuteUpdateAsync(
-                setters => setters.SetProperty(item => item.State, nameof(CaseReportGenerationState.Stale)),
-                cancellationToken)
-            .ConfigureAwait(false);
+        var ids = current.Select(item => item.Id).Where(id => !unsaved.Contains(id)).ToArray();
+        if (ids.Length > 0)
+        {
+            await context.Set<CaseReportGenerationEntity>()
+                .Where(item => ids.Contains(item.Id))
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(item => item.State, nameof(CaseReportGenerationState.Stale)),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            unsaved.UnionWith(ids);
+        }
+
         foreach (var generation in current)
         {
             context.Entry(generation).Property(item => item.State).IsModified = false;
         }
 
         return current.Length;
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<PegasusDbContext, HashSet<Guid>>
+        StaledUnsaved = new();
+
+    private static HashSet<Guid> NewUnsavedSet(PegasusDbContext context)
+    {
+        var set = new HashSet<Guid>();
+        context.SavedChanges += (_, _) => set.Clear();
+        return set;
     }
 
     private static void MarkGenerationStale(

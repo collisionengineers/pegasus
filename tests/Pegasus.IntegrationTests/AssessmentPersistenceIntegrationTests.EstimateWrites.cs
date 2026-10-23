@@ -75,6 +75,42 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
+    /// Two stale rules in one save (an estimate edit, then a Glass's VIN fill)
+    /// each record their own stale history row against the generation, as
+    /// before the set UPDATE, and the second reports the generation it met.
+    /// </summary>
+    [Fact]
+    public async Task TwoStaleRulesInOneSaveEachRecordHistory()
+    {
+        var counter = new CommandCountingInterceptor();
+        await using var harness = await Harness.CreateAsync(counter);
+        var caseId = (await harness.AcceptAsync("write-count-two-rules-case")).Identity.CaseId;
+        var (currentGenerationId, _) = await SeedGenerationsAsync(harness, caseId);
+        var now = new DateTimeOffset(2031, 5, 6, 11, 0, 0, TimeSpan.Zero);
+
+        counter.Reset();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        await using (var transaction = await context.Database.BeginTransactionAsync())
+        {
+            Assert.Equal(1, await EfCaseReportGenerationStore.MarkWorkStaleAsync(
+                context, caseId, caseId, "current_estimate_saved", now, CancellationToken.None));
+            Assert.Equal(1, await EfCaseReportGenerationStore.MarkWorkStaleAsync(
+                context, caseId, caseId, "assessment_facts_changed", now, CancellationToken.None));
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+
+        Assert.Equal(1, counter.CountMatching(text => text.Contains("UPDATE [c]", StringComparison.Ordinal)
+            && text.Contains("[CaseReportGenerations] AS [c]", StringComparison.Ordinal)));
+        Assert.Equal("Stale", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentGenerationId:D}'"));
+        Assert.Equal(2, await StaleRowCountAsync(harness, caseId));
+        await using var after = await harness.Factory.CreateDbContextAsync();
+        Assert.Equal(0, await EfCaseReportGenerationStore.MarkWorkStaleAsync(
+            after, caseId, caseId, "current_estimate_saved", now, CancellationToken.None));
+    }
+
+    /// <summary>
     /// Discard deletes the lines and the numbered versions by one statement
     /// each, in the open transaction, and reads neither: no command selects
     /// the lines or a version's JSON. A Current spec is refused before any
