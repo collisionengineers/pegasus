@@ -330,6 +330,17 @@ public sealed class ImageIntakePersistenceTests
             CancellationToken.None);
         Assert.Equal(record.Id, fromSibling!.Record.Id);
 
+        // The set lookup answers the same for a group's members: each reaches
+        // the one registration, an unknown receipt reaches none, and the full
+        // detail is the first asked receipt's that does.
+        var unknownReceiptId = Guid.NewGuid();
+        var fromSet = await queries.GetByOriginReceiptsAsync(
+            [unknownReceiptId, memberReceiptIds[1], memberReceiptIds[0]],
+            CancellationToken.None);
+        Assert.Equal(memberReceiptIds.Take(2).ToHashSet(), fromSet.ReceiptIds);
+        Assert.Equal(record.Id, fromSet.First!.Record.Id);
+        Assert.Empty((await queries.GetByOriginReceiptsAsync([unknownReceiptId], CancellationToken.None)).ReceiptIds);
+
         // A second registration for the same group — different operation key,
         // different member origin, exactly a racing sibling's attempt —
         // returns the one existing row instead of allocating a second

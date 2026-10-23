@@ -129,26 +129,23 @@ public sealed class GetIntakeOfferedActions(
             receipts.Select(receipt => receipt.Id).Distinct().ToArray(),
             cancellationToken);
         var readingsByReceipt = new Dictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>();
+        // The offers' origin reads and the group's search for its first record
+        // are one set read: which members reach a record, and the first one's
+        // detail.
+        var origins = await _imageIntakes.GetByOriginReceiptsAsync(
+            receipts.Select(receipt => receipt.Id).ToArray(),
+            cancellationToken);
         var members = new List<MemberImageRegistrationOffer>(receipts.Count);
-        ImageIntakeDetail? imageIntake = null;
         foreach (var receipt in receipts)
         {
             IReadOnlyList<ImageVrmSuggestion> readings = found.TryGetValue(receipt.Id, out var read) ? read : [];
             readingsByReceipt[receipt.Id] = readings;
-
-            // The offer's own origin read, and the group's search for its first
-            // record, are the same read of the same receipt: made once.
-            var offerable = IsRegistrationOfferable(receipt);
-            var origin = offerable || imageIntake is null
-                ? await _imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken)
-                : null;
-            imageIntake ??= origin;
             members.Add(new(
-                offerable && origin is null,
+                IsRegistrationOfferable(receipt) && !origins.ReceiptIds.Contains(receipt.Id),
                 ImageIntakeLifecycleRules.IsImageRegistrationEligible(receipt) ? readings : []));
         }
 
-        return new(members, readingsByReceipt, imageIntake);
+        return new(members, readingsByReceipt, origins.First);
     }
 
     // Register images: the staff route for image-only material (the automatic
