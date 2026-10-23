@@ -496,6 +496,16 @@ public sealed class MonthlyReportActivityPersistenceTests
         Assert.Equal(100m, monthly.Sum(row => row.AgreedFeeTotal));
         Assert.Equal(100m, principalRow.AgreedFeeTotal);
 
+        // The period ends exclusive at the first report's instant, so the fee
+        // belongs to the half that starts there and not to the half that ends there.
+        var endingAtTheFirstInstantMonthly = await scope.ServiceProvider.GetRequiredService<IMonthlyReportActivityQueries>()
+            .GetAsync(From, firstGeneratedAt, CancellationToken.None);
+        var endingAtTheFirstInstantPrincipals = await scope.ServiceProvider.GetRequiredService<IV1ActivityReportQueries>()
+            .GetAsync(From, firstGeneratedAt, CancellationToken.None);
+
+        Assert.Equal(0m, endingAtTheFirstInstantMonthly.Sum(row => row.AgreedFeeTotal));
+        Assert.Equal(0m, endingAtTheFirstInstantPrincipals.Sum(row => row.AgreedFeeTotal));
+
         // The period starts inclusive at the first report's instant, and a
         // period after it holds no fee: the later report is not the first.
         var fromTheFirstInstant = await scope.ServiceProvider.GetRequiredService<IMonthlyReportActivityQueries>()
