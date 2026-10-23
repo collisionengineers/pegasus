@@ -795,10 +795,11 @@ public sealed class CasesIndexWebTests
             services.RemoveAll<Pegasus.Core.Reports.ICaseReportSnapshotSource>();
             services.AddSingleton<Pegasus.Core.Reports.ICaseReportSnapshotSource>(new NoReportInputs());
         }));
-        using var client = IntakeWebDriver.CreateClient(factory);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
-            factory, client, "QD21 RSN", "QUICK-DETAIL-05");
+            baseFactory, seedClient, "QD21 RSN", "QUICK-DETAIL-05");
         await SeedReportSentCaseWithOpenTaskAsync(baseFactory, caseId);
+        using var client = IntakeWebDriver.CreateClient(factory);
 
         counter.Reset();
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=with_engineer&selected={caseId:D}");
