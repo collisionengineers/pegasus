@@ -4230,21 +4230,28 @@ public sealed class WorkflowDatabase : IAsyncLifetime
     /// </summary>
     internal async Task RemoveAsync(SeededCases seeded)
     {
-        caseRemoval ??= await ForeignKeyRowRemoval.CreateAsync(Database, ForeignKeyRowRemoval.CasesTable);
-        foreach (var caseId in seeded.CaseIds)
-        {
-            await caseRemoval.RemoveAsync(caseId);
-        }
+        caseRemoval ??= await ForeignKeyRowRemoval.CreateAsync(
+            Database, ForeignKeyRowRemoval.CasesTable, ForeignKeyRowRemoval.InRoots, []);
 
-        // The history names a Case without a key to it; the rest are what the Cases hung from.
-        var aggregateIds = seeded.CaseIds.Select(id => id.ToString("D")).ToArray();
-        var receiptIds = seeded.ReceiptIds;
-        await using var context = await Factory.CreateDbContextAsync();
-        await context.ActionHistory.Where(item => aggregateIds.Contains(item.AggregateId)).ExecuteDeleteAsync();
-        await context.Principals.Where(item => item.Id == seeded.PrincipalId).ExecuteDeleteAsync();
-        await context.PrincipalSequenceLineages.Where(item => item.Id == seeded.LineageId).ExecuteDeleteAsync();
-        await context.Organizations.Where(item => item.Id == seeded.OrganizationId).ExecuteDeleteAsync();
-        await context.IntakeReceipts.Where(item => receiptIds.Contains(item.Id)).ExecuteDeleteAsync();
+        // One batch: the walk from every Case, then the history (it names a Case
+        // without a key to it) and the rows the Cases were seeded from.
+        var parameters = new List<(string Name, object Value)>
+        {
+            ("@principalId", seeded.PrincipalId),
+            ("@lineageId", seeded.LineageId),
+            ("@organizationId", seeded.OrganizationId),
+        };
+        var caseNames = ForeignKeyRowRemoval.AddParameters(parameters, "case", seeded.CaseIds);
+        var receiptNames = ForeignKeyRowRemoval.AddParameters(parameters, "receipt", seeded.ReceiptIds);
+        var sql = ForeignKeyRowRemoval.RootsDeclaration
+            + $"INSERT @roots (Id) VALUES {string.Join(", ", caseNames.Select(name => $"({name})"))};\n"
+            + caseRemoval.Sql + ";\n"
+            + "DELETE FROM [dbo].[ActionHistory] WHERE AggregateId IN (SELECT LOWER(CONVERT(nvarchar(36), Id)) FROM @roots);\n"
+            + "DELETE FROM [dbo].[Principals] WHERE Id = @principalId;\n"
+            + "DELETE FROM [dbo].[PrincipalSequenceLineages] WHERE Id = @lineageId;\n"
+            + "DELETE FROM [dbo].[Organizations] WHERE Id = @organizationId;\n"
+            + $"DELETE FROM [dbo].[IntakeReceipts] WHERE Id IN ({string.Join(", ", receiptNames)})";
+        await ForeignKeyRowRemoval.ExecuteAsync(Database, sql, [.. parameters]);
     }
 
     /// <summary>The Cases one harness seeded, with the rows they were seeded from.</summary>

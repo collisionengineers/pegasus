@@ -12,6 +12,12 @@ internal sealed class ForeignKeyRowRemoval
 
     internal const string IntakeReceiptsTable = "[dbo].[IntakeReceipts]";
 
+    /// <summary>Declares the table variable a batch fills with the ids of the root rows it removes (<see cref="InRoots"/>).</summary>
+    internal const string RootsDeclaration = "DECLARE @roots TABLE (Id uniqueidentifier NOT NULL);\n";
+
+    /// <summary>The root rows named by the <c>@roots</c> table variable, for a batch that removes several at once.</summary>
+    internal static string InRoots(string alias) => $"{alias}.[Id] IN (SELECT Id FROM @roots)";
+
     /// <summary>Every foreign key, one row for each column pair: its id, child table, parent table, then the columns.</summary>
     private const string ForeignKeysSql = """
         SELECT fk.object_id,
@@ -45,8 +51,17 @@ internal sealed class ForeignKeyRowRemoval
     /// reaches it. A table in <paramref name="skippedTables"/>, and what only
     /// it reaches, is left to the caller (it has been removed already).
     /// </summary>
+    internal static Task<ForeignKeyRowRemoval> CreateAsync(
+        LocalDbTestDatabase database, string rootTable, params string[] skippedTables) =>
+        CreateAsync(database, rootTable, alias => $"{alias}.[Id] = @id", skippedTables);
+
+    /// <summary>
+    /// As above, with the root rows chosen by <paramref name="rootRows"/> (the
+    /// SQL condition on the root table's alias) instead of the one row named by
+    /// <c>@id</c>; the caller supplies the parameters it uses.
+    /// </summary>
     internal static async Task<ForeignKeyRowRemoval> CreateAsync(
-        LocalDbTestDatabase database, string rootTable, params string[] skippedTables)
+        LocalDbTestDatabase database, string rootTable, Func<string, string> rootRows, string[] skippedTables)
     {
         var keys = new Dictionary<int, ForeignKeyEdge>();
         await using (var connection = database.CreateConnection())
@@ -95,7 +110,7 @@ internal sealed class ForeignKeyRowRemoval
         {
             if (table == rootTable)
             {
-                return $"{alias}.[Id] = @id";
+                return rootRows(alias);
             }
 
             var parentAlias = $"p{depth}";
@@ -115,17 +130,46 @@ internal sealed class ForeignKeyRowRemoval
         return new ForeignKeyRowRemoval(database, sql);
     }
 
+    /// <summary>The statements of the walk, to be joined into a batch with the caller's own statements.</summary>
+    internal string Sql => removeSql;
+
     /// <summary>Removes the root row with the given id and everything that reaches it.</summary>
-    internal async Task RemoveAsync(Guid id)
+    internal Task RemoveAsync(Guid id) => ExecuteAsync(database, removeSql, ("@id", id));
+
+    /// <summary>
+    /// Names a parameter for each id, adds them to <paramref name="parameters"/>
+    /// and returns the names, to be listed in a batch built for this call.
+    /// </summary>
+    internal static List<string> AddParameters(
+        List<(string Name, object Value)> parameters, string prefix, IReadOnlyList<Guid> ids)
+    {
+        var names = new List<string>();
+        for (var index = 0; index < ids.Count; index++)
+        {
+            var name = $"@{prefix}{index}";
+            parameters.Add((name, ids[index]));
+            names.Add(name);
+        }
+
+        return names;
+    }
+
+    /// <summary>Runs one batch with the given parameters in one round trip.</summary>
+    internal static async Task ExecuteAsync(
+        LocalDbTestDatabase database, string sql, params (string Name, object Value)[] parameters)
     {
         await using var connection = database.CreateConnection();
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = removeSql;
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = "@id";
-        parameter.Value = id;
-        command.Parameters.Add(parameter);
+        command.CommandText = sql;
+        foreach (var (name, value) in parameters)
+        {
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = name;
+            parameter.Value = value;
+            command.Parameters.Add(parameter);
+        }
+
         await command.ExecuteNonQueryAsync();
     }
 

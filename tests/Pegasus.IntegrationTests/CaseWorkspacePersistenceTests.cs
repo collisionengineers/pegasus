@@ -2592,23 +2592,20 @@ public sealed class CaseWorkspaceDatabase : IAsyncLifetime
     /// </summary>
     internal async Task RemoveAsync(Guid receiptId)
     {
-        caseRemoval ??= await ForeignKeyRowRemoval.CreateAsync(Database, ForeignKeyRowRemoval.CasesTable);
+        caseRemoval ??= await ForeignKeyRowRemoval.CreateAsync(
+            Database, ForeignKeyRowRemoval.CasesTable, ForeignKeyRowRemoval.InRoots, []);
         receiptRemoval ??= await ForeignKeyRowRemoval.CreateAsync(
             Database, ForeignKeyRowRemoval.IntakeReceiptsTable, ForeignKeyRowRemoval.CasesTable);
-        await using var context = await Factory.CreateDbContextAsync();
-        var caseIds = await context.Cases
-            .Where(item => item.OriginIntakeReceiptId == receiptId)
-            .Select(item => item.Id)
-            .ToListAsync();
-        foreach (var caseId in caseIds)
-        {
-            await caseRemoval.RemoveAsync(caseId);
-        }
 
-        await receiptRemoval.RemoveAsync(receiptId);
-
-        // The history names a Case or a receipt without a key to it.
-        var aggregateIds = caseIds.Select(id => id.ToString("D")).Append(receiptId.ToString("D")).ToArray();
-        await context.ActionHistory.Where(item => aggregateIds.Contains(item.AggregateId)).ExecuteDeleteAsync();
+        // One batch: the Cases the receipt made go to @roots, then the walk from
+        // each, the walk from the receipt, and the history (it names a Case or
+        // a receipt without a key to it).
+        var sql = ForeignKeyRowRemoval.RootsDeclaration
+            + "INSERT @roots (Id) SELECT Id FROM [dbo].[Cases] WHERE OriginIntakeReceiptId = @id;\n"
+            + caseRemoval.Sql + ";\n"
+            + receiptRemoval.Sql + ";\n"
+            + "DELETE FROM [dbo].[ActionHistory] WHERE AggregateId IN (SELECT LOWER(CONVERT(nvarchar(36), Id)) FROM @roots)"
+            + " OR AggregateId = LOWER(CONVERT(nvarchar(36), @id))";
+        await ForeignKeyRowRemoval.ExecuteAsync(Database, sql, ("@id", receiptId));
     }
 }
