@@ -878,6 +878,11 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,
             CancellationToken cancellationToken) =>

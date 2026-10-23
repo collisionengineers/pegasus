@@ -322,9 +322,10 @@ public sealed class ImageIntakeCasePairing(
                 }
             }
 
-            await SyncMergeAfterLinkAsync(detail.Record.Origin.ReceiptId, targetId.Value, actor,
+            // The record the merge step read or wrote says whether the group
+            // merged, so the detail is not read a second time.
+            var current = await SyncMergeAfterLinkAsync(detail.Record.Origin.ReceiptId, targetId.Value, actor,
                 staffOriginVersion, cancellationToken);
-            var current = await imageIntakeStore.GetByOriginReceiptAsync(detail.Record.Origin.ReceiptId, cancellationToken);
             var merged = current is not null && current.State == ImageInitiatedCaseState.MergedIntoInstructionCase
                 && current.MergedIntoCaseId == targetId;
             if (!merged)
@@ -349,7 +350,7 @@ public sealed class ImageIntakeCasePairing(
         }
     }
 
-    private async Task SyncMergeAfterLinkAsync(
+    private async Task<ImageIntakeRecord?> SyncMergeAfterLinkAsync(
         Guid originReceiptId,
         Guid caseId,
         ActionActor actor,
@@ -358,13 +359,13 @@ public sealed class ImageIntakeCasePairing(
     {
         if (originReceiptId == Guid.Empty || caseId == Guid.Empty)
         {
-            return;
+            return null;
         }
 
         var detail = await imageIntakeStore.GetByOriginReceiptAsync(originReceiptId, cancellationToken);
         if (detail is null || detail.State != ImageInitiatedCaseState.AwaitingInstruction)
         {
-            return;
+            return detail?.Record;
         }
 
         var originId = detail.Record.Origin.ReceiptId;
@@ -377,5 +378,7 @@ public sealed class ImageIntakeCasePairing(
         {
             await committedExternalWorkPublisher.PublishAsync(workItemId, cancellationToken);
         }
+
+        return merged;
     }
 }

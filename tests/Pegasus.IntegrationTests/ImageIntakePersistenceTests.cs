@@ -579,6 +579,36 @@ public sealed class ImageIntakePersistenceTests
     }
 
     /// <summary>
+    /// The reconciliation sweep needs only the record a receipt resolves to: one
+    /// statement for the receipt's own registration, the same record the detail
+    /// read resolves, where the detail sends the association and group reads
+    /// besides.
+    /// </summary>
+    [Fact]
+    public async Task AReceiptResolvesToItsImageIntakeRecordByOneStatement()
+    {
+        var statements = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: statements);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "record-one-statement");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var registered = Assert.IsType<ImageIntakeDetail>(
+            await store.GetByOriginReceiptAsync(imageReceipt, CancellationToken.None));
+
+        statements.Reset();
+        var record = Assert.IsType<ImageIntakeRecord>(
+            await store.GetRecordByOriginReceiptAsync(imageReceipt, CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+        Assert.Equal(registered.Record, record);
+
+        Assert.Null(await store.GetRecordByOriginReceiptAsync(Guid.NewGuid(), CancellationToken.None));
+    }
+
+    /// <summary>
     /// With records waiting, the Case read covers only the Cases their reads can
     /// match: a Case none of them can match is not read, and while no waiting
     /// record has a target no lease is read. Once a Case matches, the lease read

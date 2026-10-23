@@ -382,13 +382,13 @@ public sealed class ReconcileUnidentifiedDestinations(
 
         if (receipt.Decision == IntakeDecision.ImageIntakeRegistered)
         {
-            var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
-            return detail is null
+            var record = await imageIntakeQueries.GetRecordByOriginReceiptAsync(receipt.Id, cancellationToken);
+            return record is null
                 ? null
                 : new(
                     UnidentifiedResolutionTargetKind.ImageIntake,
-                    detail.Record.Id.ToString("N"),
-                    detail.Record.ImageIntakeReference);
+                    record.Id.ToString("N"),
+                    record.ImageIntakeReference);
         }
 
         // A Triage request held in Unidentified for want of a registration,
@@ -468,14 +468,14 @@ public sealed class ReconcileUnidentifiedDestinations(
         // its destination: the one registration stamped with this group,
         // reached through any member it moved to the registered decision.
         if (receipts.FirstOrDefault(receipt => receipt!.Decision == IntakeDecision.ImageIntakeRegistered) is { } registered
-            && await imageIntakeQueries.GetByOriginReceiptAsync(registered.Id, cancellationToken) is { } detail
-            && detail.Record.SubmissionGroupId == groupId)
+            && await imageIntakeQueries.GetRecordByOriginReceiptAsync(registered.Id, cancellationToken) is { } record
+            && record.SubmissionGroupId == groupId)
         {
             return new(
                 new(
                     UnidentifiedResolutionTargetKind.ImageIntake,
-                    detail.Record.Id.ToString("N"),
-                    detail.Record.ImageIntakeReference),
+                    record.Id.ToString("N"),
+                    record.ImageIntakeReference),
                 associationVersion);
         }
 

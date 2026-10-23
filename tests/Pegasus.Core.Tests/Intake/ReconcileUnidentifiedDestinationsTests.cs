@@ -60,6 +60,23 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     }
 
     [Fact]
+    public async Task TheSweepReadsTheImageIntakeRecordAloneNotTheDetail()
+    {
+        var harness = new Harness();
+        var receipt = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        var intakeId = Guid.NewGuid();
+        harness.ImageIntakes.DetailsByOriginReceipt[receipt.Id] = Detail(intakeId, receipt, "AB12CDE-01");
+
+        await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(intakeId.ToString("N"), Assert.Single(harness.Resolve.Requests).TargetId);
+        Assert.Equal(1, harness.ImageIntakes.RecordReads);
+        Assert.Equal(0, harness.ImageIntakes.DetailReads);
+    }
+
+    [Fact]
     public async Task CaseCreatedReceiptResolvesToTheInstructionCase()
     {
         var harness = new Harness();
@@ -1402,11 +1419,27 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
 
+        public int DetailReads { get; private set; }
+
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
             Guid intakeReceiptId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(
+            CancellationToken cancellationToken)
+        {
+            DetailReads++;
+            return Task.FromResult(
                 DetailsByOriginReceipt.TryGetValue(intakeReceiptId, out var detail) ? detail : null);
+        }
+
+        public int RecordReads { get; private set; }
+
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken)
+        {
+            RecordReads++;
+            return Task.FromResult(
+                DetailsByOriginReceipt.TryGetValue(intakeReceiptId, out var detail) ? detail.Record : null);
+        }
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,

@@ -544,9 +544,10 @@ public sealed class ImageIntakeCasePairingTests
         Assert.Equal([firstImage, secondImage], mutationStore.AutoLinks.Select(link => link.ReceiptId));
         Assert.Equal([7L, 8L], mutationStore.AutoLinks.Select(link => link.ExpectedCaseVersion));
         Assert.All(mutationStore.AutoLinks, link => Assert.Equal(0, link.ExpectedStaffOriginAssociationVersion));
-        // The pass read, the first link's destination, the merge and the check
-        // afterwards: the second image adds no read.
-        Assert.Equal(4, queries.OriginReads);
+        // The pass read, the first link's destination and the merge step's read,
+        // whose record also answers whether the group merged: the second image
+        // and the check afterwards add no read.
+        Assert.Equal(3, queries.OriginReads);
         // The three members are read once each.
         Assert.Equal(3, queries.MemberReceiptReads);
     }
@@ -766,6 +767,10 @@ public sealed class ImageIntakeCasePairingTests
                     summary.State, PrincipalId: summary.PrincipalId),
                 summary.RegisteredAtUtc, summary.AssociatedCaseId, summary.AssociatedCaseReference));
         }
+
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
 
         Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken)
         {

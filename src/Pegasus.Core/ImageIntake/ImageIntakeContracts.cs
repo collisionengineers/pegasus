@@ -320,6 +320,16 @@ public interface IImageIntakeQueries
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The record <see cref="GetByOriginReceiptAsync"/> resolves for a receipt
+    /// (its own registration, else its group's), for a caller that needs the
+    /// identity, reference or group alone: the detail reads the association,
+    /// the Case reference and the group count besides.
+    /// </summary>
+    Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
         Guid caseId,
         CancellationToken cancellationToken);

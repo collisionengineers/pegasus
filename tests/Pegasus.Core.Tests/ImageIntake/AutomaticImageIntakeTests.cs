@@ -1341,6 +1341,10 @@ public sealed class AutomaticImageIntakeTests
             Guid intakeReceiptId,
             CancellationToken cancellationToken) => Task.FromResult(Existing);
 
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) => Task.FromResult(Existing?.Record);
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,
             CancellationToken cancellationToken) =>

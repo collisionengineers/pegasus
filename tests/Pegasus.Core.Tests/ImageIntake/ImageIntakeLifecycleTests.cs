@@ -341,6 +341,11 @@ public sealed class ImageIntakeLifecycleTests
             CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
 
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ImageIntakeRecord?>(null);
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,
             CancellationToken cancellationToken) =>

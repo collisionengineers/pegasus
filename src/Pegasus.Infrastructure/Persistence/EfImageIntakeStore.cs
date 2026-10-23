@@ -1190,6 +1190,15 @@ public sealed class EfImageIntakeStore(
             : await ToDetailAsync(context, entity, entity.Principal?.Code, cancellationToken);
     }
 
+    public async Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
     /// <summary>
     /// Resolves the ImageIntake a receipt belongs to: its own origin
     /// registration, or — when the receipt is a member of a submission group

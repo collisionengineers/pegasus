@@ -619,6 +619,10 @@ public sealed class UploadOutcomeQueriesTests
             Guid intakeReceiptId, CancellationToken cancellationToken) =>
             Task.FromResult(detail);
 
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId, CancellationToken cancellationToken) =>
+            Task.FromResult(detail?.Record);
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
