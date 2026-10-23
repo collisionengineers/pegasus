@@ -9,7 +9,7 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Intake;
 
-public sealed class AzureBlobIntakeArtifactStore
+public sealed partial class AzureBlobIntakeArtifactStore
     : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
 {
     private const string StagingPrefix = "staging/";
@@ -483,11 +483,14 @@ public sealed class AzureBlobIntakeArtifactStore
                     return null;
                 }
 
-                logger?.LogWarning(
-                    "Staged artifact {StorageKey} was listed {ListedDisposition} but its tag is {TagDisposition}; the tag decides.",
-                    storageKey,
-                    expectedDisposition,
-                    hasTag ? tag : "absent");
+                if (logger is not null)
+                {
+                    LogTagDecides(
+                        logger,
+                        storageKey,
+                        expectedDisposition,
+                        hasTag ? tag : "absent");
+                }
                 string? tagCondition = null;
                 if (hasTag
                     && Enum.TryParse<StagedArtifactDisposition>(
@@ -1084,4 +1087,13 @@ public sealed class AzureBlobIntakeArtifactStore
             await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Staged artifact {StorageKey} was listed {ListedDisposition} but its tag is {TagDisposition}; the tag decides.")]
+    private static partial void LogTagDecides(
+        ILogger logger,
+        string storageKey,
+        StagedArtifactDisposition listedDisposition,
+        string? tagDisposition);
 }
