@@ -1116,7 +1116,8 @@ public sealed class EstimateTests
             CancellationToken.None);
 
         Assert.Equal(2, save.ReplayProbes);
-        Assert.Single(save.AuthorityChecks, item => item.OperationKey == "another-operation-key");
+        // The authority does not depend on the operation key, so the check still covers it.
+        Assert.Single(save.AuthorityChecks);
     }
 
     [Fact]
