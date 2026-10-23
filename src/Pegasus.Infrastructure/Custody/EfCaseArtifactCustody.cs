@@ -519,8 +519,11 @@ internal sealed class EfCaseArtifactCustody(
     {
         /// <summary>
         /// How many publishes run at once: the most retentions one receipt
-        /// has at once, so no retention waits on a publish it did not wait on
-        /// before, and no more staged files wait than are being retained.
+        /// has at once, so no more staged files wait than are being retained.
+        /// A retention that starts while every slot is held waits for a
+        /// publish it did not wait on before (promotion retains one at a
+        /// time, so its fifth waits on the first). That wait is bounded by the
+        /// store's own timeout and is no longer than its own inline publish.
         /// </summary>
         private const int MaximumConcurrentPublishes = 4;
 
