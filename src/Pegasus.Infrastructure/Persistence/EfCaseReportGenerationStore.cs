@@ -845,12 +845,25 @@ public sealed class EfCaseReportGenerationStore(
         // save records its own stale history row against it, as before. The
         // record is on the tracked instance, never on the context: a pooled
         // context outlives a save that failed, its tracker does not.
-        var pending = context.Set<CaseReportGenerationEntity>().Local
-            .Where(item => item.WorkId == workId
-                && item.SupersededById == null
-                && StaledUnsaved.TryGetValue(item, out _))
-            .Select(item => item.Id)
-            .ToArray();
+        // Local runs DetectChanges over the whole tracker unless auto-detect is
+        // off; the scan reads only instances and the record, so it is off here.
+        var tracker = context.ChangeTracker;
+        var autoDetect = tracker.AutoDetectChangesEnabled;
+        tracker.AutoDetectChangesEnabled = false;
+        Guid[] pending;
+        try
+        {
+            pending = context.Set<CaseReportGenerationEntity>().Local
+                .Where(item => item.WorkId == workId
+                    && item.SupersededById == null
+                    && StaledUnsaved.TryGetValue(item, out _))
+                .Select(item => item.Id)
+                .ToArray();
+        }
+        finally
+        {
+            tracker.AutoDetectChangesEnabled = autoDetect;
+        }
         var query = context.Set<CaseReportGenerationEntity>()
             .Where(item => item.WorkId == workId && item.SupersededById == null);
         if (pending.Length == 0)
