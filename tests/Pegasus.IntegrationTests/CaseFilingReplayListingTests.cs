@@ -385,7 +385,7 @@ public sealed class CaseFilingReplayListingTests
         public Task<IReadOnlyList<CaseFilingReplayCandidate>> ListAsync(int maximumItems = 50) =>
             Store.ListDueAsync(
                 null,
-                DateTimeOffset.UtcNow - ReplayCaseFilings.SystemAssociationWindow,
+                IntakeEscapeWindow.LatestClosedStart(DateTimeOffset.UtcNow),
                 DateTimeOffset.UtcNow,
                 maximumItems,
                 default);

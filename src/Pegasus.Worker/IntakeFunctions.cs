@@ -321,7 +321,7 @@ public sealed partial class UnifiedWorkFunction(
         switch (kind)
         {
             case UnifiedWorkQueueKind.Intake:
-                await processQueuedIntake.ExecuteAsync(identifier, cancellationToken);
+                await processQueuedIntake.ProcessAsync(identifier, cancellationToken);
                 return;
             case UnifiedWorkQueueKind.External:
                 try

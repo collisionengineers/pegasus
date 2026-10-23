@@ -49,6 +49,97 @@ public sealed class GroupedImageIntakeConcurrencyTests
         Assert.Equal(UnidentifiedReasonCode.NoUsableIdentification, item.ReasonCode);
         Assert.Empty(await groupStore.ListPendingImageGroupReceiptsAsync(1));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+        // The group resolved Unidentified, so every member is in holding (R382).
+        var custody = await MemberCustodyAsync(factory, groupId);
+        Assert.Equal(2, custody.Length);
+        Assert.All(custody, state => Assert.Equal("confirmed", state));
+    }
+
+    /// <summary>
+    /// A group with a member that never arrives holds nothing while it is
+    /// pending, a redelivery past the window included; the sweep's escape then
+    /// holds every member that has a receipt before it registers the group
+    /// Unidentified (R191, R379, R382). The window is judged on the SQL
+    /// server's clock, so the group's stored receipt time is moved back rather
+    /// than the application clock forward.
+    /// </summary>
+    [Fact]
+    public async Task AMissingMemberGroupHoldsNothingThenEveryMemberAtTheEscape()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(client,
+            form.AntiforgeryToken, form.ExternalReceiptToken,
+            [("overview.png", "image/png", TinyPngBytes), ("close-up.png", "image/png", TinyPngBytes)]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        Guid firstStagedReceiptId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var group = await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
+                .GetAsync(groupId);
+            firstStagedReceiptId = group!.Members.Single(member => member.Ordinal == 0).StagedReceiptId;
+            await new DispatchPendingIntakeWork(
+                scope.ServiceProvider.GetRequiredService<IIntakeWorkStore>(),
+                new IntakeWebDriver.NoOpIntakeWorkEnqueuer(),
+                scope.ServiceProvider.GetRequiredService<TimeProvider>()).ExecuteAsync(10);
+        }
+
+        // Only the first member is processed: its group waits for the second.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            Assert.Equal(
+                QueuedIntakeProcessingOutcome.RetryScheduled,
+                await IntakeWebDriver.CreateProcessor(scope.ServiceProvider).ExecuteAsync(firstStagedReceiptId));
+        }
+        await BackDateGroupPastTheWindowAsync(factory, groupId);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            Assert.Equal(
+                QueuedIntakeProcessingOutcome.RetryScheduled,
+                await IntakeWebDriver.CreateProcessor(scope.ServiceProvider).ExecuteAsync(firstStagedReceiptId));
+        }
+        Assert.Null(Assert.Single(await MemberCustodyAsync(factory, groupId)));
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var processor = IntakeWebDriver.CreateProcessor(scope.ServiceProvider);
+            var result = await ActivatorUtilities.CreateInstance<ReconcileGroupedImageIntake>(
+                    scope.ServiceProvider, (IProcessQueuedIntake)processor)
+                .ExecuteAsync(10);
+            Assert.Equal(new ReconcileGroupedImageIntakeResult(1, 1, 1, 0), result);
+            var item = Assert.Single(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>().ListAsync());
+            Assert.Equal(UnidentifiedOrigin.SubmissionGroup(groupId), item.Origin);
+        }
+        Assert.Equal("confirmed", Assert.Single(await MemberCustodyAsync(factory, groupId)));
+    }
+
+    /// <summary>
+    /// The group read carries the SQL server's clock, read in the same
+    /// statement, not the application's: the factory's clock stands in 2031
+    /// (R379).
+    /// </summary>
+    [Fact]
+    public async Task TheGroupReadCarriesTheSqlClockNotTheApplicationClock()
+    {
+        var commands = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: commands);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(client,
+            form.AntiforgeryToken, form.ExternalReceiptToken,
+            [("overview.png", "image/png", TinyPngBytes), ("close-up.png", "image/png", TinyPngBytes)]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        commands.Reset();
+        var group = await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>().GetAsync(groupId);
+
+        var readAtUtc = Assert.IsType<DateTimeOffset>(group!.ReadAtUtc);
+        Assert.InRange(readAtUtc, DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddMinutes(5));
+        Assert.Equal(1, commands.CountMentioning("SYSUTCDATETIME()"));
     }
 
     [Fact]
@@ -204,11 +295,9 @@ public sealed class GroupedImageIntakeConcurrencyTests
     [Fact]
     public async Task AWaitingUploadIsRegisteredBySweepPastTheWindowAndNeverEscapedToUnidentified()
     {
-        var clock = new AdvanceableTimeProvider(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
-            timeProvider: clock,
             recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
         using var client = IntakeWebDriver.CreateClient(factory);
         _ = await ImageIntakeTestData.SeedInstructionCaseAsync(
@@ -224,17 +313,21 @@ public sealed class GroupedImageIntakeConcurrencyTests
 
         // Inside the window the upload waits: the sweep lists it, re-drives it
         // and registers nothing, neither an Image intake nor an Unidentified item.
+        Guid groupId;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var pending = await scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>()
-                .ListPendingImageGroupReceiptsAsync(10);
+            var groups = scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>();
+            var pending = await groups.ListPendingImageGroupReceiptsAsync(10);
             Assert.Equal(receiptId, Assert.Single(pending));
+            var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None);
+            groupId = (await groups.FindForMemberSourceAsync(receipt!.SourceIdentity))!.Id;
             await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
             Assert.Empty(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>().ListAsync());
         }
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
 
-        clock.Advance(ReconcileGroupedImageIntake.EscapeAfter + TimeSpan.FromMinutes(1));
+        await BackDateGroupPastTheWindowAsync(factory, groupId);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
@@ -457,6 +550,33 @@ public sealed class GroupedImageIntakeConcurrencyTests
     }
 
     private static readonly byte[] TinyPngBytes = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+
+    /// <summary>
+    /// Moves the group's stored receipt time back past its escape window on
+    /// the SQL server's clock, the clock the window is judged on.
+    /// </summary>
+    private static async Task BackDateGroupPastTheWindowAsync(IntakeWebApplicationFactory factory, Guid groupId)
+    {
+        await using var context = await factory.Database.CreateContextAsync();
+        var receivedAtUtc = DateTimeOffset.UtcNow - IntakeEscapeWindow.Length - TimeSpan.FromMinutes(5);
+        Assert.Equal(1, await context.IntakeSubmissionGroups
+            .Where(group => group.Id == groupId)
+            .ExecuteUpdateAsync(update => update.SetProperty(group => group.ReceivedAtUtc, receivedAtUtc)));
+    }
+
+    /// <summary>The custody state of each processed member's retained files, in member order.</summary>
+    private static async Task<string?[]> MemberCustodyAsync(IntakeWebApplicationFactory factory, Guid groupId)
+    {
+        await using var context = await factory.Database.CreateContextAsync();
+        return await (
+                from member in context.IntakeSubmissionGroupMembers.AsNoTracking()
+                join work in context.IntakeWorkItems.AsNoTracking() on member.StagedReceiptId equals work.StagedReceiptId
+                join asset in context.IntakeAssets.AsNoTracking() on work.ProcessedReceiptId equals (Guid?)asset.IntakeReceiptId
+                where member.GroupId == groupId
+                orderby member.Ordinal
+                select asset.CustodyStatus)
+            .ToArrayAsync();
+    }
 
     /// <summary>
     /// Processes one staged receipt in its own scope, standing in for a Worker

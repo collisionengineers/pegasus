@@ -22,6 +22,13 @@ public sealed record IntakeSubmissionGroup(
     /// distinction.
     /// </summary>
     public bool HasSiblingMembers => ExpectedMemberCount > 1;
+
+    /// <summary>
+    /// The store's clock, the SQL server's, as the read that returned this
+    /// group took it: the "now" <see cref="IntakeEscapeWindow"/> judges the
+    /// group at. Null on a group a write returned.
+    /// </summary>
+    public DateTimeOffset? ReadAtUtc { get; init; }
 }
 
 /// <summary>

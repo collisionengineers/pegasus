@@ -1,5 +1,4 @@
 using Pegasus.Core.ImageIntake;
-using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Core.Intake;
 
@@ -25,15 +24,16 @@ public sealed record ReconcileGroupedImageIntakeResult(
 /// associated with a Case is filed by <see cref="ReplayCaseFilings"/>.
 /// </summary>
 /// <remarks>
-/// A receipt still pending after <see cref="EscapeAfter"/> is registered
-/// Unidentified here instead — the bounded-retry-with-poison-escape shape
-/// used elsewhere in intake processing, measured in wall-clock age because
-/// this receipt's own work item never re-attempts on its own; only this
-/// sweep, and the ordinary pipeline's first pass, ever touch it.
+/// A receipt still pending once its group's <see cref="IntakeEscapeWindow"/>
+/// has closed is registered Unidentified here instead, every member held
+/// first — the bounded-retry-with-poison-escape shape used elsewhere in
+/// intake processing, measured in age because this receipt's own work item
+/// never re-attempts on its own; only this sweep, and the ordinary pipeline's
+/// first pass, ever touch it.
 /// <para>
 /// A manual upload whose images matched existing Cases waits for staff with
 /// nothing registered (operator, 11 October 2026). This sweep is also what
-/// re-drives it at <see cref="EscapeAfter"/>: the replay then registers the
+/// re-drives it once the window closes: the replay then registers the
 /// Image-initiated Case, and that wait is never escaped to Unidentified.
 /// </para>
 /// </remarks>
@@ -42,20 +42,8 @@ public sealed class ReconcileGroupedImageIntake(
     IIntakeSubmissionGroupStore groupStore,
     IIntakeWorkStore workStore,
     IProcessQueuedIntake processQueuedIntake,
-    TimeProvider timeProvider,
-    IRegisterUnidentified registerUnidentified)
+    RegisterUnidentifiedSubmissionGroup unidentifiedGroups)
 {
-    /// <summary>
-    /// How long a grouped-image receipt may sit pending before this sweep
-    /// gives up waiting for its group and registers it Unidentified instead,
-    /// and the window within which a manual upload's matched Cases wait for
-    /// a staff destination before the images register.
-    /// Matches the longest delay in a genuine processing failure's retry
-    /// budget (<c>ProcessQueuedIntake.RetryDelays</c>) rather than inventing a
-    /// second bound.
-    /// </summary>
-    public static readonly TimeSpan EscapeAfter = TimeSpan.FromHours(2);
-
     public async Task<ReconcileGroupedImageIntakeResult> ExecuteAsync(
         int maximumItems,
         CancellationToken cancellationToken = default)
@@ -70,7 +58,6 @@ public sealed class ReconcileGroupedImageIntake(
         var retried = 0;
         var escaped = 0;
         var failures = 0;
-        var nowUtc = timeProvider.GetUtcNow();
         foreach (var receiptId in receiptIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -78,14 +65,6 @@ public sealed class ReconcileGroupedImageIntake(
             if (receipt is null
                 || receipt.Decision != IntakeDecision.NeedsSorting
                 || !ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt))
-            {
-                continue;
-            }
-
-            var group = await groupStore.FindForMemberSourceAsync(
-                receipt.SourceIdentity,
-                cancellationToken);
-            if (group is null)
             {
                 continue;
             }
@@ -102,15 +81,19 @@ public sealed class ReconcileGroupedImageIntake(
                     continue;
                 }
 
-                var outcome = await processQueuedIntake.ExecuteAsync(stagedReceiptId.Value, cancellationToken);
+                // The replay's automation reads the group and its members;
+                // a group it left pending comes back with that reading, so
+                // the escape reads neither again.
+                var result = await processQueuedIntake.ProcessAsync(stagedReceiptId.Value, cancellationToken);
                 retried++;
-                if (outcome == QueuedIntakeProcessingOutcome.RetryScheduled
-                    && nowUtc - group.ReceivedAtUtc >= EscapeAfter
-                    && (await receiptQueries.GetAsync(receipt.Id, cancellationToken))?.Decision
-                        == IntakeDecision.NeedsSorting)
+                if (result.PendingGroup is { GroupReading: { } reading } pending
+                    && pending.Receipt.Decision == IntakeDecision.NeedsSorting
+                    && IntakeEscapeWindow.HasClosed(reading.Group))
                 {
-                    await registerUnidentified.ExecuteAsync(
-                        ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(group, "group_processing_incomplete"),
+                    await unidentifiedGroups.ExecuteAsync(
+                        ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(
+                            reading.Group, "group_processing_incomplete"),
+                        await ReadMembersAsync(reading, pending.Receipt, cancellationToken),
                         cancellationToken);
                     escaped++;
                 }
@@ -122,5 +105,36 @@ public sealed class ReconcileGroupedImageIntake(
         }
 
         return new(candidates, retried, escaped, failures);
+    }
+
+    /// <summary>
+    /// The escaping group's member receipts, each read at most once in the
+    /// pass: those the replay's automation read are used as it read them (the
+    /// candidate as the replay left it), only a member it did not read is
+    /// read here, and a member with no receipt yet has nothing to hold.
+    /// </summary>
+    private async Task<IReadOnlyList<IntakeReceipt>> ReadMembersAsync(
+        ImageIntakeGroupReading reading,
+        IntakeReceipt current,
+        CancellationToken cancellationToken)
+    {
+        var members = new List<IntakeReceipt>(reading.Receipts.Count + reading.Unread.Count);
+        members.AddRange(reading.Receipts.Select(member => member.Id == current.Id ? current : member));
+        foreach (var member in reading.Unread)
+        {
+            var source = new IntakeSourceIdentity(
+                reading.Group.Channel,
+                GroupedIntakeMemberToken.Create(reading.Group.SubmissionToken, member.Ordinal));
+            if (source == current.SourceIdentity)
+            {
+                members.Add(current);
+            }
+            else if (await receiptQueries.FindBySourceIdentityAsync(source, cancellationToken) is { } receipt)
+            {
+                members.Add(receipt);
+            }
+        }
+
+        return members;
     }
 }

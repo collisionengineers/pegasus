@@ -52,7 +52,7 @@ internal sealed class EfCaseFilingReplayStore(
                 // disjunct names its ActorKind, so both are ranges on the
                 // association index's leading column.
                 && ((association.ActorKind == SystemWorkerKind
-                        && association.LinkedAtUtc >= systemAssociationCutoff)
+                        && association.LinkedAtUtc > systemAssociationCutoff)
                     || association.ActorKind != SystemWorkerKind)
                 // CaseFilingTargetRule: not the Case's own origin receipt; a
                 // workflow Case that is not archived, in a state the

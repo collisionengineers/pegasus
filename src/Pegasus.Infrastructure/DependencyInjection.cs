@@ -646,6 +646,7 @@ public static class DependencyInjection
                 new PrincipalApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
             services.AddScoped<ProcessIntake>();
+            services.AddScoped<RegisterUnidentifiedSubmissionGroup>();
 
             services.AddScoped<CaseExportImageReader>();
             services.AddScoped<EfCaseExportStore>();

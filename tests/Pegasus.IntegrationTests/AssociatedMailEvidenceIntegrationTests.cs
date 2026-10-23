@@ -634,7 +634,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.DoesNotContain(
             await services.GetRequiredService<ICaseFilingReplayStore>().ListDueAsync(
                 null,
-                services.GetRequiredService<TimeProvider>().GetUtcNow() - ReplayCaseFilings.SystemAssociationWindow,
+                IntakeEscapeWindow.LatestClosedStart(services.GetRequiredService<TimeProvider>().GetUtcNow()),
                 services.GetRequiredService<TimeProvider>().GetUtcNow(),
                 20,
                 default),
