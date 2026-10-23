@@ -39,8 +39,8 @@ public interface IEngineerActivityQueries
     Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
-        CancellationToken cancellationToken,
-        Guid? engineerId = null);
+        Guid? engineerId,
+        CancellationToken cancellationToken);
 }
 
 /// <param name="QueriesReceived">Mail classified as a query; disputes and amendment requests included.</param>
@@ -90,8 +90,8 @@ public sealed class GetEngineerActivityReport(
         ActionActor actor,
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
-        CancellationToken cancellationToken = default,
-        Guid? engineerId = null)
+        Guid? engineerId,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.ViewOperationalReports);
@@ -108,7 +108,7 @@ public sealed class GetEngineerActivityReport(
                 "The report period cannot exceed 366 days.");
         }
 
-        var counts = await queries.GetAsync(fromUtc, toUtc, cancellationToken, engineerId);
+        var counts = await queries.GetAsync(fromUtc, toUtc, engineerId, cancellationToken);
         ArgumentNullException.ThrowIfNull(counts);
         if (counts.Any(item => (item.SenderKind == ActorKind.Staff
                 ? item.EngineerId == Guid.Empty

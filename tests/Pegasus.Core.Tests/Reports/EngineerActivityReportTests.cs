@@ -19,7 +19,7 @@ public sealed class EngineerActivityReportTests
             new(knownId, 2, 7, 2, TimeSpan.FromHours(6))]);
         var useCase = new GetEngineerActivityReport(queries, new Accounts(knownId, "engineer.one"));
 
-        var report = await useCase.ExecuteAsync(Administrator(), From, To, CancellationToken.None);
+        var report = await useCase.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None);
 
         Assert.Equal((From, To), (report.FromUtc, report.ToUtc));
         Assert.Equal((From, To), queries.Request);
@@ -46,7 +46,7 @@ public sealed class EngineerActivityReportTests
                 new(Guid.Empty, 3, 0, AuditReportsSent: 1) { SenderKind = ActorKind.Automation }]),
             new Accounts(engineerId, "engineer.one"));
 
-        var report = await useCase.ExecuteAsync(Administrator(), From, To, CancellationToken.None);
+        var report = await useCase.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None);
 
         Assert.Equal(8, report.Rows.Sum(row => row.ReportsSent));
         var automation = Assert.Single(report.Rows, row => row.SenderKind == ActorKind.Automation);
@@ -65,9 +65,9 @@ public sealed class EngineerActivityReportTests
         var engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            useCase.ExecuteAsync(engineer, From, To, CancellationToken.None));
+            useCase.ExecuteAsync(engineer, From, To, null, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            useCase.ExecuteAsync(ActionActor.Automation("connector"), From, To, CancellationToken.None));
+            useCase.ExecuteAsync(ActionActor.Automation("connector"), From, To, null, CancellationToken.None));
 
         Assert.Null(queries.Request);
     }
@@ -79,9 +79,9 @@ public sealed class EngineerActivityReportTests
         var useCase = new GetEngineerActivityReport(queries, new Accounts(Guid.NewGuid(), "x"));
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            useCase.ExecuteAsync(Administrator(), To, From, CancellationToken.None));
+            useCase.ExecuteAsync(Administrator(), To, From, null, CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            useCase.ExecuteAsync(Administrator(), From, From.AddDays(367), CancellationToken.None));
+            useCase.ExecuteAsync(Administrator(), From, From.AddDays(367), null, CancellationToken.None));
 
         Assert.Null(queries.Request);
     }
@@ -106,7 +106,7 @@ public sealed class EngineerActivityReportTests
         {
             await Assert.ThrowsAsync<InvalidDataException>(() =>
                 new GetEngineerActivityReport(new Counts(rows), new Accounts(id, "engineer.one"))
-                    .ExecuteAsync(Administrator(), From, To, CancellationToken.None));
+                    .ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
         }
     }
 
@@ -120,8 +120,8 @@ public sealed class EngineerActivityReportTests
         public Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
-            CancellationToken cancellationToken,
-            Guid? engineerId = null)
+            Guid? engineerId,
+            CancellationToken cancellationToken)
         {
             Request = (fromUtc, toUtc);
             return Task.FromResult(rows);

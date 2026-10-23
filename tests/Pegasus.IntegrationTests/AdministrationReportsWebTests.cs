@@ -605,8 +605,8 @@ public sealed class AdministrationReportsWebTests
         public Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
-            CancellationToken cancellationToken,
-            Guid? engineerId = null) =>
+            Guid? engineerId,
+            CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<EngineerActivityCounts>>(
             [new(Guid.NewGuid(), 1, 1, AverageReceivedToSent: TimeSpan.FromHours(-1))]);
     }
@@ -650,8 +650,8 @@ public sealed class AdministrationReportsWebTests
         Task<IReadOnlyList<EngineerActivityCounts>> IEngineerActivityQueries.GetAsync(
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
-            CancellationToken cancellationToken,
-            Guid? engineerId)
+            Guid? engineerId,
+            CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref engineer);
             engineerIds.Enqueue(engineerId);

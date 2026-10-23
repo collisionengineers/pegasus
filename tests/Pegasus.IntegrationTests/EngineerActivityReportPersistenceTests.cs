@@ -55,7 +55,7 @@ public sealed class EngineerActivityReportPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
 
-        var all = await queries.GetAsync(From, To, CancellationToken.None);
+        var all = await queries.GetAsync(From, To, null, CancellationToken.None);
 
         Assert.Equal(
             new[] { new EngineerActivityCounts(engineerA, 1, 2), new EngineerActivityCounts(engineerB, 2, 1) }
@@ -68,10 +68,10 @@ public sealed class EngineerActivityReportPersistenceTests
         // with no activity is absent.
         foreach (var engineer in new[] { engineerA, engineerB })
         {
-            var chosen = await queries.GetAsync(From, To, CancellationToken.None, engineer);
+            var chosen = await queries.GetAsync(From, To, engineer, CancellationToken.None);
             Assert.Equal(all.Where(item => item.EngineerId == engineer), chosen);
         }
-        Assert.Empty(await queries.GetAsync(From, To, CancellationToken.None, Guid.NewGuid()));
+        Assert.Empty(await queries.GetAsync(From, To, Guid.NewGuid(), CancellationToken.None));
     }
 
     /// <summary>
@@ -114,7 +114,7 @@ public sealed class EngineerActivityReportPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
-        var row = Assert.Single(await queries.GetAsync(From, To, CancellationToken.None));
+        var row = Assert.Single(await queries.GetAsync(From, To, null, CancellationToken.None));
 
         Assert.Equal(3, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
@@ -160,7 +160,7 @@ public sealed class EngineerActivityReportPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
-        var row = Assert.Single(await queries.GetAsync(From, To, CancellationToken.None));
+        var row = Assert.Single(await queries.GetAsync(From, To, null, CancellationToken.None));
 
         Assert.Equal(2, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
@@ -196,7 +196,7 @@ public sealed class EngineerActivityReportPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
 
-        Assert.Empty(await queries.GetAsync(From, To, CancellationToken.None));
+        Assert.Empty(await queries.GetAsync(From, To, null, CancellationToken.None));
     }
 
     private static StaffMailSendOperationEntity SentOperation(

@@ -531,7 +531,7 @@ public sealed class ReportsModel(
         // Only the Engineers tab draws the Person choices, from the unfiltered
         // read; every other read of the report needs just the chosen Person's row.
         var chosenOnly = reads.HasFlag(Reads.People) ? null : EngineerId;
-        var all = await Read(reads.HasFlag(Reads.Engineer), () => engineerReport.ExecuteAsync(actor, from, to, cancellationToken, chosenOnly));
+        var all = await Read(reads.HasFlag(Reads.Engineer), () => engineerReport.ExecuteAsync(actor, from, to, chosenOnly, cancellationToken));
         EngineerActivityUnavailable = reads.HasFlag(Reads.Engineer) && all is null;
         if (all is not null)
         {
@@ -553,7 +553,7 @@ public sealed class ReportsModel(
             People = [.. people.OrderBy(person => person.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(person => person.EngineerId)];
         }
 
-        PreviousEngineer = (await Read(reads.HasFlag(Reads.PreviousEngineer) && all is not null, () => engineerReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken, EngineerId)))?.For(EngineerId);
+        PreviousEngineer = (await Read(reads.HasFlag(Reads.PreviousEngineer) && all is not null, () => engineerReport.ExecuteAsync(actor, previousFrom, previousTo, EngineerId, cancellationToken)))?.For(EngineerId);
         PrincipalActivity = await principalTask;
         Monthly = await monthlyTask;
         Outcomes = await outcomesTask;

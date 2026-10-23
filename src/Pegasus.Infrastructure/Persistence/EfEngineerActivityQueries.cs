@@ -24,8 +24,8 @@ internal sealed class EfEngineerActivityQueries(
     public async Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
-        CancellationToken cancellationToken,
-        Guid? engineerId = null)
+        Guid? engineerId,
+        CancellationToken cancellationToken)
     {
         // One staff member asked for reads only that sender's report sends and
         // the query Cases assigned to them; the sender's id is stored in the

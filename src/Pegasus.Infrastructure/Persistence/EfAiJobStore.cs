@@ -409,11 +409,23 @@ public sealed class EfAiJobStore(
         // One statement: the open rows, then one row carrying the Failed count
         // (no such row when none has failed).
         var rows = await OpenRows(context)
-            .Select(item => new CountRow(item.State, item.ExpiresAtUtc, item.LeaseExpiresAtUtc, 0))
+            .Select(item => new CountRow
+            {
+                State = item.State,
+                ExpiresAtUtc = item.ExpiresAtUtc,
+                LeaseExpiresAtUtc = item.LeaseExpiresAtUtc,
+                Failed = 0,
+            })
             .Concat(context.AiJobs.AsNoTracking()
                 .Where(item => item.State == nameof(AiJobState.Failed))
                 .GroupBy(_ => 1)
-                .Select(group => new CountRow(null, default, null, group.Count())))
+                .Select(group => new CountRow
+                {
+                    State = null,
+                    ExpiresAtUtc = default,
+                    LeaseExpiresAtUtc = null,
+                    Failed = group.Count(),
+                }))
             .ToListAsync(cancellationToken);
         var active = rows.Count(item =>
             item.State is not null
@@ -426,11 +438,16 @@ public sealed class EfAiJobStore(
         return new(active, failed);
     }
 
-    private sealed record CountRow(
-        string? State,
-        DateTimeOffset ExpiresAtUtc,
-        DateTimeOffset? LeaseExpiresAtUtc,
-        int Failed);
+    private sealed class CountRow
+    {
+        public string? State { get; init; }
+
+        public DateTimeOffset ExpiresAtUtc { get; init; }
+
+        public DateTimeOffset? LeaseExpiresAtUtc { get; init; }
+
+        public int Failed { get; init; }
+    }
 
     private static IQueryable<AiJobEntity> OpenRows(PegasusDbContext context) =>
         context.AiJobs.AsNoTracking()

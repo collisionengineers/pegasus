@@ -72,11 +72,13 @@ internal static class FrozenReportSnapshot
                 && report.GeneratedAtUtc < toUtc
                 && !confirmed.Any(earlier =>
                     earlier.WorkId == report.WorkId && earlier.GeneratedAtUtc < report.GeneratedAtUtc)
-            select new FirstReportRow(
-                report.WorkId,
-                report.GenerationId,
-                report.GeneratedAtUtc,
-                SqlJson.Value(report.SnapshotJson, AgreedFeePath)),
+            select new FirstReportRow
+            {
+                WorkId = report.WorkId,
+                GenerationId = report.GenerationId,
+                GeneratedAtUtc = report.GeneratedAtUtc,
+                AgreedFee = SqlJson.Value(report.SnapshotJson, AgreedFeePath),
+            },
             cancellationToken);
 
         return rows
@@ -98,23 +100,35 @@ internal static class FrozenReportSnapshot
             && artifact.Sha256 != null
             && artifact.Sha256 == documentVersion.Sha256
             && documentVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
-        select new ConfirmedAssessmentReport(
-            generation.WorkId,
-            generation.Id,
-            generation.GeneratedAtUtc,
-            generation.SnapshotJson);
+        select new ConfirmedAssessmentReport
+        {
+            WorkId = generation.WorkId,
+            GenerationId = generation.Id,
+            GeneratedAtUtc = generation.GeneratedAtUtc,
+            SnapshotJson = generation.SnapshotJson,
+        };
 
-    private sealed record ConfirmedAssessmentReport(
-        Guid WorkId,
-        Guid GenerationId,
-        DateTimeOffset GeneratedAtUtc,
-        string SnapshotJson);
+    private sealed class ConfirmedAssessmentReport
+    {
+        public Guid WorkId { get; init; }
 
-    private sealed record FirstReportRow(
-        Guid WorkId,
-        Guid GenerationId,
-        DateTimeOffset GeneratedAtUtc,
-        string? AgreedFee);
+        public Guid GenerationId { get; init; }
+
+        public DateTimeOffset GeneratedAtUtc { get; init; }
+
+        public string SnapshotJson { get; init; } = string.Empty;
+    }
+
+    private sealed class FirstReportRow
+    {
+        public Guid WorkId { get; init; }
+
+        public Guid GenerationId { get; init; }
+
+        public DateTimeOffset GeneratedAtUtc { get; init; }
+
+        public string? AgreedFee { get; init; }
+    }
 }
 
 /// <summary>A work's first report: when it was generated and the agreed fee frozen in it.</summary>

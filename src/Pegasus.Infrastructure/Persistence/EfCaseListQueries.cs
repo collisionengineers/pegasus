@@ -255,30 +255,30 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             .Where(item => item.State == StaffMailState.Sent);
         var ticks = occurrences
             .Where(item => item.SemanticRole == DocumentSemanticRole.Image)
-            .Select(item => new ActivityTick(ActivityFigure.Images, item.CaseId))
+            .Select(item => new ActivityTick { Figure = ActivityFigure.Images, CaseId = item.CaseId })
             .Concat(occurrences
                 .Where(item => item.SemanticRole == DocumentSemanticRole.Image && item.InReport)
-                .Select(item => new ActivityTick(ActivityFigure.InReport, item.CaseId)))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.InReport, CaseId = item.CaseId }))
             .Concat(occurrences
                 .Where(item => item.SemanticRole != DocumentSemanticRole.Image)
-                .Select(item => new ActivityTick(ActivityFigure.Documents, item.CaseId)))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.Documents, CaseId = item.CaseId }))
             .Concat(db.CaseWorkflowEvents.AsNoTracking()
                 .Where(item => item.EventType == AddCaseNote.EventType && EF.Parameter(caseIds).Contains(item.CaseId))
-                .Select(item => new ActivityTick(ActivityFigure.Notes, item.CaseId)))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.Notes, CaseId = item.CaseId }))
             .Concat(db.CaseManualChases.AsNoTracking()
                 .Where(item => EF.Parameter(caseIds).Contains(item.CaseId))
-                .Select(item => new ActivityTick(ActivityFigure.Chases, item.CaseId)))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.Chases, CaseId = item.CaseId }))
             .Concat(db.CaseTasks.AsNoTracking()
                 .Where(item => item.State == openTask && EF.Parameter(caseIds).Contains(item.CaseId))
-                .Select(item => new ActivityTick(ActivityFigure.OpenTasks, item.CaseId)))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.OpenTasks, CaseId = item.CaseId }))
             .Concat(sent
                 .Where(item => item.Purpose != StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(item.ContextId))
-                .Select(item => new ActivityTick(ActivityFigure.Correspondence, item.ContextId)))
+                .Select(item => new ActivityTick { Figure = ActivityFigure.Correspondence, CaseId = item.ContextId }))
             .Concat(
                 from operation in sent
                 join generation in db.Set<CaseReportGenerationEntity>().AsNoTracking() on operation.ContextId equals generation.Id
                 where operation.Purpose == StaffMailPurpose.CaseReport && EF.Parameter(caseIds).Contains(generation.CaseId)
-                select new ActivityTick(ActivityFigure.Correspondence, generation.CaseId));
+                select new ActivityTick { Figure = ActivityFigure.Correspondence, CaseId = generation.CaseId });
         var counts = (await ticks
                 .GroupBy(tick => new { tick.Figure, tick.CaseId })
                 .Select(group => new { group.Key.Figure, group.Key.CaseId, Count = group.Count() })
@@ -332,7 +332,12 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
         public const int Correspondence = 6;
     }
 
-    private sealed record ActivityTick(int Figure, Guid CaseId);
+    private sealed class ActivityTick
+    {
+        public int Figure { get; init; }
+
+        public Guid CaseId { get; init; }
+    }
 
     private static CaseListWorkFacts Work(
         Guid workId,
