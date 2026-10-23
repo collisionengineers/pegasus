@@ -182,108 +182,6 @@ public sealed class DiscardIntakeSubmissionGroupTests
             newerGroup.ReceiptId,
             await harness.Store.ListPendingImageGroupReceiptsAsync(3));
     }
-    [Fact]
-    public async Task TheGroupedImageListReadsTheCandidatesOnceAndLoadsReceiptsOnlyForTheGroupsItNeeds()
-    {
-        var statements = new SqlStatementCounter();
-        await using var harness = await Harness.CreateAsync(statements);
-        var first = new DateTimeOffset(2031, 5, 1, 8, 0, 0, TimeSpan.Zero);
-        var groups = new List<SeededReceipt>();
-        for (var index = 0; index < 4; index++)
-        {
-            groups.Add(await harness.AddImageGroupAsync(first.AddHours(index)));
-        }
-
-        foreach (var limit in new[] { 1, 3, 10 })
-        {
-            statements.Reset();
-            Assert.Equal(
-                groups.Take(limit).Select(group => group.ReceiptId),
-                await harness.Store.ListPendingImageGroupReceiptsAsync(limit));
-            Assert.Equal(1, GroupCandidateReads(statements));
-            Assert.Single(ReceiptAssetReads(statements));
-            // The saving: receipts load for the groups needed, not for all four.
-            Assert.Equal(Math.Min(limit, groups.Count), ReceiptRowsRead(statements));
-            Assert.Equal(0, statements.CountContaining("OFFSET"));
-        }
-    }
-
-    [Fact]
-    public async Task TheGroupedImageListNeverLoadsReceiptsMoreThanTwiceHoweverManyGroupsAreIneligible()
-    {
-        var statements = new SqlStatementCounter();
-        await using var harness = await Harness.CreateAsync(statements);
-        var first = new DateTimeOffset(2031, 5, 1, 8, 0, 0, TimeSpan.Zero);
-        const string Photo = "image/jpeg";
-        const string Archive = "application/zip";
-        await harness.AddImageGroupMembersAsync(first, Archive);
-        var g2 = await harness.AddImageGroupMembersAsync(first.AddHours(1), Photo);
-        var g3 = await harness.AddImageGroupMembersAsync(first.AddHours(2), Photo);
-        for (var index = 3; index < 7; index++)
-        {
-            await harness.AddImageGroupMembersAsync(first.AddHours(index), Archive);
-        }
-
-        // Limit 3: the first three groups list two, the shortfall is one, and
-        // the four ineligible groups after them load in one read (not four).
-        statements.Reset();
-        Assert.Equal(
-            [g2[0].ReceiptId, g3[0].ReceiptId],
-            await harness.Store.ListPendingImageGroupReceiptsAsync(3));
-        Assert.Equal(2, ReceiptAssetReads(statements).Count);
-        Assert.Equal(7, ReceiptRowsRead(statements));
-    }
-
-    [Fact]
-    public async Task TheGroupedImageListReadsOnMoreGroupsOnlyWhenTheGroupsReadWereNotListable()
-    {
-        var statements = new SqlStatementCounter();
-        await using var harness = await Harness.CreateAsync(statements);
-        var first = new DateTimeOffset(2031, 5, 1, 8, 0, 0, TimeSpan.Zero);
-        const string Photo = "image/jpeg";
-        const string Archive = "application/zip";
-        var g1 = await harness.AddImageGroupMembersAsync(first, Archive, Photo);
-        await harness.AddImageGroupMembersAsync(first.AddHours(1), Archive, Archive);
-        var g3 = await harness.AddImageGroupMembersAsync(first.AddHours(2), Photo, Photo);
-        var g4 = await harness.AddImageGroupMembersAsync(first.AddHours(3), Photo);
-
-        // Limit 2 reads the first two groups (one lists, one is rejected),
-        // then the one group still needed.
-        statements.Reset();
-        Assert.Equal(
-            [g1[1].ReceiptId, g3[0].ReceiptId],
-            await harness.Store.ListPendingImageGroupReceiptsAsync(2));
-        Assert.Equal(1, GroupCandidateReads(statements));
-        Assert.Equal(2, ReceiptAssetReads(statements).Count);
-
-        // A limit above the listable groups ends at the last group.
-        statements.Reset();
-        Assert.Equal(
-            [g1[1].ReceiptId, g3[0].ReceiptId, g4[0].ReceiptId],
-            await harness.Store.ListPendingImageGroupReceiptsAsync(10));
-        Assert.Equal(1, GroupCandidateReads(statements));
-        Assert.Single(ReceiptAssetReads(statements));
-    }
-
-    [Fact]
-    public async Task TheGroupedImageListLoadsGroupReceiptsInOneRead()
-    {
-        var statements = new SqlStatementCounter();
-        await using var harness = await Harness.CreateAsync(statements);
-        var first = new DateTimeOffset(2031, 5, 1, 8, 0, 0, TimeSpan.Zero);
-        const string Photo = "image/jpeg";
-        const string Archive = "application/zip";
-        var photos = await harness.AddImageGroupMembersAsync(first, Photo, Photo, Photo, Photo);
-        var mixed = await harness.AddImageGroupMembersAsync(first.AddHours(1), Archive, Photo, Photo);
-
-        // A rejected first member does not send the list to a second receipt
-        // read: the lowest-ordinal listable member is listed from the one read.
-        statements.Reset();
-        Assert.Equal(
-            [photos[0].ReceiptId, mixed[1].ReceiptId],
-            await harness.Store.ListPendingImageGroupReceiptsAsync(10));
-        Assert.Single(ReceiptAssetReads(statements));
-    }
 
     [Fact]
     public async Task ANonTransientReplayFailureIsNotRetriedOnTheNextSweep()
@@ -339,25 +237,6 @@ public sealed class DiscardIntakeSubmissionGroupTests
         }
     }
 
-    // One Assets read per receipt load. A split-query dependent read stops
-    // before its last empty read, so its Rows can show one fewer than it read.
-    private static IReadOnlyList<SqlRead> ReceiptAssetReads(SqlStatementCounter statements) =>
-        [.. statements.Reads.Where(read =>
-            read.CommandText.Contains("JOIN [IntakeAssets]", StringComparison.Ordinal)
-            && !read.CommandText.Contains("JOIN [IntakeSubmissionGroupMembers]", StringComparison.Ordinal))];
-
-    /// <summary>Rows the receipt loads returned: the main read of each load, not the candidate read or the Assets read.</summary>
-    private static int ReceiptRowsRead(SqlStatementCounter statements) =>
-        statements.Reads
-            .Where(read => read.CommandText.Contains("[IntakeReceipts]", StringComparison.Ordinal)
-                && !read.CommandText.Contains("JOIN [IntakeSubmissionGroupMembers]", StringComparison.Ordinal)
-                && !read.CommandText.Contains("JOIN [IntakeAssets]", StringComparison.Ordinal))
-            .Sum(read => read.Rows);
-
-    /// <summary>The grouped-image candidate read: the only statement that join the group members.</summary>
-    private static int GroupCandidateReads(SqlStatementCounter statements) =>
-        statements.CountContaining("JOIN [IntakeSubmissionGroupMembers]");
-
     private sealed class Harness : IAsyncDisposable
     {
         private Harness(LocalDbTestDatabase database, IDbContextFactory<PegasusDbContext> factory)
@@ -379,7 +258,7 @@ public sealed class DiscardIntakeSubmissionGroupTests
         private int nextDocumentOrdinal = 1;
         private int nextCaseSequence = 1;
 
-        public static async Task<Harness> CreateAsync(IInterceptor? interceptor = null)
+        public static async Task<Harness> CreateAsync(SaveChangesInterceptor? interceptor = null)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             var options = new DbContextOptionsBuilder<PegasusDbContext>()
@@ -430,49 +309,32 @@ public sealed class DiscardIntakeSubmissionGroupTests
             await context.SaveChangesAsync();
         }
 
-        public async Task<SeededReceipt> AddImageGroupAsync(DateTimeOffset receivedAtUtc) =>
-            (await AddImageGroupMembersAsync(receivedAtUtc, "image/jpeg"))[0];
-
-        /// <summary>
-        /// One waiting group with one member per media type, in ordinal order.
-        /// Every member passes the SQL query; a member whose media type is not
-        /// an image, PDF or e-mail fails Core's eligibility rule.
-        /// </summary>
-        public async Task<IReadOnlyList<SeededReceipt>> AddImageGroupMembersAsync(
-            DateTimeOffset receivedAtUtc,
-            params string[] memberMediaTypes)
+        public async Task<SeededReceipt> AddImageGroupAsync(DateTimeOffset receivedAtUtc)
         {
-            var groupToken = Guid.NewGuid().ToString("N");
+            var token = Guid.NewGuid().ToString("N");
+            var stagedReceiptId = Guid.NewGuid();
+            var receiptId = Guid.NewGuid();
             var groupId = Guid.NewGuid();
             var hash = new string('c', 64);
-            var seeded = new List<SeededReceipt>();
             await using var context = await Database.CreateContextAsync();
-            context.Add(new IntakeSubmissionGroupEntity
-            {
-                Id = groupId, SourceChannel = "manual_upload", SubmissionToken = groupToken,
-                ExpectedMemberCount = 2, Actor = "staff:test", ReceivedAtUtc = receivedAtUtc, Version = 1
-            });
-            for (var ordinal = 0; ordinal < memberMediaTypes.Length; ordinal++)
-            {
-                var token = $"{groupToken}-{ordinal}";
-                var stagedReceiptId = Guid.NewGuid();
-                var receiptId = Guid.NewGuid();
-                context.AddRange(
-                    ImageStagedReceipt(stagedReceiptId, token, hash, receivedAtUtc),
-                    ImageReceipt(receiptId, token, hash, receivedAtUtc, memberMediaTypes[ordinal]),
-                    ImageSourceAsset(receiptId, hash),
-                    new IntakeSubmissionGroupMemberEntity
-                    {
-                        Id = Guid.NewGuid(), GroupId = groupId, Ordinal = ordinal, StagedReceiptId = stagedReceiptId,
-                        SourceFileName = "group.jpg", SourceHash = hash, AddedAtUtc = receivedAtUtc
-                    },
-                    CompletedWork(stagedReceiptId, receiptId, $"group:{token}", receivedAtUtc),
-                    Evaluation(stagedReceiptId, receiptId, receivedAtUtc));
-                seeded.Add(new(receiptId, stagedReceiptId));
-            }
-
+            context.AddRange(
+                ImageStagedReceipt(stagedReceiptId, token, hash, receivedAtUtc),
+                ImageReceipt(receiptId, token, hash, receivedAtUtc),
+                ImageSourceAsset(receiptId, hash),
+                new IntakeSubmissionGroupEntity
+                {
+                    Id = groupId, SourceChannel = "manual_upload", SubmissionToken = token,
+                    ExpectedMemberCount = 2, Actor = "staff:test", ReceivedAtUtc = receivedAtUtc, Version = 1
+                },
+                new IntakeSubmissionGroupMemberEntity
+                {
+                    Id = Guid.NewGuid(), GroupId = groupId, Ordinal = 0, StagedReceiptId = stagedReceiptId,
+                    SourceFileName = "group.jpg", SourceHash = hash, AddedAtUtc = receivedAtUtc
+                },
+                CompletedWork(stagedReceiptId, receiptId, $"group:{token}", receivedAtUtc),
+                Evaluation(stagedReceiptId, receiptId, receivedAtUtc));
             await context.SaveChangesAsync();
-            return seeded;
+            return new(receiptId, stagedReceiptId);
         }
 
         public async Task<SeededReceipt> AddUnpromotedCaseReceiptAsync(
@@ -594,9 +456,9 @@ public sealed class DiscardIntakeSubmissionGroupTests
         };
 
         private static IntakeReceiptEntity ImageReceipt(
-            Guid id, string token, string hash, DateTimeOffset receivedAtUtc, string mediaType = "image/jpeg") => new()
+            Guid id, string token, string hash, DateTimeOffset receivedAtUtc) => new()
         {
-            Id = id, SourceFileName = "case.jpg", MediaType = mediaType, SourceLength = 3, SourceHash = hash,
+            Id = id, SourceFileName = "case.jpg", MediaType = "image/jpeg", SourceLength = 3, SourceHash = hash,
             SourceChannel = "manual_upload", ExternalReceiptToken = token, ReceivedAtUtc = receivedAtUtc,
             ProcessedAtUtc = receivedAtUtc, SourceReaderKey = "test", SourceReaderVersion = "1", Version = 1,
             Decision = "needs_sorting", DecisionReason = "test",

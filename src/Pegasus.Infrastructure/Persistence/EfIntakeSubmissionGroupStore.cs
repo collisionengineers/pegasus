@@ -45,73 +45,30 @@ public sealed class EfIntakeSubmissionGroupStore(
                            && !context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id && association.IsActive)
                            && !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id)
                        select new { submissionGroup.Id, submissionGroup.ReceivedAtUtc, ReceiptId = receipt.Id, member.Ordinal };
-        // One slim read of the candidate rows (four columns), as before.
-        // Eligibility is Core's rule over the whole receipt, so it runs in
-        // memory, but receipts load only for the groups still needed: the
-        // first (maximumItems - listed) groups, then, only if those did not
-        // reach the limit, every remaining group in one second load. At most
-        // two loads a tick, and never more rows than loading every waiting
-        // member. A group's receipt is its lowest ordinal eligible member; the
-        // group is spent whether or not that receipt was already listed.
         var candidates = await eligible.ToArrayAsync(cancellationToken);
-        var groups = candidates
+        var receiptIds = candidates.Select(candidate => candidate.ReceiptId).Distinct().ToArray();
+        var receipts = receiptIds.Length == 0
+            ? new Dictionary<Guid, IntakeReceiptEntity>()
+            : (await context.IntakeReceipts.AsNoTracking()
+                    .Include(receipt => receipt.Assets)
+                    .Include(receipt => receipt.MailClassificationDecision)
+                    .Include(receipt => receipt.MailRouteDecision)
+                    .AsSplitQuery()
+                    .Where(receipt => receiptIds.Contains(receipt.Id))
+                    .ToArrayAsync(cancellationToken))
+                .ToDictionary(receipt => receipt.Id);
+        var groupReceiptIds = candidates
+            .Where(candidate => receipts.TryGetValue(candidate.ReceiptId, out var receipt)
+                && ImageIntakeLifecycleRules.IsImageAutomationEligible(
+                    EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
             .GroupBy(item => new { item.Id, item.ReceivedAtUtc })
             .OrderBy(group => group.Key.ReceivedAtUtc)
             .ThenBy(group => group.Key.Id)
-            .Select(group => group.OrderBy(item => item.Ordinal).Select(item => item.ReceiptId).ToArray())
-            .ToArray();
-        for (var next = 0; next < groups.Length && results.Count < maximumItems;)
-        {
-            var chunk = (next == 0
-                ? groups.Take(maximumItems - results.Count)
-                : groups.Skip(next)).ToArray();
-            next += chunk.Length;
-            var receipts = new Dictionary<Guid, IntakeReceiptEntity>();
-            await LoadReceiptsAsync(context, receipts, chunk.SelectMany(group => group), cancellationToken);
-            foreach (var memberReceiptIds in chunk)
-            {
-                var chosen = memberReceiptIds
-                    .Where(receiptId => receipts.TryGetValue(receiptId, out var receipt)
-                        && ImageIntakeLifecycleRules.IsImageAutomationEligible(
-                            EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
-                    .Select(receiptId => (Guid?)receiptId)
-                    .FirstOrDefault();
-                if (chosen is { } receiptId && !results.Contains(receiptId))
-                {
-                    results.Add(receiptId);
-                    if (results.Count >= maximumItems)
-                    {
-                        break;
-                    }
-                }
-            }
-        }
-
+            .Select(group => group.OrderBy(item => item.Ordinal).Select(item => item.ReceiptId).First())
+            .Where(receiptId => !results.Contains(receiptId))
+            .Take(maximumItems - results.Count);
+        results.AddRange(groupReceiptIds);
         return results;
-    }
-
-    private static async Task LoadReceiptsAsync(
-        PegasusDbContext context,
-        Dictionary<Guid, IntakeReceiptEntity> receipts,
-        IEnumerable<Guid> receiptIds,
-        CancellationToken cancellationToken)
-    {
-        var ids = receiptIds.Distinct().ToArray();
-        if (ids.Length == 0)
-        {
-            return;
-        }
-
-        foreach (var receipt in await context.IntakeReceipts.AsNoTracking()
-                     .Include(receipt => receipt.Assets)
-                     .Include(receipt => receipt.MailClassificationDecision)
-                     .Include(receipt => receipt.MailRouteDecision)
-                     .AsSplitQuery()
-                     .Where(receipt => ids.Contains(receipt.Id))
-                     .ToArrayAsync(cancellationToken))
-        {
-            receipts[receipt.Id] = receipt;
-        }
     }
 
     /// <summary>
