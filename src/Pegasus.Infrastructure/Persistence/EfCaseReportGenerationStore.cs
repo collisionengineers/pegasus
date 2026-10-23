@@ -866,7 +866,8 @@ public sealed class EfCaseReportGenerationStore(
                 setters => setters.SetProperty(item => item.State, nameof(CaseReportGenerationState.Stale)),
                 cancellationToken)
             .ConfigureAwait(false);
-        foreach (var tracked in context.Set<CaseReportGenerationEntity>().Local.Where(item => ids.Contains(item.Id)))
+        foreach (var tracked in context.Set<CaseReportGenerationEntity>().Local
+            .Where(item => ids.Contains(item.Id)).ToArray())
         {
             tracked.State = nameof(CaseReportGenerationState.Stale);
             context.Entry(tracked).Property(item => item.State).IsModified = false;
