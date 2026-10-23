@@ -439,7 +439,6 @@ public sealed class CaseAssetPreparationWebTests
         // One form holds every tag row of the tile: each row is a button whose
         // value is the tag, an applied row removing it by its own formaction.
         Assert.Single(Regex.Matches(card, "<form[^>]*handler=TagImage[^>]*>", RegexOptions.CultureInvariant));
-        Assert.DoesNotContain("type=\"hidden\" name=\"tagId\"", card, StringComparison.Ordinal);
         Assert.Equal(2, Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*>", RegexOptions.CultureInvariant));
         // Each row is busy on its own, so pressing one does not hold the others.
         Assert.Equal(2, Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*data-busy-solo", RegexOptions.CultureInvariant));

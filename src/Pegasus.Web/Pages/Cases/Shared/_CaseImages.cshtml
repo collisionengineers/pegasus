@@ -29,10 +29,12 @@
     var reportImages = Model.ReportImagesByOccurrence;
     var images = Model.ReportOrderedCaseImageFiles(reportImages);
     var includedCount = reportImages.Count;
-    // Every tile's tag picker posts to the same three handlers of this Case.
-    var tagAction = mayEdit ? Url.Page("/Cases/Custody", "TagImage", new { id = workflow.CaseId })! : string.Empty;
-    var untagAction = mayEdit ? Url.Page("/Cases/Custody", "UntagImage", new { id = workflow.CaseId })! : string.Empty;
-    var createTagAction = mayEdit ? Url.Page("/Cases/Custody", "CreateImageTag", new { id = workflow.CaseId })! : string.Empty;
+    // Every tile's tag picker posts to the same three handlers of this Case;
+    // the first tile that draws a picker builds them, so a render that draws
+    // none builds none.
+    var tagAction = string.Empty;
+    var untagAction = string.Empty;
+    var createTagAction = string.Empty;
 
     // The tile is the image's preparation card (v26 § Crop and tag): the crop
     // taken on the viewer stage, the Report section's card and this tile all
@@ -140,6 +142,14 @@ else
                             </div>
                         }
                         <div class="image-tile-row image-tile-toolbar">
+                            @{
+                                if (tagAction.Length == 0)
+                                {
+                                    tagAction = Url.Page("/Cases/Custody", "TagImage", new { id = workflow.CaseId })!;
+                                    untagAction = Url.Page("/Cases/Custody", "UntagImage", new { id = workflow.CaseId })!;
+                                    createTagAction = Url.Page("/Cases/Custody", "CreateImageTag", new { id = workflow.CaseId })!;
+                                }
+                            }
                             <partial name="Cases/Shared/_CaseImageTagPicker"
                                      model="@(new CaseImageTagPickerView(
                                          workflow.CaseId,
