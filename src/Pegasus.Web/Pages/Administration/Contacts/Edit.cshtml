@@ -96,7 +96,7 @@
                 if (!string.IsNullOrWhiteSpace(sending.SendFromMailbox) && !sendFromChoices.Contains(sending.SendFromMailbox, StringComparer.OrdinalIgnoreCase)) sendFromChoices.Add(sending.SendFromMailbox);
                 var outcomeCodes = Pegasus.Core.Assessment.AssessmentVocabulary.Definitions[Pegasus.Core.Assessment.AssessmentVocabulary.Outcome].Codes!;
                 var ruleRows = sending.Rules.Append(new ReportSendingRule(ReportSendingRuleMatch.All, [], ReportSendingActions.None)).ToArray();
-                IEnumerable<(string Id, string Name)> ContactOptions(IReadOnlyList<ContactDirectoryRecord> choices, IEnumerable<string> selected)
+                IEnumerable<(string Id, string Name)> ContactOptions(IReadOnlyList<ContactChoice> choices, IEnumerable<string> selected)
                 {
                     var options = choices.Select(choice => (choice.OrganizationId.ToString("D"), choice.Name)).ToList();
                     foreach (var id in selected)

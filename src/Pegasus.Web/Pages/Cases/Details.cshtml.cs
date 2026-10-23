@@ -175,7 +175,7 @@ public sealed partial class DetailsModel(
     /// staff can link this Case's repairer to a maintained record.
     /// Loaded only while the record is being edited.
     /// </summary>
-    public IReadOnlyList<ContactDirectoryRecord> RepairerChoices { get; private set; } = [];
+    public IReadOnlyList<ContactChoice> RepairerChoices { get; private set; } = [];
 
     /// <summary>
     /// The active Claim source records the Overview's claim source select
@@ -183,7 +183,7 @@ public sealed partial class DetailsModel(
     /// record's notes and contact line so the notes band follows a change
     /// without another request.
     /// </summary>
-    public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
+    public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
 
     /// <summary>
     /// "is-collapsed" when this browser folded the panel <paramref name="collapseKey"/>

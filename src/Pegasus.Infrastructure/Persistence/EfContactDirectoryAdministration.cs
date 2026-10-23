@@ -69,19 +69,20 @@ public sealed class EfContactDirectoryAdministration(
         return new(items, pageNumber, ids.Length > ContactDirectoryPolicy.PageSize);
     }
 
-    public async Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(ActionActor actor, string name, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ContactChoice>> FindPossibleMatchesAsync(ActionActor actor, string name, CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
         var normalized = name?.Trim() ?? string.Empty;
         if (normalized.Length < 2) return [];
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        var ids = await context.Organizations.AsNoTracking()
-            .Where(item => item.Name.StartsWith(normalized)).OrderBy(item => item.Name).ThenBy(item => item.Id)
-            .Take(10).Select(item => item.Id).ToArrayAsync(cancellationToken);
-        return await LoadRecordsAsync(context, ids, latestCases: null, cancellationToken);
+        return await ReadChoicesAsync(
+            context.Organizations.AsNoTracking()
+                .Where(item => item.Name.StartsWith(normalized)).OrderBy(item => item.Name).ThenBy(item => item.Id)
+                .Take(10),
+            cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ContactDirectoryRecord>> ListByRoleAsync(
+    public async Task<IReadOnlyList<ContactChoice>> ListByRoleAsync(
         ActionActor actor,
         ContactRole role,
         CancellationToken cancellationToken)
@@ -89,13 +90,12 @@ public sealed class EfContactDirectoryAdministration(
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var roleCode = ToCode(role);
-        var ids = await context.Organizations.AsNoTracking()
-            .Where(item => item.Active && item.Role == roleCode)
-            .OrderBy(item => item.Name)
-            .ThenBy(item => item.Id)
-            .Select(item => item.Id)
-            .ToArrayAsync(cancellationToken);
-        return await LoadRecordsAsync(context, ids, latestCases: null, cancellationToken);
+        return await ReadChoicesAsync(
+            context.Organizations.AsNoTracking()
+                .Where(item => item.Active && item.Role == roleCode)
+                .OrderBy(item => item.Name)
+                .ThenBy(item => item.Id),
+            cancellationToken);
     }
 
     public async Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(ActionActor actor, Guid? contactId, CancellationToken cancellationToken)
@@ -210,11 +210,37 @@ public sealed class EfContactDirectoryAdministration(
         return result;
     }
 
-    /// <summary>Only the Contacts list shows the latest Case, so lookups pass null and skip the aggregate.</summary>
+    /// <summary>One statement over the choice's own columns: no Principal link, Principal or latest Case is read.</summary>
+    private static async Task<IReadOnlyList<ContactChoice>> ReadChoicesAsync(
+        IQueryable<OrganizationEntity> ordered,
+        CancellationToken cancellationToken)
+    {
+        var rows = await ordered
+            .Select(item => new
+            {
+                item.Id,
+                item.Name,
+                item.Role,
+                item.Version,
+                item.ContactPerson,
+                item.Email,
+                item.Telephone,
+                item.Address,
+                item.Postcode,
+                item.NotesOnEveryCase
+            })
+            .ToArrayAsync(cancellationToken);
+        return rows
+            .Select(row => new ContactChoice(
+                row.Id, row.Name, ParseRole(row.Role), row.Version, row.ContactPerson, row.Email,
+                row.Telephone, row.Address, row.Postcode, row.NotesOnEveryCase))
+            .ToArray();
+    }
+
     private static async Task<IReadOnlyList<ContactDirectoryRecord>> LoadRecordsAsync(
         PegasusDbContext context,
         Guid[] orderedIds,
-        IReadOnlyDictionary<Guid, LatestCaseRow>? latestCases,
+        IReadOnlyDictionary<Guid, LatestCaseRow> latestCases,
         CancellationToken cancellationToken)
     {
         if (orderedIds.Length == 0) return [];
@@ -225,7 +251,7 @@ public sealed class EfContactDirectoryAdministration(
             .ToDictionaryAsync(item => item.Id, cancellationToken);
         return orderedIds.Select(id => ToRecord(
                 entities[id],
-                latestCases?.GetValueOrDefault(id)))
+                latestCases.GetValueOrDefault(id)))
             .ToArray();
     }
 

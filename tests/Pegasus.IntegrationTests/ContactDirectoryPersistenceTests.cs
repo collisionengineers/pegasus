@@ -354,10 +354,82 @@ public sealed class ContactDirectoryPersistenceTests
                 Assert.Null(item.PrincipalCode);
             });
 
+    }
+
+    /// <summary>
+    /// R373: the role lists and the possible matches read one statement over the
+    /// organisation's own columns, never its Principal links, Principals or latest
+    /// Case, and the choice holds the same facts the full record holds.
+    /// </summary>
+    [Fact]
+    public async Task ChoicesAreOneStatementOverTheOrganisationsOwnColumns()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        const string prefix = "Choice fixture ";
+        var principal = await SaveAsync(database, NewPrincipal(prefix + "Principal", "CHC01"));
+        var zulu = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = prefix + "Zulu repairer",
+            Role = ContactRole.Repairer,
+            ContactPerson = "Z Handler",
+            Email = "zulu@example.test",
+            Telephone = "0113 000 0001",
+            Address = "1 Zulu Road",
+            Postcode = "ZU1 1ZU",
+            LinkedPrincipalIds = principal.OwnPrincipalIds!
+        });
+        var alpha = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = prefix + "Alpha repairer",
+            Role = ContactRole.Repairer
+        });
+        var inactive = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = prefix + "Inactive repairer",
+            Role = ContactRole.Repairer,
+            Active = false
+        });
+        var claimSource = await SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            Name = prefix + "Claim source",
+            NotesOnEveryCase = "Quote the reference."
+        });
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IContactDirectoryQueries>();
+        statements.Reset();
         var repairers = await queries.ListByRoleAsync(Administrator, ContactRole.Repairer, CancellationToken.None);
-        var listedRepairer = Assert.Single(repairers, item => item.OrganizationId == repairer.OrganizationId);
-        Assert.Null(listedRepairer.LastCaseReceivedAtUtc);
-        Assert.Null(listedRepairer.LastCaseReference);
+        Assert.Equal(1, statements.Count);
+        var listed = repairers.Where(item => item.Name.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
+        Assert.Equal([alpha.OrganizationId, zulu.OrganizationId], listed.Select(item => item.OrganizationId));
+        Assert.Equal(
+            new ContactChoice(
+                zulu.OrganizationId, zulu.Name, ContactRole.Repairer, zulu.Version, "Z Handler", "zulu@example.test",
+                "0113 000 0001", "1 Zulu Road", "ZU1 1ZU", null),
+            listed[1]);
+
+        statements.Reset();
+        var sources = await queries.ListByRoleAsync(Administrator, ContactRole.ClaimSource, CancellationToken.None);
+        Assert.Equal(1, statements.Count);
+        Assert.Equal(
+            "Quote the reference.",
+            Assert.Single(sources, item => item.OrganizationId == claimSource.OrganizationId).NotesOnEveryCase);
+
+        // A possible match is any organisation by name, an inactive one and any type included.
+        statements.Reset();
+        var matches = await queries.FindPossibleMatchesAsync(Administrator, prefix, CancellationToken.None);
+        Assert.Equal(1, statements.Count);
+        Assert.Equal(
+            [
+                (alpha.OrganizationId, ContactRole.Repairer),
+                (claimSource.OrganizationId, ContactRole.ClaimSource),
+                (inactive.OrganizationId, ContactRole.Repairer),
+                (principal.OrganizationId, ContactRole.Principal),
+                (zulu.OrganizationId, ContactRole.Repairer)
+            ],
+            matches.Select(item => (item.OrganizationId, item.Role)));
     }
 
     [Fact]
