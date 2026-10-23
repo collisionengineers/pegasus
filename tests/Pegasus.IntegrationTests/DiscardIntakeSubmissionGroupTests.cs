@@ -246,7 +246,7 @@ public sealed class DiscardIntakeSubmissionGroupTests
     }
 
     [Fact]
-    public async Task TheGroupedImageListLoadsOnlyTheFirstMemberOfAGroupItCanList()
+    public async Task TheGroupedImageListLoadsOnePageOfReceiptsInOneRead()
     {
         var statements = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(statements);
@@ -254,21 +254,15 @@ public sealed class DiscardIntakeSubmissionGroupTests
         const string Photo = "image/jpeg";
         const string Archive = "application/zip";
         var photos = await harness.AddImageGroupMembersAsync(first, Photo, Photo, Photo, Photo);
-
-        // The first member is listable, so one receipt is loaded, not four.
-        statements.Reset();
-        Assert.Equal([photos[0].ReceiptId], await harness.Store.ListPendingImageGroupReceiptsAsync(10));
-        var onlyRead = Assert.Single(ReceiptAssetReads(statements));
-        Assert.InRange(onlyRead.Rows, 0, 1);
-
-        // A rejected first member sends the group's other members to one more
-        // read, and the lowest-ordinal listable one is listed.
         var mixed = await harness.AddImageGroupMembersAsync(first.AddHours(1), Archive, Photo, Photo);
+
+        // A rejected first member does not send the page to a second receipt
+        // read: the lowest-ordinal listable member is listed from the one read.
         statements.Reset();
         Assert.Equal(
             [photos[0].ReceiptId, mixed[1].ReceiptId],
             await harness.Store.ListPendingImageGroupReceiptsAsync(10));
-        Assert.Equal(2, ReceiptAssetReads(statements).Count);
+        Assert.Single(ReceiptAssetReads(statements));
     }
 
     [Fact]

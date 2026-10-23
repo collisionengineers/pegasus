@@ -51,10 +51,9 @@ public sealed class EfIntakeSubmissionGroupStore(
         // ordinal eligible member; the group is spent whether or not that
         // receipt was already listed.
         // Each page seeks past the last row of the one before on the unique
-        // (ReceivedAtUtc, group Id, Ordinal) order, so no page re-reads the
-        // rows already seen. Within a page, receipts are loaded for each
-        // group's first row only; the group's later rows are loaded in one
-        // further read, and only for a group whose first row Core rejected.
+        // (ReceivedAtUtc, group Id, Ordinal) order, so rows leaving the set
+        // between pages cannot shift a page. The receipts of one page load in
+        // a single read.
         Guid? spentGroupId = null;
         var hasLast = false;
         var lastReceivedAtUtc = default(DateTimeOffset);
@@ -82,32 +81,15 @@ public sealed class EfIntakeSubmissionGroupStore(
                 .Select(rows => rows.ToArray())
                 .ToArray();
             var receipts = new Dictionary<Guid, IntakeReceiptEntity>();
-            var verdicts = new Dictionary<Guid, bool>();
-            bool IsEligible(Guid receiptId)
-            {
-                if (!verdicts.TryGetValue(receiptId, out var eligible))
-                {
-                    eligible = receipts.TryGetValue(receiptId, out var receipt)
-                        && ImageIntakeLifecycleRules.IsImageAutomationEligible(
-                            EfIntakeReceiptStore.Map(receipt, isDuplicate: false));
-                    verdicts[receiptId] = eligible;
-                }
-
-                return eligible;
-            }
+            bool IsEligible(Guid receiptId) =>
+                receipts.TryGetValue(receiptId, out var receipt)
+                && ImageIntakeLifecycleRules.IsImageAutomationEligible(
+                    EfIntakeReceiptStore.Map(receipt, isDuplicate: false));
 
             await LoadReceiptsAsync(
                 context,
                 receipts,
-                groupsOnPage.Select(rows => rows[0].ReceiptId),
-                cancellationToken);
-            await LoadReceiptsAsync(
-                context,
-                receipts,
-                groupsOnPage
-                    .Where(rows => !IsEligible(rows[0].ReceiptId))
-                    .SelectMany(rows => rows.Skip(1))
-                    .Select(candidate => candidate.ReceiptId),
+                groupsOnPage.SelectMany(rows => rows).Select(candidate => candidate.ReceiptId),
                 cancellationToken);
             foreach (var rows in groupsOnPage)
             {
