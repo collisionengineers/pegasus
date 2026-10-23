@@ -10,7 +10,9 @@ namespace Pegasus.Web.Background;
 /// on. It runs on this host's provider work queue, in the order it was pressed
 /// for the Case, and a full queue fills the VIN in the press itself rather than
 /// dropping it. The fill logs and absorbs its own failures, so the figures
-/// stand as they were answered.
+/// stand as they were answered. Queued work is not started when the host
+/// stops, and is cancelled and logged by the queue at its time cap, which
+/// counts the wait behind earlier work for the Case.
 /// </summary>
 public sealed class GlassVinFillScheduler(
     ProviderWorkQueue queue,

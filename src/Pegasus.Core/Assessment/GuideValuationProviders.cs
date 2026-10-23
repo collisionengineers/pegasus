@@ -222,8 +222,12 @@ public sealed class FetchGuideValuation(
         // The valued vehicle's VIN fills the work's empty VIN (operator,
         // 7 October 2026); the figures are answered either way. The fill is a
         // short local write, so when it is handed on it is queued ahead of the
-        // report: the same Case's work runs in order, and the fill never waits
-        // out the report's provider fetch inside its time cap.
+        // report: the same Case's work runs in order, so the fill normally
+        // does not wait out the report's provider fetch. That is not a
+        // guarantee: the queue's consumers race for the Case's turn, and a
+        // second press queues its fill behind the first press's report. A
+        // queued fill that is stopped by the host or passes the queue's time
+        // cap is logged by the queue, not as not filled.
         var vin = quote.Vin;
         if (vin is not null && !request.AwaitVinFill)
         {

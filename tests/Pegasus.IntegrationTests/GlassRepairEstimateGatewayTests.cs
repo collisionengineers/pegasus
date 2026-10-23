@@ -548,11 +548,6 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
-    /// Work that never ran — a host that stopped, a full queue — is settled
-    /// once nothing runs for it: Prepared stays resumable, a claimed import is
-    /// Unknown and may be closed, and an open session is left as it is.
-    /// </summary>
-    /// <summary>
     /// A page that has just read a session hands it on: the estimator address,
     /// the settling of interrupted work and the acceptance of a return then
     /// read nothing more, and prove the owner and the correlation against what
@@ -590,6 +585,11 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(reads, harness.Store.Reads);
     }
 
+    /// <summary>
+    /// Work that never ran — a host that stopped, a full queue — is settled
+    /// once nothing runs for it: Prepared stays resumable, a claimed import is
+    /// Unknown and may be closed, and an open session is left as it is.
+    /// </summary>
     [Fact]
     public async Task InterruptedWorkIsSettledPreparedStaysResumableAndAClaimedImportIsUnknown()
     {
