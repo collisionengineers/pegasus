@@ -15,8 +15,9 @@ namespace Pegasus.Core.Assessment;
 /// October 2026). <see cref="RepairerVatStatus.Unknown"/> remains a stored
 /// state: its totals charge VAT on nothing, it never gates Use repair spec
 /// (v28 P10), and it blocks the report, which would otherwise understate the
-/// repair cost (operator, 27 September 2026). Nothing new writes it. The
-/// claimant's VAT position never controls estimate VAT.
+/// repair cost (operator, 27 September 2026). Nothing writes it: a save
+/// refuses it and a restore records <see cref="RepairerVatStatuses.Default"/>
+/// (R199, R200). The claimant's VAT position never controls estimate VAT.
 /// </summary>
 public enum RepairerVatStatus
 {
@@ -35,11 +36,17 @@ public static class RepairerVatStatuses
 {
     public const RepairerVatStatus Default = RepairerVatStatus.Registered;
 
+    /// <summary>The refusal for any save whose status is not a choice.</summary>
+    public const string NotAChoice = "The repairer VAT status must be Registered or NotRegistered.";
+
     public static IReadOnlyList<RepairerVatStatus> Choosable { get; } =
         [RepairerVatStatus.Registered, RepairerVatStatus.NotRegistered];
 
-    public static bool IsChoosable(RepairerVatStatus status) =>
-        status is RepairerVatStatus.Registered or RepairerVatStatus.NotRegistered;
+    /// <summary>The names of <see cref="Choosable"/>, which the tool vocabulary lists.</summary>
+    public static IReadOnlyList<string> ChoosableNames { get; } =
+        [.. Choosable.Select(status => status.ToString())];
+
+    public static bool IsChoosable(RepairerVatStatus status) => Choosable.Contains(status);
 }
 
 /// <summary>
@@ -96,6 +103,23 @@ public sealed record EstimateVatPolicy(
         return status != saved.RepairerStatus && !saved.CategoriesOverridden && categories == saved.Categories
             ? For(status)
             : new(status, categories, categories != DefaultFor(status));
+    }
+
+    /// <summary>
+    /// The policy a live spec may stand on. A choosable status stands as it
+    /// is; Unknown (a version frozen before Registered became the default)
+    /// stands on <see cref="RepairerVatStatuses.Default"/>, keeping hand-picked
+    /// categories and taking the default's own otherwise (R199).
+    /// </summary>
+    public EstimateVatPolicy Standing()
+    {
+        if (RepairerVatStatuses.IsChoosable(RepairerStatus))
+        {
+            return this;
+        }
+        var own = DefaultFor(RepairerVatStatuses.Default);
+        var categories = CategoriesOverridden ? Categories : own;
+        return new(RepairerVatStatuses.Default, categories, categories != own);
     }
 
     /// <summary>
@@ -918,13 +942,18 @@ public static class EstimatePolicy
     }
 
     /// <summary>
-    /// Categories that were not overridden by hand must be the repairer
-    /// status's own defaults, so the recorded policy and the status can
-    /// never disagree about why VAT is charged.
+    /// The status must be a choice, whoever saves (FRD-11; R200). Categories
+    /// that were not overridden by hand must be the repairer status's own
+    /// defaults, so the recorded policy and the status can never disagree
+    /// about why VAT is charged.
     /// </summary>
     public static EstimateVatPolicy ValidateVatPolicy(EstimateVatPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(policy);
+        if (!RepairerVatStatuses.IsChoosable(policy.RepairerStatus))
+        {
+            throw new ArgumentException(RepairerVatStatuses.NotAChoice, nameof(policy));
+        }
         if ((policy.Categories & ~EstimateVatCategories.All) != 0)
         {
             throw new ArgumentException("Unknown estimate VAT categories.", nameof(policy));

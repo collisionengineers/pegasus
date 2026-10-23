@@ -233,7 +233,8 @@ spec drifts from the sum again the bar's mismatch chip rescales it on press
 (v38 P4). Every import, scale, removal, restore and sent report freezes a
 numbered version with how it came about, and an import onto a spec freezes
 the grid it replaces first; Restore makes a frozen version the spec's content
-after freezing the outgoing one; the version a sent report used is marked.
+after freezing the outgoing one, and a version frozen as Unknown restores as
+Registered (operator, 22 October 2026); the version a sent report used is marked.
 Compare reads any two of a Case's specifications, or any of a spec's frozen
 versions, line by line and side by side, every line listed with its value at
 each side's rate; opened from More it starts at the version the last sent

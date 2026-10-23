@@ -1510,13 +1510,12 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// A new spec opens on Registered. Posting Unknown, as a page that still
-    /// shows that choice would, is recorded as Registered. Parts and materials
-    /// differ from Registered's own categories, so they stay a hand-picked
-    /// override. The new spec is the one in use, so it offers no Use repair spec.
+    /// A new spec opens on Registered. Parts and materials differ from
+    /// Registered's own categories, so they stay a hand-picked override. The
+    /// new spec is the one in use, so it offers no Use repair spec.
     /// </summary>
     [Fact]
-    public async Task APostedUnknownIsRecordedAsRegisteredAndTheHandPickedCategoriesStay()
+    public async Task ANewSpecOpensOnRegisteredAndTheHandPickedCategoriesStay()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
@@ -1531,37 +1530,22 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.True(end > start);
         var select = html[start..end];
         Assert.Contains(
-            "value=\"Registered\" selected=\"selected\">Registered",
+            $"value=\"Registered\" selected=\"selected\">{CaseWorkspaceLabels.EstimateVat.StatusLabel(RepairerVatStatus.Registered)}",
             select,
             StringComparison.Ordinal);
-        Assert.Contains("value=\"NotRegistered\">Not registered", select, StringComparison.Ordinal);
-        Assert.DoesNotContain("Unknown", select, StringComparison.Ordinal);
+        Assert.Contains(
+            $"value=\"NotRegistered\">{CaseWorkspaceLabels.EstimateVat.StatusLabel(RepairerVatStatus.NotRegistered)}",
+            select,
+            StringComparison.Ordinal);
 
-        var fields = new List<KeyValuePair<string, string>>
-        {
-            new("__RequestVerificationToken", AntiforgeryValue(html)),
-            new("id", caseId.ToString("D")),
-            new("operationKey", NewOperationKey()),
-            new("editLeaseToken", RecordingStores.HeldLeaseToken),
-            new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-            new("estimateName", "Repairer"),
-            new("estimateLabourRate", "52.50"),
-            new("estimateVatPercent", "20"),
-            new("lineOperation", "Replace"),
-            new("lineDescription", "Front bumper"),
-            new("lineQuantity", "1"),
-            new("linePartPounds", "620.20"),
-        };
-        fields.AddRange(HeaderFields(
+        using var response = await PostNewSpecWithStatusAsync(
+            client,
+            caseId,
+            html,
             new EstimateVatPolicy(
-                RepairerVatStatus.Unknown,
+                RepairerVatStatus.Registered,
                 EstimateVatCategories.Parts | EstimateVatCategories.Materials,
-                true),
-            EstimateDiscounts.None));
-
-        using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=Save&section=estimate",
-            new FormUrlEncodedContent(fields));
+                true));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var saved = Assert.Single(store.SavedEstimates);
@@ -1577,6 +1561,52 @@ public sealed partial class AssessmentEstimateImportWebTests
         var reloaded = await EnterEditModeAsync(
             client, caseId, $"?section=estimate&estimate={store.LastCreatedEstimateId:D}");
         Assert.DoesNotContain("data-estimate-use", reloaded, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Core refuses a status that is no choice for every caller, so a page
+    /// that still posts Unknown saves nothing (R200). The page adds no
+    /// sentence of its own: the refusal reads as every Core refusal does.
+    /// </summary>
+    [Fact]
+    public async Task APostedStatusThatIsNotAChoiceSavesNothing()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var html = await EnterEditModeAsync(client, caseId, "?section=estimate&estimate=new");
+
+        using var response = await PostNewSpecWithStatusAsync(
+            client, caseId, html, EstimateVatPolicy.For(RepairerVatStatus.Unknown));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Empty(store.SavedEstimates);
+    }
+
+    private static async Task<HttpResponseMessage> PostNewSpecWithStatusAsync(
+        HttpClient client, Guid caseId, string html, EstimateVatPolicy vat)
+    {
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", AntiforgeryValue(html)),
+            new("id", caseId.ToString("D")),
+            new("operationKey", NewOperationKey()),
+            new("editLeaseToken", RecordingStores.HeldLeaseToken),
+            new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+            new("estimateName", "Repairer"),
+            new("estimateLabourRate", "52.50"),
+            new("estimateVatPercent", "20"),
+            new("lineOperation", "Replace"),
+            new("lineDescription", "Front bumper"),
+            new("lineQuantity", "1"),
+            new("linePartPounds", "620.20"),
+        };
+        fields.AddRange(HeaderFields(vat, EstimateDiscounts.None));
+        return await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=Save&section=estimate",
+            new FormUrlEncodedContent(fields));
     }
 
     /// <summary>

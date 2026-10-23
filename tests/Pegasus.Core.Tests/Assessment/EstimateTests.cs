@@ -731,6 +731,61 @@ public sealed class EstimateTests
             new(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true));
     }
 
+    [Theory]
+    [InlineData("unknown", RepairerVatStatus.Unknown, EstimateVatCategories.None, false)]
+    [InlineData("handpicked", RepairerVatStatus.Unknown, EstimateVatCategories.Parts, true)]
+    [InlineData("undefined", (RepairerVatStatus)7, EstimateVatCategories.None, true)]
+    public void AStatusThatIsNotAChoiceIsRefusedOnEverySave(
+        string variant, RepairerVatStatus status, EstimateVatCategories categories, bool overridden)
+    {
+        var policy = new EstimateVatPolicy(status, categories, overridden);
+
+        var policyRefusal = Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateVatPolicy(policy));
+        var saveRefusal = Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateDetails(
+            new("Repairer", 40m, null, 20m, Vat: policy)));
+
+        Assert.True(
+            policyRefusal.Message.StartsWith(RepairerVatStatuses.NotAChoice, StringComparison.Ordinal), variant);
+        Assert.True(
+            saveRefusal.Message.StartsWith(RepairerVatStatuses.NotAChoice, StringComparison.Ordinal), variant);
+    }
+
+    [Fact]
+    public void AStoredUnknownStandsOnTheDefaultKeepingHandPickedCategories()
+    {
+        var registered = EstimateVatPolicy.For(RepairerVatStatus.Registered);
+        var notRegisteredByHand = new EstimateVatPolicy(
+            RepairerVatStatus.NotRegistered, EstimateVatCategories.Parts, true);
+        Assert.Same(registered, registered.Standing());
+        Assert.Same(notRegisteredByHand, notRegisteredByHand.Standing());
+
+        Assert.Equal(registered, EstimateVatPolicy.For(RepairerVatStatus.Unknown).Standing());
+        var handPicked = new EstimateVatPolicy(RepairerVatStatus.Unknown, EstimateVatCategories.Parts, true);
+        Assert.Equal(
+            new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true),
+            handPicked.Standing());
+        // Hand-picked to what Registered charges anyway is no override.
+        Assert.Equal(
+            registered,
+            new EstimateVatPolicy(RepairerVatStatus.Unknown, EstimateVatCategories.All, true).Standing());
+
+        EstimatePolicy.ValidateVatPolicy(handPicked.Standing());
+    }
+
+    [Fact]
+    public void TheChoosableSetIsDefinedOnce()
+    {
+        foreach (var status in Enum.GetValues<RepairerVatStatus>())
+        {
+            Assert.Equal(RepairerVatStatuses.Choosable.Contains(status), RepairerVatStatuses.IsChoosable(status));
+        }
+        Assert.Equal(
+            RepairerVatStatuses.Choosable.Select(status => status.ToString()),
+            RepairerVatStatuses.ChoosableNames);
+        Assert.False(RepairerVatStatuses.IsChoosable((RepairerVatStatus)7));
+        Assert.True(RepairerVatStatuses.IsChoosable(RepairerVatStatuses.Default));
+    }
+
     // ---- Off-pattern values ----
 
     [Fact]

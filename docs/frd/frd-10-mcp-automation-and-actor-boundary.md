@@ -466,10 +466,11 @@ place; editing the Current one makes a generated report stale. Each kept line
 sends its `lineId` so it keeps its source evidence. The header carries the
 labour rates, the repairer's VAT status, the VAT categories, discounts and
 regional uplift; a header value the call omits keeps its recorded value. An
-omitted repairer VAT status keeps the recorded one, or Registered when none
-is recorded. Registered charges VAT on labour, parts, materials and
-specialist. The choices are Registered and NotRegistered; an explicit
-Unknown is refused.
+omitted repairer VAT status keeps the recorded choice, or records Registered
+when none is recorded or the recorded status is Unknown (operator, 22 October
+2026). Registered charges VAT on labour, parts, materials and
+specialist. The choices are Registered and NotRegistered; Core refuses an
+explicit Unknown, as it does for every caller.
 A line marked To be confirmed that carries a price is saved priced: the
 price wins, as on the Case page. Each line carries one evidence label, and
 its source text goes in its justification:

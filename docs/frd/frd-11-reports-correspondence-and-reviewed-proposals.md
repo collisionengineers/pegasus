@@ -712,8 +712,9 @@ Requirements:
 Each estimate has its own VAT percentage, default 20, and selected VAT
 categories. No recorded status stands on Registered and charges labour,
 parts, materials and specialist. Registered and Not registered are the
-choices. Unknown is not offered and is not written. Use repair spec is not
-gated by the status.
+choices. Unknown is not offered and is not written: Core refuses it for every
+caller, and a restored version frozen as Unknown records Registered (operator,
+22 October 2026). Use repair spec is not gated by the status.
 
 A spec still stored as Unknown blocks the report, because the report would
 understate the repair cost (operator, 27 September 2026). The blocker is
