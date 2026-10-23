@@ -804,7 +804,9 @@ public sealed class CasesIndexWebTests
         counter.Reset();
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=with_engineer&selected={caseId:D}");
 
-        Assert.Matches(CurrentWork(Pegasus.Web.Presentation.OperatorLabels.WorkCentre.OpenTasks), html);
+        Assert.Equal(
+            Pegasus.Web.Presentation.OperatorLabels.WorkCentre.OpenTasks,
+            Regex.Match(html, @"<dt>Current work</dt>\s*<dd>(.*?)</dd>", RegexOptions.Singleline).Groups[1].Value);
         var taskReads = counter.Statements.Where(text => text.Contains("[CaseTasks]", StringComparison.Ordinal)).ToArray();
         var taskRead = Assert.Single(taskReads);
         Assert.Contains("EXISTS", taskRead, StringComparison.Ordinal);
@@ -824,7 +826,12 @@ public sealed class CasesIndexWebTests
         var versionId = Guid.NewGuid();
         var sha256 = new string('a', 64);
         await using var context = await factory.Database.CreateContextAsync();
-        var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+        var workflow = await context.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleAsync(item => item.CaseId == caseId);
+        // An Inspection Case: an Inspection + Audit Case without its Audit
+        // would answer Create audit after its stored report, not its tasks.
+        workflow.Case.Type = CaseTypeCodes.Inspection;
         workflow.State = nameof(CaseLifecycleState.ReportPreparation);
         workflow.AssignedEngineerId = Guid.NewGuid();
         workflow.ReportSentEvidence = new CaseReportSentEvidenceEntity
