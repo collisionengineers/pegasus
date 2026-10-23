@@ -96,7 +96,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 context, caseId, caseId, "current_estimate_saved", now, CancellationToken.None));
             Assert.Equal(1, await EfCaseReportGenerationStore.MarkWorkStaleAsync(
                 context, caseId, caseId, "assessment_facts_changed", now, CancellationToken.None));
+            var tracked = Assert.Single(context.ChangeTracker.Entries<CaseReportGenerationEntity>(),
+                entry => entry.Entity.Id == currentGenerationId);
+            Assert.Equal("Stale", tracked.Entity.State);
+            Assert.False(tracked.Property(item => item.State).IsModified);
             await context.SaveChangesAsync();
+            Assert.Equal("Stale", tracked.Entity.State);
             await transaction.CommitAsync();
         }
 

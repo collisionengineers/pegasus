@@ -847,6 +847,8 @@ public sealed class EfCaseReportGenerationStore(
         // context outlives a save that failed, its tracker does not.
         // Local runs DetectChanges over the whole tracker unless auto-detect is
         // off; the scan reads only instances and the record, so it is off here.
+        // Local still walks every non-deleted entry in the tracker with a type
+        // test, on each call, and the first use attaches a state-change listener.
         var tracker = context.ChangeTracker;
         var autoDetect = tracker.AutoDetectChangesEnabled;
         tracker.AutoDetectChangesEnabled = false;
@@ -888,9 +890,11 @@ public sealed class EfCaseReportGenerationStore(
             MarkGenerationStale(context, caseId, generation, reasonCode, nowUtc);
         }
 
-        // One UPDATE over the set, in the caller's open transaction; the rows
-        // read above already carry Stale, so SaveChanges is told not to write
-        // the column again (as MakeCurrentAsync does for the Current estimate).
+        // One UPDATE over the set, in the caller's open transaction. The rows
+        // read above carry Stale in memory; the column is now Stale in the
+        // database too, so its original value is set to Stale and SaveChanges
+        // is told not to write it again. Clearing IsModified alone would revert
+        // the current value to the original one.
         var fresh = current.Where(item => !StaledUnsaved.TryGetValue(item, out _)).ToArray();
         if (fresh.Length > 0)
         {
@@ -920,7 +924,9 @@ public sealed class EfCaseReportGenerationStore(
 
         foreach (var generation in current)
         {
-            context.Entry(generation).Property(item => item.State).IsModified = false;
+            var state = context.Entry(generation).Property(item => item.State);
+            state.OriginalValue = nameof(CaseReportGenerationState.Stale);
+            state.IsModified = false;
         }
 
         return current.Length;
