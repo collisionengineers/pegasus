@@ -260,6 +260,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var estimateCandidates = new RecordingEstimateCandidates();
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
         var triagePairing = new RecordingTriagePairing();
+        var unidentifiedStore = new EmptyUnidentifiedStore();
+        var vehicleLookups = new CountingVehicleLookupStore();
+        var principalSubmissions = new EmptyPrincipalSubmissionStore();
         var notifications = new EmptyStaffNotificationStore();
 
         var thrown = await Assert.ThrowsAsync<AggregateException>(() => RunPairingTimerAsync(
@@ -268,6 +271,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             logger: logger,
             notifications: notifications,
             triagePairing: triagePairing,
+            unidentifiedStore: unidentifiedStore,
+            vehicleLookups: vehicleLookups,
+            principalSubmissions: principalSubmissions,
             cacheCleanup: new FailingCacheCleanup(cacheFailure),
             thumbnailCandidates: thumbnailCandidates,
             estimateCandidates: estimateCandidates));
@@ -280,6 +286,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             ["document cache cleanup", "image pairing"],
             FailedSteps(logger).Select(logged => logged.Step));
         Assert.Equal(50, triagePairing.MaximumItems);
+        Assert.Equal(1, unidentifiedStore.Lists);
+        Assert.Equal(1, vehicleLookups.Enqueues);
+        Assert.Equal(1, principalSubmissions.AcceptRecoveryLists);
         Assert.Equal(1, notifications.Purges);
         Assert.Equal(12, thumbnailCandidates.MaximumItems);
         Assert.Equal(60, estimateCandidates.MaximumItems);
@@ -332,6 +341,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         IStaffNotificationStore? notifications = null,
         IIntakeWorkStore? workStore = null,
         ITriageCasePairing? triagePairing = null,
+        EmptyUnidentifiedStore? unidentifiedStore = null,
+        CountingVehicleLookupStore? vehicleLookups = null,
+        EmptyPrincipalSubmissionStore? principalSubmissions = null,
         IDocumentContentCacheCleanup? cacheCleanup = null,
         IListDocumentThumbnailCandidates? thumbnailCandidates = null,
         IEstimateRecognitionCandidates? estimateCandidates = null,
@@ -350,11 +362,14 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             pairing,
             triagePairing ?? new TriageCasePairing(new EfTriageStore(contextFactory,
                 [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())])),
-            new ReconcileUnidentifiedDestinations(new EmptyUnidentifiedStore(), new UnreachableResolveUnidentified(),
+            new ReconcileUnidentifiedDestinations(unidentifiedStore ?? new EmptyUnidentifiedStore(), new UnreachableResolveUnidentified(),
                 receipts, new UnreachableImageIntakeQueries(), new UnreachableTriageQueries(), TimeProvider.System,
                 new UnreachableGroupStore(), new EmptyQueuedIntakeStatuses()),
-            new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
-            new ReconcilePrincipalSubmissions(new EmptyPrincipalSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
+            vehicleLookups is null
+                ? new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable)
+                : new ReconcileAutomaticVehicleLookups(vehicleLookups, VehicleLookupAvailability.ProductionLive),
+            new ReconcilePrincipalSubmissions(
+                principalSubmissions ?? new EmptyPrincipalSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             new PurgeStaffNotifications(notifications ?? new EmptyStaffNotificationStore(), TimeProvider.System),
             purgeSchedule ?? new StaffNotificationPurgeSchedule(TimeProvider.System),
             new PrepareDocumentThumbnails(
@@ -578,7 +593,18 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 "The sweep store must not be reached while lookups are unavailable.");
     }
 
-    private sealed class EmptyPrincipalSubmissionStore : IPrincipalSubmissionStore
+    internal sealed class CountingVehicleLookupStore : IAutomaticVehicleLookupStore
+    {
+        public int Enqueues { get; private set; }
+
+        public Task<int> EnqueueDueAsync(int maximumItems, CancellationToken cancellationToken)
+        {
+            Enqueues++;
+            return Task.FromResult(0);
+        }
+    }
+
+    internal sealed class EmptyPrincipalSubmissionStore : IPrincipalSubmissionStore
     {
         public Task<PrincipalSubmissionRecord> GetOrCreateAsync(
             PrincipalSubmissionRecord record,
@@ -590,11 +616,16 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
+        public int AcceptRecoveryLists { get; private set; }
+
         public Task<IReadOnlyList<PrincipalSubmissionAcceptCandidate>> ListAcceptRecoveryCandidatesAsync(
             int maximumItems,
             DateTimeOffset receivedAtOrBeforeUtc,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<PrincipalSubmissionAcceptCandidate>>([]);
+            CancellationToken cancellationToken)
+        {
+            AcceptRecoveryLists++;
+            return Task.FromResult<IReadOnlyList<PrincipalSubmissionAcceptCandidate>>([]);
+        }
 
         private static InvalidOperationException UnexpectedCall() =>
             new("An empty principal-submission reconciliation batch must not reach a write or unrelated read.");
@@ -804,7 +835,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 "An empty grouped-image reconciliation page must not register anything Unidentified.");
     }
 
-    private sealed class EmptyUnidentifiedStore : IUnidentifiedStore
+    internal sealed class EmptyUnidentifiedStore : IUnidentifiedStore
     {
         public Task<UnidentifiedRegisterResult> RegisterAsync(
             RegisterUnidentifiedRequest request,
@@ -829,10 +860,15 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
 
+        public int Lists { get; private set; }
+
         public Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
             UnidentifiedState? state = UnidentifiedState.Open,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<UnidentifiedItem>>([]);
+            CancellationToken cancellationToken = default)
+        {
+            Lists++;
+            return Task.FromResult<IReadOnlyList<UnidentifiedItem>>([]);
+        }
 
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
             UnidentifiedMediaKind? mediaKind,
