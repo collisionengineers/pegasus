@@ -1,3 +1,5 @@
+using System.Data.Common;
+using System.Reflection;
 using System.Security.Cryptography;
 using Azure;
 using Azure.Storage.Blobs;
@@ -5,7 +7,10 @@ using Azure.Storage.Blobs.Models;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Assessment;
@@ -836,6 +841,244 @@ public sealed class CaseArtifactCustodyRecoveryTests
             (await db.Set<DocumentOccurrenceEntity>().SingleAsync()).Id);
     }
 
+    /// <summary>
+    /// A sibling's filing, or any other Case mutation, can raise the Case
+    /// version while this filing writes its bytes. The confirmation rechecks
+    /// the association, archive, state and lease, not the version, so the
+    /// version is confirmed rather than stranded Pending (#1462, #1502;
+    /// before PR 1465 the version had to match and this version stayed
+    /// Pending). The completion row records the version the filing was
+    /// planned against.
+    /// </summary>
+    [Fact]
+    public async Task ASiblingBumpingTheCaseVersionMidFilingDoesNotStrandAPendingVersion()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var request = await AssociatedEvidenceRequestAsync(
+            database, caseId, ActorKind.SystemWorker, expectedCaseVersion: 0,
+            "sibling evidence"u8.ToArray(), planned: true);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var content = new SuccessfulContentStore(async () =>
+        {
+            await using var sibling = await database.CreateContextAsync();
+            await sibling.CaseWorkflows
+                .Where(item => item.CaseId == caseId)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.Version, item => item.Version + 1));
+        });
+        var custody = new EfCaseArtifactCustody(factory, content, new MemoryArtifactStore(), TimeProvider.System);
+
+        var result = await custody.RetainAsync(request, default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
+        await using var db = await database.CreateContextAsync();
+        Assert.Equal(
+            DocumentCustodyStatus.Confirmed,
+            (await db.Set<DocumentVersionEntity>().SingleAsync()).CustodyStatus);
+        Assert.Equal(1, (await db.CaseWorkflows.SingleAsync()).Version);
+        var completionKey = $"case-intake-promotion-complete:{request.IntakeReceiptId!.Value:N}";
+        var completed = await db.IntakeMutationHistory.SingleAsync(item => item.OperationKey == completionKey);
+        Assert.Equal(
+            ((long?)0, (long?)0, (long?)0),
+            (completed.ExpectedCaseVersion, completed.BeforeCaseVersion, completed.AfterCaseVersion));
+    }
+
+    /// <summary>
+    /// A member of staff who takes the Case's edit lease while an automatic
+    /// filing writes its bytes defers the filing: the version stays Pending,
+    /// and once the lease is released the Worker's reconciliation confirms it
+    /// (FRD-22, the recheck before each custody attempt and confirmation).
+    /// </summary>
+    [Fact]
+    public async Task ALeaseTakenMidFilingLeavesTheVersionPendingUntilItIsReleased()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var request = await AssociatedEvidenceRequestAsync(
+            database, caseId, ActorKind.SystemWorker, expectedCaseVersion: 0,
+            "leased evidence"u8.ToArray(), planned: true);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new MemoryArtifactStore();
+        var content = new SuccessfulContentStore(async () =>
+        {
+            await using var editor = await database.CreateContextAsync();
+            await editor.CaseWorkflows
+                .Where(item => item.CaseId == caseId)
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(item => item.EditLeaseHolder, "staff:test")
+                    .SetProperty(item => item.EditLeaseHolderKind, nameof(ActorKind.Staff))
+                    .SetProperty(item => item.EditLeaseTokenHash, new string('A', 64))
+                    .SetProperty(item => item.EditLeaseExpiresAtUtc, DateTimeOffset.UtcNow.AddHours(1)));
+        });
+        var custody = new EfCaseArtifactCustody(factory, content, artifacts, TimeProvider.System);
+
+        var deferred = await custody.RetainAsync(request, default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Pending, deferred.Disposition);
+        await using (var editor = await database.CreateContextAsync())
+        {
+            await editor.CaseWorkflows
+                .Where(item => item.CaseId == caseId)
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(item => item.EditLeaseHolder, (string?)null)
+                    .SetProperty(item => item.EditLeaseHolderKind, (string?)null)
+                    .SetProperty(item => item.EditLeaseTokenHash, (string?)null)
+                    .SetProperty(item => item.EditLeaseExpiresAtUtc, (DateTimeOffset?)null));
+        }
+        var reconciled = await new ReconcilePendingArtifactCustody(factory, content, artifacts, PastInlineFilingGrace())
+            .ExecuteAsync(10, default);
+
+        Assert.Equal(1, reconciled.Confirmed);
+        await using var db = await database.CreateContextAsync();
+        Assert.Equal(
+            DocumentCustodyStatus.Confirmed,
+            (await db.Set<DocumentVersionEntity>().SingleAsync()).CustodyStatus);
+    }
+
+    /// <summary>
+    /// A deadlock in either custody step is retried by
+    /// <c>StoreConcurrencyRetry</c> on a context of its own: the filing is
+    /// confirmed, the bytes are written once, and the step that failed asked
+    /// for one more context than the two steps need (#1502).
+    /// </summary>
+    [Theory]
+    [InlineData("record", "INSERT INTO [CaseDocuments]")]
+    [InlineData("confirm", "[BoxVersionId] = @")]
+    public async Task ADeadlockInEitherCustodyStepIsRetriedOnAFreshContext(string step, string statement)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var request = await AssociatedEvidenceRequestAsync(
+            database, caseId, ActorKind.SystemWorker, expectedCaseVersion: 0,
+            Encoding.UTF8.GetBytes($"{step} evidence"));
+        var deadlock = new DeadlockOnceInterceptor(statement);
+        var factory = new CountingContextFactory(InterceptedFactory(database, deadlock));
+        var content = new SuccessfulContentStore();
+        var custody = new EfCaseArtifactCustody(factory, content, new MemoryArtifactStore(), TimeProvider.System);
+
+        var result = await custody.RetainAsync(request, default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
+        Assert.Equal(1, deadlock.Thrown);
+        Assert.Equal(3, factory.Created);
+        Assert.Equal(1, content.WriteCount);
+        await using var db = await database.CreateContextAsync();
+        var version = Assert.Single(await db.Set<DocumentVersionEntity>().ToArrayAsync());
+        Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
+    }
+
+    /// <summary>
+    /// Only an automatic filing takes the Case lock while it records its
+    /// version; a member of staff's write takes only the confirmation's, which
+    /// the report freeze shares. On a Triage Case, which has no workflow row,
+    /// each lock is one command naming both rows (#1501).
+    /// </summary>
+    [Fact]
+    public async Task OnlyTheAutomaticPathTakesTheLockAndATriageLockIsOneCommand()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        var caseId = await SeedCaseAsync(database, triage: true);
+        var bytes = "triage evidence"u8.ToArray();
+        var automatic = await AssociatedEvidenceRequestAsync(
+            database, caseId, ActorKind.Staff, expectedCaseVersion: 0, bytes);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var custody = new EfCaseArtifactCustody(
+            factory, new SuccessfulContentStore(), new MemoryArtifactStore(), TimeProvider.System);
+        const string workflowLock = "[CaseWorkflows] WITH (UPDLOCK, HOLDLOCK)";
+        const string triageLock = "[Triage] WITH (UPDLOCK, HOLDLOCK)";
+
+        counter.Reset();
+        var staff = await custody.RetainAsync(
+            ArtifactRequest(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), caseId, bytes), default);
+        var staffLocks = counter.CountContaining(workflowLock);
+        counter.Reset();
+        var filed = await custody.RetainAsync(automatic, default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, staff.Disposition);
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, filed.Disposition);
+        Assert.Equal(1, staffLocks);
+        Assert.Equal(2, counter.CountContaining(triageLock));
+        Assert.Equal(2, counter.CountContaining(workflowLock, triageLock));
+    }
+
+    /// <summary>
+    /// A filing on a Triage Case serializes on its Triage row, since it has no
+    /// workflow row. A held Triage lock stands in for the first filing; the
+    /// second, sent with no lock wait, is refused at once (SQL 1222) instead
+    /// of filing beside it, and once the lock is released the same filing is
+    /// confirmed (#1501).
+    /// </summary>
+    [Fact]
+    public async Task TwoFilingsOnATriageCaseSerialize()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database, triage: true);
+        var bytes = "linked evidence"u8.ToArray();
+        var request = await AssociatedEvidenceRequestAsync(
+            database, caseId, ActorKind.Staff, expectedCaseVersion: 0, bytes);
+        var custody = new EfCaseArtifactCustody(
+            InterceptedFactory(database, new NoLockWaitInterceptor()),
+            new SuccessfulContentStore(),
+            new MemoryArtifactStore(),
+            TimeProvider.System);
+
+        await using (var holder = await database.CreateContextAsync())
+        {
+            await using var held = await holder.Database.BeginTransactionAsync();
+            await holder.Database.ExecuteSqlAsync(
+                $"SELECT 1 FROM [Triage] WITH (UPDLOCK, HOLDLOCK) WHERE [CaseId] = {caseId}");
+
+            var refused = await Assert.ThrowsAnyAsync<Exception>(() => custody.RetainAsync(request, default));
+
+            Assert.Equal(1222, SqlErrorNumber(refused));
+        }
+        var filed = await custody.RetainAsync(
+            request with { Content = new MemoryStream(bytes, writable: false) }, default);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, filed.Disposition);
+    }
+
+    /// <summary>
+    /// Two member-of-staff writes to one Case take no lock while recording, so
+    /// both can read the same next document ordinal. The unique ordinal index
+    /// refuses the second insert (SQL 2627) and the record step is retried on
+    /// a fresh context, so both are filed, on the next two ordinals (#1501).
+    /// </summary>
+    [Fact]
+    public async Task TwoStaffWritesRacingOnAnOrdinalBothFile()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var barrier = new DocumentInsertBarrier(writers: 2);
+        var custody = new EfCaseArtifactCustody(
+            InterceptedFactory(database, barrier),
+            new SuccessfulContentStore(),
+            new MemoryArtifactStore(),
+            TimeProvider.System);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+
+        var results = await Task.WhenAll(
+            Task.Run(() => custody.RetainAsync(ArtifactRequest(actor, caseId, "first report"u8.ToArray()), default)),
+            Task.Run(() => custody.RetainAsync(ArtifactRequest(actor, caseId, "second report"u8.ToArray()), default)));
+
+        Assert.All(results, result => Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition));
+        Assert.Equal(3, barrier.Inserts);
+        await using var db = await database.CreateContextAsync();
+        Assert.Collection(
+            await db.Set<CaseDocumentEntity>()
+                .Where(item => item.CaseId == caseId)
+                .OrderBy(item => item.Ordinal)
+                .Select(item => item.Ordinal)
+                .ToArrayAsync(),
+            ordinal => Assert.Equal(2, ordinal),
+            ordinal => Assert.Equal(3, ordinal));
+    }
+
     [Fact]
     public async Task StatusPreservesDispositionAndSelectsExactOccurrenceWhenVersionIsShared()
     {
@@ -1423,12 +1666,39 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Convert.ToHexString(SHA256.HashData(content)),
         new MemoryStream(content, writable: false));
 
-    private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database)
+    /// <summary>
+    /// A Case with its origin receipt: a workflow Case in Not ready, or a
+    /// Triage Case, which has a Triage row and no workflow.
+    /// </summary>
+    private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database, bool triage = false)
     {
         await using var db = await database.CreateContextAsync();
         var seeded = await SeededPrincipals.QdosAsync(db);
         var receiptId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
+        if (triage)
+        {
+            db.Triage.Add(new TriageEntity
+            {
+                CaseId = caseId,
+                NormalizedVehicleRegistration = "AB12CDE",
+                State = "open",
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                CreationOperationKey = $"triage:{caseId:N}",
+                Version = 0,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+        }
+        else
+        {
+            db.CaseWorkflows.Add(new CaseWorkflowEntity
+            {
+                CaseId = caseId,
+                State = "NotReady",
+                Version = 0,
+                ConcurrencyToken = Guid.NewGuid(),
+            });
+        }
         db.AddRange(
             new IntakeReceiptEntity
             {
@@ -1457,23 +1727,279 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 Year = 2031,
                 Sequence = 1,
                 Reference = "QDOS001",
-                Type = "inspection",
-                InitialState = "NotReady",
+                Type = triage ? "triage" : "inspection",
+                InitialState = triage ? null : "NotReady",
                 CustodyState = "confirmed",
                 OriginIntakeReceiptId = receiptId,
                 CustodyRootRemoteId = "case-root",
                 CreatedAtUtc = DateTimeOffset.UtcNow,
                 ConcurrencyToken = Guid.NewGuid()
-            },
-            new CaseWorkflowEntity
-            {
-                CaseId = caseId,
-                State = "NotReady",
-                Version = 0,
-                ConcurrencyToken = Guid.NewGuid(),
             });
         await db.SaveChangesAsync();
         return caseId;
+    }
+
+    /// <summary>
+    /// A second receipt with one retained asset, actively associated with the
+    /// Case by <paramref name="associatedBy"/>, and the automatic filing of
+    /// that asset planned at <paramref name="expectedCaseVersion"/>, as
+    /// <see cref="PromoteAssociatedIntakeCaseEvidence"/> sends it. With
+    /// <paramref name="planned"/>, the receipt's plan is recorded too (no
+    /// selected photographs), so the filing's confirmation completes it.
+    /// </summary>
+    private static async Task<CaseArtifactCustodyRequest> AssociatedEvidenceRequestAsync(
+        LocalDbTestDatabase database,
+        Guid caseId,
+        ActorKind associatedBy,
+        long expectedCaseVersion,
+        byte[] content,
+        bool planned = false)
+    {
+        var receiptId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var hash = Convert.ToHexStringLower(SHA256.HashData(content));
+        await using (var db = await database.CreateContextAsync())
+        {
+            db.AddRange(
+                new IntakeReceiptEntity
+                {
+                    Id = receiptId,
+                    SourceFileName = "evidence.eml",
+                    MediaType = "message/rfc822",
+                    SourceLength = content.Length,
+                    SourceHash = hash,
+                    SourceChannel = "manual_upload",
+                    ExternalReceiptToken = $"associated:{receiptId:N}",
+                    ReceivedAtUtc = DateTimeOffset.UtcNow,
+                    ProcessedAtUtc = DateTimeOffset.UtcNow,
+                    SourceReaderKey = "test",
+                    SourceReaderVersion = "1",
+                    Decision = "needs_sorting",
+                    DecisionReason = "Test.",
+                    EvidenceJson = "[]",
+                    FieldsJson = "[]",
+                    OcrCandidatesJson = "[]"
+                },
+                new IntakeAssetEntity
+                {
+                    Id = assetId,
+                    IntakeReceiptId = receiptId,
+                    SourceLabel = "uploaded evidence.eml",
+                    FileName = "evidence.txt",
+                    MediaType = "text/plain",
+                    Kind = "source",
+                    Disposition = "source",
+                    ContentLength = content.Length,
+                    ContentHash = hash,
+                    StorageKey = $"retained/{receiptId:N}"
+                },
+                new IntakeManualAssociationEntity
+                {
+                    IntakeReceiptId = receiptId,
+                    CaseId = caseId,
+                    IsActive = true,
+                    Version = 1,
+                    LinkedAtUtc = DateTimeOffset.UtcNow,
+                    ActorKind = associatedBy.ToString(),
+                    ActorSubjectId = "test",
+                    ActorRolesJson = "[]",
+                    LastOperationKey = $"link:{receiptId:N}"
+                });
+            if (planned)
+            {
+                db.Add(new IntakeMutationHistoryEntity
+                {
+                    Id = Guid.NewGuid(),
+                    IntakeReceiptId = receiptId,
+                    CaseId = caseId,
+                    EventType = "intake_case_evidence_promotion_started",
+                    ActorKind = nameof(ActorKind.SystemWorker),
+                    ActorSubjectId = "intake-processing",
+                    ActorRolesJson = "[]",
+                    Reason = "Test.",
+                    OperationKey = AutomaticCaseEvidencePromotionOperationKey.Plan(receiptId),
+                    RequestFingerprint = new string('e', 64),
+                    OccurredAtUtc = DateTimeOffset.UtcNow,
+                    ExpectedCaseVersion = expectedCaseVersion,
+                    BeforeCaseVersion = expectedCaseVersion,
+                    AfterCaseVersion = expectedCaseVersion,
+                    AfterJson = JsonSerializer.Serialize(new AutomaticCaseEvidencePromotionPlan([assetId], false))
+                });
+            }
+            await db.SaveChangesAsync();
+        }
+
+        return new(
+            ActionActor.SystemWorker("intake-processing"),
+            caseId,
+            receiptId,
+            assetId.ToString("N"),
+            AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId),
+            "evidence.txt",
+            "text/plain",
+            content.LongLength,
+            hash,
+            new MemoryStream(content, writable: false),
+            Source: DocumentSource.Intake,
+            ExpectedCaseVersion: expectedCaseVersion,
+            IsAutomaticIntakeEvidencePromotion: true);
+    }
+
+    /// <summary>A context factory over the test database with the given interceptors.</summary>
+    private static PooledDbContextFactory<PegasusDbContext> InterceptedFactory(
+        LocalDbTestDatabase database, params IInterceptor[] interceptors) =>
+        new(new DbContextOptionsBuilder<PegasusDbContext>()
+            .UseSqlServer(database.ConnectionString)
+            .AddInterceptors(interceptors)
+            .Options);
+
+    /// <summary>The number of the first SQL error in the exception's chain.</summary>
+    private static int? SqlErrorNumber(Exception? exception) => exception switch
+    {
+        null => null,
+        SqlException sql => sql.Number,
+        _ => SqlErrorNumber(exception.InnerException)
+    };
+
+    /// <summary>
+    /// A SqlException with the given error number, built through SqlClient's
+    /// internal factory as <c>StoreConcurrencyRetryTests</c> builds one.
+    /// </summary>
+    private static SqlException Sql(int number)
+    {
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        Type[] errorParameters =
+            [typeof(int), typeof(byte), typeof(byte), typeof(string), typeof(string), typeof(string), typeof(int), typeof(Exception)];
+        var error = typeof(SqlError).GetConstructor(all, binder: null, errorParameters, modifiers: null)!
+            .Invoke([number, (byte)0, (byte)0, "server", "sample error", string.Empty, 1, null]);
+        var errors = typeof(SqlErrorCollection).GetConstructor(all, binder: null, Type.EmptyTypes, modifiers: null)!
+            .Invoke([]);
+        typeof(SqlErrorCollection).GetMethod("Add", all, [typeof(SqlError)])!.Invoke(errors, [error]);
+        return (SqlException)typeof(SqlException)
+            .GetMethod("CreateException", all, [typeof(SqlErrorCollection), typeof(string), typeof(Guid), typeof(Exception)])!
+            .Invoke(null, [errors, "16.0.0", Guid.NewGuid(), null])!;
+    }
+
+    /// <summary>Counts the contexts it hands out.</summary>
+    private sealed class CountingContextFactory(
+        IDbContextFactory<PegasusDbContext> inner) : IDbContextFactory<PegasusDbContext>
+    {
+        private int created;
+
+        public int Created => created;
+
+        public PegasusDbContext CreateDbContext()
+        {
+            Interlocked.Increment(ref created);
+            return inner.CreateDbContext();
+        }
+
+        public Task<PegasusDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref created);
+            return inner.CreateDbContextAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Throws a deadlock (SQL 1205) once, from the first command whose text
+    /// contains <paramref name="fragment"/>.
+    /// </summary>
+    private sealed class DeadlockOnceInterceptor(string fragment) : DbCommandInterceptor
+    {
+        private int thrown;
+
+        public int Thrown => thrown;
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            ThrowOnce(command);
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            ThrowOnce(command);
+            return ValueTask.FromResult(result);
+        }
+
+        private void ThrowOnce(DbCommand command)
+        {
+            if (command.CommandText.Contains(fragment, StringComparison.Ordinal)
+                && Interlocked.CompareExchange(ref thrown, 1, 0) == 0)
+            {
+                throw Sql(1205);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Holds each of the first <paramref name="writers"/> inserts into
+    /// <c>[CaseDocuments]</c> until all of them have arrived, so racing writers
+    /// have all read the same next ordinal; later commands pass straight
+    /// through. A writer that never arrives, such as one waiting on a lock
+    /// another holds here, fails the wait instead of hanging the test.
+    /// </summary>
+    private sealed class DocumentInsertBarrier(int writers) : DbCommandInterceptor
+    {
+        private readonly TaskCompletionSource allArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int inserts;
+
+        public int Inserts => inserts;
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            await ArriveAsync(command, cancellationToken);
+            return result;
+        }
+
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            await ArriveAsync(command, cancellationToken);
+            return result;
+        }
+
+        private async Task ArriveAsync(DbCommand command, CancellationToken cancellationToken)
+        {
+            if (!command.CommandText.Contains("INSERT INTO [CaseDocuments]", StringComparison.Ordinal))
+            {
+                return;
+            }
+            var arrival = Interlocked.Increment(ref inserts);
+            if (arrival > writers)
+            {
+                return;
+            }
+            if (arrival == writers)
+            {
+                allArrived.TrySetResult();
+            }
+            await allArrived.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Sets each connection's lock wait to none, so a statement that meets a
+    /// lock another session holds fails at once with SQL 1222.
+    /// </summary>
+    private sealed class NoLockWaitInterceptor : DbConnectionInterceptor
+    {
+        public override async Task ConnectionOpenedAsync(
+            DbConnection connection, ConnectionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SET LOCK_TIMEOUT 0";
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
     }
 
     private sealed class FailFirstContentStore(Exception? failure = null) : IDocumentContentStore
@@ -1600,24 +2126,32 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 new RequestFailedException(503, "The blob store is unavailable."));
     }
 
-    private sealed class SuccessfulContentStore : IDocumentContentStore
+    /// <summary>
+    /// Writes every version. <paramref name="duringWrite"/> runs inside the
+    /// request's write, between its record and confirm steps.
+    /// </summary>
+    private sealed class SuccessfulContentStore(Func<Task>? duringWrite = null) : IDocumentContentStore
     {
-        public int WriteCount { get; private set; }
+        private int writes;
+        public int WriteCount => writes;
         public Task<DocumentContentWriteResult> StoreVersionAsync(
             ManagedDocumentContentAddress address, ReadOnlyMemory<byte> content,
             string expectedSha256, CancellationToken cancellationToken)
         {
-            WriteCount++;
+            Interlocked.Increment(ref writes);
             return Task.FromResult(new DocumentContentWriteResult(
                 DocumentContentWriteDisposition.Created, null, null));
         }
-        public Task<DocumentContentWriteResult> StoreVersionAsync(
+        public async Task<DocumentContentWriteResult> StoreVersionAsync(
             ManagedDocumentContentAddress address, Stream content, long contentLength,
             string expectedSha256, CancellationToken cancellationToken)
         {
-            WriteCount++;
-            return Task.FromResult(new DocumentContentWriteResult(
-                DocumentContentWriteDisposition.Created, null, null));
+            Interlocked.Increment(ref writes);
+            if (duringWrite is not null)
+            {
+                await duringWrite();
+            }
+            return new DocumentContentWriteResult(DocumentContentWriteDisposition.Created, null, null);
         }
         public Task StoreAsync(Guid caseId, string caseReference, Guid versionId, ReadOnlyMemory<byte> content, string expectedSha256, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId, string expectedSha256, long expectedLength, CancellationToken cancellationToken) => throw new NotSupportedException();

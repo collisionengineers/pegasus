@@ -98,17 +98,18 @@ internal static class IntakePromotionTarget
         return new(disposition, workflow?.Version ?? triageVersion ?? 0, isStaffDecision);
     }
 
-    /// <summary>Whether the Case may receive the receipt's evidence now, at or after the version the filing was planned against.</summary>
+    /// <summary>
+    /// Whether the Case may receive the receipt's evidence now: the
+    /// association, the archive, the Case's state and a live edit lease are
+    /// read again. The Case version is not: it only rises, so a sibling's
+    /// filing never makes this one stale.
+    /// </summary>
     public static async Task<bool> IsCurrentAsync(
         PegasusDbContext db,
         Guid caseId,
         Guid receiptId,
-        long expectedCaseVersion,
         DateTimeOffset nowUtc,
-        CancellationToken cancellationToken)
-    {
-        var target = await EvaluateAsync(db, caseId, receiptId, nowUtc, cancellationToken);
-        return target.Disposition == CaseFilingTargetDisposition.Current
-            && target.Version >= expectedCaseVersion;
-    }
+        CancellationToken cancellationToken) =>
+        (await EvaluateAsync(db, caseId, receiptId, nowUtc, cancellationToken)).Disposition
+            == CaseFilingTargetDisposition.Current;
 }

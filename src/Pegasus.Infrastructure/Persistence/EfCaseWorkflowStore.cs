@@ -1777,7 +1777,9 @@ public sealed class EfCaseWorkflowStore(
     /// <summary>
     /// Takes the Case's workflow (or Triage) row <c>UPDLOCK, HOLDLOCK</c> for
     /// the rest of the caller's transaction, so concurrent Case mutations
-    /// serialize on it.
+    /// serialize on it. One command: the Triage row is read only when the
+    /// Case has no workflow row. A batch cannot be composed as a query, so it
+    /// is sent as a command.
     /// </summary>
     internal static async Task AcquireWorkflowMutationLockAsync(
         PegasusDbContext context,
@@ -1789,27 +1791,12 @@ public sealed class EfCaseWorkflowStore(
             return;
         }
 
-        var lockedWorkflow = await context.CaseWorkflows
-            .FromSqlInterpolated($"""
-                SELECT *
-                FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK)
-                WHERE [CaseId] = {caseId}
-                """)
-            .AsNoTracking()
-            .Select(item => (Guid?)item.CaseId)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (lockedWorkflow is null)
-        {
-            _ = await context.Triage
-                .FromSqlInterpolated($"""
-                    SELECT *
-                    FROM [Triage] WITH (UPDLOCK, HOLDLOCK)
-                    WHERE [CaseId] = {caseId}
-                    """)
-                .AsNoTracking()
-                .Select(item => (Guid?)item.CaseId)
-                .SingleOrDefaultAsync(cancellationToken);
-        }
+        await context.Database.ExecuteSqlAsync($"""
+            DECLARE @locked uniqueidentifier;
+            SELECT @locked = [CaseId] FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK) WHERE [CaseId] = {caseId};
+            IF @locked IS NULL
+                SELECT @locked = [CaseId] FROM [Triage] WITH (UPDLOCK, HOLDLOCK) WHERE [CaseId] = {caseId};
+            """, cancellationToken);
     }
 
     private static AutoLinkReportEvidenceResult AutoLinkNotLinked(string reasonCode) =>

@@ -178,9 +178,11 @@ internal sealed class EfCaseArtifactCustody(
             return Pending(version, occurrence.Id, auditFolder ? "audit_custody_pending" : "case_custody_pending");
         }
 
-        // An automatic promotion's target was checked before the version was
-        // recorded and is checked again inside the confirmation below; a
-        // target that moves in between leaves the version pending there.
+        // An automatic promotion's target (its association, the archive, the
+        // Case's state and a live edit lease) was checked before the version
+        // was recorded and is checked again inside the confirmation below; a
+        // target that stops accepting the filing in between leaves the
+        // version pending there.
         var address = new ManagedDocumentContentAddress(
             caseId,
             caseEntity.Reference,
@@ -259,13 +261,18 @@ internal sealed class EfCaseArtifactCustody(
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         // Serializable: an automatic promotion is decided on the receipt's
         // association, the Case's workflow and the Case's documents; no one
-        // row covers them.
+        // row covers them. Any other write is one SaveChanges, and a lost
+        // ordinal race is the unique index's collision, retried above.
         await using var initialWriteTransaction = request.IsAutomaticIntakeEvidencePromotion
             ? await db.Database.BeginSerializableAsync(cancellationToken)
-            : await db.Database.BeginReadCommittedAsync(cancellationToken);
-        // The Case's workflow (or Triage) lock first, so concurrent Case
-        // filings serialize on it before taking any document range lock.
-        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(db, caseId, cancellationToken);
+            : null;
+        if (initialWriteTransaction is not null)
+        {
+            // The Case's workflow (or Triage) lock first, so concurrent
+            // automatic filings serialize on it before taking any document
+            // range lock.
+            await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(db, caseId, cancellationToken);
+        }
         var existing = await (
             from persistedOccurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
             join persistedVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
@@ -284,13 +291,13 @@ internal sealed class EfCaseArtifactCustody(
             if (existing.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)
             {
                 RequireConfirmed(existing.Version, documentContentStore is BoxDocumentContentStore);
-                await initialWriteTransaction.CommitAsync(cancellationToken);
+                await CommitAsync(initialWriteTransaction, cancellationToken);
                 return new(null, null, null, null, Confirmed(existing.Version, existing.Occurrence.Id));
             }
             if (existing.Version.CustodyStatus is DocumentCustodyStatus.Pending
                 or DocumentCustodyStatus.Failed)
             {
-                await initialWriteTransaction.CommitAsync(cancellationToken);
+                await CommitAsync(initialWriteTransaction, cancellationToken);
                 return new(null, null, null, null, Status(existing.Version, existing.Occurrence.Id));
             }
         }
@@ -366,9 +373,14 @@ internal sealed class EfCaseArtifactCustody(
             version.PendingContentStorageKey = pendingContentStorageKey;
             await db.SaveChangesAsync(cancellationToken);
         }
-        await initialWriteTransaction.CommitAsync(cancellationToken);
+        await CommitAsync(initialWriteTransaction, cancellationToken);
         return new(caseEntity, document, version, occurrence, null);
     }
+
+    private static Task CommitAsync(
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction,
+        CancellationToken cancellationToken) =>
+        transaction?.CommitAsync(cancellationToken) ?? Task.CompletedTask;
 
     private async Task<(CaseArtifactCustodyResult Result, bool Confirmed)> ConfirmCaseVersionAsync(
         Guid caseId,
@@ -394,8 +406,7 @@ internal sealed class EfCaseArtifactCustody(
         // confirmed against it.
         var promotionTargetCurrent = !request.IsAutomaticIntakeEvidencePromotion
             || await IntakePromotionTarget.IsCurrentAsync(
-                db, caseId, request.IntakeReceiptId!.Value,
-                request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
+                db, caseId, request.IntakeReceiptId!.Value, timeProvider.GetUtcNow(), cancellationToken);
         var changed = await db.Set<DocumentVersionEntity>()
             .Where(value => value.Id == version.Id
                 && value.CustodyStatus == DocumentCustodyStatus.Pending
@@ -473,9 +484,8 @@ internal sealed class EfCaseArtifactCustody(
     {
         if (request.Actor.Kind != ActorKind.SystemWorker
             || request.IntakeReceiptId is not { } receiptId
-            || request.ExpectedCaseVersion is not { } expectedVersion
             || !await IntakePromotionTarget.IsCurrentAsync(
-                db, caseId, receiptId, expectedVersion, timeProvider.GetUtcNow(), cancellationToken))
+                db, caseId, receiptId, timeProvider.GetUtcNow(), cancellationToken))
         {
             throw new IntakeDependencyUnavailableException(
                 "The associated Case is no longer safe for evidence filing.");
@@ -558,12 +568,9 @@ internal sealed class EfCaseArtifactCustody(
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
         if (!promotionPlan!.HasSelectedPhotographs || workflow is null)
         {
-            var currentCaseVersion = workflow?.Version
-                ?? await db.Triage.AsNoTracking()
-                    .Where(item => item.CaseId == caseId)
-                    .Select(item => (long?)item.Version)
-                    .SingleOrDefaultAsync(cancellationToken)
-                ?? expectedCaseVersion;
+            // Nothing on the Case changes here, so the row records the version
+            // the caller filed against (the plan's, inline), not a fresh read
+            // of the Case or its Triage.
             db.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
             {
                 Id = Guid.NewGuid(),
@@ -582,9 +589,9 @@ internal sealed class EfCaseArtifactCustody(
                 ExpectedIntakeVersion = plan.ExpectedIntakeVersion,
                 BeforeIntakeVersion = plan.AfterIntakeVersion,
                 AfterIntakeVersion = plan.AfterIntakeVersion,
-                ExpectedCaseVersion = currentCaseVersion,
-                BeforeCaseVersion = currentCaseVersion,
-                AfterCaseVersion = currentCaseVersion
+                ExpectedCaseVersion = expectedCaseVersion,
+                BeforeCaseVersion = expectedCaseVersion,
+                AfterCaseVersion = expectedCaseVersion
             });
             await db.SaveChangesAsync(cancellationToken);
             return;
@@ -1174,7 +1181,7 @@ public sealed partial class ReconcilePendingArtifactCustody
                     update, candidate.Case.Id, cancellationToken);
                 if (automaticPromotion is { } promotion
                     && !await IntakePromotionTarget.IsCurrentAsync(
-                        update, candidate.Case.Id, promotion.ReceiptId, promotion.ExpectedCaseVersion,
+                        update, candidate.Case.Id, promotion.ReceiptId,
                         timeProvider.GetUtcNow(), cancellationToken))
                 {
                     await RecordAttemptAsync(candidate.Version.Id, RetainedOutcome, "AutomaticPromotionTargetChanged");
