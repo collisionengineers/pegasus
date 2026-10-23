@@ -157,6 +157,12 @@ public interface IApprovedMailboxStore : IApprovedMailboxPolicy
 {
     Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken);
 
+    /// <summary>The mailbox <paramref name="mailboxId"/> names when it can send; none otherwise.</summary>
+    async Task<ApprovedMailbox?> GetSenderAsync(
+        Guid mailboxId,
+        CancellationToken cancellationToken) =>
+        (await ListAsync(cancellationToken)).Sender(mailboxId);
+
     Task<ApprovedMailbox> UpdateAsync(
         UpdateApprovedMailboxRequest request,
         CancellationToken cancellationToken);

@@ -326,6 +326,10 @@ public sealed class MessageModel(
 
     public CaseHeader? CorrespondenceCase { get; private set; }
 
+    private bool correspondenceCaseResolved;
+
+    private bool attachmentOptionsRead;
+
     public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
 
     public bool StaffMailAvailable => staffMailSend is not UnavailableStaffMailSend;
@@ -1340,18 +1344,20 @@ public sealed class MessageModel(
         if (to.Concat(cc).Any(recipient => !IsMailboxAddress(recipient.Address)))
             ModelState.AddModelError(nameof(CorrespondenceTo), "Enter valid recipient addresses.");
 
+        // The Case's files are read only when some are selected, and that one
+        // read also serves the options a refusal redraws.
         IReadOnlyList<StaffMailAttachment> attachments = [];
-        if (CorrespondenceCase is not null)
+        if (CorrespondenceCase is not null && SelectedAttachments.Count > 0)
         {
-            try
+            var selection = await attachmentResolver.SelectCaseAsync(
+                actor, CorrespondenceCase.Summary.CaseId, SelectedAttachments,
+                cancellationToken);
+            AvailableAttachments = selection.Options;
+            attachmentOptionsRead = true;
+            attachments = selection.Attachments;
+            if (selection.SelectionError is { } selectionError)
             {
-                attachments = await attachmentResolver.ResolveCaseAsync(
-                    actor, CorrespondenceCase.Summary.CaseId, SelectedAttachments,
-                    cancellationToken);
-            }
-            catch (StaffMailAttachmentSelectionException exception)
-            {
-                ModelState.AddModelError(nameof(SelectedAttachments), exception.Message);
+                ModelState.AddModelError(nameof(SelectedAttachments), selectionError);
             }
         }
 
@@ -1410,25 +1416,19 @@ public sealed class MessageModel(
     /// The send-ready approved mailbox that holds this message, which Reply
     /// and Forward send as; none where the message or its mailbox cannot send.
     /// </summary>
-    private async Task<ApprovedMailbox?> ResolveCorrespondenceMailboxAsync(CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(Detail.ImmutableMessageId)
-            || Detail.Summary.Id == Guid.Empty
-            || Detail.Summary.MailboxId == Guid.Empty)
-        {
-            return null;
-        }
-        return CorrespondenceSender(Detail, await approvedMailboxes.ListAsync(cancellationToken));
-    }
+    private Task<ApprovedMailbox?> ResolveCorrespondenceMailboxAsync(CancellationToken cancellationToken) =>
+        CorrespondenceSenderAsync(Detail, approvedMailboxes, cancellationToken);
 
     /// <summary>
     /// The send-ready approved mailbox that holds <paramref name="detail"/>,
     /// which Reply and Forward send as, for staff and for the Automation
     /// Actor's <c>pegasus_mail_send</c> alike; none where it cannot send.
+    /// Only that one mailbox is read.
     /// </summary>
-    internal static ApprovedMailbox? CorrespondenceSender(
+    internal static async Task<ApprovedMailbox?> CorrespondenceSenderAsync(
         RetainedMailDetail detail,
-        IReadOnlyList<ApprovedMailbox> mailboxes)
+        IApprovedMailboxStore mailboxes,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(detail.ImmutableMessageId)
             || detail.Summary.Id == Guid.Empty
@@ -1436,7 +1436,7 @@ public sealed class MessageModel(
         {
             return null;
         }
-        return mailboxes.Sender(detail.Summary.MailboxId);
+        return await mailboxes.GetSenderAsync(detail.Summary.MailboxId, cancellationToken);
     }
 
     private async Task<bool> LoadCorrespondenceContextAsync(
@@ -1476,11 +1476,14 @@ public sealed class MessageModel(
             }
         }
         // Only the composer and the posts it makes read the Case and its
-        // attachments; a plain view of the message renders neither.
-        if (CorrespondenceMode is not null)
+        // attachments; a plain view of the message renders neither. A refused
+        // send reloads this context in the same request, and the Case it
+        // resolved and the options it read stand.
+        if (CorrespondenceMode is not null && !correspondenceCaseResolved)
         {
             CorrespondenceCase = await ResolveCaseAsync(
                 actor, CorrespondenceCaseReference, cancellationToken);
+            correspondenceCaseResolved = true;
         }
         if (CorrespondenceCase is not null)
         {
@@ -1490,7 +1493,7 @@ public sealed class MessageModel(
                 FixedCorrespondenceCaseReference = CorrespondenceCase.Summary.Reference;
                 ExpectedCorrespondenceCaseVersion = CorrespondenceCase.Workflow.Version;
             }
-            if (listAttachments)
+            if (listAttachments && !attachmentOptionsRead)
             {
                 AvailableAttachments = await attachmentResolver.ListCaseAsync(
                     actor, CorrespondenceCase.Summary.CaseId, cancellationToken);

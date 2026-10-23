@@ -112,6 +112,18 @@ public sealed class EfApprovedMailboxStore(
         return entities.Select(Map).ToArray();
     }
 
+    public async Task<ApprovedMailbox?> GetSenderAsync(
+        Guid mailboxId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<ApprovedMailboxEntity>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == mailboxId, cancellationToken);
+        var mailbox = entity is null ? null : Map(entity);
+        return mailbox is { CanSend: true } ? mailbox : null;
+    }
+
     public async Task<bool> IsApprovedAsync(
         string mailboxAddress,
         ApprovedMailboxRouteScope routeScope,

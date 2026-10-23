@@ -668,9 +668,9 @@ public sealed partial class DetailsModel
             return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
-        var mailbox = TriageReplySender(
-            await ports.ApprovedMailboxes.ListAsync(cancellationToken),
-            detail.Summary.MailboxId);
+        var mailbox = await ports.ApprovedMailboxes.GetSenderAsync(
+            detail.Summary.MailboxId,
+            cancellationToken);
         if (mailbox is null)
         {
             ModelState.AddModelError(
@@ -920,9 +920,9 @@ public sealed partial class DetailsModel
                 view.ReplyOperationBlocked = IsActiveTriageMailOperation(view.ReplyOperation);
                 view.ReplyOperationKey = NewRetainedTriageOperationKey(retainedMail.Summary.Id);
 
-                view.ReplyMailbox = TriageReplySender(
-                    await ports.ApprovedMailboxes.ListAsync(cancellationToken),
-                    retainedMail.Summary.MailboxId);
+                view.ReplyMailbox = await ports.ApprovedMailboxes.GetSenderAsync(
+                    retainedMail.Summary.MailboxId,
+                    cancellationToken);
 
                 var replyRecipients = TriageReplyRecipients(retainedMail);
                 view.ReplyTo = string.Join("; ", replyRecipients.Select(r => r.Address));
@@ -1226,16 +1226,6 @@ public sealed partial class DetailsModel
             && value.StartsWith(prefix, StringComparison.Ordinal)
             && Guid.TryParseExact(value[prefix.Length..], "N", out _);
     }
-
-    /// <summary>
-    /// The approved mailbox a Triage reply leaves from: the one holding the
-    /// origin message, while it can send. Staff and the Automation Actor's
-    /// <c>pegasus_mail_send</c> triage_reply read it alike.
-    /// </summary>
-    internal static ApprovedMailbox? TriageReplySender(
-        IReadOnlyList<ApprovedMailbox> mailboxes,
-        Guid mailboxId) =>
-        mailboxes.Sender(mailboxId);
 
     private static bool IsActiveTriageMailOperation(StaffMailOperation? operation) =>
         operation is not null

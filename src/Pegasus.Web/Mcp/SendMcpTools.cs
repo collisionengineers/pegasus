@@ -396,7 +396,7 @@ internal sealed class SendMcpTools(
 
         var detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken)
             ?? throw new McpException("The retained message was not found.");
-        var mailbox = MessageModel.CorrespondenceSender(detail, await approvedMailboxes.ListAsync(cancellationToken))
+        var mailbox = await MessageModel.CorrespondenceSenderAsync(detail, approvedMailboxes, cancellationToken)
             ?? throw new McpException("Correspondence is unavailable for this message: no send-ready approved mailbox holds it.");
         var (toRecipients, ccRecipients) = mode switch
         {
@@ -475,9 +475,7 @@ internal sealed class SendMcpTools(
                 $"Refused: the Triage changed since it was read. It is at version {triage.Record.Version}, not {expectedVersion}; reload it with pegasus_triage_get.");
         }
 
-        var mailbox = DetailsModel.TriageReplySender(
-                await approvedMailboxes.ListAsync(cancellationToken),
-                detail.Summary.MailboxId)
+        var mailbox = await approvedMailboxes.GetSenderAsync(detail.Summary.MailboxId, cancellationToken)
             ?? throw new McpException("No approved mailbox with staff send capability is available for this origin.");
         var toRecipients = Recipients(to, "To");
         if (toRecipients.Length == 0)

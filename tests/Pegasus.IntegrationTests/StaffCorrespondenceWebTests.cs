@@ -396,7 +396,8 @@ public sealed class StaffCorrespondenceWebTests
         var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 RECORD", "SC08-RECORD-REPLY-ALL");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
-        using var factory = Configure(baseFactory, send);
+        var resolver = new StableAttachmentResolver();
+        using var factory = Configure(baseFactory, send, attachmentResolver: resolver);
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var recordGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}");
@@ -415,6 +416,8 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal("reply-all", InputValue(composer, "compose"));
         Assert.Equal("Re: Source subject", InputValue(composer, "CorrespondenceSubject"));
         Assert.Equal(0, send.SendCalls);
+        var listsBeforeSend = resolver.ListCalls;
+        Assert.True(listsBeforeSend > 0, "The composer listed the Case's files.");
 
         var form = RetainedReplyForm(
             composer, InputValue(composer, "CorrespondenceOperationKey"), "Reviewed response.");
@@ -424,6 +427,10 @@ public sealed class StaffCorrespondenceWebTests
             new FormUrlEncodedContent(form));
 
         Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
+        // With nothing selected the send reads none of the Case's files.
+        Assert.Equal(listsBeforeSend, resolver.ListCalls);
+        Assert.Equal(0, resolver.SelectCalls);
+        Assert.Equal(0, resolver.ResolveCalls);
         var command = Assert.Single(send.Commands);
         Assert.Equal(StaffMailComposeMode.ReplyAll, command.ComposeMode);
         Assert.Equal(caseId, command.ContextId);
@@ -456,10 +463,11 @@ public sealed class StaffCorrespondenceWebTests
         var selectedCaseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 SELECTED", "SC08-MSG-SELECTED");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, associatedCaseId);
+        var resolver = new StableAttachmentResolver();
         using var factory = Configure(
             baseFactory,
             send,
-            attachmentResolver: new StableAttachmentResolver());
+            attachmentResolver: resolver);
         using var client = IntakeWebDriver.CreateClient(factory);
         // No unread scope: the v26 Inbox has no Unread filter (read state is not a queue).
         var listContext = $"mailbox={seeded.MailboxId:D}&folder=inbox&pageNumber=2&sort=oldest";
@@ -546,6 +554,9 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(["selected@example.invalid"], command.To.Select(item => item.Address));
         Assert.Equal(["copy@example.invalid"], command.Cc.Select(item => item.Address));
         Assert.Single(command.Attachments);
+        // The send read the Case's files once, for the options and the selection together.
+        Assert.Equal(1, resolver.SelectCalls);
+        Assert.Equal(0, resolver.ResolveCalls);
     }
 
     [Fact]
@@ -1605,14 +1616,47 @@ public sealed class StaffCorrespondenceWebTests
             Guid.Parse("8c2bc8f2-d8c5-4cce-8602-17e6b27464e9"),
             new string('A', 64), 1, "instruction.pdf", "application/pdf");
 
+        /// <summary>How many times each kind of Case document read was made.</summary>
+        public int ListCalls { get; private set; }
+
+        public int SelectCalls { get; private set; }
+
+        public int ResolveCalls { get; private set; }
+
         public Task<IReadOnlyList<StaffMailAttachmentOption>> ListCaseAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StaffMailAttachmentOption>>(
-                [new(Selection, Attachment.FileName, Attachment.MediaType, Attachment.ContentLength)]);
+            ActionActor actor, Guid caseId, CancellationToken cancellationToken)
+        {
+            ListCalls++;
+            return Task.FromResult(Options());
+        }
 
         public Task<IReadOnlyList<StaffMailAttachment>> ResolveCaseAsync(
             ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
             CancellationToken cancellationToken)
+        {
+            ResolveCalls++;
+            return Task.FromResult(Resolve(selections));
+        }
+
+        public Task<StaffMailCaseSelection> SelectCaseAsync(
+            ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
+            CancellationToken cancellationToken)
+        {
+            SelectCalls++;
+            try
+            {
+                return Task.FromResult(new StaffMailCaseSelection(Options(), Resolve(selections), null));
+            }
+            catch (StaffMailAttachmentSelectionException exception)
+            {
+                return Task.FromResult(new StaffMailCaseSelection(Options(), [], exception.Message));
+            }
+        }
+
+        private static IReadOnlyList<StaffMailAttachmentOption> Options() =>
+            [new(Selection, Attachment.FileName, Attachment.MediaType, Attachment.ContentLength)];
+
+        private static IReadOnlyList<StaffMailAttachment> Resolve(IReadOnlyList<string> selections)
         {
             if (selections.Count != 1 || selections[0] != Selection)
             {
@@ -1620,7 +1664,7 @@ public sealed class StaffCorrespondenceWebTests
                     "One or more selected attachments changed or are no longer available. Review the attachments and try again.");
             }
 
-            return Task.FromResult<IReadOnlyList<StaffMailAttachment>>([Attachment]);
+            return [Attachment];
         }
 
         public Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
