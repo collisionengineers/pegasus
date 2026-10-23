@@ -832,7 +832,8 @@ public static class DependencyInjection
 
         services.AddSingleton(provider => new AzureBlobIntakeArtifactStore(
             intakeContainerFactory(provider),
-            allowContainerCreateIfNotExists(provider)));
+            allowContainerCreateIfNotExists(provider),
+            provider.GetService<Microsoft.Extensions.Logging.ILogger<AzureBlobIntakeArtifactStore>>()));
         services.AddSingleton<IIntakeArtifactStore>(provider =>
             provider.GetRequiredService<AzureBlobIntakeArtifactStore>());
         services.AddSingleton<IIntakeQuarantineArtifactStore>(provider =>

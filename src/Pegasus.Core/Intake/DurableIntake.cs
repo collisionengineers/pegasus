@@ -1695,6 +1695,7 @@ public sealed class ReconcileStagedArtifacts(
                     current = await artifactStore.TrySetStagedDispositionAsync(
                         item.StorageKey,
                         item.ConcurrencyToken,
+                        current.Disposition,
                         target,
                         cancellationToken);
                     if (current is null)

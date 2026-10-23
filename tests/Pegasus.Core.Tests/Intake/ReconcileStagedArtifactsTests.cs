@@ -118,6 +118,9 @@ public sealed class ReconcileStagedArtifactsTests
         Assert.Equal(
             new[] { $"set {failed} Failed", $"complete {completed}" },
             harness.Store.Calls);
+        Assert.Equal(
+            new[] { (failed, StagedArtifactDisposition.Pending) },
+            harness.Store.SetExpectations);
         Assert.True(harness.Store.IsStaged(pending));
         Assert.True(harness.Store.IsStaged(failed));
         Assert.False(harness.Store.IsStaged(completed));
@@ -253,6 +256,9 @@ public sealed class ReconcileStagedArtifactsTests
 
         public List<string> Calls { get; } = [];
 
+        /// <summary>The disposition the sweep listed, per set it made.</summary>
+        public List<(string StorageKey, StagedArtifactDisposition Listed)> SetExpectations { get; } = [];
+
         public List<string?> Continuations { get; } = [];
 
         public List<int> PageSizes { get; } = [];
@@ -296,10 +302,12 @@ public sealed class ReconcileStagedArtifactsTests
         public Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
             string storageKey,
             string expectedConcurrencyToken,
+            StagedArtifactDisposition expectedDisposition,
             StagedArtifactDisposition disposition,
             CancellationToken cancellationToken)
         {
             Calls.Add($"set {storageKey} {disposition}");
+            SetExpectations.Add((storageKey, expectedDisposition));
             if (RefuseSet.Contains(storageKey)
                 || !entries.TryGetValue(storageKey, out var entry)
                 || !string.Equals(entry.Item.ConcurrencyToken, expectedConcurrencyToken, StringComparison.Ordinal))

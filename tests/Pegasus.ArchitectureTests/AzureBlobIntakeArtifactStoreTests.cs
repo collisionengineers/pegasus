@@ -4,6 +4,7 @@ using Azure;
 using Azure.Core;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Worker;
@@ -105,6 +106,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         var updated = await store.TrySetStagedDispositionAsync(
             StorageKey,
             initialETag.ToString(),
+            StagedArtifactDisposition.Pending,
             StagedArtifactDisposition.Failed,
             CancellationToken.None);
 
@@ -120,10 +122,11 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         Assert.Equal("Failed", blob.Metadata["disposition"]);
         Assert.Equal("Failed", blob.Tags["PegasusDisposition"]);
         Assert.Equal(0, blob.DownloadCount);
+        Assert.Equal(3, blob.Operations);
     }
 
     [Fact]
-    public async Task SettingADispositionTakesFourOperationsAndHandsBackWhatItWroteWithoutARereadAndTheNextDeleteHolds()
+    public async Task SettingADispositionTakesThreeOperationsAndHandsBackWhatItWroteWithoutARereadAndTheNextDeleteHolds()
     {
         var initialETag = new ETag("\"etag-1\"");
         var updatedETag = new ETag("\"etag-2\"");
@@ -142,11 +145,13 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         var updated = await store.TrySetStagedDispositionAsync(
             StorageKey,
             initialETag.ToString(),
+            StagedArtifactDisposition.Pending,
             StagedArtifactDisposition.Orphan,
             CancellationToken.None);
 
-        // Properties, tags, metadata, tags: the result is built from the writes.
-        Assert.Equal(4, blob.Operations);
+        // Properties, metadata, tags: the listed disposition is the tag
+        // condition and the result is built from the writes.
+        Assert.Equal(3, blob.Operations);
         Assert.NotNull(updated);
         Assert.Equal(StagedArtifactDisposition.Orphan, updated.Disposition);
         Assert.Equal(updatedETag.ToString(), updated.ConcurrencyToken);
@@ -162,6 +167,115 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             updated.Disposition,
             CancellationToken.None));
         Assert.Equal(1, blob.DeleteCount);
+    }
+
+    [Fact]
+    public async Task ATagThatDisagreesWithTheListingWinsAndTheDisagreementIsLogged()
+    {
+        var initialETag = new ETag("\"etag-1\"");
+        var blob = new StubBlobClient(
+            StorageKey,
+            Hash,
+            17,
+            FirstSeenAtUtc,
+            StagedArtifactDisposition.Pending,
+            initialETag)
+        {
+            NextMetadataETag = new ETag("\"etag-2\"")
+        };
+        var logger = new CapturingLogger();
+        var store = new AzureBlobIntakeArtifactStore(
+            new StubBlobContainerClient(blob),
+            allowCreateIfNotExists: false,
+            logger);
+
+        // The listing says Unmatched (a blob whose tag and metadata disagree
+        // lists so); the tag holds Pending and decides.
+        var updated = await store.TrySetStagedDispositionAsync(
+            StorageKey,
+            initialETag.ToString(),
+            StagedArtifactDisposition.Unmatched,
+            StagedArtifactDisposition.Orphan,
+            CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Equal(StagedArtifactDisposition.Orphan, updated.Disposition);
+        Assert.Equal("Orphan", blob.Tags["PegasusDisposition"]);
+        Assert.Equal(
+            "\"PegasusDisposition\" = 'Pending'",
+            blob.LastSetTagsConditions?.TagConditions);
+        // Properties, metadata, refused tags, tags read, tags.
+        Assert.Equal(5, blob.Operations);
+        var logged = Assert.Single(logger.Messages);
+        Assert.Contains("Unmatched", logged, StringComparison.Ordinal);
+        Assert.Contains("Pending", logged, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ABlobWithNoTagIsSetWithoutATagConditionAndTheDisagreementIsLogged()
+    {
+        var initialETag = new ETag("\"etag-1\"");
+        var blob = new StubBlobClient(
+            StorageKey,
+            Hash,
+            17,
+            FirstSeenAtUtc,
+            StagedArtifactDisposition.Pending,
+            initialETag)
+        {
+            NextMetadataETag = new ETag("\"etag-2\"")
+        };
+        blob.Tags.Clear();
+        var logger = new CapturingLogger();
+        var store = new AzureBlobIntakeArtifactStore(
+            new StubBlobContainerClient(blob),
+            allowCreateIfNotExists: false,
+            logger);
+
+        var updated = await store.TrySetStagedDispositionAsync(
+            StorageKey,
+            initialETag.ToString(),
+            StagedArtifactDisposition.Unmatched,
+            StagedArtifactDisposition.Failed,
+            CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Null(blob.LastSetTagsConditions?.TagConditions);
+        Assert.Equal("Failed", blob.Tags["PegasusDisposition"]);
+        Assert.Single(logger.Messages);
+    }
+
+    [Fact]
+    public async Task ATagThatStillHoldsTheListedValueAfterARefusedWriteSetsNothingAndLogsNothing()
+    {
+        var initialETag = new ETag("\"etag-1\"");
+        var blob = new StubBlobClient(
+            StorageKey,
+            Hash,
+            17,
+            FirstSeenAtUtc,
+            StagedArtifactDisposition.Pending,
+            initialETag)
+        {
+            NextMetadataETag = new ETag("\"etag-2\""),
+            ETagAfterMetadataWrite = new ETag("\"etag-3\"")
+        };
+        var logger = new CapturingLogger();
+        var store = new AzureBlobIntakeArtifactStore(
+            new StubBlobContainerClient(blob),
+            allowCreateIfNotExists: false,
+            logger);
+
+        var updated = await store.TrySetStagedDispositionAsync(
+            StorageKey,
+            initialETag.ToString(),
+            StagedArtifactDisposition.Pending,
+            StagedArtifactDisposition.Failed,
+            CancellationToken.None);
+
+        Assert.Null(updated);
+        Assert.Equal("Pending", blob.Tags["PegasusDisposition"]);
+        Assert.Empty(logger.Messages);
     }
 
     [Fact]
@@ -500,6 +614,24 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             container,
             allowCreateIfNotExists: false);
 
+    private sealed class CapturingLogger : ILogger<AzureBlobIntakeArtifactStore>
+    {
+        internal List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Messages.Add(formatter(state, exception));
+    }
+
     private sealed class StubBlobContainerClient : BlobContainerClient
     {
         private readonly Dictionary<string, StubBlobClient> blobs;
@@ -594,6 +726,9 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         internal Dictionary<string, string> Metadata { get; private set; }
         internal Dictionary<string, string> Tags { get; private set; }
         internal ETag NextMetadataETag { get; init; } = new("\"etag-next\"");
+
+        /// <summary>Another writer changes the blob just after the metadata write.</summary>
+        internal ETag? ETagAfterMetadataWrite { get; init; }
         internal RequestFailedException? DownloadFailure { get; init; }
         internal int DownloadCount { get; private set; }
         internal int UploadCount { get; private set; }
@@ -698,8 +833,14 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             ThrowIfETagDiffers(conditions);
             Metadata = new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase);
             etag = NextMetadataETag;
+            var returned = etag;
+            if (ETagAfterMetadataWrite is { } changed)
+            {
+                etag = changed;
+            }
+
             return Task.FromResult(Response.FromValue(
-                BlobsModelFactory.BlobInfo(etag, DateTimeOffset.UtcNow),
+                BlobsModelFactory.BlobInfo(returned, DateTimeOffset.UtcNow),
                 new StubResponse()));
         }
 
@@ -759,7 +900,8 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         private void ThrowIfTagDiffers(BlobRequestConditions? conditions)
         {
             if (conditions?.TagConditions is { } tagCondition
-                && !tagCondition.Contains($"'{Tags["PegasusDisposition"]}'", StringComparison.Ordinal))
+                && (!Tags.TryGetValue("PegasusDisposition", out var held)
+                    || !tagCondition.Contains($"'{held}'", StringComparison.Ordinal)))
             {
                 throw new RequestFailedException(412, "Tag condition not met.");
             }
