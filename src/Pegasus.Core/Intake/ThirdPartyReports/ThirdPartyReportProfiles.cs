@@ -336,25 +336,31 @@ public static class ThirdPartyReportProfiles
     /// A source carrying a PDF is one too, whatever its issuer (operator,
     /// 22 October 2026): any PDF a source carries, and an uploaded PDF with a
     /// readable text layer. One signal covers the whole source, so its loose
-    /// photographs are filed with it once its Case is matched.
+    /// photographs are filed with it once its Case is matched. A capture PDF is
+    /// known from the reading's capture designation, the one retention already
+    /// made, so its signature is not matched a second time.
     /// </summary>
-    public static bool HasRecognizedNonImageDocument(IntakeSourceReadResult readResult)
+    internal static bool HasRecognizedNonImageDocument(
+        IntakeSourceReadResult readResult,
+        VehicleCaptureDesignation capture)
     {
         ArgumentNullException.ThrowIfNull(readResult);
+        ArgumentNullException.ThrowIfNull(capture);
 
         var pages = ThirdPartySourcePage.Read(readResult);
-        var document = pages.Count == 0 ? null : Document(pages);
-        if (document is not null && Compiled.Any(candidate =>
-                candidate.Signature.Role is not (ThirdPartyDocumentRole.ImageEvidence or ThirdPartyDocumentRole.VehicleCapture)
-                && candidate.Matches(document)))
+        if (pages.Count != 0)
         {
-            return true;
+            var document = Document(pages);
+            if (Compiled.Any(candidate =>
+                    candidate.Signature.Role is not (ThirdPartyDocumentRole.ImageEvidence or ThirdPartyDocumentRole.VehicleCapture)
+                    && candidate.Matches(document)))
+            {
+                return true;
+            }
         }
 
-        return readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer)
-            && (document is null || !Compiled.Any(candidate =>
-                candidate.Signature.Role == ThirdPartyDocumentRole.VehicleCapture
-                && candidate.Matches(document)));
+        return capture.Documents.Count == 0
+            && readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer);
     }
 
     /// <summary>

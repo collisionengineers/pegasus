@@ -82,12 +82,15 @@ public static class InstructionEvidenceImages
     /// rule (FRD-02 EXT-17); everything else is judged by
     /// <see cref="IsRetentionCandidate"/>, and an image placed on every page
     /// of a PDF of two or more pages is letterhead art, never a photograph
-    /// (operator, 22 October 2026).
+    /// (operator, 22 October 2026). The capture designation is the caller's,
+    /// computed once per reading and shared with the assessment.
     /// </summary>
-    public static IEnumerable<IntakeAssetCandidate> RetentionCandidates(IntakeSourceReadResult readResult)
+    internal static IEnumerable<IntakeAssetCandidate> RetentionCandidates(
+        IntakeSourceReadResult readResult,
+        VehicleCaptureDesignation capture)
     {
         ArgumentNullException.ThrowIfNull(readResult);
-        var capture = VehicleCaptureImages.Designate(readResult);
+        ArgumentNullException.ThrowIfNull(capture);
         var letterhead = LetterheadArt(readResult);
         return readResult.AssetCandidates.Where(candidate =>
             candidate.Kind == IntakeAssetKind.EmbeddedImage && capture.Covers(candidate)
@@ -104,22 +107,35 @@ public static class InstructionEvidenceImages
     /// <summary>
     /// The embedded images whose content is placed on every page of a PDF of
     /// two or more pages. A PDF whose image read stopped early has pages
-    /// without placements, so its images are kept.
+    /// without placements, so its images are kept. One pass groups the
+    /// embedded images by the PDF that carries them, and each group is checked
+    /// against its own PDF's page count.
     /// </summary>
     private static HashSet<IntakeAssetCandidate> LetterheadArt(IntakeSourceReadResult readResult)
     {
         var art = new HashSet<IntakeAssetCandidate>(ReferenceEqualityComparer.Instance);
-        foreach (var pdf in readResult.PdfReadings.Where(pdf => pdf.PageCount >= 2))
+        var pageCounts = readResult.PdfReadings
+            .Where(pdf => pdf.PageCount >= 2)
+            .ToLookup(pdf => pdf.SourceLabel, pdf => pdf.PageCount, StringComparer.Ordinal);
+        if (pageCounts.Count == 0)
         {
-            var pagePrefix = pdf.SourceLabel + ", page ";
-            foreach (var placements in readResult.AssetCandidates
-                         .Where(candidate =>
-                             candidate.Kind == IntakeAssetKind.EmbeddedImage
-                             && candidate.PageNumber is not null
-                             && candidate.SourceLabel.StartsWith(pagePrefix, StringComparison.Ordinal))
-                         .GroupBy(candidate => candidate.Content, SameBytes))
+            return art;
+        }
+
+        foreach (var pdf in readResult.AssetCandidates
+                     .Where(candidate => candidate.Kind == IntakeAssetKind.EmbeddedImage
+                         && candidate.PageNumber is not null)
+                     .GroupBy(candidate => PdfLabel(candidate.SourceLabel), StringComparer.Ordinal))
+        {
+            if (!pageCounts.Contains(pdf.Key))
             {
-                if (placements.Select(candidate => candidate.PageNumber).Distinct().Count() == pdf.PageCount)
+                continue;
+            }
+
+            var counts = pageCounts[pdf.Key];
+            foreach (var placements in pdf.GroupBy(candidate => candidate.Content, SameBytes))
+            {
+                if (counts.Contains(placements.Select(candidate => candidate.PageNumber).Distinct().Count()))
                 {
                     art.UnionWith(placements);
                 }
@@ -127,6 +143,13 @@ public static class InstructionEvidenceImages
         }
 
         return art;
+    }
+
+    /// <summary>The label of the PDF an embedded image's "label, page n, image m" names.</summary>
+    private static string PdfLabel(string imageLabel)
+    {
+        var page = imageLabel.LastIndexOf(", page ", StringComparison.Ordinal);
+        return page < 0 ? imageLabel : imageLabel[..page];
     }
 
     private sealed class SameBytesComparer : IEqualityComparer<ReadOnlyMemory<byte>>

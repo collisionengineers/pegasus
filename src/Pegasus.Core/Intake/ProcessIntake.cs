@@ -197,6 +197,9 @@ public sealed class ProcessIntake(
         activity?.SetTag("intake.reader_result", ReadStatusCode(readResult.Status));
         activity?.SetTag("intake.reader_key", readResult.ReaderKey);
 
+        // One capture designation per reading: retention keeps its photographs
+        // and the assessment reads from it that a capture PDF is no document.
+        var capture = VehicleCaptureImages.Designate(readResult);
         var assets = new List<IntakeAssetRecord> { sourceAsset };
         try
         {
@@ -204,7 +207,7 @@ public sealed class ProcessIntake(
             // so a candidate stored before a sibling fails is harmless. Bytes
             // carried by several placements are hashed and stored once, and
             // each placement keeps its own row (operator, 22 October 2026).
-            var candidates = InstructionEvidenceImages.RetentionCandidates(readResult).ToArray();
+            var candidates = InstructionEvidenceImages.RetentionCandidates(readResult, capture).ToArray();
             var stored = (await RunRetentionsAsync(
                     candidates.Select(candidate => candidate.Content)
                         .Distinct(InstructionEvidenceImages.SameBytes)
@@ -227,6 +230,7 @@ public sealed class ProcessIntake(
         var assessment = safeSource.DeclaredCaseId is null
             ? await AssessAsync(
                 readResult,
+                capture,
                 safeSource.SourceIdentity,
                 safeSource.ReceivedAtUtc,
                 retainedClassification,
@@ -856,6 +860,7 @@ public sealed class ProcessIntake(
 
     private async Task<IntakeAssessment> AssessAsync(
         IntakeSourceReadResult readResult,
+        VehicleCaptureDesignation capture,
         IntakeSourceIdentity sourceIdentity,
         DateTimeOffset receivedAtUtc,
         MailClassificationResult? retainedClassification,
@@ -870,11 +875,18 @@ public sealed class ProcessIntake(
 
         if (readResult.IsIncomplete)
         {
-            // An incomplete read never enters image automation (ADR-0005 item 11).
+            // An incomplete read never enters image automation (ADR-0005 item
+            // 11). A source carrying a PDF is a document carrier whether or
+            // not its read completed: a PDF a limit stopped is still a PDF it
+            // carries (operator, 22 October 2026).
             return new(
                 IntakeDecision.NeedsSorting,
                 IncompleteReadReason,
-                [.. readerEvidence, IncompleteReadEvidence()],
+                [
+                    .. AppendImageAutomationBlockerEvidence(
+                        readerEvidence, NonImageDocumentSignal(readResult, capture)),
+                    IncompleteReadEvidence()
+                ],
                 [],
                 null,
                 [],
@@ -943,9 +955,7 @@ public sealed class ProcessIntake(
         var instructionSelection = extractionPolicies.Select(readResult, InstructionDocumentSignature.InstructionRole);
         readerEvidence = AppendImageAutomationBlockerEvidence(
             readerEvidence,
-            ThirdPartyReportProfiles.HasRecognizedNonImageDocument(readResult)
-                ? IntakeEvidenceSignals.RecognizedNonImageDocument
-                : null,
+            NonImageDocumentSignal(readResult, capture),
             instructionSelection.Outcome == InstructionPolicySelectionOutcome.Ambiguous
                 ? IntakeEvidenceSignals.AmbiguousInstructionSelection
                 : null);
@@ -1199,6 +1209,17 @@ public sealed class ProcessIntake(
     /// deliberately separate from the decision and reason: those remain the
     /// assessment owner's explanation for staff.
     /// </summary>
+    /// <summary>
+    /// The whole-source document-carrier signal, or null when the source
+    /// carries no recognised report and no PDF (operator, 22 October 2026).
+    /// </summary>
+    private static string? NonImageDocumentSignal(
+        IntakeSourceReadResult readResult,
+        VehicleCaptureDesignation capture) =>
+        ThirdPartyReportProfiles.HasRecognizedNonImageDocument(readResult, capture)
+            ? IntakeEvidenceSignals.RecognizedNonImageDocument
+            : null;
+
     private static IntakeEvidence[] AppendImageAutomationBlockerEvidence(
         IReadOnlyList<IntakeEvidence> evidence,
         params string?[] signals)

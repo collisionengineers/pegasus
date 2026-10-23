@@ -793,7 +793,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             Task.FromResult(new AutomaticCaseEvidencePromotionPreparation(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable));
     }
 
-    private static async Task<Guid> SeedCaseAsync(IntakeWebApplicationFactory factory,
+    internal static async Task<Guid> SeedCaseAsync(IntakeWebApplicationFactory factory,
         bool instructionsComplete = true, bool hasCustodyRoot = true, int sequence = 9)
     {
         _ = factory.Services;

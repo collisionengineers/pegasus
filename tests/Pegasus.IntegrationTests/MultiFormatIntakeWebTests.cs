@@ -699,40 +699,61 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     /// <summary>
-    /// #1493 (operator, 22 October 2026, R224, R296-R298): an e-mail carrying
-    /// a three-page report whose logo is on every page, with a photograph in
-    /// the report and a loose photograph attached, is a document carrier. With
-    /// no Case it waits in No Case Found with no Image Intake or Unidentified
-    /// item; the logo is not retained, and both photographs stay selected, to
-    /// be filed with it once its Case is matched.
+    /// #1493 (operator, 22 October 2026, R224, R226, R296-R298): an e-mail
+    /// carrying a three-page PDF whose logo is on every page, with a
+    /// photograph in the PDF and a loose photograph attached, is a document
+    /// carrier whether the PDF has a text layer or none. With no Case it waits
+    /// in No Case Found with no Image Intake or Unidentified item; the logo is
+    /// not retained, and both photographs stay selected. Once its Case is
+    /// matched, both photographs are filed with it as Case images.
     /// </summary>
-    [Fact]
-    public async Task AnEmailCarryingALetterheadedReportIsADocumentCarrier()
+    [Theory]
+    [InlineData("text-none", true, false)]
+    [InlineData("image-none", false, false)]
+    [InlineData("text-case", true, true)]
+    [InlineData("image-case", false, true)]
+    public async Task AnEmailCarryingALetterheadedPdfIsADocumentCarrier(
+        string shape,
+        bool hasTextLayer,
+        bool withCase)
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
-        using var client = CreateClient(factory);
+        Guid? caseId = withCase ? await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(factory) : null;
         PdfImagePlacement[] images =
         [
             new(20, 700, 180, 88, 0, 0, 0, SampleWidth: 898, SampleHeight: 437, Pixels: RandomPixels(898, 437, 41)),
             new(20, 100, 200, 240, 0, 0, 0, SampleWidth: 200, SampleHeight: 240, Pixels: RandomPixels(200, 240, 42))
         ];
-        const string text =
-            "Engineer report prepared for the instructing party,\nwith enough printed words to read clearly as a text layer.";
+        var text = hasTextLayer
+            ? "Engineer report prepared for the instructing party,\nwith enough printed words to read clearly as a text layer."
+            : string.Empty;
         int[] firstOnly = [0];
         int[] both = [0, 1];
         var report = CreateSharedImagePdf(images, (text, firstOnly), (text, both), (text, firstOnly));
-        var message = CreateMessage(
-            "Report and photograph",
-            "Please find the report and a photograph attached.",
+        (string, string, byte[])[] attachments =
+        [
             ("report.pdf", "application/pdf", report),
-            ("vehicle.jpg", "image/jpeg", Convert.FromBase64String(TinyJpegBase64)));
+            ("vehicle.jpg", "image/jpeg", Convert.FromBase64String(TinyJpegBase64))
+        ];
+        // The Case is matched on the Principal's claim reference in the subject.
+        var message = withCase
+            ? CreateQdosMessage(
+                "Fw: (EREF10) RTA on 09/09/2031 : Mr Test Person (Our Ref: SCL/ND/48450/1)",
+                "Please find the report and a photograph attached.",
+                attachments)
+            : CreateMessage("Report and photograph", "Please find the report and a photograph attached.", attachments);
 
-        var result = await UploadAsync(factory, client, "report-mail.eml", "message/rfc822", Serialize(message));
-        var receiptId = ReceiptId(result);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            factory.Services, $"{shape}.eml", "message/rfc822", Serialize(message));
         var receipt = await GetReceiptAsync(factory, receiptId);
 
-        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(caseId, receipt.CurrentCaseId);
+        if (!withCase)
+        {
+            Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        }
+
         Assert.Contains(receipt.Evidence, item => item.Signal == IntakeEvidenceSignals.RecognizedNonImageDocument);
         Assert.DoesNotContain(receipt.AssetRecords, asset => asset.WidthPixels == 898);
         Assert.Collection(
@@ -748,6 +769,25 @@ public sealed partial class MultiFormatIntakeWebTests
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None));
         Assert.Null(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
             .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+        if (caseId is not { } matched)
+        {
+            return;
+        }
+
+        await using var db = await factory.Database.CreateContextAsync();
+        var filed = await (
+                from occurrence in db.Set<Pegasus.Infrastructure.Persistence.DocumentOccurrenceEntity>()
+                join version in db.Set<Pegasus.Infrastructure.Persistence.DocumentVersionEntity>()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == matched
+                select new { version.FileName, occurrence.SemanticRole })
+            .ToArrayAsync();
+        Assert.Contains(filed, file => file.FileName == "report.pdf");
+        var images = filed
+            .Where(file => file.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Image)
+            .ToArray();
+        Assert.Equal(2, images.Length);
+        Assert.Contains(images, file => file.FileName == "vehicle.jpg");
     }
 
     [Fact]

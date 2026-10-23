@@ -3,6 +3,7 @@ using System.Text;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Tests.Intake.ThirdPartyReports;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -99,7 +100,7 @@ public sealed class InstructionEvidenceImagesTests
     {
         var mail = VehicleCaptureSamples.Mail();
 
-        var retained = InstructionEvidenceImages.RetentionCandidates(mail).ToArray();
+        var retained = RetentionCandidates(mail);
 
         Assert.Equal(
             [
@@ -123,7 +124,7 @@ public sealed class InstructionEvidenceImagesTests
             Content = [.. mail.Content.Where(fragment => !fragment.SourceLabel.EndsWith(", page 3", StringComparison.Ordinal))]
         };
 
-        var retained = InstructionEvidenceImages.RetentionCandidates(notCapture).ToArray();
+        var retained = RetentionCandidates(notCapture);
 
         Assert.Equal(
             [
@@ -186,7 +187,7 @@ public sealed class InstructionEvidenceImagesTests
             Assets: [.. placements, photograph],
             Pdfs: pageCount == 0 ? [] : [new(pdfLabel, IsRoot: true, pageCount, HasTextLayer: true)]);
 
-        var kept = InstructionEvidenceImages.RetentionCandidates(read).ToArray();
+        var kept = RetentionCandidates(read);
 
         Assert.Contains(photograph, kept);
         Assert.Equal(retained ? pages.Length + 1 : 1, kept.Length);
@@ -634,6 +635,10 @@ public sealed class InstructionEvidenceImagesTests
         null,
         width,
         height);
+
+    /// <summary>Retention over a reading, with the capture designation intake computes once for it.</summary>
+    private static IntakeAssetCandidate[] RetentionCandidates(IntakeSourceReadResult read) =>
+        InstructionEvidenceImages.RetentionCandidates(read, VehicleCaptureImages.Designate(read)).ToArray();
 
     private static IntakeAssetCandidate Candidate(
         IntakeAssetKind kind,
