@@ -147,13 +147,14 @@ public sealed class CaseSectionQueryValidationTests
     /// assignee still reads it for the name (R364).
     /// </summary>
     [Theory]
-    [InlineData(CaseLifecycleState.Held, false, false, 0)]
-    [InlineData(CaseLifecycleState.PrincipalCancelled, false, false, 0)]
-    [InlineData(CaseLifecycleState.Review, true, false, 0)]
-    [InlineData(CaseLifecycleState.Review, false, false, 1)]
-    [InlineData(CaseLifecycleState.Held, false, true, 1)]
-    [InlineData(CaseLifecycleState.Review, true, true, 1)]
+    [InlineData("held", CaseLifecycleState.Held, false, false, 0)]
+    [InlineData("closed", CaseLifecycleState.PrincipalCancelled, false, false, 0)]
+    [InlineData("colleague", CaseLifecycleState.Review, true, false, 0)]
+    [InlineData("form", CaseLifecycleState.Review, false, false, 1)]
+    [InlineData("held-assigned", CaseLifecycleState.Held, false, true, 1)]
+    [InlineData("colleague-assigned", CaseLifecycleState.Review, true, true, 1)]
     public async Task TheTasksSectionSkipsTheEnabledStaffWhereNoAssignFormRenders(
+        string name,
         CaseLifecycleState state,
         bool colleagueIsEditing,
         bool assigned,
