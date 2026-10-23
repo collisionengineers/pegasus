@@ -840,6 +840,7 @@ public sealed class CasesIndexWebTests
             LinkedAtUtc = now, LinkedByKind = nameof(ActorKind.SystemWorker), LinkedBySubjectId = "test",
             LinkedByRolesJson = "[]"
         };
+        context.Add(workflow.ReportSentEvidence);
         context.AddRange(
             new CaseReportGenerationEntity
             {
