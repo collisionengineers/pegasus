@@ -19,74 +19,101 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AutomationMcpIngressTests
 {
-    private static readonly string[] ExpectedTools =
-    [
-        "pegasus_case_search",
-        "pegasus_case_get",
-        "pegasus_edit_begin",
-        "pegasus_edit_renew",
-        "pegasus_edit_end",
-        "pegasus_case_update_details",
-        "pegasus_case_note_add",
-        "pegasus_valuation_list",
-        "pegasus_valuation_save",
-        "pegasus_valuation_get",
-        "pegasus_vocabulary_get",
-        "pegasus_directory_search",
-        "pegasus_case_action",
-        "pegasus_work_centre_dismiss",
-        "pegasus_intake_queue_list",
-        "pegasus_intake_submit",
-        "pegasus_intake_get",
-        "pegasus_intake_action",
-        "pegasus_case_create",
-        "pegasus_document_add",
-        "pegasus_document_download",
-        "pegasus_document_download_batch",
-        "pegasus_document_action",
-        "pegasus_report_list",
-        "pegasus_report_action",
-        "pegasus_report_wording_get",
-        "pegasus_report_wording_save",
-        "pegasus_image_preparation_get",
-        "pegasus_image_prepare",
-        "pegasus_estimate_list",
-        "pegasus_estimate_get",
-        "pegasus_estimate_save",
-        "pegasus_estimate_act",
-        "pegasus_estimate_import",
-        "pegasus_assessment_get",
-        "pegasus_assessment_update",
-        "pegasus_mail_list",
-        "pegasus_mail_get",
-        "pegasus_mail_correct_classification",
-        "pegasus_mail_action",
-        "pegasus_mail_link_destinations",
-        "pegasus_mail_link_case",
-        "pegasus_unidentified_list",
-        "pegasus_unidentified_get",
-        "pegasus_unidentified_resolve",
-        "pegasus_unidentified_reopen",
-        "pegasus_unidentified_source_download",
-        "pegasus_triage_list",
-        "pegasus_triage_get",
-        "pegasus_triage_source_download",
-        "pegasus_triage_await_information",
-        "pegasus_triage_record_finding",
-        "pegasus_triage_response_evidence",
-        "pegasus_triage_complete",
-        "pegasus_triage_cancel",
-        "pegasus_triage_reopen",
-        "pegasus_triage_case_link",
-        "pegasus_triage_assign",
-        "pegasus_triage_note_add",
-        "pegasus_ai_job_list",
-        "pegasus_ai_job_create",
-        "pegasus_ai_job_transition",
-        "pegasus_ai_job_complete_market_research",
-        "pegasus_report_send",
-        "pegasus_mail_send"
-    ];
+    // The approved inventory, server by server (ADR-0080 decision 1): each
+    // tool on the server of the scope its call requires, the edit-lease tools
+    // on the cases and the intake servers, the shared reads on cases alone.
+    private static readonly Dictionary<string, string[]> ExpectedTools = new()
+    {
+        [CasesServer] =
+        [
+            "pegasus_case_search",
+            "pegasus_case_get",
+            "pegasus_edit_begin",
+            "pegasus_edit_renew",
+            "pegasus_edit_end",
+            "pegasus_case_update_details",
+            "pegasus_case_note_add",
+            "pegasus_vocabulary_get",
+            "pegasus_directory_search",
+            "pegasus_case_action",
+            "pegasus_work_centre_dismiss"
+        ],
+        [IntakeServer] =
+        [
+            "pegasus_edit_begin",
+            "pegasus_edit_renew",
+            "pegasus_edit_end",
+            "pegasus_intake_queue_list",
+            "pegasus_intake_submit",
+            "pegasus_intake_get",
+            "pegasus_intake_action",
+            "pegasus_case_create",
+            "pegasus_unidentified_list",
+            "pegasus_unidentified_get",
+            "pegasus_unidentified_resolve",
+            "pegasus_unidentified_reopen",
+            "pegasus_unidentified_source_download",
+            "pegasus_triage_list",
+            "pegasus_triage_get",
+            "pegasus_triage_source_download",
+            "pegasus_triage_await_information",
+            "pegasus_triage_record_finding",
+            "pegasus_triage_response_evidence",
+            "pegasus_triage_complete",
+            "pegasus_triage_cancel",
+            "pegasus_triage_reopen",
+            "pegasus_triage_case_link",
+            "pegasus_triage_assign",
+            "pegasus_triage_note_add"
+        ],
+        [DocumentsServer] =
+        [
+            "pegasus_document_add",
+            "pegasus_document_download",
+            "pegasus_document_download_batch",
+            "pegasus_document_action",
+            "pegasus_report_list",
+            "pegasus_report_action",
+            "pegasus_report_wording_get",
+            "pegasus_report_wording_save",
+            "pegasus_image_preparation_get",
+            "pegasus_image_prepare"
+        ],
+        [AssessmentServer] =
+        [
+            "pegasus_valuation_list",
+            "pegasus_valuation_save",
+            "pegasus_valuation_get",
+            "pegasus_estimate_list",
+            "pegasus_estimate_get",
+            "pegasus_estimate_save",
+            "pegasus_estimate_act",
+            "pegasus_estimate_import",
+            "pegasus_assessment_get",
+            "pegasus_assessment_update"
+        ],
+        [MailServer] =
+        [
+            "pegasus_mail_list",
+            "pegasus_mail_get",
+            "pegasus_mail_correct_classification",
+            "pegasus_mail_action",
+            "pegasus_mail_link_destinations",
+            "pegasus_mail_link_case"
+        ],
+        [JobsServer] =
+        [
+            "pegasus_ai_job_list",
+            "pegasus_ai_job_create",
+            "pegasus_ai_job_transition",
+            "pegasus_ai_job_complete_market_research"
+        ],
+        [SendServer] =
+        [
+            "pegasus_report_send",
+            "pegasus_mail_send"
+        ]
+    };
 
     [Fact]
     public async Task GateOffExposesNoAutomationSurface()
@@ -95,18 +122,18 @@ public sealed class AutomationMcpIngressTests
         using var client = factory.CreateClient();
 
         // With the composition gate off the automation routes must be absent:
-        // /mcp and /connect/token behave exactly like any unmapped route
-        // (no challenge, no OAuth error, no MCP response).
+        // a server path and /connect/token behave exactly like any unmapped
+        // route (no challenge, no OAuth error, no MCP response).
         using var unmappedBaseline = await client.PostAsync(
             "/no-such-route",
             new StringContent("{}", Encoding.UTF8, "application/json"));
         using var mcpResponse = await client.PostAsync(
-            "/mcp",
+            CasesServer,
             new StringContent("{}", Encoding.UTF8, "application/json"));
         Assert.Equal(unmappedBaseline.StatusCode, mcpResponse.StatusCode);
         Assert.Empty(mcpResponse.Headers.WwwAuthenticate);
 
-        using var mcpGetResponse = await client.GetAsync("/mcp");
+        using var mcpGetResponse = await client.GetAsync(CasesServer);
         Assert.Equal(HttpStatusCode.NotFound, mcpGetResponse.StatusCode);
 
         using var tokenResponse = await client.PostAsync(
@@ -121,7 +148,7 @@ public sealed class AutomationMcpIngressTests
         Assert.Empty(await tokenResponse.Content.ReadAsStringAsync());
 
         using var metadataResponse = await client.GetAsync(
-            "/.well-known/oauth-protected-resource/mcp");
+            "/.well-known/oauth-protected-resource/mcp/cases");
         Assert.Equal(HttpStatusCode.NotFound, metadataResponse.StatusCode);
     }
 
@@ -134,15 +161,14 @@ public sealed class AutomationMcpIngressTests
 
         // A staff browser identity is not a substitute for the Automation
         // actor: the DevelopmentOffline profile signs staff requests in
-        // automatically, yet /mcp still refuses the call without a bearer
-        // token and points at the RFC 9728 resource metadata.
-        using (var unauthenticated = await PostMcpAsync(client, accessToken: null, ToolsListPayload(1)))
+        // automatically, yet a server still refuses the call without a bearer
+        // token and points at its own RFC 9728 resource metadata.
+        using (var unauthenticated = await PostMcpAsync(client, CasesServer, accessToken: null, ToolsListPayload(1)))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
-            var challenge = string.Join(
-                " ",
-                unauthenticated.Headers.WwwAuthenticate.Select(value => value.ToString()));
-            Assert.Contains("resource_metadata", challenge, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(
+                "http://localhost/.well-known/oauth-protected-resource/mcp/cases",
+                ResourceMetadataUri(unauthenticated));
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -151,25 +177,39 @@ public sealed class AutomationMcpIngressTests
             WHERE ReasonCode = N'automation_access_denied' AND Outcome = N'Denied'
             """));
 
-        var metadata = await client.GetStringAsync("/.well-known/oauth-protected-resource/mcp");
-        Assert.Contains("automation.cases", metadata, StringComparison.Ordinal);
-        Assert.Contains("/mcp", metadata, StringComparison.Ordinal);
+        // Each server's document names the server and lists only its own scope.
+        foreach (var server in ExpectedTools.Keys)
+        {
+            using var metadata = JsonDocument.Parse(
+                await client.GetStringAsync("/.well-known/oauth-protected-resource" + server));
+            Assert.Equal("http://localhost" + server, metadata.RootElement.GetProperty("resource").GetString());
+            Assert.Equal(
+                "automation." + server["/mcp/".Length..],
+                Assert.Single(metadata.RootElement.GetProperty("scopes_supported").EnumerateArray()).GetString());
+        }
 
-        // The list holds only the token's scopes, so the whole inventory needs all seven.
+        // A content route's 401 names the document under the route's own path,
+        // which is the document of the server whose scope the route requires.
+        using (var content = JsonDocument.Parse(await client.GetStringAsync(
+            $"/.well-known/oauth-protected-resource/automation/documents/{Guid.NewGuid():D}/versions/{Guid.NewGuid():D}")))
+        {
+            Assert.Equal("http://localhost/mcp/documents", content.RootElement.GetProperty("resource").GetString());
+        }
+
+        // A token holding all seven scopes lists each server's own tools there.
         var accessToken = await RequestTokenAsync(client, string.Join(' ', AutomationMcp.Scopes));
-        using var toolsResponse = await PostMcpAsync(client, accessToken, ToolsListPayload(2));
-        Assert.Equal(HttpStatusCode.OK, toolsResponse.StatusCode);
+        var rpcId = 2;
+        foreach (var (server, expected) in ExpectedTools)
+        {
+            using var listResponse = await PostMcpAsync(client, server, accessToken, ToolsListPayload(rpcId++));
+            Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+            Assert.Equal(
+                expected.Order(StringComparer.Ordinal).ToArray(),
+                await ToolNamesAsync(listResponse));
+        }
+
+        using var toolsResponse = await PostMcpAsync(client, CasesServer, accessToken, ToolsListPayload(rpcId));
         using var toolsDocument = await ReadJsonRpcAsync(toolsResponse);
-        var toolNames = toolsDocument.RootElement
-            .GetProperty("result")
-            .GetProperty("tools")
-            .EnumerateArray()
-            .Select(tool => tool.GetProperty("name").GetString())
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
-        Assert.Equal(
-            ExpectedTools.OrderBy(name => name, StringComparer.Ordinal).ToArray(),
-            toolNames);
         var updateDetails = toolsDocument.RootElement
             .GetProperty("result")
             .GetProperty("tools")
@@ -197,10 +237,10 @@ public sealed class AutomationMcpIngressTests
             "pegasus_mail_list"
         ];
 
-        // The second list is served from the one built for the scope set.
+        // The second list is served from the one built for the server and scope set.
         foreach (var rpcId in new[] { 1, 2 })
         {
-            using var response = await PostMcpAsync(client, mailToken, ToolsListPayload(rpcId));
+            using var response = await PostMcpAsync(client, MailServer, mailToken, ToolsListPayload(rpcId));
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
             var result = document.RootElement.GetProperty("result");
@@ -212,6 +252,66 @@ public sealed class AutomationMcpIngressTests
                     .ToArray());
             Assert.Equal("private", result.GetProperty("cacheScope").GetString());
         }
+    }
+
+    [Fact]
+    public async Task EachServerListsOnlyItsOwnTools()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+        var accessToken = await RequestTokenAsync(client, string.Join(' ', AutomationMcp.Scopes));
+
+        // One host serves all seven servers. A client attaching one spends
+        // four requests of the shared 120 a minute: initialize, the
+        // initialized notification, tools/list and the stream GET (a 405).
+        // All seven attached within the minute spend 28.
+        var rpcId = 1;
+        foreach (var (server, expected) in ExpectedTools)
+        {
+            var row = Assert.Single(AutomationMcp.Servers, candidate => candidate.Path == server);
+            using (var initialize = await PostMcpAsync(client, server, accessToken, InitializePayload(rpcId++)))
+            {
+                Assert.Equal(HttpStatusCode.OK, initialize.StatusCode);
+                using var document = await ReadJsonRpcAsync(initialize);
+                var result = document.RootElement.GetProperty("result");
+                Assert.Equal(
+                    "pegasus-" + server["/mcp/".Length..],
+                    result.GetProperty("serverInfo").GetProperty("name").GetString());
+                Assert.Equal(row.Instructions, result.GetProperty("instructions").GetString());
+            }
+
+            using (var initialized = await PostMcpAsync(
+                client,
+                server,
+                accessToken,
+                JsonSerializer.Serialize(new { jsonrpc = "2.0", method = "notifications/initialized" })))
+            {
+                Assert.Equal(HttpStatusCode.Accepted, initialized.StatusCode);
+            }
+
+            using (var list = await PostMcpAsync(client, server, accessToken, ToolsListPayload(rpcId++)))
+            {
+                Assert.Equal(expected.Order(StringComparer.Ordinal).ToArray(), await ToolNamesAsync(list));
+            }
+
+            using var stream = new HttpRequestMessage(HttpMethod.Get, server);
+            stream.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            using var streamResponse = await client.SendAsync(stream);
+            Assert.Equal(HttpStatusCode.MethodNotAllowed, streamResponse.StatusCode);
+        }
+
+        // A tool of another server is an unknown tool here: a protocol error
+        // (invalid params), not a tool result.
+        using var foreign = await PostMcpAsync(
+            client,
+            CasesServer,
+            accessToken,
+            ToolCallPayload(rpcId, "pegasus_mail_list", new { }));
+        using var foreignDocument = await ReadJsonRpcAsync(foreign);
+        var error = foreignDocument.RootElement.GetProperty("error");
+        Assert.Equal(-32602, error.GetProperty("code").GetInt32());
+        Assert.Contains("pegasus_mail_list", error.GetProperty("message").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -232,7 +332,7 @@ public sealed class AutomationMcpIngressTests
         ];
         foreach (var method in methods)
         {
-            using var request = new HttpRequestMessage(method, "/mcp");
+            using var request = new HttpRequestMessage(method, MailServer);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             using var response = await client.SendAsync(request);
             Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
@@ -249,12 +349,11 @@ public sealed class AutomationMcpIngressTests
 
         // The same challenge and transport-denial row as an unauthenticated
         // POST, not the staff sign-in redirect.
-        using var response = await client.GetAsync("/mcp");
+        using var response = await client.GetAsync(MailServer);
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        var challenge = string.Join(
-            " ",
-            response.Headers.WwwAuthenticate.Select(value => value.ToString()));
-        Assert.Contains("resource_metadata", challenge, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(
+            "http://localhost/.well-known/oauth-protected-resource/mcp/mail",
+            ResourceMetadataUri(response));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
@@ -294,6 +393,7 @@ public sealed class AutomationMcpIngressTests
         var fullToken = await RequestTokenAsync(client, AllScopes);
         using (var response = await PostMcpAsync(
             client,
+            IntakeServer,
             fullToken,
             ToolCallPayload(3, "pegasus_intake_queue_list", new { limit = 10 })))
         {
@@ -324,6 +424,7 @@ public sealed class AutomationMcpIngressTests
         // refusal message is content-safe.
         using (var response = await PostMcpAsync(
             client,
+            CasesServer,
             fullToken,
             ToolCallPayload(
                 4,
@@ -346,20 +447,40 @@ public sealed class AutomationMcpIngressTests
               AND Outcome = N'Failed'
             """));
 
-        // Out-of-scope: a token holding only automation.cases cannot invoke
-        // an intake tool; the denial writes an attributable security event.
+        // Out-of-scope: the intake server refuses a token holding only
+        // automation.cases before any tool runs (ADR-0080 decision 4).
         var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
         using (var response = await PostMcpAsync(
             client,
+            IntakeServer,
             casesOnlyToken,
             ToolCallPayload(5, "pegasus_intake_queue_list", new { limit = 10 })))
         {
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        Assert.Equal(1, await CountServerRefusalsAsync(factory));
+
+        // The tool still gates its own call: on the cases server an edit-lease
+        // tool for a Triage record needs automation.intake, and the refusal
+        // names it and writes an attributable security event.
+        using (var response = await PostMcpAsync(
+            client,
+            CasesServer,
+            casesOnlyToken,
+            ToolCallPayload(
+                9,
+                "pegasus_edit_begin",
+                new
+                {
+                    recordKind = "Triage",
+                    recordId = Guid.NewGuid(),
+                    expectedVersion = 0,
+                    operationKey = "mcp:triage-lease-scope"
+                })))
+        {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            using var document = await ReadJsonRpcAsync(response);
-            Assert.Contains(
-                "automation.intake",
-                document.RootElement.ToString(),
-                StringComparison.Ordinal);
+            Assert.Contains("automation.intake", await ReadErrorTextAsync(response), StringComparison.Ordinal);
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -382,6 +503,7 @@ public sealed class AutomationMcpIngressTests
 
         using var response = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(6, "pegasus_case_get", new { caseId, limit = 1 }));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -415,6 +537,7 @@ public sealed class AutomationMcpIngressTests
         var accessToken = await RequestTokenAsync(client, AllScopes);
         using (var response = await PostMcpAsync(
             client,
+            IntakeServer,
             accessToken,
             ToolCallPayload(6, "pegasus_intake_queue_list", new { limit = 10 })))
         {
@@ -447,6 +570,7 @@ public sealed class AutomationMcpIngressTests
 
         using (var response = await PostMcpAsync(
             client,
+            IntakeServer,
             accessToken,
             ToolCallPayload(7, "pegasus_intake_queue_list", new { limit = 10 })))
         {
@@ -521,6 +645,7 @@ public sealed class AutomationMcpIngressTests
         var restoredToken = await RequestTokenAsync(client, AllScopes);
         using (var response = await PostMcpAsync(
             client,
+            IntakeServer,
             restoredToken,
             ToolCallPayload(8, "pegasus_intake_queue_list", new { limit = 10 })))
         {
@@ -559,6 +684,7 @@ public sealed class AutomationMcpIngressTests
         // control calls, and the tool returns the begin-shaped result.
         using (var response = await PostMcpAsync(
             client,
+            CasesServer,
             accessToken,
             ToolCallPayload(
                 20,
@@ -593,6 +719,7 @@ public sealed class AutomationMcpIngressTests
         // and the version the case now stands at, with no token disclosed.
         using (var response = await PostMcpAsync(
             client,
+            CasesServer,
             accessToken,
             ToolCallPayload(
                 21,
@@ -653,6 +780,7 @@ public sealed class AutomationMcpIngressTests
         // refused and the version the case now stands at, with no token.
         using (var response = await PostMcpAsync(
             client,
+            DocumentsServer,
             accessToken,
             ToolCallPayload(
                 30,
@@ -684,6 +812,39 @@ public sealed class AutomationMcpIngressTests
               AND EventKind = N'pegasus_document_add'
               AND Outcome = N'Failed'
             """));
+    }
+
+    private static string InitializePayload(int id) =>
+        JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id,
+            method = "initialize",
+            @params = new
+            {
+                protocolVersion = "2025-06-18",
+                capabilities = new { },
+                clientInfo = new { name = "pegasus-integration-test", version = "1" }
+            }
+        });
+
+    private static async Task<string[]> ToolNamesAsync(HttpResponseMessage response)
+    {
+        using var document = await ReadJsonRpcAsync(response);
+        return [.. document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
+            .Select(tool => tool.GetProperty("name").GetString()!)
+            .Order(StringComparer.Ordinal)];
+    }
+
+    /// <summary>The RFC 9728 document a 401 names in its bearer challenge.</summary>
+    private static string ResourceMetadataUri(HttpResponseMessage response)
+    {
+        var challenge = string.Join(" ", response.Headers.WwwAuthenticate.Select(value => value.ToString()));
+        const string marker = "resource_metadata=\"";
+        var start = challenge.IndexOf(marker, StringComparison.Ordinal);
+        Assert.True(start >= 0, challenge);
+        start += marker.Length;
+        return challenge[start..challenge.IndexOf('"', start)];
     }
 
     /// <summary>

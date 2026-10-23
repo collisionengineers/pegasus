@@ -87,16 +87,15 @@ public sealed class AutomationAssessmentIngressTests
             caseId, expectedVersion = version, editLeaseToken = leaseToken, operationKey = key,
             name = "Glass's 1", occurrenceId = occurrence, documentVersionId = versionId, sha256 = sha
         };
-        using (var wrongScope = await PostMcpAsync(client, await RequestTokenAsync(client, "automation.cases"),
+        using (var wrongScope = await PostMcpAsync(client, AssessmentServer, await RequestTokenAsync(client, "automation.cases"),
             ToolCallPayload(81, "pegasus_estimate_import", Arguments(0, lease.LeaseToken, occurrenceId, hash, "mcp:wrong-scope"))))
         {
-            using var refusal = await ReadJsonRpcAsync(wrongScope);
-            Assert.Contains("error", refusal.RootElement.ToString(), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(HttpStatusCode.Forbidden, wrongScope.StatusCode);
         }
         // Review is assessment-writable since the 17 September ruling; the
         // read-only refusal is exercised from Held, then the Case returns to Review.
         await SetWorkflowStateAsync(mcpFactory.Services, caseId, CaseLifecycleState.Held);
-        using (var beforeHandoff = await PostMcpAsync(client, token, ToolCallPayload(86, "pegasus_estimate_import",
+        using (var beforeHandoff = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(86, "pegasus_estimate_import",
             Arguments(0, lease.LeaseToken, occurrenceId, hash, "mcp:before-handoff"))))
         {
             using var refusal = await ReadJsonRpcAsync(beforeHandoff);
@@ -147,19 +146,19 @@ public sealed class AutomationAssessmentIngressTests
             Arguments(1, lease.LeaseToken, occurrenceId, new string('a', 64), "mcp:wrong-hash")
         })
         {
-            using var refused = await PostMcpAsync(client, token, ToolCallPayload(82, "pegasus_estimate_import", arguments));
+            using var refused = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(82, "pegasus_estimate_import", arguments));
             using var refusal = await ReadJsonRpcAsync(refused);
             Assert.Contains("error", refusal.RootElement.ToString(), StringComparison.OrdinalIgnoreCase);
         }
         Assert.Equal(0, content.Reads);
         Guid importedId;
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(83, "pegasus_estimate_import",
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(83, "pegasus_estimate_import",
             Arguments(1, lease.LeaseToken, occurrenceId, hash, "mcp:canonical-import"))))
         {
             importedId = (await ReadStructuredContentAsync(response)).GetProperty("estimateId").GetGuid();
         }
         Assert.Equal(1, content.Reads);
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(85, "pegasus_estimate_import",
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(85, "pegasus_estimate_import",
             Arguments(2, lease.LeaseToken, occurrenceId, hash, "mcp:canonical-import-replay"))))
             Assert.Equal(importedId, (await ReadStructuredContentAsync(response)).GetProperty("estimateId").GetGuid());
         Assert.Equal(1, content.Reads);
@@ -186,7 +185,7 @@ public sealed class AutomationAssessmentIngressTests
         // edit naming every line's lineId keeps the estimate's route and each line's source
         // evidence.
         object[] keptLines;
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(88, "pegasus_estimate_get",
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(88, "pegasus_estimate_get",
             new { caseId, estimateId = importedId })))
         {
             keptLines = (await ReadStructuredContentAsync(response))
@@ -199,7 +198,7 @@ public sealed class AutomationAssessmentIngressTests
                 .ToArray();
         }
         Assert.Equal(14, keptLines.Length);
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(89, "pegasus_estimate_save", new
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(89, "pegasus_estimate_save", new
         {
             caseId,
             expectedVersion = 2,
@@ -254,7 +253,7 @@ public sealed class AutomationAssessmentIngressTests
         var versionId = Guid.NewGuid();
         const string hash = "D4A5AA6B20AE98EE062CC5852A1B1A447B3DA98B0D468DD7E3360A5CC3D2A72C";
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(
             80, "pegasus_estimate_import", new
             {
                 caseId,
@@ -291,7 +290,7 @@ public sealed class AutomationAssessmentIngressTests
         var token = await RequestTokenAsync(client, AllScopes);
         var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 40);
 
-        using var response = await PostMcpAsync(client, token, ToolCallPayload(41,
+        using var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(41,
             "pegasus_assessment_update", new
             {
                 caseId,
@@ -308,7 +307,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
 
-        using var estimateResponse = await PostMcpAsync(client, token, ToolCallPayload(42,
+        using var estimateResponse = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(42,
             "pegasus_assessment_update", new
             {
                 caseId,
@@ -326,7 +325,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE WorkId = '{caseId:D}'"));
 
-        using var rateResponse = await PostMcpAsync(client, token, ToolCallPayload(43,
+        using var rateResponse = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(43,
             "pegasus_assessment_update", new
             {
                 caseId,
@@ -339,7 +338,7 @@ public sealed class AutomationAssessmentIngressTests
         using var rateDocument = await ReadJsonRpcAsync(rateResponse);
         Assert.Contains("no staff editor on the Case", rateDocument.RootElement.ToString(), StringComparison.Ordinal);
 
-        using var signatoryResponse = await PostMcpAsync(client, token, ToolCallPayload(45,
+        using var signatoryResponse = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(45,
             "pegasus_assessment_update", new
             {
                 caseId,
@@ -375,7 +374,7 @@ public sealed class AutomationAssessmentIngressTests
         var rpcId = 51;
         foreach (var (path, value, refusal) in refusals)
         {
-            using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId++,
+            using var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(rpcId++,
                 "pegasus_assessment_update", new
                 {
                     caseId,
@@ -394,7 +393,7 @@ public sealed class AutomationAssessmentIngressTests
 
         // The Inspection section records the recovery charge, so automation
         // may write it, attributed to the Automation actor.
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId,
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(rpcId,
             "pegasus_assessment_update", new
             {
                 caseId,
@@ -431,7 +430,7 @@ public sealed class AutomationAssessmentIngressTests
             [AssessmentVocabulary.SalvageValue] = "450",
             [AssessmentVocabulary.ValueEngineer] = "9500"
         };
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId + 1,
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(rpcId + 1,
             "pegasus_assessment_update", new
             {
                 caseId,
@@ -465,25 +464,14 @@ public sealed class AutomationAssessmentIngressTests
         var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
         using var response = await PostMcpAsync(
             client,
+            AssessmentServer,
             casesOnlyToken,
             ToolCallPayload(
                 1,
                 "pegasus_assessment_get",
                 new { caseId = Guid.NewGuid() }));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = await ReadJsonRpcAsync(response);
-        Assert.Contains(
-            "automation.assessment",
-            document.RootElement.ToString(),
-            StringComparison.Ordinal);
-
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'automation_scope_denied'
-              AND Outcome = N'Denied'
-              AND SubjectId = N'pegasus-automation'
-            """));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(1, await CountServerRefusalsAsync(factory));
     }
 
     [Fact]
@@ -500,6 +488,7 @@ public sealed class AutomationAssessmentIngressTests
         string leaseToken;
         using (var leaseResponse = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 2,
@@ -523,6 +512,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using (var updateResponse = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 3,
@@ -585,6 +575,7 @@ public sealed class AutomationAssessmentIngressTests
         // A replayed operation key returns the original result.
         using (var replayResponse = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 4,
@@ -614,6 +605,7 @@ public sealed class AutomationAssessmentIngressTests
         // The read-back tool exposes the recorded surface with readiness.
         using (var getResponse = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(5, "pegasus_assessment_get", new { caseId })))
         {
@@ -637,6 +629,7 @@ public sealed class AutomationAssessmentIngressTests
         var detailsLease = (CaseVersion: caseVersion + 1, LeaseToken: leaseToken);
         using (var detailsResponse = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 6,
@@ -655,6 +648,7 @@ public sealed class AutomationAssessmentIngressTests
         }
         using (var getResponse = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(7, "pegasus_assessment_get", new { caseId })))
         {
@@ -673,11 +667,12 @@ public sealed class AutomationAssessmentIngressTests
         using var client = mcpFactory.CreateClient();
 
         // pegasus_case_update_details sits under automation.cases, not
-        // automation.assessment: a token scoped only for the assessment
-        // tranche is refused before the case is even read.
+        // automation.assessment: the cases server refuses a token scoped only
+        // for the assessment tranche before the case is even read.
         var assessmentOnlyToken = await RequestTokenAsync(client, "automation.assessment");
         using var response = await PostMcpAsync(
             client,
+            CasesServer,
             assessmentOnlyToken,
             ToolCallPayload(
                 9,
@@ -690,20 +685,8 @@ public sealed class AutomationAssessmentIngressTests
                     operationKey = "mcp:case-details-scope",
                     reason = "Automation scope probe."
                 }));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = await ReadJsonRpcAsync(response);
-        Assert.Contains(
-            "automation.cases",
-            document.RootElement.ToString(),
-            StringComparison.Ordinal);
-
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'automation_scope_denied'
-              AND Outcome = N'Denied'
-              AND SubjectId = N'pegasus-automation'
-            """));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(1, await CountServerRefusalsAsync(factory));
     }
 
     [Fact]
@@ -720,6 +703,7 @@ public sealed class AutomationAssessmentIngressTests
         string leaseToken;
         using (var leaseResponse = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 10,
@@ -745,6 +729,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using (var updateResponse = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 11,
@@ -815,6 +800,7 @@ public sealed class AutomationAssessmentIngressTests
         // A replayed operation key returns the original result rather than re-saving.
         using (var replayResponse = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 12,
@@ -864,6 +850,7 @@ public sealed class AutomationAssessmentIngressTests
 
         await AssertRefusedByAnotherHolderAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 31,
@@ -871,6 +858,7 @@ public sealed class AutomationAssessmentIngressTests
                 new { recordKind = "Case", recordId = caseId, expectedVersion = 0, operationKey = "mcp:staff-holds-begin" }));
         await AssertRefusedByAnotherHolderAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 32,
@@ -886,6 +874,7 @@ public sealed class AutomationAssessmentIngressTests
                 }));
         await AssertRefusedByAnotherHolderAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 33,
@@ -936,6 +925,7 @@ public sealed class AutomationAssessmentIngressTests
 
         await AssertRefusedByAnotherHolderAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 35,
@@ -949,6 +939,7 @@ public sealed class AutomationAssessmentIngressTests
         string automationToken;
         using (var response = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 36,
@@ -974,6 +965,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using (var write = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 37,
@@ -1039,6 +1031,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using (var endResponse = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 42,
@@ -1078,6 +1071,7 @@ public sealed class AutomationAssessmentIngressTests
 
         await AssertRefusedByAnotherHolderAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 44,
@@ -1137,10 +1131,11 @@ public sealed class AutomationAssessmentIngressTests
 
     private static async Task AssertRefusedByAnotherHolderAsync(
         HttpClient client,
+        string server,
         string token,
         string payload)
     {
-        using var response = await PostMcpAsync(client, token, payload);
+        using var response = await PostMcpAsync(client, server, token, payload);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = await ReadJsonRpcAsync(response);
         Assert.Contains(
@@ -1167,6 +1162,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using (var response = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 13,
@@ -1206,6 +1202,7 @@ public sealed class AutomationAssessmentIngressTests
         _ = await ClaimAsStaffAsync(mcpFactory, caseId, staff, currentVersion);
         await AssertRefusedByAnotherHolderAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 14,
@@ -1287,6 +1284,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using (var empty = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 15,
@@ -1300,6 +1298,7 @@ public sealed class AutomationAssessmentIngressTests
         }
         using (var response = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 16,
@@ -1346,12 +1345,12 @@ public sealed class AutomationAssessmentIngressTests
             note = "Chased the repairer for the estimate."
         };
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(17, "pegasus_case_note_add", note)))
+        using (var response = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(17, "pegasus_case_note_add", note)))
         {
             var structured = await ReadStructuredContentAsync(response);
             Assert.Equal("mcp:note-1", structured.GetProperty("correlationId").GetString());
         }
-        using (var replay = await PostMcpAsync(client, token, ToolCallPayload(18, "pegasus_case_note_add", note)))
+        using (var replay = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(18, "pegasus_case_note_add", note)))
         {
             _ = await ReadStructuredContentAsync(replay);
         }
@@ -1421,6 +1420,7 @@ public sealed class AutomationAssessmentIngressTests
         // A cited job that does not exist is refused before anything is written.
         using (var refused = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 11,
@@ -1447,6 +1447,7 @@ public sealed class AutomationAssessmentIngressTests
         Guid estimateId;
         using (var response = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 12,
@@ -1532,6 +1533,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using (var response = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(13, "pegasus_estimate_list", new { caseId, limit = 1 })))
         {
@@ -1550,6 +1552,7 @@ public sealed class AutomationAssessmentIngressTests
         // save above kept its lease, so this one presents the same token.
         using (var response = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 14,
@@ -1589,6 +1592,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using var response = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 20,
@@ -1783,6 +1787,7 @@ public sealed class AutomationAssessmentIngressTests
         Guid lineId;
         using (var response = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(21, "pegasus_estimate_get", new { caseId, estimateId })))
         {
@@ -1792,6 +1797,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using (var response = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 22,
@@ -1845,7 +1851,7 @@ public sealed class AutomationAssessmentIngressTests
         var token = await RequestTokenAsync(client, AllScopes);
         var (version, leaseToken) = await BeginEditAsync(client, token, caseId, 0, 2);
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_case_update_details", new
+        using (var response = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(3, "pegasus_case_update_details", new
         {
             caseId,
             expectedVersion = version,
@@ -1860,7 +1866,7 @@ public sealed class AutomationAssessmentIngressTests
             version = (await ReadStructuredContentAsync(response)).GetProperty("caseVersion").GetInt64();
         }
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_assessment_update", new
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(4, "pegasus_assessment_update", new
         {
             caseId,
             expectedVersion = version,
@@ -1877,7 +1883,7 @@ public sealed class AutomationAssessmentIngressTests
             version = (await ReadStructuredContentAsync(response)).GetProperty("caseVersion").GetInt64();
         }
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_valuation_get", new
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(5, "pegasus_valuation_get", new
         {
             caseId,
             expectedVersion = version,
@@ -1906,7 +1912,7 @@ public sealed class AutomationAssessmentIngressTests
             "Automation",
             await factory.Database.ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(6, "pegasus_edit_end", new
+        using (var response = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(6, "pegasus_edit_end", new
         {
             recordKind = "Case",
             recordId = caseId,
@@ -1919,7 +1925,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(7, "pegasus_edit_end", new
+        using (var response = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(7, "pegasus_edit_end", new
         {
             recordKind = "Case",
             recordId = caseId,
@@ -1944,7 +1950,7 @@ public sealed class AutomationAssessmentIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_valuation_get", new
+        using (var response = await PostMcpAsync(client, AssessmentServer, token, ToolCallPayload(2, "pegasus_valuation_get", new
         {
             caseId,
             expectedVersion = 0,

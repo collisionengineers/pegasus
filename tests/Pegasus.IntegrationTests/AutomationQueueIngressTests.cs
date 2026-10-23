@@ -1,3 +1,4 @@
+using System.Net;
 using Pegasus.Core.Cases;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
@@ -30,7 +31,7 @@ public sealed class AutomationQueueIngressTests
         var token = await RequestTokenAsync(client, "automation.intake");
 
         long version;
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_intake_get", new { receiptId = receipt.Id })))
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(1, "pegasus_intake_get", new { receiptId = receipt.Id })))
         {
             var detail = await ReadStructuredContentAsync(response);
             Assert.Equal("case_created", detail.GetProperty("decision").GetString());
@@ -45,7 +46,7 @@ public sealed class AutomationQueueIngressTests
         // (resolve_inspection_address): accept refuses and writes nothing.
         await factory.Database.ExecuteAsync(
             $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.PhysicalAddressCode}' WHERE Code = N'{QdosPrincipal.Code}'");
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_action", new
+        using (var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(2, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
             action = "accept",
@@ -59,7 +60,7 @@ public sealed class AutomationQueueIngressTests
         }
 
         // allocate takes no draft field: it retries the recorded command.
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_intake_action", new
+        using (var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(3, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
             action = "allocate",
@@ -78,7 +79,7 @@ public sealed class AutomationQueueIngressTests
             $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.ImageBasedAssessmentCode}' WHERE Code = N'{QdosPrincipal.Code}'");
 
         // The identity-critical facts are refused by name while missing.
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_intake_action", new
+        using (var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(4, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
             action = "accept",
@@ -90,7 +91,7 @@ public sealed class AutomationQueueIngressTests
         }
 
         Guid caseId;
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_intake_action", new
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(5, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
             action = "accept",
@@ -106,7 +107,7 @@ public sealed class AutomationQueueIngressTests
             Assert.False(string.IsNullOrWhiteSpace(accepted.GetProperty("caseReference").GetString()));
         }
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(6, "pegasus_intake_get", new { receiptId = receipt.Id })))
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(6, "pegasus_intake_get", new { receiptId = receipt.Id })))
         {
             var detail = await ReadStructuredContentAsync(response);
             Assert.Equal(caseId, detail.GetProperty("caseId").GetGuid());
@@ -144,7 +145,7 @@ public sealed class AutomationQueueIngressTests
         var token = await RequestTokenAsync(client, "automation.intake");
 
         long version;
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_intake_get", new { receiptId = receipt.Id })))
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(1, "pegasus_intake_get", new { receiptId = receipt.Id })))
         {
             var detail = await ReadStructuredContentAsync(response);
             Assert.Equal("Unresolved", detail.GetProperty("inspectionAddressState").GetString());
@@ -154,7 +155,7 @@ public sealed class AutomationQueueIngressTests
         // Nothing was suggested, so the address is supplied: without one, or
         // with a fingerprint for a suggestion that does not exist, nothing is
         // written.
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_action", new
+        using (var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(2, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
             action = "resolve_inspection_address",
@@ -164,7 +165,7 @@ public sealed class AutomationQueueIngressTests
         {
             Assert.Contains("give inspectionAddress", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_intake_action", new
+        using (var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(3, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
             action = "resolve_inspection_address",
@@ -176,7 +177,7 @@ public sealed class AutomationQueueIngressTests
         {
             Assert.Contains("no addressSuggestionFingerprint", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_intake_action", new
+        using (var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(4, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
             action = "accept",
@@ -189,7 +190,7 @@ public sealed class AutomationQueueIngressTests
         }
 
         long settledVersion;
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_intake_action", new
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(5, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
             action = "resolve_inspection_address",
@@ -205,7 +206,7 @@ public sealed class AutomationQueueIngressTests
             Assert.Equal(version + 1, settledVersion);
         }
 
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(6, "pegasus_intake_get", new { receiptId = receipt.Id })))
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(6, "pegasus_intake_get", new { receiptId = receipt.Id })))
         {
             var detail = await ReadStructuredContentAsync(response);
             Assert.Equal("Supplied", detail.GetProperty("inspectionAddressState").GetString());
@@ -224,7 +225,7 @@ public sealed class AutomationQueueIngressTests
             """));
 
         Guid caseId;
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(7, "pegasus_intake_action", new
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(7, "pegasus_intake_action", new
         {
             receiptId = receipt.Id,
             action = "accept",
@@ -268,7 +269,7 @@ public sealed class AutomationQueueIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, "automation.intake");
 
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_case_create", new
+        using (var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(1, "pegasus_case_create", new
         {
             principalCode = QdosPrincipal.Code,
             caseType = "Audit",
@@ -279,7 +280,7 @@ public sealed class AutomationQueueIngressTests
             Assert.Contains("Inspection, InspectionAndAudit or Triage", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_case_create", new
+        using (var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(2, "pegasus_case_create", new
         {
             principalCode = QdosPrincipal.Code,
             caseType = "Triage",
@@ -292,7 +293,7 @@ public sealed class AutomationQueueIngressTests
         }
 
         Guid caseId;
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_case_create", new
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(3, "pegasus_case_create", new
         {
             principalCode = QdosPrincipal.Code,
             caseType = "Triage",
@@ -306,7 +307,7 @@ public sealed class AutomationQueueIngressTests
         }
 
         // A replay of the same key and facts returns the same Case.
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_case_create", new
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(4, "pegasus_case_create", new
         {
             principalCode = QdosPrincipal.Code,
             caseType = "Triage",
@@ -435,17 +436,17 @@ public sealed class AutomationQueueIngressTests
         var recordId = Guid.NewGuid();
 
         var intakeOnly = await RequestTokenAsync(client, "automation.intake");
-        using (var denied = await PostMcpAsync(client, intakeOnly, ToolCallPayload(1, "pegasus_work_centre_dismiss", new
+        using (var denied = await PostMcpAsync(client, CasesServer, intakeOnly, ToolCallPayload(1, "pegasus_work_centre_dismiss", new
         {
             recordId,
             operationKey = "mcp:dismiss-scope"
         })))
         {
-            Assert.Contains("automation.cases", await ReadErrorTextAsync(denied), StringComparison.Ordinal);
+            Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
         }
 
         var token = await RequestTokenAsync(client, "automation.cases");
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_work_centre_dismiss", new
+        using (var response = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(2, "pegasus_work_centre_dismiss", new
         {
             recordId,
             operationKey = "mcp:dismiss-1"
@@ -489,8 +490,8 @@ public sealed class AutomationQueueIngressTests
         };
         foreach (var payload in payloads)
         {
-            using var response = await PostMcpAsync(client, casesOnly, payload);
-            Assert.Contains("automation.intake", await ReadErrorTextAsync(response), StringComparison.Ordinal);
+            using var response = await PostMcpAsync(client, IntakeServer, casesOnly, payload);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
     }
 }
