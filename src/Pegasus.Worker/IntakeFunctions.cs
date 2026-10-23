@@ -673,9 +673,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
                     cancellationToken);
                 if (swept.Deleted > 0 || swept.Failures > 0)
                 {
+                    var sweepLevel = FailureLevel(swept.Failures);
                     LogAbandonedDocumentUploadSweep(
                         logger,
-                        FailureLevel(swept.Failures),
+                        sweepLevel,
                         swept.Deleted,
                         swept.Failures);
                 }
