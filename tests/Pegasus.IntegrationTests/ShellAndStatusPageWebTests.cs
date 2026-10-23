@@ -342,7 +342,7 @@ public sealed class ShellAndStatusPageWebTests
         Assert.Contains("aria-label=\"Notifications\"", html, StringComparison.Ordinal);
         // The page carries the count only: the list is asked for when the bell opens.
         Assert.Contains("data-notifications-url=\"/Notifications?handler=List\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">No notifications<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{OperatorLabels.Shell.NoNotifications}<", html, StringComparison.Ordinal);
         Assert.Equal(1, notifications.CountCalls);
         Assert.Equal(0, notifications.ListCalls);
 
@@ -402,7 +402,7 @@ public sealed class ShellAndStatusPageWebTests
         Assert.Contains(">Assigned to you<", listHtml, StringComparison.Ordinal);
         Assert.Contains(">Query received<", listHtml, StringComparison.Ordinal);
         Assert.Contains("MA59BDY", listHtml, StringComparison.Ordinal);
-        Assert.Contains(">Unread<", listHtml, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Shell.Unread}<", listHtml, StringComparison.Ordinal);
         Assert.Contains($"data-notification=\"{unreadEstimate.Id:D}\"", listHtml, StringComparison.Ordinal);
         Assert.Contains("row-button row-button--unread", listHtml, StringComparison.Ordinal);
         Assert.Contains("name=\"returnUrl\" value=\"/Search?query=abc\"", listHtml, StringComparison.Ordinal);
@@ -518,6 +518,26 @@ public sealed class ShellAndStatusPageWebTests
         Assert.DoesNotContain(nameof(InvalidOperationException), html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The bell's list handler fails as the page's own bell read does: the
+    /// request answers 200 with the dialog's unavailable wording, nothing of
+    /// the fault, and no unhandled exception.
+    /// </summary>
+    [Fact]
+    public async Task AFailedBellListAnswersTheUnavailableStateAndNotAnError()
+    {
+        using var host = FactoryWith(new UnavailableNotifications());
+        using var client = host.CreateClient();
+
+        using var response = await client.GetAsync("/Notifications?handler=List&returnUrl=%2FSearch");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(OperatorLabels.Shell.NotificationsUnavailable, html, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Shell.NoNotifications, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("sensitive store failure", html, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("bell")]
     [InlineData("release note")]
@@ -619,6 +639,7 @@ public sealed class ShellAndStatusPageWebTests
     [InlineData("named-get-page", "GET", "Section", false, "page", "handler,bell")]
     [InlineData("named-get-redirect", "GET", "Section", false, "redirect", "handler")]
     [InlineData("shell-free-get", "GET", null, true, "redirect", "handler")]
+    [InlineData("shell-free-get-page", "GET", null, true, "page", "handler")]
     [InlineData("shell-free-post", "POST", "Open", true, "redirect", "handler")]
     public async Task OnlyAnUnnamedGetStartsTheShellReadsBeforeTheHandler(
         string name, string method, string? handlerName, bool shellFree, string result, string expectedOrder)
@@ -639,8 +660,11 @@ public sealed class ShellAndStatusPageWebTests
             method, CancellationToken.None);
 
         Assert.True(expectedOrder == string.Join(",", events), $"{name}: the handler and the bell ran as {string.Join(",", events)}.");
-        // A page result is given the count; a redirect is given nothing and its reads were drained.
-        Assert.Equal(result == "page", page.ViewData.ContainsKey("NotificationsUnread"));
+        // A page result is given the count; a redirect is given nothing and its reads were drained;
+        // a shell-free GET reads nothing even when it returns a page.
+        Assert.Equal(
+            result == "page" && !(shellFree && handlerName is null),
+            page.ViewData.ContainsKey("NotificationsUnread"));
     }
 
     [Fact]

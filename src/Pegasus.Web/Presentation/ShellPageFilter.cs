@@ -30,9 +30,10 @@ namespace Pegasus.Web.Presentation;
 /// shared page <c>ViewData</c>. It gives a <see cref="PageResult"/> the data,
 /// including an invalid form that returns its page with validation errors.
 /// Every unnamed GET handler starts the reads before the handler and awaits
-/// them when the page renders (operator rulings, 10 and 22 Oct 2026), except a
-/// page marked <see cref="IShellFreeGet"/>, whose GET is a redirect, a file or a
-/// page with no layout. Other results drain the reads unused. Named handlers
+/// them when the page renders (operator rulings, 10 and 22 Oct 2026). A page
+/// marked <see cref="IShellFreeGet"/> reads nothing on its unnamed GET, which
+/// is a redirect, a file, a refusal or a page that never draws the shell.
+/// Other results drain the reads unused. Named handlers
 /// (heartbeats, polls, lazy section partials) and every POST never pre-read
 /// and read after their result only if it is a page, so a POST's figures are
 /// never read ahead of what it changes.
@@ -66,7 +67,9 @@ public sealed partial class ShellPageFilter(
         // reads no figure the shell needs first (no GET writes the bell or the
         // release note), so its shell reads start before the handler and run
         // beside it.
-        var early = authenticated && IsFullPageGet(context)
+        var unnamedGet = IsUnnamedGet(context);
+        var shellFree = unnamedGet && context.HandlerInstance is IShellFreeGet;
+        var early = authenticated && unnamedGet && !shellFree
             ? StartShellReads(context.HttpContext, actor!)
             : null;
         PageHandlerExecutedContext result;
@@ -82,6 +85,7 @@ public sealed partial class ShellPageFilter(
 
         if (result.Result is PageResult
             && authenticated
+            && !shellFree
             && context.HandlerInstance is PageModel pageModel)
         {
             var shell = early ?? StartShellReads(context.HttpContext, actor!);
@@ -116,16 +120,13 @@ public sealed partial class ShellPageFilter(
 
     /// <summary>
     /// A page's unnamed GET handler, the full page, or a GET to a page with no
-    /// handler at all, which renders. Its sections, refreshes, polls and every
-    /// POST are other handlers and keep reading the shell after their result,
-    /// as does a page whose GET never renders the shell
-    /// (<see cref="IShellFreeGet"/>).
+    /// handler at all. Its sections, refreshes, polls and every POST are other
+    /// handlers and keep reading the shell after their result.
     /// </summary>
-    private static bool IsFullPageGet(PageHandlerExecutingContext context) =>
-        context.HandlerInstance is not IShellFreeGet
-        && (context.HandlerMethod is null
+    private static bool IsUnnamedGet(PageHandlerExecutingContext context) =>
+        context.HandlerMethod is null
             ? HttpMethods.IsGet(context.HttpContext.Request.Method)
-            : context.HandlerMethod is { Name: null or "" } handler && HttpMethods.IsGet(handler.HttpMethod));
+            : context.HandlerMethod is { Name: null or "" } handler && HttpMethods.IsGet(handler.HttpMethod);
 
     /// <summary>
     /// The bell and the release note share nothing and each reads on its own
@@ -219,12 +220,12 @@ public sealed partial class ShellPageFilter(
     /// SqlClient reports in its own wording once the request has been aborted
     /// (<see cref="ClientAbort"/>): that is the caller leaving, not a fault.
     /// </summary>
-    private static bool IsUnavailable(Exception exception, CancellationToken cancellationToken) =>
+    internal static bool IsUnavailable(Exception exception, CancellationToken cancellationToken) =>
         exception is not (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException)
         && !(cancellationToken.IsCancellationRequested && ClientAbort.IsCancellation(exception));
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The notification query is unavailable.")]
-    private static partial void LogNotificationsUnavailable(
+    internal static partial void LogNotificationsUnavailable(
         ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The release note query is unavailable.")]

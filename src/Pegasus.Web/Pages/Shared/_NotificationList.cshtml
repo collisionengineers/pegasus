@@ -6,7 +6,11 @@
     it when the bell opens.
 *@
 @model NotificationListView
-@if (Model.Rows is { Count: > 0 })
+@if (Model.Unavailable)
+{
+    <p class="empty-state" role="status">@OperatorLabels.Shell.NotificationsUnavailable</p>
+}
+else if (Model.Rows is { Count: > 0 })
 {
     <div class="row-list" data-row-list data-notification-list>
         @foreach (var notification in Model.Rows)

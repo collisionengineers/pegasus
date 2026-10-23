@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Notifications;
 using Pegasus.Web.Presentation;
 
@@ -14,7 +15,8 @@ namespace Pegasus.Web.Pages;
 [Authorize]
 public sealed class NotificationsModel(
     IMyStaffNotifications notifications,
-    TimeProvider timeProvider) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
+    TimeProvider timeProvider,
+    ILogger<NotificationsModel> logger) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     private readonly IMyStaffNotifications _notifications =
         notifications ?? throw new ArgumentNullException(nameof(notifications));
@@ -24,6 +26,8 @@ public sealed class NotificationsModel(
     /// <summary>
     /// The bell's list, fetched when the dialog opens (the page carries only
     /// the unread count). The rows' forms return to the page the dialog is on.
+    /// A failed read is logged, timed as <c>web.shell.notifications</c> and
+    /// answers the dialog's unavailable state, as the page's own read does.
     /// </summary>
     public async Task<IActionResult> OnGetListAsync(string? returnUrl, CancellationToken cancellationToken)
     {
@@ -32,8 +36,18 @@ public sealed class NotificationsModel(
             return Forbid();
         }
 
-        var rows = await _notifications.ListAsync(actor, cancellationToken);
-        return Partial("_NotificationList", new NotificationListView(rows, SafeReturnUrl(returnUrl), timeProvider.GetUtcNow()));
+        var safeReturnUrl = SafeReturnUrl(returnUrl);
+        try
+        {
+            using var timing = DocumentReadTelemetry.Start("web.shell.notifications");
+            var rows = await _notifications.ListAsync(actor, cancellationToken);
+            return Partial("_NotificationList", new NotificationListView(rows, safeReturnUrl, timeProvider.GetUtcNow()));
+        }
+        catch (Exception exception) when (ShellPageFilter.IsUnavailable(exception, cancellationToken))
+        {
+            ShellPageFilter.LogNotificationsUnavailable(logger, exception);
+            return Partial("_NotificationList", new NotificationListView([], safeReturnUrl, timeProvider.GetUtcNow(), Unavailable: true));
+        }
     }
 
     public async Task<IActionResult> OnPostOpenAsync(Guid id, string? returnUrl, CancellationToken cancellationToken)
