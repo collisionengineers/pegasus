@@ -544,10 +544,12 @@ public sealed class ImageIntakeCasePairingTests
         Assert.Equal([firstImage, secondImage], mutationStore.AutoLinks.Select(link => link.ReceiptId));
         Assert.Equal([7L, 8L], mutationStore.AutoLinks.Select(link => link.ExpectedCaseVersion));
         Assert.All(mutationStore.AutoLinks, link => Assert.Equal(0, link.ExpectedStaffOriginAssociationVersion));
-        // The pass read, the first link's destination and the merge step's read,
-        // whose record also answers whether the group merged: the second image
-        // and the check afterwards add no read.
-        Assert.Equal(3, queries.OriginReads);
+        // The pass read supplies the destination and its version for every
+        // link; the merge step reads the record alone, and that record also
+        // answers whether the group merged: the images and the check afterwards
+        // add no detail read.
+        Assert.Equal(1, queries.OriginReads);
+        Assert.Equal(1, queries.RecordReads);
         // The three members are read once each.
         Assert.Equal(3, queries.MemberReceiptReads);
     }
@@ -667,6 +669,8 @@ public sealed class ImageIntakeCasePairingTests
 
         public int OriginReads { get; private set; }
 
+        public int RecordReads { get; private set; }
+
         public int MemberReceiptReads { get; private set; }
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
@@ -755,22 +759,31 @@ public sealed class ImageIntakeCasePairingTests
             CancellationToken cancellationToken)
         {
             OriginReads++;
-            if (ByOriginReceipt.TryGetValue(intakeReceiptId, out var detail))
-            {
-                return Task.FromResult<ImageIntakeDetail?>(detail);
-            }
-            var summary = Unassociated.SingleOrDefault(item => item.OriginReceiptId == intakeReceiptId);
-            return Task.FromResult(summary is null ? null : new ImageIntakeDetail(
-                new(summary.Id, new(intakeReceiptId,
-                    new(OriginChannel, "token"), new string('a', 64), Guid.NewGuid()),
-                    summary.NormalizedVehicleRegistration, summary.ImageIntakeReference,
-                    summary.State, PrincipalId: summary.PrincipalId),
-                summary.RegisteredAtUtc, summary.AssociatedCaseId, summary.AssociatedCaseReference));
+            return Task.FromResult(ResolveOrigin(intakeReceiptId));
         }
 
         public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
             Guid intakeReceiptId,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            RecordReads++;
+            return Task.FromResult(ResolveOrigin(intakeReceiptId)?.Record);
+        }
+
+        private ImageIntakeDetail? ResolveOrigin(Guid intakeReceiptId)
+        {
+            if (ByOriginReceipt.TryGetValue(intakeReceiptId, out var detail))
+            {
+                return detail;
+            }
+            var summary = Unassociated.SingleOrDefault(item => item.OriginReceiptId == intakeReceiptId);
+            return summary is null ? null : new ImageIntakeDetail(
+                new(summary.Id, new(intakeReceiptId,
+                    new(OriginChannel, "token"), new string('a', 64), Guid.NewGuid()),
+                    summary.NormalizedVehicleRegistration, summary.ImageIntakeReference,
+                    summary.State, PrincipalId: summary.PrincipalId),
+                summary.RegisteredAtUtc, summary.AssociatedCaseId, summary.AssociatedCaseReference);
+        }
 
         Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken)
         {

@@ -282,14 +282,15 @@ public sealed class ImageIntakeCasePairing(
                 {
                     if (staffCaseVersion is null)
                     {
-                        var currentGroup = await imageIntakeStore.GetByOriginReceiptAsync(
-                            detail.Record.Origin.ReceiptId, cancellationToken);
-                        if (currentGroup is null || currentGroup.AssociatedCaseId != targetId
-                            || currentGroup.AssociatedCaseVersion is null)
+                        // The pass read supplies the destination; the store
+                        // rechecks the association and the Case version inside
+                        // its write, so a stale one fails this link and a
+                        // later pass links it.
+                        if (detail.AssociatedCaseId != targetId || detail.AssociatedCaseVersion is null)
                         {
                             throw new IntakeAssociationConflictException("The current staff group destination changed.");
                         }
-                        staffCaseVersion = currentGroup.AssociatedCaseVersion.Value;
+                        staffCaseVersion = detail.AssociatedCaseVersion.Value;
                     }
                     caseVersion = staffCaseVersion.Value;
                     reason = "Complete the current reasoned staff group association.";
@@ -362,18 +363,19 @@ public sealed class ImageIntakeCasePairing(
             return null;
         }
 
-        var detail = await imageIntakeStore.GetByOriginReceiptAsync(originReceiptId, cancellationToken);
-        if (detail is null || detail.State != ImageInitiatedCaseState.AwaitingInstruction)
+        // The merge uses only the record's fields, so the record read is enough.
+        var record = await imageIntakeStore.GetRecordByOriginReceiptAsync(originReceiptId, cancellationToken);
+        if (record is null || record.State != ImageInitiatedCaseState.AwaitingInstruction)
         {
-            return detail?.Record;
+            return record;
         }
 
-        var originId = detail.Record.Origin.ReceiptId;
+        var originId = record.Origin.ReceiptId;
         var merged = await imageIntakeStore.MergeAsync(
-            new(detail.Record.Id, caseId, actor,
+            new(record.Id, caseId, actor,
                 $"image-intake-merge:{originId:N}",
-                $"The Image-initiated case {detail.Record.ImageIntakeReference} was merged into the linked formal Case.",
-                detail.LifecycleVersion, staffOriginVersion), cancellationToken);
+                $"The Image-initiated case {record.ImageIntakeReference} was merged into the linked formal Case.",
+                record.LifecycleVersion, staffOriginVersion), cancellationToken);
         if (merged.PendingExternalWorkId is { } workItemId)
         {
             await committedExternalWorkPublisher.PublishAsync(workItemId, cancellationToken);
