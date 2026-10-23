@@ -416,7 +416,9 @@ public sealed class CaseAssetPreparationWebTests
     public async Task ImageTagsPostAtOnceWhileEditingWithoutSavingTheCase()
     {
         var fixture = new PreparedImages();
-        var store = fixture.Store(CaseLifecycleState.ReportPreparation);
+        var store = fixture.Store(
+            CaseLifecycleState.ReportPreparation,
+            overviewTags: [new(ImageTagVocabulary.OverviewId, "Overview", ImageTagColour.Blue, true, new DateTimeOffset(2031, 5, 5, 9, 0, 0, TimeSpan.Zero))]);
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<ICaseAssetPreparationQueries>(services, store);
@@ -442,9 +444,27 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Equal(2, Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*>", RegexOptions.CultureInvariant));
         // Each row is busy on its own, so pressing one does not hold the others.
         Assert.Equal(2, Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*data-busy-solo", RegexOptions.CultureInvariant));
-        Assert.Equal(
-            Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*aria-pressed=\"true\"", RegexOptions.CultureInvariant),
-            Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*formaction=\"[^\"]*handler=UntagImage", RegexOptions.CultureInvariant));
+        // The Overview tag is applied: its row is pressed and removes it, the
+        // other row is neither pressed nor carries a formaction of its own.
+        Assert.Equal(1, Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*aria-pressed=\"true\"", RegexOptions.CultureInvariant));
+        Assert.Equal(1, Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*formaction=\"[^\"]*handler=UntagImage", RegexOptions.CultureInvariant));
+        Assert.Matches(
+            $"<button[^>]*name=\"tagId\" value=\"{ImageTagVocabulary.OverviewId:D}\"[^>]*formaction=\"[^\"]*handler=UntagImage[^>]*aria-pressed=\"true\"",
+            card);
+        Assert.Matches(
+            $"<button[^>]*name=\"tagId\" value=\"{ImageTagVocabulary.ThirdPartyId:D}\"(?![^>]*formaction)[^>]*aria-pressed=\"false\"",
+            card);
+
+        // The picker holds two forms, the tag rows and the new tag, each with
+        // its one antiforgery token: six hidden inputs for the first (not a
+        // set for every tag) and four for the second.
+        var picker = Regex.Match(card, "<details class=\"tag-picker\".*?</details>", RegexOptions.CultureInvariant | RegexOptions.Singleline).Value;
+        var pickerForms = Regex.Matches(picker, "<form.*?</form>", RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        Assert.Equal(2, pickerForms.Count);
+        Assert.All(pickerForms, form => Assert.Equal(1, Regex.Count(form.Value, "name=\"__RequestVerificationToken\"", RegexOptions.CultureInvariant)));
+        const string hiddenInput = "<input(?![^>]*__RequestVerificationToken)[^>]*type=\"hidden\"";
+        Assert.Equal(6, Regex.Count(pickerForms[0].Value, hiddenInput, RegexOptions.CultureInvariant));
+        Assert.Equal(4, Regex.Count(pickerForms[1].Value, hiddenInput, RegexOptions.CultureInvariant));
 
         var occurrence = fixture.OverviewOccurrenceId.ToString("D");
         var version = store.CaseVersion.ToString(CultureInfo.InvariantCulture);

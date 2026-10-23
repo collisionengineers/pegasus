@@ -29,9 +29,10 @@
     var reportImages = Model.ReportImagesByOccurrence;
     var images = Model.ReportOrderedCaseImageFiles(reportImages);
     var includedCount = reportImages.Count;
-    // Every tile's tag picker posts to the same three handlers of this Case;
-    // the first tile that draws a picker builds them, so a render that draws
-    // none builds none.
+    // Every tile's In report form and tag picker post to the same handlers of
+    // this Case; the first tile that draws one builds its URLs, so a render
+    // that draws none builds none.
+    var inReportAction = string.Empty;
     var tagAction = string.Empty;
     var untagAction = string.Empty;
     var createTagAction = string.Empty;
@@ -121,8 +122,14 @@ else
                         @if (preparation is not null)
                         {
                             <div class="image-tile-row">
-                                <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId"
-                                      asp-page-handler="SetImageInReport" data-image-in-report-form="@occurrence.Id" data-document-action>
+                                @{
+                                    if (inReportAction.Length == 0)
+                                    {
+                                        inReportAction = Url.Page("/Cases/Custody", "SetImageInReport", new { id = workflow.CaseId })!;
+                                    }
+                                }
+                                <form method="post" action="@inReportAction" asp-antiforgery="true"
+                                      data-image-in-report-form="@occurrence.Id" data-document-action>
                                     <input type="hidden" name="id" value="@workflow.CaseId" />
                                     <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
                                     <input type="hidden" name="inReport" value="@(preparation.InReport ? "false" : "true")" />

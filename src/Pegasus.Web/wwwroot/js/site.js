@@ -363,11 +363,12 @@
         var next = (form.id && document.getElementById(form.id)) || null;
         var action = form.getAttribute('action');
         if (!next && action) {
-            // Every image tile's forms share their actions: the form drawn
-            // in place of this one is the one naming the same image.
-            var image = form.elements.namedItem('occurrenceId');
+            // A tag row (data-busy-solo) shares its action with the tag form of
+            // every other image tile: the form drawn in place of its own is
+            // the one naming the same image. Other forms are found by action.
+            var image = control.hasAttribute('data-busy-solo') ? form.elements.namedItem('occurrenceId') : null;
             next = Array.prototype.find.call(document.forms, function (candidate) {
-                var theirs = candidate.elements.namedItem('occurrenceId');
+                var theirs = image && candidate.elements.namedItem('occurrenceId');
                 return candidate.getAttribute('action') === action
                     && (!image || (theirs && theirs.value === image.value));
             }) || null;
