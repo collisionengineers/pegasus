@@ -50,6 +50,7 @@ public sealed class EstimateTests
     private static readonly ActionActor User = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
     private static readonly ActionActor Client = ActionActor.Automation("pegasus-automation");
     private static readonly string Lease = new('l', CaseEditAuthority.LeaseTokenLength);
+    private static readonly long[] CheckedVersions = [4L, 5L];
 
     [Fact]
     public void OneSnapshotRatePricesPanelAndPaintHoursAlike()
@@ -1099,7 +1100,7 @@ public sealed class EstimateTests
             ImportRequest(expectedVersion: 5, lease: new string('m', CaseEditAuthority.LeaseTokenLength)) with { Checked = check },
             CancellationToken.None);
 
-        Assert.Equal(new[] { 4L, 5L }, save.AuthorityChecks.Select(item => item.ExpectedVersion));
+        Assert.Equal(CheckedVersions, save.AuthorityChecks.Select(item => item.ExpectedVersion));
         Assert.Equal(1, save.ReplayProbes);
     }
 
