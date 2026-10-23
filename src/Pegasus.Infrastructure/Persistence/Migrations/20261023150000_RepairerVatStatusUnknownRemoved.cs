@@ -10,12 +10,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// frozen repair spec versions that say Unknown are rewritten to Registered,
 /// as <c>EstimateVatPolicy.Standing()</c> records a restored one. Hand-picked
 /// categories stay; otherwise the version takes Registered's own categories.
-/// A live repair spec still stored as Unknown becomes Registered with its
-/// category flags kept, as 20261019120000 did. The retired
-/// <c>TreatmentPending</c> member leaves each rewritten version. A version's
-/// content hash is only compared with a fresh freeze, so it is left as it
-/// was. Forward-only: a Registered version that used to be Unknown cannot be
-/// told apart from one frozen as Registered.
+/// The retired <c>TreatmentPending</c> member leaves each rewritten version.
+/// Live repair specs are not touched (20261019120000 rewrote them). A
+/// version's content hash is only compared with a fresh freeze, so it is left
+/// as it was. Its stored <c>Gross</c> is left as it was too: only
+/// <c>EstimateTotals.Compute</c> adds up an estimate. Forward-only: a
+/// Registered version that used to be Unknown cannot be told apart from one
+/// frozen as Registered.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
 [Migration("20261023150000_RepairerVatStatusUnknownRemoved")]
@@ -25,12 +26,6 @@ public class RepairerVatStatusUnknownRemoved : Migration
     {
         if (!ActiveProvider.Contains("SqlServer", StringComparison.Ordinal))
             throw new NotSupportedException($"Migration provider '{ActiveProvider}' is not supported.");
-
-        migrationBuilder.Sql("""
-            UPDATE [dbo].[CaseRepairSpecifications]
-            SET [RepairerVatStatus] = N'Registered'
-            WHERE [RepairerVatStatus] = N'Unknown';
-            """);
 
         // EstimateDetails serialises its recorded Vat and the VatPolicy it
         // stands on; each path is rewritten on its own (15 is every category).
@@ -57,5 +52,5 @@ public class RepairerVatStatusUnknownRemoved : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder) =>
         throw new NotSupportedException(
-            "RepairerVatStatusUnknownRemoved is forward-only: repair specs and frozen versions stored as Unknown were rewritten to Registered. Restore from an approved backup instead.");
+            "RepairerVatStatusUnknownRemoved is forward-only: frozen versions stored as Unknown were rewritten to Registered. Restore from an approved backup instead.");
 }

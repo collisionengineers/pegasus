@@ -80,10 +80,6 @@ public sealed class RepairerVatStatusDefaultMigrationTests
         await context.Database.MigrateAsync(Removal);
 
         Assert.Equal(Removal, (await context.Database.GetAppliedMigrationsAsync()).Last());
-        Assert.Equal("Registered", await StatusAsync(database, CurrentId));
-        Assert.Equal("Registered", await StatusAsync(database, HandPickedId));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT CONVERT(int, LabourVatApplicable) FROM CaseRepairSpecifications WHERE Id = '{HandPickedId}'"));
         await AssertFrozenAsync(database, FrozenPlainId, EstimateVatPolicy.For(RepairerVatStatus.Registered));
         await AssertFrozenAsync(
             database, FrozenHandPickedId,
