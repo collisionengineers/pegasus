@@ -22,9 +22,9 @@ namespace Pegasus.Infrastructure.Custody;
 /// to its first view, so an expired thumbnail is not made again for nobody.
 /// A saved rotation and crop is listed only while its version was filed within
 /// the prepared thumbnail's own idle lifetime, and for that lifetime after it
-/// was saved or filed on the Case, whichever is later, which is as long as the
-/// thumbnail made for it lives unviewed, so it is made once ahead of its first
-/// view and not again for nobody. The plain thumbnails are listed first and
+/// was filed on the Case, which is as long as the thumbnail made for it lives
+/// unviewed, so it is made once ahead of its first view and not again for
+/// nobody. The plain thumbnails are listed first and
 /// fill the run before any saved variant does.
 /// </remarks>
 internal sealed class EfDocumentThumbnailCandidates(
@@ -40,12 +40,12 @@ internal sealed class EfDocumentThumbnailCandidates(
     /// thumbnail's idle lifetime: a version is returned when it has no live
     /// plain thumbnail or, filed within the prepared thumbnail's idle
     /// lifetime, has an image occurrence with a saved rotation or crop. An
-    /// occurrence counts from the later of the time it was recorded on the
-    /// Case and the time its preparation was saved (filing an image copies the
-    /// preparation time of Image Intake onto the Case, which may be long
-    /// before the filing), and is left out in SQL when a prepared thumbnail
-    /// (other than the original content, which filing and any read publish to
-    /// the same table) was written since that time. Versions with no plain
+    /// occurrence counts from the time it was recorded on the Case (filing an
+    /// image copies the preparation of Image Intake onto the Case, so the
+    /// filing is when its variant is first wanted), and is left out in SQL when
+    /// a prepared thumbnail (other than the original content, which filing and
+    /// any read publish to the same table) was written since that time; an
+    /// edit after the filing is left to the page's own redraw. Versions with no plain
     /// thumbnail come first, newest first, so the plain thumbnails fill the
     /// run before any saved variant does. The cached variants of the rows that
     /// come back are compared in memory, because the token is formatted by
@@ -70,20 +70,17 @@ internal sealed class EfDocumentThumbnailCandidates(
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var wanting =
             from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
-            let changedAt = occurrence.PreparedAtUtc > occurrence.RecordedAtUtc
-                ? occurrence.PreparedAtUtc.Value
-                : occurrence.RecordedAtUtc
             where occurrence.SemanticRole == DocumentSemanticRole.Image
                 && (occurrence.RotationDegrees != 0 || occurrence.CropLeft != null)
-                && changedAt > savedAfter
-                // A prepared thumbnail written since the save is the one this
+                && occurrence.RecordedAtUtc > savedAfter
+                // A prepared thumbnail written since the filing is the one this
                 // occurrence is waiting for (a write gives it the idle lifetime
-                // from that moment).
+                // from that moment); a later edit is left to the page's redraw.
                 && !db.Set<DocumentContentCacheEntryEntity>().Any(entry =>
                     entry.DocumentVersionId == occurrence.VersionId
                     && entry.Variant != plainVariant
                     && entry.Variant != originalVariant
-                    && entry.ExpiresAtUtc > changedAt.AddHours(preparedIdleHours))
+                    && entry.ExpiresAtUtc > occurrence.RecordedAtUtc.AddHours(preparedIdleHours))
             select new
             {
                 occurrence.VersionId,

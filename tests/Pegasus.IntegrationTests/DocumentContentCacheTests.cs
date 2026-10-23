@@ -2116,7 +2116,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             }
             Assert.Equal(0, (await sweep.ExecuteAsync(5, CancellationToken.None)).Candidates);
 
-            // A changed crop is a variant nobody has made yet.
+            // A crop changed after the filing, once a prepared thumbnail has
+            // been made since the filing, is left to the page's own redraw.
             await using (var db = await estate.Database.CreateContextAsync())
             {
                 var occurrence = await db.Set<DocumentOccurrenceEntity>().SingleAsync();
@@ -2124,8 +2125,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 occurrence.PreparedAtUtc = now;
                 await db.SaveChangesAsync();
             }
-            var changed = Assert.Single(await candidates.ListAsync(5, CancellationToken.None));
-            Assert.Equal(new CaseAssetCrop(0.1m, 0m, 0.5m, 1m), changed.Crop);
+            Assert.Empty(await candidates.ListAsync(5, CancellationToken.None));
 
             // Saved longer ago than a prepared thumbnail lives unviewed: left to
             // its first view, so an expired one is not made again for nobody.
@@ -2189,11 +2189,10 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A saved rotation and crop counts from the later of its preparation and
-    /// its filing on the Case: an image prepared in Image Intake more than a
-    /// day before it was filed carries that old preparation time onto the
-    /// Case, and is still made ahead of its first view; one neither saved nor
-    /// filed within the day is not.
+    /// A saved rotation and crop counts from its filing on the Case: an image
+    /// prepared in Image Intake more than a day before it was filed carries
+    /// that old preparation time onto the Case, and is still made ahead of its
+    /// first view; one not filed within the day is not.
     /// </summary>
     [Fact]
     public async Task ASavedVariantFiledTodayButPreparedLongAgoIsStillMadeAheadOfItsFirstView()
@@ -2230,6 +2229,88 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(
                 [CaseAssetRotation.None],
                 (await candidates.ListAsync(5, CancellationToken.None)).Select(candidate => candidate.Rotation));
+        }
+    }
+
+    /// <summary>
+    /// The thumbnail sweep's candidate read is one statement on a tick: with
+    /// nothing to make, with a plain and a saved candidate (the saved
+    /// rotations and the cached variants ride the one statement), and after
+    /// an edit to a photograph whose variant the sweep already made, which is
+    /// left to the page's redraw and does not fill a page that asks for more.
+    /// </summary>
+    [Fact]
+    public async Task TheThumbnailCandidateReadIsOneStatementOnATick()
+    {
+        var image = TransparentPng(width: 960, height: 480);
+        var estate = await Estate.CreateDocumentAsync(image, "image/png");
+        await using (estate)
+        {
+            var now = estate.Clock.GetUtcNow();
+            var versionId = estate.Request.VersionId!.Value;
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentVersionEntity>().SingleAsync()).CreatedAtUtc = now.AddDays(-40);
+                db.Add(new DocumentOccurrenceEntity
+                {
+                    Id = Guid.NewGuid(), CaseId = estate.Request.CaseId!.Value,
+                    DocumentId = estate.Request.DocumentId!.Value, VersionId = versionId,
+                    Ordinal = 1, SourceOccurrenceIdentity = "one-statement", OperationKey = "one-statement",
+                    SemanticRole = DocumentSemanticRole.Image, Source = DocumentSource.StaffUpload,
+                    RecordedAtUtc = now.AddHours(-1), PreparedAtUtc = now.AddHours(-1),
+                    RotationDegrees = 90
+                });
+                await db.SaveChangesAsync();
+            }
+            var commands = new CountingCommandInterceptor();
+            var candidates = new EfDocumentThumbnailCandidates(
+                new PooledDbContextFactory<PegasusDbContext>(
+                    new DbContextOptionsBuilder<PegasusDbContext>()
+                        .UseSqlServer(estate.Database.ConnectionString)
+                        .AddInterceptors(commands)
+                        .Options),
+                estate.Clock);
+
+            // The version was filed past the plain thumbnail's lifetime: an empty set.
+            Assert.Empty(await candidates.ListAsync(5, CancellationToken.None));
+            Assert.Equal(1, commands.Count);
+
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentVersionEntity>().SingleAsync()).CreatedAtUtc = now.AddHours(-1);
+                await db.SaveChangesAsync();
+            }
+            commands.Reset();
+            Assert.Equal(2, (await candidates.ListAsync(5, CancellationToken.None)).Count);
+            Assert.Equal(1, commands.Count);
+
+            // Both thumbnails made, then the photograph is edited: the redraw
+            // renders the new variant, and the sweep neither lists it nor
+            // reads a second page for it.
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                foreach (var variant in new[]
+                {
+                    DocumentThumbnailCache.Variant,
+                    CaseDocumentThumbnails.VariantToken(CaseAssetRotation.Clockwise90, null)
+                })
+                {
+                    db.Add(new DocumentContentCacheEntryEntity
+                    {
+                        Id = Guid.NewGuid(), DocumentVersionId = versionId, Variant = variant,
+                        BlobIdentity = $"made-{variant}", VerifiedSha256 = estate.Request.ExpectedSha256,
+                        VerifiedSize = image.Length, ExpiresAtUtc = now.AddHours(24),
+                        ConcurrencyToken = Guid.NewGuid()
+                    });
+                }
+                var occurrence = await db.Set<DocumentOccurrenceEntity>().SingleAsync();
+                occurrence.RotationDegrees = 180;
+                occurrence.PreparedAtUtc = now;
+                await db.SaveChangesAsync();
+            }
+            commands.Reset();
+            Assert.Empty(await candidates.ListAsync(5, CancellationToken.None));
+            Assert.Equal(1, commands.Count);
         }
     }
 
