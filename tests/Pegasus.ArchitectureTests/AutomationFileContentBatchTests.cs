@@ -126,6 +126,60 @@ public sealed class AutomationFileContentBatchTests
     }
 
     [Fact]
+    public async Task ABufferTheWalkHasTakenIsLetGoBeforeTheBatchEnds()
+    {
+        Doc[] docs = [.. Enumerable.Range(0, 5).Select(number => Text($"n{number}.txt", $"text {number}"))];
+        WeakReference? first = null;
+        bool? firstWasReleased = null;
+
+        ValueTask<ReadOnlyMemory<byte>> Read(int index, CancellationToken cancellationToken)
+        {
+            if (index == 4)
+            {
+                // Item 0 was taken and walked before this read began.
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                firstWasReleased = !first!.IsAlive;
+            }
+
+            var bytes = (byte[])docs[index].Content.Clone();
+            if (index == 0)
+            {
+                first = new WeakReference(bytes);
+            }
+            return ValueTask.FromResult<ReadOnlyMemory<byte>>(bytes);
+        }
+
+        var deliveries = await WalkAsync(100_000, new Renderer(), new Extractor(), Read, docs);
+
+        Assert.All(deliveries, delivery => Assert.True(delivery.ContentIncluded));
+        Assert.True(firstWasReleased);
+    }
+
+    [Fact]
+    public async Task ARoomLeftByTheItemsBeforeItDecidesWhetherALaterItemIsReadAhead()
+    {
+        // Each file takes 107 bytes (a 102-byte summary and five of text). The
+        // third would fit 250 alone, but never what is left after the first two
+        // have paid even their summaries, so it is not read ahead, and the walk
+        // stops at it without reading it.
+        const int inlineLimit = 250;
+        var (deliveries, fetch) = await WalkAsync(
+            inlineLimit,
+            new Renderer(),
+            new Extractor(),
+            Text("a.txt", "alpha"),
+            Text("c.txt", "gamma"),
+            Text("d.txt", "delta"));
+
+        Assert.True(deliveries[0].ContentIncluded);
+        Assert.True(deliveries[1].ContentIncluded);
+        Assert.Equal(AutomationFileContent.DoesNotFitWholeNotice(inlineLimit), deliveries[2].Notice);
+        Assert.Equal([0, 1], fetch.Reads);
+    }
+
+    [Fact]
     public async Task AReadAheadThatFailsRaisesNothingUnlessTheWalkTakesIt()
     {
         const int inlineLimit = 600;

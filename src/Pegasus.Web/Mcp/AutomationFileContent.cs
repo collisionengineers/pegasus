@@ -556,8 +556,8 @@ internal static class AutomationFileContent
     /// <summary>
     /// Whether an admitted item's bytes are worth reading with
     /// <paramref name="remaining"/> left, the test each walk makes before it
-    /// reads. What remains only falls, so an item that fails it now fails it
-    /// when the walk reaches it.
+    /// reads. What remains only falls, so an item that fails it with an upper
+    /// bound on what remains fails it when the walk reaches it.
     /// </summary>
     private static bool ReadableWithin(IRenderImageForDelivery images, Entry entry, int remaining) =>
         IsImage(entry.Item.MediaType)
@@ -572,8 +572,10 @@ internal static class AutomationFileContent
     /// is on its way while the item before it is rendered. The walk takes each
     /// in request order and every charge, render and stop is its own, one item
     /// at a time. A read is started ahead only for an item the walk would read
-    /// with what remains now, and never past an admitted item it would not,
-    /// since the walk stops there. A read ahead that fails raises nothing
+    /// with the most that can remain when it reaches it, and never past an
+    /// admitted item it would not, since the walk stops there. A read the
+    /// walk has taken is let go at once, so only the item in hand and the
+    /// reads ahead of it hold bytes. A read ahead that fails raises nothing
     /// unless the walk takes it, and when the walk ends, stops or fails the
     /// reads still open are cancelled and finished.
     /// </summary>
@@ -593,11 +595,14 @@ internal static class AutomationFileContent
         public async ValueTask<ReadOnlyMemory<byte>> TakeAsync(int index, int remaining)
         {
             var task = started[index] ?? Start(index);
-            StartAhead(index + 1, remaining);
+            StartAhead(index, remaining);
             var content = await task;
+            // Taken: the finished read keeps its bytes, so it is let go, and
+            // the disposal waits only for reads nobody took.
+            started[index] = null;
             open--;
             // This read is over: the next goes while the item is rendered.
-            StartAhead(index + 1, remaining);
+            StartAhead(index, remaining);
             return content;
         }
 
@@ -624,15 +629,25 @@ internal static class AutomationFileContent
             stop.Dispose();
         }
 
-        private void StartAhead(int from, int remaining)
+        /// <summary>
+        /// Tops up the reads after item <paramref name="current"/>, which has
+        /// <paramref name="remaining"/> before it is charged. Every item the
+        /// walk takes before a later one charges at least its summary line (or
+        /// charges all that is left, and nothing is read after that), so a
+        /// later item can have no more than what remains less the summaries of
+        /// the items from <paramref name="current"/> up to it.
+        /// </summary>
+        private void StartAhead(int current, int remaining)
         {
-            for (var at = from; at < entries.Length && open < MaximumOpen; at++)
+            var ceiling = remaining;
+            for (var at = current + 1; at < entries.Length && open < MaximumOpen; at++)
             {
+                ceiling -= entries[at - 1].SummaryBytes;
                 if (!entries[at].Admitted)
                 {
                     continue;
                 }
-                if (!ReadableWithin(images, entries[at], remaining))
+                if (!ReadableWithin(images, entries[at], ceiling))
                 {
                     return;
                 }
