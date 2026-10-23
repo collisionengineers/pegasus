@@ -47,6 +47,7 @@ internal static partial class CaseWebTestSupport
             {
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseSectionFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
@@ -263,6 +264,7 @@ internal static partial class CaseWebTestSupport
             {
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseSectionFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
@@ -742,6 +744,7 @@ internal static partial class CaseWebTestSupport
         RecordingCaseDetailsStore store)
     {
         Substitute<IGetCasePageFrame>(services, store);
+        Substitute<IGetCaseSectionFrame>(services, store);
         Substitute<IGetCaseVehicleSection>(services, store);
         Substitute<IGetCaseValuationSection>(services, store);
         Substitute<IGetCaseNotesSection>(services, store);
@@ -813,6 +816,7 @@ internal static partial class CaseWebTestSupport
     internal sealed partial class RecordingCaseDetailsStore :
         IGetCaseHeader, IGetCaseEditBasis,
         IGetCasePageFrame,
+        IGetCaseSectionFrame,
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
         IAcquireCaseEditLease,
@@ -980,6 +984,10 @@ internal static partial class CaseWebTestSupport
                 OldestOpenQuery = HasOpenQuery ? OldestOpenQuery : null
             });
         }
+
+        Task<CaseSectionFrame?> IGetCaseSectionFrame.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseSectionFrame?>(query.CaseId == CaseId ? FocusedFrame() : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
             GetCaseSectionQuery query,
@@ -1401,6 +1409,7 @@ internal static partial class CaseWebTestSupport
             {
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseSectionFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);

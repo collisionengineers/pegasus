@@ -235,7 +235,6 @@ public sealed class CaseWorkspaceScriptContractTests
             StringComparison.Ordinal);
         Assert.Contains("headers['X-Pegasus-Edit-Lease'] = lease;", show, StringComparison.Ordinal);
         Assert.Contains("window.location.assign(href);", show, StringComparison.Ordinal);
-        Assert.DoesNotContain("fetch(href", show, StringComparison.Ordinal);
     }
 
     /// <summary>

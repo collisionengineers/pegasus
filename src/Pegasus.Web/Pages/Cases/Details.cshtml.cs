@@ -41,6 +41,7 @@ public sealed partial class DetailsModel(
     IGetCaseEditBasis getCaseEditBasis,
     ICaseWorkflowQueries caseWorkflows,
     IGetCasePageFrame getCasePageFrame,
+    IGetCaseSectionFrame getCaseSectionFrame,
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
@@ -372,12 +373,22 @@ public sealed partial class DetailsModel(
     public CaseFilesSection? FilesSection { get; private set; }
     public CaseQueriesSection? QueriesSection { get; private set; }
 
+    /// <summary>
+    /// The Repair Spec fragment's frame and data: it draws only the workflow,
+    /// lease, works and the accepted data, so it reads those and not the page
+    /// frame's documents, notes, Triage, tasks and query route.
+    /// </summary>
+    private CaseSectionFrame? estimateFrame;
+
+    private CaseDataProjection? estimateData;
+
     public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
         ?? ValuationSection?.Frame
         ?? NotesSection?.Frame
         ?? TasksSection?.Frame
         ?? FilesSection?.Frame
-        ?? QueriesSection?.Frame;
+        ?? QueriesSection?.Frame
+        ?? estimateFrame;
 
     public CaseWorkflowRecord? CurrentWorkflow => Case?.Workflow ?? SectionFrame?.Workflow;
     public CaseSearchItem? CurrentSummary => Case?.Summary ?? SectionFrame?.Summary;
@@ -439,16 +450,27 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken)
     {
         var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var authors = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
         foreach (var createdBy in versions.Select(version => version.CreatedBy).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (!Guid.TryParse(createdBy, out var accountId))
+            if (Guid.TryParse(createdBy, out var accountId))
             {
-                continue;
+                authors[createdBy] = accountId;
             }
-            var account = await staffAccountQueries.GetAsync(accountId, cancellationToken);
-            if (account is not null && !string.IsNullOrWhiteSpace(account.UserName))
+        }
+        if (authors.Count == 0)
+        {
+            return names;
+        }
+        // One read names every distinct author, however many there are.
+        var accountNames = await staffAccountQueries.GetNamesAsync(
+            [.. authors.Values.Distinct()],
+            cancellationToken);
+        foreach (var (createdBy, accountId) in authors)
+        {
+            if (accountNames.TryGetValue(accountId, out var userName) && !string.IsNullOrWhiteSpace(userName))
             {
-                names[createdBy] = account.UserName;
+                names[createdBy] = userName;
             }
         }
         return names;
@@ -606,7 +628,7 @@ public sealed partial class DetailsModel(
     {
         get
         {
-            var data = Case?.Data;
+            var data = Case?.Data ?? estimateData;
             if (data is null)
             {
                 return [];
@@ -1273,7 +1295,6 @@ public sealed partial class DetailsModel(
         await reads.WhenAllAsync();
 
         Estimates = await estimates;
-        SpecAuthorNames = await ResolveSpecAuthorNamesAsync(Estimates, cancellationToken);
         LabourRateCards = await cards;
         ApplyEstimateSelection(estimate);
         var saved = await savedReasons;
@@ -1317,6 +1338,8 @@ public sealed partial class DetailsModel(
         var snapshotRead = specificationIds.Length > 0
             ? reads.Start(token => specificationSnapshots.ListForSpecificationsAsync(id, specificationIds, token))
             : null;
+        var specAuthors = Estimates;
+        var authorNames = reads.Start(token => ResolveSpecAuthorNamesAsync(specAuthors, token));
         var suggestions = generated
             ? reads.Start(token => reportRecipientSuggestions.GetAsync(id, work, token))
             : null;
@@ -1331,6 +1354,7 @@ public sealed partial class DetailsModel(
             : null;
         await reads.WhenAllAsync();
 
+        SpecAuthorNames = await authorNames;
         ApplyEstimateSnapshots(snapshotRead is null ? [] : await snapshotRead, dialog);
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None
@@ -1434,18 +1458,22 @@ public sealed partial class DetailsModel(
         await reads.WhenAllAsync();
 
         Estimates = await estimates;
-        SpecAuthorNames = await ResolveSpecAuthorNamesAsync(Estimates, cancellationToken);
         LabourRateCards = await cards;
         ApplyEstimateSelection(estimate);
         EvaluateEngineerSectionConditions(sendingToAi is not null && await sendingToAi);
         ApplyGlassSession(await glass);
 
+        // Both of these need only the estimates, so they run together.
         var specificationIds = Estimates.Select(item => item.SpecificationId).ToArray();
-        ApplyEstimateSnapshots(
-            specificationIds.Length > 0
-                ? await specificationSnapshots.ListForSpecificationsAsync(id, specificationIds, cancellationToken)
-                : [],
-            dialog);
+        var specAuthors = Estimates;
+        using var dependentReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var authorNames = dependentReads.Start(token => ResolveSpecAuthorNamesAsync(specAuthors, token));
+        var snapshotRead = specificationIds.Length > 0
+            ? dependentReads.Start(token => specificationSnapshots.ListForSpecificationsAsync(id, specificationIds, token))
+            : null;
+        await dependentReads.WhenAllAsync();
+        SpecAuthorNames = await authorNames;
+        ApplyEstimateSnapshots(snapshotRead is null ? [] : await snapshotRead, dialog);
         OpenDialog = EstimateDialogOf(dialog);
     }
 
@@ -1762,17 +1790,41 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken)
     {
         var work = WorkSelector;
-        (Case, var workspace) = await ReadFrameAndWorkspaceAsync(id, actor, work, cancellationToken);
-        if (Case is null)
+        // The section draws the workflow, lease, works and accepted data, so
+        // the frame is the narrow one (no documents, notes, Triage, tasks or
+        // query route), and the lease check needs only the id, actor and
+        // header, so all three reads start together.
+        var checksLease = !string.IsNullOrWhiteSpace(renderLeaseToken) && validateCaseRenderLease is not null;
+        using var firstReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var frameRead = firstReads.Start(async token =>
+        {
+            using (DocumentReadTelemetry.Start("web.case.frame"))
+            {
+                return await getCaseSectionFrame.ExecuteAsync(new(id, actor, work), token);
+            }
+        });
+        var workspaceRead = firstReads.Start(async token =>
+        {
+            using (DocumentReadTelemetry.Start("web.case.workspace"))
+            {
+                return await getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), token);
+            }
+        });
+        var leaseRead = checksLease
+            ? firstReads.Start(token => validateCaseRenderLease!.ExecuteAsync(new(id, actor, renderLeaseToken!), token))
+            : null;
+        await firstReads.WhenAllAsync();
+        estimateFrame = await frameRead;
+        if (estimateFrame is null)
         {
             return FragmentNotFound();
         }
-        ApplyAssessmentAccess(actor, Case.Workflow);
-        if (!string.IsNullOrWhiteSpace(renderLeaseToken)
-            && validateCaseRenderLease is not null
-            && await validateCaseRenderLease.ExecuteAsync(new(id, actor, renderLeaseToken), cancellationToken))
+        var workspace = await workspaceRead;
+        estimateData = workspace?.Data;
+        ApplyAssessmentAccess(actor, estimateFrame.Workflow);
+        if (leaseRead is not null && await leaseRead)
         {
-            AdoptRenderLease(renderLeaseToken);
+            AdoptRenderLease(renderLeaseToken!);
         }
         await LoadEstimateSectionAsync(id, actor, workspace, work, estimate, dialog, cancellationToken);
         return Partial(EstimateView, this);
