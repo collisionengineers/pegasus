@@ -84,7 +84,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var counter = new ReaderCommandCounter();
         await using var harness = await Harness.CreateAsync(counter);
         var withEstimate = (await harness.AcceptAsync("assessment-store-lines-with")).Identity.CaseId;
-        var without = (await harness.AcceptAsync("assessment-store-lines-without")).Identity.CaseId;
+        await using var emptyHarness = await Harness.CreateAsync(counter);
+        var without = (await emptyHarness.AcceptAsync("assessment-store-lines-without")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var lease = await harness.AcquireLeaseAsync(withEstimate, 0, engineer, "assessment-store-lines-lease");
         await new EfCaseWorkspaceStore(harness.Factory, harness.Clock).SaveAsync(
@@ -115,7 +116,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 && !text.Contains("CaseEstimateLines", StringComparison.Ordinal));
 
         counter.Reset();
-        var empty = await store.GetAsync(without, CaseWorkSelector.Current, CancellationToken.None);
+        var empty = await new EfCaseAssessmentStore(emptyHarness.Factory, emptyHarness.Clock)
+            .GetAsync(without,CaseWorkSelector.Current, CancellationToken.None);
 
         Assert.NotNull(empty);
         Assert.Empty(empty.EstimateLines);
