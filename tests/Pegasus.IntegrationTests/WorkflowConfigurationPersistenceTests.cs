@@ -35,7 +35,7 @@ public sealed class WorkflowConfigurationPersistenceTests
     }
 
     [Fact]
-    public async Task TheCurrentConfigurationIsKeptUntilAnUpdateEvictsItAndTheTransactionReadIsNeverKept()
+    public async Task ARepeatCurrentConfigurationReadSendsNothingUntilAnUpdateEvictsIt()
     {
         var counter = new SqlStatementCounter();
         await using var database = await LocalDbTestDatabase.CreateAsync(
