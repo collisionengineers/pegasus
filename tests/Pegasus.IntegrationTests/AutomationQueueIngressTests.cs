@@ -349,7 +349,7 @@ public sealed class AutomationQueueIngressTests
                 "Triage Only Request\r\n\r\nPlease find attached our client's images."));
         var token = await RequestTokenAsync(client, "automation.intake");
 
-        using (var toolsResponse = await PostMcpAsync(client, token, ToolsListPayload(1)))
+        using (var toolsResponse = await PostMcpAsync(client, IntakeServer, token, ToolsListPayload(1)))
         {
             using var tools = await ReadJsonRpcAsync(toolsResponse);
             var intakeAction = tools.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
@@ -363,7 +363,7 @@ public sealed class AutomationQueueIngressTests
         }
 
         long version;
-        using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_get", new { receiptId })))
+        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(2, "pegasus_intake_get", new { receiptId })))
         {
             version = (await ReadStructuredContentAsync(response)).GetProperty("version").GetInt64();
         }
@@ -381,14 +381,14 @@ public sealed class AutomationQueueIngressTests
                 "changed since it was read")
         })
         {
-            using var refused = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_intake_action", arguments));
+            using var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(rpcId, "pegasus_intake_action", arguments));
             Assert.Contains(refusal, await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
 
         var caseId = Guid.Empty;
         foreach (var (rpcId, isReplay) in new[] { (6, false), (7, true) })
         {
-            using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_intake_action", new
+            using var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(rpcId, "pegasus_intake_action", new
             {
                 receiptId,
                 action = "open_triage",
@@ -405,7 +405,7 @@ public sealed class AutomationQueueIngressTests
 
         // Another key on an item whose Triage is open is refused, as the
         // message no longer offers Open the Triage.
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_intake_action", new
+        using (var refused = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(8, "pegasus_intake_action", new
         {
             receiptId,
             action = "open_triage",

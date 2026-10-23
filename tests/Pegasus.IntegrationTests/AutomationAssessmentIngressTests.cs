@@ -1640,6 +1640,7 @@ public sealed class AutomationAssessmentIngressTests
 
         using var response = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 40,
@@ -1676,6 +1677,7 @@ public sealed class AutomationAssessmentIngressTests
         Guid lineId;
         using (var created = await PostMcpAsync(
             client,
+            AssessmentServer,
             token,
             ToolCallPayload(
                 41,
@@ -1701,6 +1703,7 @@ public sealed class AutomationAssessmentIngressTests
         {
             using var edited = await PostMcpAsync(
                 client,
+                AssessmentServer,
                 token,
                 ToolCallPayload(
                     id,
@@ -1739,7 +1742,7 @@ public sealed class AutomationAssessmentIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        using var response = await PostMcpAsync(client, token, ToolCallPayload(44, "pegasus_vocabulary_get", new { }));
+        using var response = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(44, "pegasus_vocabulary_get", new { }));
 
         Assert.Equal(
             RepairerVatStatuses.ChoosableNames,

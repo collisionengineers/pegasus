@@ -222,8 +222,12 @@ public sealed class AutomationMcpIngressTests
         Assert.False(properties.TryGetProperty("instructionDate", out _));
 
         // R185: market research carries its retail value only, so the tool
-        // takes no trade value; its arguments are exactly these.
-        var marketResearch = toolsDocument.RootElement
+        // takes no trade value; its arguments are exactly these. It is listed
+        // on the jobs server (ADR-0080), and the findings document comes as
+        // contentBase64 or a staged uploadId (R203).
+        using var jobsResponse = await PostMcpAsync(client, JobsServer, accessToken, ToolsListPayload(rpcId + 1));
+        using var jobsDocument = await ReadJsonRpcAsync(jobsResponse);
+        var marketResearch = jobsDocument.RootElement
             .GetProperty("result")
             .GetProperty("tools")
             .EnumerateArray()
@@ -232,6 +236,7 @@ public sealed class AutomationMcpIngressTests
             [
                 "caseId", "contentBase64", "expectedJobVersion", "fileName", "guideMonth", "jobId",
                 "mediaType", "mileage", "operationKey", "recordedDate", "recordedTime", "retailValue",
+                "uploadId",
             ],
             marketResearch.GetProperty("inputSchema").GetProperty("properties")
                 .EnumerateObject()
