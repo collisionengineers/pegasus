@@ -814,11 +814,6 @@ public sealed class AutomationMcpIngressTests
             """));
     }
 
-    /// <summary>
-    /// A caller with no staff cookie, as the classifier is: the integration
-    /// scheme answers anonymous and challenges with the sign-in redirect, which
-    /// the client reports rather than follows.
-    /// </summary>
     private static string InitializePayload(int id) =>
         JsonSerializer.Serialize(new
         {
@@ -852,6 +847,11 @@ public sealed class AutomationMcpIngressTests
         return challenge[start..challenge.IndexOf('"', start)];
     }
 
+    /// <summary>
+    /// A caller with no staff cookie, as the classifier is: the integration
+    /// scheme answers anonymous and challenges with the sign-in redirect, which
+    /// the client reports rather than follows.
+    /// </summary>
     private static HttpClient CreateCookielessClient(WebApplicationFactory<Program> factory)
     {
         var client = factory.CreateClient(

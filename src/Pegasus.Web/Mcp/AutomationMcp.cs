@@ -73,8 +73,7 @@ public static class AutomationMcp
     /// </summary>
     public static IReadOnlyList<AutomationMcpServer> Servers { get; } =
     [
-        new("cases", $"{Paging} {OneCommandLease} {ExplicitLease} "
-            + "pegasus_case_get and pegasus_vocabulary_get are on this server only.", [CasesScope]),
+        new("cases", $"{Paging} {OneCommandLease} {ExplicitLease}", [CasesScope]),
         new("intake", $"{Paging} {OneCommandLease} {ExplicitLease} {NativeContent}", [IntakeScope]),
         new("documents", $"{NativeContent} {OneCommandLease}", [DocumentsScope]),
         new("assessment", OneCommandLease, [AssessmentScope]),
