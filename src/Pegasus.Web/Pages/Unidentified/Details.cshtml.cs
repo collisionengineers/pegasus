@@ -491,15 +491,13 @@ public sealed partial class DetailsModel(
         RegistrationReadings = context.RegistrationReadings;
         if (context.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup && SubmissionGroup is not null)
         {
-            // The context already holds the member receipts; the page shows every
-            // member's readings, not only those of the members that can register.
-            var receipts = context.MemberReceipts;
-            var suggestions = await vrmSuggestions.ListForReceiptsAsync(
-                receipts.Select(receipt => receipt.Id).ToArray(),
-                cancellationToken);
-
-            MaterialReceipts = receipts;
-            RegistrationReadings = receipts.SelectMany(receipt => suggestions[receipt.Id]).ToArray();
+            // The context already holds the member receipts and every member's
+            // readings: the page shows all of them, not only those of the
+            // members that can register.
+            MaterialReceipts = context.MemberReceipts;
+            RegistrationReadings = context.MemberReceipts
+                .SelectMany(receipt => context.MemberReadings[receipt.Id])
+                .ToArray();
         }
 
         var imageAssetIds = EvidenceImages.Select(image => image.Asset.Id).ToArray();

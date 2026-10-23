@@ -275,6 +275,8 @@ public sealed class UnidentifiedRecordWebTests
                 "[InstructionDrafts]",
                 "[IntakeMailRouteDecisions]",
                 "[IntakeManualAssociations]"));
+        // The members' readings are one set read, which the page draws from.
+        Assert.Equal(1, counter.CountContaining("[ImageVrmSuggestions]"));
     }
 
     [Fact]

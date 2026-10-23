@@ -30,6 +30,13 @@ public sealed record UnidentifiedItemContext(
     /// </summary>
     public IReadOnlyList<IntakeReceipt> MemberReceipts { get; init; } = [];
 
+    /// <summary>
+    /// Every <see cref="MemberReceipts"/> receipt's registration readings, read
+    /// once for the group, the non-eligible members' too. Empty for any other item.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>> MemberReadings { get; init; } =
+        GroupImageRegistrationOffers.None.ReadingsByReceipt;
+
     /// <summary>The Inbox message to open, when the material came by e-mail.</summary>
     public Guid? SourceMessageId => Item.SourceMessageId;
 
@@ -137,13 +144,13 @@ public sealed class GetUnidentifiedItemContext(
             members.Select(member => member.ProcessedReceiptId).OfType<Guid>().Distinct().ToArray(),
             cancellationToken);
         var receiptsById = memberReceipts.ToDictionary(receipt => receipt.Id);
-        var offers = await _offers.ExecuteManyAsync(actor, memberReceipts, cancellationToken);
+        var registration = await _offers.ExecuteForGroupAsync(actor, memberReceipts, cancellationToken);
         var offersById = memberReceipts
-            .Zip(offers, (receipt, offered) => (receipt.Id, offered))
+            .Zip(registration.Members, (receipt, offered) => (receipt.Id, offered))
             .ToDictionary(pair => pair.Id, pair => pair.offered);
+        var imageIntake = registration.ImageIntake;
 
         var readings = new List<ImageVrmSuggestion>();
-        ImageIntakeDetail? imageIntake = null;
         IntakeReceipt? registrationReceipt = null;
         var undecided = true;
         foreach (var member in members)
@@ -160,7 +167,6 @@ public sealed class GetUnidentifiedItemContext(
                 undecided = false;
             }
 
-            imageIntake ??= await _imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
             var offered = offersById[receipt.Id];
             readings.AddRange(offered.RegistrationReadings);
             if (offered.CanRegisterImages)
@@ -186,6 +192,7 @@ public sealed class GetUnidentifiedItemContext(
             canRegister ? registrationReceipt : null)
         {
             MemberReceipts = memberReceipts,
+            MemberReadings = registration.ReadingsByReceipt,
         };
     }
 }
