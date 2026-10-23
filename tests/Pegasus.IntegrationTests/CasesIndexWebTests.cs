@@ -1199,6 +1199,9 @@ public sealed class CasesIndexWebTests
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken) =>

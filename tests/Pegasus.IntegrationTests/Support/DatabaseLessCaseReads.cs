@@ -287,6 +287,9 @@ internal sealed class DatabaseLessCaseReads :
     Task<ImageIntakeDetail?> IImageIntakeQueries.GetAsync(Guid id, CancellationToken cancellationToken) =>
         Refused<ImageIntakeDetail?>(nameof(IImageIntakeQueries));
 
+    Task<bool> IImageIntakeQueries.ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+        Refused<bool>(nameof(IImageIntakeQueries));
+
     Task<ImageIntakeDetail?> IImageIntakeQueries.GetByReferenceAsync(
         string imageIntakeReference, CancellationToken cancellationToken) =>
         Refused<ImageIntakeDetail?>(nameof(IImageIntakeQueries));

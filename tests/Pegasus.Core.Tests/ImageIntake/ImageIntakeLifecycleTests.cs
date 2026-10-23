@@ -328,6 +328,9 @@ public sealed class ImageIntakeLifecycleTests
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
 
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference,
             CancellationToken cancellationToken) =>

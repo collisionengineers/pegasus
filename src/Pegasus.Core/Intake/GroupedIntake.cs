@@ -275,6 +275,7 @@ public sealed class SubmitGroupedIntake(
             cancellationToken);
         var duplicates = new Dictionary<int, bool>(files.Length);
         var committed = new List<ReceivedIntake>(files.Length);
+        var added = new List<IntakeSubmissionGroupMember>(files.Length);
         foreach (var file in files)
         {
             var existing = group.Members.FirstOrDefault(member => member.Ordinal == file.Ordinal);
@@ -301,7 +302,7 @@ public sealed class SubmitGroupedIntake(
                 source,
                 $"{OperationPrefix(request.Channel)}:{request.SubmissionToken}:{file.Ordinal}",
                 cancellationToken);
-            await groupStore.AddMemberAsync(group.Id, file.Ordinal, received, cancellationToken);
+            added.Add(await groupStore.AddMemberAsync(group.Id, file.Ordinal, received, cancellationToken));
             duplicates[file.Ordinal] = received.IsDuplicate;
             committed.Add(received);
         }
@@ -310,8 +311,10 @@ public sealed class SubmitGroupedIntake(
         await Task.WhenAll(committed.Select(received =>
             submission.PublishCommittedAsync(received, cancellationToken)));
 
-        var members = await groupStore.ListMembersAsync(group.Id, cancellationToken);
-        if (members.Count != files.Length)
+        // The roster is the members the group already held plus the ones this
+        // call added; no second read of the group is needed.
+        var members = group.Members.Concat(added).OrderBy(member => member.Ordinal).ToArray();
+        if (members.Length != files.Length)
         {
             throw new InvalidDataException("The submission group is missing a file member.");
         }

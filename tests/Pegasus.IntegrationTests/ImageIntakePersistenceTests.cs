@@ -403,9 +403,11 @@ public sealed class ImageIntakePersistenceTests
                 $"image-intake-associate:{memberReceiptIds[1]:N}",
                 "Automatic association: unambiguous registration match.",
                 ExpectedStaffOriginAssociationVersion: staffOverride ? 2 : null);
-            await mutations.AutoLinkAsync(completionRequest, DateTimeOffset.UtcNow, CancellationToken.None);
+            // The link returns the Case version it recorded, which is the next member's expected version.
+            var recordedVersion = await mutations.AutoLinkAsync(completionRequest, DateTimeOffset.UtcNow, CancellationToken.None);
+            Assert.Equal(staffOverride ? 4 : 2, recordedVersion);
             var afterCompletion = await receipts.GetAsync(memberReceiptIds[1], CancellationToken.None);
-            await mutations.AutoLinkAsync(completionRequest, DateTimeOffset.UtcNow, CancellationToken.None);
+            Assert.Equal(recordedVersion, await mutations.AutoLinkAsync(completionRequest, DateTimeOffset.UtcNow, CancellationToken.None));
             await Assert.ThrowsAsync<IntakeOperationConflictException>(() => mutations.AutoLinkAsync(
                 completionRequest with { ExpectedStaffOriginAssociationVersion = staffOverride ? 3 : 0 },
                 DateTimeOffset.UtcNow, CancellationToken.None));
@@ -545,6 +547,34 @@ public sealed class ImageIntakePersistenceTests
         var pending = await store.ListPendingPairingAsync(50, null, CancellationToken.None);
 
         Assert.Empty(pending);
+        Assert.Equal(1, statements.Count);
+    }
+
+    /// <summary>
+    /// An Unidentified resolve names an Image Intake destination and asks only
+    /// whether it exists: one statement, where the detail read sends more.
+    /// </summary>
+    [Fact]
+    public async Task AnImageIntakeExistsByOneStatement()
+    {
+        var statements = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: statements);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "exists-one-statement");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var registered = Assert.IsType<ImageIntakeDetail>(
+            await store.GetByOriginReceiptAsync(imageReceipt, CancellationToken.None));
+
+        statements.Reset();
+        Assert.True(await store.ExistsAsync(registered.Record.Id, CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+
+        statements.Reset();
+        Assert.False(await store.ExistsAsync(Guid.NewGuid(), CancellationToken.None));
         Assert.Equal(1, statements.Count);
     }
 

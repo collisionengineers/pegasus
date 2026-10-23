@@ -461,6 +461,53 @@ public sealed class ImageIntakeCasePairingTests
             await pairing.PairRegisteredReceiptAsync(receiptId, CancellationToken.None, detail));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AGroupLinkScansOnceAndLinksEachMemberAgainstTheVersionTheLastLinkRecorded(bool destinationRecorded)
+    {
+        var receiptId = Guid.NewGuid();
+        var firstImage = Guid.NewGuid();
+        var secondImage = Guid.NewGuid();
+        var detail = new ImageIntakeDetail(
+            new ImageIntakeRecord(
+                Guid.NewGuid(),
+                new ImageIntakeOrigin(
+                    receiptId,
+                    new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, "token"),
+                    new string('a', 64),
+                    Guid.NewGuid()),
+                "AB12CDE",
+                "AB12CDE-01"),
+            DateTimeOffset.UtcNow,
+            destinationRecorded ? CaseId : null,
+            destinationRecorded ? "QDS26001" : null);
+        var queries = new FakeQueries
+        {
+            ByOriginReceipt = { [receiptId] = detail },
+            Images = [new(firstImage, "one.png", "image/png"), new(secondImage, "two.png", "image/png")]
+        };
+        var candidates = new FakeCandidates
+        {
+            Result = [new(CaseId, "QDS26001", 4, "AB12CDE", DateTimeOffset.UnixEpoch)]
+        };
+        var mutationStore = new FakeMutationStore();
+
+        var result = await new ImageIntakeCasePairing(
+                queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble(), queries)
+            .PairRegisteredReceiptAsync(receiptId, CancellationToken.None);
+
+        Assert.Equal(new ImageIntakePairingResult(1, 1, 0), result);
+        Assert.Equal(1, candidates.Scans);
+        // An already recorded destination has its origin linked; the images follow it.
+        Guid[] linked = destinationRecorded ? [firstImage, secondImage] : [receiptId, firstImage, secondImage];
+        Assert.Equal(linked, mutationStore.AutoLinks.Select(link => link.ReceiptId));
+        Assert.Equal(
+            Enumerable.Range(4, linked.Length).Select(version => (long)version),
+            mutationStore.AutoLinks.Select(link => link.ExpectedCaseVersion));
+        Assert.All(mutationStore.AutoLinks, link => Assert.Contains("QDS26001", link.Reason));
+    }
+
     [Fact]
     public async Task AnAlreadyLinkedAwaitingIntakeRetriesTheMergeWithoutRelinking()
     {
@@ -645,6 +692,9 @@ public sealed class ImageIntakeCasePairingTests
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
 
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference,
             CancellationToken cancellationToken) =>
@@ -700,10 +750,15 @@ public sealed class ImageIntakeCasePairingTests
     {
         public IReadOnlyList<ImageIntakeCaseCandidate> Result { get; init; } = [];
 
+        public int Scans { get; private set; }
+
         public Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(
             string normalizedVehicleRegistration,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(normalizedVehicleRegistration == "AB12CDE" ? Result : []);
+            CancellationToken cancellationToken)
+        {
+            Scans++;
+            return Task.FromResult(normalizedVehicleRegistration == "AB12CDE" ? Result : []);
+        }
     }
 
     private sealed class FakeMutationStore : IIntakeMutationStore
@@ -737,7 +792,7 @@ public sealed class ImageIntakeCasePairingTests
             DateTimeOffset occurredAtUtc,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task AutoLinkAsync(
+        public Task<long> AutoLinkAsync(
             AutomaticIntakeLinkRequest request,
             DateTimeOffset occurredAtUtc,
             CancellationToken cancellationToken)
@@ -748,7 +803,7 @@ public sealed class ImageIntakeCasePairingTests
             }
 
             AutoLinks.Add(request);
-            return Task.CompletedTask;
+            return Task.FromResult(request.ExpectedCaseVersion + 1);
         }
     }
 }

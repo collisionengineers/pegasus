@@ -305,6 +305,13 @@ public interface IImageIntakeQueries
 
     Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Whether an Image Intake with this identity exists, for a caller that
+    /// needs nothing else; <see cref="GetAsync"/> reads its association and
+    /// group besides.
+    /// </summary>
+    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
+
     Task<ImageIntakeDetail?> GetByReferenceAsync(
         string imageIntakeReference,
         CancellationToken cancellationToken);

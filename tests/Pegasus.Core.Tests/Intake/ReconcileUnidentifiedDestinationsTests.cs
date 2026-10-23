@@ -105,6 +105,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolve.TargetKind);
         Assert.Equal(caseId.ToString("N"), resolve.TargetId);
         Assert.Equal("QDOS26030", resolve.TargetReference);
+        // The link only needs to know whether the Case is a Triage: the record, never the detail.
+        Assert.Equal(0, harness.Triages.DetailCalls);
     }
 
     // Statement 2 — established precedence beats the trailing manual-link branch.
@@ -173,6 +175,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolve.TargetKind);
         Assert.Equal(triageCaseId.ToString("N"), resolve.TargetId);
         Assert.Equal("t.QDOS26033", resolve.TargetReference);
+        Assert.Equal(0, harness.Triages.DetailCalls);
     }
 
     // Statement 4.
@@ -1344,8 +1347,13 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail.Record : null);
 
-        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail : null);
+        public int DetailCalls { get; private set; }
+
+        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            DetailCalls++;
+            return Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail : null);
+        }
 
         public Task<TriageSummary?> GetByOriginReceiptAsync(
             Guid originReceiptId,
@@ -1371,8 +1379,23 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>>(
                 new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>());
 
-        public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<ImageIntakeDetail?>(null);
+        public HashSet<Guid> ExistingIds { get; } = [];
+
+        public int GetCalls { get; private set; }
+
+        public int ExistsCalls { get; private set; }
+
+        public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
+        {
+            GetCalls++;
+            return Task.FromResult<ImageIntakeDetail?>(null);
+        }
+
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken)
+        {
+            ExistsCalls++;
+            return Task.FromResult(ExistingIds.Contains(id));
+        }
 
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference,

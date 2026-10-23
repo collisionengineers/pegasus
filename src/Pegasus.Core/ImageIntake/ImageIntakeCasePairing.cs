@@ -221,21 +221,22 @@ public sealed class ImageIntakeCasePairing(
             var staffOriginVersion = originReceipt.AssociationWasStaffDecision
                 ? originReceipt.ManualAssociationVersion : null;
             var targetId = detail.AssociatedCaseId;
-            // The scan that chose the target also supplies the first link's Case
-            // version. Each link advances that version, so later members rescan.
-            IReadOnlyList<ImageIntakeCaseCandidate>? scanned = null;
+            // One scan per group link supplies the target and its Case version.
+            // Each link then returns the version it recorded, which the next
+            // member links against.
+            ImageIntakeCaseCandidate? linkTarget = null;
             if (targetId is null)
             {
-                var eligible = scanned = await caseCandidates.FindEligibleByRegistrationAsync(
+                var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
                     detail.Record.NormalizedVehicleRegistration, cancellationToken);
-                var target = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
+                linkTarget = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
                     detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
-                if (target is null)
+                if (linkTarget is null)
                 {
                     return new(1, 0, 0);
                 }
 
-                targetId = target.CaseId;
+                targetId = linkTarget.CaseId;
             }
 
             var images = manualImages
@@ -257,8 +258,9 @@ public sealed class ImageIntakeCasePairing(
                     throw new IntakeAssociationConflictException("A group member has a different association decision.");
                 }
 
-                // Each prior member link advances the Case version. Refresh it,
-                // and let the store recheck current uniqueness inside its write.
+                // The store rechecks current uniqueness and the Case version
+                // inside its write, so a Case another actor changed since the
+                // scan fails this link and a later pass links it.
                 long caseVersion;
                 string reason;
                 if (staffOriginVersion is not null)
@@ -275,22 +277,26 @@ public sealed class ImageIntakeCasePairing(
                 }
                 else
                 {
-                    var eligible = scanned ?? await caseCandidates.FindEligibleByRegistrationAsync(
-                        detail.Record.NormalizedVehicleRegistration, cancellationToken);
-                    scanned = null;
-                    var target = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
-                        detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
-                    if (target is null || target.CaseId != targetId)
+                    if (linkTarget is null)
                     {
-                        throw new IntakeAssociationConflictException("The current image destination is no longer unique.");
+                        // The destination was recorded earlier, so no scan chose it yet.
+                        var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
+                            detail.Record.NormalizedVehicleRegistration, cancellationToken);
+                        linkTarget = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
+                            detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
+                        if (linkTarget is null || linkTarget.CaseId != targetId)
+                        {
+                            throw new IntakeAssociationConflictException("The current image destination is no longer unique.");
+                        }
                     }
-                    caseVersion = target.CaseVersion;
-                    reason = $"Automatic association: the confirmed registration matches case {target.CaseReference} unambiguously.";
+                    caseVersion = linkTarget.CaseVersion;
+                    reason = $"Automatic association: the confirmed registration matches case {linkTarget.CaseReference} unambiguously.";
                 }
-                await intakeMutationStore.AutoLinkAsync(
+                var recordedVersion = await intakeMutationStore.AutoLinkAsync(
                     new(memberId, targetId.Value, caseVersion, actor,
                         $"image-intake-associate:{memberId:N}", reason, staffOriginVersion),
                     timeProvider.GetUtcNow(), cancellationToken);
+                linkTarget = linkTarget is null ? null : linkTarget with { CaseVersion = recordedVersion };
             }
 
             await SyncMergeAfterLinkAsync(detail.Record.Origin.ReceiptId, targetId.Value, actor,

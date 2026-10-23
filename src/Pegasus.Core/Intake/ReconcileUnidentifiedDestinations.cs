@@ -412,7 +412,7 @@ public sealed class ReconcileUnidentifiedDestinations(
         // Triage Case is a staff link destination too, resolved as a Triage.
         if (receipt.CurrentCaseId is { } linkedCaseId)
         {
-            var targetKind = await triageQueries.GetAsync(linkedCaseId, cancellationToken) is null
+            var targetKind = await triageQueries.GetRecordAsync(linkedCaseId, cancellationToken) is null
                 ? UnidentifiedResolutionTargetKind.InstructionCase
                 : UnidentifiedResolutionTargetKind.Triage;
             return new(

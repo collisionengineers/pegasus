@@ -1155,6 +1155,13 @@ public sealed class EfImageIntakeStore(
         return await GetDetailAsync(context, item => item.Id == id, cancellationToken);
     }
 
+    public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ImageIntakes.AsNoTracking()
+            .AnyAsync(item => item.Id == id, cancellationToken);
+    }
+
     public async Task<ImageIntakeDetail?> GetByReferenceAsync(
         string imageIntakeReference,
         CancellationToken cancellationToken)

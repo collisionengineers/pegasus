@@ -865,6 +865,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference,
             CancellationToken cancellationToken) =>
