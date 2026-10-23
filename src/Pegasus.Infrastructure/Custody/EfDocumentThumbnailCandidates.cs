@@ -20,9 +20,9 @@ namespace Pegasus.Infrastructure.Custody;
 /// A version older than the lifetime is left
 /// to its first view, so an expired thumbnail is not made again for nobody.
 /// A saved rotation and crop is listed for the prepared thumbnail's own idle
-/// lifetime after it was saved, which is as long as the thumbnail made for
-/// it lives unviewed, so it is made once ahead of its first view and not
-/// again for nobody. The plain thumbnails are listed first and fill the run
+/// lifetime after it was saved or filed on the Case, whichever is later,
+/// which is as long as the thumbnail made for it lives unviewed, so it is
+/// made once ahead of its first view and not again for nobody. The plain thumbnails are listed first and fill the run
 /// before any saved variant does.
 /// </remarks>
 internal sealed class EfDocumentThumbnailCandidates(
@@ -85,10 +85,15 @@ internal sealed class EfDocumentThumbnailCandidates(
 
     /// <summary>
     /// Fills the run with the saved rotation and crop of image occurrences
-    /// whose thumbnail of that variant is not cached. The cached variants of
-    /// a version come back with its occurrences in the one read, and the
-    /// variant of each occurrence is told from them in memory, because the
-    /// token is formatted by Core and not by SQL.
+    /// whose thumbnail of that variant is not cached. An occurrence counts
+    /// from the later of the time it was recorded on the Case and the time its
+    /// preparation was saved: filing an image copies the preparation time of
+    /// Image Intake onto the Case, which may be long before the filing. SQL
+    /// leaves out a version that has a live prepared thumbnail written since
+    /// that time and returns at most the places left in the run (and one more
+    /// for each deferred version), newest first. The cached variants of
+    /// the rows that come back are compared in memory, because the token is
+    /// formatted by Core and not by SQL.
     /// </summary>
     private static async Task AddSavedVariantsAsync(
         PegasusDbContext db,
@@ -101,6 +106,7 @@ internal sealed class EfDocumentThumbnailCandidates(
     {
         var plainVariant = DocumentThumbnailCache.Variant;
         var savedAfter = now - DocumentThumbnailCache.PreparedIdleLifetime;
+        var preparedIdleHours = DocumentThumbnailCache.PreparedIdleLifetime.TotalHours;
         const long maximumLength = ImageThumbnailRendering.MaximumSourceBytes;
         var saved = await (
                 from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
@@ -108,9 +114,12 @@ internal sealed class EfDocumentThumbnailCandidates(
                     on occurrence.VersionId equals version.Id
                 join document in db.Set<CaseDocumentEntity>().AsNoTracking()
                     on version.DocumentId equals document.Id
+                let changedAt = occurrence.PreparedAtUtc > occurrence.RecordedAtUtc
+                    ? occurrence.PreparedAtUtc.Value
+                    : occurrence.RecordedAtUtc
                 where occurrence.SemanticRole == DocumentSemanticRole.Image
                     && (occurrence.RotationDegrees != 0 || occurrence.CropLeft != null)
-                    && (occurrence.PreparedAtUtc ?? occurrence.RecordedAtUtc) > savedAfter
+                    && changedAt > savedAfter
                     && version.CustodyStatus == DocumentCustodyStatus.Confirmed
                     && version.IsCurrent
                     && !version.IsLogicallyRemoved
@@ -119,7 +128,14 @@ internal sealed class EfDocumentThumbnailCandidates(
                     && version.ContentLength <= maximumLength
                     && EF.Functions.Like(version.MediaType, "image/%")
                     && !EF.Functions.Like(version.MediaType, "image/svg%")
-                orderby (occurrence.PreparedAtUtc ?? occurrence.RecordedAtUtc) descending, occurrence.Id
+                    // A prepared thumbnail written since the save is the one
+                    // this occurrence is waiting for (a write gives it the
+                    // idle lifetime from that moment).
+                    && !db.Set<DocumentContentCacheEntryEntity>().Any(entry =>
+                        entry.DocumentVersionId == version.Id
+                        && entry.Variant != plainVariant
+                        && entry.ExpiresAtUtc > changedAt.AddHours(preparedIdleHours))
+                orderby changedAt descending, occurrence.Id
                 select new
                 {
                     document.CaseId,
@@ -140,6 +156,7 @@ internal sealed class EfDocumentThumbnailCandidates(
                         .Select(entry => entry.Variant)
                         .ToList()
                 })
+            .Take(maximumItems - listed.Count + skipped.Count)
             .ToArrayAsync(cancellationToken);
 
         var seen = new HashSet<(Guid VersionId, string Variant)>();

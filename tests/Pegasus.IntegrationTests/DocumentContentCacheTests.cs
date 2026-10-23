@@ -2135,6 +2135,51 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A saved rotation and crop counts from the later of its preparation and
+    /// its filing on the Case: an image prepared in Image Intake more than a
+    /// day before it was filed carries that old preparation time onto the
+    /// Case, and is still made ahead of its first view; one neither saved nor
+    /// filed within the day is not.
+    /// </summary>
+    [Fact]
+    public async Task ASavedVariantFiledTodayButPreparedLongAgoIsStillMadeAheadOfItsFirstView()
+    {
+        var image = TransparentPng(width: 960, height: 480);
+        var estate = await Estate.CreateDocumentAsync(image, "image/png");
+        await using (estate)
+        {
+            var now = estate.Clock.GetUtcNow();
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentVersionEntity>().SingleAsync()).CreatedAtUtc = now.AddMinutes(-5);
+                db.Add(new DocumentOccurrenceEntity
+                {
+                    Id = Guid.NewGuid(), CaseId = estate.Request.CaseId!.Value,
+                    DocumentId = estate.Request.DocumentId!.Value, VersionId = estate.Request.VersionId!.Value,
+                    Ordinal = 1, SourceOccurrenceIdentity = "filed-late", OperationKey = "filed-late",
+                    SemanticRole = DocumentSemanticRole.Image, Source = DocumentSource.StaffUpload,
+                    RecordedAtUtc = now.AddMinutes(-5), PreparedAtUtc = now.AddHours(-30),
+                    RotationDegrees = 90
+                });
+                await db.SaveChangesAsync();
+            }
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var candidates = new EfDocumentThumbnailCandidates(factory, estate.Clock);
+
+            Assert.Equal(
+                [CaseAssetRotation.None, CaseAssetRotation.Clockwise90],
+                (await candidates.ListAsync(5, CancellationToken.None)).Select(candidate => candidate.Rotation));
+
+            // A day on, neither time is within the day.
+            estate.Clock.Advance(TimeSpan.FromHours(25));
+            Assert.Equal(
+                [CaseAssetRotation.None],
+                (await candidates.ListAsync(5, CancellationToken.None)).Select(candidate => candidate.Rotation));
+        }
+    }
+
+    /// <summary>
     /// The Worker's estimate sweep reads a filed PDF once, as the system
     /// worker, and records whether the import would read it: an Audatex
     /// estimate is one, an instruction letter is not. A version with an
