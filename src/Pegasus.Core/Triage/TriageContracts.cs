@@ -533,6 +533,18 @@ public interface ITriageQueries
     Task<TriageSummary?> GetByOriginReceiptAsync(
         Guid originReceiptId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The record of the Triage this receipt opened, when one of its history
+    /// rows carries <paramref name="operationKey"/>: one read, for a caller
+    /// that asks whether its own operation made the Triage.
+    /// </summary>
+    Task<TriageRecord?> GetRecordByOriginOperationAsync(
+        Guid originReceiptId,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        Task.FromException<TriageRecord?>(
+            new NotSupportedException("The Triage lookup by operation key is not available."));
 }
 
 public interface ITriageResponseEvidenceCandidateQueries

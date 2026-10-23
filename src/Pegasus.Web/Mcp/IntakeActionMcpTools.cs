@@ -675,11 +675,9 @@ internal sealed class IntakeActionMcpTools(
         catch (InvalidOperationException)
         {
             var creationKey = StaffIntakeActions.OpenTriageOperationKey(operationKey);
-            if (await triages.GetByOriginReceiptAsync(receipt.Id, cancellationToken) is { } opened
-                && await triages.GetAsync(opened.CaseId, cancellationToken) is { } detail
-                && detail.History.Any(entry => entry.OperationKey == creationKey))
+            if (await triages.GetRecordByOriginOperationAsync(receipt.Id, creationKey, cancellationToken) is { } opened)
             {
-                return (detail.Record, true);
+                return (opened, true);
             }
 
             throw;

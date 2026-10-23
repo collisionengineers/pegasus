@@ -1287,6 +1287,21 @@ public sealed class EfTriageStore(
         return entity is null ? null : Map(entity);
     }
 
+    public async Task<TriageRecord?> GetRecordByOriginOperationAsync(
+        Guid originReceiptId,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Triage.AsNoTracking()
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(
+                item => item.OriginReceiptId == originReceiptId
+                    && item.History.Any(entry => entry.OperationKey == operationKey),
+                cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
     public async Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
