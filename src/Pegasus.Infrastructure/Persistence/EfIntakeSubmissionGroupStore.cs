@@ -64,10 +64,9 @@ public sealed class EfIntakeSubmissionGroupStore(
         CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.IntakeSubmissionGroups
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == groupId, cancellationToken);
-        return entity is null ? null : await MapAsync(context, entity, cancellationToken);
+        var read = await ReadWithStoreClock(context.IntakeSubmissionGroups.Where(item => item.Id == groupId))
+            .SingleOrDefaultAsync(cancellationToken);
+        return read is null ? null : await MapAsync(context, read.Group, read.ReadAtUtc, cancellationToken);
     }
 
     public async Task<IntakeSubmissionGroup?> FindAsync(
@@ -76,14 +75,23 @@ public sealed class EfIntakeSubmissionGroupStore(
         CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.IntakeSubmissionGroups
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
+        var read = await ReadWithStoreClock(context.IntakeSubmissionGroups.Where(
                 item => item.SourceChannel == EfIntakeReceiptStore.ToCode(channel)
-                    && item.SubmissionToken == submissionToken,
-                cancellationToken);
-        return entity is null ? null : await MapAsync(context, entity, cancellationToken);
+                    && item.SubmissionToken == submissionToken))
+            .SingleOrDefaultAsync(cancellationToken);
+        return read is null ? null : await MapAsync(context, read.Group, read.ReadAtUtc, cancellationToken);
     }
+
+    /// <summary>
+    /// The group row with the SQL server's clock beside it, in the same
+    /// statement: EF translates <see cref="DateTimeOffset.UtcNow"/> in a
+    /// projection to <c>SYSUTCDATETIME()</c>, so no clock of this process is
+    /// read (R191, R379).
+    /// </summary>
+    private static IQueryable<GroupRead> ReadWithStoreClock(IQueryable<IntakeSubmissionGroupEntity> groups) =>
+        groups.AsNoTracking().Select(item => new GroupRead(item, DateTimeOffset.UtcNow));
+
+    private sealed record GroupRead(IntakeSubmissionGroupEntity Group, DateTimeOffset ReadAtUtc);
 
     public async Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
         IntakeSourceIdentity sourceIdentity,
@@ -192,7 +200,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         }
 
         await transaction.CommitAsync(cancellationToken);
-        return await MapAsync(context, existing, cancellationToken);
+        return await MapAsync(context, existing, readAtUtc: null, cancellationToken);
     }
 
     public Task<IntakeSubmissionGroupMember> AddMemberAsync(
@@ -449,6 +457,7 @@ public sealed class EfIntakeSubmissionGroupStore(
     private static async Task<IntakeSubmissionGroup> MapAsync(
         PegasusDbContext context,
         IntakeSubmissionGroupEntity entity,
+        DateTimeOffset? readAtUtc,
         CancellationToken cancellationToken)
     {
         var members = await context.IntakeSubmissionGroupMembers
@@ -476,7 +485,10 @@ public sealed class EfIntakeSubmissionGroupStore(
                 entity.DiscardRequestFingerprint!),
             entity.ImageMatchDeclinedAtUtc is null ? null : new(
                 entity.ImageMatchDeclinedByActorSubjectId!,
-                entity.ImageMatchDeclinedAtUtc.Value));
+                entity.ImageMatchDeclinedAtUtc.Value))
+        {
+            ReadAtUtc = readAtUtc
+        };
     }
 
     private static async Task<IntakeSubmissionGroupMember> MapMemberAsync(

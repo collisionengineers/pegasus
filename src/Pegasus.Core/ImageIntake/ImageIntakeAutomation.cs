@@ -32,12 +32,19 @@ namespace Pegasus.Core.ImageIntake;
 /// staff to choose a destination: nothing is registered, held or made
 /// Unidentified while it waits.
 /// </param>
+/// <param name="UnidentifiedGroupMembers">
+/// When <paramref name="UnidentifiedGroup"/> is the whole submission group,
+/// every member receipt this pass read, as it read them: the members
+/// <see cref="RegisterUnidentifiedSubmissionGroup"/> holds before the group
+/// registers, so neither the group nor its members are read again for it.
+/// </param>
 public sealed record ImageIntakeAutomationOutcome(
     IntakeReceipt Receipt,
     bool GroupPending = false,
     RegisterUnidentifiedRequest? UnidentifiedGroup = null,
     bool AssociatedCase = false,
-    bool AwaitingStaffDecision = false);
+    bool AwaitingStaffDecision = false,
+    IReadOnlyList<IntakeReceipt>? UnidentifiedGroupMembers = null);
 
 /// <summary>
 /// The post-persistence intake hook for image-only material: scan every
@@ -335,8 +342,11 @@ public sealed class ImageIntakeAutomation(
             // is a legitimate, resolved group outcome (not retriable): keep
             // the intact group available for Unidentified, including the
             // explicit conflicting_vrms outcome (Unidentified scope, unchanged).
-            return new(receipt, UnidentifiedGroup:
-                ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(group, routing.ReasonCode));
+            return new(
+                receipt,
+                UnidentifiedGroup: ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(
+                    group, routing.ReasonCode),
+                UnidentifiedGroupMembers: receipts);
         }
 
         if (group.Channel == IntakeSourceChannel.ManualUpload
@@ -650,11 +660,10 @@ public sealed class ImageIntakeAutomation(
 
     /// <summary>
     /// Whether a manual upload's matched Cases are still waiting for staff:
-    /// not declined, and younger than the grouped-image hold window.
+    /// not declined, and the group's escape window not yet closed.
     /// </summary>
-    private bool MatchWaitIsOpen(IntakeSubmissionGroup group) =>
-        group.ImageMatchDeclined is null
-        && timeProvider.GetUtcNow() - group.ReceivedAtUtc < ReconcileGroupedImageIntake.EscapeAfter;
+    private static bool MatchWaitIsOpen(IntakeSubmissionGroup group) =>
+        group.ImageMatchDeclined is null && !IntakeEscapeWindow.HasClosed(group);
 
     private static bool HasStaffAssociation(IntakeReceipt receipt) =>
         receipt.ManualAssociationActorKind == ActorKind.Staff;

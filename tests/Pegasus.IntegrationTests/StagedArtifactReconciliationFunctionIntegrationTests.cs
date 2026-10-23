@@ -39,8 +39,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new UnreachableGroupStore(),
             workStore,
             new UnreachableProcessQueuedIntake(),
-            TimeProvider.System,
-            new UnreachableRegisterUnidentified());
+            new RegisterUnidentifiedSubmissionGroup(null!, new UnreachableRegisterUnidentified()));
         var unidentifiedReconciler = new ReconcileUnidentifiedDestinations(
             new EmptyUnidentifiedStore(),
             new UnreachableResolveUnidentified(),
@@ -336,7 +335,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcilePendingArtifactCustody(contextFactory, new EmptyDocumentContentStore(), new EmptyStagedArtifactStore()),
             settlement ?? new EfSettleFiledCaseReportArtifacts(contextFactory, TimeProvider.System),
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
-                new UnreachableProcessQueuedIntake(), TimeProvider.System, new UnreachableRegisterUnidentified()),
+                new UnreachableProcessQueuedIntake(),
+                new RegisterUnidentifiedSubmissionGroup(null!, new UnreachableRegisterUnidentified())),
             CaseFilingReplay(new EmptyCaseFilingReplayStore()),
             pairing,
             new TriageCasePairing(new EfTriageStore(contextFactory,

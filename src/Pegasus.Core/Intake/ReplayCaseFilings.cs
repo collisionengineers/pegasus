@@ -68,13 +68,13 @@ public interface ICaseFilingReplayStore
     /// <paramref name="nowUtc"/>, with a completed evaluation and a retained
     /// source the filer can file, not a discarded group's member, and with
     /// neither a completed filing on that Case nor a <c>replay_exhausted</c>
-    /// row since the association was made. A pipeline association made before
-    /// <paramref name="systemAssociationCutoff"/> is not listed (FRD-22); a
+    /// row since the association was made. A pipeline association made at or
+    /// before <paramref name="systemAssociationCutoff"/> is not listed (FRD-22); a
     /// member of staff's is listed until it files. Each candidate carries its
     /// plan's counts, read for the whole page at once. The store reads no
     /// clock of its own.
     /// </summary>
-    /// <param name="systemAssociationCutoff">The start of the pipeline associations' replay window, from Core's clock.</param>
+    /// <param name="systemAssociationCutoff">The latest association whose replay window has closed, from Core's clock (<see cref="IntakeEscapeWindow.LatestClosedStart"/>).</param>
     /// <param name="nowUtc">The time the edit lease is judged at, the clock the filer's own check reads.</param>
     Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
         CaseFilingReplayCursor? after,
@@ -124,9 +124,6 @@ public sealed class ReplayCaseFilings(
 {
     /// <summary>The attempts one association gets: the live filing path's own bound (R190).</summary>
     public static int MaximumAttempts => ProcessQueuedIntake.RetryDelays.Length;
-
-    /// <summary>How long after a pipeline association its filing is still replayed (R377).</summary>
-    public static TimeSpan SystemAssociationWindow => ReconcileGroupedImageIntake.EscapeAfter;
 
     public async Task<ReplayCaseFilingsResult> ExecuteAsync(
         int maximumItems,
@@ -249,7 +246,7 @@ public sealed class ReplayCaseFilings(
         CancellationToken cancellationToken)
     {
         var due = new List<CaseFilingReplayCandidate>();
-        var systemAssociationCutoff = nowUtc - SystemAssociationWindow;
+        var systemAssociationCutoff = IntakeEscapeWindow.LatestClosedStart(nowUtc);
         CaseFilingReplayCursor? cursor = null;
         while (true)
         {

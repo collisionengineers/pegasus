@@ -866,14 +866,9 @@ public sealed class ProcessQueuedIntake(
             }
             if (replayImageOutcome.GroupPending)
             {
-                if (await IsGroupPastEscapeWindowAsync(completedReceipt, cancellationToken))
-                {
-                    await RetainSubmissionGroupHoldingAsync(
-                        replayImageOutcome.Receipt,
-                        includeCurrentReceipt: true,
-                        cancellationToken);
-                }
-
+                // A redelivery holds nothing while the group is pending, as
+                // the first pass does: the sweep's escape holds its members
+                // if the window closes first (R382).
                 return QueuedIntakeProcessingOutcome.RetryScheduled;
             }
             completedReceipt = await RetainHoldingIfRequiredAsync(
@@ -882,7 +877,7 @@ public sealed class ProcessQueuedIntake(
             await SynchronizeUnidentifiedAsync(
                 completedReceipt,
                 replayTriage,
-                replayImageOutcome.UnidentifiedGroup,
+                replayImageOutcome,
                 cancellationToken);
             return replayPromotion == AutomaticCaseEvidencePromotionOutcome.Deferred
                 ? QueuedIntakeProcessingOutcome.RetryScheduled
@@ -1013,7 +1008,7 @@ public sealed class ProcessQueuedIntake(
                 await SynchronizeUnidentifiedAsync(
                     processed,
                     triage,
-                    imageOutcome.UnidentifiedGroup,
+                    imageOutcome,
                     cancellationToken);
             }
 
@@ -1190,93 +1185,6 @@ public sealed class ProcessQueuedIntake(
         return group?.Discard is not null;
     }
 
-    private async Task<bool> IsGroupPastEscapeWindowAsync(
-        IntakeReceipt receipt,
-        CancellationToken cancellationToken)
-    {
-        if (submissionGroups is null)
-        {
-            return false;
-        }
-
-        var group = await submissionGroups.FindForMemberSourceAsync(
-            receipt.SourceIdentity,
-            cancellationToken);
-        return group is not null
-            && timeProvider.GetUtcNow() - group.ReceivedAtUtc >= ReconcileGroupedImageIntake.EscapeAfter;
-    }
-
-    private async Task RetainSubmissionGroupHoldingAsync(
-        IntakeReceipt receipt,
-        bool includeCurrentReceipt,
-        CancellationToken cancellationToken)
-    {
-        if (submissionGroups is null)
-        {
-            return;
-        }
-
-        var group = await submissionGroups.FindForMemberSourceAsync(
-            receipt.SourceIdentity,
-            cancellationToken);
-        if (group is not null)
-        {
-            await RetainSubmissionGroupHoldingAsync(
-                receipt,
-                group,
-                includeCurrentReceipt,
-                cancellationToken);
-        }
-    }
-
-    private async Task RetainSubmissionGroupHoldingAsync(
-        IntakeReceipt receipt,
-        Guid groupId,
-        bool includeCurrentReceipt,
-        CancellationToken cancellationToken)
-    {
-        if (submissionGroups is null)
-        {
-            return;
-        }
-
-        var group = await submissionGroups.GetAsync(groupId, cancellationToken);
-        if (group is not null)
-        {
-            await RetainSubmissionGroupHoldingAsync(
-                receipt,
-                group,
-                includeCurrentReceipt,
-                cancellationToken);
-        }
-    }
-
-    private async Task RetainSubmissionGroupHoldingAsync(
-        IntakeReceipt currentReceipt,
-        IntakeSubmissionGroup group,
-        bool includeCurrentReceipt,
-        CancellationToken cancellationToken)
-    {
-        foreach (var member in group.Members.OrderBy(item => item.Ordinal))
-        {
-            var memberReceipt = await receiptQueries.FindBySourceIdentityAsync(
-                new(
-                    group.Channel,
-                    GroupedIntakeMemberToken.Create(group.SubmissionToken, member.Ordinal)),
-                cancellationToken);
-            if (memberReceipt is null
-                || (!includeCurrentReceipt && memberReceipt.Id == currentReceipt.Id))
-            {
-                continue;
-            }
-
-            _ = await RetainHoldingIfRequiredAsync(
-                memberReceipt,
-                AutomaticCaseEvidencePromotionOutcome.NotApplicable,
-                cancellationToken);
-        }
-    }
-
     /// <summary>
     /// Persists the one holding outcome after destination automation, or resolves
     /// an existing receipt holding item to its now-established destination.
@@ -1284,21 +1192,17 @@ public sealed class ProcessQueuedIntake(
     private async Task SynchronizeUnidentifiedAsync(
         IntakeReceipt receipt,
         TriageCreationOutcome triage,
-        RegisterUnidentifiedRequest? unidentifiedGroup,
+        Pegasus.Core.ImageIntake.ImageIntakeAutomationOutcome imageOutcome,
         CancellationToken cancellationToken)
     {
-        if (unidentifiedGroup is not null && registerUnidentified is not null)
+        if (imageOutcome.UnidentifiedGroup is { } unidentifiedGroup && registerUnidentified is not null)
         {
-            if (unidentifiedGroup.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
-            {
-                await RetainSubmissionGroupHoldingAsync(
-                    receipt,
-                    unidentifiedGroup.Origin.Id,
-                    includeCurrentReceipt: false,
-                    cancellationToken);
-            }
-
-            await registerUnidentified.ExecuteAsync(unidentifiedGroup, cancellationToken);
+            // The caller has already held this receipt; its siblings are held
+            // from the receipts the automation pass read.
+            await new RegisterUnidentifiedSubmissionGroup(processIntake, registerUnidentified).ExecuteAsync(
+                unidentifiedGroup,
+                (imageOutcome.UnidentifiedGroupMembers ?? []).Where(member => member.Id != receipt.Id),
+                cancellationToken);
             return;
         }
 

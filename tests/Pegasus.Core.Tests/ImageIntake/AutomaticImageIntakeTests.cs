@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -67,7 +68,7 @@ public sealed class AutomaticImageIntakeTests
     {
         var harness = new Harness(
             inGroup: true,
-            groupReceivedAtUtc: DateTimeOffset.UtcNow - ReconcileGroupedImageIntake.EscapeAfter - TimeSpan.FromMinutes(1));
+            groupReceivedAtUtc: DateTimeOffset.UtcNow - IntakeEscapeWindow.Length - TimeSpan.FromMinutes(1));
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 3, "AB12CDE", DateTimeOffset.UnixEpoch)];
 
@@ -682,7 +683,7 @@ public sealed class AutomaticImageIntakeTests
         // associate — that must never overrule the group decision.
         var harness = new GroupHarness(
             memberCount: 2,
-            receivedAtUtc: DateTimeOffset.UtcNow - ReconcileGroupedImageIntake.EscapeAfter - TimeSpan.FromMinutes(1));
+            receivedAtUtc: DateTimeOffset.UtcNow - IntakeEscapeWindow.Length - TimeSpan.FromMinutes(1));
         harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
         harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
         var exactCaseId = Guid.NewGuid();
@@ -777,7 +778,7 @@ public sealed class AutomaticImageIntakeTests
     {
         var harness = new GroupHarness(
             memberCount: 2,
-            receivedAtUtc: DateTimeOffset.UtcNow - ReconcileGroupedImageIntake.EscapeAfter - TimeSpan.FromMinutes(1));
+            receivedAtUtc: DateTimeOffset.UtcNow - IntakeEscapeWindow.Length - TimeSpan.FromMinutes(1));
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26013", 1, "AB12CDE", DateTimeOffset.UnixEpoch)];
@@ -1473,18 +1474,28 @@ public sealed class AutomaticImageIntakeTests
         }
     }
 
+    /// <summary>
+    /// The sweep re-reads the receipt only when the replay is still pending
+    /// and the group's window has closed on the store's reading, and its
+    /// escape then holds every member, each read once, before registering
+    /// the group (R191, R379, R382). The group is read once, by the sweep.
+    /// </summary>
     [Theory]
-    [InlineData(QueuedIntakeProcessingOutcome.Completed, 3, 1, 0)]
-    [InlineData(QueuedIntakeProcessingOutcome.RetryScheduled, 0, 1, 0)]
-    [InlineData(QueuedIntakeProcessingOutcome.RetryScheduled, 3, 2, 1)]
+    [InlineData("completed", QueuedIntakeProcessingOutcome.Completed, 3, 1, 0)]
+    [InlineData("retry-open", QueuedIntakeProcessingOutcome.RetryScheduled, 0, 1, 0)]
+    [InlineData("retry-closed", QueuedIntakeProcessingOutcome.RetryScheduled, 3, 2, 1)]
     public async Task GroupedImageSweepReadsTheRefreshedReceiptOnlyWhenTheRetryAndAgeTestsPass(
+        string row,
         QueuedIntakeProcessingOutcome outcome,
         int ageHours,
         int expectedReceiptReads,
         int expectedEscapes)
     {
+        Assert.NotEmpty(row);
         var harness = new GroupHarness(memberCount: 2);
+        var probe = new HoldingProbe(harness);
         var receiptId = harness.Receipts[0].Id;
+        harness.GroupStore.StoreNowUtc = harness.GroupStore.Group!.ReceivedAtUtc.AddHours(ageHours);
         var receiptReads = Forwarder.For<IIntakeReceiptQueries>(harness.ReceiptQueries);
         var groups = Forwarder.For<IIntakeSubmissionGroupStore>(harness.GroupStore);
         groups.Overrides[nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync)] =
@@ -1498,8 +1509,7 @@ public sealed class AutomaticImageIntakeTests
             (IIntakeSubmissionGroupStore)groups.Proxy,
             (IIntakeWorkStore)work.Proxy,
             new FixedOutcomeProcessor(outcome),
-            new FixedTimeProvider(harness.GroupStore.Group!.ReceivedAtUtc.AddHours(ageHours)),
-            register);
+            new RegisterUnidentifiedSubmissionGroup(probe.ProcessIntake, register));
 
         var result = await sweep.ExecuteAsync(5);
 
@@ -1507,6 +1517,71 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(expectedEscapes, result.Escaped);
         Assert.Equal(expectedEscapes, register.Calls);
         Assert.Equal(0, result.Failures);
+        Assert.Equal(
+            new[]
+            {
+                nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync),
+                nameof(IIntakeSubmissionGroupStore.FindForMemberSourceAsync)
+            },
+            groups.Calls);
+        // The escape reads the one sibling it has not already re-read.
+        Assert.Equal(
+            expectedEscapes,
+            receiptReads.Calls.Count(call => call == nameof(IIntakeReceiptQueries.FindBySourceIdentityAsync)));
+        var expectedHeld = expectedEscapes == 0
+            ? Array.Empty<IntakeSourceIdentity>()
+            : harness.Receipts.Select(receipt => receipt.SourceIdentity).ToArray();
+        Assert.Equal(expectedHeld, probe.Held);
+    }
+
+    [Theory]
+    [InlineData("before-length", -1, false)]
+    [InlineData("at-length", 0, true)]
+    [InlineData("after-length", 1, true)]
+    public void TheEscapeWindowClosesFromExactlyItsLengthOnTheStoresReading(
+        string row,
+        int ticksFromLength,
+        bool closed)
+    {
+        Assert.NotEmpty(row);
+        var receivedAtUtc = new DateTimeOffset(2026, 10, 23, 9, 0, 0, TimeSpan.Zero);
+        var group = new IntakeSubmissionGroup(
+            Guid.NewGuid(), IntakeSourceChannel.ManualUpload, "window", 2, "staff:test", receivedAtUtc, [])
+        {
+            ReadAtUtc = receivedAtUtc + IntakeEscapeWindow.Length + TimeSpan.FromTicks(ticksFromLength)
+        };
+
+        Assert.Equal(closed, IntakeEscapeWindow.HasClosed(group));
+        // A group no read returned has no store clock and is never judged on the process clock.
+        Assert.Throws<InvalidOperationException>(
+            () => IntakeEscapeWindow.HasClosed(group with { ReadAtUtc = null }));
+    }
+
+    /// <summary>
+    /// A group that resolves Unidentified hands back every member receipt its
+    /// pass read, and the hold owner holds each of them once from that list,
+    /// with no further group or member read (R382).
+    /// </summary>
+    [Fact]
+    public async Task AResolvedGroupHoldsEveryMemberFromWhatTheAutomationLoaded()
+    {
+        var harness = new GroupHarness(memberCount: 3);
+        var probe = new HoldingProbe(harness);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
+        harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+        var request = Assert.IsType<Pegasus.Core.Intake.Unidentified.RegisterUnidentifiedRequest>(
+            outcome.UnidentifiedGroup);
+        var members = Assert.IsAssignableFrom<IReadOnlyList<IntakeReceipt>>(outcome.UnidentifiedGroupMembers);
+        Assert.Equal(harness.Receipts.Select(receipt => receipt.Id), members.Select(member => member.Id));
+        var register = new CountingRegisterUnidentified();
+
+        await new RegisterUnidentifiedSubmissionGroup(probe.ProcessIntake, register)
+            .ExecuteAsync(request, members, CancellationToken.None);
+
+        Assert.Equal(harness.Receipts.Select(receipt => receipt.SourceIdentity), probe.Held);
+        Assert.Equal(1, register.Calls);
     }
 
     private sealed class FixedOutcomeProcessor(QueuedIntakeProcessingOutcome outcome) : IProcessQueuedIntake
@@ -1516,9 +1591,55 @@ public sealed class AutomaticImageIntakeTests
             CancellationToken cancellationToken = default) => Task.FromResult(outcome);
     }
 
-    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
+    /// <summary>
+    /// A <see cref="ProcessIntake"/> whose holding hand-over records each
+    /// receipt it holds. The members' files are already confirmed, so the hold
+    /// only reloads the receipt, and that reload is what is recorded: one per
+    /// receipt held.
+    /// </summary>
+    private sealed class HoldingProbe
     {
-        public override DateTimeOffset GetUtcNow() => now;
+        public HoldingProbe(GroupHarness harness)
+        {
+            for (var ordinal = 0; ordinal < harness.Receipts.Count; ordinal++)
+            {
+                var receipt = harness.Receipts[ordinal];
+                harness.ReplaceReceipt(ordinal, receipt with
+                {
+                    Assets = receipt.AssetRecords
+                        .Select(asset => asset with { CustodyState = IncomingArtifactCustodyState.Confirmed })
+                        .ToArray()
+                });
+            }
+
+            var receipts = Forwarder.For<IIntakeReceiptStore>(null);
+            receipts.Overrides[nameof(IIntakeReceiptStore.FindBySourceIdentityAsync)] = args =>
+            {
+                var source = (IntakeSourceIdentity)args[0]!;
+                Held.Add(source);
+                return Task.FromResult<IntakeReceipt?>(
+                    harness.Receipts.Single(receipt => receipt.SourceIdentity == source));
+            };
+            var custody = Forwarder.For<ICaseArtifactCustody>(null);
+            custody.Overrides[nameof(ICaseArtifactCustody.BeginDocumentBatch)] = _ => NoCustodyBatch.Instance;
+            ProcessIntake = new ProcessIntake(
+                null!,
+                (IIntakeReceiptStore)receipts.Proxy,
+                harness.ArtifactStore,
+                null!,
+                null!,
+                null!,
+                [],
+                null!,
+                TimeProvider.System,
+                retainIncomingArtifact: new RetainIncomingArtifact(
+                    (ICaseArtifactCustody)custody.Proxy,
+                    (IIncomingArtifactRetentionStore)Forwarder.For<IIncomingArtifactRetentionStore>(null).Proxy));
+        }
+
+        public ProcessIntake ProcessIntake { get; }
+
+        public List<IntakeSourceIdentity> Held { get; } = [];
     }
 
     private sealed class CountingRegisterUnidentified : Pegasus.Core.Intake.Unidentified.IRegisterUnidentified
@@ -1596,9 +1717,14 @@ public sealed class AutomaticImageIntakeTests
             string submissionToken,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        /// <summary>The store's clock as a read reports it; now unless a test sets it.</summary>
+        public DateTimeOffset? StoreNowUtc { get; set; }
+
         public Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
             IntakeSourceIdentity sourceIdentity,
-            CancellationToken cancellationToken = default) => Task.FromResult(Group);
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IntakeSubmissionGroup?>(
+                Group is null ? null : Group with { ReadAtUtc = StoreNowUtc ?? DateTimeOffset.UtcNow });
 
         public Task<IntakeSubmissionGroup> GetOrCreateAsync(
             Guid groupId,

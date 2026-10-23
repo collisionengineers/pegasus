@@ -59,7 +59,7 @@ public sealed class ReplayCaseFilingsTests
     public void TheBoundIsTheLivePathsAttemptsAndTheWindowIsTheExistingTwoHours()
     {
         Assert.Equal(5, ReplayCaseFilings.MaximumAttempts);
-        Assert.Equal(TimeSpan.FromHours(2), ReplayCaseFilings.SystemAssociationWindow);
+        Assert.Equal(TimeSpan.FromHours(2), IntakeEscapeWindow.Length);
     }
 
     [Theory]
