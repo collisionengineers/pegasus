@@ -9,7 +9,7 @@
   health, Logs, Management Reports, Release notes, Problem reports and AI
   jobs. Automation appears only when composed.
 - Administration buttons act on the click. There is no confirmation dialog,
-  except Delete account
+  except Delete access
   ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 - Logs has two tabs: Action logs (who did what) and Intake log (what
   happened to each received file).
@@ -47,7 +47,7 @@ Every consequential change (role, account state, principal credential,
 automation stop or start) enters permanent history
 ([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Administration pages perform Save, Enable, Disable, Delete, Remove, Clear and
-Stop on the click, with no confirmation dialog; Delete account alone confirms
+Stop on the click, with no confirmation dialog; Delete access alone confirms
 first (operator, 15 October 2026,
 [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 
@@ -398,12 +398,13 @@ checks the expected version inside its mutation transaction.
 ## Acceptance evidence
 
 Acceptance covers the twelve areas and their routes, the on-click actions
-without confirmation (Delete account confirms), the Action logs actor resolution and filter, the Intake
-log columns and actions, the six workflow settings and their ranges, and the
-Management Reports with each report's CSV and the workbook, the period
-choices and the invalid period, the Case list's downloads and refusals,
-and preset create, save and remove. Authenticated Web tests cover server-owned
-behaviour. Deployment and live acceptance are separate evidence tiers
+without confirmation (Delete access confirms), the Action logs actor
+resolution and filter, the Intake log columns and actions, the six workflow
+settings and their ranges, and the Management Reports with each report's CSV
+and the workbook, the period choices and the invalid period, the Case list's
+downloads and refusals, and preset create, save and remove. Authenticated Web
+tests cover server-owned behaviour. Deployment and live acceptance are
+separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
