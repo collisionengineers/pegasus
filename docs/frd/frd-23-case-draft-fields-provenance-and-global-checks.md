@@ -54,8 +54,17 @@ replacement Case
 A Confirmed value supersedes an earlier Fact or Suggestion for current use
 without erasing it from history.
 
-The draft shows its section blockers, missing values and contradictions. This
-is a ruling awaiting delivery (operator rulings, 15 and 16 October 2026).
+The draft shows its section blockers, missing values and contradictions
+(operator rulings, 15 and 16 October 2026). The section blockers are the
+report blockers the aside's **Report not ready** card lists under the section
+that clears each, and the missing values are the required fields the report
+needs that are empty, listed there and as **Outstanding requirements**
+([FRD-16](frd-16-case-record-workspace.md#case-workspace),
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)). The
+contradictions are the existing field-provenance conflicts where two sources
+disagree on a field, with no new rule (operator, 22 October 2026; R198). The
+mileage discrepancy was removed (operator, 22 October 2026; R286), and this
+document defines no other, so none is drawn.
 
 ### Vehicle details and mileage evidence
 

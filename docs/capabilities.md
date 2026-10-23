@@ -39,7 +39,7 @@ exclusion.
 | INT-17 | Automatic vehicle-registration reading from ordinary vehicle images | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) |
 | INT-18 | Bounded, fail-closed processing for unreadable, oversized, or incomplete sources | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
 | INT-19 | Typed, editable, operator-reviewable extracted case draft | [Field provenance and value kinds](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds); [Upload confirmation surface](frd/frd-18-manual-upload.md#upload-confirmation-surface) |
-| INT-20 | Field provenance, validation, missing-value, and contradiction display | [Field provenance and value kinds](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds) |
+| INT-20 | Field provenance, section-blocker, missing-value, and contradiction display | [Field provenance and value kinds](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds) |
 | INT-22 | Automatic identification of the correct Principal | [Matching conflicts and reversible association](frd/frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association) |
 | INT-23 | Unidentified queue with immutable U-references | [Unidentified destination and reference](frd/frd-02-intake-and-source-identity.md#unidentified-destination-and-reference) |
 | INT-24 | Unidentified Close, Reopen, Could not be read and retry actions | [Mandatory pre-case gates](frd/frd-22-pre-case-gates-matching-and-association.md#mandatory-pre-case-gates) |
