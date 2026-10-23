@@ -21,7 +21,7 @@ internal static class AutomationDocumentStreaming
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        var actor = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var actor = await resolver.RequireScopeAsync(AutomationMcp.DocumentsScope, cancellationToken);
         var metadata = await metadataReader.ExecuteAsync(
             new(caseId, occurrenceId, versionId, actor.Actor), cancellationToken);
         if (metadata is null) return Results.NotFound();
@@ -53,7 +53,7 @@ internal static class AutomationDocumentStreaming
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        var actor = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var actor = await resolver.RequireScopeAsync(AutomationMcp.IntakeScope, cancellationToken);
         var metadata = await metadataReader.ExecuteAsync(new(receiptId, actor.Actor), cancellationToken);
         if (metadata is null) return Results.NotFound();
 

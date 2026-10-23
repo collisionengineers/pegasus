@@ -120,7 +120,7 @@ internal sealed class ReportPreparationMcpTools(
         [Description(WorkDescription)] string? work = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_report_wording_get", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_report_wording_get",
@@ -156,7 +156,7 @@ internal sealed class ReportPreparationMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_report_wording_save", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -208,7 +208,7 @@ internal sealed class ReportPreparationMcpTools(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_image_preparation_get", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_image_preparation_get",
@@ -246,7 +246,7 @@ internal sealed class ReportPreparationMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_image_prepare", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,

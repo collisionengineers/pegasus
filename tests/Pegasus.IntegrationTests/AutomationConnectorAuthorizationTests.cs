@@ -164,14 +164,45 @@ public sealed partial class AutomationConnectorAuthorizationTests
         var refreshToken = tokenJson.RootElement.GetProperty("refresh_token").GetString();
         Assert.False(string.IsNullOrEmpty(refreshToken));
 
+        // Cases and documents, with the edit-lease tools that cases holds.
+        string[] casesAndDocumentsTools =
+        [
+            "pegasus_case_action",
+            "pegasus_case_get",
+            "pegasus_case_note_add",
+            "pegasus_case_search",
+            "pegasus_case_update_details",
+            "pegasus_directory_search",
+            "pegasus_document_action",
+            "pegasus_document_add",
+            "pegasus_document_download",
+            "pegasus_document_download_batch",
+            "pegasus_edit_begin",
+            "pegasus_edit_end",
+            "pegasus_edit_renew",
+            "pegasus_image_preparation_get",
+            "pegasus_image_prepare",
+            "pegasus_report_action",
+            "pegasus_report_list",
+            "pegasus_report_wording_get",
+            "pegasus_report_wording_save",
+            "pegasus_vocabulary_get",
+            "pegasus_work_centre_dismiss"
+        ];
+
         // The connector token reaches /mcp with the consented scopes only.
         using (var list = await PostMcpAsync(connector, accessToken, ToolsListPayload(1)))
         {
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
             using var document = await ReadJsonRpcAsync(list);
-            Assert.NotEmpty(document.RootElement.GetProperty("result")
-                .GetProperty("tools")
-                .EnumerateArray());
+            Assert.Equal(
+                casesAndDocumentsTools,
+                document.RootElement.GetProperty("result")
+                    .GetProperty("tools")
+                    .EnumerateArray()
+                    .Select(tool => tool.GetProperty("name").GetString())
+                    .OrderBy(name => name, StringComparer.Ordinal)
+                    .ToArray());
         }
         using (var denied = await PostMcpAsync(
             connector,

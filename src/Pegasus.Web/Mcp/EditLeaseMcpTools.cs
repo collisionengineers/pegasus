@@ -71,7 +71,7 @@ internal sealed class EditLeaseMcpTools(
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);
-        var context = await resolver.RequireAsync(Scope(kind), cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_edit_begin", Scope(kind), cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -123,7 +123,7 @@ internal sealed class EditLeaseMcpTools(
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);
-        var context = await resolver.RequireAsync(Scope(kind), cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_edit_renew", Scope(kind), cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
 
         // Routine renewal is telemetry, not permanent history; only the refusal is material.
@@ -176,7 +176,7 @@ internal sealed class EditLeaseMcpTools(
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);
-        var context = await resolver.RequireAsync(Scope(kind), cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_edit_end", Scope(kind), cancellationToken);
         var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,

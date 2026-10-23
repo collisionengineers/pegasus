@@ -98,7 +98,7 @@ internal sealed class SendMcpTools(
         [Description("Only for a Case with no instruction e-mail to reply to: the address of the Outgoing approved mailbox to send from.")] string? fromMailbox = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.SendScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_report_send", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -216,7 +216,7 @@ internal sealed class SendMcpTools(
         [Description("reply and reply_all only: the Draft ready QueryResponse job (pegasus_ai_job_list) whose draft this reply was composed on; an accepted send completes it, as the staff composer's Send does. A job that is not that message's Draft ready reply is left as it is.")] Guid? aiJobId = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.SendScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_mail_send", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,

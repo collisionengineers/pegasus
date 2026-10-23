@@ -154,12 +154,14 @@ public static class AutomationMcpExtensions
                     && context.User.HasScope(AutomationMcp.IntakeScope));
             });
 
+        var toolListing = new AutomationToolListing();
         services.AddMcpServer(server => server.ServerInfo = new()
             {
                 Name = "pegasus-automation",
                 Version = productVersion
             })
             .WithHttpTransport(transport => transport.Stateless = true)
+            .WithRequestFilters(filters => filters.AddListToolsFilter(toolListing.Filter))
             .WithTools<CaseMcpTools>()
             .WithTools<CaseEditMcpTools>()
             .WithTools<CaseLifecycleMcpTools>()
