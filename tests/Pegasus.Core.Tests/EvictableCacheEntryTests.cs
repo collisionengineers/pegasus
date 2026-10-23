@@ -55,7 +55,7 @@ public sealed class EvictableCacheEntryTests
         using var cache = new MemoryCache(new MemoryCacheOptions());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Get<int>(cache, _ => throw new InvalidOperationException("read failed")));
+            Get(cache, _ => throw new InvalidOperationException("read failed")));
 
         Assert.Equal(7, await Get(cache, _ => Task.FromResult(7)));
     }
