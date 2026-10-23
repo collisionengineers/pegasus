@@ -749,7 +749,8 @@ internal sealed class EfIntakeMutationStore(
                 throw new IntakeOperationConflictException();
             }
 
-            return replay.AfterCaseVersion.Value;
+            return replay.AfterCaseVersion
+                ?? throw new InvalidOperationException("The recorded automatic link has no Case version.");
         }
 
         var receipt = await LoadReceiptAsync(context, request.ReceiptId, cancellationToken)
