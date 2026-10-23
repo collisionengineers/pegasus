@@ -201,7 +201,8 @@ public sealed class EfRepairSpecificationStore(
             context, workId, edited, request.Actor, RepairSpecificationSnapshotKind.BeforeScaling,
             "Before scaling", now, latest);
 
-        await DeleteLinesAsync(context, entity, cancellationToken);
+        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
+        entity.Lines.Clear();
         ApplyDetails(entity, result.Details);
         AddLines(context, entity, result.Lines, request.Actor, now);
         var scaled = Map(entity);
@@ -278,7 +279,8 @@ public sealed class EfRepairSpecificationStore(
             now,
             latest);
 
-        await DeleteLinesAsync(context, entity, cancellationToken);
+        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
+        entity.Lines.Clear();
         ApplyDetails(entity, version.Details);
         ApplySupplementary(entity, version.Supplementary);
         AddLines(
@@ -368,7 +370,8 @@ public sealed class EfRepairSpecificationStore(
         var entity = await RequiredEstimateAsync(context, workId, request.SpecificationId, cancellationToken);
         var before = EfRepairSpecificationSnapshotStore.Map(beforeRow);
 
-        await DeleteLinesAsync(context, entity, cancellationToken);
+        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
+        entity.Lines.Clear();
         ApplyDetails(entity, before.Details);
         ApplySupplementary(entity, before.Supplementary);
         AddLines(
@@ -613,7 +616,8 @@ public sealed class EfRepairSpecificationStore(
         var beforeLines = entity.Lines.OrderBy(line => line.Position).Select(EstimateLineWriter.Evidence).ToArray();
         if (existing is not null)
         {
-            await DeleteLinesAsync(context, entity, cancellationToken);
+            context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
+            entity.Lines.Clear();
         }
         entity.SourceRoute = request.Source.Route.ToString();
         entity.SourceArtifactReference = request.Source.ArtifactReference;
@@ -941,26 +945,6 @@ public sealed class EfRepairSpecificationStore(
             }
         }
         entity.IsCurrent = true;
-    }
-
-    /// <summary>
-    /// Replaces a specification's lines: one DELETE in the caller's open
-    /// transaction, then the tracked rows are detached so the caller's
-    /// <c>SaveChanges</c> neither deletes them again nor nulls their key.
-    /// The caller adds the new lines and saves.
-    /// </summary>
-    private static async Task DeleteLinesAsync(
-        PegasusDbContext context, CaseRepairSpecificationEntity entity, CancellationToken cancellationToken)
-    {
-        await context.CaseEstimateLines
-            .Where(line => line.RepairSpecificationId == entity.Id)
-            .ExecuteDeleteAsync(cancellationToken);
-        foreach (var line in entity.Lines.ToArray())
-        {
-            context.Entry(line).State = EntityState.Detached;
-        }
-
-        entity.Lines.Clear();
     }
 
     internal static async Task<int> NextVersionAsync(

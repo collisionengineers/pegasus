@@ -827,7 +827,9 @@ public sealed class EfCaseReportGenerationStore(
     /// Marks the current generation of <paramref name="workId"/> stale: an
     /// edit stales the report of the work it edited, never the other work's
     /// (operator, 2 October 2026). A superseded generation keeps its bytes,
-    /// its state and its history exactly as issued. This never saves.
+    /// its state and its history exactly as issued. This never calls
+    /// <c>SaveChanges</c>: the state is one UPDATE in the open transaction and
+    /// the history rows ride the caller's save.
     /// </summary>
     internal static async Task<int> MarkWorkStaleAsync(
         PegasusDbContext context,
@@ -837,15 +839,10 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        // The set is read for the history rows alone (its snapshot names the
-        // operation each row correlates with); the state change is one UPDATE
-        // over the same set, as MakeCurrentAsync does for the Current estimate.
         var current = await context.Set<CaseReportGenerationEntity>()
-            .AsNoTracking()
             .Where(item => item.WorkId == workId
                 && item.SupersededById == null
                 && item.State != nameof(CaseReportGenerationState.Stale))
-            .Select(item => new { item.Id, item.SnapshotHash, item.SnapshotJson })
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
         if (current.Length == 0)
@@ -856,9 +853,12 @@ public sealed class EfCaseReportGenerationStore(
         // History first: an unreadable snapshot throws before any row is written.
         foreach (var generation in current)
         {
-            AddStaleHistory(context, caseId, generation.Id, generation.SnapshotHash, generation.SnapshotJson, reasonCode, nowUtc);
+            MarkGenerationStale(context, caseId, generation, reasonCode, nowUtc);
         }
 
+        // One UPDATE over the set, in the caller's open transaction; the rows
+        // read above already carry Stale, so SaveChanges is told not to write
+        // the column again (as MakeCurrentAsync does for the Current estimate).
         var ids = current.Select(item => item.Id).ToArray();
         await context.Set<CaseReportGenerationEntity>()
             .Where(item => ids.Contains(item.Id))
@@ -866,25 +866,22 @@ public sealed class EfCaseReportGenerationStore(
                 setters => setters.SetProperty(item => item.State, nameof(CaseReportGenerationState.Stale)),
                 cancellationToken)
             .ConfigureAwait(false);
-        foreach (var tracked in context.Set<CaseReportGenerationEntity>().Local
-            .Where(item => ids.Contains(item.Id)).ToArray())
+        foreach (var generation in current)
         {
-            tracked.State = nameof(CaseReportGenerationState.Stale);
-            context.Entry(tracked).Property(item => item.State).IsModified = false;
+            context.Entry(generation).Property(item => item.State).IsModified = false;
         }
 
         return current.Length;
     }
 
-    private static void AddStaleHistory(
+    private static void MarkGenerationStale(
         PegasusDbContext context,
         Guid caseId,
-        Guid generationId,
-        string snapshotHash,
-        string snapshotJson,
+        CaseReportGenerationEntity generation,
         string reasonCode,
         DateTimeOffset nowUtc)
     {
+        generation.State = nameof(CaseReportGenerationState.Stale);
         context.ActionHistory.Add(new ActionHistoryEntity
         {
             Id = Guid.NewGuid(),
@@ -896,12 +893,12 @@ public sealed class EfCaseReportGenerationStore(
             ActorRolesJson = "[]",
             OccurredAtUtc = nowUtc,
             Outcome = "Succeeded",
-            CorrelationId = DeserializeSnapshot(generationId, snapshotJson).OperationKey,
+            CorrelationId = DeserializeSnapshot(generation).OperationKey,
             Reason = reasonCode,
             AfterJson = DocumentActionHistory.Serialize(new
             {
-                GenerationId = generationId,
-                SnapshotHash = snapshotHash,
+                GenerationId = generation.Id,
+                generation.SnapshotHash,
                 ReasonCode = reasonCode,
             }),
             PolicyVersion = PolicyVersion,
@@ -950,9 +947,7 @@ public sealed class EfCaseReportGenerationStore(
                     context, DeserializeSnapshot(row.Generation), signatory, signatureHashes, cancellationToken))
             {
                 // The row is the work's one current generation, already tracked.
-                row.Generation.State = nameof(CaseReportGenerationState.Stale);
-                AddStaleHistory(context, row.Generation.CaseId, row.Generation.Id,
-                    row.Generation.SnapshotHash, row.Generation.SnapshotJson,
+                MarkGenerationStale(context, row.Generation.CaseId, row.Generation,
                     CaseReportStaleReasons.SignatoryChanged, nowUtc);
             }
         }
@@ -1358,13 +1353,10 @@ public sealed class EfCaseReportGenerationStore(
         };
 
     private static CaseReportGenerationSnapshot DeserializeSnapshot(CaseReportGenerationEntity generation) =>
-        DeserializeSnapshot(generation.Id, generation.SnapshotJson);
-
-    private static CaseReportGenerationSnapshot DeserializeSnapshot(Guid generationId, string snapshotJson) =>
         JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(
-            snapshotJson, SnapshotJsonOptions)
+            generation.SnapshotJson, SnapshotJsonOptions)
         ?? throw new InvalidDataException(
-            $"The frozen snapshot of case report generation '{generationId}' is unreadable.");
+            $"The frozen snapshot of case report generation '{generation.Id}' is unreadable.");
 
     private static void RequireHash(string sha256)
     {

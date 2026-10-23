@@ -10,9 +10,9 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// What the estimate writes send to SQL Server: the line replace and the
-/// stale-marking are one statement each however many rows they touch, and
-/// Discard reads neither the lines nor the numbered versions it deletes.
+/// What the estimate writes send to SQL Server: the stale-marking is one
+/// statement however many generations it touches, and Discard reads neither
+/// the lines nor the numbered versions it deletes.
 /// </summary>
 public sealed partial class AssessmentPersistenceIntegrationTests
 {
@@ -26,13 +26,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         text.Contains($"DELETE FROM [{table}]", StringComparison.Ordinal);
 
     /// <summary>
-    /// Editing the spec in use replaces its eight lines by one DELETE and
-    /// stales the report that costed it by one UPDATE; neither is sent a row
-    /// at a time, and the stale read carries no joined work row. Before, a
-    /// replace sent eight row deletes and a stale-marking one row update.
+    /// Editing the spec in use stales the report that costed it by one set
+    /// UPDATE, not a row update from SaveChanges. The line replace is not
+    /// pinned: R407 holds its set DELETE until eff-09 has measured.
     /// </summary>
     [Fact]
-    public async Task ReplacingLinesAndMarkingStaleSendOneStatementEach()
+    public async Task MarkingStaleSendsOneSetUpdate()
     {
         var counter = new CommandCountingInterceptor();
         await using var harness = await Harness.CreateAsync(counter);
@@ -61,17 +60,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
 
         Assert.True(
-            counter.CountMatching(text => IsSetDelete(text, "CaseEstimateLines")) == 1
-                && counter.CountMatching(text => IsRowDelete(text, "CaseEstimateLines")) == 0,
-            "The lines were not replaced by one set DELETE." + Environment.NewLine + counter.Describe());
-        Assert.True(
             counter.CountMatching(text => text.Contains("UPDATE [c]", StringComparison.Ordinal)
                 && text.Contains("[CaseReportGenerations] AS [c]", StringComparison.Ordinal)) == 1
                 && counter.CountMatching(text => text.Contains("UPDATE [CaseReportGenerations]", StringComparison.Ordinal)) == 0,
             "The generation was not staled by one set UPDATE." + Environment.NewLine + counter.Describe());
-        Assert.Equal(0, counter.CountMatching(text =>
-            text.Contains("[SnapshotJson]", StringComparison.Ordinal)
-            && text.Contains("[CaseWorks]", StringComparison.Ordinal)));
         Assert.Equal(inUse.SpecificationId, edited.SpecificationId);
         Assert.Equal(8, edited.Lines.Count);
         Assert.Equal(60m, edited.Details.LabourRate);
