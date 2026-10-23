@@ -856,7 +856,7 @@ public sealed class CasesIndexWebTests
                 WorkId = caseId,
                 CaseVersion = workflow.Version,
                 SnapshotHash = new string('b', 64),
-                SnapshotJson = "{\"agreedFee\":0.00}",
+                SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "quick-detail-report-sent"),
                 TemplateVersion = "test",
                 RendererVersion = "test",
                 State = nameof(Pegasus.Core.Reports.CaseReportGenerationState.Confirmed),
