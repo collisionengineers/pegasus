@@ -220,9 +220,10 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// <summary>
     /// What a spec tab, New repair spec or Compare switch costs in SQL commands
     /// in an edit session. The script fetches the Repair Spec fragment alone
-    /// (R304), so the count is a ceiling well under the Case page's (18
-    /// against 38 for the same request through the full page), and that
-    /// request is measured beside it. A failure lists every command sent.
+    /// (R304) on the narrow section frame, so the count is a ceiling well under
+    /// the Case page's (13 against 38 for the same request through the full
+    /// page), and that request is measured beside it. A failure lists every
+    /// command sent.
     /// </summary>
     [Fact]
     public async Task TheEstimateFragmentInAnEditSessionSendsFewerStatementsThanTheCasePage()
@@ -274,7 +275,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             $"The Repair Spec fragment sent {fragmentCommands} SQL commands, no fewer than the Case page's {pageCommands}.");
     }
 
-    private const int EstimateFragmentCommands = 18;
+    private const int EstimateFragmentCommands = 13;
 
     /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
