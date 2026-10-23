@@ -47,7 +47,7 @@ public sealed class AdministrationSearchAccountWebTests
         // The Action logs card is now Logs.
         Assert.Contains("href=\"/Administration/Logs\"", administrationHtml, StringComparison.Ordinal);
 
-        using var shell = await client.GetAsync("/");
+        using var shell = await client.GetAsync("/Notifications?handler=ShellDialog&name=account");
         var shellHtml = await shell.Content.ReadAsStringAsync();
 
         Assert.Contains("href=\"/Account/PasswordChange\"", shellHtml, StringComparison.Ordinal);

@@ -431,7 +431,7 @@ public sealed class ShellAndStatusPageWebTests
         using var host = FactoryWith(notifications);
         using var client = host.CreateClient();
 
-        var page = await client.GetStringAsync("/Search");
+        var page = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=problem");
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = AntiforgeryValue(page),
@@ -462,7 +462,7 @@ public sealed class ShellAndStatusPageWebTests
         using var host = FactoryWith(notifications);
         using var client = host.CreateClient();
 
-        var page = await client.GetStringAsync("/Search");
+        var page = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=problem");
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = AntiforgeryValue(page),

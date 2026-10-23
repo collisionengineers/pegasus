@@ -414,7 +414,7 @@ public sealed class AdministrationReportsWebTests
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
-        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync($"{Page}?tab=case-list"));
 
         using var csv = await client.PostAsync($"{Page}?handler=CaseListCsv", CaseListForm(token, ("AllTime", "true"), ("Columns", "case.type"), ("Columns", "case.reference")));
 
@@ -437,7 +437,7 @@ public sealed class AdministrationReportsWebTests
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
-        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync($"{Page}?tab=case-list"));
 
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{Page}?handler=CaseListCsv")
         {
@@ -464,7 +464,7 @@ public sealed class AdministrationReportsWebTests
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
-        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync($"{Page}?tab=case-list"));
         var presetId = Guid.NewGuid();
 
         using var created = await client.PostAsync($"{Page}?handler=CaseListPresetCreate", CaseListForm(
@@ -518,7 +518,7 @@ public sealed class AdministrationReportsWebTests
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
-        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync(Page));
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync($"{Page}?tab=case-list"));
         client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
 
         foreach (var handler in new[] { "CaseListCsv", "CaseListWorkbook", "CaseListPresetCreate" })
