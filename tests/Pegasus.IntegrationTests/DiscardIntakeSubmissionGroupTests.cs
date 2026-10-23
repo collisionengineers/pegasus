@@ -183,7 +183,7 @@ public sealed class DiscardIntakeSubmissionGroupTests
             await harness.Store.ListPendingImageGroupReceiptsAsync(3));
     }
     [Fact]
-    public async Task TheGroupedImageListStopsAtTheLimitAfterOnePage()
+    public async Task TheGroupedImageListReadsTheCandidatesOnceAndLoadsReceiptsOnlyForTheGroupsItNeeds()
     {
         var statements = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(statements);
@@ -194,59 +194,51 @@ public sealed class DiscardIntakeSubmissionGroupTests
             groups.Add(await harness.AddImageGroupAsync(first.AddHours(index)));
         }
 
-        statements.Reset();
-        Assert.Equal(
-            [groups[0].ReceiptId],
-            await harness.Store.ListPendingImageGroupReceiptsAsync(1));
-        Assert.Equal(1, GroupPageStatements(statements));
-
-        statements.Reset();
-        Assert.Equal(
-            groups.Take(3).Select(group => group.ReceiptId),
-            await harness.Store.ListPendingImageGroupReceiptsAsync(3));
-        Assert.Equal(1, GroupPageStatements(statements));
-
-        statements.Reset();
-        Assert.Equal(
-            groups.Select(group => group.ReceiptId),
-            await harness.Store.ListPendingImageGroupReceiptsAsync(10));
-        Assert.Equal(1, GroupPageStatements(statements));
-        Assert.Equal(0, statements.CountContaining("OFFSET"));
+        foreach (var limit in new[] { 1, 3, 10 })
+        {
+            statements.Reset();
+            Assert.Equal(
+                groups.Take(limit).Select(group => group.ReceiptId),
+                await harness.Store.ListPendingImageGroupReceiptsAsync(limit));
+            Assert.Equal(1, GroupCandidateReads(statements));
+            Assert.Single(ReceiptAssetReads(statements));
+            Assert.Equal(0, statements.CountContaining("OFFSET"));
+        }
     }
 
     [Fact]
-    public async Task TheGroupedImageListPagesPastIneligibleRowsAndSpendsAGroupSplitAcrossPages()
+    public async Task TheGroupedImageListReadsOnMoreGroupsOnlyWhenTheGroupsReadWereNotListable()
     {
         var statements = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(statements);
         var first = new DateTimeOffset(2031, 5, 1, 8, 0, 0, TimeSpan.Zero);
         const string Photo = "image/jpeg";
         const string Archive = "application/zip";
-        // Rows in order, three to a page:
-        //   page 1: g1/0 (ineligible), g1/1 (eligible), g2/0 (eligible, spends g2)
-        //   page 2: g2/1 (eligible but g2 is spent: the group continues from page 1),
-        //           g3/0 and g3/1 (both ineligible)
-        //   page 3: g4/0 (eligible)
         var g1 = await harness.AddImageGroupMembersAsync(first, Archive, Photo);
-        var g2 = await harness.AddImageGroupMembersAsync(first.AddHours(1), Photo, Photo);
-        await harness.AddImageGroupMembersAsync(first.AddHours(2), Archive, Archive);
+        await harness.AddImageGroupMembersAsync(first.AddHours(1), Archive, Archive);
+        var g3 = await harness.AddImageGroupMembersAsync(first.AddHours(2), Photo, Photo);
         var g4 = await harness.AddImageGroupMembersAsync(first.AddHours(3), Photo);
-        Guid[] expected = [g1[1].ReceiptId, g2[0].ReceiptId, g4[0].ReceiptId];
 
-        // The limit is reached on the third page.
+        // Limit 2 reads the first two groups (one lists, one is rejected),
+        // then the one group still needed.
         statements.Reset();
-        Assert.Equal(expected, await harness.Store.ListPendingImageGroupReceiptsAsync(3));
-        Assert.Equal(3, GroupPageStatements(statements));
+        Assert.Equal(
+            [g1[1].ReceiptId, g3[0].ReceiptId],
+            await harness.Store.ListPendingImageGroupReceiptsAsync(2));
+        Assert.Equal(1, GroupCandidateReads(statements));
+        Assert.Equal(2, ReceiptAssetReads(statements).Count);
 
-        // The last page is short, so the read ends there with fewer than the limit.
+        // A limit above the listable groups ends at the last group.
         statements.Reset();
-        Assert.Equal(expected, await harness.Store.ListPendingImageGroupReceiptsAsync(4));
-        Assert.Equal(2, GroupPageStatements(statements));
-        Assert.Equal(0, statements.CountContaining("OFFSET"));
+        Assert.Equal(
+            [g1[1].ReceiptId, g3[0].ReceiptId, g4[0].ReceiptId],
+            await harness.Store.ListPendingImageGroupReceiptsAsync(10));
+        Assert.Equal(1, GroupCandidateReads(statements));
+        Assert.Single(ReceiptAssetReads(statements));
     }
 
     [Fact]
-    public async Task TheGroupedImageListLoadsOnePageOfReceiptsInOneRead()
+    public async Task TheGroupedImageListLoadsGroupReceiptsInOneRead()
     {
         var statements = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(statements);
@@ -256,7 +248,7 @@ public sealed class DiscardIntakeSubmissionGroupTests
         var photos = await harness.AddImageGroupMembersAsync(first, Photo, Photo, Photo, Photo);
         var mixed = await harness.AddImageGroupMembersAsync(first.AddHours(1), Archive, Photo, Photo);
 
-        // A rejected first member does not send the page to a second receipt
+        // A rejected first member does not send the list to a second receipt
         // read: the lowest-ordinal listable member is listed from the one read.
         statements.Reset();
         Assert.Equal(
@@ -326,8 +318,8 @@ public sealed class DiscardIntakeSubmissionGroupTests
             read.CommandText.Contains("JOIN [IntakeAssets]", StringComparison.Ordinal)
             && !read.CommandText.Contains("JOIN [IntakeSubmissionGroupMembers]", StringComparison.Ordinal))];
 
-    /// <summary>The grouped-image page reads: the only statements that join the group members.</summary>
-    private static int GroupPageStatements(SqlStatementCounter statements) =>
+    /// <summary>The grouped-image candidate read: the only statement that join the group members.</summary>
+    private static int GroupCandidateReads(SqlStatementCounter statements) =>
         statements.CountContaining("JOIN [IntakeSubmissionGroupMembers]");
 
     private sealed class Harness : IAsyncDisposable

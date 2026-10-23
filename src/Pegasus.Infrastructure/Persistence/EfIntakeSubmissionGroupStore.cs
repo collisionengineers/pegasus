@@ -45,82 +45,41 @@ public sealed class EfIntakeSubmissionGroupStore(
                            && !context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id && association.IsActive)
                            && !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id)
                        select new { submissionGroup.Id, submissionGroup.ReceivedAtUtc, ReceiptId = receipt.Id, member.Ordinal };
+        // One slim read of the candidate rows (four columns), as before.
         // Eligibility is Core's rule over the whole receipt, so it runs in
-        // memory, but only over one ordered page of rows at a time and only
-        // until maximumItems is reached. A group's receipt is its lowest
-        // ordinal eligible member; the group is spent whether or not that
-        // receipt was already listed.
-        // Each page seeks past the last row of the one before on the unique
-        // (ReceivedAtUtc, group Id, Ordinal) order, so rows leaving the set
-        // between pages cannot shift a page. The receipts of one page load in
-        // a single read.
-        Guid? spentGroupId = null;
-        var hasLast = false;
-        var lastReceivedAtUtc = default(DateTimeOffset);
-        var lastGroupId = Guid.Empty;
-        var lastOrdinal = 0;
-        while (true)
+        // memory, but receipts load only for the groups still needed: the
+        // next (maximumItems - listed) groups at a time, stopping at the
+        // limit. A group's receipt is its lowest ordinal eligible member; the
+        // group is spent whether or not that receipt was already listed.
+        var candidates = await eligible.ToArrayAsync(cancellationToken);
+        var groups = candidates
+            .GroupBy(item => new { item.Id, item.ReceivedAtUtc })
+            .OrderBy(group => group.Key.ReceivedAtUtc)
+            .ThenBy(group => group.Key.Id)
+            .Select(group => group.OrderBy(item => item.Ordinal).Select(item => item.ReceiptId).ToArray())
+            .ToArray();
+        for (var next = 0; next < groups.Length && results.Count < maximumItems;)
         {
-            var remaining = hasLast
-                ? eligible.Where(candidate => candidate.ReceivedAtUtc > lastReceivedAtUtc
-                    || (candidate.ReceivedAtUtc == lastReceivedAtUtc
-                        && (candidate.Id.CompareTo(lastGroupId) > 0
-                            || (candidate.Id == lastGroupId && candidate.Ordinal > lastOrdinal))))
-                : eligible;
-            var page = await remaining
-                .OrderBy(candidate => candidate.ReceivedAtUtc)
-                .ThenBy(candidate => candidate.Id)
-                .ThenBy(candidate => candidate.Ordinal)
-                .Take(maximumItems)
-                .ToArrayAsync(cancellationToken);
-            // A group is contiguous in this order. Rows of a group already
-            // spent on an earlier page are not read at all.
-            var groupsOnPage = page
-                .Where(candidate => candidate.Id != spentGroupId)
-                .GroupBy(candidate => candidate.Id)
-                .Select(rows => rows.ToArray())
-                .ToArray();
+            var chunk = groups.Skip(next).Take(maximumItems - results.Count).ToArray();
+            next += chunk.Length;
             var receipts = new Dictionary<Guid, IntakeReceiptEntity>();
-            bool IsEligible(Guid receiptId) =>
-                receipts.TryGetValue(receiptId, out var receipt)
-                && ImageIntakeLifecycleRules.IsImageAutomationEligible(
-                    EfIntakeReceiptStore.Map(receipt, isDuplicate: false));
-
-            await LoadReceiptsAsync(
-                context,
-                receipts,
-                groupsOnPage.SelectMany(rows => rows).Select(candidate => candidate.ReceiptId),
-                cancellationToken);
-            foreach (var rows in groupsOnPage)
+            await LoadReceiptsAsync(context, receipts, chunk.SelectMany(group => group), cancellationToken);
+            foreach (var memberReceiptIds in chunk)
             {
-                var chosen = rows.FirstOrDefault(candidate => IsEligible(candidate.ReceiptId));
-                if (chosen is null)
+                var chosen = memberReceiptIds
+                    .Where(receiptId => receipts.TryGetValue(receiptId, out var receipt)
+                        && ImageIntakeLifecycleRules.IsImageAutomationEligible(
+                            EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
+                    .Select(receiptId => (Guid?)receiptId)
+                    .FirstOrDefault();
+                if (chosen is { } receiptId && !results.Contains(receiptId))
                 {
-                    continue;
-                }
-
-                spentGroupId = chosen.Id;
-                if (!results.Contains(chosen.ReceiptId))
-                {
-                    results.Add(chosen.ReceiptId);
-                    if (results.Count >= maximumItems)
-                    {
-                        return results;
-                    }
+                    results.Add(receiptId);
                 }
             }
-
-            if (page.Length < maximumItems)
-            {
-                return results;
-            }
-
-            var last = page[^1];
-            hasLast = true;
-            lastReceivedAtUtc = last.ReceivedAtUtc;
-            lastGroupId = last.Id;
-            lastOrdinal = last.Ordinal;
         }
+
+        return results;
     }
 
     private static async Task LoadReceiptsAsync(
