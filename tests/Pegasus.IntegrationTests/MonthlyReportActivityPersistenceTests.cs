@@ -495,6 +495,16 @@ public sealed class MonthlyReportActivityPersistenceTests
 
         Assert.Equal(100m, monthly.Sum(row => row.AgreedFeeTotal));
         Assert.Equal(100m, principalRow.AgreedFeeTotal);
+
+        // The period starts inclusive at the first report's instant, and a
+        // period after it holds no fee: the later report is not the first.
+        var fromTheFirstInstant = await scope.ServiceProvider.GetRequiredService<IMonthlyReportActivityQueries>()
+            .GetAsync(firstGeneratedAt, To, CancellationToken.None);
+        var afterTheFirstInstant = await scope.ServiceProvider.GetRequiredService<IMonthlyReportActivityQueries>()
+            .GetAsync(firstGeneratedAt.AddTicks(1), To, CancellationToken.None);
+
+        Assert.Equal(100m, fromTheFirstInstant.Sum(row => row.AgreedFeeTotal));
+        Assert.Equal(0m, afterTheFirstInstant.Sum(row => row.AgreedFeeTotal));
     }
 
     private static StaffMailSendOperationEntity SentOperation(Guid generationId, DateTimeOffset sentAt) => new()

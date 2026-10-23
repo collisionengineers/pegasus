@@ -100,19 +100,6 @@ public sealed class V1ActivityReportTests
         Assert.Equal((0, 0, 0m), (only.InspectionReportsProduced, only.InspectionSent, only.InspectionAgreedFeeTotal));
     }
 
-    [Fact]
-    public void FirstReportFeeBelongsToOnlyOneHalfOfASplitMonth()
-    {
-        var first = new DateTimeOffset(2031, 9, 1, 10, 0, 0, TimeSpan.Zero);
-        var split = new DateTimeOffset(2031, 9, 15, 0, 0, 0, TimeSpan.Zero);
-        var monthEnd = new DateTimeOffset(2031, 10, 1, 0, 0, 0, TimeSpan.Zero);
-
-        Assert.True(FirstReportFeeAttribution.InPeriod(first, first, split));
-        Assert.False(FirstReportFeeAttribution.InPeriod(first, split, monthEnd));
-        Assert.False(FirstReportFeeAttribution.InPeriod(split, first, split));
-        Assert.True(FirstReportFeeAttribution.InPeriod(split, split, monthEnd));
-    }
-
     private static ActionActor Administrator() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 

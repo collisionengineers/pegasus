@@ -45,8 +45,9 @@ internal static class FrozenReportSnapshot
 
     /// <summary>
     /// Each work's first confirmed AssessmentReport generation globally, kept
-    /// only where it falls in the period (<see cref="FirstReportFeeAttribution.InPeriod"/>),
-    /// with its agreed fee. One statement: the first in-period generation is
+    /// only where it falls in the period (from inclusive, to exclusive; the
+    /// fee belongs to the one period holding the first report), with its
+    /// agreed fee. One statement: the first in-period generation is
     /// chosen in the database and only it has its fee read from the snapshot,
     /// so a later generation's snapshot is never opened. Generations that
     /// share the earliest instant all come back and the lowest id is the first.
