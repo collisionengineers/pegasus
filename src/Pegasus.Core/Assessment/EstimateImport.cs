@@ -163,6 +163,14 @@ public sealed record ParsedEstimate(
 public sealed class EstimateParseRejectedException(string reason) : Exception(reason);
 
 /// <summary>
+/// <see cref="IImportRawEstimate.CheckAsync"/> proved the staff member's
+/// authority but its replay probe faulted, so the import could not be
+/// confirmed. The fault is the inner exception.
+/// </summary>
+public sealed class EstimateImportUnconfirmedException(Exception fault)
+    : Exception("The estimate import could not be confirmed.", fault);
+
+/// <summary>
 /// Port for one external estimate document format. The document
 /// reader (PDF text extraction) is an external boundary, so the format
 /// parsers live in Infrastructure behind this port — the same split as
@@ -315,8 +323,18 @@ public sealed class ImportRawEstimate(
         EstimatePolicy.RequireImportActor(request.Actor);
         var sha256 = NormalizeSha256(request.Sha256);
         await store.RequireImportAuthorityAsync(request, cancellationToken);
-        var replay = await store.ProbeSourceHashReplayAsync(
-            request.CaseId, request.OperationKey, sha256, cancellationToken);
+        EstimateImportResult? replay;
+        try
+        {
+            replay = await store.ProbeSourceHashReplayAsync(
+                request.CaseId, request.OperationKey, sha256, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not (OperationCanceledException or StaffAuthorizationException))
+        {
+            // The authority is proven by here, so a caller can tell a fault in
+            // the replay probe from a refusal of the authority.
+            throw new EstimateImportUnconfirmedException(exception);
+        }
         return new(request, sha256, replay);
     }
 

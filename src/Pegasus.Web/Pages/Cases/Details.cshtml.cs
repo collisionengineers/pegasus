@@ -4825,29 +4825,48 @@ public sealed partial class DetailsModel(
             }
         }
 
+        const string UnconfirmedLine = "The source was retained, but the import could not be confirmed. Retry the same file.";
+        EstimateImportCheck check;
         try
         {
-            var check = await importRawEstimate.CheckAsync(
+            check = await importRawEstimate.CheckAsync(
                 new(actor, id, expectedVersion, activeLeaseToken!, Guid.Empty, Guid.Empty,
                     sha256, operationKey, string.Empty), cancellationToken);
-            if (check.Replay is { } replay)
-            {
-                if (editor is not null)
-                {
-                    RecordEditorCommit(editor, operationKey, expectedVersion, expectedVersion);
-                }
-                TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
-                return (null, null, RedirectToEstimate(id, replay.EstimateId.ToString("D")));
-            }
-            return (activeLeaseToken, check, null);
         }
         catch (StaffAuthorizationException) { return (null, null, Forbid()); }
+        catch (EstimateImportUnconfirmedException unconfirmed)
+        {
+            // A fault in the replay probe, after the authority was proven: the
+            // page's line for a fault it cannot name, Core's words for a refusal.
+            TempData["CaseError"] = MutationRefusalMessage(unconfirmed.InnerException!, UnconfirmedLine);
+            return (null, null, RedirectToEstimate(id));
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleLeaseFailure(id, activeLeaseToken, exception);
             TempData["CaseError"] = exception is InvalidOperationException or KeyNotFoundException or ArgumentException
                 ? exception.Message
                 : "The Case cannot be edited right now.";
+            return (null, null, RedirectToEstimate(id));
+        }
+
+        if (check.Replay is not { } replay)
+        {
+            return (activeLeaseToken, check, null);
+        }
+        try
+        {
+            if (editor is not null)
+            {
+                RecordEditorCommit(editor, operationKey, expectedVersion, expectedVersion);
+            }
+            TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
+            return (null, null, RedirectToEstimate(id, replay.EstimateId.ToString("D")));
+        }
+        catch (StaffAuthorizationException) { return (null, null, Forbid()); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(exception, UnconfirmedLine);
             return (null, null, RedirectToEstimate(id));
         }
     }

@@ -74,11 +74,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
-    /// B3-04: a save that keeps three recorded values it did not post reads
-    /// those values in one command, and they are the values the whole
-    /// workspace holds for the same paths; a path with no record is absent.
-    /// </summary>
-    /// <summary>
     /// B3-04: the Case page holds the Current spec with its lines from the
     /// workspace, so its listing carries that version as held and reads the
     /// lines of the others only. Three lines held and two elsewhere: the plain
@@ -130,6 +125,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(3, stale.Single(item => item.IsCurrent).Lines.Count);
     }
 
+    /// <summary>
+    /// B3-04: a save that keeps three recorded values it did not post reads
+    /// those values in one command, and they are the values the whole
+    /// workspace holds for the same paths; a path with no record is absent.
+    /// </summary>
     [Fact]
     public async Task TheRecordedFieldValuesComeFromOneCommandAndMatchTheWorkspace()
     {

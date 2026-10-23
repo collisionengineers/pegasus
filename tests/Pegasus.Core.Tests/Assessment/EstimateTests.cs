@@ -1141,6 +1141,20 @@ public sealed class EstimateTests
     }
 
     [Fact]
+    public async Task AFaultInTheReplayProbeIsToldApartFromARefusalOfTheAuthority()
+    {
+        var fault = new TimeoutException("The probe timed out.");
+        var save = new FakeSpecificationStore { ProbeFault = fault };
+        var import = ImporterOver(save);
+
+        var unconfirmed = await Assert.ThrowsAsync<EstimateImportUnconfirmedException>(() =>
+            import.CheckAsync(ImportRequest(), CancellationToken.None));
+
+        Assert.Same(fault, unconfirmed.InnerException);
+        Assert.Single(save.AuthorityChecks);
+    }
+
+    [Fact]
     public async Task AnImportAutoDetectsItsFormatAndLandsOneSourceLabelledDraft()
     {
         var save = new FakeSpecificationStore();
@@ -1761,6 +1775,7 @@ public sealed class EstimateTests
 
         public int ReplayProbes { get; private set; }
         public EstimateImportResult? Replay { get; set; }
+        public Exception? ProbeFault { get; set; }
 
         public Task<EstimateImportResult?> ProbeSourceHashReplayAsync(
             Guid caseId,
@@ -1769,6 +1784,10 @@ public sealed class EstimateTests
             CancellationToken cancellationToken)
         {
             ReplayProbes++;
+            if (ProbeFault is not null)
+            {
+                throw ProbeFault;
+            }
             return Task.FromResult(Replay);
         }
 
