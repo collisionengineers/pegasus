@@ -372,6 +372,35 @@ public sealed class ProcessIntake(
             return receipt;
         }
 
+        await HoldAssetsAsync(receipt, cancellationToken);
+
+        // Retention writes custody state and Box identities through its own
+        // store. Reload rather than returning the pre-handoff projection so
+        // the current caller, gallery and following automation all see the
+        // confirmed files without waiting for a later request. Whether this
+        // call found a duplicate is the caller's fact, not a stored one.
+        var reloaded = await receiptStore.FindBySourceIdentityAsync(receipt.SourceIdentity, cancellationToken)
+            ?? throw new InvalidDataException(
+                "The receipt retained for holding custody is no longer available.");
+        return reloaded with { IsDuplicate = receipt.IsDuplicate };
+    }
+
+    /// <summary>
+    /// The hand-over alone: every eligible retained intake asset not yet
+    /// confirmed is handed to holding custody, and an unconfirmed hand-over
+    /// throws. The receipt is not read again, so a caller that does not read
+    /// it afterwards (<see cref="RegisterUnidentifiedSubmissionGroup"/>) pays
+    /// no reload.
+    /// </summary>
+    internal async Task HoldAssetsAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (retainIncomingArtifact is null)
+        {
+            return;
+        }
+
         RetainIncomingArtifact retention = retainIncomingArtifact;
         var actor = ActionActor.SystemWorker("intake-processing");
         var selectedPhotographIds = InstructionEvidenceImages.Select(receipt.AssetRecords)
@@ -413,16 +442,6 @@ public sealed class ProcessIntake(
         }
 
         Activity.Current?.SetTag("intake.holding_custody", "confirmed");
-
-        // Retention writes custody state and Box identities through its own
-        // store. Reload rather than returning the pre-handoff projection so
-        // the current caller, gallery and following automation all see the
-        // confirmed files without waiting for a later request. Whether this
-        // call found a duplicate is the caller's fact, not a stored one.
-        var reloaded = await receiptStore.FindBySourceIdentityAsync(receipt.SourceIdentity, cancellationToken)
-            ?? throw new InvalidDataException(
-                "The receipt retained for holding custody is no longer available.");
-        return reloaded with { IsDuplicate = receipt.IsDuplicate };
     }
 
     /// <summary>

@@ -5,11 +5,13 @@ namespace Pegasus.Core.Intake;
 /// before the sweep registers its group Unidentified, how long a manual
 /// upload's matched Cases wait for a staff destination before the images
 /// register (FRD-18), and how long after a pipeline association its filing is
-/// still replayed (R377). Core owns the window with one clock: this is the one
-/// rule that decides when it closes, on the store's clock, the SQL server's
-/// (<c>SYSUTCDATETIME()</c> in the query that read the group), not the
-/// process clock; the group's stored receipt time is its start. The adapter
-/// only reads that clock (R191, R379).
+/// still replayed (R377). This is the one rule that decides when it closes.
+/// For a group (<see cref="HasClosed"/>) it is judged on the store's clock,
+/// the SQL server's (<c>SYSUTCDATETIME()</c> in the query that read the
+/// group), not the process clock, and the group's stored receipt time is its
+/// start; the adapter only reads that clock (R191, R379). The Case-filing
+/// replay's cutoff (<see cref="LatestClosedStart"/>) is still taken from
+/// Core's <see cref="TimeProvider"/>.
 /// </summary>
 public static class IntakeEscapeWindow
 {

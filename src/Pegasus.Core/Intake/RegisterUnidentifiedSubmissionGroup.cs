@@ -9,7 +9,8 @@ namespace Pegasus.Core.Intake;
 /// closed first (<see cref="ReconcileGroupedImageIntake"/>). Nothing is held
 /// while the group is pending, so every member stays in retained blob storage
 /// until then (operator, 19 October 2026; R382). It holds the member receipts
-/// the caller's pass already read and never reads the group again.
+/// the caller's pass already read and never reads the group or a member
+/// receipt again.
 /// </summary>
 public sealed class RegisterUnidentifiedSubmissionGroup(
     ProcessIntake processIntake,
@@ -31,7 +32,7 @@ public sealed class RegisterUnidentifiedSubmissionGroup(
         {
             if (ProcessIntake.RequiresHolding(member, AutomaticCaseEvidencePromotionOutcome.NotApplicable))
             {
-                _ = await processIntake.RetainHoldingAssetsAsync(member, cancellationToken);
+                await processIntake.HoldAssetsAsync(member, cancellationToken);
             }
         }
 

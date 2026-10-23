@@ -1581,6 +1581,62 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(1, register.Calls);
     }
 
+    /// <summary>
+    /// A completed redelivery whose group is still missing a member, read
+    /// after the group's window has closed, is scheduled for retry and holds
+    /// nothing. The group is read by the redelivery's discard check and by
+    /// the automation, and not again once the automation reports the group
+    /// pending: the escape is the sweep's (R382, criterion 7).
+    /// </summary>
+    [Fact]
+    public async Task AGroupPendingRedeliveryPastTheWindowHoldsNothing()
+    {
+        var harness = new GroupHarness(memberCount: 2, expectedMemberCount: 3);
+        var probe = new HoldingProbe(harness);
+        harness.GroupStore.StoreNowUtc =
+            harness.GroupStore.Group!.ReceivedAtUtc + IntakeEscapeWindow.Length + TimeSpan.FromHours(1);
+        var receipt = harness.Receipts[0];
+        var stagedReceiptId = Guid.NewGuid();
+        var work = Forwarder.For<IIntakeWorkStore>(null);
+        work.Overrides[nameof(IIntakeWorkStore.ClaimProcessingAsync)] =
+            _ => Task.FromResult<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?>(null);
+        work.Overrides[nameof(IIntakeWorkStore.GetCompletedEvaluationAsync)] =
+            _ => Task.FromResult<IntakeEvaluationRevision?>(
+                new(Guid.NewGuid(), stagedReceiptId, receipt.Id, 1, receipt.ReceivedAtUtc));
+        var allocation = Forwarder.For<IAllocateIntake>(null);
+        allocation.Overrides[nameof(IAllocateIntake.AttemptAutomaticAsync)] =
+            _ => Task.FromResult<IntakeAllocationResult?>(null);
+        var groups = Forwarder.For<IIntakeSubmissionGroupStore>(harness.GroupStore);
+        var register = new CountingRegisterUnidentified();
+        var processor = new ProcessQueuedIntake(
+            (IIntakeWorkStore)work.Proxy,
+            (IIntakeArtifactStore)Forwarder.For<IIntakeArtifactStore>(null).Proxy,
+            probe.ProcessIntake,
+            harness.ReceiptQueries,
+            (Pegasus.Core.Triage.ICreateTriageFromIntake)
+                Forwarder.For<Pegasus.Core.Triage.ICreateTriageFromIntake>(null).Proxy,
+            (Pegasus.Core.Triage.ITriagePrincipalGate)
+                Forwarder.For<Pegasus.Core.Triage.ITriagePrincipalGate>(null).Proxy,
+            (Pegasus.Core.Intake.IAutomaticCaseAssociationStore)
+                Forwarder.For<Pegasus.Core.Intake.IAutomaticCaseAssociationStore>(null).Proxy,
+            (IAllocateIntake)allocation.Proxy,
+            TimeProvider.System,
+            (IIntakeOcrOperationStore)Forwarder.For<IIntakeOcrOperationStore>(null).Proxy,
+            harness.Automation,
+            register,
+            submissionGroups: (IIntakeSubmissionGroupStore)groups.Proxy);
+
+        var outcome = await processor.ExecuteAsync(stagedReceiptId);
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled, outcome);
+        Assert.Empty(probe.Held);
+        Assert.Equal(0, register.Calls);
+        // The redelivery's own group read is its discard check; the
+        // automation's is the only other.
+        Assert.Equal(nameof(IIntakeSubmissionGroupStore.FindForMemberSourceAsync), Assert.Single(groups.Calls));
+        Assert.Equal(2, harness.GroupStore.MemberSourceReads);
+    }
+
     private sealed class FixedOutcomeProcessor(QueuedIntakeProcessingOutcome outcome) : IProcessQueuedIntake
     {
         public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
@@ -1590,38 +1646,44 @@ public sealed class AutomaticImageIntakeTests
 
     /// <summary>
     /// A <see cref="ProcessIntake"/> whose holding hand-over records each
-    /// receipt it holds. The members' files are already confirmed, so the hold
-    /// only reloads the receipt, and that reload is what is recorded: one per
-    /// receipt held.
+    /// receipt it holds: each member's source file is offered to holding
+    /// custody, whose retention record already reads it confirmed, and that
+    /// offer is what is recorded, once per receipt held. The receipt store
+    /// answers nothing, so a hold that read a receipt again would throw.
     /// </summary>
     private sealed class HoldingProbe
     {
         public HoldingProbe(GroupHarness harness)
         {
-            for (var ordinal = 0; ordinal < harness.Receipts.Count; ordinal++)
+            var assets = harness.Receipts
+                .SelectMany(receipt => receipt.AssetRecords.Select(asset => (receipt, asset)))
+                .ToDictionary(
+                    item => IncomingArtifactOperationKey.ForIntake(item.receipt.Id, item.asset.Id),
+                    item => item);
+            var retentions = Forwarder.For<IIncomingArtifactRetentionStore>(null);
+            retentions.Overrides[nameof(IIncomingArtifactRetentionStore.FindAsync)] = args =>
             {
-                var receipt = harness.Receipts[ordinal];
-                harness.ReplaceReceipt(ordinal, receipt with
+                var (receipt, asset) = assets[(string)args[0]!];
+                lock (Held)
                 {
-                    Assets = receipt.AssetRecords
-                        .Select(asset => asset with { CustodyState = IncomingArtifactCustodyState.Confirmed })
-                        .ToArray()
-                });
-            }
+                    if (Held.Count == 0 || Held[^1] != receipt.SourceIdentity)
+                    {
+                        Held.Add(receipt.SourceIdentity);
+                    }
+                }
 
-            var receipts = Forwarder.For<IIntakeReceiptStore>(null);
-            receipts.Overrides[nameof(IIntakeReceiptStore.FindBySourceIdentityAsync)] = args =>
-            {
-                var source = (IntakeSourceIdentity)args[0]!;
-                Held.Add(source);
-                return Task.FromResult<IntakeReceipt?>(
-                    harness.Receipts.Single(receipt => receipt.SourceIdentity == source));
+                return Task.FromResult<RetainedIncomingArtifact?>(new(
+                    asset.Id,
+                    (string)args[0]!,
+                    IncomingArtifactCustodyState.Confirmed,
+                    Sha256: asset.ContentHash,
+                    ContentLength: asset.ContentLength));
             };
             var custody = Forwarder.For<ICaseArtifactCustody>(null);
             custody.Overrides[nameof(ICaseArtifactCustody.BeginDocumentBatch)] = _ => NoCustodyBatch.Instance;
             ProcessIntake = new ProcessIntake(
                 null!,
-                (IIntakeReceiptStore)receipts.Proxy,
+                (IIntakeReceiptStore)Forwarder.For<IIntakeReceiptStore>(null).Proxy,
                 harness.ArtifactStore,
                 null!,
                 null!,
@@ -1631,7 +1693,7 @@ public sealed class AutomaticImageIntakeTests
                 TimeProvider.System,
                 retainIncomingArtifact: new RetainIncomingArtifact(
                     (ICaseArtifactCustody)custody.Proxy,
-                    (IIncomingArtifactRetentionStore)Forwarder.For<IIncomingArtifactRetentionStore>(null).Proxy));
+                    (IIncomingArtifactRetentionStore)retentions.Proxy));
         }
 
         public ProcessIntake ProcessIntake { get; }
@@ -1717,11 +1779,17 @@ public sealed class AutomaticImageIntakeTests
         /// <summary>The store's clock as a read reports it; now unless a test sets it.</summary>
         public DateTimeOffset? StoreNowUtc { get; set; }
 
+        /// <summary>How many times the group has been read for a member.</summary>
+        public int MemberSourceReads { get; private set; }
+
         public Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
             IntakeSourceIdentity sourceIdentity,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IntakeSubmissionGroup?>(
+            CancellationToken cancellationToken = default)
+        {
+            MemberSourceReads++;
+            return Task.FromResult<IntakeSubmissionGroup?>(
                 Group is null ? null : Group with { ReadAtUtc = StoreNowUtc ?? DateTimeOffset.UtcNow });
+        }
 
         public Task<IntakeSubmissionGroup> GetOrCreateAsync(
             Guid groupId,
@@ -1889,6 +1957,8 @@ public sealed class AutomaticImageIntakeTests
         public FakeReceiptQueries ReceiptQueries { get; } = new();
 
         public FakeGroupStore GroupStore { get; } = new();
+
+        public IImageIntakeAutomation Automation => automation;
 
         public Task<ImageIntakeAutomationOutcome> ApplyAsync(int triggerOrdinal) =>
             automation.ApplyAsync(Receipts[triggerOrdinal], CancellationToken.None);
