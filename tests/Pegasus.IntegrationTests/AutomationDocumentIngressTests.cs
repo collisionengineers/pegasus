@@ -55,7 +55,7 @@ public sealed class AutomationDocumentIngressTests
             Assert.False(string.IsNullOrWhiteSpace(structured.GetProperty("sha256").GetString()));
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -134,7 +134,7 @@ public sealed class AutomationDocumentIngressTests
             Assert.Equal(HttpStatusCode.Forbidden, wrongScope.StatusCode);
         }
 
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -171,7 +171,7 @@ public sealed class AutomationDocumentIngressTests
             client, token, caseId, 1, "estimate.pdf", "application/pdf", pdf, "Other", "mcp:add-pdf");
 
         // The implicit lease is held for the command only: nothing is left on the Case.
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
         Assert.Equal(2, await AutomationMcpTestSupport.GetWorkflowVersionAsync(mcpFactory, caseId));
 
@@ -293,7 +293,7 @@ public sealed class AutomationDocumentIngressTests
                 $"Batch content was {inlineBytes} bytes at its encoded size, above the default {AutomationFileContent.DefaultInlineBytes}.");
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -476,7 +476,7 @@ public sealed class AutomationDocumentIngressTests
         var operationKey = structured.GetProperty("operationKey").GetString();
         Assert.Equal(
             $"{operationKey}:0",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"""
                 SELECT STRING_AGG(CorrelationId, N',') FROM ActionHistory
                 WHERE EventKind = N'document_downloaded'
@@ -552,9 +552,9 @@ public sealed class AutomationDocumentIngressTests
             "foreign"u8.ToArray(),
             "Other",
             "mcp:closed-foreign");
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"UPDATE DocumentVersions SET CustodyStatus = N'Pending' WHERE Id = '{unconfirmed.VersionId:D}'");
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"UPDATE DocumentVersions SET IsLogicallyRemoved = 1, IsCurrent = 0 WHERE Id = '{removed.VersionId:D}'");
         var store = mcpFactory.Services.GetRequiredService<CountingDocumentContentStore>();
         var opensBefore = store.Opens;
@@ -585,7 +585,7 @@ public sealed class AutomationDocumentIngressTests
         }
 
         Assert.Equal(opensBefore, store.Opens);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM ActionHistory WHERE EventKind = N'document_downloaded'"));
     }
 
@@ -683,7 +683,7 @@ public sealed class AutomationDocumentIngressTests
             Assert.Contains("Each document version may be named once", body, StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.Equal(6, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(6, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -735,7 +735,7 @@ public sealed class AutomationDocumentIngressTests
                 StringComparison.Ordinal);
         }
 
-        Assert.Equal(payloads.Length, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(payloads.Length, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_scope_denied'

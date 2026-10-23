@@ -101,7 +101,7 @@ public sealed class OriginalReportPrefillAcceptanceTests
             Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
         }
 
-        await using var context = await factory.Database.CreateContextAsync();
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
         var caseId = await context.Cases
             .Where(item => item.OriginIntakeReceiptId == receiptId)
             .Select(item => item.Id)

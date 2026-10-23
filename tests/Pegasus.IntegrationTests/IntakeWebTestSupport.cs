@@ -120,8 +120,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         // CreateHost still runs DevelopmentOfflineInitialization, whose own
         // MigrateAsync then finds nothing to apply. The restore starts here
         // and runs beside the test's own set-up; the first use of the
-        // database (RestoredDatabase) waits for it once, off the test's
-        // synchronisation context.
+        // database awaits it (DatabaseAsync); only host creation, which
+        // cannot await, blocks on it once (RestoredDatabase).
         databaseRestore = Task.Run(() => LocalDbTestDatabase.CreateAsync());
     }
 
@@ -148,23 +148,32 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     internal static IntakeWebApplicationFactory WithoutDatabase() => new(new DatabaseOpenGuard());
 
     /// <summary>
-    /// The restored database, waiting for the restore the constructor started;
-    /// null for a database-less host. A failed restore throws here, at first
-    /// use, and once more at disposal only if no use saw it.
+    /// The restore the constructor started, for an async caller to await;
+    /// throws for a database-less host. A failed restore throws where it is
+    /// awaited, and once more at disposal only if no use saw it.
     /// </summary>
-    private LocalDbTestDatabase? RestoredDatabase
+    internal Task<LocalDbTestDatabase> DatabaseAsync
     {
         get
         {
             if (databaseRestore is null)
             {
-                return null;
+                throw new InvalidOperationException(
+                    "This factory was built without a database (IntakeWebApplicationFactory.WithoutDatabase).");
             }
 
             databaseRestoreObserved = true;
-            return databaseRestore.GetAwaiter().GetResult();
+            return databaseRestore;
         }
     }
+
+    /// <summary>
+    /// The restored database for a caller that cannot await (host creation,
+    /// a synchronous read): blocks once on the restore, off the test's
+    /// synchronisation context. An async caller awaits <see cref="DatabaseAsync"/>.
+    /// </summary>
+    private LocalDbTestDatabase? RestoredDatabase
+        => databaseRestore is null ? null : DatabaseAsync.GetAwaiter().GetResult();
 
     internal LocalDbTestDatabase Database => RestoredDatabase
         ?? throw new InvalidOperationException(

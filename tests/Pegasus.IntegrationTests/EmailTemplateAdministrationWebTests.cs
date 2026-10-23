@@ -96,7 +96,7 @@ public sealed class EmailTemplateAdministrationWebTests
         var reloaded = await GetHtmlAsync(client, Page);
         Assert.Contains(OperatorLabels.EmailTemplates.Saved, reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"1\"", Dialog(reloaded), StringComparison.Ordinal);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM [ActionHistory] WHERE [AggregateType] = 'email_template' AND [AggregateId] = 'TriageOutcomeReply' AND [EventKind] = 'email_template_updated'"));
 
         // The period's end is exclusive and the test clock is fixed, so the
@@ -221,7 +221,7 @@ public sealed class EmailTemplateAdministrationWebTests
             await response.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
         Assert.Equal(0, (await GetTemplateAsync(factory)).Version);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM [EmailTemplates]"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM [EmailTemplates]"));
     }
 
     private static Task<HttpResponseMessage> PostSaveAsync(

@@ -215,19 +215,19 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(triageId, secondSelection.CaseId);
         Assert.Equal(
             sentEvidence.Id,
-            await factory.Database.ScalarAsync<Guid>(
+            await (await factory.DatabaseAsync).ScalarAsync<Guid>(
                 $"SELECT RelatedEvidenceId FROM ApprovedSentPollOutcomes WHERE Id = '{pollOutcomeId:D}'"));
         Assert.Equal(
             "TriageResponseRecorded",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT OutcomeKind FROM ApprovedSentPollOutcomes WHERE Id = '{pollOutcomeId:D}'"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM EmailResponseEvidence WHERE PollOutcomeId = '{pollOutcomeId:D}'"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageCaseId = '{triageId:D}'"));
 
         var completeRequest = new TriageTransitionRequest(

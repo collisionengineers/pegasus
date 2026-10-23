@@ -958,7 +958,7 @@ public sealed class QdosAllocationRecoveryTests
         // The new Case files the instruction through its own custody, so the
         // receipt is never copied to the holding folder.
         Guid workId;
-        await using (var db = await factory.Database.CreateContextAsync())
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             Assert.All(
                 await db.IntakeAssets.AsNoTracking()
@@ -978,7 +978,7 @@ public sealed class QdosAllocationRecoveryTests
         await services.GetRequiredService<Pegasus.Core.Custody.IProcessQueuedCustody>()
             .ExecuteAsync(workId, CancellationToken.None);
 
-        await using var verify = await factory.Database.CreateContextAsync();
+        await using var verify = await (await factory.DatabaseAsync).CreateContextAsync();
         var caseRoot = await verify.Cases.Where(value => value.Id == caseId)
             .Select(value => value.CustodyRootRemoteId).SingleAsync();
         Assert.False(string.IsNullOrWhiteSpace(caseRoot));
@@ -2051,7 +2051,7 @@ public sealed class IntakeAllocationConsumerTests
         // The formal Case beside the Triage Case.
         Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM TriageHistory WHERE EventType = N'triage_created'"));
     }
 }

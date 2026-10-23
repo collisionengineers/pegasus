@@ -66,7 +66,7 @@ public sealed class AutomationIntakeSubmitIngressTests
             _ = await ReadErrorTextAsync(response);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -182,14 +182,14 @@ public sealed class AutomationIntakeSubmitIngressTests
             Assert.NotEqual("Open", closed.GetProperty("state").GetString());
         }
 
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
               AND EventKind = N'pegasus_unidentified_resolve'
               AND Outcome = N'Succeeded'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'

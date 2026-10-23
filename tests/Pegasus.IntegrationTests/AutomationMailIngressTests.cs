@@ -47,7 +47,7 @@ public sealed class AutomationMailIngressTests
                 StringComparison.Ordinal);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_scope_denied'
@@ -170,7 +170,7 @@ public sealed class AutomationMailIngressTests
                 StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(3, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -178,14 +178,14 @@ public sealed class AutomationMailIngressTests
               AND Outcome = N'Succeeded'
               AND ActorSubjectId = N'pegasus-automation'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
               AND EventKind = N'pegasus_mail_get'
               AND Outcome = N'Succeeded'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -409,7 +409,7 @@ public sealed class AutomationMailIngressTests
                 StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -418,7 +418,7 @@ public sealed class AutomationMailIngressTests
               AND CorrelationId = N'{operationKey}'
               AND ActorSubjectId = N'pegasus-automation'
             """));
-        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(3, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -560,7 +560,7 @@ public sealed class AutomationMailIngressTests
         }
         await AssertLinkedAsync(mcpFactory, receiptId, caseId, expectedHistoryCount: 1);
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -568,7 +568,7 @@ public sealed class AutomationMailIngressTests
               AND Outcome = N'Succeeded'
               AND CorrelationId = N'mcp:mail-link-1'
             """));
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -632,7 +632,7 @@ public sealed class AutomationMailIngressTests
             Assert.False(restored.GetProperty("isDismissed").GetBoolean());
         }
 
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'

@@ -104,8 +104,8 @@ public sealed class AutomationAssessmentIngressTests
         }
         await SetWorkflowStateAsync(mcpFactory.Services, caseId, CaseLifecycleState.Review);
         Assert.Equal(0, content.Reads);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseRepairSpecifications"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM IntakeOcrOperations"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM CaseRepairSpecifications"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM IntakeOcrOperations"));
         // Exercise the real native handoff; accepted Review alone is not
         // engineering authority, and a fixture state assignment would hide it.
         await using (var scope = mcpFactory.Services.CreateAsyncScope())
@@ -179,7 +179,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Single(await store.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default));
         await store.RequireImportAuthorityAsync(new(ActionActor.Automation(imported.CreatedBy), caseId, 2, lease.LeaseToken,
             occurrenceId, versionId, hash, "mcp:replay-authority", "Glass's 1"), default);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM ActionHistory WHERE EventKind = N'estimate_created' AND ActorKind = N'Automation'"));
 
         // The Automation actor edits an imported estimate too (operator, 7 October 2026): an
@@ -305,7 +305,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = await ReadJsonRpcAsync(response);
         Assert.Contains("derived from damage.impacts", document.RootElement.ToString(), StringComparison.Ordinal);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
 
         using var estimateResponse = await PostMcpAsync(client, token, ToolCallPayload(42,
@@ -321,9 +321,9 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(HttpStatusCode.OK, estimateResponse.StatusCode);
         // The generic command takes fields only: estimate lines change through
         // the named estimate commands, so nothing is written here.
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseEstimateLines WHERE WorkId = '{caseId:D}'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE WorkId = '{caseId:D}'"));
 
         using var rateResponse = await PostMcpAsync(client, token, ToolCallPayload(43,
@@ -388,7 +388,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
             Assert.Contains(refusal, document.RootElement.ToString(), StringComparison.Ordinal);
-            Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
         }
 
@@ -408,9 +408,9 @@ public sealed class AutomationAssessmentIngressTests
             var structured = await ReadStructuredContentAsync(response);
             Assert.Equal(lease.CaseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
         }
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseAssessmentFields
             WHERE WorkId = '{caseId:D}'
@@ -446,7 +446,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(lease.CaseVersion + 2, structured.GetProperty("caseVersion").GetInt64());
         }
         var findingPaths = string.Join(", ", findings.Keys.Select(path => $"N'{path}'"));
-        Assert.Equal(findings.Count, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(findings.Count, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseAssessmentFields
             WHERE WorkId = '{caseId:D}'
@@ -477,7 +477,7 @@ public sealed class AutomationAssessmentIngressTests
             document.RootElement.ToString(),
             StringComparison.Ordinal);
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_scope_denied'
@@ -555,25 +555,25 @@ public sealed class AutomationAssessmentIngressTests
 
         // Stored values carry the automation provenance. The agreed fee the
         // Case took from its Principal at creation is not this save's.
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseAssessmentFields
             WHERE RecordedByKind = N'Automation'
               AND RecordedBy <> N'{PrincipalDefaultFeePolicy.RecorderId}'
             """));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM CaseEstimateLines WHERE RecordedByKind = N'Automation'"));
 
         // Logging parity: the business save is recorded exactly like a staff
         // save, and the ingress attribution row correlates to the operation key.
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
               AND EventKind = N'case_assessment_saved'
               AND Outcome = N'Succeeded'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -697,7 +697,7 @@ public sealed class AutomationAssessmentIngressTests
             document.RootElement.ToString(),
             StringComparison.Ordinal);
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_scope_denied'
@@ -740,7 +740,7 @@ public sealed class AutomationAssessmentIngressTests
             caseVersion = lease.GetProperty("version").GetInt64();
             leaseToken = lease.GetProperty("editLeaseToken").GetString()!;
         }
-        var stateBefore = await factory.Database.ScalarAsync<string>(
+        var stateBefore = await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT State FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
 
         using (var updateResponse = await PostMcpAsync(
@@ -774,7 +774,7 @@ public sealed class AutomationAssessmentIngressTests
 
         // Case-detail values save through the staff Case save: they land as the
         // Case's confirmed case-data value, attributed to the automation.
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
             WHERE WorkId = '{caseId:D}'
@@ -789,21 +789,21 @@ public sealed class AutomationAssessmentIngressTests
         // completeness: readiness is evaluated from what the save wrote.
         Assert.Equal(
             stateBefore,
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT State FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT CAST(InstructionComplete AS INT) FROM Cases WHERE Id = '{caseId:D}'"));
 
         // Logging parity: the business save is recorded exactly like a staff save, and the
         // ingress attribution row correlates to the operation key.
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
               AND EventKind = N'case_workspace_saved'
               AND Outcome = N'Succeeded'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -838,7 +838,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(caseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
             WHERE WorkId = '{caseId:D}' AND FieldName = N'contact_name'
@@ -895,11 +895,11 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
         Assert.Equal(
             "Staff",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
         Assert.Equal(
             staff.SubjectId,
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT EditLeaseHolder FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
 
         await using (var scope = mcpFactory.Services.CreateAsyncScope())
@@ -913,7 +913,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(0, automationLease.CaseVersion);
         Assert.Equal(
             "Automation",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
     }
 
@@ -943,7 +943,7 @@ public sealed class AutomationAssessmentIngressTests
                 new { recordKind = "Case", recordId = caseId, expectedVersion = 0, operationKey = "mcp:takeover-plain-claim" }));
         Assert.Equal(
             "Staff",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
 
         string automationToken;
@@ -962,9 +962,9 @@ public sealed class AutomationAssessmentIngressTests
         Assert.NotEqual(staffLease.Token, automationToken);
         Assert.Equal(
             "Automation",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseWorkflowEvents
             WHERE CaseId = '{caseId:D}'
@@ -1034,7 +1034,7 @@ public sealed class AutomationAssessmentIngressTests
 
         Assert.Equal(
             "Automation",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
 
         using (var endResponse = await PostMcpAsync(
@@ -1095,9 +1095,9 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
         Assert.Equal(
             "Staff",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseWorkflowEvents
             WHERE CaseId = '{caseId:D}'
@@ -1105,7 +1105,7 @@ public sealed class AutomationAssessmentIngressTests
               AND ActorKind = N'Staff'
               AND Reason = N'Edit lease taken over from AI.'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseWorkflowEvents
             WHERE CaseId = '{caseId:D}'
@@ -1185,19 +1185,19 @@ public sealed class AutomationAssessmentIngressTests
             Assert.True(saved.GetProperty("caseVersion").GetInt64() > 0);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
               AND EventKind = N'pegasus_case_update_details'
               AND Outcome = N'Succeeded'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
             WHERE WorkId = '{caseId:D}' AND FieldName = N'contact_name' AND ValueKind = N'confirmed'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
 
         // Staff now hold the lease: the one-command claim is refused like any other claim.
@@ -1221,7 +1221,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(currentVersion, await GetWorkflowVersionAsync(mcpFactory, caseId));
         Assert.Equal(
             "Staff",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
     }
 
@@ -1356,7 +1356,7 @@ public sealed class AutomationAssessmentIngressTests
             _ = await ReadStructuredContentAsync(replay);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseWorkflowEvents
             WHERE CaseId = '{caseId:D}'
@@ -1441,7 +1441,7 @@ public sealed class AutomationAssessmentIngressTests
             using var document = await ReadJsonRpcAsync(refused);
             Assert.Contains("The cited AI job was not found.", document.RootElement.ToString(), StringComparison.Ordinal);
         }
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE WorkId = '{caseId:D}'"));
 
         Guid estimateId;
@@ -1507,25 +1507,25 @@ public sealed class AutomationAssessmentIngressTests
                 saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseRepairSpecifications
             WHERE Id = '{estimateId:D}' AND WorkId = '{caseId:D}' AND State = N'Draft'
               AND SourceRoute = N'AiDraft' AND IsCurrent = 0 AND AiJobId IS NULL
               AND Name = N'Claude draft' AND VatPercent = 20
             """));
-        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(3, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseEstimateLines
             WHERE RepairSpecificationId = '{estimateId:D}' AND RecordedByKind = N'Automation'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation' AND EventKind = N'pegasus_estimate_save'
               AND Outcome = N'Succeeded' AND CorrelationId = N'mcp:ingress-estimate-1'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation' AND EventKind = N'estimate_created' AND Outcome = N'Succeeded'
@@ -1695,7 +1695,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal("Manufacturer price list.", line.GetProperty("justification").GetString());
             Assert.Equal(ClientId, line.GetProperty("amendedBy").GetString());
         }
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseRepairSpecifications
             WHERE Id = '{estimateId:D}' AND SourceRoute = N'Manual'
@@ -1781,7 +1781,7 @@ public sealed class AutomationAssessmentIngressTests
         // Every write kept the Automation lease, so the begin token ends it.
         Assert.Equal(
             "Automation",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(6, "pegasus_edit_end", new
         {
@@ -1793,7 +1793,7 @@ public sealed class AutomationAssessmentIngressTests
         {
             Assert.True((await ReadStructuredContentAsync(response)).GetProperty("released").GetBoolean());
         }
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
 
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(7, "pegasus_edit_end", new
@@ -1838,7 +1838,7 @@ public sealed class AutomationAssessmentIngressTests
         }
 
         Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NULL"));
     }
 

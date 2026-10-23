@@ -171,7 +171,7 @@ public sealed class AutomationReportPreparationIngressTests
         {
             Assert.Contains("report wording is unavailable", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseReportWordings AS r
             INNER JOIN CaseWorks AS w ON w.Id = r.WorkId

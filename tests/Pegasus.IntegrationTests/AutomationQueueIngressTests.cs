@@ -43,7 +43,7 @@ public sealed class AutomationQueueIngressTests
 
         // A physical-address Principal needs its address settled first
         // (resolve_inspection_address): accept refuses and writes nothing.
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.PhysicalAddressCode}' WHERE Code = N'{QdosPrincipal.Code}'");
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_action", new
         {
@@ -74,7 +74,7 @@ public sealed class AutomationQueueIngressTests
         }
 
         // An image-based Principal settles the address by its own mode.
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.ImageBasedAssessmentCode}' WHERE Code = N'{QdosPrincipal.Code}'");
 
         // The identity-critical facts are refused by name while missing.
@@ -113,7 +113,7 @@ public sealed class AutomationQueueIngressTests
             Assert.Equal("Automation Claimant", detail.GetProperty("draft").GetProperty("claimantName").GetString());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseHistory
             WHERE CaseId = '{caseId:D}'
@@ -134,7 +134,7 @@ public sealed class AutomationQueueIngressTests
         using var mcpFactory = WithAutomationMcp(factory);
         _ = await SeedAcceptedCaseAsync(mcpFactory);
         // A physical-address Principal: its address needs settling.
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.PhysicalAddressCode}' WHERE Code = N'{QdosPrincipal.Code}'");
         var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
             mcpFactory.Services,
@@ -212,7 +212,7 @@ public sealed class AutomationQueueIngressTests
             Assert.Equal("Automation", detail.GetProperty("inspectionAddressResolvedByKind").GetString());
             Assert.Equal(ClientId, detail.GetProperty("inspectionAddressResolvedBy").GetString());
         }
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'intake_receipt'
@@ -240,7 +240,7 @@ public sealed class AutomationQueueIngressTests
         }
 
         // The Case's address is the Actor's, labelled as such, never staff's.
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields AS f
             INNER JOIN CaseWorks AS w ON w.Id = f.WorkId
@@ -251,7 +251,7 @@ public sealed class AutomationQueueIngressTests
               AND f.ConfirmedByActor = N'{ClientId}'
               AND f.SourceLabel = N'Automation-supplied inspection address'
             """));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields AS f
             INNER JOIN CaseWorks AS w ON w.Id = f.WorkId
@@ -318,7 +318,7 @@ public sealed class AutomationQueueIngressTests
         }
 
         // Each call is its own history line: the creation and its replay.
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
@@ -357,7 +357,7 @@ public sealed class AutomationQueueIngressTests
             Assert.Equal(recordId, (await ReadStructuredContentAsync(response)).GetProperty("recordId").GetGuid());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM WorkCentreDismissals
             WHERE RecordId = '{recordId:D}' AND DismissedBySubjectId = N'{ClientId}'
