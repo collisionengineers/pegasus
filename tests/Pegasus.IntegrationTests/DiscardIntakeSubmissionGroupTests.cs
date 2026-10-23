@@ -202,8 +202,36 @@ public sealed class DiscardIntakeSubmissionGroupTests
                 await harness.Store.ListPendingImageGroupReceiptsAsync(limit));
             Assert.Equal(1, GroupCandidateReads(statements));
             Assert.Single(ReceiptAssetReads(statements));
+            // The saving: receipts load for the groups needed, not for all four.
+            Assert.Equal(Math.Min(limit, groups.Count), ReceiptRowsRead(statements));
             Assert.Equal(0, statements.CountContaining("OFFSET"));
         }
+    }
+
+    [Fact]
+    public async Task TheGroupedImageListNeverLoadsReceiptsMoreThanTwiceHoweverManyGroupsAreIneligible()
+    {
+        var statements = new SqlStatementCounter();
+        await using var harness = await Harness.CreateAsync(statements);
+        var first = new DateTimeOffset(2031, 5, 1, 8, 0, 0, TimeSpan.Zero);
+        const string Photo = "image/jpeg";
+        const string Archive = "application/zip";
+        await harness.AddImageGroupMembersAsync(first, Archive);
+        var g2 = await harness.AddImageGroupMembersAsync(first.AddHours(1), Photo);
+        var g3 = await harness.AddImageGroupMembersAsync(first.AddHours(2), Photo);
+        for (var index = 3; index < 7; index++)
+        {
+            await harness.AddImageGroupMembersAsync(first.AddHours(index), Archive);
+        }
+
+        // Limit 3: the first three groups list two, the shortfall is one, and
+        // the four ineligible groups after them load in one read (not four).
+        statements.Reset();
+        Assert.Equal(
+            [g2[0].ReceiptId, g3[0].ReceiptId],
+            await harness.Store.ListPendingImageGroupReceiptsAsync(3));
+        Assert.Equal(2, ReceiptAssetReads(statements).Count);
+        Assert.Equal(7, ReceiptRowsRead(statements));
     }
 
     [Fact]
@@ -317,6 +345,14 @@ public sealed class DiscardIntakeSubmissionGroupTests
         [.. statements.Reads.Where(read =>
             read.CommandText.Contains("JOIN [IntakeAssets]", StringComparison.Ordinal)
             && !read.CommandText.Contains("JOIN [IntakeSubmissionGroupMembers]", StringComparison.Ordinal))];
+
+    /// <summary>Rows the receipt loads returned: the main read of each load, not the candidate read or the Assets read.</summary>
+    private static int ReceiptRowsRead(SqlStatementCounter statements) =>
+        statements.Reads
+            .Where(read => read.CommandText.Contains("[IntakeReceipts]", StringComparison.Ordinal)
+                && !read.CommandText.Contains("JOIN [IntakeSubmissionGroupMembers]", StringComparison.Ordinal)
+                && !read.CommandText.Contains("JOIN [IntakeAssets]", StringComparison.Ordinal))
+            .Sum(read => read.Rows);
 
     /// <summary>The grouped-image candidate read: the only statement that join the group members.</summary>
     private static int GroupCandidateReads(SqlStatementCounter statements) =>

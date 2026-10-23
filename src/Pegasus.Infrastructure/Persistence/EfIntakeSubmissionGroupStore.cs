@@ -48,8 +48,10 @@ public sealed class EfIntakeSubmissionGroupStore(
         // One slim read of the candidate rows (four columns), as before.
         // Eligibility is Core's rule over the whole receipt, so it runs in
         // memory, but receipts load only for the groups still needed: the
-        // next (maximumItems - listed) groups at a time, stopping at the
-        // limit. A group's receipt is its lowest ordinal eligible member; the
+        // first (maximumItems - listed) groups, then, only if those did not
+        // reach the limit, every remaining group in one second load. At most
+        // two loads a tick, and never more rows than loading every waiting
+        // member. A group's receipt is its lowest ordinal eligible member; the
         // group is spent whether or not that receipt was already listed.
         var candidates = await eligible.ToArrayAsync(cancellationToken);
         var groups = candidates
@@ -60,7 +62,9 @@ public sealed class EfIntakeSubmissionGroupStore(
             .ToArray();
         for (var next = 0; next < groups.Length && results.Count < maximumItems;)
         {
-            var chunk = groups.Skip(next).Take(maximumItems - results.Count).ToArray();
+            var chunk = (next == 0
+                ? groups.Take(maximumItems - results.Count)
+                : groups.Skip(next)).ToArray();
             next += chunk.Length;
             var receipts = new Dictionary<Guid, IntakeReceiptEntity>();
             await LoadReceiptsAsync(context, receipts, chunk.SelectMany(group => group), cancellationToken);
@@ -75,6 +79,10 @@ public sealed class EfIntakeSubmissionGroupStore(
                 if (chosen is { } receiptId && !results.Contains(receiptId))
                 {
                     results.Add(receiptId);
+                    if (results.Count >= maximumItems)
+                    {
+                        break;
+                    }
                 }
             }
         }
