@@ -13,7 +13,7 @@ public sealed class ReconcileStagedArtifactsTests
     private static readonly ReconcileStagedArtifactsResult None = new(0, 0, 0, 0, 0, 0, 0, 0);
 
     [Fact]
-    public async Task AnAgedOrphanIsSetToOrphanThenDeletedUnderThatTag()
+    public async Task AnAgedOrphanListedPendingIsDeletedUnderItsListedTagWithoutASet()
     {
         var harness = new Harness();
         var orphan = harness.Store.Add(1, Aged, StagedArtifactDisposition.Pending);
@@ -21,7 +21,7 @@ public sealed class ReconcileStagedArtifactsTests
         var result = await harness.RunAsync();
 
         Assert.Equal(None with { Expired = 1 }, result);
-        Assert.Equal(new[] { $"set {orphan} Orphan", $"delete {orphan} Orphan" }, harness.Store.Calls);
+        Assert.Equal(new[] { $"delete {orphan} Pending" }, harness.Store.Calls);
         Assert.False(harness.Store.IsStaged(orphan));
     }
 
@@ -58,8 +58,8 @@ public sealed class ReconcileStagedArtifactsTests
     }
 
     /// <summary>
-    /// A blob listed with its target is deleted in one call under the listed
-    /// ETag and tag, without a set first.
+    /// An expiring blob is deleted in one call under the listed ETag and the
+    /// listed tag, whatever that is, without a set first.
     /// </summary>
     [Fact]
     public async Task AnAgedBlobListedWithItsTargetIsDeletedInOneCall()
@@ -68,15 +68,22 @@ public sealed class ReconcileStagedArtifactsTests
         var orphan = harness.Store.Add(1, Aged, StagedArtifactDisposition.Orphan);
         var unmatched = harness.Store.Add(2, Aged, StagedArtifactDisposition.Unmatched);
         harness.Authority.Add(unmatched, StagedArtifactAuthorityState.Pending, hash: new string('C', 64));
+        var pendingOrphan = harness.Store.Add(3, Aged, StagedArtifactDisposition.Pending);
 
         var result = await harness.RunAsync();
 
-        Assert.Equal(None with { Expired = 2 }, result);
+        Assert.Equal(None with { Expired = 3 }, result);
         Assert.Equal(
-            new[] { $"delete {orphan} Orphan", $"delete {unmatched} Unmatched" },
+            new[]
+            {
+                $"delete {orphan} Orphan",
+                $"delete {unmatched} Unmatched",
+                $"delete {pendingOrphan} Pending"
+            },
             harness.Store.Calls);
         Assert.False(harness.Store.IsStaged(orphan));
         Assert.False(harness.Store.IsStaged(unmatched));
+        Assert.False(harness.Store.IsStaged(pendingOrphan));
     }
 
     /// <summary>
@@ -197,7 +204,11 @@ public sealed class ReconcileStagedArtifactsTests
     public async Task ARefusedSetOrDeleteOfAnAgedBlobIsAFailure()
     {
         var harness = new Harness();
-        var setRefused = harness.Store.Add(1, Aged, StagedArtifactDisposition.Pending);
+        var setRefused = harness.Store.Add(
+            1,
+            Aged,
+            StagedArtifactDisposition.Pending,
+            tag: StagedArtifactDisposition.Failed);
         harness.Store.RefuseSet.Add(setRefused);
         var deleteRefused = harness.Store.Add(2, Aged, StagedArtifactDisposition.Pending);
         harness.Store.RefuseDelete.Add(deleteRefused);
