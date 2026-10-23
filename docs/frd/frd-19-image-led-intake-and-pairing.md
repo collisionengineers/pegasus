@@ -244,7 +244,13 @@ complete membership, and fail-closed source-identity rules apply to both.
 - **PDF and mailbox photograph entry.** Otherwise-unrouted standalone PDFs
   and mailbox receipts containing selected photographs use the same image
   lifecycle as direct image uploads. An established instruction, report,
-  Case, or Triage route takes precedence. OCR and technical failures keep
+  Case, or Triage route takes precedence. A PDF with a readable text layer
+  is a document (correspondence or evidence on the Case), never an Image
+  Intake or Unidentified candidate, whatever its issuer. An e-mail carrying
+  a PDF is a document carrier: its loose photograph attachments open no
+  Image Intake or Unidentified item and are filed with it once the Case is
+  matched; with no Case the e-mail waits in No Case Found (operator,
+  22 October 2026). OCR and technical failures keep
   their own outcomes. The original PDF, the selected photographs, and for
   email the original message stay on their parent receipt with one
   destination; no child image receipts are made. Manual-upload confirmation
@@ -276,7 +282,11 @@ complete membership, and fail-closed source-identity rules apply to both.
   selected as before. Embedded images need at least 40,000
   encoded bytes and, when dimensions are known, a longest-to-shortest side
   ratio below 3. Unknown dimensions keep the size-based selection. These are
-  image heuristics, not a logo classifier. Inside a capture document
+  image heuristics, not a logo classifier. An image object that appears on
+  every page of a multi-page PDF is letterhead art, never a photograph, never
+  an Image Intake candidate, never in the gallery; the 40 KB floor and the
+  3:1 side ratio stay as they are (operator, 22 October 2026). Inside a
+  capture document
   ([FRD-02](frd-02-intake-and-source-identity.md) `EXT-17`) the photographs
   are every JPEG on its "Submitted Vehicle Images" page whatever their size,
   and no other image in that document is one. Repeated photograph content is

@@ -126,18 +126,29 @@ public static class ImageIntakeLifecycleRules
             or CaseLifecycleState.ReportPreparation;
 
     /// <summary>
-    /// Image evidence material: at least one selected photograph and no
-    /// extracted instruction evidence. The retained source can be an image,
-    /// a PDF containing photographs, or an email carrying photographs; it is
-    /// preserved alongside the selected images and does not itself disqualify
-    /// the route. This is the one owner of the rule; the automation, intake
-    /// surface and registration write path all consume it.
+    /// Image evidence material: at least one selected photograph, no
+    /// extracted instruction evidence and no recognised non-image document.
+    /// The retained source can be an image, a PDF of photographs, or an email
+    /// carrying photographs; it is preserved alongside the selected images and
+    /// does not itself disqualify the route. A source carrying a recognised
+    /// report or a PDF is a document carrier, never Image Intake or
+    /// Unidentified material; its photographs are still selected, so they are
+    /// filed with it once its Case is matched (operator, 22 October 2026).
+    /// This is the one owner of the rule; the automation, intake surface and
+    /// registration write path all consume it.
     /// </summary>
     public static bool IsImageOnlyMaterial(IntakeReceipt receipt)
     {
         ArgumentNullException.ThrowIfNull(receipt);
         return receipt.InstructionDraft is null
             && receipt.Fields.Count == 0
+            && !receipt.Evidence.Any(item =>
+                item is
+                {
+                    Source: IntakeEvidenceSource.SystemDefault,
+                    Finding: IntakeEvidenceFinding.Information,
+                    Signal: IntakeEvidenceSignals.RecognizedNonImageDocument
+                })
             && InstructionEvidenceImages.HasSelectedPhotographs(receipt);
     }
 
@@ -159,8 +170,7 @@ public static class ImageIntakeLifecycleRules
                 {
                     Source: IntakeEvidenceSource.SystemDefault,
                     Finding: IntakeEvidenceFinding.Information,
-                    Signal: IntakeEvidenceSignals.RecognizedNonImageDocument
-                        or IntakeEvidenceSignals.AmbiguousInstructionSelection
+                    Signal: IntakeEvidenceSignals.AmbiguousInstructionSelection
                         or IntakeEvidenceSignals.ConflictingInstructionSelection
                         or IntakeEvidenceSignals.IncompleteRead
                 })

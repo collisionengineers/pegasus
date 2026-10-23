@@ -131,15 +131,16 @@ public sealed class ProcessIntake(
         {
             try
             {
-                sourceAsset = await RetainAsync(
-                    new(
-                        "uploaded source",
-                        safeSource.FileName,
-                        safeSource.MediaType,
-                        safeSource.Content,
-                        IntakeAssetKind.Source,
-                        IntakeAssetDisposition.Source),
-                    cancellationToken);
+                IntakeAssetCandidate sourceCandidate = new(
+                    "uploaded source",
+                    safeSource.FileName,
+                    safeSource.MediaType,
+                    safeSource.Content,
+                    IntakeAssetKind.Source,
+                    IntakeAssetDisposition.Source);
+                sourceAsset = AssetRecord(
+                    sourceCandidate,
+                    await StoreAsync(sourceCandidate.Content, cancellationToken));
             }
             catch (IntakeArtifactRetentionException)
             {
@@ -196,15 +197,25 @@ public sealed class ProcessIntake(
         activity?.SetTag("intake.reader_result", ReadStatusCode(readResult.Status));
         activity?.SetTag("intake.reader_key", readResult.ReaderKey);
 
+        // One capture designation per reading: retention keeps its photographs
+        // and the assessment reads from it that a capture PDF is no document.
+        var capture = VehicleCaptureImages.Designate(readResult);
         var assets = new List<IntakeAssetRecord> { sourceAsset };
         try
         {
             // Storage is by content hash and a retry presents the same bytes,
-            // so a candidate stored before a sibling fails is harmless.
-            assets.AddRange(await RunRetentionsAsync(
-                InstructionEvidenceImages.RetentionCandidates(readResult).ToArray(),
-                candidate => RetainAsync(candidate, cancellationToken),
-                cancellationToken));
+            // so a candidate stored before a sibling fails is harmless. Bytes
+            // carried by several placements are hashed and stored once, and
+            // each placement keeps its own row (operator, 22 October 2026).
+            var candidates = InstructionEvidenceImages.RetentionCandidates(readResult, capture).ToArray();
+            var stored = (await RunRetentionsAsync(
+                    candidates.Select(candidate => candidate.Content)
+                        .Distinct(InstructionEvidenceImages.SameBytes)
+                        .ToArray(),
+                    content => StoreAsync(content, cancellationToken),
+                    cancellationToken))
+                .ToDictionary(item => item.Content, InstructionEvidenceImages.SameBytes);
+            assets.AddRange(candidates.Select(candidate => AssetRecord(candidate, stored[candidate.Content])));
         }
         catch (IntakeArtifactRetentionException)
         {
@@ -219,6 +230,7 @@ public sealed class ProcessIntake(
         var assessment = safeSource.DeclaredCaseId is null
             ? await AssessAsync(
                 readResult,
+                capture,
                 safeSource.SourceIdentity,
                 safeSource.ReceivedAtUtc,
                 retainedClassification,
@@ -867,6 +879,7 @@ public sealed class ProcessIntake(
 
     private async Task<IntakeAssessment> AssessAsync(
         IntakeSourceReadResult readResult,
+        VehicleCaptureDesignation capture,
         IntakeSourceIdentity sourceIdentity,
         DateTimeOffset receivedAtUtc,
         MailClassificationResult? retainedClassification,
@@ -881,11 +894,21 @@ public sealed class ProcessIntake(
 
         if (readResult.IsIncomplete)
         {
-            // An incomplete read never enters image automation (ADR-0005 item 11).
+            // An incomplete read never enters image automation (ADR-0005 item
+            // 11). A source carrying a PDF is a document carrier whether or
+            // not its read completed: a PDF a limit stopped is still a PDF it
+            // carries (operator, 22 October 2026).
             return new(
                 IntakeDecision.NeedsSorting,
                 IncompleteReadReason,
-                [.. readerEvidence, IncompleteReadEvidence()],
+                [
+                    .. AppendImageAutomationBlockerEvidence(
+                        readerEvidence,
+                        ThirdPartyReportProfiles.CarriesPdfDocument(readResult, capture)
+                            ? IntakeEvidenceSignals.RecognizedNonImageDocument
+                            : null),
+                    IncompleteReadEvidence()
+                ],
                 [],
                 null,
                 [],
@@ -954,9 +977,7 @@ public sealed class ProcessIntake(
         var instructionSelection = extractionPolicies.Select(readResult, InstructionDocumentSignature.InstructionRole);
         readerEvidence = AppendImageAutomationBlockerEvidence(
             readerEvidence,
-            ThirdPartyReportProfiles.HasRecognizedNonImageDocument(readResult)
-                ? IntakeEvidenceSignals.RecognizedNonImageDocument
-                : null,
+            NonImageDocumentSignal(readResult, capture),
             instructionSelection.Outcome == InstructionPolicySelectionOutcome.Ambiguous
                 ? IntakeEvidenceSignals.AmbiguousInstructionSelection
                 : null);
@@ -1203,6 +1224,17 @@ public sealed class ProcessIntake(
             mailClassificationDecision,
             caseMatchDecision);
     }
+
+    /// <summary>
+    /// The whole-source document-carrier signal, or null when the source
+    /// carries no recognised report and no PDF (operator, 22 October 2026).
+    /// </summary>
+    private static string? NonImageDocumentSignal(
+        IntakeSourceReadResult readResult,
+        VehicleCaptureDesignation capture) =>
+        ThirdPartyReportProfiles.HasRecognizedNonImageDocument(readResult, capture)
+            ? IntakeEvidenceSignals.RecognizedNonImageDocument
+            : null;
 
     /// <summary>
     /// Persists a finite policy fact that prevents selected photographs from
@@ -1588,22 +1620,23 @@ public sealed class ProcessIntake(
         }
     }
 
-    private async Task<IntakeAssetRecord> RetainAsync(
-        IntakeAssetCandidate candidate,
+    private async Task<StoredContent> StoreAsync(
+        ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken)
     {
-        var contentHash = Convert.ToHexString(SHA256.HashData(candidate.Content.Span));
-        string storageKey;
+        var contentHash = Convert.ToHexString(SHA256.HashData(content.Span));
         try
         {
-            storageKey = await artifactStore.StoreAsync(contentHash, candidate.Content, cancellationToken);
+            return new(content, contentHash, await artifactStore.StoreAsync(contentHash, content, cancellationToken));
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             throw new IntakeArtifactRetentionException(exception);
         }
+    }
 
-        return new(
+    private static IntakeAssetRecord AssetRecord(IntakeAssetCandidate candidate, StoredContent stored) =>
+        new(
             Guid.NewGuid(),
             candidate.SourceLabel,
             Path.GetFileName(candidate.FileName),
@@ -1611,13 +1644,17 @@ public sealed class ProcessIntake(
             candidate.Kind,
             candidate.Disposition,
             candidate.Content.Length,
-            contentHash,
-            storageKey,
+            stored.ContentHash,
+            stored.StorageKey,
             candidate.PageNumber,
             candidate.Bounds,
             candidate.WidthPixels,
             candidate.HeightPixels);
-    }
+
+    private readonly record struct StoredContent(
+        ReadOnlyMemory<byte> Content,
+        string ContentHash,
+        string StorageKey);
 
     private void RecordTelemetry(
         Activity? activity,
