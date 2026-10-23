@@ -33,16 +33,23 @@ public sealed class MailTriageMatchTests
         Assert.Equal(2, evidence.MatcherVersion);
     }
 
+    /// <summary>
+    /// R195 (operator, 22 October 2026): a request in reply form names the
+    /// match too, automatic or corrected; whether its thread already holds a
+    /// Case or Triage is decided where the Triage opens.
+    /// </summary>
     [Fact]
-    public void AStaffCorrectionIsItsOwnSourceAndAReplyNamesNoMatch()
+    public void AStaffCorrectionIsItsOwnSourceAndAReplyNamesTheMatch()
     {
         var staff = MailTriageMatch.Evidence(TriageRequest, staffCorrected: true);
         var reply = MailTriageMatch.Evidence(TriageRequest with { IsReplyContext = true });
+        var correctedReply = MailTriageMatch.Evidence(TriageRequest with { IsReplyContext = true }, staffCorrected: true);
 
         Assert.Equal(IntakeEvidenceSource.StaffCorrection, staff!.Source);
         Assert.Equal(IntakeEvidenceFinding.AcceptedTriageMatch, staff.Finding);
         Assert.Equal("principal_mail_classification", staff.MatcherKey);
-        Assert.Null(reply);
+        Assert.Equal(MailTriageMatch.Evidence(TriageRequest), reply);
+        Assert.Equal(staff, correctedReply);
         Assert.Null(MailTriageMatch.Evidence(Autoreply));
         Assert.Null(MailTriageMatch.Evidence(null));
     }

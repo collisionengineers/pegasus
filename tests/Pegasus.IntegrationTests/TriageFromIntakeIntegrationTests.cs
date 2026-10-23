@@ -124,44 +124,118 @@ public sealed class TriageFromIntakeIntegrationTests
                 .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
     }
 
-    [Fact]
-    public async Task AForwardedReplyOnATriageThreadOpensNoSecondTriage()
+    /// <summary>
+    /// R195 (operator, 22 October 2026): a reply into a thread that already
+    /// holds a Triage, or a message linked to a Case, opens no second Triage;
+    /// nor does a request in reply form that intake already linked to a Case
+    /// outside its thread. The shape a reply actually arrives in is
+    /// "FW: RE: ...": every QDOS message reaches us as a staff forward.
+    /// </summary>
+    [Theory]
+    [InlineData("origin")]
+    [InlineData("linked")]
+    [InlineData("matched")]
+    public async Task AForwardedReplyOnATriageThreadOpensNoSecondTriage(string threadHolds)
     {
-        // The shape a reply actually arrives in. The classifier's own note
-        // records that every QDOS message reaches us as a staff forward, so an
-        // ordinary reply is "FW: RE: ..." and never a bare "RE: ...". While
-        // reply detection only recognised a leading "RE:", this subject read as
-        // a brand-new request and opened a duplicate Triage for ordinary thread
-        // correspondence -- the exact duplicate the reply-context gate exists
-        // to prevent.
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var email = IntakeTestEvidence.CreateEmail(
+        var conversation = $"conversation-{threadHolds}";
+        Guid? matchedCaseId = null;
+        if (threadHolds == "matched")
+        {
+            // An instructed Case for the reply's registration and claim
+            // reference, outside its conversation: intake links the reply to
+            // it before the Triage is considered.
+            matchedCaseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+                factory, client, "VO75DFJ", "46246/1");
+        }
+        else
+        {
+            var firstToken = Guid.NewGuid().ToString("N");
+            await RetainInConversationAsync(factory, firstToken, "Engineer Triage", conversation);
+            var first = threadHolds == "origin"
+                ? IntakeTestEvidence.CreateEngineerTriageRequest("engineer-triage.eml")
+                : IntakeTestEvidence.CreateEmail(
+                    "thread-correspondence.eml", "Further to our call this morning, please see the vehicle details below.");
+            var firstReceiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, first, firstToken);
+            if (threadHolds == "linked")
+            {
+                var caseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, null, "t.QDOS31900");
+                await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, firstReceiptId, caseId);
+            }
+        }
+
+        var replyToken = Guid.NewGuid().ToString("N");
+        const string replySubject = "FW: RE: Engineer Triage - Our Claim Reference : 46246/1 - "
+            + "Vehicle Registration : VO75DFJ";
+        await RetainInConversationAsync(factory, replyToken, replySubject, conversation);
+        var reply = IntakeTestEvidence.CreateEmail(
             "engineer-triage-reply.eml",
             "Thanks -- confirming the vehicle is roadworthy as discussed.",
-            subject: "FW: RE: Engineer Triage - Our Claim Reference : 46246/1 - "
-                + "Vehicle Registration : VO75DFJ");
+            subject: replySubject);
+        var replyReceiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, reply, replyToken);
 
-        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipt = Assert.IsType<IntakeReceipt>(
+            await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(replyReceiptId, CancellationToken.None));
+        Assert.NotEqual(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.Single(receipt.Evidence, item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
+        if (matchedCaseId is not null)
+        {
+            Assert.Equal(matchedCaseId, receipt.CurrentCaseId);
+        }
+        Assert.Null(
+            await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .GetByOriginReceiptAsync(replyReceiptId, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// R195 (operator, 22 October 2026): a fresh request in reply form, in a
+    /// thread that holds no Case or Triage, opens the Triage and links the
+    /// message, so it leaves No Case Found; a redelivery replays it (#1482).
+    /// </summary>
+    [Fact]
+    [Trait("Category", "QdosAlphaAcceptance")]
+    public async Task AFreshTriageRequestInReplyFormOpensItsTriage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        const string subject = "RE: (EREF19) RTA on 06/09/2026 : Mr Andrew Lennox "
+            + "(Our Ref: SCL//48672/1, Vehicle: SC10TCJ)";
+        var email = IntakeTestEvidence.CreateEmail(
+            "triage-request-reply-form.eml",
+            "Our Client:  Mr Andrew Lennox\r\n"
+            + "Registration:  SC10TCJ\r\n"
+            + "Date of Accident: 6 September 2026\r\n\r\n"
+            + "Triage Only Request\r\n\r\n"
+            + "Please find attached our client's images.",
+            subject: subject);
+        var token = Guid.NewGuid().ToString("N");
+        await RetainInConversationAsync(factory, token, subject, "conversation-fresh");
+
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email, token);
+        Assert.Equal(receiptId, await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email, token));
 
         await using var scope = factory.Services.CreateAsyncScope();
         var receipt = Assert.IsType<IntakeReceipt>(
             await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
                 .GetAsync(receiptId, CancellationToken.None));
-
-        // Still not an instruction, and still no case -- that part never
-        // depended on reply detection.
-        Assert.NotEqual(IntakeDecision.CaseCreated, receipt.Decision);
-        Assert.Null(receipt.CurrentCaseId);
-
-        // The registration is right there in the subject, so this is the case
-        // that would have opened a Triage on the strength of it.
-        Assert.Empty(
+        Assert.True(receipt.MailClassificationDecision?.IsReplyContext);
+        var triage = Assert.Single(
             await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
                 .ListAsync(null, CancellationToken.None));
-        Assert.DoesNotContain(
-            receipt.Evidence,
-            item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
+        Assert.Equal(triage.CaseId, (await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+            .GetByOriginReceiptAsync(receiptId, CancellationToken.None))?.CaseId);
+        Assert.Equal("SC10TCJ", triage.NormalizedVehicleRegistration);
+        Assert.StartsWith("t.QDOS", triage.Reference, StringComparison.Ordinal);
+
+        // It leaves No Case Found: the message reads the Triage it opened,
+        // the Case that scope reads too (RetainedMailPersistenceTests
+        // NoCaseFoundListsReceivedMailWhoseReceiptStandsLinkedToNoCase).
+        var incoming = await scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>().ListAsync(
+            new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
+        Assert.Equal(triage.CaseId, Assert.Single(incoming.Items, item => item.IntakeReceiptId == receiptId).CaseId);
     }
 
     [Fact]
@@ -381,46 +455,7 @@ public sealed class TriageFromIntakeIntegrationTests
             .Where(item => item.ExternalReceiptToken == token)
             .Select(item => (Guid?)item.Id)
             .SingleOrDefaultAsync();
-        if (retained is null)
-        {
-            var now = DateTimeOffset.UtcNow;
-            var approvedMailboxId = await TestMailboxId.EnsureApprovedAsync(
-                context, $"{key}-mailbox", "intake@example.test", now.AddDays(-1));
-            if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.ApprovedMailboxId == approvedMailboxId))
-            {
-                context.ApprovedInboxPollStates.Add(new()
-                {
-                    ApprovedMailboxId = approvedMailboxId,
-                    MailboxAddress = "intake@example.test",
-                    ScopeFingerprint = new string('A', 64),
-                    ActivatedAtUtc = now.AddDays(-1),
-                    DueAtUtc = now,
-                    LastCompletedAtUtc = now.AddMinutes(-1)
-                });
-            }
-            var message = new RetainedMailboxMessageEntity
-            {
-                Id = Guid.NewGuid(),
-                MailboxId = approvedMailboxId,
-                MailboxAddress = "intake@example.test",
-                FolderScope = "inbox",
-                FolderIdentity = "inbox",
-                ImmutableMessageId = $"{key}-{receiptId:N}",
-                ExternalReceiptToken = token,
-                SenderAddress = "instructions@qdosassist.co.uk",
-                SenderDisplayName = "Synthetic sender",
-                ToAddressesJson = "[]",
-                CcAddressesJson = "[]",
-                Subject = subject,
-                SourceLength = 1,
-                SourceSha256 = new string('A', 64),
-                ReceivedAtUtc = now,
-                RetainedAtUtc = now
-            };
-            context.RetainedMailboxMessages.Add(message);
-            await context.SaveChangesAsync();
-            retained = message.Id;
-        }
+        retained ??= await AddRetainedMessageAsync(context, key, token, $"{key}-{receiptId:N}", subject, null);
         // Where the route read nothing in the message, processing recorded no
         // classification. The record staff correct is the abstention the
         // classifier would have recorded for it.
@@ -443,5 +478,70 @@ public sealed class TriageFromIntakeIntegrationTests
             await context.SaveChangesAsync();
         }
         return retained.Value;
+    }
+
+    /// <summary>
+    /// The poll retains a message, with its mailbox conversation, before it
+    /// stages the source; retain it so before processing, under the token the
+    /// submission then uses.
+    /// </summary>
+    private static async Task RetainInConversationAsync(
+        IntakeWebApplicationFactory factory,
+        string token,
+        string subject,
+        string conversationIdentity)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        _ = await AddRetainedMessageAsync(context, "thread", token, $"thread-{token}", subject, conversationIdentity);
+    }
+
+    private static async Task<Guid> AddRetainedMessageAsync(
+        PegasusDbContext context,
+        string key,
+        string token,
+        string immutableMessageId,
+        string subject,
+        string? conversationIdentity)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var approvedMailboxId = await TestMailboxId.EnsureApprovedAsync(
+            context, $"{key}-mailbox", "intake@example.test", now.AddDays(-1));
+        if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.ApprovedMailboxId == approvedMailboxId))
+        {
+            context.ApprovedInboxPollStates.Add(new()
+            {
+                ApprovedMailboxId = approvedMailboxId,
+                MailboxAddress = "intake@example.test",
+                ScopeFingerprint = new string('A', 64),
+                ActivatedAtUtc = now.AddDays(-1),
+                DueAtUtc = now,
+                LastCompletedAtUtc = now.AddMinutes(-1)
+            });
+        }
+        var message = new RetainedMailboxMessageEntity
+        {
+            Id = Guid.NewGuid(),
+            MailboxId = approvedMailboxId,
+            MailboxAddress = "intake@example.test",
+            FolderScope = "inbox",
+            FolderIdentity = "inbox",
+            ImmutableMessageId = immutableMessageId,
+            ConversationIdentity = conversationIdentity,
+            ExternalReceiptToken = token,
+            SenderAddress = "instructions@qdosassist.co.uk",
+            SenderDisplayName = "Synthetic sender",
+            ToAddressesJson = "[]",
+            CcAddressesJson = "[]",
+            Subject = subject,
+            SourceLength = 1,
+            SourceSha256 = new string('A', 64),
+            ReceivedAtUtc = now,
+            RetainedAtUtc = now
+        };
+        context.RetainedMailboxMessages.Add(message);
+        await context.SaveChangesAsync();
+        return message.Id;
     }
 }

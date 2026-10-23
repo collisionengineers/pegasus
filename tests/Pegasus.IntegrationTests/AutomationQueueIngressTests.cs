@@ -329,6 +329,103 @@ public sealed class AutomationQueueIngressTests
             """));
     }
 
+    /// <summary>
+    /// R223 (operator, 22 October 2026): the Actor opens the Triage from an
+    /// item classified as Triage request through the same command as Open the
+    /// Triage on its message; the action is named in the tool's description,
+    /// a stale version fails closed and a replay returns the same Triage Case.
+    /// </summary>
+    [Fact]
+    public async Task TheActorOpensTheTriageFromATriageRequestAsTheMessageDoes()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            mcpFactory.Services,
+            IntakeTestEvidence.CreateEmail(
+                "triage-request-open.eml",
+                "Triage Only Request\r\n\r\nPlease find attached our client's images."));
+        var token = await RequestTokenAsync(client, "automation.intake");
+
+        using (var toolsResponse = await PostMcpAsync(client, token, ToolsListPayload(1)))
+        {
+            using var tools = await ReadJsonRpcAsync(toolsResponse);
+            var intakeAction = tools.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
+                .Single(tool => tool.GetProperty("name").GetString() == "pegasus_intake_action");
+            Assert.Contains("open_triage", intakeAction.GetProperty("description").GetString(), StringComparison.Ordinal);
+            Assert.Contains(
+                "open_triage",
+                intakeAction.GetProperty("inputSchema").GetProperty("properties").GetProperty("action")
+                    .GetProperty("description").GetString(),
+                StringComparison.Ordinal);
+        }
+
+        long version;
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_get", new { receiptId })))
+        {
+            version = (await ReadStructuredContentAsync(response)).GetProperty("version").GetInt64();
+        }
+
+        foreach (var (rpcId, arguments, refusal) in new (int, object, string)[]
+        {
+            (3, new { receiptId, action = "open_triage", expectedReceiptVersion = version,
+                claimantName = "Not for Triage", operationKey = "mcp:open-triage-field" },
+                "open_triage takes only vehicleRegistration."),
+            (4, new { receiptId, action = "open_triage", expectedReceiptVersion = version,
+                operationKey = "mcp:open-triage-no-registration" },
+                "A normalized vehicle registration is required."),
+            (5, new { receiptId, action = "open_triage", expectedReceiptVersion = version + 1,
+                vehicleRegistration = "VN64WNG", operationKey = "mcp:open-triage-stale" },
+                "changed since it was read")
+        })
+        {
+            using var refused = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_intake_action", arguments));
+            Assert.Contains(refusal, await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        var caseId = Guid.Empty;
+        foreach (var (rpcId, isReplay) in new[] { (6, false), (7, true) })
+        {
+            using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_intake_action", new
+            {
+                receiptId,
+                action = "open_triage",
+                expectedReceiptVersion = version,
+                vehicleRegistration = "vn64 wng",
+                operationKey = "mcp:open-triage"
+            }));
+            var opened = await ReadStructuredContentAsync(response);
+            Assert.Equal("open_triage", opened.GetProperty("action").GetString());
+            Assert.Equal(isReplay, opened.GetProperty("isReplay").GetBoolean());
+            Assert.StartsWith("t.QDOS", opened.GetProperty("caseReference").GetString(), StringComparison.Ordinal);
+            caseId = opened.GetProperty("caseId").GetGuid();
+        }
+
+        // Another key on an item whose Triage is open is refused, as the
+        // message no longer offers Open the Triage.
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_intake_action", new
+        {
+            receiptId,
+            action = "open_triage",
+            expectedReceiptVersion = version,
+            vehicleRegistration = "VN64WNG",
+            operationKey = "mcp:open-triage-again"
+        })))
+        {
+            Assert.Contains("A Triage cannot be opened from this item.", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM Triage AS t
+            INNER JOIN TriageHistory AS h ON h.TriageCaseId = t.CaseId
+            WHERE t.CaseId = '{caseId:D}' AND t.OriginReceiptId = '{receiptId:D}'
+              AND t.NormalizedVehicleRegistration = N'VN64WNG'
+              AND h.EventType = N'triage_created' AND h.ActorKind = N'Automation'
+            """));
+    }
+
     [Fact]
     public async Task WorkCentreDismissNeedsTheCasesScopeAndHidesTheRecordInTheActorsName()
     {

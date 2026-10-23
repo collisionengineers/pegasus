@@ -667,9 +667,9 @@ public sealed class ProcessIntake(
     /// Triage opened its Triage record and an Unidentified item beside it, the
     /// two-queues defect already closed for the mail route.
     ///
-    /// The classification clause stays: a reply in a Triage thread classifies
-    /// as a Triage request but is deliberately given no accepted-match
-    /// evidence, and must still read as one here.
+    /// The classification clause stays: a Triage-request classification on a
+    /// route that was not accepted carries no accepted-match evidence, and
+    /// must still read as one here.
     /// </summary>
     public static bool IsTriageRequest(IntakeReceipt receipt) =>
         receipt.MailClassificationDecision is { IsTriageRequest: true }

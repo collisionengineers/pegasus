@@ -434,8 +434,8 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
     // mailbox is "FW: RE: ...", and an anchor that only accepts a leading
     // "RE:" reads that as a brand-new message. For a Triage request the
     // consequence was a second Triage opened for ordinary thread
-    // correspondence, which is the duplicate the reply-context gate exists to
-    // prevent.
+    // correspondence: reply context is what makes Triage opening ask whether
+    // the thread already holds a Case or Triage (R195).
     //
     // Matching a reply anywhere in the chain needs no new anchor shape: any
     // chain containing "RE:" either opens with it, or reaches it past

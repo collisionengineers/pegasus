@@ -598,6 +598,42 @@ public sealed class EfTriageStore(
             ?? await ResolveEstablishedPrincipalAsync(context, receiptId, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> ThreadHoldsCaseOrTriageAsync(
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var thread = await (
+                from receipt in context.IntakeReceipts.AsNoTracking()
+                where receipt.Id == receiptId
+                    && receipt.SourceChannel == mailbox
+                    && !context.Triage.Any(item => item.OriginReceiptId == receiptId)
+                from message in context.RetainedMailboxMessages
+                    .Where(item => item.ExternalReceiptToken == receipt.ExternalReceiptToken)
+                select new { message.MailboxId, message.ConversationIdentity, receipt.ExternalReceiptToken })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (thread is null || string.IsNullOrWhiteSpace(thread.ConversationIdentity))
+        {
+            return false;
+        }
+
+        // One statement over the other receipts of the thread. A Triage's
+        // origin message is linked by the Triage itself, not by an
+        // association row, so both are asked.
+        var linked = CurrentIntakeAssociations.LinkedReceiptIds(context);
+        var ownToken = thread.ExternalReceiptToken;
+        return await CurrentIntakeAssociations
+            .ThreadReceipts(context, thread.MailboxId, thread.ConversationIdentity)
+            .AsNoTracking()
+            .AnyAsync(
+                receipt => receipt.ExternalReceiptToken != ownToken
+                    && (context.Triage.Any(item => item.OriginReceiptId == receipt.Id)
+                        || linked.Contains(receipt.Id)),
+                cancellationToken);
+    }
+
     /// <summary>
     /// The principal the receipt already established, taken from the
     /// originating instruction draft's suggested principal code and accepted
@@ -1248,6 +1284,21 @@ public sealed class EfTriageStore(
         var entity = await context.Triage.AsNoTracking()
             .Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
+    public async Task<TriageRecord?> GetRecordByOriginOperationAsync(
+        Guid originReceiptId,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Triage.AsNoTracking()
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(
+                item => item.OriginReceiptId == originReceiptId
+                    && item.History.Any(entry => entry.OperationKey == operationKey),
+                cancellationToken);
         return entity is null ? null : Map(entity);
     }
 
