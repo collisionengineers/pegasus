@@ -256,7 +256,39 @@ public sealed class RecoveryTests
         var idleStatement = Assert.Single(statements.Statements);
         Assert.DoesNotContain("OFFSET", idleStatement, StringComparison.Ordinal);
 
+        // 300 more live leases, more than the 256-row page the scan used to
+        // read: the idle scan is still the same single statement.
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            for (var index = 0; index < 300; index++)
+            {
+                var stagedReceiptId = Guid.NewGuid();
+                context.AddRange(
+                    new IntakeStagedReceiptEntity
+                    {
+                        Id = stagedReceiptId, SourceFileName = "live.pdf", MediaType = "application/pdf",
+                        SourceLength = 3, SourceHash = new string('a', 64), SourceChannel = "manual_upload",
+                        ExternalReceiptToken = $"live-lease-{index}", ReceivedAtUtc = nowUtc,
+                        Actor = "staff:test", StorageKey = $"manual/live-lease-{index}", StagedAtUtc = nowUtc
+                    },
+                    new IntakeWorkItemEntity
+                    {
+                        Id = Guid.NewGuid(), StagedReceiptId = stagedReceiptId,
+                        OperationKey = $"live-lease-{index}", State = "processing", AttemptCount = 1,
+                        DueAtUtc = nowUtc, LeaseToken = $"live-{index}",
+                        LeaseExpiresAtUtc = nowUtc + TimeSpan.FromMinutes(5)
+                    });
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        statements.Reset();
+        Assert.Equal(0, await store.RecoverInterruptedWorkAsync(
+            nowUtc, nowUtc - TimeSpan.FromMinutes(1), 2, CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
             await context.IntakeWorkItems
@@ -268,9 +300,12 @@ public sealed class RecoveryTests
         statements.Reset();
         Assert.Equal(2, await store.RecoverInterruptedWorkAsync(
             nowUtc, nowUtc - TimeSpan.FromMinutes(1), 2, CancellationToken.None));
-        // One read for the two due rows, then one guarded update for each.
+        // The three flow rows are all due; with 300 live leases beside them the
+        // scan still reads once, returns at most the limit, then each recovered
+        // row adds one guarded update and no further read.
         Assert.Equal(3, statements.Count);
         Assert.Equal(1, statements.CountContaining("SELECT"));
+        Assert.Equal(2, Assert.Single(statements.Reads, read => read.CommandText.Contains("SELECT", StringComparison.Ordinal)).Rows);
     }
 
     [Fact]

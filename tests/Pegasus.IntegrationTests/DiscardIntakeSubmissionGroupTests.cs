@@ -182,7 +182,6 @@ public sealed class DiscardIntakeSubmissionGroupTests
             newerGroup.ReceiptId,
             await harness.Store.ListPendingImageGroupReceiptsAsync(3));
     }
-
     [Fact]
     public async Task TheGroupedImageListStopsAtTheLimitAfterOnePage()
     {
@@ -199,19 +198,51 @@ public sealed class DiscardIntakeSubmissionGroupTests
         Assert.Equal(
             [groups[0].ReceiptId],
             await harness.Store.ListPendingImageGroupReceiptsAsync(1));
-        Assert.Equal(1, statements.CountContaining("OFFSET"));
+        Assert.Equal(1, GroupPageStatements(statements));
 
         statements.Reset();
         Assert.Equal(
             groups.Take(3).Select(group => group.ReceiptId),
             await harness.Store.ListPendingImageGroupReceiptsAsync(3));
-        Assert.Equal(1, statements.CountContaining("OFFSET"));
+        Assert.Equal(1, GroupPageStatements(statements));
 
         statements.Reset();
         Assert.Equal(
             groups.Select(group => group.ReceiptId),
             await harness.Store.ListPendingImageGroupReceiptsAsync(10));
-        Assert.Equal(1, statements.CountContaining("OFFSET"));
+        Assert.Equal(1, GroupPageStatements(statements));
+        Assert.Equal(0, statements.CountContaining("OFFSET"));
+    }
+
+    [Fact]
+    public async Task TheGroupedImageListPagesPastIneligibleRowsAndSpendsAGroupSplitAcrossPages()
+    {
+        var statements = new SqlStatementCounter();
+        await using var harness = await Harness.CreateAsync(statements);
+        var first = new DateTimeOffset(2031, 5, 1, 8, 0, 0, TimeSpan.Zero);
+        const string Photo = "image/jpeg";
+        const string Archive = "application/zip";
+        // Rows in order, three to a page:
+        //   page 1: g1/0 (ineligible), g1/1 (eligible), g2/0 (eligible, spends g2)
+        //   page 2: g2/1 (eligible but g2 is spent: the group continues from page 1),
+        //           g3/0 and g3/1 (both ineligible)
+        //   page 3: g4/0 (eligible)
+        var g1 = await harness.AddImageGroupMembersAsync(first, Archive, Photo);
+        var g2 = await harness.AddImageGroupMembersAsync(first.AddHours(1), Photo, Photo);
+        await harness.AddImageGroupMembersAsync(first.AddHours(2), Archive, Archive);
+        var g4 = await harness.AddImageGroupMembersAsync(first.AddHours(3), Photo);
+        Guid[] expected = [g1[1].ReceiptId, g2[0].ReceiptId, g4[0].ReceiptId];
+
+        // The limit is reached on the third page.
+        statements.Reset();
+        Assert.Equal(expected, await harness.Store.ListPendingImageGroupReceiptsAsync(3));
+        Assert.Equal(3, GroupPageStatements(statements));
+
+        // The last page is short, so the read ends there with fewer than the limit.
+        statements.Reset();
+        Assert.Equal(expected, await harness.Store.ListPendingImageGroupReceiptsAsync(4));
+        Assert.Equal(2, GroupPageStatements(statements));
+        Assert.Equal(0, statements.CountContaining("OFFSET"));
     }
 
     [Fact]
@@ -267,6 +298,10 @@ public sealed class DiscardIntakeSubmissionGroupTests
             Assert.Equal(0, processor.Calls);
         }
     }
+
+    /// <summary>The grouped-image page reads: the only statements that join the group members.</summary>
+    private static int GroupPageStatements(SqlStatementCounter statements) =>
+        statements.CountContaining("JOIN [IntakeSubmissionGroupMembers]");
 
     private sealed class Harness : IAsyncDisposable
     {
@@ -340,32 +375,49 @@ public sealed class DiscardIntakeSubmissionGroupTests
             await context.SaveChangesAsync();
         }
 
-        public async Task<SeededReceipt> AddImageGroupAsync(DateTimeOffset receivedAtUtc)
+        public async Task<SeededReceipt> AddImageGroupAsync(DateTimeOffset receivedAtUtc) =>
+            (await AddImageGroupMembersAsync(receivedAtUtc, "image/jpeg"))[0];
+
+        /// <summary>
+        /// One waiting group with one member per media type, in ordinal order.
+        /// Every member passes the SQL query; a member whose media type is not
+        /// an image, PDF or e-mail fails Core's eligibility rule.
+        /// </summary>
+        public async Task<IReadOnlyList<SeededReceipt>> AddImageGroupMembersAsync(
+            DateTimeOffset receivedAtUtc,
+            params string[] memberMediaTypes)
         {
-            var token = Guid.NewGuid().ToString("N");
-            var stagedReceiptId = Guid.NewGuid();
-            var receiptId = Guid.NewGuid();
+            var groupToken = Guid.NewGuid().ToString("N");
             var groupId = Guid.NewGuid();
             var hash = new string('c', 64);
+            var seeded = new List<SeededReceipt>();
             await using var context = await Database.CreateContextAsync();
-            context.AddRange(
-                ImageStagedReceipt(stagedReceiptId, token, hash, receivedAtUtc),
-                ImageReceipt(receiptId, token, hash, receivedAtUtc),
-                ImageSourceAsset(receiptId, hash),
-                new IntakeSubmissionGroupEntity
-                {
-                    Id = groupId, SourceChannel = "manual_upload", SubmissionToken = token,
-                    ExpectedMemberCount = 2, Actor = "staff:test", ReceivedAtUtc = receivedAtUtc, Version = 1
-                },
-                new IntakeSubmissionGroupMemberEntity
-                {
-                    Id = Guid.NewGuid(), GroupId = groupId, Ordinal = 0, StagedReceiptId = stagedReceiptId,
-                    SourceFileName = "group.jpg", SourceHash = hash, AddedAtUtc = receivedAtUtc
-                },
-                CompletedWork(stagedReceiptId, receiptId, $"group:{token}", receivedAtUtc),
-                Evaluation(stagedReceiptId, receiptId, receivedAtUtc));
+            context.Add(new IntakeSubmissionGroupEntity
+            {
+                Id = groupId, SourceChannel = "manual_upload", SubmissionToken = groupToken,
+                ExpectedMemberCount = 2, Actor = "staff:test", ReceivedAtUtc = receivedAtUtc, Version = 1
+            });
+            for (var ordinal = 0; ordinal < memberMediaTypes.Length; ordinal++)
+            {
+                var token = $"{groupToken}-{ordinal}";
+                var stagedReceiptId = Guid.NewGuid();
+                var receiptId = Guid.NewGuid();
+                context.AddRange(
+                    ImageStagedReceipt(stagedReceiptId, token, hash, receivedAtUtc),
+                    ImageReceipt(receiptId, token, hash, receivedAtUtc, memberMediaTypes[ordinal]),
+                    ImageSourceAsset(receiptId, hash),
+                    new IntakeSubmissionGroupMemberEntity
+                    {
+                        Id = Guid.NewGuid(), GroupId = groupId, Ordinal = ordinal, StagedReceiptId = stagedReceiptId,
+                        SourceFileName = "group.jpg", SourceHash = hash, AddedAtUtc = receivedAtUtc
+                    },
+                    CompletedWork(stagedReceiptId, receiptId, $"group:{token}", receivedAtUtc),
+                    Evaluation(stagedReceiptId, receiptId, receivedAtUtc));
+                seeded.Add(new(receiptId, stagedReceiptId));
+            }
+
             await context.SaveChangesAsync();
-            return new(receiptId, stagedReceiptId);
+            return seeded;
         }
 
         public async Task<SeededReceipt> AddUnpromotedCaseReceiptAsync(
@@ -487,9 +539,9 @@ public sealed class DiscardIntakeSubmissionGroupTests
         };
 
         private static IntakeReceiptEntity ImageReceipt(
-            Guid id, string token, string hash, DateTimeOffset receivedAtUtc) => new()
+            Guid id, string token, string hash, DateTimeOffset receivedAtUtc, string mediaType = "image/jpeg") => new()
         {
-            Id = id, SourceFileName = "case.jpg", MediaType = "image/jpeg", SourceLength = 3, SourceHash = hash,
+            Id = id, SourceFileName = "case.jpg", MediaType = mediaType, SourceLength = 3, SourceHash = hash,
             SourceChannel = "manual_upload", ExternalReceiptToken = token, ReceivedAtUtc = receivedAtUtc,
             ProcessedAtUtc = receivedAtUtc, SourceReaderKey = "test", SourceReaderVersion = "1", Version = 1,
             Decision = "needs_sorting", DecisionReason = "test",

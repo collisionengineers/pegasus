@@ -50,15 +50,29 @@ public sealed class EfIntakeSubmissionGroupStore(
         // until maximumItems is reached. A group's receipt is its lowest
         // ordinal eligible member; the group is spent whether or not that
         // receipt was already listed.
-        var ordered = eligible
-            .OrderBy(candidate => candidate.ReceivedAtUtc)
-            .ThenBy(candidate => candidate.Id)
-            .ThenBy(candidate => candidate.Ordinal);
+        // Each page seeks past the last row of the one before on the unique
+        // (ReceivedAtUtc, group Id, Ordinal) order, so no page re-reads the
+        // rows already seen.
         Guid? currentGroupId = null;
         var currentGroupSpent = false;
-        for (var offset = 0; ; offset += maximumItems)
+        var hasLast = false;
+        var lastReceivedAtUtc = default(DateTimeOffset);
+        var lastGroupId = Guid.Empty;
+        var lastOrdinal = 0;
+        while (true)
         {
-            var page = await ordered.Skip(offset).Take(maximumItems).ToArrayAsync(cancellationToken);
+            var remaining = hasLast
+                ? eligible.Where(candidate => candidate.ReceivedAtUtc > lastReceivedAtUtc
+                    || (candidate.ReceivedAtUtc == lastReceivedAtUtc
+                        && (candidate.Id.CompareTo(lastGroupId) > 0
+                            || (candidate.Id == lastGroupId && candidate.Ordinal > lastOrdinal))))
+                : eligible;
+            var page = await remaining
+                .OrderBy(candidate => candidate.ReceivedAtUtc)
+                .ThenBy(candidate => candidate.Id)
+                .ThenBy(candidate => candidate.Ordinal)
+                .Take(maximumItems)
+                .ToArrayAsync(cancellationToken);
             var receiptIds = page
                 .Where(candidate => !(currentGroupSpent && candidate.Id == currentGroupId))
                 .Select(candidate => candidate.ReceiptId)
@@ -105,6 +119,12 @@ public sealed class EfIntakeSubmissionGroupStore(
             {
                 return results;
             }
+
+            var last = page[^1];
+            hasLast = true;
+            lastReceivedAtUtc = last.ReceivedAtUtc;
+            lastGroupId = last.Id;
+            lastOrdinal = last.Ordinal;
         }
     }
 
