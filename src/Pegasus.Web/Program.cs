@@ -1164,18 +1164,22 @@ if (automationMcpOptions is not null)
 }
 app.UseAuthentication();
 var keepWarmState = app.Services.GetRequiredService<StartupWarmupState>();
-app.Use((HttpContext context, RequestDelegate next) => PageRequestSignal.InvokeAsync(context, next, keepWarmState));
 app.Use(async (context, next) =>
 {
     // Identity's validation-driven cookie reissue used to incidentally attach
     // no-store to most protected Razor responses. Preserve that requirement at
     // the response owner without overwriting the document preview's explicit
-    // private cache policy or static-asset cache headers.
-    if (context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Mvc.RazorPages.PageActionDescriptor>() is not null
-        && context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is null
-        && !context.Response.Headers.ContainsKey("Cache-Control"))
+    // private cache policy or static-asset cache headers. A Razor page request
+    // also notes the keep-warm signal here, from the same endpoint lookup.
+    var endpointMetadata = context.GetEndpoint()?.Metadata;
+    if (endpointMetadata?.GetMetadata<Microsoft.AspNetCore.Mvc.RazorPages.PageActionDescriptor>() is not null)
     {
-        context.Response.Headers.CacheControl = "private, no-store";
+        PageRequestSignal.Note(context, keepWarmState);
+        if (endpointMetadata.GetMetadata<IAllowAnonymous>() is null
+            && !context.Response.Headers.ContainsKey("Cache-Control"))
+        {
+            context.Response.Headers.CacheControl = "private, no-store";
+        }
     }
 
     await next(context);
