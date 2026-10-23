@@ -2087,7 +2087,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             }
             await using var scope = estate.Database.CreateAsyncScope();
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            var cache = new DocumentThumbnailCache(factory, new CacheContainer(estate.Blob), estate.Clock);
+            // One blob for each name: the plain and the saved variant are two objects.
+            var cache = new DocumentThumbnailCache(factory, new NamedCacheContainer(), estate.Clock);
             var candidates = new EfDocumentThumbnailCandidates(factory, estate.Clock);
             var sweep = new PrepareDocumentThumbnails(
                 candidates, new CaseDocumentThumbnailReader(new ImmediateSource(image), cache));
