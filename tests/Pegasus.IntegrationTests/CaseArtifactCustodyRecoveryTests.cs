@@ -945,7 +945,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
     /// </summary>
     [Theory]
     [InlineData("record", "INSERT INTO [CaseDocuments]")]
-    [InlineData("confirm", "[BoxVersionId] = @")]
+    [InlineData("confirm", "UPDATE |[BoxVersionId]")]
     public async Task ADeadlockInEitherCustodyStepIsRetriedOnAFreshContext(string step, string statement)
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -1929,7 +1929,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
         private void ThrowOnce(DbCommand command)
         {
-            if (command.CommandText.Contains(fragment, StringComparison.Ordinal)
+            if (fragment.Split('|').All(part => command.CommandText.Contains(part, StringComparison.Ordinal))
                 && Interlocked.CompareExchange(ref thrown, 1, 0) == 0)
             {
                 throw Sql(1205);
@@ -2195,11 +2195,12 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
     private sealed class MemoryArtifactStore : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
     {
-        private readonly Dictionary<string, ReadOnlyMemory<byte>> values = [];
-        public int StoreCount { get; private set; }
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, ReadOnlyMemory<byte>> values = new();
+        private int storeCount;
+        public int StoreCount => storeCount;
         public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
         {
-            StoreCount++;
+            Interlocked.Increment(ref storeCount);
             var key = $"test/{contentHash}";
             values[key] = content;
             return Task.FromResult(key);
