@@ -1094,6 +1094,11 @@
     function idle(form, done) {
         if (window.pegasusBusy) { window.pegasusBusy.end(form, done ? { done: true } : undefined); }
     }
+    // A tag row (data-busy-solo) is busy and in flight on its own, beside the
+    // other rows of its tile's one form; every other press holds its form.
+    function holder(form, submitter) {
+        return submitter && submitter.hasAttribute('data-busy-solo') ? submitter : form;
+    }
     function submitInPlace(form, submitter) {
         // A section-head Edit keeps its own section where it is on screen.
         var editKey = submitter ? submitter.getAttribute('data-section-edit') : null;
@@ -1184,8 +1189,8 @@
             showActionError(failure);
         }).finally(function () {
             form.removeAttribute('aria-busy');
-            form.removeAttribute('data-inplace-submitting');
-            idle(form, done);
+            holder(form, submitter).removeAttribute('data-inplace-submitting');
+            idle(holder(form, submitter), done);
             resetRefresh(form);
             if (importSection && importSection.isConnected) {
                 importSection.removeAttribute('data-estimate-importing');
@@ -1270,8 +1275,8 @@
             showActionError(error.message + ' Your last change is still on the page.');
         }).finally(function () {
             form.removeAttribute('aria-busy');
-            form.removeAttribute('data-inplace-submitting');
-            idle(form, done);
+            holder(form, submitter).removeAttribute('data-inplace-submitting');
+            idle(holder(form, submitter), done);
             submitting = false;
             settleQueue();
         });
@@ -1499,31 +1504,36 @@
         }
         event.preventDefault();
         var isCommit = !!editorLabels[form.getAttribute('id')];
-        if (form.dataset.inplaceSubmitting === 'true') {
+        if (holder(form, submitter).dataset.inplaceSubmitting === 'true') {
             return;
         }
         var name = submitter ? submitter.name : '';
         var value = submitter ? submitter.value : '';
         var formaction = submitter ? submitter.getAttribute('formaction') : null;
         // A refused commit drops what waited on it; the press is idle again.
-        function abandon() { idle(form); resetRefresh(form); }
+        function abandon() { idle(holder(form, submitter)); resetRefresh(form); }
         function proceed() {
             // A form that waited on a commit is found again: the ribbon's and
             // the dialogs' forms are drawn afresh with the Case's new authority.
             var next = refind(form);
-            if (!next || next.dataset.inplaceSubmitting === 'true') { idle(form); return; }
-            // Waiters run together once the queue empties; the first to post
-            // holds it, and the next follows that post.
-            if (submitting) { commitWaiters.push({ run: proceed, abandon: abandon }); return; }
+            if (!next) { idle(holder(form, submitter)); return; }
             var button = submitter && next !== form ? Array.prototype.find.call(next.elements, function (element) {
                 return element.type === 'submit' && element.name === name && element.value === value
                     && element.getAttribute('formaction') === formaction;
             }) || null : submitter;
+            // A tag row whose tag the redraw changed has no row to press: the
+            // press is idle again, and nothing is posted without its tag.
+            if (!button && submitter && submitter.hasAttribute('data-busy-solo')) { idle(submitter); return; }
+            var held = holder(next, button);
+            if (held.dataset.inplaceSubmitting === 'true') { idle(holder(form, submitter)); return; }
+            // Waiters run together once the queue empties; the first to post
+            // holds it, and the next follows that post.
+            if (submitting) { commitWaiters.push({ run: proceed, abandon: abandon }); return; }
             submitting = true;
-            next.dataset.inplaceSubmitting = 'true';
+            held.dataset.inplaceSubmitting = 'true';
             // The press shows at once, even while it waits behind a commit;
             // a form drawn afresh in the meantime takes the state over.
-            if (next !== form) { idle(form); }
+            if (held !== holder(form, submitter)) { idle(holder(form, submitter)); }
             busy(next, button);
             // A document action (tag, untag, new tag, In report) while editing
             // is not an edit of the Case: it posts at once and redraws its own

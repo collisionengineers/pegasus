@@ -441,13 +441,15 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Single(Regex.Matches(card, "<form[^>]*handler=TagImage[^>]*>", RegexOptions.CultureInvariant));
         Assert.DoesNotContain("type=\"hidden\" name=\"tagId\"", card, StringComparison.Ordinal);
         Assert.Equal(2, Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*>", RegexOptions.CultureInvariant));
+        // Each row is busy on its own, so pressing one does not hold the others.
+        Assert.Equal(2, Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*data-busy-solo", RegexOptions.CultureInvariant));
         Assert.Equal(
             Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*aria-pressed=\"true\"", RegexOptions.CultureInvariant),
             Regex.Count(card, "<button[^>]*name=\"tagId\"[^>]*formaction=\"[^\"]*handler=UntagImage", RegexOptions.CultureInvariant));
 
         var occurrence = fixture.OverviewOccurrenceId.ToString("D");
         var version = store.CaseVersion.ToString(CultureInfo.InvariantCulture);
-        using var tagged =await workspace.Client.PostAsync(
+        using var tagged = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}/Custody?handler=TagImage",
             Form(
                 workspace.AntiforgeryToken,
@@ -485,6 +487,10 @@ public sealed class CaseAssetPreparationWebTests
         }
         Assert.Equal(occurrence, Assert.Single(store.ImageTagsApplied).OccurrenceId.ToString("D"));
         Assert.Equal(store.LeaseToken, store.ImageTagsApplied[0].EditLeaseToken);
+        // The tile's rows share one key, so each tag records it with its own id.
+        Assert.Equal(
+            $"0a0b0c0d0e0f01020304050607080911:{ImageTagVocabulary.ThirdPartyId:N}",
+            store.ImageTagsApplied[0].OperationKey);
         Assert.Equal(occurrence, Assert.Single(store.ImageTagsRemoved).OccurrenceId.ToString("D"));
         Assert.Equal(store.LeaseToken, store.ImageTagsRemoved[0].EditLeaseToken);
         Assert.Equal("Underside", Assert.Single(store.ImageTagsCreated).Name);
