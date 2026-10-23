@@ -15,7 +15,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// filled from the existing snapshots here (a snapshot the JSON cannot fill
 /// stops the migration rather than being given an invented value), written
 /// from now on beside each snapshot. Web writes and reads them as it does the
-/// snapshot table: SELECT and INSERT, no DELETE for either role.
+/// snapshot table: SELECT and INSERT, no DELETE for either role. The backfill
+/// fills only the snapshots that exist when it runs and nothing writes the rows
+/// later, so an old Web that serves after it and adopts a valuation or copies
+/// one in Create audit leaves a snapshot with no rows, which the new Web then
+/// refuses to read. The release that ships this migration therefore keeps the
+/// old Web inactive from this migration until the new Web is active (a
+/// departure from the plain additive route that the release lead approves).
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
 [Migration("20261023160000_AppliedValuationCalculationRows")]
