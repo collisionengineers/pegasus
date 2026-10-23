@@ -2074,7 +2074,6 @@ public sealed class CaseWorkspacePersistenceTests
                     "Assign Engineer while the case is demoted",
                     transitionLease.Token,
                     Guid.NewGuid()),
-                null,
                 CaseLifecycleState.ReportPreparation,
                 CancellationToken.None));
 

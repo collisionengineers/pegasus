@@ -569,7 +569,6 @@ public static class DependencyInjection
         services.AddScoped<IPutCaseOnHold, PutCaseOnHold>();
         services.AddScoped<IReleaseCaseHold, ReleaseCaseHold>();
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
-        services.AddScoped<ICaseEngineerEligibility, EfCaseEngineerEligibility>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
         services.AddScoped<IStartCaseWork, StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();

@@ -490,7 +490,8 @@ public sealed class CaseClosureWebTests
             CancellationToken cancellationToken)
         {
             CaseLifecycleRules.ValidateClose(request);
-            var current = await CaseLifecycleRules.GetRequiredAsync(store, request.CaseId, cancellationToken);
+            var current = await store.GetAsync(request.CaseId, cancellationToken)
+                ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
             CaseLifecycleRules.RequireClosureIsAllowed(current, request);
             Closures.Add(request);
             return current with

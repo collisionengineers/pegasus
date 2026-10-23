@@ -40,6 +40,32 @@ public sealed class EfCreateAuditStore(
             throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
         }
 
+        // A replay is answered from the committed record before the workflow is read:
+        // it needs only the Case's identity, not the tracked workflow.
+        var replay = await context.CaseWorkflowEvents.AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.CaseId == request.CaseId && item.OperationKey == request.OperationKey,
+                cancellationToken);
+        if (replay is not null)
+        {
+            var committed = await context.Cases.AsNoTracking()
+                .Where(item => item.Id == request.CaseId)
+                .Select(item => new CaseIdentity(
+                    item.Id, item.Principal.Code, item.Year, item.Sequence, item.Reference, item.AuditReference))
+                .SingleAsync(cancellationToken);
+            if (!string.Equals(replay.EventType, EventKind, StringComparison.Ordinal)
+                || !CaseOperationReplay.FixedTimeEquals(
+                    replay.RequestHash,
+                    Fingerprint(request, CaseReferenceFormat.AuditReport(committed.Reference))))
+            {
+                throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
+            }
+
+            var replayed = await ReplayAsync(context, request.CaseId, committed, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return replayed;
+        }
+
         var workflow = await context.CaseWorkflows
             .Include(item => item.Case).ThenInclude(item => item.Principal)
             .Include(item => item.DueWork)
@@ -55,23 +81,6 @@ public sealed class EfCreateAuditStore(
             caseEntity.Reference,
             caseEntity.AuditReference);
         var fingerprint = Fingerprint(request, auditReference);
-
-        var replay = await context.CaseWorkflowEvents.AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId && item.OperationKey == request.OperationKey,
-                cancellationToken);
-        if (replay is not null)
-        {
-            if (!string.Equals(replay.EventType, EventKind, StringComparison.Ordinal)
-                || !CaseOperationReplay.FixedTimeEquals(replay.RequestHash, fingerprint))
-            {
-                throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
-            }
-
-            var replayed = await ReplayAsync(context, request.CaseId, identity, cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return replayed;
-        }
 
         // Tracked: the primary row takes the Inspection report's evidence.
         var works = await context.CaseWorks

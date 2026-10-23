@@ -489,14 +489,32 @@ public sealed class EfCaseWorkflowStore(
         return new(workflows.Select(item => item.CaseId).ToArray(), scopes);
     }
 
-    public Task<CaseWorkflowRecord> ChangeStateAsync(
+    public Task<CaseWorkflowRecord> StartWorkAsync(
         CaseMutationRequest request,
-        CaseLifecycleState targetState,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
+        MutateAsync(request, $"state_{CaseLifecycleState.ReportPreparation}", (context, workflow, now) =>
         {
-            workflow.State = targetState.ToString();
-        }, cancellationToken, targetState.ToString());
+            workflow.State = nameof(CaseLifecycleState.ReportPreparation);
+            return Task.CompletedTask;
+        },
+        cancellationToken,
+        nameof(CaseLifecycleState.ReportPreparation),
+        refuse: workflow => CaseLifecycleRules.RequireCanStartCaseWork(StateOf(workflow), workflow.AssignedEngineerId),
+        refuseAsync: RequireAssignedEngineerEligibleAsync);
+
+    /// <summary>
+    /// The assigned Engineer's eligibility, read inside the command's own transaction
+    /// after the state refusal. A Case with no Engineer has nobody to check.
+    /// </summary>
+    private static async Task RequireAssignedEngineerEligibleAsync(
+        PegasusDbContext context, CaseWorkflowEntity workflow, CancellationToken cancellationToken)
+    {
+        if (workflow.AssignedEngineerId is { } engineerId)
+        {
+            CaseEngineerEligibilityPolicy.Require(
+                await EfCaseEngineerEligibility.ReadAsync(context, engineerId, cancellationToken));
+        }
+    }
 
     public Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
         MutateAsync(request, "case_held", (context, workflow, now) =>
@@ -602,10 +620,10 @@ public sealed class EfCaseWorkflowStore(
         CaseWorkflowEntity workflow,
         Guid? beforeAssignedEngineerId,
         Guid? beforeSignOffEngineerId,
+        IReadOnlyList<SignOffEngineerProfile> profiles,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
         var before = CaseSignOffEngineerResolver.Resolve(
             beforeSignOffEngineerId,
             beforeAssignedEngineerId,
@@ -626,12 +644,13 @@ public sealed class EfCaseWorkflowStore(
         }
     }
 
-    public Task<CaseWorkflowRecord> AssignEngineerAsync(
+    public async Task<CaseEngineerAssignment> AssignEngineerAsync(
         AssignCaseEngineerRequest request,
-        Guid? signOffEngineerId,
         CaseLifecycleState targetState,
-        CancellationToken cancellationToken) =>
-        MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
+        CancellationToken cancellationToken)
+    {
+        var replayed = false;
+        var assigned = await MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
         {
             // The Review gate guards entry to With Engineer; a With Engineer
             // Case handed to another Engineer or to Unassigned (#1213) has
@@ -643,17 +662,38 @@ public sealed class EfCaseWorkflowStore(
 
             var beforeAssignedEngineerId = workflow.AssignedEngineerId;
             var beforeSignOffEngineerId = workflow.SignOffEngineerId;
+            // The Sign-off Engineer this hand-off resolves to, from the profiles read
+            // once here and used again below for the staleness of the report.
+            var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
             workflow.AssignedEngineerId = request.EngineerId;
-            workflow.SignOffEngineerId = signOffEngineerId;
+            workflow.SignOffEngineerId = CaseSignOffEngineerResolver.Resolve(
+                beforeSignOffEngineerId,
+                request.EngineerId,
+                profiles)?.StaffId;
             workflow.State = targetState.ToString();
             await MarkReportStaleIfEffectiveSignatoryChangedAsync(
                 context,
                 workflow,
                 beforeAssignedEngineerId,
                 beforeSignOffEngineerId,
+                profiles,
                 now,
                 cancellationToken);
-        }, cancellationToken, targetState.ToString());
+        },
+        cancellationToken,
+        targetState.ToString(),
+        refuse: workflow => CaseLifecycleRules.RequireCanBeAssigned(StateOf(workflow)),
+        refuseAsync: async (context, workflow, token) =>
+        {
+            if (request.EngineerId is { } engineerId)
+            {
+                CaseEngineerEligibilityPolicy.Require(
+                    await EfCaseEngineerEligibility.ReadAsync(context, engineerId, token));
+            }
+        },
+        onReplay: () => replayed = true);
+        return new(assigned, replayed);
+    }
 
     public Task<CaseWorkflowRecord> RecordReportApprovalAsync(
         RecordCaseReportApprovalRequest request,
@@ -968,7 +1008,12 @@ public sealed class EfCaseWorkflowStore(
             workflow.ClosureOutcome = null;
             CaseChaseState.Stop(workflow);
             return Task.CompletedTask;
-        }, cancellationToken);
+        },
+        cancellationToken,
+        refuse: workflow => CaseLifecycleRules.RequireCanReturnToEngineer(StateOf(workflow)),
+        // A Case with no Engineer returns Unassigned, for an Engineer to take
+        // (operator, 15 October 2026, #1213 ruling 3).
+        refuseAsync: RequireAssignedEngineerEligibleAsync);
 
     public Task<CaseWorkflowRecord> RaiseQueryAsync(RaiseCaseQueryRequest request, CancellationToken cancellationToken) =>
         MutateAsync(request, CaseQueryLedger.QueryLoggedEvent, (context, workflow, now) =>
@@ -1044,20 +1089,8 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken) =>
         MutateAsync(request, "case_archived", async (context, workflow, now) =>
         {
-            var readiness = await LoadArchiveReadinessAsync(
-                context,
-                workflow.Case,
-                cancellationToken);
-            if (!readiness.IsCustodyConfirmed)
-            {
-                throw new InvalidOperationException(
-                    "A case can be archived only after its required custody is confirmed.");
-            }
-            if (readiness.HasBlockingExternalWork)
-            {
-                throw new InvalidOperationException(
-                    "A case cannot be archived while required durable work is incomplete or unrecognized work exists.");
-            }
+            CaseLifecycleRules.RequireArchiveReadiness(
+                await LoadArchiveReadinessAsync(context, workflow.Case, cancellationToken));
             await CaseTerminalReadinessGuard.RequireNoOpenTasksAsync(
                 context,
                 workflow.CaseId,
@@ -1073,10 +1106,7 @@ public sealed class EfCaseWorkflowStore(
         refuse: workflow =>
         {
             ArchivedCaseGuard.RequireNotArchived(workflow);
-            if (!CaseLifecycleRules.IsTerminal(StateOf(workflow)))
-            {
-                throw new InvalidOperationException("Only a terminal case can be archived.");
-            }
+            CaseLifecycleRules.RequireCanBeArchived(StateOf(workflow));
         });
 
     public async Task<CaseDueWork> RecordManualChaseAsync(
@@ -1230,9 +1260,13 @@ public sealed class EfCaseWorkflowStore(
         Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task> apply,
         CancellationToken cancellationToken,
         string? discriminator = null,
-        Action<CaseWorkflowEntity>? refuse = null) =>
+        Action<CaseWorkflowEntity>? refuse = null,
+        Func<PegasusDbContext, CaseWorkflowEntity, CancellationToken, Task>? refuseAsync = null,
+        Action? onReplay = null) =>
         StoreConcurrencyRetry.ExecuteAsync(
-            token => MutateOnceAsync(request, eventType, apply, token, discriminator, refuse: refuse),
+            token => MutateOnceAsync(
+                request, eventType, apply, token, discriminator,
+                refuse: refuse, refuseAsync: refuseAsync, onReplay: onReplay),
             cancellationToken);
 
     private async Task<CaseWorkflowRecord> MutateOnceAsync(
@@ -1242,7 +1276,9 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken,
         string? discriminator = null,
         Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task>? afterEvent = null,
-        Action<CaseWorkflowEntity>? refuse = null)
+        Action<CaseWorkflowEntity>? refuse = null,
+        Func<PegasusDbContext, CaseWorkflowEntity, CancellationToken, Task>? refuseAsync = null,
+        Action? onReplay = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
@@ -1272,6 +1308,7 @@ public sealed class EfCaseWorkflowStore(
                 throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
             }
             var replayWorkflow = await WorkflowQuery(context, tracking: false).SingleAsync(item => item.CaseId == request.CaseId, cancellationToken);
+            onReplay?.Invoke();
             return Map(replayWorkflow);
         }
 
@@ -1283,6 +1320,12 @@ public sealed class EfCaseWorkflowStore(
         // and before the archive, terminal, lease and version checks. A replay
         // has already returned above, so it is never asked again.
         refuse?.Invoke(workflow);
+        if (refuseAsync is not null)
+        {
+            // The same, for a refusal that reads (an Engineer's eligibility) in this transaction.
+            await refuseAsync(context, workflow, cancellationToken);
+        }
+
         if (request is ReopenCaseRequest or ArchiveCaseRequest)
         {
             ArchivedCaseGuard.RequireNotArchived(workflow);

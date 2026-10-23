@@ -191,13 +191,13 @@ public sealed class PutCaseOnHoldTests
             return Task.FromResult(_current);
         }
 
-        public Task<CaseWorkflowRecord> AssignEngineerAsync(AssignCaseEngineerRequest request, Guid? signOffEngineerId, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseEngineerAssignment> AssignEngineerAsync(AssignCaseEngineerRequest request, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseEditLease> ClaimAsync(ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseEditLease> RenewAsync(RenewCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseEditLease> HeartbeatAsync(HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseEditLease?> ResumeAsync(ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseWorkflowRecord> ChangeStateAsync(CaseMutationRequest request, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseWorkflowRecord> StartWorkAsync(CaseMutationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> RecordReportApprovalAsync(RecordCaseReportApprovalRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(LinkReportEvidenceRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();

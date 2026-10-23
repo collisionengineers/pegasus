@@ -26,7 +26,7 @@ public sealed class CaseWorkflowPersistenceTests
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-probe"),
             default);
-        await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(harness.CaseId, 0, actor, "start-probe", "Inspection work started", lease.Token),
             default);
 
@@ -51,7 +51,7 @@ public sealed class CaseWorkflowPersistenceTests
             "start-1",
             "Inspection work started",
             startLease.Token);
-        var start = new StartCaseWork(harness.Store, harness.EngineerEligibility);
+        var start = new StartCaseWork(harness.Store);
 
         var started = await start.ExecuteAsync(startRequest, default);
         await harness.SetStaffEnabledAsync(started.AssignedEngineerId!.Value, false);
@@ -136,8 +136,7 @@ public sealed class CaseWorkflowPersistenceTests
             new(harness.CaseId, 0, actor, "claim-return-query"),
             CancellationToken.None);
 
-        var returned = await new ReturnCaseToEngineer(
-            harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var returned = await new ReturnCaseToEngineer(harness.Store).ExecuteAsync(
             new(
                 harness.CaseId,
                 0,
@@ -160,8 +159,7 @@ public sealed class CaseWorkflowPersistenceTests
             new(stateHarness.CaseId, 0, actor, "claim-return-review"),
             CancellationToken.None);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ReturnCaseToEngineer(
-                stateHarness.Store, stateHarness.EngineerEligibility).ExecuteAsync(
+            new ReturnCaseToEngineer(stateHarness.Store).ExecuteAsync(
                 new(
                     stateHarness.CaseId,
                     0,
@@ -197,7 +195,7 @@ public sealed class CaseWorkflowPersistenceTests
         var returnLease = await harness.Store.ClaimAsync(
             new(harness.NotReadyCaseId, 0, actor, "claim-return-unassigned"),
             CancellationToken.None);
-        var returned = await new ReturnCaseToEngineer(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var returned = await new ReturnCaseToEngineer(harness.Store).ExecuteAsync(
             new(
                 harness.NotReadyCaseId,
                 0,
@@ -245,7 +243,6 @@ public sealed class CaseWorkflowPersistenceTests
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
-            harness.EngineerEligibility,
             new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
 
         async Task<CaseWorkflowRecord> HandAsync(Guid? to, string operationKey)
@@ -436,6 +433,12 @@ public sealed class CaseWorkflowPersistenceTests
             "Only a terminal case can be archived.",
             () => new ArchiveCase(harness.Store).ExecuteAsync(
                 new ArchiveCaseRequest(caseId, 0, actor, "archive-in-review", "Retain", token), default));
+        await RefusedAsync(
+            "A case can return to Engineer only from Report sent.",
+            () => new ReturnCaseToEngineer(harness.Store).ExecuteAsync(
+                new ReturnCaseToEngineerRequest(
+                    caseId, 0, actor, "return-to-engineer-in-review", "Query needs the report", token),
+                default));
 
         // Report sent: no new hold, and a closure is for a Case whose report is not yet sent.
         await SetStateAsync(harness, caseId, CaseLifecycleState.ReportSent);
@@ -449,6 +452,18 @@ public sealed class CaseWorkflowPersistenceTests
             () => new CloseCase(harness.Store).ExecuteAsync(
                 new CloseCaseRequest(
                     caseId, 0, actor, "close-report-sent", "Cancelled", token, CaseClosureOutcome.PrincipalCancelled),
+                default));
+        await RefusedAsync(
+            "Case work can start only from Review after a staff member is assigned.",
+            () => new StartCaseWork(harness.Store).ExecuteAsync(
+                new ChangeCaseStateRequest(caseId, 0, actor, "start-report-sent", "Start work", token), default));
+        // The state is refused before the Engineer is looked up: this Engineer has no account.
+        await RefusedAsync(
+            "A staff member can be assigned only while the case is in Review or With Engineer.",
+            () => harness.Store.AssignEngineerAsync(
+                new AssignCaseEngineerRequest(
+                    caseId, 0, actor, "assign-report-sent", "Assign Engineer", token, Guid.NewGuid()),
+                CaseLifecycleState.ReportPreparation,
                 default));
 
         // A closed Case: no second closure, no hold, and no unlink before a reasoned reopening.
@@ -686,7 +701,6 @@ public sealed class CaseWorkflowPersistenceTests
                     "Assign Engineer while the record is incomplete",
                     lease.Token,
                     Guid.NewGuid()),
-                null,
                 CaseLifecycleState.ReportPreparation,
                 default));
 
@@ -730,7 +744,7 @@ public sealed class CaseWorkflowPersistenceTests
             default);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+            () => new StartCaseWork(harness.Store).ExecuteAsync(
                 new ChangeCaseStateRequest(
                     harness.CaseId,
                     workflow.Version,
@@ -752,7 +766,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -854,7 +868,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -999,7 +1013,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1097,7 +1111,7 @@ public sealed class CaseWorkflowPersistenceTests
             harness.TimeProvider.GetUtcNow().AddMinutes(-2),
             harness.TimeProvider.GetUtcNow().AddMinutes(-1));
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.SecondCaseId,
                 0,
@@ -1135,7 +1149,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var firstStarted = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var firstStarted = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1146,7 +1160,7 @@ public sealed class CaseWorkflowPersistenceTests
                     new(harness.CaseId, 0, staff, "claim-auto-link-origin"),
                     default)).Token),
             default);
-        var secondStarted = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var secondStarted = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.SecondCaseId,
                 0,
@@ -1248,7 +1262,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1342,7 +1356,6 @@ public sealed class CaseWorkflowPersistenceTests
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
-            harness.EngineerEligibility,
             new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -1391,7 +1404,6 @@ public sealed class CaseWorkflowPersistenceTests
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
-            harness.EngineerEligibility,
             new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
 
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
@@ -1405,7 +1417,8 @@ public sealed class CaseWorkflowPersistenceTests
 
         var assigned = await sut.ExecuteAsync(request, default);
         await harness.SetStaffEnabledAsync(engineerId, false);
-        var disabled = await harness.EngineerEligibility.GetAsync(engineerId, default);
+        await using var eligibilityContext = await harness.Factory.CreateDbContextAsync();
+        var disabled = await EfCaseEngineerEligibility.ReadAsync(eligibilityContext, engineerId, default);
         var replay = await sut.ExecuteAsync(request, default);
 
         Assert.False(disabled.IsEnabled);
@@ -1491,7 +1504,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1577,7 +1590,7 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(retained.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
         Assert.Equal(1L, await harness.WorkflowEventCountAsync("link-exclusive-evidence"));
 
-        var secondStarted = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var secondStarted = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.SecondCaseId,
                 0,
@@ -1619,7 +1632,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1725,7 +1738,7 @@ public sealed class CaseWorkflowPersistenceTests
         var startLease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-start"),
             default);
-        var reportPreparation = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var reportPreparation = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -2069,7 +2082,7 @@ public sealed class CaseWorkflowPersistenceTests
         var first = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var second = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var third = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -2205,10 +2218,10 @@ public sealed class CaseWorkflowPersistenceTests
                 new RenewCaseEditLeaseRequest(harness.CaseId, 0, automation, "automation-renew", held.Token),
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
-            harness.Store.ChangeStateAsync(
-                new ChangeCaseStateRequest(
-                    harness.CaseId, 0, automation, "automation-write", "Automation wrote after the takeover", held.Token),
-                CaseLifecycleState.Review,
+            harness.Store.CloseAsync(
+                new CloseCaseRequest(
+                    harness.CaseId, 0, automation, "automation-write", "Automation wrote after the takeover", held.Token,
+                    CaseClosureOutcome.PrincipalCancelled),
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.Store.ReleaseAsync(
@@ -3271,7 +3284,7 @@ public sealed class CaseWorkflowPersistenceTests
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var sender = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3345,7 +3358,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3399,7 +3412,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3490,7 +3503,7 @@ public sealed class CaseWorkflowPersistenceTests
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var sender = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3554,7 +3567,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3729,7 +3742,6 @@ public sealed class CaseWorkflowPersistenceTests
             TimeProvider = timeProvider;
             Store = new EfCaseWorkflowStore(factory, timeProvider);
             QueryStore = new EfCaseQueryStore(factory, timeProvider);
-            EngineerEligibility = new EfCaseEngineerEligibility(factory);
             ReportSentEvidenceStore = new EfCaseReportSentEvidenceStore(
                 factory,
                 new EfApprovedMailboxStore(factory, timeProvider));
@@ -3748,7 +3760,6 @@ public sealed class CaseWorkflowPersistenceTests
         public string ConnectionString => database.ConnectionString;
         public EfCaseWorkflowStore Store { get; }
         public EfCaseQueryStore QueryStore { get; }
-        public EfCaseEngineerEligibility EngineerEligibility { get; }
         public EfCaseReportSentEvidenceStore ReportSentEvidenceStore { get; }
         public EfLinkedCaseReplacementStore ReplacementStore { get; }
         public EfCaseTaskStore TaskStore { get; }

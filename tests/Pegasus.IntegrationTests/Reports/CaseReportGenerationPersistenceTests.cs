@@ -303,7 +303,6 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                 "Assign the replacement Engineer.",
                 harness.Lease.Token,
                 replacementId),
-            replacementId,
             CaseLifecycleState.ReportPreparation,
             default);
 
@@ -313,13 +312,13 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         var lease = await new AcquireCaseEditLease(workflowStore).ExecuteAsync(
             new(
                 harness.CaseId,
-                changed.Version,
+                changed.Workflow.Version,
                 harness.StaffActor,
                 harness.Key("lease-after-report-signatory-change")),
             default);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            harness.SendReportAsync(generation, changed.Version, lease.Token));
+            harness.SendReportAsync(generation, changed.Workflow.Version, lease.Token));
     }
 
     [Theory]

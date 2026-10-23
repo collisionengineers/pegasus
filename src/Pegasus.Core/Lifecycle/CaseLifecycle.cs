@@ -49,13 +49,11 @@ public sealed class ReturnCaseToReview(ICaseWorkflowStore store) : IReturnCaseTo
 public sealed class AssignCaseEngineer(
     ICaseWorkflowStore store,
     ICaseWorkflowConfiguration configuration,
-    ICaseEngineerEligibility eligibility,
     IStaffAccountQueries staffAccounts,
     ICaseStaffNotifier? notifier = null) : IAssignCaseEngineer
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICaseWorkflowConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-    private readonly ICaseEngineerEligibility _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
     private readonly IStaffAccountQueries _staffAccounts = staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(
@@ -72,38 +70,13 @@ public sealed class AssignCaseEngineer(
             Reason = await CaseEngineerAssignmentHistory.ReasonAsync(
                 _staffAccounts, request.EngineerId, request.Actor, cancellationToken)
         };
-        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        var isReplay = await _store.HasOperationAsync(
-            request.CaseId,
-            request.OperationKey,
-            cancellationToken);
-        if (!CaseLifecycleRules.CanBeAssigned(current.State) && !isReplay)
-        {
-            throw new InvalidOperationException(
-                "A staff member can be assigned only while the case is in Review or With Engineer.");
-        }
-
-        Guid? signOffEngineerId = null;
-        if (!isReplay)
-        {
-            if (request.EngineerId is { } engineerId)
-            {
-                await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
-                    _eligibility,
-                    engineerId,
-                    cancellationToken);
-            }
-
-            var profiles = await _staffAccounts.ListSignOffEngineersAsync(cancellationToken);
-            signOffEngineerId = CaseSignOffEngineerResolver.Resolve(
-                current.SignOffEngineerId,
-                request.EngineerId,
-                profiles)?.StaffId;
-        }
-
-        var assigned = await _store.AssignEngineerAsync(
-            request, signOffEngineerId, CaseLifecycleState.ReportPreparation, cancellationToken);
-        if (!isReplay && notifier is not null)
+        // The store reads the Case once under its lock: it refuses the state
+        // (CaseLifecycleRules.RequireCanBeAssigned) and the Engineer's
+        // eligibility, and resolves the Sign-off Engineer, none of it for a replay.
+        var assignment = await _store.AssignEngineerAsync(
+            request, CaseLifecycleState.ReportPreparation, cancellationToken);
+        var assigned = assignment.Workflow;
+        if (!assignment.IsReplay && notifier is not null)
         {
             // Work Centre D10 cause 2: the engineer is told, unless they took it themself.
             await notifier.NotifyAsync(
@@ -201,60 +174,20 @@ public static class CaseSignOffEngineerResolver
             : profiles.FirstOrDefault(profile => profile.StaffId == staffId.Value);
 }
 
-public sealed class StartCaseWork(
-    ICaseWorkflowStore store,
-    ICaseEngineerEligibility eligibility) : IStartCaseWork
+public sealed class StartCaseWork(ICaseWorkflowStore store) : IStartCaseWork
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly ICaseEngineerEligibility _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(CaseMutationRequest request, CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        var isReplay = await _store.HasOperationAsync(
-            request.CaseId,
-            request.OperationKey,
-            cancellationToken);
-        if (!isReplay)
-        {
-            await CaseEngineerEligibilityPolicy.RequireStartCaseWorkAsync(
-                _eligibility,
-                current.State,
-                current.AssignedEngineerId,
-                cancellationToken);
-        }
-
-        return await _store.ChangeStateAsync(request, CaseLifecycleState.ReportPreparation, cancellationToken);
+        return await _store.StartWorkAsync(request, cancellationToken);
     }
 }
 
 public static class CaseEngineerEligibilityPolicy
 {
-    public static async Task RequireStartCaseWorkAsync(
-        ICaseEngineerEligibility source,
-        CaseLifecycleState state,
-        Guid? assignedEngineerId,
-        CancellationToken cancellationToken)
-    {
-        if (state != CaseLifecycleState.Review || assignedEngineerId is null)
-        {
-            throw new InvalidOperationException(
-                "Case work can start only from Review after a staff member is assigned.");
-        }
-
-        await RequireEligibleAsync(source, assignedEngineerId.Value, cancellationToken);
-    }
-
-    public static async Task RequireEligibleAsync(
-        ICaseEngineerEligibility source,
-        Guid engineerId,
-        CancellationToken cancellationToken)
-    {
-        Require(await source.GetAsync(engineerId, cancellationToken));
-    }
-
-    /// <summary>The refusal for an Engineer whose account was read, by the store inside its own transaction or by <see cref="RequireEligibleAsync"/>.</summary>
+    /// <summary>The refusal for an Engineer whose account the store read inside its own transaction.</summary>
     public static void Require(CaseEngineerEligibility eligibility)
     {
         if (!eligibility.AccountExists)
@@ -457,40 +390,15 @@ public sealed class ReopenCase(ICaseWorkflowStore store) : IReopenCase
     }
 }
 
-public sealed class ReturnCaseToEngineer(
-    ICaseWorkflowStore store,
-    ICaseEngineerEligibility eligibility) : IReturnCaseToEngineer
+public sealed class ReturnCaseToEngineer(ICaseWorkflowStore store) : IReturnCaseToEngineer
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly ICaseEngineerEligibility _eligibility = eligibility
-        ?? throw new ArgumentNullException(nameof(eligibility));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(
         ReturnCaseToEngineerRequest request,
         CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        var isReplay = await _store.HasOperationAsync(
-            request.CaseId,
-            request.OperationKey,
-            cancellationToken);
-        if (current.State != CaseLifecycleState.ReportSent && !isReplay)
-        {
-            throw new InvalidOperationException(
-                "A case can return to Engineer only from Report sent.");
-        }
-
-        // A Case with no Engineer returns Unassigned, for an Engineer to take
-        // (operator, 15 October 2026, #1213 ruling 3).
-        if (!isReplay && current.AssignedEngineerId is { } engineerId)
-        {
-            await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
-                _eligibility,
-                engineerId,
-                cancellationToken);
-        }
-
         return await _store.ReturnToEngineerAsync(request, cancellationToken);
     }
 }
@@ -503,20 +411,6 @@ public static class CaseLifecycleRules
     /// October 2026, #1213 ruling 3: an Engineer must take it first).
     /// </summary>
     public const string AssignedEngineerRequired = "Report preparation requires an assigned Engineer.";
-
-    public static async Task<CaseWorkflowRecord> GetRequiredAsync(
-        ICaseWorkflowQueries queries,
-        Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        if (caseId == Guid.Empty)
-        {
-            throw new ArgumentException("A case identifier is required.", nameof(caseId));
-        }
-
-        return await queries.GetAsync(caseId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
-    }
 
     public static bool IsTerminal(CaseLifecycleState state) => state is
         CaseLifecycleState.PrincipalCancelled or
@@ -557,6 +451,57 @@ public static class CaseLifecycleRules
         if (!CanBeHeld(state))
         {
             throw new InvalidOperationException("A case can be held only from Not ready, Review or With Engineer.");
+        }
+    }
+
+    public static void RequireCanBeAssigned(CaseLifecycleState state)
+    {
+        if (!CanBeAssigned(state))
+        {
+            throw new InvalidOperationException(
+                "A staff member can be assigned only while the case is in Review or With Engineer.");
+        }
+    }
+
+    public static void RequireCanStartCaseWork(CaseLifecycleState state, Guid? assignedEngineerId)
+    {
+        if (state != CaseLifecycleState.Review || assignedEngineerId is null)
+        {
+            throw new InvalidOperationException(
+                "Case work can start only from Review after a staff member is assigned.");
+        }
+    }
+
+    public static void RequireCanReturnToEngineer(CaseLifecycleState state)
+    {
+        if (state != CaseLifecycleState.ReportSent)
+        {
+            throw new InvalidOperationException("A case can return to Engineer only from Report sent.");
+        }
+    }
+
+    public static void RequireCanBeArchived(CaseLifecycleState state)
+    {
+        if (!IsTerminal(state))
+        {
+            throw new InvalidOperationException("Only a terminal case can be archived.");
+        }
+    }
+
+    /// <summary>What the store read of the Case's custody and external work, asked in Core's order: custody first.</summary>
+    public static void RequireArchiveReadiness(CaseArchiveReadiness readiness)
+    {
+        ArgumentNullException.ThrowIfNull(readiness);
+        if (!readiness.IsCustodyConfirmed)
+        {
+            throw new InvalidOperationException(
+                "A case can be archived only after its required custody is confirmed.");
+        }
+
+        if (readiness.HasBlockingExternalWork)
+        {
+            throw new InvalidOperationException(
+                "A case cannot be archived while required durable work is incomplete or unrecognized work exists.");
         }
     }
 

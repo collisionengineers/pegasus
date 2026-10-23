@@ -199,6 +199,25 @@ public sealed class CreateAuditTests
             AuditPolicy.Refusal(CaseType.InspectionAndAudit, CaseLifecycleState.ReportSent, false, false, true));
     }
 
+    /// <summary>
+    /// The one eligibility refusal Create audit, Start, Assign and Return to Engineer
+    /// ask of the Engineer account the store read: both branches, in their exact words.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, "The assigned staff account does not exist.")]
+    [InlineData(true, false, "The assigned staff account is disabled.")]
+    public void AnIneligibleEngineerIsRefusedInTheWordsReturnToEngineerAlwaysUsed(
+        bool accountExists,
+        bool isEnabled,
+        string message)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => CaseEngineerEligibilityPolicy.Require(new CaseEngineerEligibility(accountExists, isEnabled)));
+
+        Assert.Equal(message, exception.Message);
+        CaseEngineerEligibilityPolicy.Require(new CaseEngineerEligibility(true, true));
+    }
+
     private static CreateAuditRequest Request() => new(CaseId, 4, Staff, "create-audit-1", "lease-token");
 
     private static CaseWorkSet PrimaryOnly() => new(new CaseWork(CaseId, CaseId, CaseWorkKind.Primary, Now), null);
