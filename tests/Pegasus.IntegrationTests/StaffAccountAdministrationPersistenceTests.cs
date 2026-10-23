@@ -42,8 +42,8 @@ public sealed class StaffAccountAdministrationPersistenceTests
         Assert.DoesNotContain("[PasswordHash]", statement, StringComparison.Ordinal);
         Assert.DoesNotContain("[SecurityStamp]", statement, StringComparison.Ordinal);
         Assert.DoesNotContain("[ConcurrencyStamp]", statement, StringComparison.Ordinal);
-        Assert.Contains("DATALENGTH(", statement, StringComparison.Ordinal);
-        AssertSignatureReadOnlyAsItsLength(statement);
+        Assert.DoesNotContain("[SignOffSignature]", statement, StringComparison.Ordinal);
+        Assert.DoesNotContain("DATALENGTH(", statement, StringComparison.Ordinal);
         Assert.Equal("actor-display-enabled", names[enabled.Id]);
         Assert.Equal("actor-display-disabled", names[disabled.Id]);
         Assert.False(names.ContainsKey(missingId));
