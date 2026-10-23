@@ -160,8 +160,7 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.RepairerAddress),
             TextField(snapshot, CaseDataFieldNames.RepairerName)),
         Workspace(snapshot),
-        snapshot.Work.Case.StandaloneAuditEvidenceId,
-        WorkId: snapshot.Work.Id);
+        snapshot.Work.Case.StandaloneAuditEvidenceId);
 
     /// <summary>
     /// The v1 workspace facts. Each is entered by staff through the one Case

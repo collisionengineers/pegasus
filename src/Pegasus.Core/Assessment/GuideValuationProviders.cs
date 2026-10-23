@@ -119,13 +119,6 @@ public sealed record FetchGuideValuationRequest(
 {
     /// <summary>The work whose registration and mileage are valued (operator, 2 October 2026).</summary>
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
-
-    /// <summary>
-    /// Whether the VIN the source names is filled before the figures are
-    /// answered, for a caller whose next write follows the fill. Otherwise the
-    /// fill is handed on and runs after the answer.
-    /// </summary>
-    public bool AwaitVinFill { get; init; }
 }
 
 /// <summary>
@@ -153,8 +146,7 @@ public sealed class FetchGuideValuation(
     IEnumerable<IGuideValuationProvider> providers,
     ICaseDataQueries caseData,
     IScheduleGuideValuationReport reports,
-    IFillGlassVin vins,
-    IScheduleGlassVinFill vinSchedule) : IFetchGuideValuation
+    IFillGlassVin vins) : IFetchGuideValuation
 {
     private readonly IReadOnlyList<IGuideValuationProvider> _providers =
         [.. providers ?? throw new ArgumentNullException(nameof(providers))];
@@ -164,8 +156,6 @@ public sealed class FetchGuideValuation(
         reports ?? throw new ArgumentNullException(nameof(reports));
     private readonly IFillGlassVin _vins =
         vins ?? throw new ArgumentNullException(nameof(vins));
-    private readonly IScheduleGlassVinFill _vinSchedule =
-        vinSchedule ?? throw new ArgumentNullException(nameof(vinSchedule));
 
     public bool IsConnected(ValuationSource source) =>
         ValuationSources.IsGuide(source) && _providers.Any(candidate => candidate.Source == source);
@@ -219,22 +209,6 @@ public sealed class FetchGuideValuation(
             cancellationToken);
         ArgumentNullException.ThrowIfNull(quote);
 
-        // The valued vehicle's VIN fills the work's empty VIN (operator,
-        // 7 October 2026); the figures are answered either way. The fill is a
-        // short local write, so when it is handed on it is queued ahead of the
-        // report: the same Case's work runs in order, so the fill normally
-        // does not wait out the report's provider fetch. That is not a
-        // guarantee: the queue's consumers race for the Case's turn, and a
-        // second press queues its fill behind the first press's report. A
-        // fill that is handed on names the work that was valued, not the
-        // selector: Current can name another work by the time it runs.
-        var vin = quote.Vin;
-        if (vin is not null && !request.AwaitVinFill)
-        {
-            var valued = data.WorkId == request.CaseId ? CaseWorkSelector.Primary : request.Work;
-            await _vinSchedule.ScheduleAsync(request.Actor, request.CaseId, valued, vin, cancellationToken);
-        }
-
         // Every valuation's own report is filed on the Case as its evidence
         // (operator, 1 October 2026). The figures are answered first; the
         // report follows on its own.
@@ -245,8 +219,9 @@ public sealed class FetchGuideValuation(
                 cancellationToken);
         }
 
-        // A caller whose next write follows the fill has it before the answer.
-        if (vin is not null && request.AwaitVinFill)
+        // The valued vehicle's VIN fills the work's empty VIN (operator,
+        // 7 October 2026); the figures are answered either way.
+        if (quote.Vin is { } vin)
         {
             await _vins.FillAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
         }

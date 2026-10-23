@@ -54,19 +54,3 @@ public interface IFillGlassVin
         string vin,
         CancellationToken cancellationToken);
 }
-
-/// <summary>
-/// Hands a Glass's VIN fill on to run after the figures that named the VIN
-/// have been answered, so a Get valuation that only reads the figures does not
-/// wait for the Case write. A host runs the fill in its own background work;
-/// it fails as <see cref="IFillGlassVin"/> does, by being logged.
-/// </summary>
-public interface IScheduleGlassVinFill
-{
-    Task ScheduleAsync(
-        ActionActor actor,
-        Guid caseId,
-        CaseWorkSelector work,
-        string vin,
-        CancellationToken cancellationToken);
-}

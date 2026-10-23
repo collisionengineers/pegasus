@@ -13,7 +13,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Options;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
@@ -271,7 +270,6 @@ public sealed class ProductionCompositionTests
             services =>
             {
                 services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>();
-                services.AddScoped<IScheduleGlassVinFill, NothingScheduled>();
                 services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
             });
         using (var scope = bare.CreateScope())
@@ -284,7 +282,6 @@ public sealed class ProductionCompositionTests
         using var connected = BuildGlassProduction(GlassConfiguration(), services =>
         {
             services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>();
-            services.AddScoped<IScheduleGlassVinFill, NothingScheduled>();
             services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
             services.AddGlassGuideValuation(_ =>
             {
@@ -302,13 +299,9 @@ public sealed class ProductionCompositionTests
         Assert.Equal(0, reads);
     }
 
-    private sealed class NothingScheduled : IScheduleGuideValuationReport, IScheduleGlassVinFill
+    private sealed class NothingScheduled : IScheduleGuideValuationReport
     {
         public Task ScheduleAsync(FileGuideValuationReportRequest request, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-
-        public Task ScheduleAsync(
-            ActionActor actor, Guid caseId, CaseWorkSelector work, string vin, CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }
 

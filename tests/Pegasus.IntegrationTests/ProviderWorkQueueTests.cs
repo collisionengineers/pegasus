@@ -1,9 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Pegasus.Core.Assessment;
-using Pegasus.Core.Cases;
-using Pegasus.Core.Identity;
 using Pegasus.Web.Background;
 
 namespace Pegasus.IntegrationTests;
@@ -140,88 +137,6 @@ public sealed class ProviderWorkQueueTests
         {
             releaseFirst.TrySetResult();
             await service.StopAsync(CancellationToken.None);
-        }
-    }
-
-    /// <summary>
-    /// A Glass's VIN fill handed on after Get valuation answers returns before
-    /// the fill has run, and then runs once on the queue with the actor, Case,
-    /// work and VIN it was handed.
-    /// </summary>
-    [Fact]
-    public async Task AScheduledVinFillReturnsAtOnceAndRunsOnTheQueue()
-    {
-        var queue = new ProviderWorkQueue();
-        var fill = new RecordingVinFill();
-        using var services = new ServiceCollection().AddScoped<IFillGlassVin>(_ => fill).BuildServiceProvider();
-        using var service = new ProviderWorkService(
-            queue,
-            services.GetRequiredService<IServiceScopeFactory>(),
-            TimeProvider.System,
-            NullLogger<ProviderWorkService>.Instance);
-        var scheduler = new GlassVinFillScheduler(queue, services, NullLogger<GlassVinFillScheduler>.Instance);
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var caseId = Guid.NewGuid();
-
-        await scheduler.ScheduleAsync(actor, caseId, CaseWorkSelector.Primary, "TESTVEH0A1B2C3D45", CancellationToken.None);
-
-        Assert.Empty(fill.Fills);
-        Assert.True(queue.IsInFlight(caseId));
-        await service.StartAsync(CancellationToken.None);
-        try
-        {
-            var filled = await fill.Filled.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.Equal((actor, caseId, CaseWorkSelector.Primary, "TESTVEH0A1B2C3D45"), filled);
-        }
-        finally
-        {
-            await service.StopAsync(CancellationToken.None);
-        }
-    }
-
-    /// <summary>
-    /// With the queue full the fill runs in the press at once, even while other
-    /// work for the same Case holds the Case's queue gate: the fill takes the
-    /// workflow lock itself and does not wait out that work.
-    /// </summary>
-    [Fact]
-    public async Task AScheduledVinFillOnAFullQueueRunsAtOnceWithoutWaitingOnTheCasesGate()
-    {
-        var queue = new ProviderWorkQueue();
-        var caseId = Guid.NewGuid();
-        var fill = new RecordingVinFill();
-        using var services = new ServiceCollection().AddScoped<IFillGlassVin>(_ => fill).BuildServiceProvider();
-        var scheduler = new GlassVinFillScheduler(queue, services, NullLogger<GlassVinFillScheduler>.Instance);
-        for (var queued = 0; queued < ProviderWorkQueue.Capacity; queued++)
-        {
-            var key = Guid.NewGuid();
-            Assert.Equal(ProviderWorkAdmission.Queued, queue.Reserve(key).Admit(Work(key, (_, _) => Task.CompletedTask)));
-        }
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-
-        using (var busy = queue.Reserve(caseId))
-        using (await queue.EnterAsync(caseId, CancellationToken.None))
-        {
-            await scheduler.ScheduleAsync(actor, caseId, CaseWorkSelector.Primary, "TESTVEH0A1B2C3D45", CancellationToken.None)
-                .WaitAsync(TimeSpan.FromSeconds(10));
-        }
-
-        Assert.Equal((actor, caseId, CaseWorkSelector.Primary, "TESTVEH0A1B2C3D45"), Assert.Single(fill.Fills));
-    }
-
-    private sealed class RecordingVinFill : IFillGlassVin
-    {
-        public List<(ActionActor, Guid, CaseWorkSelector, string)> Fills { get; } = [];
-
-        public TaskCompletionSource<(ActionActor, Guid, CaseWorkSelector, string)> Filled { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public Task FillAsync(
-            ActionActor actor, Guid caseId, CaseWorkSelector work, string vin, CancellationToken cancellationToken)
-        {
-            Fills.Add((actor, caseId, work, vin));
-            Filled.TrySetResult((actor, caseId, work, vin));
-            return Task.CompletedTask;
         }
     }
 

@@ -13,7 +13,7 @@ public sealed class FetchGuideValuationTests
     public async Task ASourceWithoutAConnectedProviderIsRefusedBeforeTheCaseIsRead()
     {
         var caseData = new RecordingCaseData();
-        var fetch = new FetchGuideValuation([], caseData, new RecordingSchedule(), new RecordingVins(), new RecordingVins());
+        var fetch = new FetchGuideValuation([], caseData, new RecordingSchedule(), new RecordingVins());
 
         await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
             fetch.ExecuteAsync(Request(ValuationSource.Glasses), default));
@@ -26,7 +26,7 @@ public sealed class FetchGuideValuationTests
     [InlineData(ValuationSource.AiMarketResearch)]
     public async Task OnlyAGuideSourceCanBeFetched(ValuationSource source)
     {
-        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins(), new RecordingVins());
+        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             fetch.ExecuteAsync(Request(source), default));
@@ -41,19 +41,19 @@ public sealed class FetchGuideValuationTests
     public void OnlyAGuideSourceWithAProviderIsConnected()
     {
         var fetch = new FetchGuideValuation(
-            [new StubProvider(ValuationSource.Brego)], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins(), new RecordingVins());
+            [new StubProvider(ValuationSource.Brego)], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
 
         Assert.True(fetch.IsConnected(ValuationSource.Brego));
         Assert.False(fetch.IsConnected(ValuationSource.Glasses));
         Assert.False(fetch.IsConnected(ValuationSource.EngineersValue));
-        Assert.False(new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins(), new RecordingVins())
+        Assert.False(new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins())
             .IsConnected(ValuationSource.Brego));
     }
 
     [Fact]
     public async Task AnActorWithoutCaseworkOrAnEmptyKeyIsRefused()
     {
-        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins(), new RecordingVins());
+        var fetch = new FetchGuideValuation([], new RecordingCaseData(), new RecordingSchedule(), new RecordingVins());
         var reader = ActionActor.SystemWorker("valuation-worker");
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
@@ -77,7 +77,6 @@ public sealed class FetchGuideValuationTests
             [new AnsweringProvider(ValuationSource.Glasses, report)],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
             schedule,
-            new RecordingVins(),
             new RecordingVins());
 
         var quote = await fetch.ExecuteAsync(request, default);
@@ -101,7 +100,6 @@ public sealed class FetchGuideValuationTests
             [new AnsweringProvider(ValuationSource.Glasses, report: null)],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
             schedule,
-            new RecordingVins(),
             new RecordingVins());
 
         await fetch.ExecuteAsync(request, default);
@@ -111,11 +109,10 @@ public sealed class FetchGuideValuationTests
 
     /// <summary>
     /// The VIN the source names for the valued vehicle is handed on to fill
-    /// the valued work's empty VIN (operator, 7 October 2026). The fill runs
-    /// after the figures have answered, so it is scheduled and not awaited.
+    /// the valued work's empty VIN (operator, 7 October 2026).
     /// </summary>
     [Fact]
-    public async Task AValuationThatNamesAVinSchedulesItsFillForTheValuedWork()
+    public async Task AValuationThatNamesAVinHandsItOnForTheValuedWork()
     {
         var vins = new RecordingVins();
         var request = Request(ValuationSource.Glasses) with { Work = CaseWorkSelector.Primary };
@@ -123,83 +120,13 @@ public sealed class FetchGuideValuationTests
             [new AnsweringProvider(ValuationSource.Glasses, report: null, vin: "TESTVEH0A1B2C3D45")],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
             new RecordingSchedule(),
-            vins,
             vins);
 
         var quote = await fetch.ExecuteAsync(request, default);
 
         Assert.Equal(17717m, quote.RetailValue);
-        var scheduled = Assert.Single(vins.Scheduled);
-        Assert.Equal((Engineer, request.CaseId, CaseWorkSelector.Primary, "TESTVEH0A1B2C3D45"), scheduled);
-        Assert.Empty(vins.Fills);
-    }
-
-    /// <summary>
-    /// A fill handed on names the work that was valued: a Case whose valued
-    /// work was the primary work is not filled on an Audit created after.
-    /// </summary>
-    [Fact]
-    public async Task AScheduledFillNamesThePrimaryWorkWhenThePrimaryWorkWasValued()
-    {
-        var vins = new RecordingVins();
-        var request = Request(ValuationSource.Glasses);
-        var fetch = new FetchGuideValuation(
-            [new AnsweringProvider(ValuationSource.Glasses, report: null, vin: "TESTVEH0A1B2C3D45")],
-            new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000) with { WorkId = request.CaseId }),
-            new RecordingSchedule(),
-            vins,
-            vins);
-
-        await fetch.ExecuteAsync(request, default);
-
-        var scheduled = Assert.Single(vins.Scheduled);
-        Assert.Equal(CaseWorkSelector.Primary, scheduled.Work);
-    }
-
-    /// <summary>
-    /// The fill is a short local write queued under the Case's key; it goes in
-    /// ahead of the report so it never waits out the report's provider fetch
-    /// inside its own time cap.
-    /// </summary>
-    [Fact]
-    public async Task AScheduledVinFillIsQueuedAheadOfTheReport()
-    {
-        var order = new List<string>();
-        var vins = new RecordingVins { Order = order };
-        var request = Request(ValuationSource.Glasses);
-        var fetch = new FetchGuideValuation(
-            [new AnsweringProvider(ValuationSource.Glasses, new StubReport("glass-stock:33636950"), vin: "TESTVEH0A1B2C3D45")],
-            new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
-            new RecordingSchedule { Order = order },
-            vins,
-            vins);
-
-        await fetch.ExecuteAsync(request, default);
-
-        Assert.Equal(["vin", "report"], order);
-    }
-
-    /// <summary>
-    /// A caller whose next write follows the fill (the MCP tool, which saves the
-    /// card straight after) has it filled before the figures are answered.
-    /// </summary>
-    [Fact]
-    public async Task AValuationThatAwaitsTheVinFillsItBeforeAnsweringAndSchedulesNothing()
-    {
-        var vins = new RecordingVins();
-        var request = Request(ValuationSource.Glasses) with { Work = CaseWorkSelector.Primary, AwaitVinFill = true };
-        var fetch = new FetchGuideValuation(
-            [new AnsweringProvider(ValuationSource.Glasses, report: null, vin: "TESTVEH0A1B2C3D45")],
-            new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
-            new RecordingSchedule(),
-            vins,
-            vins);
-
-        await fetch.ExecuteAsync(request, default);
-
         var filled = Assert.Single(vins.Fills);
         Assert.Equal((Engineer, request.CaseId, CaseWorkSelector.Primary, "TESTVEH0A1B2C3D45"), filled);
-        Assert.Empty(vins.Scheduled);
     }
 
     [Fact]
@@ -211,13 +138,11 @@ public sealed class FetchGuideValuationTests
             [new AnsweringProvider(ValuationSource.Glasses, report: null)],
             new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
             new RecordingSchedule(),
-            vins,
             vins);
 
         await fetch.ExecuteAsync(request, default);
 
         Assert.Empty(vins.Fills);
-        Assert.Empty(vins.Scheduled);
     }
 
     private static FetchGuideValuationRequest Request(ValuationSource source) => new(
@@ -278,21 +203,9 @@ public sealed class FetchGuideValuationTests
             });
     }
 
-    private sealed class RecordingVins : IFillGlassVin, IScheduleGlassVinFill
+    private sealed class RecordingVins : IFillGlassVin
     {
         public List<(ActionActor Actor, Guid CaseId, CaseWorkSelector Work, string Vin)> Fills { get; } = [];
-
-        public List<(ActionActor Actor, Guid CaseId, CaseWorkSelector Work, string Vin)> Scheduled { get; } = [];
-
-        public List<string>? Order { get; init; }
-
-        public Task ScheduleAsync(
-            ActionActor actor, Guid caseId, CaseWorkSelector work, string vin, CancellationToken cancellationToken)
-        {
-            Scheduled.Add((actor, caseId, work, vin));
-            Order?.Add("vin");
-            return Task.CompletedTask;
-        }
 
         public Task FillAsync(
             ActionActor actor, Guid caseId, CaseWorkSelector work, string vin, CancellationToken cancellationToken)
@@ -314,12 +227,9 @@ public sealed class FetchGuideValuationTests
     {
         public List<FileGuideValuationReportRequest> Requests { get; } = [];
 
-        public List<string>? Order { get; init; }
-
         public Task ScheduleAsync(FileGuideValuationReportRequest request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
-            Order?.Add("report");
             return Task.CompletedTask;
         }
     }

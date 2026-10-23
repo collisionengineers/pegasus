@@ -590,11 +590,7 @@ internal sealed class CaseEditMcpTools(
                         try
                         {
                             quote = await fetchGuideValuation.ExecuteAsync(
-                                new(caseId, expectedVersion, context.Actor, key, token, valuationSource, month)
-                                {
-                                    // The save below follows the fill.
-                                    AwaitVinFill = true,
-                                },
+                                new(caseId, expectedVersion, context.Actor, key, token, valuationSource, month),
                                 cancellationToken);
                         }
                         catch (GuideValuationProviderUnavailableException)
