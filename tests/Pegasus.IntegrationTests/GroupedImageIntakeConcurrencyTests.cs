@@ -50,7 +50,9 @@ public sealed class GroupedImageIntakeConcurrencyTests
         Assert.Empty(await groupStore.ListPendingImageGroupReceiptsAsync(1));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
         // The group resolved Unidentified, so every member is in holding (R382).
-        Assert.Equal(new string?[] { "confirmed", "confirmed" }, await MemberCustodyAsync(factory, groupId));
+        var custody = await MemberCustodyAsync(factory, groupId);
+        Assert.Equal(2, custody.Length);
+        Assert.All(custody, state => Assert.Equal("confirmed", state));
     }
 
     /// <summary>
@@ -98,7 +100,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
                 QueuedIntakeProcessingOutcome.RetryScheduled,
                 await IntakeWebDriver.CreateProcessor(scope.ServiceProvider).ExecuteAsync(firstStagedReceiptId));
         }
-        Assert.Equal(new string?[] { null }, await MemberCustodyAsync(factory, groupId));
+        Assert.Null(Assert.Single(await MemberCustodyAsync(factory, groupId)));
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -110,7 +112,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
             var item = Assert.Single(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>().ListAsync());
             Assert.Equal(UnidentifiedOrigin.SubmissionGroup(groupId), item.Origin);
         }
-        Assert.Equal(new string?[] { "confirmed" }, await MemberCustodyAsync(factory, groupId));
+        Assert.Equal("confirmed", Assert.Single(await MemberCustodyAsync(factory, groupId)));
     }
 
     /// <summary>

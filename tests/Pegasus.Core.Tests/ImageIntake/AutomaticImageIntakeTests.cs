@@ -1517,13 +1517,10 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(expectedEscapes, result.Escaped);
         Assert.Equal(expectedEscapes, register.Calls);
         Assert.Equal(0, result.Failures);
-        Assert.Equal(
-            new[]
-            {
-                nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync),
-                nameof(IIntakeSubmissionGroupStore.FindForMemberSourceAsync)
-            },
-            groups.Calls);
+        Assert.Collection(
+            groups.Calls,
+            call => Assert.Equal(nameof(IIntakeSubmissionGroupStore.ListPendingImageGroupReceiptsAsync), call),
+            call => Assert.Equal(nameof(IIntakeSubmissionGroupStore.FindForMemberSourceAsync), call));
         // The escape reads the one sibling it has not already re-read.
         Assert.Equal(
             expectedEscapes,
