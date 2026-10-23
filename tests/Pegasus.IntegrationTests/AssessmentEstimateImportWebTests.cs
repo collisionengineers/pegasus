@@ -880,6 +880,14 @@ public sealed partial class AssessmentEstimateImportWebTests
                 expectedVersion: long.Parse(InputValue(html, "expectedVersion"), CultureInfo.InvariantCulture)));
 
         Assert.Equal(HttpStatusCode.Redirect, conflict.StatusCode);
+        // The conflict is a fault in the replay probe, after the authority was
+        // proven: the page keeps its own line, not the authority fallback.
+        var conflictHtml = await GetHtmlAsync(client, conflict.Headers.Location!.OriginalString);
+        Assert.Contains(
+            "The source was retained, but the import could not be confirmed. Retry the same file.",
+            conflictHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("The Case cannot be edited right now.", conflictHtml, StringComparison.Ordinal);
         Assert.Equal(documentCallCount, store.DocumentCalls.Count);
         Assert.Equal(documentCount, store.AddedDocuments.Count);
         Assert.Equal(savedCount, store.SavedEstimates.Count);
