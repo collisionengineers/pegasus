@@ -84,12 +84,19 @@ public sealed class PrepareDocumentThumbnails(
         var unrenderable = 0;
         var failures = 0;
         string? firstFailure = null;
+        HashSet<Guid> deferredInRun = [];
         foreach (var candidate in listed)
         {
+            // A version already deferred in this run is not opened again for
+            // its other variant: the source and the decode would be the same.
+            if (deferredInRun.Contains(candidate.VersionId))
+            {
+                continue;
+            }
             if (!CaseDocumentThumbnails.IsThumbnailable(candidate.MediaType))
             {
                 unrenderable++;
-                candidates.Defer(candidate.VersionId);
+                Defer(candidate.VersionId);
                 continue;
             }
             try
@@ -109,7 +116,7 @@ public sealed class PrepareDocumentThumbnails(
                 if (thumbnail is null)
                 {
                     unrenderable++;
-                    candidates.Defer(candidate.VersionId);
+                    Defer(candidate.VersionId);
                 }
                 else
                 {
@@ -124,9 +131,15 @@ public sealed class PrepareDocumentThumbnails(
                 // the sweep carries on.
                 failures++;
                 firstFailure ??= exception.GetType().Name;
-                candidates.Defer(candidate.VersionId);
+                Defer(candidate.VersionId);
             }
         }
         return new(listed.Count, prepared, unrenderable, failures, firstFailure);
+
+        void Defer(Guid versionId)
+        {
+            deferredInRun.Add(versionId);
+            candidates.Defer(versionId);
+        }
     }
 }

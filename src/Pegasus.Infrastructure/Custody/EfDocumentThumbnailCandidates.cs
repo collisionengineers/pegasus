@@ -35,6 +35,24 @@ internal sealed class EfDocumentThumbnailCandidates(
 
     private readonly DeferredVersionSet deferred = new(timeProvider, DeferInterval);
 
+    /// <summary>
+    /// One statement, driven from the versions filed within the plain
+    /// thumbnail's idle lifetime: a version is returned when it has no live
+    /// plain thumbnail or, filed within the prepared thumbnail's idle
+    /// lifetime, has an image occurrence with a saved rotation or crop. An
+    /// occurrence counts from the later of the time it was recorded on the
+    /// Case and the time its preparation was saved (filing an image copies the
+    /// preparation time of Image Intake onto the Case, which may be long
+    /// before the filing), and is left out in SQL when a prepared thumbnail
+    /// (other than the original content, which filing and any read publish to
+    /// the same table) was written since that time. Versions with no plain
+    /// thumbnail come first, newest first, so the plain thumbnails fill the
+    /// run before any saved variant does. The cached variants of the rows that
+    /// come back are compared in memory, because the token is formatted by
+    /// Core and not by SQL; rows that give nothing there (and the deferred
+    /// ones) are replaced by the next rows in order, so the run is filled while
+    /// candidates remain.
+    /// </summary>
     public async Task<IReadOnlyList<DocumentThumbnailCandidate>> ListAsync(
         int maximumItems,
         CancellationToken cancellationToken)
@@ -43,176 +61,151 @@ internal sealed class EfDocumentThumbnailCandidates(
         var now = timeProvider.GetUtcNow();
         var skipped = deferred.Current(now);
         var filedAfter = now - DocumentThumbnailCache.PlainIdleLifetime;
-        var variant = DocumentThumbnailCache.Variant;
-        const long maximumLength = ImageThumbnailRendering.MaximumSourceBytes;
-
-        // Deferred versions are skipped here rather than sent to SQL: the
-        // query asks for enough rows to fill the run past every one of them.
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = await (
-                from version in db.Set<DocumentVersionEntity>().AsNoTracking()
-                join document in db.Set<CaseDocumentEntity>().AsNoTracking()
-                    on version.DocumentId equals document.Id
-                where version.CustodyStatus == DocumentCustodyStatus.Confirmed
-                    && version.IsCurrent
-                    && !version.IsLogicallyRemoved
-                    && version.CreatedAtUtc > filedAfter
-                    && version.ContentLength > 0
-                    && version.ContentLength <= maximumLength
-                    && EF.Functions.Like(version.MediaType, "image/%")
-                    && !EF.Functions.Like(version.MediaType, "image/svg%")
-                    && !db.Set<DocumentContentCacheEntryEntity>().Any(entry =>
-                        entry.DocumentVersionId == version.Id
-                        && entry.Variant == variant
-                        && entry.ExpiresAtUtc > now)
-                orderby version.CreatedAtUtc descending, version.Id
-                select new DocumentThumbnailCandidate(
-                    document.CaseId,
-                    version.DocumentId,
-                    version.Id,
-                    version.Sha256,
-                    version.ContentLength,
-                    version.MediaType))
-            .Take(maximumItems + skipped.Count)
-            .ToArrayAsync(cancellationToken);
-        List<DocumentThumbnailCandidate> listed =
-            [.. rows.Where(row => !skipped.Contains(row.VersionId)).Take(maximumItems)];
-        if (listed.Count < maximumItems)
-        {
-            await AddSavedVariantsAsync(
-                db, listed, maximumItems, skipped, now, cancellationToken);
-        }
-        return listed;
-    }
-
-    /// <summary>
-    /// Fills the run with the saved rotation and crop of image occurrences
-    /// whose thumbnail of that variant is not cached, for a version filed
-    /// within the prepared thumbnail's idle lifetime: the statement is driven
-    /// from the versions, bounded by the same filing time as the plain read,
-    /// and not from every occurrence. An occurrence counts from the later of
-    /// the time it was recorded on the Case and the time its preparation was
-    /// saved: filing an image copies the preparation time of Image Intake onto
-    /// the Case, which may be long before the filing. SQL leaves out a version
-    /// that has a live prepared thumbnail (other than the original content)
-    /// written since that time and returns the places left in the run (and one
-    /// more for each deferred version), newest first. The cached variants of
-    /// the rows that come back are compared in memory, because the token is
-    /// formatted by Core and not by SQL; rows dropped there are replaced by
-    /// the next rows in order, so the run is filled while candidates remain.
-    /// </summary>
-    private static async Task AddSavedVariantsAsync(
-        PegasusDbContext db,
-        List<DocumentThumbnailCandidate> listed,
-        int maximumItems,
-        HashSet<Guid> skipped,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var plainVariant = DocumentThumbnailCache.Variant;
-        var originalVariant = CachedDocumentContentStore.OriginalVariant;
         var savedAfter = now - DocumentThumbnailCache.PreparedIdleLifetime;
         var preparedIdleHours = DocumentThumbnailCache.PreparedIdleLifetime.TotalHours;
+        var plainVariant = DocumentThumbnailCache.Variant;
+        var originalVariant = CachedDocumentContentStore.OriginalVariant;
         const long maximumLength = ImageThumbnailRendering.MaximumSourceBytes;
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var wanting =
+            from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            let changedAt = occurrence.PreparedAtUtc > occurrence.RecordedAtUtc
+                ? occurrence.PreparedAtUtc.Value
+                : occurrence.RecordedAtUtc
+            where occurrence.SemanticRole == DocumentSemanticRole.Image
+                && (occurrence.RotationDegrees != 0 || occurrence.CropLeft != null)
+                && changedAt > savedAfter
+                // A prepared thumbnail written since the save is the one this
+                // occurrence is waiting for (a write gives it the idle lifetime
+                // from that moment).
+                && !db.Set<DocumentContentCacheEntryEntity>().Any(entry =>
+                    entry.DocumentVersionId == occurrence.VersionId
+                    && entry.Variant != plainVariant
+                    && entry.Variant != originalVariant
+                    && entry.ExpiresAtUtc > changedAt.AddHours(preparedIdleHours))
+            select new
+            {
+                occurrence.VersionId,
+                occurrence.RotationDegrees,
+                occurrence.CropLeft,
+                occurrence.CropTop,
+                occurrence.CropWidth,
+                occurrence.CropHeight
+            };
         var query =
-                from version in db.Set<DocumentVersionEntity>().AsNoTracking()
-                join document in db.Set<CaseDocumentEntity>().AsNoTracking()
-                    on version.DocumentId equals document.Id
-                join occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
-                    on version.Id equals occurrence.VersionId
-                let changedAt = occurrence.PreparedAtUtc > occurrence.RecordedAtUtc
-                    ? occurrence.PreparedAtUtc.Value
-                    : occurrence.RecordedAtUtc
-                where occurrence.SemanticRole == DocumentSemanticRole.Image
-                    && (occurrence.RotationDegrees != 0 || occurrence.CropLeft != null)
-                    && changedAt > savedAfter
-                    && version.CustodyStatus == DocumentCustodyStatus.Confirmed
-                    && version.IsCurrent
-                    && !version.IsLogicallyRemoved
-                    && version.CreatedAtUtc > savedAfter
-                    && version.ContentLength > 0
-                    && version.ContentLength <= maximumLength
-                    && EF.Functions.Like(version.MediaType, "image/%")
-                    && !EF.Functions.Like(version.MediaType, "image/svg%")
-                    // A prepared thumbnail written since the save is the one
-                    // this occurrence is waiting for (a write gives it the
-                    // idle lifetime from that moment). The version's original
-                    // content shares the table and is published when the
-                    // image is filed and on any read, so it is not one.
-                    && !db.Set<DocumentContentCacheEntryEntity>().Any(entry =>
-                        entry.DocumentVersionId == version.Id
+            from version in db.Set<DocumentVersionEntity>().AsNoTracking()
+            join document in db.Set<CaseDocumentEntity>().AsNoTracking()
+                on version.DocumentId equals document.Id
+            where version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && version.IsCurrent
+                && !version.IsLogicallyRemoved
+                && version.CreatedAtUtc > filedAfter
+                && version.ContentLength > 0
+                && version.ContentLength <= maximumLength
+                && EF.Functions.Like(version.MediaType, "image/%")
+                && !EF.Functions.Like(version.MediaType, "image/svg%")
+            let hasPlain = db.Set<DocumentContentCacheEntryEntity>().Any(entry =>
+                entry.DocumentVersionId == version.Id
+                && entry.Variant == plainVariant
+                && entry.ExpiresAtUtc > now)
+            where !hasPlain
+                || (version.CreatedAtUtc > savedAfter
+                    && wanting.Any(saved => saved.VersionId == version.Id))
+            orderby hasPlain ? 1 : 0, version.CreatedAtUtc descending, version.Id
+            select new
+            {
+                document.CaseId,
+                version.DocumentId,
+                VersionId = version.Id,
+                version.Sha256,
+                version.ContentLength,
+                version.MediaType,
+                HasPlain = hasPlain,
+                Saved = wanting
+                    .Where(saved => saved.VersionId == version.Id && version.CreatedAtUtc > savedAfter)
+                    .ToList(),
+                Cached = db.Set<DocumentContentCacheEntryEntity>()
+                    .Where(entry => entry.DocumentVersionId == version.Id
                         && entry.Variant != plainVariant
                         && entry.Variant != originalVariant
-                        && entry.ExpiresAtUtc > changedAt.AddHours(preparedIdleHours))
-                orderby changedAt descending, occurrence.Id
-                select new
-                {
-                    document.CaseId,
-                    version.DocumentId,
-                    VersionId = version.Id,
-                    version.Sha256,
-                    version.ContentLength,
-                    version.MediaType,
-                    occurrence.RotationDegrees,
-                    occurrence.CropLeft,
-                    occurrence.CropTop,
-                    occurrence.CropWidth,
-                    occurrence.CropHeight,
-                    Cached = db.Set<DocumentContentCacheEntryEntity>()
-                        .Where(entry => entry.DocumentVersionId == version.Id
-                            && entry.Variant != plainVariant
-                            && entry.Variant != originalVariant
-                            && entry.ExpiresAtUtc > now)
-                        .Select(entry => entry.Variant)
-                        .ToList()
-                };
+                        && entry.ExpiresAtUtc > now)
+                    .Select(entry => entry.Variant)
+                    .ToList()
+            };
 
+        // Deferred versions are skipped here rather than sent to SQL: each
+        // page asks for enough rows to fill the run past every one of them.
+        List<DocumentThumbnailCandidate> listed = [];
         var seen = new HashSet<(Guid VersionId, string Variant)>();
         var offset = 0;
         while (listed.Count < maximumItems)
         {
             var take = maximumItems - listed.Count + skipped.Count;
-            var saved = await query.Skip(offset).Take(take).ToArrayAsync(cancellationToken);
-            offset += saved.Length;
-            foreach (var row in saved)
+            var page = await query.Skip(offset).Take(take).ToArrayAsync(cancellationToken);
+            offset += page.Length;
+            // A page holds every version without a plain thumbnail before any
+            // other, so its plain candidates come ahead of its saved variants.
+            foreach (var row in page)
             {
                 if (listed.Count >= maximumItems)
                 {
-                    return;
+                    return listed;
                 }
+                if (!row.HasPlain && !skipped.Contains(row.VersionId))
+                {
+                    listed.Add(new DocumentThumbnailCandidate(
+                        row.CaseId,
+                        row.DocumentId,
+                        row.VersionId,
+                        row.Sha256,
+                        row.ContentLength,
+                        row.MediaType));
+                }
+            }
+            foreach (var row in page)
+            {
                 if (skipped.Contains(row.VersionId))
                 {
                     continue;
                 }
-                var rotation = (CaseAssetRotation)row.RotationDegrees;
-                CaseAssetCrop? crop = row.CropLeft is { } left
-                    && row.CropTop is { } top
-                    && row.CropWidth is { } width
-                    && row.CropHeight is { } height
-                        ? new(left, top, width, height)
-                        : null;
-                var variant = CaseDocumentThumbnails.VariantToken(rotation, crop);
-                if (string.Equals(variant, plainVariant, StringComparison.Ordinal)
-                    || row.Cached.Contains(variant)
-                    || !seen.Add((row.VersionId, variant)))
+                foreach (var saved in row.Saved)
                 {
-                    continue;
+                    if (listed.Count >= maximumItems)
+                    {
+                        return listed;
+                    }
+                    var rotation = (CaseAssetRotation)saved.RotationDegrees;
+                    CaseAssetCrop? crop = saved.CropLeft is { } left
+                        && saved.CropTop is { } top
+                        && saved.CropWidth is { } width
+                        && saved.CropHeight is { } height
+                            ? new(left, top, width, height)
+                            : null;
+                    var variant = CaseDocumentThumbnails.VariantToken(rotation, crop);
+                    if (string.Equals(variant, plainVariant, StringComparison.Ordinal)
+                        || row.Cached.Contains(variant)
+                        || !seen.Add((row.VersionId, variant)))
+                    {
+                        continue;
+                    }
+                    listed.Add(new DocumentThumbnailCandidate(
+                        row.CaseId,
+                        row.DocumentId,
+                        row.VersionId,
+                        row.Sha256,
+                        row.ContentLength,
+                        row.MediaType,
+                        rotation,
+                        crop));
                 }
-                listed.Add(new DocumentThumbnailCandidate(
-                    row.CaseId,
-                    row.DocumentId,
-                    row.VersionId,
-                    row.Sha256,
-                    row.ContentLength,
-                    row.MediaType,
-                    rotation,
-                    crop));
             }
-            if (saved.Length < take)
+            if (page.Length < take)
             {
-                return;
+                break;
             }
         }
+        return listed;
     }
 
     public void Defer(Guid versionId) => deferred.Defer(versionId);
