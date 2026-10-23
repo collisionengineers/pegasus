@@ -151,7 +151,7 @@ resource classifierApp 'Microsoft.Web/sites@2024-04-01' = if (classifierActivati
         { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD;ClientId=${classifierIdentity.properties.clientId}' }
         { name: 'AZURE_CLIENT_ID', value: classifierIdentity.properties.clientId }
         { name: 'CLASSIFIER_STORAGE_ACCOUNT', value: classifierStorage.name }
-        { name: 'PEGASUS_MCP_URL', value: '${webPublicOrigin}mcp' }
+        { name: 'PEGASUS_MCP_URL', value: '${webPublicOrigin}mcp/mail' }
         { name: 'PEGASUS_TOKEN_URL', value: '${webPublicOrigin}connect/token' }
         { name: 'PEGASUS_CLIENT_ID', value: 'pegasus-automation' }
         { name: 'PEGASUS_CLIENT_SECRET', value: '@Microsoft.KeyVault(SecretUri=${automationMcpClientSecretUri})' }
