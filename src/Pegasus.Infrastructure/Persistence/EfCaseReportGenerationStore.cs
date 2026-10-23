@@ -845,26 +845,31 @@ public sealed class EfCaseReportGenerationStore(
         // save records its own stale history row against it, as before. The
         // record is on the tracked instance, never on the context: a pooled
         // context outlives a save that failed, its tracker does not.
+        // Only a context that has sent a set UPDATE and not yet saved can hold a
+        // marked instance, so the tracker is read only for such a context: every
+        // other call (the no-report case included) never touches Local, never
+        // walks the tracker and never registers its state-change listener.
         // Local runs DetectChanges over the whole tracker unless auto-detect is
         // off; the scan reads only instances and the record, so it is off here.
-        // Local still walks every non-deleted entry in the tracker with a type
-        // test, on each call, and the first use attaches a state-change listener.
-        var tracker = context.ChangeTracker;
-        var autoDetect = tracker.AutoDetectChangesEnabled;
-        tracker.AutoDetectChangesEnabled = false;
-        Guid[] pending;
-        try
+        Guid[] pending = [];
+        if (StalingContexts.TryGetValue(context, out _))
         {
-            pending = context.Set<CaseReportGenerationEntity>().Local
-                .Where(item => item.WorkId == workId
-                    && item.SupersededById == null
-                    && StaledUnsaved.TryGetValue(item, out _))
-                .Select(item => item.Id)
-                .ToArray();
-        }
-        finally
-        {
-            tracker.AutoDetectChangesEnabled = autoDetect;
+            var tracker = context.ChangeTracker;
+            var autoDetect = tracker.AutoDetectChangesEnabled;
+            tracker.AutoDetectChangesEnabled = false;
+            try
+            {
+                pending = context.Set<CaseReportGenerationEntity>().Local
+                    .Where(item => item.WorkId == workId
+                        && item.SupersededById == null
+                        && StaledUnsaved.TryGetValue(item, out _))
+                    .Select(item => item.Id)
+                    .ToArray();
+            }
+            finally
+            {
+                tracker.AutoDetectChangesEnabled = autoDetect;
+            }
         }
         var query = context.Set<CaseReportGenerationEntity>()
             .Where(item => item.WorkId == workId && item.SupersededById == null);
@@ -910,9 +915,12 @@ public sealed class EfCaseReportGenerationStore(
                 StaledUnsaved.AddOrUpdate(item, UnsavedMarker);
             }
 
+            StalingContexts.AddOrUpdate(context, UnsavedMarker);
+
             void Forget(object? sender, SavedChangesEventArgs e)
             {
                 context.SavedChanges -= Forget;
+                StalingContexts.Remove(context);
                 foreach (var item in fresh)
                 {
                     StaledUnsaved.Remove(item);
@@ -934,6 +942,9 @@ public sealed class EfCaseReportGenerationStore(
 
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CaseReportGenerationEntity, object>
         StaledUnsaved = new();
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DbContext, object>
+        StalingContexts = new();
 
     private static readonly object UnsavedMarker = new();
 
