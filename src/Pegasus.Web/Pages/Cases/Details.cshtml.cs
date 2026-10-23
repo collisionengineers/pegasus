@@ -1266,7 +1266,13 @@ public sealed partial class DetailsModel(
             Case.Frame);
 
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
-        var estimates = reads.Start(token => listEstimates.ExecuteAsync(id, work, token));
+        // The authors' names depend only on the estimates, so they are read in
+        // the same slot and overlap the other reads in this phase.
+        var estimates = reads.Start(async token =>
+        {
+            var listed = await listEstimates.ExecuteAsync(id, work, token);
+            return (Listed: listed, AuthorNames: await ResolveSpecAuthorNamesAsync(listed, token));
+        });
         var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
         var savedReasons = reads.Start(token => unroadworthyReasonBank.ListAsync(principalCode, token));
         var salvageMatrix = CanEditEngineering
@@ -1286,8 +1292,7 @@ public sealed partial class DetailsModel(
         var glass = reads.Start(token => ReadGlassSessionAsync(id, actor, token));
         await reads.WhenAllAsync();
 
-        Estimates = await estimates;
-        SpecAuthorNames = await ResolveSpecAuthorNamesAsync(Estimates, cancellationToken);
+        (Estimates, SpecAuthorNames) = await estimates;
         LabourRateCards = await cards;
         ApplyEstimateSelection(estimate);
         var saved = await savedReasons;
