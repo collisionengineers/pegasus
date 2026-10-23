@@ -8,6 +8,8 @@
   staff never use it; they use the Web UI.
 - Every tool calls the same Core command a staff member would. The Actor has
   its own identity and history and no management powers.
+- The tools are served by seven MCP servers, one per scope, each at
+  `/mcp/<scope word>`; `/mcp` itself is not served.
 - Lists page by cursor, 50 by default and 100 at most. Documents are checked
   for permission before any content is read.
 - A download hands a file back as content the client can show: a photograph
@@ -499,7 +501,35 @@ Every tool is proven under the tranche rule above.
 
 ### Tool inventory
 
-The Actor's whole inventory, 65 tools, by scope. "One-command lease" means
+The Actor's tools are served by one MCP server per scope (operator,
+22 October 2026;
+[ADR-0080](../adr/0080-automation-mcp-one-server-per-scope.md)). A tool is
+on the server whose scope its call requires; the three edit-lease tools are
+on the cases and the intake servers.
+
+| Server | Path | Scope |
+| --- | --- | --- |
+| `pegasus-cases` | `/mcp/cases` | `automation.cases` |
+| `pegasus-intake` | `/mcp/intake` | `automation.intake` |
+| `pegasus-documents` | `/mcp/documents` | `automation.documents` |
+| `pegasus-assessment` | `/mcp/assessment` | `automation.assessment` |
+| `pegasus-mail` | `/mcp/mail` | `automation.mail` |
+| `pegasus-jobs` | `/mcp/jobs` | `automation.jobs` |
+| `pegasus-send` | `/mcp/send` | `automation.send` |
+
+On every server `tools/list` holds only the tools whose scope the token
+carries; the list is disclosure, and each call is still checked against the
+token's scope. A server's endpoint needs the shared audience and one of its
+own scopes, and its protected-resource metadata lists only its own scopes.
+The client, audience, token endpoint, kill switch, rate limit,
+Administrator consent page, feature gate and the two content routes are
+shared. Each server has its own instructions, which restate this document's
+cross-tool rules and make none. `/mcp` is replaced, not aliased: an
+Administrator adds a connector once per server and consents to it once for
+each.
+
+The Actor's whole inventory, 65 tools, by scope; a server serves the rows
+of its scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -627,4 +657,5 @@ acceptance are separate evidence tiers
   [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md),
   [ADR-0035](../adr/0035-ai-job-ledger.md),
   [ADR-0059](../adr/0059-native-mcp-file-content-and-consolidated-tool-inventory.md),
-  [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md).
+  [ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md),
+  [ADR-0080](../adr/0080-automation-mcp-one-server-per-scope.md).
