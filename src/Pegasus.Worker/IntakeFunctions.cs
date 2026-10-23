@@ -440,6 +440,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcilePendingArtifactCustody reconcilePendingArtifactCustody,
     ISettleFiledCaseReportArtifacts settleFiledCaseReportArtifacts,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
+    ReplayCaseFilings replayCaseFilings,
     IImageIntakeCasePairing imageIntakeCasePairing,
     ITriageCasePairing triageCasePairing,
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
@@ -485,7 +486,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
         [TimerTrigger("%IntakeStagedArtifactReconciliationSchedule%", RunOnStartup = false, UseMonitor = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
-        // Steps 1 to 3 and 5 to 11 each run under RunStepAsync: a step that throws
+        // Steps 1 to 3 and 5 to 12 each run under RunStepAsync: a step that throws
         // is logged and the steps after it still run, then the tick fails after
         // the last step so the failed request reaches the exception alert.
         var failures = new List<ExceptionDispatchInfo>();
@@ -566,6 +567,28 @@ public sealed partial class StagedArtifactReconciliationFunction(
                 groupedImageResult.Retried,
                 groupedImageResult.Escaped,
                 groupedImageResult.Failures);
+        }, failures, cancellationToken);
+
+        // Files the evidence of a receipt associated with a Case whose filing
+        // waited for an editor or failed, calling the filer directly, within
+        // the bounded replay window and attempts (FRD-22, FRD-05). Same
+        // existing timer trigger deliberately; this is not a new schedule. A
+        // result line is logged only when there were candidates.
+        await RunStepAsync("case filings", async () =>
+        {
+            var caseFilings = await replayCaseFilings.ExecuteAsync(50, cancellationToken);
+            if (caseFilings.Candidates > 0)
+            {
+                var caseFilingsLevel = FailureLevel(caseFilings.Failures);
+                LogCaseFilingReplay(
+                    logger,
+                    caseFilingsLevel,
+                    caseFilings.Candidates,
+                    caseFilings.Filed,
+                    caseFilings.Deferred,
+                    caseFilings.Failures,
+                    caseFilings.Exhausted);
+            }
         }, failures, cancellationToken);
 
         await RunStepAsync("image pairing", async () =>
@@ -824,6 +847,17 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int retried,
         int escaped,
         int failures);
+
+    [LoggerMessage(
+        Message = "Replayed Case filings: {Candidates} candidates, {Filed} filed, {Deferred} waiting for an editor, {Failures} failures, {Exhausted} exhausted.")]
+    private static partial void LogCaseFilingReplay(
+        ILogger logger,
+        LogLevel level,
+        int candidates,
+        int filed,
+        int deferred,
+        int failures,
+        int exhausted);
 
     [LoggerMessage(
         Message = "Reconciled Unidentified destinations: {Candidates} candidates, {Resolved} resolved, {Failures} failures.")]

@@ -63,6 +63,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var pairing = new RecordingPairing();
         var triagePairing = new RecordingTriagePairing();
         var settlement = new RecordingSettlement();
+        var caseFilings = new EmptyCaseFilingReplayStore();
         var function = new StagedArtifactReconciliationFunction(
             reconciler,
             new EmptyCacheCleanup(),
@@ -72,6 +73,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new EmptyStagedArtifactStore()),
             settlement,
             groupedImageReconciler,
+            CaseFilingReplay(caseFilings),
             pairing,
             triagePairing,
             unidentifiedReconciler,
@@ -88,6 +90,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(50, workStore.MaximumItems);
         Assert.True(pendingCustodyFactory.CreateCount > 0);
         Assert.Equal(50, settlement.MaximumItems);
+        // The Case-filing replay asks for a page of 50; with none due it logs nothing.
+        Assert.Equal(50, caseFilings.MaximumItems);
         Assert.Equal(50, pairing.MaximumItems);
         Assert.Equal(50, triagePairing.MaximumItems);
         // The thumbnail sweep asks for a small number each run; with none to
@@ -333,6 +337,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             settlement ?? new EfSettleFiledCaseReportArtifacts(contextFactory, TimeProvider.System),
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
                 new UnreachableProcessQueuedIntake(), TimeProvider.System, new UnreachableRegisterUnidentified()),
+            CaseFilingReplay(new EmptyCaseFilingReplayStore()),
             pairing,
             new TriageCasePairing(new EfTriageStore(contextFactory,
                 [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())])),
@@ -349,6 +354,29 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 estimateCandidates ?? new RecordingEstimateCandidates(), new UnreachableDocumentReads(), []),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, cancellationToken);
+    }
+
+    /// <summary>A Case-filing replay over an empty page: the filer is never reached.</summary>
+    private static ReplayCaseFilings CaseFilingReplay(ICaseFilingReplayStore store) =>
+        new(store, new EmptyIntakeReceiptQueries(), new PromoteAssociatedIntakeCaseEvidence(null!, null!, null!), TimeProvider.System);
+
+    private sealed class EmptyCaseFilingReplayStore : ICaseFilingReplayStore
+    {
+        public int MaximumItems { get; private set; }
+
+        public Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
+            CaseFilingReplayCursor? after,
+            DateTimeOffset systemAssociationCutoff,
+            DateTimeOffset nowUtc,
+            int maximumItems,
+            CancellationToken cancellationToken)
+        {
+            MaximumItems = maximumItems;
+            return Task.FromResult<IReadOnlyList<CaseFilingReplayCandidate>>([]);
+        }
+
+        public Task RecordAsync(CaseFilingReplayRecord entry, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("An empty Case-filing page must not record a replay.");
     }
 
     private sealed class RecordingTriagePairing : ITriageCasePairing
@@ -667,13 +695,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
         public Task MarkPoisonedAsync(
             Guid stagedReceiptId,
-            DateTimeOffset failedAtUtc,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
-        public Task RecordTerminalReplayFailureAsync(
-            Guid stagedReceiptId,
-            string failureCode,
             DateTimeOffset failedAtUtc,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();

@@ -329,10 +329,6 @@ public sealed class DurableIntakeLinkTests
         public Task MarkPoisonedAsync(Guid stagedReceipt, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task RecordTerminalReplayFailureAsync(
-            Guid stagedReceiptId, string failureCode, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<int> RecoverInterruptedWorkAsync(
             DateTimeOffset nowUtc, DateTimeOffset staleDispatchedBeforeUtc, int maximumItems,
             CancellationToken cancellationToken) =>

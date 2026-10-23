@@ -91,6 +91,7 @@ public static class DependencyInjection
         services.AddScoped<EfIntakeSubmissionGroupStore>();
         services.AddScoped<IIntakeSubmissionGroupStore>(provider =>
             provider.GetRequiredService<EfIntakeSubmissionGroupStore>());
+        services.AddScoped<ICaseFilingReplayStore, EfCaseFilingReplayStore>();
         services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());

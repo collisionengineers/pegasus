@@ -21,7 +21,8 @@ public sealed record ReconcileGroupedImageIntakeResult(
 /// <see cref="IImageIntakeAutomation"/>), which is safe to call repeatedly
 /// because that work item's evaluation is already complete — the call takes
 /// the cheap replay branch, never re-reading the (already deleted) staged
-/// artifact.
+/// artifact. Only image-group members are re-driven here; a receipt
+/// associated with a Case is filed by <see cref="ReplayCaseFilings"/>.
 /// </summary>
 /// <remarks>
 /// A receipt still pending after <see cref="EscapeAfter"/> is registered
@@ -74,59 +75,8 @@ public sealed class ReconcileGroupedImageIntake(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
-            if (receipt is null)
-            {
-                continue;
-            }
-
-            if (receipt.CurrentCaseId is not null
-                && receipt.Decision != IntakeDecision.ImageIntakeRegistered)
-            {
-                candidates++;
-                // Declared outside the try so a non-transient replay fault can
-                // be recorded against the work item the replay just drove.
-                Guid? stagedReceiptId = null;
-                try
-                {
-                    stagedReceiptId = await workStore.FindStagedReceiptIdForReceiptAsync(
-                        receipt.Id,
-                        cancellationToken);
-                    if (stagedReceiptId is null)
-                    {
-                        failures++;
-                        continue;
-                    }
-
-                    _ = await processQueuedIntake.ExecuteAsync(stagedReceiptId.Value, cancellationToken);
-                    retried++;
-                }
-                catch (Exception exception) when (IntakeExceptionPolicy.IsTransientFailure(exception))
-                {
-                    failures++;
-                }
-                catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-                {
-                    // A permanent fault must leave the list. The live path
-                    // records the same terminal failure on a claimed item;
-                    // this replay holds no lease, so the work store records
-                    // it directly. Not Unidentified: the receipt already has
-                    // its Case.
-                    if (stagedReceiptId is Guid id)
-                    {
-                        await workStore.RecordTerminalReplayFailureAsync(
-                            id,
-                            ProcessQueuedIntake.TerminalReplayFailureCode(exception),
-                            nowUtc,
-                            cancellationToken);
-                    }
-
-                    failures++;
-                }
-
-                continue;
-            }
-
-            if (receipt.Decision != IntakeDecision.NeedsSorting
+            if (receipt is null
+                || receipt.Decision != IntakeDecision.NeedsSorting
                 || !ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt))
             {
                 continue;

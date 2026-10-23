@@ -22,7 +22,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 propertyCount: 11,
                 navigationCount: 1,
                 foreignKeyCount: 1,
-                unnamedIndexCount: 3,
+                unnamedIndexCount: 4,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -126,10 +126,13 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 unique: true);
 
             var index0 = runtimeEntityType.AddIndex(
+                new[] { processedReceiptId });
+
+            var index1 = runtimeEntityType.AddIndex(
                 new[] { stagedReceiptId },
                 unique: true);
 
-            var index1 = runtimeEntityType.AddIndex(
+            var index2 = runtimeEntityType.AddIndex(
                 new[] { state, dueAtUtc });
 
             return runtimeEntityType;

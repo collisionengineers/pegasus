@@ -184,6 +184,7 @@ public static class WorkerDependencyInjection
         services.AddScoped<ReconcilePoisonedIntakeWork>();
         services.AddScoped<ReconcileStagedArtifacts>();
         services.AddScoped<ReconcileGroupedImageIntake>();
+        services.AddScoped<ReplayCaseFilings>();
         services.AddSingleton<IExternalWorkEnqueuer>(serviceProvider =>
         {
             var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();
