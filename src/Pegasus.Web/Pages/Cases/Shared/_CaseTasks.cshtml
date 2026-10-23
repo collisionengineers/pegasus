@@ -53,7 +53,7 @@
         if (mayChange)
         {
             <form method="post" asp-page="/Cases/Details" asp-page-handler="CreateCaseTask" asp-route-id="@workflow.CaseId"
-                  class="task-compose" data-case-task-form>
+                  class="note-form" data-case-task-form>
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="taskId" value="@(Guid.NewGuid().ToString("D"))" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
