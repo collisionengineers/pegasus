@@ -86,3 +86,12 @@ page style. The requirement is owned by
 next. A retry does not depend on that. It asks what was filed before it draws
 anything, and it never draws again a file that is already held
 ([FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+
+## Update — 2026-10-22 page count
+
+The engine decision above is unchanged. The Decision's clause on how the page
+count is read is replaced: the produced PDF is no longer opened with PdfPig to
+read its pages. The count is the total the layout reports for the footer's
+"page x of y", captured as the document is laid out (operator ruling R243,
+22 October 2026). The Decision's sentence is edited in place, with this note,
+as R411 ruled. `RenderedReportArtifact.PageCount` stays, as R410 ruled.
