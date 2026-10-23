@@ -1868,16 +1868,26 @@ public sealed class MailWorkspaceWebTests
 
         var secondPage = await GetHtmlAsync(
             client,
-            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle&pageNumber=2");
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle&paged=true&pageNumber=2");
         Assert.Contains("Deleted match 0", secondPage, StringComparison.Ordinal);
         Assert.Contains("Page 2 of 2", secondPage, StringComparison.Ordinal);
-        // Next reused the kept result: one search for both pages.
+        // Next carries the paging marker and reused the kept result: one search for both pages.
+        Assert.Contains("paged=true", firstPage, StringComparison.Ordinal);
         Assert.Equal(1, source.SearchCount);
 
+        // Refresh on page 2 carries the page but not the marker: it reads the source again.
+        var refreshed = await GetHtmlAsync(
+            client,
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle&pageNumber=2");
+        Assert.Contains("Page 2 of 2", refreshed, StringComparison.Ordinal);
+        Assert.Equal(2, source.SearchCount);
+
+        // The same search again, once the source is unavailable, shows the notice.
         source.Result = new([], false, DeletedMailSearchState.Unavailable);
         var unavailable = await GetHtmlAsync(
             client,
-            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=haystack");
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle");
+        Assert.Equal(3, source.SearchCount);
         Assert.Contains(
             "Deleted Items search is unavailable. Retained Inbox mail remains available.",
             unavailable,

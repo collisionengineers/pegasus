@@ -292,7 +292,7 @@ public sealed class RetainedMailTests
             " estimate ",
             2,
             2,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), source.MailboxId);
         Assert.Equal("estimate", source.SearchTerm);
@@ -329,8 +329,8 @@ public sealed class RetainedMailTests
         var staff = Caseworker();
 
         var first = await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2);
-        var next = await search.ExecuteAsync(staff, MailboxA, " estimate ", 2, 2);
-        var previous = await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2);
+        var next = await search.ExecuteAsync(staff, MailboxA, " estimate ", 2, 2, paging: true);
+        var previous = await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2, paging: true);
 
         Assert.Equal(1, source.SearchCount);
         Assert.Equal(["a", "b"], first.Items.Select(item => item.ImmutableMessageId));
@@ -339,18 +339,35 @@ public sealed class RetainedMailTests
         Assert.True(next.IsTruncated);
         Assert.Equal(3, next.TotalCount);
 
-        await search.ExecuteAsync(staff, MailboxA, "other", 1, 2);
-        await search.ExecuteAsync(staff, MailboxB, "estimate", 1, 2);
-        await search.ExecuteAsync(Caseworker(), MailboxA, "estimate", 1, 2);
+        await search.ExecuteAsync(staff, MailboxA, "other", 1, 2, paging: true);
+        await search.ExecuteAsync(staff, MailboxB, "estimate", 1, 2, paging: true);
+        await search.ExecuteAsync(Caseworker(), MailboxA, "estimate", 1, 2, paging: true);
         Assert.Equal(4, source.SearchCount);
 
         clock.Advance(TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(1));
-        await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2);
+        await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2, paging: true);
         Assert.Equal(4, source.SearchCount);
 
         clock.Advance(TimeSpan.FromSeconds(1));
-        await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2);
+        await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2, paging: true);
         Assert.Equal(5, source.SearchCount);
+    }
+
+    [Fact]
+    public async Task DeletedSearchThatIsNotPagingReadsTheSourceAgain()
+    {
+        var source = new DeletedSource(new([Deleted("a", NowUtc)], false));
+        var search = new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System));
+        var staff = Caseworker();
+
+        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
+        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
+        Assert.Equal(2, source.SearchCount);
+
+        await search.ExecuteAsync(staff, null, "estimate", 2, 25, paging: true);
+        Assert.Equal(2, source.SearchCount);
+        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
+        Assert.Equal(3, source.SearchCount);
     }
 
     [Fact]
@@ -361,7 +378,7 @@ public sealed class RetainedMailTests
         var staff = Caseworker();
 
         var first = await search.ExecuteAsync(staff, null, "estimate", 1, 25);
-        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
+        await search.ExecuteAsync(staff, null, "estimate", 1, 25, paging: true);
 
         Assert.Equal(DeletedMailSearchState.Unavailable, first.State);
         Assert.Equal(2, source.SearchCount);
@@ -376,7 +393,7 @@ public sealed class RetainedMailTests
         await search.ExecuteAsync(staff, null, "estimate", 1, 25);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            search.ExecuteAsync(ActionActor.Principal(Guid.NewGuid()), null, "estimate", 1, 25));
+            search.ExecuteAsync(ActionActor.Principal(Guid.NewGuid()), null, "estimate", 1, 25, paging: true));
         Assert.Equal(1, source.SearchCount);
     }
 

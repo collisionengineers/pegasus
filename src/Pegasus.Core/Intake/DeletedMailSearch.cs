@@ -55,7 +55,10 @@ public sealed record DeletedMailSearchPage(
 /// <summary>
 /// The parsed result of a Deleted Items search, kept for a few minutes per staff
 /// member, mailbox and term so Next and Previous reuse it instead of listing and
-/// parsing the same 100 messages again. Only an Available result is kept.
+/// parsing the same 100 messages again. Only an Available result is kept, and a
+/// search, a Refresh or a reload is never answered from it: only a paging request
+/// reads it. An expired entry is dropped when its key is read or when another
+/// result is kept, so the last entries stay until the next search.
 /// </summary>
 public sealed class DeletedMailSearchKeep(TimeProvider timeProvider)
 {
@@ -130,6 +133,7 @@ public sealed class SearchDeletedMail(
         string searchTerm,
         int page,
         int pageSize,
+        bool paging = false,
         CancellationToken cancellationToken = default)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
@@ -149,7 +153,9 @@ public sealed class SearchDeletedMail(
             throw new ArgumentOutOfRangeException(nameof(pageSize));
         }
 
-        if (keep.TryGet(actor.SubjectId, mailboxId, term, out var ordered, out var isTruncated))
+        // Only Next and Previous reuse the kept result; a new search, a Refresh
+        // and a reload read the source, as before.
+        if (paging && keep.TryGet(actor.SubjectId, mailboxId, term, out var ordered, out var isTruncated))
         {
             return Page(ordered, page, pageSize, isTruncated, DeletedMailSearchState.Available);
         }
