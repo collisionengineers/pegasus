@@ -32,7 +32,8 @@ public sealed class ApplicationExceptionAlertContractTests
 
         var frequency = System.Text.RegularExpressions.Regex.Match(rule, @"evaluationFrequency: 'PT(\d+)M'");
         Assert.True(frequency.Success);
-        var intervalMinutes = int.Parse(frequency.Groups[1].Value);
+        var intervalMinutes = int.Parse(
+            frequency.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
 
         var lines = rule.Split('\n').Where(line =>
             line.Contains("Success == false", StringComparison.Ordinal)
@@ -42,7 +43,10 @@ public sealed class ApplicationExceptionAlertContractTests
         {
             var lookback = System.Text.RegularExpressions.Regex.Match(line, @"ago\((\d+)m\)");
             Assert.True(lookback.Success, line);
-            Assert.True(int.Parse(lookback.Groups[1].Value) >= intervalMinutes, line);
+            Assert.True(
+                int.Parse(lookback.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture)
+                    >= intervalMinutes,
+                line);
         }
     }
 }
