@@ -842,17 +842,23 @@ public sealed class EfCaseReportGenerationStore(
         // A generation this context already staled and has not yet saved still
         // reads as not Stale to a caller that has not saved (the state used to
         // reach the database only with the save), so a second rule in the same
-        // save records its own stale history row against it, as before.
-        var unsaved = StaledUnsaved.GetValue(context, NewUnsavedSet);
+        // save records its own stale history row against it, as before. The
+        // record is on the tracked instance, never on the context: a pooled
+        // context outlives a save that failed, its tracker does not.
+        var pending = context.Set<CaseReportGenerationEntity>().Local
+            .Where(item => item.WorkId == workId
+                && item.SupersededById == null
+                && StaledUnsaved.TryGetValue(item, out _))
+            .Select(item => item.Id)
+            .ToArray();
         var query = context.Set<CaseReportGenerationEntity>()
             .Where(item => item.WorkId == workId && item.SupersededById == null);
-        if (unsaved.Count == 0)
+        if (pending.Length == 0)
         {
             query = query.Where(item => item.State != nameof(CaseReportGenerationState.Stale));
         }
         else
         {
-            var pending = unsaved.ToArray();
             query = query.Where(item => item.State != nameof(CaseReportGenerationState.Stale)
                 || pending.Contains(item.Id));
         }
@@ -872,16 +878,31 @@ public sealed class EfCaseReportGenerationStore(
         // One UPDATE over the set, in the caller's open transaction; the rows
         // read above already carry Stale, so SaveChanges is told not to write
         // the column again (as MakeCurrentAsync does for the Current estimate).
-        var ids = current.Select(item => item.Id).Where(id => !unsaved.Contains(id)).ToArray();
-        if (ids.Length > 0)
+        var fresh = current.Where(item => !StaledUnsaved.TryGetValue(item, out _)).ToArray();
+        if (fresh.Length > 0)
         {
+            var ids = fresh.Select(item => item.Id).ToArray();
             await context.Set<CaseReportGenerationEntity>()
                 .Where(item => ids.Contains(item.Id))
                 .ExecuteUpdateAsync(
                     setters => setters.SetProperty(item => item.State, nameof(CaseReportGenerationState.Stale)),
                     cancellationToken)
                 .ConfigureAwait(false);
-            unsaved.UnionWith(ids);
+            foreach (var item in fresh)
+            {
+                StaledUnsaved.AddOrUpdate(item, UnsavedMarker);
+            }
+
+            void Forget(object? sender, SavedChangesEventArgs e)
+            {
+                context.SavedChanges -= Forget;
+                foreach (var item in fresh)
+                {
+                    StaledUnsaved.Remove(item);
+                }
+            }
+
+            context.SavedChanges += Forget;
         }
 
         foreach (var generation in current)
@@ -892,15 +913,10 @@ public sealed class EfCaseReportGenerationStore(
         return current.Length;
     }
 
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<PegasusDbContext, HashSet<Guid>>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CaseReportGenerationEntity, object>
         StaledUnsaved = new();
 
-    private static HashSet<Guid> NewUnsavedSet(PegasusDbContext context)
-    {
-        var set = new HashSet<Guid>();
-        context.SavedChanges += (_, _) => set.Clear();
-        return set;
-    }
+    private static readonly object UnsavedMarker = new();
 
     private static void MarkGenerationStale(
         PegasusDbContext context,
