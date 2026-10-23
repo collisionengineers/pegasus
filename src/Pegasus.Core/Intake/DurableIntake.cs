@@ -1687,9 +1687,23 @@ public sealed class ReconcileStagedArtifacts(
                     continue;
                 }
 
-                // An expiring blob is set even when it lists with its target: a
-                // listed Unmatched may carry another tag, which the delete's tag
-                // condition would refuse on every run.
+                // An expiring blob that lists with its target is deleted at once
+                // under the listed ETag and tag (a listed Orphan is always a valid
+                // listing). A listed Unmatched may carry another tag, which that
+                // delete refuses, so a refused delete falls through to the set
+                // and the delete below.
+                if (expires
+                    && current.Disposition == target
+                    && await artifactStore.DeleteStagedAsync(
+                        item.StorageKey,
+                        item.ConcurrencyToken,
+                        target,
+                        cancellationToken))
+                {
+                    expired++;
+                    continue;
+                }
+
                 if (current.Disposition != target || expires)
                 {
                     current = await artifactStore.TrySetStagedDispositionAsync(

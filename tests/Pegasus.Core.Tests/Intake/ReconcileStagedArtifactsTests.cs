@@ -58,11 +58,34 @@ public sealed class ReconcileStagedArtifactsTests
     }
 
     /// <summary>
-    /// A blob whose metadata and tag disagree lists as Unmatched whatever its
-    /// tag, so the delete's tag condition holds only after the set.
+    /// A blob listed with its target is deleted in one call under the listed
+    /// ETag and tag, without a set first.
     /// </summary>
     [Fact]
-    public async Task AnAgedBlobListedWithItsTargetIsStillSetBeforeTheDelete()
+    public async Task AnAgedBlobListedWithItsTargetIsDeletedInOneCall()
+    {
+        var harness = new Harness();
+        var orphan = harness.Store.Add(1, Aged, StagedArtifactDisposition.Orphan);
+        var unmatched = harness.Store.Add(2, Aged, StagedArtifactDisposition.Unmatched);
+        harness.Authority.Add(unmatched, StagedArtifactAuthorityState.Pending, hash: new string('C', 64));
+
+        var result = await harness.RunAsync();
+
+        Assert.Equal(None with { Expired = 2 }, result);
+        Assert.Equal(
+            new[] { $"delete {orphan} Orphan", $"delete {unmatched} Unmatched" },
+            harness.Store.Calls);
+        Assert.False(harness.Store.IsStaged(orphan));
+        Assert.False(harness.Store.IsStaged(unmatched));
+    }
+
+    /// <summary>
+    /// A blob whose metadata and tag disagree lists as Unmatched whatever its
+    /// tag, so the delete under the listed tag is refused and the delete holds
+    /// only after the set.
+    /// </summary>
+    [Fact]
+    public async Task AnAgedBlobListedWithItsTargetButAnotherTagIsSetAfterTheDeleteIsRefused()
     {
         var harness = new Harness();
         var unmatched = harness.Store.Add(
@@ -76,8 +99,14 @@ public sealed class ReconcileStagedArtifactsTests
 
         Assert.Equal(None with { Expired = 1 }, result);
         Assert.Equal(
-            new[] { $"set {unmatched} Unmatched", $"delete {unmatched} Unmatched" },
+            new[]
+            {
+                $"delete {unmatched} Unmatched",
+                $"set {unmatched} Unmatched",
+                $"delete {unmatched} Unmatched"
+            },
             harness.Store.Calls);
+        Assert.False(harness.Store.IsStaged(unmatched));
     }
 
     /// <summary>
