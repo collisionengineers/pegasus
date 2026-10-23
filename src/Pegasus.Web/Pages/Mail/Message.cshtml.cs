@@ -326,6 +326,8 @@ public sealed class MessageModel(
 
     public CaseHeader? CorrespondenceCase { get; private set; }
 
+    private bool correspondenceMailboxResolved;
+
     private bool correspondenceCaseResolved;
 
     private bool attachmentOptionsRead;
@@ -1445,7 +1447,13 @@ public sealed class MessageModel(
         CancellationToken cancellationToken,
         bool listAttachments = true)
     {
-        CorrespondenceMailbox = await ResolveCorrespondenceMailboxAsync(cancellationToken);
+        // A refused send reloads this context in the same request, and the
+        // mailbox it resolved stands.
+        if (!correspondenceMailboxResolved)
+        {
+            CorrespondenceMailbox = await ResolveCorrespondenceMailboxAsync(cancellationToken);
+            correspondenceMailboxResolved = true;
+        }
         if (CorrespondenceMailbox is null)
             return false;
 
