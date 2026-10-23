@@ -4997,28 +4997,40 @@ public sealed partial class DetailsModel(
         // They name the assigned Engineer too, so that account's name is read on
         // its own only when the list does not hold it.
         var viewerStaffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(inputs.Actor);
-        IReadOnlyList<CaseEngineerChoice> roster = CaseLifecycleRules.CanBeAssigned(workflow.State)
-            ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, cancellationToken))
-                .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
-            : [];
-        string? engineerDisplayName = null;
-        if (workflow.AssignedEngineerId is { } engineerId)
-        {
-            engineerDisplayName = roster.FirstOrDefault(listed => listed.StaffId == engineerId)?.DisplayName;
-            if (engineerDisplayName is null)
-            {
-                var names = await staffAccountQueries.GetNamesAsync([engineerId], cancellationToken);
-                engineerDisplayName = names.TryGetValue(engineerId, out var name)
-                    ? name
-                    : ActorDisplayNames.UnknownStaff;
-            }
-        }
 
         // The sign-off list is the one the report snapshot already read this
-        // request (R276); it is read here only when no snapshot ran.
+        // request (R276); it is read here only when no snapshot ran, and then
+        // beside the roster and name reads, which do not depend on it.
+        using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var fallbackProfiles = !inputs.AssessmentCanOpen && inputs.SnapshotSignOffEngineers is null
+            ? reads.Start(token => staffAccountQueries.ListSignOffEngineersAsync(token))
+            : null;
+        var rosterAndName = reads.Start(async token =>
+        {
+            IReadOnlyList<CaseEngineerChoice> listed = CaseLifecycleRules.CanBeAssigned(workflow.State)
+                ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, token))
+                    .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
+                : [];
+            string? displayName = null;
+            if (workflow.AssignedEngineerId is { } engineerId)
+            {
+                displayName = listed.FirstOrDefault(choice => choice.StaffId == engineerId)?.DisplayName;
+                if (displayName is null)
+                {
+                    var names = await staffAccountQueries.GetNamesAsync([engineerId], token);
+                    displayName = names.TryGetValue(engineerId, out var name)
+                        ? name
+                        : ActorDisplayNames.UnknownStaff;
+                }
+            }
+
+            return (Roster: listed, EngineerDisplayName: displayName);
+        });
+        await reads.WhenAllAsync();
+        var (roster, engineerDisplayName) = await rosterAndName;
         var profiles = inputs.AssessmentCanOpen ? inputs.EligibleSignOffEngineers
             : inputs.SnapshotSignOffEngineers
-                ?? await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
+                ?? await fallbackProfiles!;
         var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
