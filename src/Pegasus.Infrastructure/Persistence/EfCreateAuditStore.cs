@@ -424,7 +424,8 @@ public sealed class EfCreateAuditStore(
 
     /// <summary>
     /// The applied valuation snapshots under new ids, each re-pointed at its
-    /// copied guide card and rehashed exactly as applying a valuation hashes it.
+    /// copied guide card and rehashed exactly as applying a valuation hashes it,
+    /// with the calculation rows the copy's reads use.
     /// </summary>
     private static async Task CopyAppliedValuationsAsync(
         PegasusDbContext context,
@@ -439,13 +440,15 @@ public sealed class EfCreateAuditStore(
             .ToListAsync(cancellationToken);
         foreach (var source in applied)
         {
-            var (snapshotJson, snapshotHash) = EfValuationStore.RepointAppliedSnapshot(
+            var (snapshotJson, snapshotHash, snapshot) = EfValuationStore.RepointAppliedSnapshot(
                 source,
                 caseId,
                 guideValuationIds);
+            var copyId = Guid.NewGuid();
+            EfValuationStore.AddCalculationRows(context, copyId, snapshot);
             context.Set<AppliedValuationSnapshotEntity>().Add(new AppliedValuationSnapshotEntity
             {
-                Id = Guid.NewGuid(),
+                Id = copyId,
                 WorkId = auditWorkId,
                 SnapshotJson = snapshotJson,
                 CalculationPolicyVersion = source.CalculationPolicyVersion,

@@ -708,6 +708,16 @@ public sealed class CreateAuditPersistenceTests
                 harness.CaseId, 3L, guide.Id, harness.GuideStampUtc, SeededCalculation, 12000m, "Adopted the guide figures"),
             applied.SnapshotHash);
         Assert.Equal(12000m, applied.AcceptedEngineerValue);
+        // The copy carries the calculation rows the reads use, re-pointed at the
+        // copied guide card like the JSON.
+        var calculation = await context.Set<AppliedValuationCalculationEntity>().AsNoTracking()
+            .SingleAsync(item => item.SnapshotId == applied.Id);
+        Assert.Equal(guide.Id, calculation.GuideValuationId);
+        Assert.Equal(3L, calculation.CaseVersion);
+        Assert.Equal(12500m, calculation.GuideRetailValue);
+        Assert.Equal(12000m, calculation.Proposal);
+        Assert.Empty(await context.Set<AppliedValuationAdditionEntity>().AsNoTracking()
+            .Where(item => item.SnapshotId == applied.Id).ToListAsync());
 
         var wording = await context.CaseReportWordings.AsNoTracking().SingleAsync(item => item.WorkId == auditWorkId);
         Assert.Equal("summary", wording.BlockKey);
@@ -1086,6 +1096,10 @@ public sealed class CreateAuditPersistenceTests
                     Reason = "Adopted the guide figures",
                     PolicyVersion = "valuation/v1"
                 });
+                EfValuationStore.AddCalculationRows(
+                    context,
+                    appliedValuationId,
+                    new(3L, guideValuationId, guideStampUtc, SeededCalculation));
                 context.CaseReportWordings.Add(new CaseReportWordingEntity
                 {
                     Id = Guid.NewGuid(),

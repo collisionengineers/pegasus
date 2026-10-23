@@ -396,6 +396,19 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             Assert.Equal(3176m, snapshot.AcceptedEngineerValue);
             Assert.Equal(engineer.SubjectId, snapshot.AcceptedBy);
             Assert.Contains("\"proposal\":3176", snapshot.SnapshotJson, StringComparison.Ordinal);
+            // The calculation and its additions are written beside the snapshot
+            // in the same save (R352), so the reads open no JSON.
+            var calculation = await context.Set<AppliedValuationCalculationEntity>()
+                .SingleAsync(item => item.SnapshotId == snapshot.Id);
+            Assert.Equal(guide.ValuationId, calculation.GuideValuationId);
+            Assert.Equal(3100m, calculation.GuideRetailValue);
+            Assert.Equal(3176m, calculation.Proposal);
+            Assert.Equal(0.20m, calculation.PriorTotalLossPercentage);
+            var addition = await context.Set<AppliedValuationAdditionEntity>()
+                .SingleAsync(item => item.SnapshotId == snapshot.Id);
+            Assert.Equal(
+                (0, TowBarPresetId, 2L, "Tow bar", (decimal?)350m, 300m),
+                (addition.Ordinal, addition.PresetId, addition.PresetVersion, addition.Label, addition.SuggestedAmount, addition.Amount));
             // One Save, one workflow event: the adoption is the save's own
             // action-history entry, named in its history line.
             var saveEvent = await context.CaseWorkflowEvents.SingleAsync(
@@ -455,6 +468,26 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             [3176m, 3250m, 3176m],
             history.Select(item => item.AcceptedEngineerValue));
         Assert.Equal(applied.Id, history[^1].Id);
+
+        // Neither read opens a snapshot's JSON (R352): with every snapshot's
+        // JSON blanked, the history and the recorded additions read the same.
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Set<AppliedValuationSnapshotEntity>()
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.SnapshotJson, "{}"));
+        }
+        var blanked = await new ListAppliedValuations(harness.Valuations)
+            .ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(
+            history.Select(item => (item.Id, item.CaseVersion, item.Calculation.Proposal,
+                string.Join(",", item.Calculation.Additions.Select(addition => $"{addition.Label}={addition.Amount}")))),
+            blanked.Select(item => (item.Id, item.CaseVersion, item.Calculation.Proposal,
+                string.Join(",", item.Calculation.Additions.Select(addition => $"{addition.Label}={addition.Amount}")))));
+        Assert.Equal(
+            [(TowBarPresetId, 2L, "Tow bar")],
+            (await harness.Valuations.ReadBasisAsync(
+                    caseId, CaseWorkSelector.Current, guide.ValuationId, CancellationToken.None))
+                .RecordedAdditions.Select(item => (item.PresetId, item.PresetVersion, item.Label)));
 
         SaveCaseWorkspaceRequest AdoptRequest(
             CaseEditLease lease,

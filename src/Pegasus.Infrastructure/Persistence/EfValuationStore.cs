@@ -161,7 +161,16 @@ public sealed class EfValuationStore(
             PolicyVersion = $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
         };
         context.Set<AppliedValuationSnapshotEntity>().Add(entity);
-        var result = Map(entity, snapshot, workflow.CaseId);
+        AddCalculationRows(context, entity.Id, snapshot);
+        var result = Map(
+            entity.Id,
+            workflow.CaseId,
+            snapshot,
+            entity.AcceptedEngineerValue,
+            entity.AcceptedBy,
+            entity.AcceptedAtUtc,
+            entity.Reason,
+            entity.CalculationPolicyVersion);
         AddActionHistory(
             context,
             actor,
@@ -204,14 +213,45 @@ public sealed class EfValuationStore(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
-        var entities = await context.Set<AppliedValuationSnapshotEntity>()
-            .AsNoTracking()
-            .Where(item => selectedWorkIds.Contains(item.WorkId))
+        // One command, and no SnapshotJson: the calculation and its additions
+        // are read from their own rows.
+        var additions = context.Set<AppliedValuationAdditionEntity>().AsNoTracking();
+        var calculations = context.Set<AppliedValuationCalculationEntity>().AsNoTracking();
+        var rows = await (
+                from snapshot in context.Set<AppliedValuationSnapshotEntity>().AsNoTracking()
+                where selectedWorkIds.Contains(snapshot.WorkId)
+                join calculation in calculations on snapshot.Id equals calculation.SnapshotId into calculationRows
+                from calculation in calculationRows.DefaultIfEmpty()
+                select new
+                {
+                    snapshot.Id,
+                    snapshot.AcceptedEngineerValue,
+                    snapshot.AcceptedBy,
+                    snapshot.AcceptedAtUtc,
+                    snapshot.Reason,
+                    snapshot.CalculationPolicyVersion,
+                    Calculation = calculation,
+                    Additions = additions
+                        .Where(addition => addition.SnapshotId == snapshot.Id)
+                        .OrderBy(addition => addition.Ordinal)
+                        .ToList(),
+                })
             .ToArrayAsync(cancellationToken);
-        return entities
+        return rows
             .OrderByDescending(item => item.AcceptedAtUtc)
             .ThenByDescending(item => item.Id)
-            .Select(item => Map(item, null, caseId))
+            .Select(item => Map(
+                item.Id,
+                caseId,
+                SnapshotOf(
+                    item.Calculation ?? throw new InvalidDataException(
+                        "The persisted applied valuation has no calculation."),
+                    item.Additions),
+                item.AcceptedEngineerValue,
+                item.AcceptedBy,
+                item.AcceptedAtUtc,
+                item.Reason,
+                item.CalculationPolicyVersion))
             .ToArray();
     }
 
@@ -316,9 +356,14 @@ public sealed class EfValuationStore(
         var presets = await context.Set<ValuationPresetEntity>()
             .AsNoTracking()
             .ToArrayAsync(cancellationToken);
-        var snapshots = await context.Set<AppliedValuationSnapshotEntity>()
-            .AsNoTracking()
-            .Where(item => item.WorkId == workId)
+        // The additions this Case recorded, read as rows: no snapshot is
+        // loaded or deserialised.
+        var recorded = await (
+                from addition in context.Set<AppliedValuationAdditionEntity>().AsNoTracking()
+                join snapshot in context.Set<AppliedValuationSnapshotEntity>().AsNoTracking()
+                    on addition.SnapshotId equals snapshot.Id
+                where snapshot.WorkId == workId && addition.PresetId != Guid.Empty
+                select addition)
             .ToArrayAsync(cancellationToken);
         return new(
             guideValuationId,
@@ -329,9 +374,8 @@ public sealed class EfValuationStore(
         {
             RecordedAdditions =
             [
-                .. snapshots
-                    .SelectMany(item => ReadSnapshot(item).Calculation.Additions)
-                    .Where(addition => addition.PresetId != Guid.Empty)
+                .. recorded
+                    .Select(MapAddition)
                     .DistinctBy(addition => (addition.PresetId, addition.PresetVersion))
             ]
         };
@@ -418,30 +462,100 @@ public sealed class EfValuationStore(
     // The record's CaseId is the Case (plan 1.3): the caller names it, since
     // the row keys on its work.
     private static AppliedValuation Map(
-        AppliedValuationSnapshotEntity entity,
-        AppliedValuationSnapshot? snapshot,
-        Guid caseId)
-    {
-        snapshot ??= ReadSnapshot(entity);
-        return new(
-            entity.Id,
+        Guid id,
+        Guid caseId,
+        AppliedValuationSnapshot snapshot,
+        decimal acceptedEngineerValue,
+        string acceptedBy,
+        DateTimeOffset acceptedAtUtc,
+        string reason,
+        string calculationPolicyVersion) =>
+        new(
+            id,
             caseId,
             snapshot.CaseVersion,
             snapshot.GuideValuationId,
             snapshot.GuideValuationStampUtc,
             snapshot.Calculation,
-            entity.AcceptedEngineerValue,
-            entity.AcceptedBy,
-            entity.AcceptedAtUtc,
-            entity.Reason,
-            entity.CalculationPolicyVersion);
-    }
+            acceptedEngineerValue,
+            acceptedBy,
+            acceptedAtUtc,
+            reason,
+            calculationPolicyVersion);
 
-    private sealed record AppliedValuationSnapshot(
+    internal sealed record AppliedValuationSnapshot(
         long CaseVersion,
         Guid GuideValuationId,
         DateTimeOffset GuideValuationStampUtc,
         ValuationCalculation Calculation);
+
+    /// <summary>
+    /// The query form of an applied valuation's snapshot, written beside the
+    /// snapshot row in the same save: the calculation as columns and one row
+    /// per addition, so a read never opens the JSON. The JSON stays the
+    /// immutable record the hash covers.
+    /// </summary>
+    internal static void AddCalculationRows(
+        PegasusDbContext context,
+        Guid snapshotId,
+        AppliedValuationSnapshot snapshot)
+    {
+        var calculation = snapshot.Calculation;
+        context.Set<AppliedValuationCalculationEntity>().Add(new()
+        {
+            SnapshotId = snapshotId,
+            CaseVersion = snapshot.CaseVersion,
+            GuideValuationId = snapshot.GuideValuationId,
+            GuideValuationStampUtc = snapshot.GuideValuationStampUtc,
+            GuideRetailValue = calculation.GuideRetailValue,
+            CommercialVatApplied = calculation.CommercialVatApplied,
+            CommercialVatAmount = calculation.CommercialVatAmount,
+            ValueIncludingVat = calculation.ValueIncludingVat,
+            PriorTotalLossPercentage = calculation.PriorTotalLossPercentage,
+            PriorTotalLossAmount = calculation.PriorTotalLossAmount,
+            AdditionsTotal = calculation.AdditionsTotal,
+            ConditionDeduction = calculation.ConditionDeduction,
+            Proposal = calculation.Proposal,
+        });
+        context.Set<AppliedValuationAdditionEntity>().AddRange(
+            calculation.Additions.Select((addition, ordinal) => new AppliedValuationAdditionEntity
+            {
+                SnapshotId = snapshotId,
+                Ordinal = ordinal,
+                PresetId = addition.PresetId,
+                PresetVersion = addition.PresetVersion,
+                Label = addition.Label,
+                SuggestedAmount = addition.SuggestedAmount,
+                Amount = addition.Amount,
+            }));
+    }
+
+    private static AppliedValuationSnapshot SnapshotOf(
+        AppliedValuationCalculationEntity calculation,
+        IEnumerable<AppliedValuationAdditionEntity> additions) =>
+        new(
+            calculation.CaseVersion,
+            calculation.GuideValuationId,
+            calculation.GuideValuationStampUtc,
+            new(
+                calculation.GuideRetailValue,
+                calculation.CommercialVatApplied,
+                calculation.CommercialVatAmount,
+                calculation.ValueIncludingVat,
+                calculation.PriorTotalLossPercentage,
+                calculation.PriorTotalLossAmount,
+                [.. additions.Select(MapAddition)],
+                calculation.AdditionsTotal,
+                calculation.ConditionDeduction,
+                calculation.Proposal));
+
+    private static ValuationAddition MapAddition(AppliedValuationAdditionEntity addition) =>
+        new(
+            addition.PresetId,
+            addition.PresetVersion,
+            addition.Label,
+            addition.SuggestedAmount,
+            addition.Amount);
 
     /// <summary>
     /// The one hash of an applied valuation, including the Case version the
@@ -472,7 +586,7 @@ public sealed class EfValuationStore(
     /// copy, whose guide cards carry new ids): the frozen snapshot with its
     /// guide id mapped, and the hash recomputed by <see cref="AppliedSnapshotHash"/>.
     /// </summary>
-    internal static (string SnapshotJson, string SnapshotHash) RepointAppliedSnapshot(
+    internal static (string SnapshotJson, string SnapshotHash, AppliedValuationSnapshot Snapshot) RepointAppliedSnapshot(
         AppliedValuationSnapshotEntity entity,
         Guid caseId,
         IReadOnlyDictionary<Guid, Guid> guideValuationIds)
@@ -498,7 +612,8 @@ public sealed class EfValuationStore(
                 snapshot.GuideValuationStampUtc,
                 snapshot.Calculation,
                 snapshot.Calculation.Proposal,
-                entity.Reason));
+                entity.Reason),
+            snapshot);
     }
 
     public async Task<IReadOnlyList<CaseValuation>> ListForCaseAsync(

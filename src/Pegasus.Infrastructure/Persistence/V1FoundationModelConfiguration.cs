@@ -71,6 +71,22 @@ internal static class V1FoundationModelConfiguration
             e.HasOne<CaseWorkEntity>().WithMany().HasForeignKey(x => x.WorkId).OnDelete(DeleteBehavior.Restrict);
             e.Property(x => x.SnapshotHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.AcceptedEngineerValue).HasPrecision(18, 2);
         });
+        builder.Entity<AppliedValuationCalculationEntity>(e =>
+        {
+            e.ToTable("AppliedValuationCalculations"); e.HasKey(x => x.SnapshotId);
+            e.HasOne<AppliedValuationSnapshotEntity>().WithOne().HasForeignKey<AppliedValuationCalculationEntity>(x => x.SnapshotId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.GuideRetailValue).HasPrecision(18, 2); e.Property(x => x.CommercialVatAmount).HasPrecision(18, 2);
+            e.Property(x => x.ValueIncludingVat).HasPrecision(18, 2); e.Property(x => x.PriorTotalLossPercentage).HasPrecision(18, 2);
+            e.Property(x => x.PriorTotalLossAmount).HasPrecision(18, 2); e.Property(x => x.AdditionsTotal).HasPrecision(18, 2);
+            e.Property(x => x.ConditionDeduction).HasPrecision(18, 2); e.Property(x => x.Proposal).HasPrecision(18, 2);
+        });
+        builder.Entity<AppliedValuationAdditionEntity>(e =>
+        {
+            e.ToTable("AppliedValuationAdditions"); e.HasKey(x => new { x.SnapshotId, x.Ordinal });
+            e.HasOne<AppliedValuationSnapshotEntity>().WithMany().HasForeignKey(x => x.SnapshotId).OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.Label).HasMaxLength(Pegasus.Core.Assessment.ValuationCalculationPolicy.MaximumAdditionLabelLength);
+            e.Property(x => x.SuggestedAmount).HasPrecision(18, 2); e.Property(x => x.Amount).HasPrecision(18, 2);
+        });
         builder.Entity<GlassRepairEstimateSessionEntity>(e =>
         {
             e.ToTable("GlassRepairEstimateSessions"); e.HasKey(x => x.Id); e.HasIndex(x => x.OperationKey).IsUnique();
