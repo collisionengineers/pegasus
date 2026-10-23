@@ -8,15 +8,18 @@ namespace Pegasus.Web.Background;
 /// Runs a Glass's VIN fill after Get valuation has answered its figures: the
 /// fill is a Case write under the workflow lock that the figures do not wait
 /// on. It runs on this host's provider work queue, in the order it was pressed
-/// for the Case, and a full queue fills the VIN in the press itself rather than
-/// dropping it. The fill logs and absorbs its own failures, so the figures
-/// stand as they were answered. Queued work is not started when the host
-/// stops, and is cancelled and logged by the queue at its time cap, which
-/// counts the wait behind earlier work for the Case.
+/// for the Case. A full queue fills the VIN in the press itself rather than
+/// dropping it, and does not wait on the Case's queue gate, because the fill
+/// takes the workflow lock itself. The fill logs and absorbs its own failures,
+/// and a fill the queue cancels while it runs is logged the same way, so the
+/// figures stand as they were answered. Queued work is not started when the
+/// host stops, and the queue logs work cancelled before it started, at its time
+/// cap (which counts the wait behind earlier work for the Case) or by shutdown.
 /// </summary>
-public sealed class GlassVinFillScheduler(
+public sealed partial class GlassVinFillScheduler(
     ProviderWorkQueue queue,
-    IServiceProvider services) : IScheduleGlassVinFill
+    IServiceProvider services,
+    ILogger<GlassVinFillScheduler> logger) : IScheduleGlassVinFill
 {
     public const string Kind = "glass-vin-fill";
 
@@ -29,11 +32,27 @@ public sealed class GlassVinFillScheduler(
     {
         ArgumentNullException.ThrowIfNull(actor);
         using var reservation = queue.Reserve(caseId);
-        var fill = new ProviderWork(caseId, Kind, (scope, token) =>
-            scope.GetRequiredService<IFillGlassVin>().FillAsync(actor, caseId, work, vin, token));
+        var fill = new ProviderWork(caseId, Kind, async (scope, token) =>
+        {
+            try
+            {
+                await scope.GetRequiredService<IFillGlassVin>().FillAsync(actor, caseId, work, vin, token);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                LogNotFilled(logger, caseId, nameof(OperationCanceledException));
+            }
+        });
         if (reservation.Admit(fill) == ProviderWorkAdmission.Full)
         {
-            await reservation.RunHereAsync(fill, services, cancellationToken);
+            await using var scope = services.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IFillGlassVin>()
+                .FillAsync(actor, caseId, work, vin, cancellationToken);
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Glass's VIN for case {CaseId} was not recorded: {Reason}")]
+    private static partial void LogNotFilled(ILogger logger, Guid caseId, string reason);
 }

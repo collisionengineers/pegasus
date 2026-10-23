@@ -159,7 +159,7 @@ public sealed class ProviderWorkQueueTests
             services.GetRequiredService<IServiceScopeFactory>(),
             TimeProvider.System,
             NullLogger<ProviderWorkService>.Instance);
-        var scheduler = new GlassVinFillScheduler(queue, services);
+        var scheduler = new GlassVinFillScheduler(queue, services, NullLogger<GlassVinFillScheduler>.Instance);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var caseId = Guid.NewGuid();
 
@@ -177,6 +177,36 @@ public sealed class ProviderWorkQueueTests
         {
             await service.StopAsync(CancellationToken.None);
         }
+    }
+
+    /// <summary>
+    /// With the queue full the fill runs in the press at once, even while other
+    /// work for the same Case holds the Case's queue gate: the fill takes the
+    /// workflow lock itself and does not wait out that work.
+    /// </summary>
+    [Fact]
+    public async Task AScheduledVinFillOnAFullQueueRunsAtOnceWithoutWaitingOnTheCasesGate()
+    {
+        var queue = new ProviderWorkQueue();
+        var caseId = Guid.NewGuid();
+        var fill = new RecordingVinFill();
+        using var services = new ServiceCollection().AddScoped<IFillGlassVin>(_ => fill).BuildServiceProvider();
+        var scheduler = new GlassVinFillScheduler(queue, services, NullLogger<GlassVinFillScheduler>.Instance);
+        for (var queued = 0; queued < ProviderWorkQueue.Capacity; queued++)
+        {
+            var key = Guid.NewGuid();
+            Assert.Equal(ProviderWorkAdmission.Queued, queue.Reserve(key).Admit(Work(key, (_, _) => Task.CompletedTask)));
+        }
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        using (var busy = queue.Reserve(caseId))
+        using (await queue.EnterAsync(caseId, CancellationToken.None))
+        {
+            await scheduler.ScheduleAsync(actor, caseId, CaseWorkSelector.Primary, "TESTVEH0A1B2C3D45", CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(10));
+        }
+
+        Assert.Equal((actor, caseId, CaseWorkSelector.Primary, "TESTVEH0A1B2C3D45"), Assert.Single(fill.Fills));
     }
 
     private sealed class RecordingVinFill : IFillGlassVin

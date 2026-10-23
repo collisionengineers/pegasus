@@ -135,6 +135,28 @@ public sealed class FetchGuideValuationTests
     }
 
     /// <summary>
+    /// A fill handed on names the work that was valued: a Case whose valued
+    /// work was the primary work is not filled on an Audit created after.
+    /// </summary>
+    [Fact]
+    public async Task AScheduledFillNamesThePrimaryWorkWhenThePrimaryWorkWasValued()
+    {
+        var vins = new RecordingVins();
+        var request = Request(ValuationSource.Glasses);
+        var fetch = new FetchGuideValuation(
+            [new AnsweringProvider(ValuationSource.Glasses, report: null, vin: "TESTVEH0A1B2C3D45")],
+            new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000) with { WorkId = request.CaseId }),
+            new RecordingSchedule(),
+            vins,
+            vins);
+
+        await fetch.ExecuteAsync(request, default);
+
+        var scheduled = Assert.Single(vins.Scheduled);
+        Assert.Equal(CaseWorkSelector.Primary, scheduled.Work);
+    }
+
+    /// <summary>
     /// The fill is a short local write queued under the Case's key; it goes in
     /// ahead of the report so it never waits out the report's provider fetch
     /// inside its own time cap.

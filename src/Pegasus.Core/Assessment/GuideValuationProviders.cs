@@ -226,12 +226,13 @@ public sealed class FetchGuideValuation(
         // does not wait out the report's provider fetch. That is not a
         // guarantee: the queue's consumers race for the Case's turn, and a
         // second press queues its fill behind the first press's report. A
-        // queued fill that is stopped by the host or passes the queue's time
-        // cap is logged by the queue, not as not filled.
+        // fill that is handed on names the work that was valued, not the
+        // selector: Current can name another work by the time it runs.
         var vin = quote.Vin;
         if (vin is not null && !request.AwaitVinFill)
         {
-            await _vinSchedule.ScheduleAsync(request.Actor, request.CaseId, request.Work, vin, cancellationToken);
+            var valued = data.WorkId == request.CaseId ? CaseWorkSelector.Primary : request.Work;
+            await _vinSchedule.ScheduleAsync(request.Actor, request.CaseId, valued, vin, cancellationToken);
         }
 
         // Every valuation's own report is filed on the Case as its evidence
