@@ -197,7 +197,7 @@ public sealed class StartupWarmupTests
     }
 
     [Fact]
-    public async Task APageRequestIsNotedButAQuietPathIsNot()
+    public async Task ASignedInPageRequestIsNotedButAQuietPathOrAnAnonymousOneIsNot()
     {
         var state = new StartupWarmupState(warms: true);
         var nexts = 0;
@@ -207,20 +207,30 @@ public sealed class StartupWarmupTests
             return Task.CompletedTask;
         };
 
+        var signedIn = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity("test"));
         foreach (var quiet in new[] { "/health/ready", "/css/site.css", "/js/app.js", "/fonts/a.woff2", "/images/a.png", "/diagnostics/x" })
         {
-            var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+            var context = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = signedIn };
             context.Request.Path = quiet;
             await PageRequestSignal.InvokeAsync(context, next, state);
             Assert.False(state.PageRequestSeen, quiet);
         }
 
-        var page = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        // The Always On ping and a scanner are not signed in, so they note nothing.
+        foreach (var anonymous in new[] { "/", "/Account/SignIn", "/wp-login.php", "/Cases" })
+        {
+            var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+            context.Request.Path = anonymous;
+            await PageRequestSignal.InvokeAsync(context, next, state);
+            Assert.False(state.PageRequestSeen, anonymous);
+        }
+
+        var page = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = signedIn };
         page.Request.Path = "/Cases";
         await PageRequestSignal.InvokeAsync(page, next, state);
 
         Assert.True(state.PageRequestSeen);
-        Assert.Equal(7, nexts);
+        Assert.Equal(11, nexts);
         Assert.True(state.TakePageRequestSignal());
         Assert.False(state.TakePageRequestSignal());
     }

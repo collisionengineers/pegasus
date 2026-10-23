@@ -14,8 +14,9 @@ namespace Pegasus.Web.Health;
 /// <remarks>
 /// <c>tp.threads</c> and <c>tp.pending</c> are read when the request starts.
 /// <c>gc.gen2.delta</c>, <c>gc.pause.ms.delta</c> and <c>majflt.delta</c> are the
-/// change over the request. <c>majflt.delta</c> is absent where
-/// <c>/proc/self/stat</c> is (Windows). Concurrent requests share the process
+/// change over the request. <c>majflt.delta</c> is read from the process's
+/// shared one-second sample, so it is zero for a request that starts and ends
+/// inside one second, and absent where <c>/proc/self/stat</c> is (Windows). Concurrent requests share the process
 /// counters, so a delta says what the process did during the request, not what
 /// the request did.
 /// </remarks>

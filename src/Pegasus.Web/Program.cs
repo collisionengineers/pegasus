@@ -1085,8 +1085,6 @@ if (applicationInsightsConfigured)
 {
     app.Use(RequestRuntimeStamps.InvokeAsync);
 }
-var keepWarmState = app.Services.GetRequiredService<StartupWarmupState>();
-app.Use((HttpContext context, RequestDelegate next) => PageRequestSignal.InvokeAsync(context, next, keepWarmState));
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method)
@@ -1165,6 +1163,8 @@ if (automationMcpOptions is not null)
     });
 }
 app.UseAuthentication();
+var keepWarmState = app.Services.GetRequiredService<StartupWarmupState>();
+app.Use((HttpContext context, RequestDelegate next) => PageRequestSignal.InvokeAsync(context, next, keepWarmState));
 app.Use(async (context, next) =>
 {
     // Identity's validation-driven cookie reissue used to incidentally attach

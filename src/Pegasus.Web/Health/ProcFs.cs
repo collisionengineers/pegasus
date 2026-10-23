@@ -16,14 +16,21 @@ internal static class ProcFs
 {
     private const int MajorFaultFieldAfterComm = 9;
 
-    // One reader for the life of the process: a request reads the figure twice
-    // (before and after), so the file is opened once, not twice per request.
-    private static readonly MajorFaultReader SelfStat = new("/proc/self/stat");
+    // UTF-8 takes at most three bytes for a character in the basic plane.
+    private const int StackStatChars = 512;
+
+    // One sample for the whole process: every request shares it, so the file is
+    // read at most once a second however many requests there are, and through
+    // one handle opened once.
+    private static readonly SampledMajorFaults SelfStat = new(
+        new MajorFaultReader("/proc/self/stat").Read,
+        static () => Environment.TickCount64);
 
     /// <summary>
-    /// Major page faults of this process so far, or null when the file is
-    /// absent. The file is opened once and every later read is a positional read
-    /// of that handle, so the delta over a request is exact and costs no open.
+    /// Major page faults of this process, or null when the file is absent. The
+    /// figure is the one sampled in the last second and shared across requests, so
+    /// a delta over a request is what the process did between two samples, and
+    /// is zero for a request that starts and ends inside one second.
     /// </summary>
     public static long? ReadMajorFaults() => SelfStat.Read();
 
@@ -33,8 +40,23 @@ internal static class ProcFs
     /// so the fields are counted from after the last closing parenthesis: state,
     /// ppid, pgrp, session, tty_nr, tpgid, flags, minflt, cminflt, majflt.
     /// </summary>
-    public static long? ParseMajorFaults(string? stat) =>
-        stat is null ? null : ParseMajorFaults(Encoding.UTF8.GetBytes(stat));
+    public static long? ParseMajorFaults(string? stat)
+    {
+        if (stat is null)
+        {
+            return null;
+        }
+
+        // The real file is a few hundred characters, so the bytes go on the
+        // stack and the heartbeat's read allocates nothing more.
+        if (stat.Length > StackStatChars)
+        {
+            return ParseMajorFaults(Encoding.UTF8.GetBytes(stat));
+        }
+
+        Span<byte> bytes = stackalloc byte[StackStatChars * 3];
+        return ParseMajorFaults(bytes[..Encoding.UTF8.GetBytes(stat, bytes)]);
+    }
 
     /// <summary>The same field from the file's bytes, which may end part way through a later field.</summary>
     public static long? ParseMajorFaults(ReadOnlySpan<byte> stat)
@@ -200,6 +222,33 @@ internal static class ProcFs
                 return null;
             }
         }
+    }
+
+    /// <summary>
+    /// Holds the last figure a reader gave for one second, so every request in
+    /// that second shares it. Concurrent callers at the moment it expires may each
+    /// read once; none ever waits.
+    /// </summary>
+    internal sealed class SampledMajorFaults(Func<long?> read, Func<long> milliseconds)
+    {
+        private const long PeriodMilliseconds = 1000;
+
+        private Sample? current;
+
+        public long? Read()
+        {
+            var now = milliseconds();
+            if (Volatile.Read(ref current) is { } held && now - held.At < PeriodMilliseconds)
+            {
+                return held.Faults;
+            }
+
+            var fresh = new Sample(now, read());
+            Volatile.Write(ref current, fresh);
+            return fresh.Faults;
+        }
+
+        private sealed record Sample(long At, long? Faults);
     }
 
     private static string[] Lines(string? text) =>
