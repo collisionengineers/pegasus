@@ -9,7 +9,8 @@ namespace Pegasus.Infrastructure.Custody;
 /// confirmed, current image versions filed within the plain thumbnail's idle
 /// lifetime that have no live plain thumbnail, newest first; then the saved
 /// rotation and crop of an image occurrence, under its own variant, that has
-/// no live thumbnail of that variant.
+/// no live thumbnail of that variant, for a version filed within the prepared
+/// thumbnail's idle lifetime.
 /// </summary>
 /// <remarks>
 /// A version whose thumbnail could not be made (a format the renderer does
@@ -19,11 +20,12 @@ namespace Pegasus.Infrastructure.Custody;
 /// A made thumbnail leaves the candidate set by itself and is not remembered.
 /// A version older than the lifetime is left
 /// to its first view, so an expired thumbnail is not made again for nobody.
-/// A saved rotation and crop is listed for the prepared thumbnail's own idle
-/// lifetime after it was saved or filed on the Case, whichever is later,
-/// which is as long as the thumbnail made for it lives unviewed, so it is
-/// made once ahead of its first view and not again for nobody. The plain thumbnails are listed first and fill the run
-/// before any saved variant does.
+/// A saved rotation and crop is listed only while its version was filed within
+/// the prepared thumbnail's own idle lifetime, and for that lifetime after it
+/// was saved or filed on the Case, whichever is later, which is as long as the
+/// thumbnail made for it lives unviewed, so it is made once ahead of its first
+/// view and not again for nobody. The plain thumbnails are listed first and
+/// fill the run before any saved variant does.
 /// </remarks>
 internal sealed class EfDocumentThumbnailCandidates(
     IDbContextFactory<PegasusDbContext> dbContextFactory,
@@ -78,22 +80,26 @@ internal sealed class EfDocumentThumbnailCandidates(
         if (listed.Count < maximumItems)
         {
             await AddSavedVariantsAsync(
-                db, listed, maximumItems, skipped, now, filedAfter, cancellationToken);
+                db, listed, maximumItems, skipped, now, cancellationToken);
         }
         return listed;
     }
 
     /// <summary>
     /// Fills the run with the saved rotation and crop of image occurrences
-    /// whose thumbnail of that variant is not cached. An occurrence counts
-    /// from the later of the time it was recorded on the Case and the time its
-    /// preparation was saved: filing an image copies the preparation time of
-    /// Image Intake onto the Case, which may be long before the filing. SQL
-    /// leaves out a version that has a live prepared thumbnail written since
-    /// that time and returns at most the places left in the run (and one more
-    /// for each deferred version), newest first. The cached variants of
+    /// whose thumbnail of that variant is not cached, for a version filed
+    /// within the prepared thumbnail's idle lifetime: the statement is driven
+    /// from the versions, bounded by the same filing time as the plain read,
+    /// and not from every occurrence. An occurrence counts from the later of
+    /// the time it was recorded on the Case and the time its preparation was
+    /// saved: filing an image copies the preparation time of Image Intake onto
+    /// the Case, which may be long before the filing. SQL leaves out a version
+    /// that has a live prepared thumbnail (other than the original content)
+    /// written since that time and returns the places left in the run (and one
+    /// more for each deferred version), newest first. The cached variants of
     /// the rows that come back are compared in memory, because the token is
-    /// formatted by Core and not by SQL.
+    /// formatted by Core and not by SQL; rows dropped there are replaced by
+    /// the next rows in order, so the run is filled while candidates remain.
     /// </summary>
     private static async Task AddSavedVariantsAsync(
         PegasusDbContext db,
@@ -101,19 +107,19 @@ internal sealed class EfDocumentThumbnailCandidates(
         int maximumItems,
         HashSet<Guid> skipped,
         DateTimeOffset now,
-        DateTimeOffset filedAfter,
         CancellationToken cancellationToken)
     {
         var plainVariant = DocumentThumbnailCache.Variant;
+        var originalVariant = CachedDocumentContentStore.OriginalVariant;
         var savedAfter = now - DocumentThumbnailCache.PreparedIdleLifetime;
         var preparedIdleHours = DocumentThumbnailCache.PreparedIdleLifetime.TotalHours;
         const long maximumLength = ImageThumbnailRendering.MaximumSourceBytes;
-        var saved = await (
-                from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
-                join version in db.Set<DocumentVersionEntity>().AsNoTracking()
-                    on occurrence.VersionId equals version.Id
+        var query =
+                from version in db.Set<DocumentVersionEntity>().AsNoTracking()
                 join document in db.Set<CaseDocumentEntity>().AsNoTracking()
                     on version.DocumentId equals document.Id
+                join occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                    on version.Id equals occurrence.VersionId
                 let changedAt = occurrence.PreparedAtUtc > occurrence.RecordedAtUtc
                     ? occurrence.PreparedAtUtc.Value
                     : occurrence.RecordedAtUtc
@@ -123,17 +129,20 @@ internal sealed class EfDocumentThumbnailCandidates(
                     && version.CustodyStatus == DocumentCustodyStatus.Confirmed
                     && version.IsCurrent
                     && !version.IsLogicallyRemoved
-                    && version.CreatedAtUtc > filedAfter
+                    && version.CreatedAtUtc > savedAfter
                     && version.ContentLength > 0
                     && version.ContentLength <= maximumLength
                     && EF.Functions.Like(version.MediaType, "image/%")
                     && !EF.Functions.Like(version.MediaType, "image/svg%")
                     // A prepared thumbnail written since the save is the one
                     // this occurrence is waiting for (a write gives it the
-                    // idle lifetime from that moment).
+                    // idle lifetime from that moment). The version's original
+                    // content shares the table and is published when the
+                    // image is filed and on any read, so it is not one.
                     && !db.Set<DocumentContentCacheEntryEntity>().Any(entry =>
                         entry.DocumentVersionId == version.Id
                         && entry.Variant != plainVariant
+                        && entry.Variant != originalVariant
                         && entry.ExpiresAtUtc > changedAt.AddHours(preparedIdleHours))
                 orderby changedAt descending, occurrence.Id
                 select new
@@ -152,47 +161,57 @@ internal sealed class EfDocumentThumbnailCandidates(
                     Cached = db.Set<DocumentContentCacheEntryEntity>()
                         .Where(entry => entry.DocumentVersionId == version.Id
                             && entry.Variant != plainVariant
+                            && entry.Variant != originalVariant
                             && entry.ExpiresAtUtc > now)
                         .Select(entry => entry.Variant)
                         .ToList()
-                })
-            .Take(maximumItems - listed.Count + skipped.Count)
-            .ToArrayAsync(cancellationToken);
+                };
 
         var seen = new HashSet<(Guid VersionId, string Variant)>();
-        foreach (var row in saved)
+        var offset = 0;
+        while (listed.Count < maximumItems)
         {
-            if (listed.Count >= maximumItems)
+            var take = maximumItems - listed.Count + skipped.Count;
+            var saved = await query.Skip(offset).Take(take).ToArrayAsync(cancellationToken);
+            offset += saved.Length;
+            foreach (var row in saved)
+            {
+                if (listed.Count >= maximumItems)
+                {
+                    return;
+                }
+                if (skipped.Contains(row.VersionId))
+                {
+                    continue;
+                }
+                var rotation = (CaseAssetRotation)row.RotationDegrees;
+                CaseAssetCrop? crop = row.CropLeft is { } left
+                    && row.CropTop is { } top
+                    && row.CropWidth is { } width
+                    && row.CropHeight is { } height
+                        ? new(left, top, width, height)
+                        : null;
+                var variant = CaseDocumentThumbnails.VariantToken(rotation, crop);
+                if (string.Equals(variant, plainVariant, StringComparison.Ordinal)
+                    || row.Cached.Contains(variant)
+                    || !seen.Add((row.VersionId, variant)))
+                {
+                    continue;
+                }
+                listed.Add(new DocumentThumbnailCandidate(
+                    row.CaseId,
+                    row.DocumentId,
+                    row.VersionId,
+                    row.Sha256,
+                    row.ContentLength,
+                    row.MediaType,
+                    rotation,
+                    crop));
+            }
+            if (saved.Length < take)
             {
                 return;
             }
-            if (skipped.Contains(row.VersionId))
-            {
-                continue;
-            }
-            var rotation = (CaseAssetRotation)row.RotationDegrees;
-            CaseAssetCrop? crop = row.CropLeft is { } left
-                && row.CropTop is { } top
-                && row.CropWidth is { } width
-                && row.CropHeight is { } height
-                    ? new(left, top, width, height)
-                    : null;
-            var variant = CaseDocumentThumbnails.VariantToken(rotation, crop);
-            if (string.Equals(variant, plainVariant, StringComparison.Ordinal)
-                || row.Cached.Contains(variant)
-                || !seen.Add((row.VersionId, variant)))
-            {
-                continue;
-            }
-            listed.Add(new DocumentThumbnailCandidate(
-                row.CaseId,
-                row.DocumentId,
-                row.VersionId,
-                row.Sha256,
-                row.ContentLength,
-                row.MediaType,
-                rotation,
-                crop));
         }
     }
 

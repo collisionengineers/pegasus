@@ -2135,6 +2135,60 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Filing publishes the image's original content to the same cache table
+    /// (a long-lived entry under the empty variant), and so does any read that
+    /// missed: that entry is not the saved variant's prepared thumbnail, so a
+    /// newly filed photograph with a saved rotation and crop is still listed
+    /// for it, and a version filed more than a day ago is not.
+    /// </summary>
+    [Fact]
+    public async Task ASavedVariantIsStillListedWhenFilingPublishedTheOriginalContent()
+    {
+        var image = TransparentPng(width: 960, height: 480);
+        var estate = await Estate.CreateDocumentAsync(image, "image/png");
+        await using (estate)
+        {
+            var now = estate.Clock.GetUtcNow();
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var version = await db.Set<DocumentVersionEntity>().SingleAsync();
+                version.CreatedAtUtc = now.AddMinutes(-5);
+                db.Add(new DocumentOccurrenceEntity
+                {
+                    Id = Guid.NewGuid(), CaseId = estate.Request.CaseId!.Value,
+                    DocumentId = estate.Request.DocumentId!.Value, VersionId = version.Id,
+                    Ordinal = 1, SourceOccurrenceIdentity = "filed-with-original", OperationKey = "filed-with-original",
+                    SemanticRole = DocumentSemanticRole.Image, Source = DocumentSource.StaffUpload,
+                    RecordedAtUtc = now.AddMinutes(-5), PreparedAtUtc = now.AddMinutes(-5),
+                    RotationDegrees = 90
+                });
+                db.Add(new DocumentContentCacheEntryEntity
+                {
+                    Id = Guid.NewGuid(), DocumentVersionId = version.Id,
+                    Variant = CachedDocumentContentStore.OriginalVariant,
+                    BlobIdentity = "original-content", VerifiedSha256 = version.Sha256,
+                    VerifiedSize = version.ContentLength, ExpiresAtUtc = now.AddDays(14),
+                    ConcurrencyToken = Guid.NewGuid()
+                });
+                await db.SaveChangesAsync();
+            }
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var candidates = new EfDocumentThumbnailCandidates(factory, estate.Clock);
+
+            Assert.Equal(
+                [CaseAssetRotation.None, CaseAssetRotation.Clockwise90],
+                (await candidates.ListAsync(5, CancellationToken.None)).Select(candidate => candidate.Rotation));
+
+            // A day on, the version was not filed within the day: left to its first view.
+            estate.Clock.Advance(TimeSpan.FromHours(25));
+            Assert.Equal(
+                [CaseAssetRotation.None],
+                (await candidates.ListAsync(5, CancellationToken.None)).Select(candidate => candidate.Rotation));
+        }
+    }
+
+    /// <summary>
     /// A saved rotation and crop counts from the later of its preparation and
     /// its filing on the Case: an image prepared in Image Intake more than a
     /// day before it was filed carries that old preparation time onto the
