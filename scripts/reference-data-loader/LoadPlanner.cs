@@ -332,11 +332,12 @@ internal sealed class LoadPlanner(ReferenceData data, LoadSettings settings, Loa
         Guid organizationId,
         CancellationToken cancellationToken)
     {
-        IEnumerable<ContactDirectoryRecord> holders = role switch
+        IEnumerable<(ContactRole Role, Guid OrganizationId, string Name)> holders = role switch
         {
-            ContactRole.Principal => _storedPrincipals,
-            ContactRole.ClaimSource => _storedClaimSources.Values,
-            _ => await ports.Contacts.FindPossibleMatchesAsync(settings.Actor, name, cancellationToken)
+            ContactRole.Principal => _storedPrincipals.Select(holder => (holder.Role, holder.OrganizationId, holder.Name)),
+            ContactRole.ClaimSource => _storedClaimSources.Values.Select(holder => (holder.Role, holder.OrganizationId, holder.Name)),
+            _ => (await ports.Contacts.FindPossibleMatchesAsync(settings.Actor, name, cancellationToken))
+                .Select(holder => (holder.Role, holder.OrganizationId, holder.Name))
         };
         return holders.Any(holder => holder.Role == role
             && holder.OrganizationId != organizationId

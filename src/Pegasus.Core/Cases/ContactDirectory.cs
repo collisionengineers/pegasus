@@ -33,6 +33,22 @@ public sealed record ContactDirectoryRecord(
     string? PrincipalCode = null,
     CaseInspectionMode? PrincipalInspectionMode = null);
 
+/// <summary>One directory organisation as a choice or a possible match offers it:
+/// the facts a Case link copies and a list draws, none of the Principal links, Principal
+/// facts or latest Case that <see cref="ContactDirectoryRecord"/> carries for the
+/// Contacts pages, receipts and history.</summary>
+public sealed record ContactChoice(
+    Guid OrganizationId,
+    string Name,
+    ContactRole Role,
+    long Version,
+    string? ContactPerson,
+    string? Email,
+    string? Telephone,
+    string? Address,
+    string? Postcode,
+    string? NotesOnEveryCase);
+
 public sealed record ContactDirectoryQuery(
     ActionActor Actor,
     ContactRole Role,
@@ -73,9 +89,9 @@ public interface IContactDirectoryQueries
     /// screens that let a member of staff link one to a Case. Casework
     /// authority, not directory administration.
     /// </summary>
-    Task<IReadOnlyList<ContactDirectoryRecord>> ListByRoleAsync(
+    Task<IReadOnlyList<ContactChoice>> ListByRoleAsync(
         ActionActor actor, ContactRole role, CancellationToken cancellationToken);
-    Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(
+    Task<IReadOnlyList<ContactChoice>> FindPossibleMatchesAsync(
         ActionActor actor, string name, CancellationToken cancellationToken);
     /// <summary>
     /// The Principals a contact may link: every active one and, for
@@ -93,7 +109,7 @@ public static class ContactDirectoryQueriesExtensions
     /// this identifier, or null when there is none, for the case screens that
     /// link one to a Case. Each caller keeps its own refusal.
     /// </summary>
-    public static async Task<ContactDirectoryRecord?> FindActiveByRoleAsync(
+    public static async Task<ContactChoice?> FindActiveByRoleAsync(
         this IContactDirectoryQueries queries,
         ActionActor actor,
         ContactRole role,

@@ -91,8 +91,8 @@ public sealed class EditModel(
     // when a save was refused.
     public PrincipalReportSendingRules ReportSendingRules { get; private set; } = PrincipalReportSendingRules.Default;
     public IReadOnlyList<string> SendFromChoices { get; private set; } = [];
-    public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
-    public IReadOnlyList<ContactDirectoryRecord> RepairerChoices { get; private set; } = [];
+    public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
+    public IReadOnlyList<ContactChoice> RepairerChoices { get; private set; } = [];
     [BindProperty] public bool LocationIsImageBasedAssessment { get; set; }
     [BindProperty, StringLength(200)] public string? LocationLabel { get; set; }
     [BindProperty, StringLength(500)] public string? LocationAddress { get; set; }

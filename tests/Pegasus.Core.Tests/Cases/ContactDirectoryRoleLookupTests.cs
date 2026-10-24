@@ -37,16 +37,16 @@ public sealed class ContactDirectoryRoleLookupTests
             Staff, ContactRole.Repairer, Guid.NewGuid(), CancellationToken.None));
     }
 
-    private static ContactDirectoryRecord Record(Guid organizationId) =>
-        new(organizationId, "Acme Repairs", null, null, null, null, null, true, ContactRole.Repairer, 1, null, null);
+    private static ContactChoice Record(Guid organizationId) =>
+        new(organizationId, "Acme Repairs", ContactRole.Repairer, 1, null, null, null, null, null, null);
 
     private sealed class RoleListing(
         ContactRole role,
-        IReadOnlyList<ContactDirectoryRecord> records) : IContactDirectoryQueries
+        IReadOnlyList<ContactChoice> records) : IContactDirectoryQueries
     {
-        public Task<IReadOnlyList<ContactDirectoryRecord>> ListByRoleAsync(
+        public Task<IReadOnlyList<ContactChoice>> ListByRoleAsync(
             ActionActor actor, ContactRole requested, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ContactDirectoryRecord>>(requested == role ? records : []);
+            Task.FromResult<IReadOnlyList<ContactChoice>>(requested == role ? records : []);
 
         public Task<ContactDirectoryRecord?> GetAsync(
             ActionActor actor, Guid organizationId, CancellationToken cancellationToken) =>
@@ -56,7 +56,7 @@ public sealed class ContactDirectoryRoleLookupTests
             ContactDirectoryQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(
+        public Task<IReadOnlyList<ContactChoice>> FindPossibleMatchesAsync(
             ActionActor actor, string name, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

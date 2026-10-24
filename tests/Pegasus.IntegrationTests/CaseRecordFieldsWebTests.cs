@@ -60,9 +60,9 @@ public sealed class CaseRecordFieldsWebTests
     {
         var store = new RecordingCaseDetailsStore();
         var ports = new RecordGapPorts(store);
-        var source = new ContactDirectoryRecord(
-            Guid.NewGuid(), "Acme Claims", "A Handler", "claims@acme.example", "0113 000 0000", null, null, true,
-            ContactRole.ClaimSource, 4, null, null, NotesOnEveryCase: "Quote the Acme reference.");
+        var source = new ContactChoice(
+            Guid.NewGuid(), "Acme Claims", ContactRole.ClaimSource, 4, "A Handler", "claims@acme.example",
+            "0113 000 0000", null, null, "Quote the Acme reference.");
         ports.ClaimSources.Add(source);
         using var workspace = await EnterEditModeAsync(store, ports.Register);
 
@@ -625,7 +625,7 @@ public sealed class CaseRecordFieldsWebTests
 
         public List<AssessmentFieldValue> Fields { get; } = [];
 
-        public List<ContactDirectoryRecord> ClaimSources { get; } = [];
+        public List<ContactChoice> ClaimSources { get; } = [];
 
         public void Register(IServiceCollection services)
         {
@@ -657,20 +657,19 @@ public sealed class CaseRecordFieldsWebTests
 
         Task<ContactDirectoryRecord?> IContactDirectoryQueries.GetAsync(
             ActionActor actor, Guid organizationId, CancellationToken cancellationToken) =>
-            Task.FromResult(ClaimSources.FirstOrDefault(item => item.OrganizationId == organizationId));
+            throw new NotSupportedException("The Case page links a Claim source from the choices alone.");
 
         Task<ContactDirectoryPage> IContactDirectoryQueries.ListAsync(
             ContactDirectoryQuery query, CancellationToken cancellationToken) =>
-            Task.FromResult<ContactDirectoryPage>(new([.. ClaimSources], 1, false));
+            throw new NotSupportedException("The Case page links a Claim source from the choices alone.");
 
-        Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.ListByRoleAsync(
+        Task<IReadOnlyList<ContactChoice>> IContactDirectoryQueries.ListByRoleAsync(
             ActionActor actor, ContactRole role, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ContactDirectoryRecord>>(
-                role == ContactRole.ClaimSource ? [.. ClaimSources.Where(item => item.Active)] : []);
+            Task.FromResult<IReadOnlyList<ContactChoice>>(role == ContactRole.ClaimSource ? [.. ClaimSources] : []);
 
-        Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.FindPossibleMatchesAsync(
+        Task<IReadOnlyList<ContactChoice>> IContactDirectoryQueries.FindPossibleMatchesAsync(
             ActionActor actor, string name, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ContactDirectoryRecord>>([]);
+            Task.FromResult<IReadOnlyList<ContactChoice>>([]);
 
         Task<IReadOnlyList<PrincipalAdministrationDetails>> IContactDirectoryQueries.ListPrincipalChoicesAsync(
             ActionActor actor, Guid? contactId, CancellationToken cancellationToken) =>
