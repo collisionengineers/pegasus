@@ -17,15 +17,8 @@ public sealed class ReturnCaseToReviewTests
     [Theory]
     [InlineData(CaseLifecycleState.ReportPreparation)]
     [InlineData(CaseLifecycleState.ReportSent)]
-    public async Task ReturnToReviewIsAcceptedFromWithEngineerAndReportSent(CaseLifecycleState state)
-    {
-        var store = new ReviewStore(state);
-
-        var returned = await new ReturnCaseToReview(store).ExecuteAsync(Request(), default);
-
-        Assert.NotNull(store.Returned);
-        Assert.Equal(CaseLifecycleState.Review, returned.State);
-    }
+    public void ReturnToReviewIsAcceptedFromWithEngineerAndReportSent(CaseLifecycleState state) =>
+        CaseLifecycleRules.RequireCanReturnToReview(state);
 
     [Theory]
     [InlineData(CaseLifecycleState.NotReady)]
@@ -35,40 +28,55 @@ public sealed class ReturnCaseToReviewTests
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.CreatedInError)]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
-    public async Task ReturnToReviewIsRefusedElsewhere(CaseLifecycleState state)
+    public void ReturnToReviewIsRefusedElsewhere(CaseLifecycleState state)
     {
-        var store = new ReviewStore(state);
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => CaseLifecycleRules.RequireCanReturnToReview(state));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => new ReturnCaseToReview(store).ExecuteAsync(Request(), default));
-
-        Assert.Null(store.Returned);
+        Assert.Equal("A case can enter Review only from With Engineer or Report sent.", exception.Message);
     }
 
+    /// <summary>
+    /// The state refusal and the replay exemption belong to the transition store, which asks
+    /// them of the workflow it read under its lock: the command reads no Case of its own
+    /// (eff-07-l, register A3-06).
+    /// </summary>
     [Fact]
-    public async Task ReplayOfAnAppliedReturnIsNotRefused()
+    public async Task ReturnToReviewReachesTheStoreWithoutReadingTheCaseFirst()
     {
-        var store = new ReviewStore(CaseLifecycleState.Review, replay: true);
+        var store = new ReviewStore();
 
-        await new ReturnCaseToReview(store).ExecuteAsync(Request(), default);
+        var returned = await new ReturnCaseToReview(store).ExecuteAsync(Request(), default);
 
         Assert.NotNull(store.Returned);
+        Assert.Equal(CaseLifecycleState.Review, returned.State);
+        Assert.Equal(0, store.Reads);
     }
 
     private static ReturnCaseToReviewRequest Request() =>
         new(CaseId, 4, Actor, "return-to-review", "Back to Review", "lease-token");
 
-    private sealed class ReviewStore(CaseLifecycleState state, bool replay = false) : ICaseWorkflowStore
+    private sealed class ReviewStore : ICaseWorkflowStore
     {
-        private CaseWorkflowRecord _current = CaseQueryRulesTests.Workflow(state, hasOpenQuery: false);
+        private CaseWorkflowRecord _current =
+            CaseQueryRulesTests.Workflow(CaseLifecycleState.ReportPreparation, hasOpenQuery: false);
 
         public ReturnCaseToReviewRequest? Returned { get; private set; }
 
-        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? _current : null);
+        /// <summary>Every read of the Case or of its operations a command made before the write.</summary>
+        public int Reads { get; private set; }
 
-        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
-            Task.FromResult(replay);
+        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? _current : null);
+        }
+
+        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult(false);
+        }
 
         public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken)
         {
@@ -78,10 +86,10 @@ public sealed class ReturnCaseToReviewTests
         }
 
         public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(IReadOnlyCollection<Guid> caseIds, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseWorkflowRecord> ChangeStateAsync(CaseMutationRequest request, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseWorkflowRecord> StartWorkAsync(CaseMutationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReleaseHoldAsync(CaseMutationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseWorkflowRecord> AssignEngineerAsync(AssignCaseEngineerRequest request, Guid? signOffEngineerId, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseEngineerAssignment> AssignEngineerAsync(AssignCaseEngineerRequest request, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> RecordReportApprovalAsync(RecordCaseReportApprovalRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(LinkReportEvidenceRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> UnlinkReportEvidenceAsync(UnlinkReportEvidenceRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();

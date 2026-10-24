@@ -157,6 +157,10 @@ public sealed class DueChaserSweepPersistenceTests
         {
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE Cases SET InstructionComplete = {true}, ImagesComplete = {true} WHERE Id = {harness.CaseId}"));
+            // Return to Review asks its state rule (With Engineer or Report sent) before
+            // the readiness gate, so the Case is put in a state that passes it.
+            Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportPreparation)} WHERE CaseId = {harness.CaseId}"));
         }
 
         var current = await harness.WorkflowStore.GetAsync(harness.CaseId, default);

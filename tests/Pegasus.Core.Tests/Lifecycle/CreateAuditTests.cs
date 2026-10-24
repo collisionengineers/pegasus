@@ -118,99 +118,40 @@ public sealed class CreateAuditTests
         Assert.Equal("Audit a.QDOS26214 created by A Mercer", AuditPolicy.HistoryLine("a.QDOS26214", "A Mercer"));
     }
 
+    /// <summary>
+    /// The Case is read once, by the store under its lock, which applies
+    /// <see cref="AuditPolicy"/> and the Engineer's eligibility to it and answers
+    /// a replay from its record: the use case reads nothing of its own
+    /// (eff-07-l, register A3-06).
+    /// </summary>
     [Fact]
-    public async Task CreateAuditCarriesTheAuditReferenceAndEngineerAndPublishesTheFolderWork()
+    public async Task CreateAuditPassesTheTrimmedRequestToTheStoreAndPublishesTheFolderWork()
     {
         var store = new RecordingStore();
         var publisher = new RecordingPublisher();
-        var sut = Sut(Workflow(CaseLifecycleState.ReportSent), store, publisher);
+        var sut = new CreateAudit(store, publisher);
 
         var result = await sut.ExecuteAsync(Request() with { OperationKey = "  create-audit-1  " }, default);
 
-        var command = Assert.Single(store.Commands);
-        Assert.Equal("a.QDOS26214", command.AuditReference);
-        Assert.Equal("QDOS26214", command.Case.Reference);
-        Assert.Equal(EngineerId, command.EngineerId);
-        Assert.Equal("create-audit-1", command.Request.OperationKey);
+        var request = Assert.Single(store.Requests);
+        Assert.Equal("create-audit-1", request.OperationKey);
+        Assert.Equal("lease-token", request.EditLeaseToken);
         Assert.Equal("a.QDOS26214", result.AuditReference);
         Assert.False(result.IsReplay);
         Assert.Equal(CustodyWorkId, Assert.Single(publisher.Published));
     }
 
     [Fact]
-    public async Task ARefusalNamesTheCaseAndReachesNoStore()
-    {
-        var store = new RecordingStore();
-        var sut = Sut(Workflow(CaseLifecycleState.Held), store, new RecordingPublisher());
-
-        var exception = await Assert.ThrowsAsync<AuditCreationException>(() => sut.ExecuteAsync(Request(), default));
-
-        Assert.Equal(AuditRefusal.Held, exception.Refusal);
-        Assert.Equal(CaseId, exception.CaseId);
-        Assert.Empty(store.Commands);
-    }
-
-    [Fact]
-    public async Task AnExistingAuditIsRefused()
-    {
-        var store = new RecordingStore();
-        var sut = Sut(Workflow(CaseLifecycleState.ReportPreparation), store, new RecordingPublisher(), WithAudit());
-
-        var exception = await Assert.ThrowsAsync<AuditCreationException>(() => sut.ExecuteAsync(Request(), default));
-
-        Assert.Equal(AuditRefusal.AuditAlreadyExists, exception.Refusal);
-        Assert.Empty(store.Commands);
-    }
-
-    [Fact]
-    public async Task NoAssignedEngineerIsRefused()
-    {
-        var store = new RecordingStore();
-        var sut = Sut(Workflow(CaseLifecycleState.ReportSent, assigned: false), store, new RecordingPublisher());
-
-        var exception = await Assert.ThrowsAsync<AuditCreationException>(() => sut.ExecuteAsync(Request(), default));
-
-        Assert.Equal(AuditRefusal.NoAssignedEngineer, exception.Refusal);
-        Assert.Empty(store.Commands);
-    }
-
-    [Theory]
-    [InlineData(false, true, "The assigned staff account does not exist.")]
-    [InlineData(true, false, "The assigned staff account is disabled.")]
-    public async Task AnIneligibleEngineerIsRefusedAsReturnToEngineerRefusesThem(
-        bool accountExists,
-        bool isEnabled,
-        string message)
-    {
-        var store = new RecordingStore();
-        var sut = Sut(
-            Workflow(CaseLifecycleState.ReportSent),
-            store,
-            new RecordingPublisher(),
-            eligibility: new CaseEngineerEligibility(accountExists, isEnabled));
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => sut.ExecuteAsync(Request(), default));
-
-        Assert.Equal(message, exception.Message);
-        Assert.Empty(store.Commands);
-    }
-
-    [Fact]
-    public async Task AReplayIsAnsweredByTheStoreWithoutAskingTheRuleAgainOrPublishing()
+    public async Task AReplayIsAnsweredByTheStoreWithoutPublishing()
     {
         var store = new RecordingStore { Replay = true };
         var publisher = new RecordingPublisher();
-        var sut = Sut(
-            Workflow(CaseLifecycleState.ReportPreparation),
-            store,
-            publisher,
-            WithAudit(),
-            hasOperation: true);
+        var sut = new CreateAudit(store, publisher);
 
         var result = await sut.ExecuteAsync(Request(), default);
 
         Assert.True(result.IsReplay);
-        Assert.Single(store.Commands);
+        Assert.Single(store.Requests);
         Assert.Empty(publisher.Published);
     }
 
@@ -218,21 +159,63 @@ public sealed class CreateAuditTests
     public async Task OnlyAnActorAllowedCaseworkMayCreateAnAudit()
     {
         var store = new RecordingStore();
-        var sut = Sut(Workflow(CaseLifecycleState.ReportSent), store, new RecordingPublisher());
+        var sut = new CreateAudit(store, new RecordingPublisher());
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => sut.ExecuteAsync(
             Request() with { Actor = ActionActor.SystemWorker("worker") },
             default));
-        Assert.Empty(store.Commands);
+        Assert.Empty(store.Requests);
     }
 
     [Fact]
     public async Task AnOperationKeyAndAnEditLeaseAreRequired()
     {
-        var sut = Sut(Workflow(CaseLifecycleState.ReportSent), new RecordingStore(), new RecordingPublisher());
+        var sut = new CreateAudit(new RecordingStore(), new RecordingPublisher());
 
         await Assert.ThrowsAsync<ArgumentException>(() => sut.ExecuteAsync(Request() with { OperationKey = " " }, default));
         await Assert.ThrowsAsync<ArgumentException>(() => sut.ExecuteAsync(Request() with { EditLeaseToken = "" }, default));
+    }
+
+    /// <summary>The rule the store asks of the facts it read is the one the Case page asks of the Case.</summary>
+    [Fact]
+    public void TheFactsFormOfTheRuleKeepsTheOrderOfTheRecordForm()
+    {
+        Assert.Equal(
+            AuditRefusal.CreatedInError,
+            AuditPolicy.Refusal(CaseType.InspectionAndAudit, CaseLifecycleState.CreatedInError, true, true, false));
+        Assert.Equal(
+            AuditRefusal.Archived,
+            AuditPolicy.Refusal(CaseType.InspectionAndAudit, CaseLifecycleState.ReportSent, true, true, false));
+        Assert.Equal(
+            AuditRefusal.AuditAlreadyExists,
+            AuditPolicy.Refusal(CaseType.InspectionAndAudit, CaseLifecycleState.Held, false, true, false));
+        Assert.Equal(
+            AuditRefusal.Held,
+            AuditPolicy.Refusal(CaseType.InspectionAndAudit, CaseLifecycleState.Held, false, false, false));
+        Assert.Equal(
+            AuditRefusal.NoAssignedEngineer,
+            AuditPolicy.Refusal(CaseType.InspectionAndAudit, CaseLifecycleState.ReportSent, false, false, false));
+        Assert.Null(
+            AuditPolicy.Refusal(CaseType.InspectionAndAudit, CaseLifecycleState.ReportSent, false, false, true));
+    }
+
+    /// <summary>
+    /// The one eligibility refusal Create audit, Start, Assign and Return to Engineer
+    /// ask of the Engineer account the store read: both branches, in their exact words.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, "The assigned staff account does not exist.")]
+    [InlineData(true, false, "The assigned staff account is disabled.")]
+    public void AnIneligibleEngineerIsRefusedInTheWordsReturnToEngineerAlwaysUsed(
+        bool accountExists,
+        bool isEnabled,
+        string message)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => CaseEngineerEligibilityPolicy.Require(new CaseEngineerEligibility(accountExists, isEnabled)));
+
+        Assert.Equal(message, exception.Message);
+        CaseEngineerEligibilityPolicy.Require(new CaseEngineerEligibility(true, true));
     }
 
     private static CreateAuditRequest Request() => new(CaseId, 4, Staff, "create-audit-1", "lease-token");
@@ -284,64 +267,20 @@ public sealed class CreateAuditTests
         Now.AddDays(-1),
         ActionActor.SystemWorker("poller"));
 
-    private static CreateAudit Sut(
-        CaseWorkflowRecord workflow,
-        RecordingStore store,
-        RecordingPublisher publisher,
-        CaseWorkSet? works = null,
-        bool hasOperation = false,
-        CaseEngineerEligibility? eligibility = null) => new(
-            new FakeHeader(workflow, works ?? PrimaryOnly()),
-            new FakeWorkflowQueries(workflow, hasOperation),
-            new FakeEligibility(eligibility ?? new CaseEngineerEligibility(true, true)),
-            store,
-            publisher);
-
-    private sealed class FakeHeader(CaseWorkflowRecord workflow, CaseWorkSet works) : IGetCaseHeader
-    {
-        public Task<CaseHeader?> ExecuteAsync(GetCaseHeaderQuery query, CancellationToken cancellationToken)
-        {
-            var summary = new CaseSearchItem(
-                CaseId, "QDOS26214", null, CaseType.InspectionAndAudit, "QDOS", workflow.State, workflow.AssignedEngineerId,
-                "AB12CDE", "A Claimant", null, Now, "manual", Now);
-            return Task.FromResult<CaseHeader?>(new CaseHeader(summary, workflow, null, 0, 0, 0, works));
-        }
-    }
-
-    private sealed class FakeWorkflowQueries(CaseWorkflowRecord workflow, bool hasOperation) : ICaseWorkflowQueries
-    {
-        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseWorkflowRecord?>(workflow);
-
-        public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
-            IReadOnlyCollection<Guid> caseIds,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
-            Task.FromResult(hasOperation);
-    }
-
-    private sealed class FakeEligibility(CaseEngineerEligibility eligibility) : ICaseEngineerEligibility
-    {
-        public Task<CaseEngineerEligibility> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
-            Task.FromResult(eligibility);
-    }
-
     private sealed class RecordingStore : ICreateAuditStore
     {
-        public List<CreateAuditCommand> Commands { get; } = [];
+        public List<CreateAuditRequest> Requests { get; } = [];
 
         public bool Replay { get; init; }
 
-        public Task<CreateAuditOutcome> CreateAsync(CreateAuditCommand command, CancellationToken cancellationToken)
+        public Task<CreateAuditOutcome> CreateAsync(CreateAuditRequest request, CancellationToken cancellationToken)
         {
-            Commands.Add(command);
+            Requests.Add(request);
             return Task.FromResult(new CreateAuditOutcome(
                 new CreateAuditResult(
-                    command.Case with { AuditReference = command.AuditReference },
+                    new CaseIdentity(CaseId, "QDOS", 2026, 214, "QDOS26214") with { AuditReference = "a.QDOS26214" },
                     Guid.NewGuid(),
-                    command.AuditReference,
+                    "a.QDOS26214",
                     Replay),
                 CustodyWorkId));
         }

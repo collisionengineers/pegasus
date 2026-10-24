@@ -75,16 +75,8 @@ public sealed class PutCaseOnHoldTests
     [InlineData(CaseLifecycleState.NotReady)]
     [InlineData(CaseLifecycleState.Review)]
     [InlineData(CaseLifecycleState.ReportPreparation)]
-    public async Task HoldIsAcceptedFromNotReadyReviewAndWithEngineer(CaseLifecycleState state)
-    {
-        var store = new HoldStore(state);
-        var sut = new PutCaseOnHold(store, new FixedTimeProvider(Now));
-
-        var held = await sut.ExecuteAsync(Request(reviewOn: null), default);
-
-        Assert.NotNull(store.Held);
-        Assert.Equal(CaseLifecycleState.Held, held.State);
-    }
+    public void HoldIsAcceptedFromNotReadyReviewAndWithEngineer(CaseLifecycleState state) =>
+        CaseLifecycleRules.RequireCanBeHeld(state);
 
     [Theory]
     [InlineData(CaseLifecycleState.Held)]
@@ -93,25 +85,39 @@ public sealed class PutCaseOnHoldTests
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.CreatedInError)]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
-    public async Task HoldIsRefusedOutsideNotReadyReviewAndWithEngineer(CaseLifecycleState state)
+    public void HoldIsRefusedOutsideNotReadyReviewAndWithEngineer(CaseLifecycleState state)
     {
-        var store = new HoldStore(state);
-        var sut = new PutCaseOnHold(store, new FixedTimeProvider(Now));
+        var exception = Assert.Throws<InvalidOperationException>(() => CaseLifecycleRules.RequireCanBeHeld(state));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sut.ExecuteAsync(Request(reviewOn: null), default));
-
-        Assert.Null(store.Held);
+        Assert.Equal("A case can be held only from Not ready, Review or With Engineer.", exception.Message);
     }
 
     [Fact]
-    public async Task ReplayOfAnAppliedHoldIsNotRefused()
+    public void ReleaseIsAcceptedFromHeldOnly()
     {
-        var store = new HoldStore(CaseLifecycleState.Held, replay: true);
-        var sut = new PutCaseOnHold(store, new FixedTimeProvider(Now));
+        CaseLifecycleRules.RequireCanBeReleased(CaseLifecycleState.Held);
 
-        await sut.ExecuteAsync(Request(reviewOn: null), default);
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => CaseLifecycleRules.RequireCanBeReleased(CaseLifecycleState.Review));
+        Assert.Equal("Only a held case can be released.", exception.Message);
+    }
 
+    /// <summary>
+    /// The state refusal and the replay exemption belong to the transition store, which asks
+    /// them of the workflow it read under its lock: the commands read no Case of their own
+    /// (eff-07-l, register A3-06).
+    /// </summary>
+    [Fact]
+    public async Task HoldAndReleaseReachTheStoreWithoutReadingTheCaseFirst()
+    {
+        var store = new HoldStore();
+
+        await new PutCaseOnHold(store, new FixedTimeProvider(Now)).ExecuteAsync(Request(reviewOn: null), default);
+        await new ReleaseCaseHold(store).ExecuteAsync(
+            new ChangeCaseStateRequest(CaseId, 1, Actor, "release", "Back to work", "lease-token"),
+            default);
+
+        Assert.Equal(0, store.Reads);
         Assert.NotNull(store.Held);
     }
 
@@ -123,16 +129,17 @@ public sealed class PutCaseOnHoldTests
         public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
-    private sealed class HoldStore(
-        CaseLifecycleState state = CaseLifecycleState.Review,
-        bool replay = false) : ICaseWorkflowStore
+    private sealed class HoldStore : ICaseWorkflowStore
     {
         public PutCaseOnHoldRequest? Held { get; private set; }
+
+        /// <summary>Every read of the Case or of its operations a command made before the write.</summary>
+        public int Reads { get; private set; }
 
         private CaseWorkflowRecord _current = new(
             CaseId,
             new(CaseId, "QDOS", 2026, 1, "QDOS260001"),
-            state,
+            CaseLifecycleState.Review,
             null,
             null,
             null,
@@ -142,16 +149,22 @@ public sealed class PutCaseOnHoldTests
             null,
             0);
 
-        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? _current : null);
+        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? _current : null);
+        }
 
         public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
             IReadOnlyCollection<Guid> caseIds,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
-            Task.FromResult(replay);
+        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult(false);
+        }
 
         public Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken)
         {
@@ -178,13 +191,13 @@ public sealed class PutCaseOnHoldTests
             return Task.FromResult(_current);
         }
 
-        public Task<CaseWorkflowRecord> AssignEngineerAsync(AssignCaseEngineerRequest request, Guid? signOffEngineerId, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseEngineerAssignment> AssignEngineerAsync(AssignCaseEngineerRequest request, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseEditLease> ClaimAsync(ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseEditLease> RenewAsync(RenewCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseEditLease> HeartbeatAsync(HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseEditLease?> ResumeAsync(ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseWorkflowRecord> ChangeStateAsync(CaseMutationRequest request, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseWorkflowRecord> StartWorkAsync(CaseMutationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> RecordReportApprovalAsync(RecordCaseReportApprovalRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(LinkReportEvidenceRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();

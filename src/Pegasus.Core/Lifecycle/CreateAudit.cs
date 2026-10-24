@@ -24,13 +24,6 @@ public sealed record CreateAuditRequest(
     string OperationKey,
     string EditLeaseToken);
 
-/// <summary>The validated command the store carries out.</summary>
-public sealed record CreateAuditCommand(
-    CreateAuditRequest Request,
-    CaseIdentity Case,
-    string AuditReference,
-    Guid EngineerId);
-
 public sealed record CreateAuditResult(
     CaseIdentity Case,
     Guid AuditWorkId,
@@ -75,37 +68,56 @@ public static class AuditPolicy
     public static AuditRefusal? Refusal(CaseType caseType, CaseWorkflowRecord workflow, CaseWorkSet? works)
     {
         ArgumentNullException.ThrowIfNull(workflow);
+        return Refusal(
+            caseType,
+            workflow.State,
+            workflow.Archive is not null,
+            works?.HasAudit == true,
+            workflow.AssignedEngineerId is not null);
+    }
+
+    /// <summary>
+    /// The same rule asked of the facts the store reads under its lock, so the
+    /// refusal and its order are one.
+    /// </summary>
+    public static AuditRefusal? Refusal(
+        CaseType caseType,
+        CaseLifecycleState state,
+        bool archived,
+        bool hasAudit,
+        bool hasAssignedEngineer)
+    {
         if (caseType != CaseType.InspectionAndAudit)
         {
             return AuditRefusal.NotInspectionAndAudit;
         }
 
-        if (workflow.State == CaseLifecycleState.CreatedInError)
+        if (state == CaseLifecycleState.CreatedInError)
         {
             return AuditRefusal.CreatedInError;
         }
 
-        if (workflow.Archive is not null)
+        if (archived)
         {
             return AuditRefusal.Archived;
         }
 
-        if (works?.HasAudit == true)
+        if (hasAudit)
         {
             return AuditRefusal.AuditAlreadyExists;
         }
 
-        if (workflow.State == CaseLifecycleState.Held)
+        if (state == CaseLifecycleState.Held)
         {
             return AuditRefusal.Held;
         }
 
-        if (CaseLifecycleRules.IsTerminal(workflow.State))
+        if (CaseLifecycleRules.IsTerminal(state))
         {
             return AuditRefusal.Closed;
         }
 
-        if (workflow.AssignedEngineerId is null)
+        if (!hasAssignedEngineer)
         {
             return AuditRefusal.NoAssignedEngineer;
         }
@@ -130,9 +142,15 @@ public static class AuditPolicy
         $"Audit {auditReference} created by {actorName}";
 }
 
+/// <summary>
+/// Carries out Create audit in one transaction. The store reads the Case under
+/// its lock and applies <see cref="AuditPolicy"/> and the assigned Engineer's
+/// eligibility to what it read, except for a replay of an operation it already
+/// committed, which it answers from its record.
+/// </summary>
 public interface ICreateAuditStore
 {
-    Task<CreateAuditOutcome> CreateAsync(CreateAuditCommand command, CancellationToken cancellationToken);
+    Task<CreateAuditOutcome> CreateAsync(CreateAuditRequest request, CancellationToken cancellationToken);
 }
 
 public interface ICreateAudit
@@ -141,16 +159,9 @@ public interface ICreateAudit
 }
 
 public sealed class CreateAudit(
-    IGetCaseHeader cases,
-    ICaseWorkflowQueries workflows,
-    ICaseEngineerEligibility eligibility,
     ICreateAuditStore store,
     ICommittedExternalWorkPublisher committedExternalWorkPublisher) : ICreateAudit
 {
-    private readonly IGetCaseHeader _cases = cases ?? throw new ArgumentNullException(nameof(cases));
-    private readonly ICaseWorkflowQueries _workflows = workflows ?? throw new ArgumentNullException(nameof(workflows));
-    private readonly ICaseEngineerEligibility _eligibility = eligibility
-        ?? throw new ArgumentNullException(nameof(eligibility));
     private readonly ICreateAuditStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICommittedExternalWorkPublisher _committedExternalWorkPublisher = committedExternalWorkPublisher
         ?? throw new ArgumentNullException(nameof(committedExternalWorkPublisher));
@@ -180,31 +191,8 @@ public sealed class CreateAudit(
             throw new ArgumentOutOfRangeException(nameof(request), "The operation key or edit lease is too long.");
         }
 
-        var header = await _cases.ExecuteAsync(new GetCaseHeaderQuery(request.CaseId, request.Actor), cancellationToken)
-            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        var workflow = header.Workflow;
-        // A retried request is answered by the store from its committed record;
-        // the Case has moved on since, so the rule is not asked again.
-        var isReplay = await _workflows.HasOperationAsync(request.CaseId, operationKey, cancellationToken);
-        if (!isReplay)
-        {
-            var refusal = AuditPolicy.Refusal(header.Summary.CaseType, workflow, header.Works);
-            if (refusal is not null || workflow.AssignedEngineerId is not { } engineerId)
-            {
-                throw new AuditCreationException(request.CaseId, refusal ?? AuditRefusal.NoAssignedEngineer);
-            }
-
-            // Return to Engineer's eligibility check: the Case goes back to its Engineer.
-            await CaseEngineerEligibilityPolicy.RequireEligibleAsync(_eligibility, engineerId, cancellationToken);
-        }
-
-        var identity = workflow.Identity;
         var outcome = await _store.CreateAsync(
-            new CreateAuditCommand(
-                request with { OperationKey = operationKey, EditLeaseToken = editLeaseToken },
-                identity,
-                CaseReferenceFormat.AuditReport(identity.Reference),
-                workflow.AssignedEngineerId ?? Guid.Empty),
+            request with { OperationKey = operationKey, EditLeaseToken = editLeaseToken },
             cancellationToken);
         if (!outcome.Result.IsReplay)
         {

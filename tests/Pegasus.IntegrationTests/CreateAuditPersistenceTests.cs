@@ -209,7 +209,7 @@ public sealed class CreateAuditPersistenceTests
         Assert.Null(primary.ReportSentEvidenceId);
     }
 
-    /// <summary>The store guards its own transaction, whatever Core decided before it.</summary>
+    /// <summary>The store applies the Create audit rule to the Case it reads under its lock.</summary>
     [Fact]
     public async Task TheStoreRefusesAHeldCaseByItself()
     {
@@ -219,16 +219,58 @@ public sealed class CreateAuditPersistenceTests
             $"UPDATE CaseWorkflows SET State = 'Held' WHERE CaseId = '{harness.CaseId:D}'");
         var store = harness.Services.GetRequiredService<ICreateAuditStore>();
 
-        var refused = await Assert.ThrowsAsync<AuditCreationException>(() => store.CreateAsync(
-            new CreateAuditCommand(
-                request,
-                new CaseIdentity(harness.CaseId, "QDOS", 2031, 7, Reference),
-                AuditReference,
-                harness.EngineerId),
-            default));
+        var refused = await Assert.ThrowsAsync<AuditCreationException>(() => store.CreateAsync(request, default));
 
         Assert.Equal(AuditRefusal.Held, refused.Refusal);
         await harness.AssertNoAuditAsync();
+    }
+
+    [Fact]
+    public async Task ACaseWithNoAssignedEngineerIsRefusedAndLeavesTheCaseUntouched()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.ExecuteSqlAsync(
+            $"UPDATE CaseWorkflows SET AssignedEngineerId = NULL WHERE CaseId = '{harness.CaseId:D}'");
+        var request = await harness.RequestAsync("create-audit-no-engineer");
+
+        var refused = await Assert.ThrowsAsync<AuditCreationException>(
+            () => harness.CreateAudit.ExecuteAsync(request, default));
+
+        Assert.Equal(AuditRefusal.NoAssignedEngineer, refused.Refusal);
+        await harness.AssertNoAuditAsync();
+    }
+
+    /// <summary>
+    /// The store asks the assigned Engineer's eligibility under its lock, as Return to
+    /// Engineer does, and not again for a replay of the Create audit it already committed.
+    /// </summary>
+    [Fact]
+    public async Task ADisabledEngineerIsRefusedAndLeavesTheCaseUntouched()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var request = await harness.RequestAsync("create-audit-disabled-engineer");
+        await harness.SetEngineerEnabledAsync(false);
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => harness.CreateAudit.ExecuteAsync(request, default));
+
+        Assert.Equal("The assigned staff account is disabled.", refused.Message);
+        await harness.AssertNoAuditAsync();
+    }
+
+    [Fact]
+    public async Task AReplayIsAnsweredEvenAfterTheEngineerIsDisabled()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var request = await harness.RequestAsync("create-audit-then-disable");
+        var first = await harness.CreateAudit.ExecuteAsync(request, default);
+        await harness.SetEngineerEnabledAsync(false);
+
+        var replay = await harness.CreateAudit.ExecuteAsync(request, default);
+
+        Assert.True(replay.IsReplay);
+        Assert.Equal(first.AuditWorkId, replay.AuditWorkId);
+        Assert.Equal(first.Case, replay.Case);
     }
 
     /// <summary>
@@ -439,6 +481,10 @@ public sealed class CreateAuditPersistenceTests
             Assert.Equal(evidence.EvidenceId, primary.ReportSentEvidenceId);
         }
 
+        // Unlink asks its state rule (only while Report preparation is active) of the
+        // workflow it reads under its lock, so the Case is put back to With Engineer first.
+        await harness.ExecuteSqlAsync(
+            $"UPDATE CaseWorkflows SET State = 'ReportPreparation' WHERE CaseId = '{harness.CaseId:D}'");
         var (version, token) = await harness.ClaimAsync("unlink-audit-evidence");
         var unlinked = await harness.Workflows.UnlinkReportEvidenceAsync(
             new(harness.CaseId, version, harness.Actor, "unlink-audit-evidence", "Not the Audit report", token, evidence.EvidenceId),
@@ -806,9 +852,6 @@ public sealed class CreateAuditPersistenceTests
             Workflows = services.GetRequiredService<ICaseWorkflowStore>();
             Leases = services.GetRequiredService<ILeaseCaseForEdit>();
             CreateAudit = new Pegasus.Core.Lifecycle.CreateAudit(
-                services.GetRequiredService<IGetCaseHeader>(),
-                services.GetRequiredService<ICaseWorkflowQueries>(),
-                services.GetRequiredService<ICaseEngineerEligibility>(),
                 services.GetRequiredService<ICreateAuditStore>(),
                 Publisher);
         }
@@ -832,6 +875,14 @@ public sealed class CreateAuditPersistenceTests
         public Task<PegasusDbContext> ContextAsync() => database.CreateContextAsync();
 
         public Task ExecuteSqlAsync(string sql) => database.ExecuteAsync(sql);
+
+        public async Task SetEngineerEnabledAsync(bool isEnabled)
+        {
+            await using var context = await ContextAsync();
+            var engineer = await context.Users.SingleAsync(item => item.Id == EngineerId);
+            engineer.IsEnabled = isEnabled;
+            await context.SaveChangesAsync();
+        }
 
         /// <summary>A second active Principal, so Correct principal has somewhere to go.</summary>
         public async Task SeedPrincipalAsync(string code)

@@ -2110,6 +2110,14 @@ public sealed class CaseWorkspacePersistenceTests
             demoted.Version,
             harness.StaffActor,
             "lease-return");
+        // Return to Review asks its state rule (With Engineer or Report sent)
+        // before the readiness gate, so the Case is put in a state that passes it.
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportPreparation)} WHERE CaseId = {harness.CaseId}");
+        }
+
         await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
             harness.WorkflowStore.ReturnToReviewAsync(
                 new(
@@ -2120,7 +2128,15 @@ public sealed class CaseWorkspacePersistenceTests
                     "Return to Review while the case is demoted",
                     transitionLease.Token),
                 CancellationToken.None));
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.Review)} WHERE CaseId = {harness.CaseId}");
+        }
 
+        // The store refuses an unknown Engineer before the readiness gate, so the
+        // hand-off names an enabled one.
+        var engineerId = await SeedDefaultSignOffEngineerAsync(harness);
         // The refused transition never cleared the lease, so the same holder's
         // token is still the live one for the second attempt.
         await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
@@ -2132,8 +2148,7 @@ public sealed class CaseWorkspacePersistenceTests
                     "assign-engineer-refused",
                     "Assign Engineer while the case is demoted",
                     transitionLease.Token,
-                    Guid.NewGuid()),
-                null,
+                    engineerId),
                 CaseLifecycleState.ReportPreparation,
                 CancellationToken.None));
 

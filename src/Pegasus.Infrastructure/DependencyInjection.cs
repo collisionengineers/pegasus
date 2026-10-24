@@ -422,8 +422,6 @@ public static class DependencyInjection
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
-        services.AddScoped<ICaseArchiveReadinessQueries>(
-            provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IAcquireCaseEditLease, AcquireCaseEditLease>();
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
         services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
@@ -577,7 +575,6 @@ public static class DependencyInjection
         services.AddScoped<IPutCaseOnHold, PutCaseOnHold>();
         services.AddScoped<IReleaseCaseHold, ReleaseCaseHold>();
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
-        services.AddScoped<ICaseEngineerEligibility, EfCaseEngineerEligibility>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
         services.AddScoped<IStartCaseWork, StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();

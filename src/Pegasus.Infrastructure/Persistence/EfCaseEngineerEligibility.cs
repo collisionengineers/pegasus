@@ -3,22 +3,17 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-public sealed class EfCaseEngineerEligibility(
-    IDbContextFactory<PegasusDbContext> contextFactory) : ICaseEngineerEligibility
+/// <summary>
+/// The Engineer-eligibility read the Case stores make inside their own transaction
+/// (Start, Assign, Return to Engineer and Create audit).
+/// </summary>
+internal static class EfCaseEngineerEligibility
 {
-    private readonly IDbContextFactory<PegasusDbContext> _contextFactory =
-        contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
-
-    public async Task<CaseEngineerEligibility> GetAsync(
+    internal static async Task<CaseEngineerEligibility> ReadAsync(
+        PegasusDbContext context,
         Guid staffId,
         CancellationToken cancellationToken)
     {
-        if (staffId == Guid.Empty)
-        {
-            throw new ArgumentException("A staff identifier is required.", nameof(staffId));
-        }
-
-        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         return await context.Users
             .AsNoTracking()
             .Where(user => user.Id == staffId)
