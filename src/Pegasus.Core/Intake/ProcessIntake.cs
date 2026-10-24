@@ -426,7 +426,7 @@ public sealed class ProcessIntake(
         // One receipt's holding retention is one batch sharing one folder
         // proof, and up to four files are retained at once (FRD-05).
         RetainedIncomingArtifact[] retained;
-        using (retention.BeginBatch())
+        await using (retention.BeginBatch())
         {
             retained = await RunRetentionsAsync(
                 candidates,

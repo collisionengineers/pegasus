@@ -496,9 +496,11 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             }
 
             await using var firstThumbnail = Assert.IsType<CaseDocumentThumbnail>(await first);
-            Assert.Equal(1, estate.Blob.UploadCount);
+            // The first view's cache write follows its answer; a later view waits for
+            // the write and finds the copy.
             await using var cachedThumbnail = Assert.IsType<CaseDocumentThumbnail>(
                 await reader.OpenAsync(request, CancellationToken.None));
+            Assert.Equal(1, estate.Blob.UploadCount);
             Assert.Equal(1, source.Reads);
             await using var db = await estate.Database.CreateContextAsync();
             var entry = Assert.Single(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
@@ -573,6 +575,84 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(
                 CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, null),
                 entry.Variant);
+        }
+    }
+
+    /// <summary>
+    /// A viewer's first view is answered as soon as the rendering exists: its
+    /// cache write follows, the render gate stays held until the write ends,
+    /// and a second view waits at the gate and reads the copy the write made
+    /// instead of rendering again.
+    /// </summary>
+    [Fact]
+    public async Task TheFirstViewIsAnsweredBeforeItsCacheWriteEndsAndASecondViewReadsTheCopyItMakes()
+    {
+        var sourceBytes = TransparentPng(width: 960, height: 480);
+        var estate = await Estate.CreateDocumentAsync(sourceBytes);
+        await using (estate)
+        {
+            await using var scope = estate.Database.CreateAsyncScope();
+            var cache = new DocumentThumbnailCache(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                new CacheContainer(estate.Blob),
+                estate.Clock);
+            var source = new ImmediateSource(sourceBytes);
+            var reader = new CaseDocumentThumbnailReader(source, cache);
+            var request = new CaseDocumentThumbnailRequest(
+                estate.Request.Actor,
+                estate.Request.CaseId!.Value,
+                estate.Request.DocumentId!.Value,
+                estate.Request.VersionId!.Value,
+                estate.Request.ExpectedSha256,
+                sourceBytes.LongLength,
+                "image/png");
+            var writeReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseWrite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            estate.Blob.OnUpload = async () =>
+            {
+                writeReached.TrySetResult();
+                await releaseWrite.Task;
+            };
+
+            using var renderScope = new Activity(nameof(TheFirstViewIsAnsweredBeforeItsCacheWriteEndsAndASecondViewReadsTheCopyItMakes));
+            renderScope.Start();
+            var secondGateEntry = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var listener = new ActivityListener
+            {
+                ShouldListenTo = activitySource => activitySource.Name == "Pegasus.Documents",
+                Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+                ActivityStarted = activity =>
+                {
+                    if (activity.TraceId == renderScope.TraceId
+                        && activity.DisplayName == "document.thumbnail.render.gate")
+                    {
+                        secondGateEntry.TrySetResult();
+                    }
+                }
+            };
+            ActivitySource.AddActivityListener(listener);
+
+            Task<CaseDocumentThumbnail?> second;
+            try
+            {
+                await using var first = Assert.IsType<CaseDocumentThumbnail>(
+                    await reader.OpenAsync(request, CancellationToken.None));
+                Assert.Equal(CaseDocumentThumbnails.MediaType, first.MediaType);
+                await writeReached.Task.WaitAsync(TimeSpan.FromSeconds(30));
+                Assert.Equal(0, estate.Blob.UploadCount);
+
+                second = reader.OpenAsync(request, CancellationToken.None);
+                await secondGateEntry.Task.WaitAsync(TimeSpan.FromSeconds(30));
+                Assert.False(second.IsCompleted);
+            }
+            finally
+            {
+                releaseWrite.TrySetResult();
+            }
+
+            await using var cached = Assert.IsType<CaseDocumentThumbnail>(await second);
+            Assert.Single(source.Actors);
+            Assert.Equal(1, estate.Blob.UploadCount);
         }
     }
 
@@ -2743,6 +2823,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         /// <summary>Answers every delete with this status instead of deleting.</summary>
         public int? DeleteFailureStatus { get; set; }
         public int UploadCount { get; private set; }
+        /// <summary>Awaited by every upload before it is taken, so a test can hold the write.</summary>
+        public Func<Task>? OnUpload { get; set; }
         private int propertiesReads;
         /// <summary>Property reads (HEAD requests) asked for.</summary>
         public int PropertiesReads => Volatile.Read(ref propertiesReads);
@@ -2761,7 +2843,15 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         public int UploadAttempts => Volatile.Read(ref uploadAttempts);
         public void ReplaceContent(byte[] content) { Content = content; etag = new ETag("\"2\""); }
         public override string Name=>BlobName;
-        public override Task<Response<BlobContentInfo>> UploadAsync(Stream content,BlobUploadOptions options,CancellationToken token=default)
+        public override async Task<Response<BlobContentInfo>> UploadAsync(Stream content,BlobUploadOptions options,CancellationToken token=default)
+        {
+            if (OnUpload is { } hook)
+            {
+                await hook();
+            }
+            return await UploadNowAsync(content);
+        }
+        private Task<Response<BlobContentInfo>> UploadNowAsync(Stream content)
         {
             Interlocked.Increment(ref uploadAttempts);
             if (HangUploads)

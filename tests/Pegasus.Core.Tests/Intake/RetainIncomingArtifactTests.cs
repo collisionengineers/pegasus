@@ -104,12 +104,12 @@ public sealed class RetainIncomingArtifactTests
     /// as long as the batch, so retentions into one folder share its proof.
     /// </summary>
     [Fact]
-    public void ABatchOfRetentionsIsCustodysDocumentBatch()
+    public async Task ABatchOfRetentionsIsCustodysDocumentBatch()
     {
         var custody = new BatchingCustody();
         var command = new RetainIncomingArtifact(custody, new RecordingStore());
 
-        using (command.BeginBatch())
+        await using (command.BeginBatch())
         {
             Assert.Equal(1, custody.OpenBatches);
         }
@@ -792,15 +792,19 @@ public sealed class RetainIncomingArtifactTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public IDisposable BeginDocumentBatch()
+        public IAsyncDisposable BeginDocumentBatch()
         {
             OpenBatches++;
             return new Batch(this);
         }
 
-        private sealed class Batch(BatchingCustody custody) : IDisposable
+        private sealed class Batch(BatchingCustody custody) : IAsyncDisposable
         {
-            public void Dispose() => custody.OpenBatches--;
+            public ValueTask DisposeAsync()
+            {
+                custody.OpenBatches--;
+                return ValueTask.CompletedTask;
+            }
         }
     }
 

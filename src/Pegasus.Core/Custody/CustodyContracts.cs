@@ -745,16 +745,20 @@ public interface ICaseArtifactCustody
     /// Marks the calls made until it is disposed as one batch of document
     /// writes, so writes into one folder may share a single folder proof
     /// (FRD-05). A custody with no folder proof to share returns an empty scope.
+    /// Disposal is awaited because a custody may leave its best-effort
+    /// follow-up work (the read-cache publish of a filed document) running
+    /// beside the next write; the scope ends only when that work has.
     /// </summary>
-    IDisposable BeginDocumentBatch() => NoCustodyBatch.Instance;
+    IAsyncDisposable BeginDocumentBatch() => NoCustodyBatch.Instance;
 }
 
 /// <summary>The batch scope of a custody that has nothing to share across a batch.</summary>
-public sealed class NoCustodyBatch : IDisposable
+public sealed class NoCustodyBatch : IDisposable, IAsyncDisposable
 {
     public static NoCustodyBatch Instance { get; } = new();
     private NoCustodyBatch() { }
     public void Dispose() { }
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 /// <summary>
