@@ -1066,9 +1066,16 @@ public interface IIntakeArtifactStore
         CancellationToken cancellationToken) =>
         Task.FromResult(new StagedArtifactInventoryPage([], null));
 
+    /// <summary>
+    /// Sets the staged artifact's disposition only while it still has
+    /// <paramref name="expectedConcurrencyToken"/>. <paramref name="expectedDisposition"/>
+    /// is the disposition the caller listed; the store's own tag wins where it
+    /// disagrees, and the disagreement is logged.
+    /// </summary>
     Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
         string storageKey,
         string expectedConcurrencyToken,
+        StagedArtifactDisposition expectedDisposition,
         StagedArtifactDisposition disposition,
         CancellationToken cancellationToken) =>
         Task.FromResult<StagedArtifactInventoryItem?>(null);

@@ -3,12 +3,13 @@ using System.Security.Cryptography;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Intake;
 
-public sealed class AzureBlobIntakeArtifactStore
+public sealed partial class AzureBlobIntakeArtifactStore
     : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
 {
     private const string StagingPrefix = "staging/";
@@ -20,13 +21,16 @@ public sealed class AzureBlobIntakeArtifactStore
 
     private readonly BlobContainerClient container;
     private readonly bool allowCreateIfNotExists;
+    private readonly ILogger? logger;
 
     public AzureBlobIntakeArtifactStore(
         BlobContainerClient container,
-        bool allowCreateIfNotExists = false)
+        bool allowCreateIfNotExists = false,
+        ILogger<AzureBlobIntakeArtifactStore>? logger = null)
     {
         this.container = container;
         this.allowCreateIfNotExists = allowCreateIfNotExists;
+        this.logger = logger;
     }
 
     public async Task<string> StoreAsync(
@@ -404,12 +408,18 @@ public sealed class AzureBlobIntakeArtifactStore
     public async Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
         string storageKey,
         string expectedConcurrencyToken,
+        StagedArtifactDisposition expectedDisposition,
         StagedArtifactDisposition disposition,
         CancellationToken cancellationToken)
     {
         if (!Enum.IsDefined(disposition))
         {
             throw new ArgumentOutOfRangeException(nameof(disposition));
+        }
+
+        if (!Enum.IsDefined(expectedDisposition))
+        {
+            throw new ArgumentOutOfRangeException(nameof(expectedDisposition));
         }
 
         var hash = GetStagedStorageKeyHash(storageKey);
@@ -425,8 +435,8 @@ public sealed class AzureBlobIntakeArtifactStore
             var properties = await blob.GetPropertiesAsync(
                 new BlobRequestConditions { IfMatch = expected },
                 cancellationToken);
-            var tags = await blob.GetTagsAsync(
-                cancellationToken: cancellationToken);
+            // Only the hash, length and first-seen time are taken from this
+            // mapping, and none of them depends on the tags.
             var current = MapStaged(
                 storageKey,
                 hash,
@@ -434,48 +444,90 @@ public sealed class AzureBlobIntakeArtifactStore
                 properties.Value.CreatedOn,
                 properties.Value.ETag,
                 properties.Value.Metadata,
-                tags.Value.Tags);
+                tags: null);
+            var metadata = CreateStagedMetadata(
+                current.ContentHash,
+                current.ContentLength,
+                current.FirstSeenAtUtc,
+                disposition,
+                properties.Value.Metadata);
             var metadataUpdate = await blob.SetMetadataAsync(
-                CreateStagedMetadata(
-                    current.ContentHash,
-                    current.ContentLength,
-                    current.FirstSeenAtUtc,
-                    disposition,
-                    properties.Value.Metadata),
+                metadata,
                 new BlobRequestConditions { IfMatch = expected },
                 cancellationToken);
 
-            var tagConditions = new BlobRequestConditions
+            // The tag condition is the disposition the caller listed, so the
+            // usual set takes three calls: properties, metadata, tags.
+            var newTags = CreateDispositionTags(disposition);
+            if (!await TrySetDispositionTagAsync(
+                    blob,
+                    newTags,
+                    metadataUpdate.Value.ETag,
+                    expectedDisposition.ToString(),
+                    cancellationToken))
             {
-                IfMatch = metadataUpdate.Value.ETag
-            };
-            if (tags.Value.Tags.TryGetValue(DispositionTagName, out var previousDisposition)
-                && Enum.TryParse<StagedArtifactDisposition>(
-                    previousDisposition,
-                    ignoreCase: false,
-                    out var parsedPreviousDisposition)
-                && Enum.IsDefined(parsedPreviousDisposition)
-                && previousDisposition.Equals(
-                    parsedPreviousDisposition.ToString(),
-                    StringComparison.Ordinal))
-            {
-                tagConditions.TagConditions = BuildDispositionTagCondition(
-                    previousDisposition);
+                // The tag did not hold the listed value. A listing reports
+                // Unmatched for a blob whose tag and metadata disagree, so the
+                // tag may be anything or absent. The tag wins: read it, log the
+                // disagreement, and set under what it holds. A tag that still
+                // holds the listed value means a writer after the metadata
+                // write, so nothing is set.
+                var tags = await blob.GetTagsAsync(
+                    cancellationToken: cancellationToken);
+                var hasTag = tags.Value.Tags.TryGetValue(DispositionTagName, out var tag);
+                if (hasTag && string.Equals(
+                        tag,
+                        expectedDisposition.ToString(),
+                        StringComparison.Ordinal))
+                {
+                    return null;
+                }
+
+                if (logger is not null)
+                {
+                    LogTagDecides(
+                        logger,
+                        storageKey,
+                        expectedDisposition,
+                        hasTag ? tag : "absent");
+                }
+                string? tagCondition = null;
+                if (hasTag
+                    && Enum.TryParse<StagedArtifactDisposition>(
+                        tag,
+                        ignoreCase: false,
+                        out var parsedTag)
+                    && Enum.IsDefined(parsedTag)
+                    && string.Equals(tag, parsedTag.ToString(), StringComparison.Ordinal))
+                {
+                    tagCondition = tag;
+                }
+
+                if (!await TrySetDispositionTagAsync(
+                        blob,
+                        newTags,
+                        metadataUpdate.Value.ETag,
+                        tagCondition,
+                        cancellationToken))
+                {
+                    return null;
+                }
             }
 
-            await blob.SetTagsAsync(
-                CreateDispositionTags(disposition),
-                tagConditions,
-                cancellationToken);
-            var updated = await GetStagedAsync(storageKey, cancellationToken);
-            return updated is not null
-                && updated.Disposition == disposition
-                && string.Equals(
-                    updated.ConcurrencyToken,
-                    metadataUpdate.Value.ETag.ToString(),
-                    StringComparison.Ordinal)
-                    ? updated
-                    : null;
+            // What the writes just made, with no re-read: a tag write leaves
+            // the ETag the metadata write returned. A writer after the tag
+            // write is not seen here. The caller's next conditional call under
+            // that ETag and tag (the sweep's delete) fails for it; a sweep
+            // that makes no further call counts the blob as set, as it was,
+            // and the next listing shows what the writer left.
+            return MapStaged(
+                storageKey,
+                hash,
+                current.ContentLength,
+                properties.Value.CreatedOn,
+                metadataUpdate.Value.ETag,
+                metadata,
+                newTags);
         }
         catch (RequestFailedException exception) when (exception.Status is 404 or 412)
         {
@@ -534,6 +586,33 @@ public sealed class AzureBlobIntakeArtifactStore
                 cancellationToken);
         }
         catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> TrySetDispositionTagAsync(
+        BlobClient blob,
+        IDictionary<string, string> tags,
+        ETag expected,
+        string? expectedTag,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await blob.SetTagsAsync(
+                tags,
+                new BlobRequestConditions
+                {
+                    IfMatch = expected,
+                    TagConditions = expectedTag is null
+                        ? null
+                        : BuildDispositionTagCondition(expectedTag)
+                },
+                cancellationToken);
+            return true;
+        }
+        catch (RequestFailedException exception) when (exception.Status is 412)
         {
             return false;
         }
@@ -1008,4 +1087,13 @@ public sealed class AzureBlobIntakeArtifactStore
             await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Staged artifact {StorageKey} was listed {ListedDisposition} but its tag is {TagDisposition}; the tag decides.")]
+    private static partial void LogTagDecides(
+        ILogger logger,
+        string storageKey,
+        StagedArtifactDisposition listedDisposition,
+        string? tagDisposition);
 }

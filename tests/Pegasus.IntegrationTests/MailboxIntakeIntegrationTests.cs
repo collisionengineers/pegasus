@@ -61,6 +61,7 @@ public sealed class MailboxIntakeIntegrationTests
                 await artifactStore.TrySetStagedDispositionAsync(
                     initial.StorageKey,
                     initial.ConcurrencyToken,
+                    initial.Disposition,
                     StagedArtifactDisposition.Failed,
                     CancellationToken.None));
 

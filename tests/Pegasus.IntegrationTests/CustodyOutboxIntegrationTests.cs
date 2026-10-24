@@ -328,10 +328,10 @@ public sealed class CustodyOutboxIntegrationTests
             inner.ListStagedAsync(maximumItems, continuation, cancellationToken);
 
         public Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
-            string storageKey, string expectedConcurrencyToken, StagedArtifactDisposition disposition,
-            CancellationToken cancellationToken) =>
+            string storageKey, string expectedConcurrencyToken, StagedArtifactDisposition expectedDisposition,
+            StagedArtifactDisposition disposition, CancellationToken cancellationToken) =>
             inner.TrySetStagedDispositionAsync(
-                storageKey, expectedConcurrencyToken, disposition, cancellationToken);
+                storageKey, expectedConcurrencyToken, expectedDisposition, disposition, cancellationToken);
 
         public Task<bool> DeleteStagedAsync(
             string storageKey, string expectedConcurrencyToken, StagedArtifactDisposition expectedDisposition,

@@ -253,7 +253,11 @@ public sealed class WorkerAzureClientCompositionTests
             [typeof(QueueClient), typeof(bool)],
             TypeInspection.OnlyConstructorParameterTypes(typeof(AzureQueueExternalWorkEnqueuer)));
         Assert.Equal(
-            [typeof(BlobContainerClient), typeof(bool)],
+            [
+                typeof(BlobContainerClient),
+                typeof(bool),
+                typeof(Microsoft.Extensions.Logging.ILogger<AzureBlobIntakeArtifactStore>)
+            ],
             TypeInspection.OnlyConstructorParameterTypes(typeof(AzureBlobIntakeArtifactStore)));
     }
 

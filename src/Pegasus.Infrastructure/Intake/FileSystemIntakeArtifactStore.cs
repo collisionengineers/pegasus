@@ -403,9 +403,12 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
     public async Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
         string storageKey,
         string expectedConcurrencyToken,
+        StagedArtifactDisposition expectedDisposition,
         StagedArtifactDisposition disposition,
         CancellationToken cancellationToken)
     {
+        // The token fences the write, and the file's disposition is read under
+        // the gate beside it, so the listed disposition cannot disagree here.
         if (!Enum.IsDefined(disposition))
         {
             throw new ArgumentOutOfRangeException(nameof(disposition));
