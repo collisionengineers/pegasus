@@ -6,15 +6,6 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfIntakeWorkStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : IIntakeWorkStore, IStagedArtifactAuthority
 {
-    private const int CandidateBatchSize = 256;
-
-    private static readonly IComparer<RecoveryCandidate> LatestRecoveryFirst =
-        Comparer<RecoveryCandidate>.Create(static (left, right) =>
-        {
-            var comparison = right.RecoverableAtUtc.CompareTo(left.RecoverableAtUtc);
-            return comparison != 0 ? comparison : right.Id.CompareTo(left.Id);
-        });
-
     public async Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(
         IntakeSourceIdentity sourceIdentity,
         CancellationToken cancellationToken)
@@ -544,67 +535,31 @@ public sealed class EfIntakeWorkStore(
         int maximumItems,
         CancellationToken cancellationToken)
     {
-        var staleDispatchedAge = nowUtc - staleDispatchedBeforeUtc;
-        var earliest = new PriorityQueue<RecoveryCandidate, RecoveryCandidate>(
-            LatestRecoveryFirst);
-        for (var offset = 0; ; offset += CandidateBatchSize)
-        {
-            var batch = await context.IntakeWorkItems
-                .AsNoTracking()
-                .Where(item => ((item.State == "dispatching" || item.State == "processing")
-                        && item.LeaseExpiresAtUtc != null)
-                    || (item.State == "dispatched"
-                        && item.LeaseToken == null
-                        && item.LeaseExpiresAtUtc == null
-                        && item.DueAtUtc <= staleDispatchedBeforeUtc))
-                .OrderBy(item => item.Id)
-                .Skip(offset)
-                .Take(CandidateBatchSize)
-                .Select(item => new RecoveryCandidate(
-                    item.Id,
-                    item.State,
-                    item.AttemptCount,
-                    item.LeaseToken,
-                    item.LeaseExpiresAtUtc,
-                    item.DueAtUtc,
-                    item.LeaseExpiresAtUtc ?? item.DueAtUtc))
-                .ToListAsync(cancellationToken);
-            foreach (var candidate in batch)
-            {
-                var rankedCandidate = candidate.State == "dispatched"
-                    ? candidate with { RecoverableAtUtc = candidate.DueAtUtc + staleDispatchedAge }
-                    : candidate;
-                if (rankedCandidate.RecoverableAtUtc > nowUtc)
-                {
-                    continue;
-                }
-
-                if (earliest.Count < maximumItems)
-                {
-                    earliest.Enqueue(rankedCandidate, rankedCandidate);
-                }
-                else if (Compare(rankedCandidate, earliest.Peek()) < 0)
-                {
-                    earliest.Dequeue();
-                    earliest.Enqueue(rankedCandidate, rankedCandidate);
-                }
-            }
-
-            if (batch.Count < CandidateBatchSize)
-            {
-                return earliest.UnorderedItems
-                    .Select(item => item.Element)
-                    .OrderBy(item => item.RecoverableAtUtc)
-                    .ThenBy(item => item.Id)
-                    .ToArray();
-            }
-        }
-    }
-
-    private static int Compare(RecoveryCandidate left, RecoveryCandidate right)
-    {
-        var comparison = left.RecoverableAtUtc.CompareTo(right.RecoverableAtUtc);
-        return comparison != 0 ? comparison : left.Id.CompareTo(right.Id);
+        // A lease row is recoverable when its lease has expired; a dispatched
+        // row once it has waited the stale age, which the DueAtUtc test below
+        // already states. The order is the time each became recoverable, then
+        // Id, so the due test and the cut are one statement.
+        var staleDispatchedAgeMilliseconds = (nowUtc - staleDispatchedBeforeUtc).TotalMilliseconds;
+        return await context.IntakeWorkItems
+            .AsNoTracking()
+            .Where(item => ((item.State == "dispatching" || item.State == "processing")
+                    && item.LeaseExpiresAtUtc <= nowUtc)
+                || (item.State == "dispatched"
+                    && item.LeaseToken == null
+                    && item.LeaseExpiresAtUtc == null
+                    && item.DueAtUtc <= staleDispatchedBeforeUtc))
+            .OrderBy(item => item.LeaseExpiresAtUtc
+                ?? item.DueAtUtc.AddMilliseconds(staleDispatchedAgeMilliseconds))
+            .ThenBy(item => item.Id)
+            .Take(maximumItems)
+            .Select(item => new RecoveryCandidate(
+                item.Id,
+                item.State,
+                item.AttemptCount,
+                item.LeaseToken,
+                item.LeaseExpiresAtUtc,
+                item.DueAtUtc))
+            .ToArrayAsync(cancellationToken);
     }
 
     private readonly record struct RecoveryCandidate(
@@ -613,8 +568,7 @@ public sealed class EfIntakeWorkStore(
         int AttemptCount,
         string? LeaseToken,
         DateTimeOffset? LeaseExpiresAtUtc,
-        DateTimeOffset DueAtUtc,
-        DateTimeOffset RecoverableAtUtc);
+        DateTimeOffset DueAtUtc);
 
     private async Task UpdateDispatchClaimIfOwnedAsync(
         Guid workItemId,

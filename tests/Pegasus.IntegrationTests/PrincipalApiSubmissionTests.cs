@@ -213,6 +213,16 @@ public sealed class PrincipalApiSubmissionTests
             var oldReceivedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-2);
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE PrincipalSubmissions SET ReceivedAtUtc = {oldReceivedAtUtc} WHERE Id = {submissionId}"));
+        }
+
+        // Old enough to be a candidate, but its Accepted history is still there.
+        var beforeRepair = await scope.ServiceProvider
+            .GetRequiredService<ReconcilePrincipalSubmissions>()
+            .ExecuteAsync(50, CancellationToken.None);
+        Assert.Equal(0, beforeRepair.Candidates);
+
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
                 $"DELETE FROM ActionHistory WHERE AggregateType = {PrincipalSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
         }
