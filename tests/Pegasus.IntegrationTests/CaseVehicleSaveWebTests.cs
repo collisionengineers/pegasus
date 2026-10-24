@@ -213,7 +213,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             + Environment.NewLine + saveDescription);
     }
 
-    private const int CasePageCommands = 38;
+    private const int CasePageCommands = 37;
 
     /// <summary>
     /// 30 before B3-04: the save read the whole workspace (workflow, snapshot,
