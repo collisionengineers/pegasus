@@ -694,6 +694,35 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
+    public void TheContextIsPooledAndTheScopedContextIsLeasedFromTheSamePool()
+    {
+        var services = NewServices();
+        services.AddPegasusInfrastructure(ConfigureDatabase);
+        using var provider = services.BuildServiceProvider(validateScopes: true);
+        var factory = provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+
+        // A context a store disposes is the one the next store is handed.
+        var first = factory.CreateDbContext();
+        first.Dispose();
+        var second = factory.CreateDbContext();
+        Assert.Same(first, second);
+        second.Dispose();
+
+        // Identity and OpenIddict take the context from their scope: the same
+        // pooled instance for the whole scope, back in the pool when it ends.
+        using (var scope = provider.CreateScope())
+        {
+            var scoped = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            Assert.Same(first, scoped);
+            Assert.Same(scoped, scope.ServiceProvider.GetRequiredService<PegasusDbContext>());
+        }
+
+        var third = factory.CreateDbContext();
+        Assert.Same(first, third);
+        third.Dispose();
+    }
+
+    [Fact]
     public void ProductionGraphRegistrationSurvivesTheInfrastructureFallback()
     {
         var services = NewServices();

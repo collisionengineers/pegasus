@@ -1163,7 +1163,7 @@ public sealed class TriageQueuesWebTests
             services.RemoveAll<IDbContextFactory<PegasusDbContext>>();
             services.RemoveAll<DbContextOptions<PegasusDbContext>>();
             services.RemoveAll<DbContextOptions>();
-            services.AddDbContextFactory<PegasusDbContext>(options =>
+            services.AddPooledDbContextFactory<PegasusDbContext>(options =>
             {
                 options.UseSqlServer(connectionString);
                 options.AddInterceptors(counter);
