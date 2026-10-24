@@ -1428,7 +1428,7 @@ internal sealed class DocumentThumbnailCache(
     internal static readonly TimeSpan PlainIdleLifetime = TimeSpan.FromDays(30);
 
     /// <summary>How long an unused prepared-region rendering is kept.</summary>
-    private static readonly TimeSpan PreparedIdleLifetime = TimeSpan.FromHours(24);
+    internal static readonly TimeSpan PreparedIdleLifetime = TimeSpan.FromHours(24);
 
     private static TimeSpan IdleLifetimeOf(string variant) =>
         string.Equals(variant, Variant, StringComparison.Ordinal) ? PlainIdleLifetime : PreparedIdleLifetime;

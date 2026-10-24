@@ -40,6 +40,37 @@ public sealed class PrepareDocumentThumbnailsTests
     }
 
     [Fact]
+    public async Task ACandidatesSavedRotationAndCropAreAskedForAsTheTileAsksForThem()
+    {
+        var crop = new CaseAssetCrop(0.25m, 0m, 0.5m, 1m);
+        var saved = Candidate("image/jpeg") with { Rotation = CaseAssetRotation.Clockwise90, Crop = crop };
+        var thumbnails = new RecordingThumbnails();
+
+        await new PrepareDocumentThumbnails(new Candidates([saved]), thumbnails).ExecuteAsync(1);
+
+        var request = Assert.Single(thumbnails.Requests);
+        Assert.Equal(CaseAssetRotation.Clockwise90, request.Rotation);
+        Assert.Equal(crop, request.Crop);
+        Assert.True(request.IsPrepared);
+    }
+
+    [Fact]
+    public async Task AVersionDeferredInTheRunIsNotOpenedAgainForItsSavedVariant()
+    {
+        var failing = Candidate("image/jpeg");
+        var saved = failing with { Rotation = CaseAssetRotation.Clockwise90 };
+        var next = Candidate("image/jpeg");
+        var thumbnails = new RecordingThumbnails(failing.VersionId);
+        var listed = new Candidates([failing, saved, next]);
+
+        var result = await new PrepareDocumentThumbnails(listed, thumbnails).ExecuteAsync(3);
+
+        Assert.Equal(new PrepareDocumentThumbnailsResult(3, 1, 0, 1, nameof(IOException)), result);
+        Assert.Equal(new[] { failing.VersionId, next.VersionId }, thumbnails.Requests.Select(request => request.VersionId));
+        Assert.Equal(new[] { failing.VersionId }, listed.Deferred);
+    }
+
+    [Fact]
     public async Task ATimedOutReadIsThatVersionsFailureNotTheSweeps()
     {
         var timedOut = Candidate("image/jpeg");
