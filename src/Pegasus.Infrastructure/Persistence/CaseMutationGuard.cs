@@ -237,9 +237,9 @@ internal static class CaseOperationReplay
     {
         ArgumentNullException.ThrowIfNull(context);
         var replay = await context.CaseWorkflowEvents.AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.CaseId == caseId && item.OperationKey == operationKey,
-                cancellationToken);
+            .Where(item => item.CaseId == caseId && item.OperationKey == operationKey)
+            .Select(item => new { item.EventType, item.RequestHash })
+            .SingleOrDefaultAsync(cancellationToken);
         if (replay is null)
         {
             return null;
