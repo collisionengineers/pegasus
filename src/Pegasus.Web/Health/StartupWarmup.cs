@@ -34,6 +34,7 @@ internal sealed class StartupWarmupState
 
     private readonly long startedAt = Stopwatch.GetTimestamp();
     private int completed;
+    private int pageRequestSeen;
 
     public StartupWarmupState(bool warms, TimeSpan? keepWarmInterval = null)
     {
@@ -63,6 +64,21 @@ internal sealed class StartupWarmupState
         Volatile.Read(ref completed) == 1 || Stopwatch.GetElapsedTime(startedAt) >= ReadyAfter;
 
     public void Complete() => Volatile.Write(ref completed, 1);
+
+    /// <summary>
+    /// Whether a page request has been noted since the last keep-warm tick. The
+    /// request path reads it first, so it writes at most once a tick.
+    /// </summary>
+    public bool PageRequestSeen => Volatile.Read(ref pageRequestSeen) == 1;
+
+    /// <summary>A non-quiet page request ran: a signed-in page has just warmed what a pass would.</summary>
+    public void NotePageRequest() => Volatile.Write(ref pageRequestSeen, 1);
+
+    /// <summary>
+    /// Whether a page request ran since the last tick, and clears it so the next
+    /// tick asks about the wait that follows.
+    /// </summary>
+    public bool TakePageRequestSignal() => Interlocked.Exchange(ref pageRequestSeen, 0) == 1;
 
     /// <summary>
     /// The <c>Startup:WarmupInterval</c> text when it could not be used, so the
@@ -124,7 +140,8 @@ internal sealed class StartupWarmupHealthCheck(StartupWarmupState state) : IHeal
 /// Right after that first pass, which readiness waits for, the service warms
 /// the report renderer, off the 45 s path. Then it runs a keep-warm pass every
 /// <see cref="StartupWarmupState.KeepWarmInterval"/>
-/// (<c>Startup:WarmupInterval</c>, three minutes) until the host stops. A pass
+/// (<c>Startup:WarmupInterval</c>, three minutes) until the host stops, and skips
+/// a pass when a page request ran since the last tick (<see cref="PageRequestSignal"/>). A pass
 /// makes the reads a signed-in page makes, so no staff request is the first to
 /// touch a cold path after a quiet spell: the Work Centre's three sections
 /// together, as the page reads them, the Inbox list, the newest Case's page
@@ -217,8 +234,11 @@ internal sealed partial class StartupWarmup(
     }
 
     /// <summary>
-    /// Waits, then runs one keep-warm pass, until the host stops. An interval of
-    /// zero ends the warm-up after its first pass.
+    /// Waits, then runs one keep-warm pass, until the host stops. A tick skips
+    /// its pass when a non-quiet page request ran since the last tick, as that
+    /// request has just touched the paths a pass warms; an idle site is still
+    /// warmed every interval. An interval of zero ends the warm-up after its
+    /// first pass.
     /// </summary>
     private async Task KeepWarmAsync(CancellationToken stoppingToken)
     {
@@ -233,6 +253,12 @@ internal sealed partial class StartupWarmup(
             while (!stoppingToken.IsCancellationRequested)
             {
                 await Task.Delay(interval, clock, stoppingToken);
+                if (state.TakePageRequestSignal())
+                {
+                    LogKeepWarmPassSkipped(logger);
+                    continue;
+                }
+
                 await KeepWarmPassAsync(stoppingToken);
             }
         }
@@ -547,6 +573,9 @@ internal sealed partial class StartupWarmup(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Startup warm-up finished in {ElapsedMs} ms")]
     private static partial void LogWarmupFinished(ILogger logger, double elapsedMs);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Warm-up pass skipped: a page request ran since the last tick")]
+    private static partial void LogKeepWarmPassSkipped(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Warm-up pass finished in {ElapsedMs} ms")]
     private static partial void LogKeepWarmPassFinished(ILogger logger, double elapsedMs);
