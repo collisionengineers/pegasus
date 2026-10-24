@@ -448,16 +448,27 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken)
     {
         var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var authors = new List<(string CreatedBy, Guid AccountId)>();
         foreach (var createdBy in versions.Select(version => version.CreatedBy).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (!Guid.TryParse(createdBy, out var accountId))
+            if (Guid.TryParse(createdBy, out var accountId))
             {
-                continue;
+                authors.Add((createdBy, accountId));
             }
-            var account = await staffAccountQueries.GetAsync(accountId, cancellationToken);
-            if (account is not null && !string.IsNullOrWhiteSpace(account.UserName))
+        }
+        if (authors.Count == 0)
+        {
+            return names;
+        }
+
+        var accountNames = await staffAccountQueries.GetNamesAsync(
+            [.. authors.Select(author => author.AccountId)],
+            cancellationToken);
+        foreach (var (createdBy, accountId) in authors)
+        {
+            if (accountNames.TryGetValue(accountId, out var name) && !string.IsNullOrWhiteSpace(name))
             {
-                names[createdBy] = account.UserName;
+                names[createdBy] = name;
             }
         }
         return names;
@@ -1196,6 +1207,12 @@ public sealed partial class DetailsModel(
         return (await frameRead, await workspaceRead);
     }
 
+    /// <summary>
+    /// The sign-off list the report snapshot read this request, kept whether or
+    /// not the assessment can open so the extras do not read it again.
+    /// </summary>
+    private IReadOnlyList<SignOffEngineerProfile>? snapshotSignOffEngineers;
+
     private async Task LoadEngineerSectionsAsync(
         Guid id,
         ActionActor actor,
@@ -1233,7 +1250,13 @@ public sealed partial class DetailsModel(
             Case.Frame);
 
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
-        var estimates = reads.Start(token => listEstimates.ExecuteAsync(id, work, token));
+        // The authors' names depend only on the estimates, so they are read in
+        // the same slot and overlap the other reads in this phase.
+        var estimates = reads.Start(async token =>
+        {
+            var listed = await listEstimates.ExecuteAsync(id, work, token);
+            return (Listed: listed, AuthorNames: await ResolveSpecAuthorNamesAsync(listed, token));
+        });
         var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
         var savedReasons = reads.Start(token => unroadworthyReasonBank.ListAsync(principalCode, token));
         var salvageMatrix = CanEditEngineering
@@ -1253,14 +1276,14 @@ public sealed partial class DetailsModel(
         var glass = reads.Start(token => ReadGlassSessionAsync(id, actor, token));
         await reads.WhenAllAsync();
 
-        Estimates = await estimates;
-        SpecAuthorNames = await ResolveSpecAuthorNamesAsync(Estimates, cancellationToken);
+        (Estimates, SpecAuthorNames) = await estimates;
         LabourRateCards = await cards;
         ApplyEstimateSelection(estimate);
         var saved = await savedReasons;
         UnroadworthyReasonWordings = [.. UnroadworthyReasonBank.Standard, .. saved.Select(item => item.Text)];
         PrincipalSalvageMatrix = salvageMatrix is null ? null : await salvageMatrix;
         var inputs = await reportInputs;
+        snapshotSignOffEngineers = inputs?.Readiness.EligibleSignOffEngineers;
         if (inputs is not null && canOpen)
         {
             var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
@@ -1815,6 +1838,7 @@ public sealed partial class DetailsModel(
             actor,
             AssessmentCanOpen,
             EligibleSignOffEngineers,
+            snapshotSignOffEngineers,
             LeaseToken);
         var activeLease = details.ActiveEditLease;
         var viewerHoldsLease = activeLease is not null
@@ -4976,6 +5000,7 @@ public sealed partial class DetailsModel(
         ActionActor Actor,
         bool AssessmentCanOpen,
         IReadOnlyList<SignOffEngineerProfile> EligibleSignOffEngineers,
+        IReadOnlyList<SignOffEngineerProfile>? SnapshotSignOffEngineers,
         string? LeaseToken);
 
     private sealed record WorkspaceExtras(
@@ -4996,23 +5021,43 @@ public sealed partial class DetailsModel(
         var workflow = details.Workflow;
         // Where Assign Engineer runs, its choices are the enabled staff, the
         // signed-in person first, as the Triage Assign list reads them (#1213).
-        // They name the assigned Engineer too, so that account is read on its
-        // own only when the list does not hold it.
+        // They name the assigned Engineer too, so that account's name is read on
+        // its own only when the list does not hold it.
         var viewerStaffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(inputs.Actor);
-        IReadOnlyList<CaseEngineerChoice> roster = CaseLifecycleRules.CanBeAssigned(workflow.State)
-            ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, cancellationToken))
-                .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
-            : [];
-        string? engineerDisplayName = null;
-        if (workflow.AssignedEngineerId is { } engineerId)
-        {
-            engineerDisplayName = roster.FirstOrDefault(listed => listed.StaffId == engineerId)?.DisplayName
-                ?? (await staffAccountQueries.GetAsync(engineerId, cancellationToken))?.UserName
-                ?? ActorDisplayNames.UnknownStaff;
-        }
 
+        // The sign-off list is the one the report snapshot already read this
+        // request (R276); it is read here only when no snapshot ran, and then
+        // beside the roster and name reads, which do not depend on it.
+        using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var fallbackProfiles = !inputs.AssessmentCanOpen && inputs.SnapshotSignOffEngineers is null
+            ? reads.Start(token => staffAccountQueries.ListSignOffEngineersAsync(token))
+            : null;
+        var rosterAndName = reads.Start(async token =>
+        {
+            IReadOnlyList<CaseEngineerChoice> listed = CaseLifecycleRules.CanBeAssigned(workflow.State)
+                ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, token))
+                    .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
+                : [];
+            string? displayName = null;
+            if (workflow.AssignedEngineerId is { } engineerId)
+            {
+                displayName = listed.FirstOrDefault(choice => choice.StaffId == engineerId)?.DisplayName;
+                if (displayName is null)
+                {
+                    var names = await staffAccountQueries.GetNamesAsync([engineerId], token);
+                    displayName = names.TryGetValue(engineerId, out var name)
+                        ? name
+                        : ActorDisplayNames.UnknownStaff;
+                }
+            }
+
+            return (Roster: listed, EngineerDisplayName: displayName);
+        });
+        await reads.WhenAllAsync();
+        var (roster, engineerDisplayName) = await rosterAndName;
         var profiles = inputs.AssessmentCanOpen ? inputs.EligibleSignOffEngineers
-            : await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
+            : inputs.SnapshotSignOffEngineers
+                ?? await fallbackProfiles!;
         var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,

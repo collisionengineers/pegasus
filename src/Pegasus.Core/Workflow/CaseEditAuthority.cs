@@ -246,9 +246,9 @@ public sealed class DescribeCaseEditAuthorityHolder(IStaffAccountQueries account
             return CaseEditAuthorityHolder.Unnamed;
         }
 
-        var account = await _accounts.GetAsync(staffId, cancellationToken);
-        return account is null || string.IsNullOrWhiteSpace(account.UserName)
+        var names = await _accounts.GetNamesAsync([staffId], cancellationToken);
+        return !names.TryGetValue(staffId, out var userName) || string.IsNullOrWhiteSpace(userName)
             ? CaseEditAuthorityHolder.Unnamed
-            : new(account.UserName);
+            : new(userName);
     }
 }

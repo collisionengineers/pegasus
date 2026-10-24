@@ -184,6 +184,9 @@ public sealed partial class DetailsModel
                 actor,
                 AssessmentCanOpen,
                 EligibleSignOffEngineers,
+                // No report snapshot ran here unless the assessment can open,
+                // and then the extras use EligibleSignOffEngineers.
+                null,
                 LeaseToken);
             var extras = reads.Start(token => ReadWorkspaceExtrasAsync(extrasInputs, token));
             await reads.WhenAllAsync();
