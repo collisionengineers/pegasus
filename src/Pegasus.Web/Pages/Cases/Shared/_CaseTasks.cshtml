@@ -24,10 +24,7 @@
     var leaseToken = Model.RenderLeaseToken;
     // Task actions act in and out of an edit session; a Held or closed Case, an
     // archived one and a Case a colleague is editing show the list without them.
-    var mayChange = !Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(workflow.State)
-        && workflow.State != Pegasus.Core.Workflow.CaseLifecycleState.Held
-        && workflow.Archive is null
-        && !Model.ColleagueIsEditing;
+    var mayChange = Model.TasksMayChange;
     var openOnLoad = Model.OpenDialog == "tasks"
         ? Html.Raw(" data-dialog-open-on-load=\"true\"")
         : Html.Raw(" hidden");
