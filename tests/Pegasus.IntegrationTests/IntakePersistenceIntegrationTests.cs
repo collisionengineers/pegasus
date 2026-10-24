@@ -264,7 +264,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261022140000_AiJobMarketResearchColumnsDropped",
                 "20261022210844_CaseFilingReplayIndexes",
                 "20261023120000_GlassRepairEstimateSessionCallbackDigestIndex",
-                "20261023150000_RepairerVatStatusUnknownRemoved"
+                "20261023150000_RepairerVatStatusUnknownRemoved",
+                "20261023160000_AppliedValuationCalculationRows"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

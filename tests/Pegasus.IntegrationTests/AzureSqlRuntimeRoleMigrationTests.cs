@@ -617,6 +617,49 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
                 """));
     }
 
+    // 20261023160000_AppliedValuationCalculationRows: the Case save and Create
+    // audit's copy write an applied valuation's calculation rows and the Case
+    // page reads them, as they do the snapshot table: SELECT and INSERT for Web,
+    // no DELETE for either role, and the Worker has no caller.
+    [Fact]
+    public async Task LatestMigrationGivesAppliedValuationCalculationRowsTheirExactRuntimePermissions()
+    {
+        var database = fixture.Database;
+
+        Assert.Equal(
+            [
+                $"AppliedValuationAdditions:{WebRole}:D:DELETE",
+                $"AppliedValuationAdditions:{WebRole}:G:INSERT",
+                $"AppliedValuationAdditions:{WebRole}:G:SELECT",
+                $"AppliedValuationAdditions:{WorkerRole}:D:DELETE",
+                $"AppliedValuationCalculations:{WebRole}:D:DELETE",
+                $"AppliedValuationCalculations:{WebRole}:G:INSERT",
+                $"AppliedValuationCalculations:{WebRole}:G:SELECT",
+                $"AppliedValuationCalculations:{WorkerRole}:D:DELETE"
+            ],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    tableObject.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    principal.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.objects AS tableObject
+                    ON tableObject.object_id = permission.major_id
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE tableObject.name IN (N'AppliedValuationCalculations', N'AppliedValuationAdditions')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
+                """));
+    }
+
     // 20260924180000_CaseWorksAndTriageCases: Web and Worker both create Cases
     // (and so their primary work); Web updates a work (Create audit moves the
     // Inspection report's evidence onto it), and since

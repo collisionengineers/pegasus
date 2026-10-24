@@ -592,6 +592,92 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AppliedValuationAdditionEntity", b =>
+                {
+                    b.Property<Guid>("SnapshotId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("PresetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("PresetVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("SuggestedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("SnapshotId", "Ordinal");
+
+                    b.ToTable("AppliedValuationAdditions", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AppliedValuationCalculationEntity", b =>
+                {
+                    b.Property<Guid>("SnapshotId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AdditionsTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("CaseVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("CommercialVatAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("CommercialVatApplied")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("ConditionDeduction")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("GuideRetailValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("GuideValuationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("GuideValuationStampUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("PriorTotalLossAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PriorTotalLossPercentage")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Proposal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ValueIncludingVat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("SnapshotId");
+
+                    b.ToTable("AppliedValuationCalculations", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AppliedValuationSnapshotEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7902,6 +7988,24 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("Application");
 
                     b.Navigation("Authorization");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AppliedValuationAdditionEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.AppliedValuationSnapshotEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AppliedValuationCalculationEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.AppliedValuationSnapshotEntity", null)
+                        .WithOne()
+                        .HasForeignKey("Pegasus.Infrastructure.Persistence.AppliedValuationCalculationEntity", "SnapshotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.AppliedValuationSnapshotEntity", b =>
