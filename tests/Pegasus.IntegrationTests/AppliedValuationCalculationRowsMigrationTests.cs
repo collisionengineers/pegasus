@@ -14,7 +14,7 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AppliedValuationCalculationRowsMigrationTests
 {
-    private const string PreviousMigration = "20261023120000_GlassRepairEstimateSessionCallbackDigestIndex";
+    private const string PreviousMigration = "20261023150000_RepairerVatStatusUnknownRemoved";
     private const string Migration = "20261023160000_AppliedValuationCalculationRows";
     private const string CaseId = RepairSpecInUseOnCreateMigrationTests.CaseId;
     private const string Recorded = "2031-05-06T10:30:00+00:00";
