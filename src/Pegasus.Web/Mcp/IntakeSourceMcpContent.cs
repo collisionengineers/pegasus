@@ -46,10 +46,11 @@ internal static class IntakeSourceMcpContent
         AutomationMcpErrors.RequireId(receiptId, "receipt identifier");
         var inlineLimit = AutomationFileContent.NormalizeInlineLimit(maxInlineBytes);
 
-        var metadata = await getSourceMetadata.ExecuteAsync(
+        var authorized = await getSourceMetadata.ExecuteAsync(
             new(receiptId, actor),
             cancellationToken)
             ?? throw new McpException("The retained intake source was not found.");
+        var metadata = authorized.Metadata;
         var contentUrl = ContentUrl(receiptId);
         AutomationFileDelivery delivery;
         if (!AutomationFileContent.CanDeliverInline(metadata.MediaType, metadata.ContentLength, inlineLimit))
@@ -64,10 +65,7 @@ internal static class IntakeSourceMcpContent
         }
         else
         {
-            var download = await downloadSource.ExecuteAsync(
-                new(receiptId, actor),
-                cancellationToken)
-                ?? throw new McpException("The retained intake source was not found.");
+            var download = await downloadSource.ExecuteAsync(authorized, actor, cancellationToken);
             EnsureMatchesMetadata(receiptId, metadata, download);
             delivery = await AutomationFileContent.DeliverAsync(
                 images,

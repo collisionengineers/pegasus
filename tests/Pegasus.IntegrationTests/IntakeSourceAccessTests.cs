@@ -39,9 +39,9 @@ public sealed class IntakeSourceAccessTests
             .GetAsync(receiptId, CancellationToken.None);
         var sourceAsset = Assert.Single(receipt!.AssetRecords);
 
-        var metadata = await new GetIntakeSourceMetadata(
+        var metadata = (await new GetIntakeSourceMetadata(
                 services.GetRequiredService<IIntakeReceiptQueries>())
-            .ExecuteAsync(new(receiptId, Staff()));
+            .ExecuteAsync(new(receiptId, Staff())))?.Metadata;
 
         Assert.NotNull(metadata);
         Assert.Equal(receiptId, metadata!.ReceiptId);
