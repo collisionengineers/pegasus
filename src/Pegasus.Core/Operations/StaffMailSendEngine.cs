@@ -279,12 +279,13 @@ public sealed class StaffMailSend(
         try
         {
             var mailbox = await RequireMailboxAsync(command, cancellationToken);
-            var execution = await store.GetExecutionAsync(command.Actor.SubjectId, operation.Id, cancellationToken)
-                ?? throw new InvalidOperationException("The prepared staff mail execution is unavailable.");
-            var attachmentCaseId = execution.CaseId
-                ?? (command.Purpose == StaffMailPurpose.CaseReport
-                    ? throw new InvalidOperationException("The report generation is not linked to an exact Case.")
-                    : command.ContextId);
+            var attachmentCaseId = command.Purpose == StaffMailPurpose.CaseReport
+                ? (await store.GetExecutionAsync(command.Actor.SubjectId, operation.Id, cancellationToken)
+                        ?? throw new InvalidOperationException("The prepared staff mail execution is unavailable."))
+                    .CaseId
+                    ?? throw new InvalidOperationException("The report generation is not linked to an exact Case.")
+                // Any other send is filed under its own Case, which the command names.
+                : command.ContextId;
             contents = await OpenAttachmentsAsync(command, mailbox, attachmentCaseId, cancellationToken);
             await transport.ValidateEncodedSizeAsync(mailbox, operation, command,
                 contents.Select(value => new StaffMailAttachmentContent(

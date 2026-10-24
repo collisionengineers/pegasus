@@ -234,6 +234,43 @@ public sealed partial class QdosTriageIntegrationTests
     }
 
     [Fact]
+    public async Task SendChaserRefusedBeforeTheSendReadsTheOriginMessageAndMailboxOnce()
+    {
+        var send = new RecordingStaffMailSend();
+        var counts = new TriageReadCounts();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var sendFactory = ConfigureStaffSend(baseFactory, send);
+        using var factory = CountTriageReads(sendFactory, counts);
+        using var client = factory.CreateClient();
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        counts.Reset();
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = fixture.Version.ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = "not-a-valid-retained-key",
+            ["to"] = "reply@example.invalid",
+            ["subject"] = "Chaser subject",
+            ["body"] = "Chaser body."
+        });
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("The send operation key is invalid or has expired.", html, StringComparison.Ordinal);
+        Assert.Equal(0, send.SendCalls);
+        // The redraw reuses the message and the mailbox the refused send read.
+        Assert.Equal(1, counts.OriginMessageReads);
+        Assert.Equal(1, counts.MailboxSenderReads);
+        Assert.Equal(0, counts.MailboxLists);
+    }
+
+    [Fact]
     public async Task SendChaserWhenActiveOperationExistsReportsSendConflict()
     {
         var send = new RecordingStaffMailSend();
@@ -1155,6 +1192,111 @@ public sealed partial class QdosTriageIntegrationTests
         public Task<bool> IsApprovedAsync(
             string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
             inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);
+    }
+
+    /// <summary>How many times a request read the origin message and the approved mailboxes.</summary>
+    private sealed class TriageReadCounts
+    {
+        public int OriginMessageReads { get; set; }
+
+        public int MailboxSenderReads { get; set; }
+
+        public int MailboxLists { get; set; }
+
+        public void Reset()
+        {
+            OriginMessageReads = 0;
+            MailboxSenderReads = 0;
+            MailboxLists = 0;
+        }
+    }
+
+    private static WebApplicationFactory<Program> CountTriageReads(
+        WebApplicationFactory<Program> factory,
+        TriageReadCounts counts) =>
+        factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddScoped<IApprovedMailboxStore>(provider => new CountingMailboxStore(
+                    provider.GetRequiredService<EfApprovedMailboxStore>(), counts));
+                services.RemoveAll<IRetainedMailQueries>();
+                services.AddScoped<IRetainedMailQueries>(provider => new CountingRetainedMailQueries(
+                    provider.GetRequiredService<EfRetainedMailboxMessageStore>(), counts));
+            }));
+
+    private sealed class CountingMailboxStore(IApprovedMailboxStore inner, TriageReadCounts counts)
+        : IApprovedMailboxStore
+    {
+        public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
+        {
+            counts.MailboxLists++;
+            return inner.ListAsync(cancellationToken);
+        }
+
+        public Task<ApprovedMailbox?> GetSenderAsync(Guid mailboxId, CancellationToken cancellationToken)
+        {
+            counts.MailboxSenderReads++;
+            return inner.GetSenderAsync(mailboxId, cancellationToken);
+        }
+
+        public Task<ApprovedMailbox> UpdateAsync(
+            UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            inner.UpdateAsync(request, cancellationToken);
+
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress, ApprovedMailboxRouteScope routeScope, CancellationToken cancellationToken) =>
+            inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);
+    }
+
+    private sealed class CountingRetainedMailQueries(IRetainedMailQueries inner, TriageReadCounts counts)
+        : IRetainedMailQueries
+    {
+        public Task<RetainedMailPage> ListAsync(
+            MailWorkspaceScope scope, int page, int pageSize, CancellationToken cancellationToken) =>
+            inner.ListAsync(scope, page, pageSize, cancellationToken);
+
+        public Task<RetainedMailCursorPage> ListByCursorAsync(
+            MailWorkspaceScope scope,
+            DateTimeOffset? beforeReceivedAtUtc,
+            Guid? beforeId,
+            int limit,
+            CancellationToken cancellationToken) =>
+            inner.ListByCursorAsync(scope, beforeReceivedAtUtc, beforeId, limit, cancellationToken);
+
+        public Task<IReadOnlyList<int>> CountManyAsync(
+            IReadOnlyList<MailWorkspaceScope> scopes, CancellationToken cancellationToken) =>
+            inner.CountManyAsync(scopes, cancellationToken);
+
+        public Task<RetainedMailDetail?> GetAsync(
+            Guid id, CancellationToken cancellationToken, string? searchTerm = null) =>
+            inner.GetAsync(id, cancellationToken, searchTerm);
+
+        public Task<RetainedMailPreview?> GetPreviewAsync(
+            Guid id, RetainedMailSummary? summary, CancellationToken cancellationToken) =>
+            inner.GetPreviewAsync(id, summary, cancellationToken);
+
+        public Task<RetainedMailDetail?> GetByOriginReceiptAsync(
+            Guid originReceiptId, CancellationToken cancellationToken)
+        {
+            counts.OriginMessageReads++;
+            return inner.GetByOriginReceiptAsync(originReceiptId, cancellationToken);
+        }
+
+        public Task<Guid?> FindIdByOriginReceiptAsync(
+            Guid originReceiptId, CancellationToken cancellationToken) =>
+            inner.FindIdByOriginReceiptAsync(originReceiptId, cancellationToken);
+
+        public Task<Guid?> FindReceiptIdAsync(Guid id, CancellationToken cancellationToken) =>
+            inner.FindReceiptIdAsync(id, cancellationToken);
+
+        public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+            CancellationToken cancellationToken) =>
+            inner.ListMailboxesAsync(cancellationToken);
+
+        public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
+            CancellationToken cancellationToken) =>
+            inner.ListPollHealthAsync(cancellationToken);
     }
 
     private sealed class RecordingStaffMailSend : IStaffMailSend
