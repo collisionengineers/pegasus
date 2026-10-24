@@ -387,7 +387,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     [Fact]
     public async Task EachLifecycleCommandIsRefusedFromTheLockedStateInItsOwnWords()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var caseId = harness.CaseId;
         var evidenceId = Guid.NewGuid();
@@ -508,7 +508,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     [Fact]
     public async Task AReplayedHoldIsAnsweredFromHeldAndANewKeyIsRefused()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await harness.Store.ClaimAsync(new(harness.CaseId, 0, actor, "claim-hold-replay"), default);
         var hold = new PutCaseOnHold(harness.Store, harness.TimeProvider);
@@ -536,7 +536,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     [Fact]
     public async Task AReplayedCloseIsAnsweredWhileClosedAndRefusedOnceTheCaseIsReportSent()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await harness.Store.ClaimAsync(new(harness.CaseId, 0, actor, "claim-close-replay"), default);
         var close = new CloseCase(harness.Store);
