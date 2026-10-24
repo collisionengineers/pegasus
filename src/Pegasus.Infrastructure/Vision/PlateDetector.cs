@@ -15,23 +15,50 @@ internal sealed record DetectedPlate(
 /// YOLOv9-t 384 end-to-end plate detection: letterboxed RGB float input
 /// (0-1, grey-114 padding), post-NMS output rows of
 /// `[batch, x1, y1, x2, y2, class, score]`, rescaled back to source pixels.
+/// The letterbox is laid out from the source's own size, so the bitmap handed
+/// in may be a smaller decode of that source: it is resized to the same
+/// 384-pixel input and the boxes come back in the source's pixels either way.
 /// </summary>
 internal sealed class PlateDetector(InferenceSession session)
 {
-    private const int InputSize = 384;
+    internal const int InputSize = 384;
     private const byte PaddingGrey = 114;
 
-    public IReadOnlyList<DetectedPlate> Detect(SKBitmap image, double scoreThreshold)
+    /// <param name="image">The source, or a decode of it no smaller than the input size on its longest side.</param>
+    /// <param name="sourceWidth">The source's width in pixels, which the boxes are returned in.</param>
+    /// <param name="sourceHeight">The source's height in pixels.</param>
+    public IReadOnlyList<DetectedPlate> Detect(
+        SKBitmap image,
+        int sourceWidth,
+        int sourceHeight,
+        double scoreThreshold)
     {
         var ratio = Math.Min(
-            (float)InputSize / image.Width,
-            (float)InputSize / image.Height);
-        var scaledWidth = Math.Max(1, (int)Math.Round(image.Width * ratio));
-        var scaledHeight = Math.Max(1, (int)Math.Round(image.Height * ratio));
+            (float)InputSize / sourceWidth,
+            (float)InputSize / sourceHeight);
+        var scaledWidth = Math.Max(1, (int)Math.Round(sourceWidth * ratio));
+        var scaledHeight = Math.Max(1, (int)Math.Round(sourceHeight * ratio));
         var padLeft = (InputSize - scaledWidth) / 2;
         var padTop = (InputSize - scaledHeight) / 2;
 
-        using var letterboxed = new SKBitmap(
+        using var letterboxed = Letterbox(image, scaledWidth, scaledHeight, padLeft, padTop);
+        if (letterboxed is null)
+        {
+            return [];
+        }
+
+        var tensor = ToInputTensor(letterboxed);
+        var inputName = session.InputMetadata.Keys.First();
+        using var results = session.Run(
+            [NamedOnnxValue.CreateFromTensor(inputName, tensor)]);
+        var output = results[0].AsTensor<float>();
+        return Decode(output, ratio, padLeft, padTop, sourceWidth, sourceHeight, scoreThreshold);
+    }
+
+    /// <summary>The model's square input: the image resized to the scaled size on grey padding.</summary>
+    internal static SKBitmap? Letterbox(SKBitmap image, int scaledWidth, int scaledHeight, int padLeft, int padTop)
+    {
+        var letterboxed = new SKBitmap(
             new SKImageInfo(InputSize, InputSize, SKColorType.Rgba8888, SKAlphaType.Opaque));
         using (var canvas = new SKCanvas(letterboxed))
         {
@@ -41,18 +68,14 @@ internal sealed class PlateDetector(InferenceSession session)
                 new SKSamplingOptions(SKFilterMode.Linear));
             if (resized is null)
             {
-                return [];
+                letterboxed.Dispose();
+                return null;
             }
 
             canvas.DrawBitmap(resized, padLeft, padTop);
         }
 
-        var tensor = ToInputTensor(letterboxed);
-        var inputName = session.InputMetadata.Keys.First();
-        using var results = session.Run(
-            [NamedOnnxValue.CreateFromTensor(inputName, tensor)]);
-        var output = results[0].AsTensor<float>();
-        return Decode(output, ratio, padLeft, padTop, image.Width, image.Height, scoreThreshold);
+        return letterboxed;
     }
 
     /// <summary>
