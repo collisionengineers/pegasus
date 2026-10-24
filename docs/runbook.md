@@ -1021,9 +1021,10 @@ above and the request's own trace.
 
 ### A failing sweep step names its cause
 
-The staged-artifact sweep logs each step's result line at Information. The line
-becomes a Warning when the step counted a failure, so the worker process's
-default level records it. A custody item that fails to file also logs its
+The staged-artifact sweep logs a step's result line at Information only when
+the step counted something; an idle tick writes none. The line becomes a Warning
+when the step counted a failure, so the worker process's default level records
+it. A custody item that fails to file also logs its
 exception type and message, once for each attempt, as
 `Pending artifact custody recovery failed for version ...`. The version id is
 the `CorrelationId` of its `ArtifactCustodyReconciliationAttempt` row in
