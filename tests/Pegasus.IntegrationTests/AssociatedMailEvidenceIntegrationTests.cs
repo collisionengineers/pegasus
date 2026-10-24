@@ -34,7 +34,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var (receipt, stagedReceiptId) = await LinkWithoutFilingAsync(services, caseId);
-        await using (var before = await factory.Database.CreateContextAsync())
+        await using (var before = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             Assert.False(await before.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
             Assert.False(await before.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
@@ -58,7 +58,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         await DispatchAsync(services, stagedReceiptId);
         Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
             await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(stagedReceiptId, default));
-        await using var after = await factory.Database.CreateContextAsync();
+        await using var after = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.True(await after.Set<IntakeSearchDocumentEntity>().AnyAsync(value =>
             value.IntakeReceiptId == receipt.Id && value.AttachmentFileName == "1_Images-V1.pdf"));
         if (isCaseOrigin)
@@ -102,7 +102,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
             await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(stagedReceiptId, default));
 
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var images = await db.Set<DocumentOccurrenceEntity>().AsNoTracking()
             .Where(value => value.CaseId == caseId && value.SemanticRole == DocumentSemanticRole.Image)
             .ToListAsync();
@@ -144,7 +144,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.Equal(CaseMatchOutcome.UniqueMatch, receipt.CaseMatchDecision!.Outcome);
         Assert.Equal(4, InstructionEvidenceImages.Select(receipt.AssetRecords).Count);
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var stored = await db.Cases.SingleAsync(value => value.Id == caseId);
         Assert.True(stored.ImagesComplete);
         Assert.Equal(instructionsComplete, stored.InstructionComplete);
@@ -175,7 +175,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, FollowUp());
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Pending);
         Guid[] originalIds;
-        await using (var db = await factory.Database.CreateContextAsync())
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             Assert.False((await db.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
             originalIds = await db.Set<DocumentVersionEntity>()
@@ -194,7 +194,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.Equal(6, reconciliation.Confirmed);
         Assert.Equal(0, reconciliation.Failures);
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
-        await using var verify = await factory.Database.CreateContextAsync();
+        await using var verify = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.True((await verify.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
         Assert.Equal(originalIds.Order(), (await verify.Set<DocumentVersionEntity>()
             .Where(value => originalIds.Contains(value.Id)).Select(value => value.Id).ToArrayAsync()).Order());
@@ -221,7 +221,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         var caseId = await SeedCaseAsync(factory, hasCustodyRoot: false);
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, FollowUp());
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Pending);
-        await using (var db = await factory.Database.CreateContextAsync())
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             var storedCase = await db.Cases.SingleAsync(value => value.Id == caseId);
             storedCase.CustodyRootRemoteId = "case-root";
@@ -270,7 +270,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             .ExecuteAsync(20, default);
         Assert.Equal(0, result.Confirmed);
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Pending);
-        await using var verify = await factory.Database.CreateContextAsync();
+        await using var verify = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.False((await verify.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
         if (change == "editor")
         {
@@ -296,7 +296,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         using var factory = new IntakeWebApplicationFactory();
         var caseId = await SeedCaseAsync(factory, instructionsComplete: false);
         Guid? engineerId = assigned ? Guid.NewGuid() : null;
-        await using (var db = await factory.Database.CreateContextAsync())
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             await db.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
                 .SetProperty(value => value.State, state.ToString())
@@ -304,7 +304,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         }
         await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, FollowUp());
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
-        await using var verify = await factory.Database.CreateContextAsync();
+        await using var verify = await (await factory.DatabaseAsync).CreateContextAsync();
         var workflow = await verify.CaseWorkflows.SingleAsync(value => value.CaseId == caseId);
         Assert.Equal(state.ToString(), workflow.State);
         Assert.Equal(engineerId, workflow.AssignedEngineerId);
@@ -319,7 +319,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         var caseId = await SeedCaseAsync(factory, hasCustodyRoot: false);
         await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, FollowUp());
         string storageKey;
-        await using (var db = await factory.Database.CreateContextAsync())
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             storageKey = await db.Set<DocumentVersionEntity>()
                 .Where(value => value.FileName == "1_Images-V1.pdf")
@@ -336,7 +336,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         var partial = await reconciler.ExecuteAsync(20, default);
         Assert.Equal(5, partial.Confirmed);
         Assert.Equal(1, partial.Failures);
-        await using var verify = await factory.Database.CreateContextAsync();
+        await using var verify = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.Equal(4, await (from occurrence in verify.Set<DocumentOccurrenceEntity>()
                               join version in verify.Set<DocumentVersionEntity>() on occurrence.VersionId equals version.Id
                               where occurrence.CaseId == caseId && occurrence.SemanticRole == DocumentSemanticRole.Image
@@ -369,7 +369,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             .GetRequiredService<IIntakeReceiptQueries>().GetAsync(receiptId, default));
         Assert.Null(receipt.CurrentCaseId);
         Assert.Equal(CaseMatchOutcome.Ambiguous, receipt.CaseMatchDecision!.Outcome);
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.False(await db.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == first || value.CaseId == second));
         Assert.False(await db.Cases.AnyAsync(value => (value.Id == first || value.Id == second) && value.ImagesComplete));
     }
@@ -385,7 +385,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             .GetRequiredService<IIntakeReceiptQueries>().GetAsync(receiptId, default));
         Assert.Equal(caseId, receipt.CurrentCaseId);
         Assert.Empty(InstructionEvidenceImages.Select(receipt.AssetRecords));
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.False((await db.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
         Assert.False(await db.Set<DocumentOccurrenceEntity>().AnyAsync(value => value.CaseId == caseId && value.SemanticRole == DocumentSemanticRole.Image));
     }
@@ -396,7 +396,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         using var factory = new IntakeWebApplicationFactory();
         var caseId = await SeedCaseAsync(factory);
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, FollowUp(includePhotos: false));
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var files = await (from occurrence in db.Set<DocumentOccurrenceEntity>()
                            join version in db.Set<DocumentVersionEntity>() on occurrence.VersionId equals version.Id
                            where occurrence.CaseId == caseId
@@ -449,7 +449,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, promotion)
                 .ExecuteAsync(received.StagedReceiptId, default));
 
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var filed = (await (from occurrence in db.Set<DocumentOccurrenceEntity>()
                             join version in db.Set<DocumentVersionEntity>() on occurrence.VersionId equals version.Id
                             where occurrence.CaseId == caseId
@@ -531,7 +531,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             services, received.StagedReceiptId));
         Assert.Equal(IntakeWorkState.RetryScheduled, work.State);
         Assert.Equal("intake_processing_failure", work.FailureCode);
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var custody = await (from occurrence in db.Set<DocumentOccurrenceEntity>()
                              join version in db.Set<DocumentVersionEntity>() on occurrence.VersionId equals version.Id
                              where occurrence.CaseId == caseId
@@ -553,7 +553,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(
             factory.Services, ReportFollowUp(("connexus-report.pdf", ConnexusReport)));
 
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var files = await FiledRolesAsync(db, caseId);
         Assert.Equal(DocumentSemanticRole.AuditReport, files["connexus-report.pdf"]);
         Assert.Equal(DocumentSemanticRole.OriginalSource, files["report-follow-up.eml"]);
@@ -589,7 +589,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                 ("connexus-report.pdf", ConnexusReport),
                 ("connexus-supplementary.pdf", ConnexusReport + " Supplementary")));
 
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var files = await FiledRolesAsync(db, caseId);
         Assert.Equal(DocumentSemanticRole.Correspondence, files["connexus-report.pdf"]);
         Assert.Equal(DocumentSemanticRole.Correspondence, files["connexus-supplementary.pdf"]);
@@ -614,7 +614,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         var services = scope.ServiceProvider;
         var (receipt, stagedReceiptId) = await LinkWithoutFilingAsync(services, caseId);
 
-        await using (var db = await factory.Database.CreateContextAsync())
+        await using (var db = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             await db.IntakeAssets.Where(value => value.IntakeReceiptId == receipt.Id).ExecuteUpdateAsync(update => update
                 .SetProperty(value => value.CustodyStatus, (string?)null)
@@ -640,7 +640,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                 default),
             candidate => candidate.ReceiptId == receipt.Id);
 
-        await using (var whileEdited = await factory.Database.CreateContextAsync())
+        await using (var whileEdited = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             Assert.False(await whileEdited.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
             var assets = await whileEdited.IntakeAssets.AsNoTracking()
@@ -654,7 +654,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             });
         }
 
-        await using (var clearLease = await factory.Database.CreateContextAsync())
+        await using (var clearLease = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             await clearLease.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
                 .SetProperty(value => value.EditLeaseExpiresAtUtc, (DateTimeOffset?)null)
@@ -666,7 +666,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(services);
 
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
-        await using var verify = await factory.Database.CreateContextAsync();
+        await using var verify = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.True((await verify.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
     }
 
@@ -784,7 +784,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
 
     private static async Task AssertFiledAsync(IntakeWebApplicationFactory factory, Guid caseId, DocumentCustodyStatus custody)
     {
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var files = await (from occurrence in db.Set<DocumentOccurrenceEntity>()
                            join version in db.Set<DocumentVersionEntity>() on occurrence.VersionId equals version.Id
                            where occurrence.CaseId == caseId
@@ -895,7 +895,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         bool instructionsComplete = true, bool hasCustodyRoot = true, int sequence = 9)
     {
         _ = factory.Services;
-        await using var db = await factory.Database.CreateContextAsync();
+        await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
         var principal = await db.Principals.SingleAsync(value => value.Code == "QDOS");
         var id = Guid.NewGuid();
         var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();

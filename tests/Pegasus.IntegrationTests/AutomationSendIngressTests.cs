@@ -141,7 +141,7 @@ public sealed class AutomationSendIngressTests
         // No instruction e-mail to reply to: the report leaves the named Outgoing mailbox.
         Assert.Equal(mailbox.Id, request.FromMailboxId);
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
@@ -292,7 +292,7 @@ public sealed class AutomationSendIngressTests
         Assert.Empty(command.Attachments);
         Assert.Equal("mcp:mail-new", command.OperationKey);
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
@@ -412,7 +412,7 @@ public sealed class AutomationSendIngressTests
         using var mcpFactory = WithMailSend(factory, mail, mailbox);
         var caseId = await SeedAcceptedCaseAsync(mcpFactory);
         var messageId = await SeedRetainedMessageAsync(mcpFactory, graphId, address);
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"""
             UPDATE RetainedMailboxMessages
             SET ExternalReceiptToken = (
@@ -534,7 +534,7 @@ public sealed class AutomationSendIngressTests
         }));
 
         Assert.Contains("unavailable", await ReadErrorTextAsync(refused), StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM StaffMailSendOperations"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM StaffMailSendOperations"));
     }
 
     /// <summary>The real generation store, answering one confirmed current generation for the work.</summary>

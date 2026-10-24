@@ -33,23 +33,23 @@ public sealed class IntakeStablePersistenceTests
         var sourceAsset = Assert.Single(receipt.AssetRecords);
         Assert.Equal(IntakeAssetKind.Source, sourceAsset.Kind);
 
-        Assert.Equal("unsupported", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("unsupported", await (await factory.DatabaseAsync).ScalarAsync<string>(
             "SELECT Decision FROM IntakeReceipts"));
-        Assert.Equal("manual_upload", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("manual_upload", await (await factory.DatabaseAsync).ScalarAsync<string>(
             "SELECT SourceChannel FROM IntakeReceipts"));
-        Assert.Equal("source", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("source", await (await factory.DatabaseAsync).ScalarAsync<string>(
             "SELECT Kind FROM IntakeAssets"));
-        Assert.Equal("source", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("source", await (await factory.DatabaseAsync).ScalarAsync<string>(
             "SELECT Disposition FROM IntakeAssets"));
-        Assert.Equal("intake_receipt_recorded", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("intake_receipt_recorded", await (await factory.DatabaseAsync).ScalarAsync<string>(
             "SELECT EventType FROM IntakeReceiptEvents"));
-        AssertEnvelopeVersionOne(await factory.Database.ScalarAsync<string>(
+        AssertEnvelopeVersionOne(await (await factory.DatabaseAsync).ScalarAsync<string>(
             "SELECT EvidenceJson FROM IntakeReceipts"));
-        AssertEnvelopeVersionOne(await factory.Database.ScalarAsync<string>(
+        AssertEnvelopeVersionOne(await (await factory.DatabaseAsync).ScalarAsync<string>(
             "SELECT FieldsJson FROM IntakeReceipts"));
-        AssertEnvelopeVersionOne(await factory.Database.ScalarAsync<string>(
+        AssertEnvelopeVersionOne(await (await factory.DatabaseAsync).ScalarAsync<string>(
             "SELECT OcrCandidatesJson FROM IntakeReceipts"));
-        AssertEnvelopeVersionOne(await factory.Database.ScalarAsync<string>(
+        AssertEnvelopeVersionOne(await (await factory.DatabaseAsync).ScalarAsync<string>(
             "SELECT DetailsJson FROM IntakeReceiptEvents"));
     }
 

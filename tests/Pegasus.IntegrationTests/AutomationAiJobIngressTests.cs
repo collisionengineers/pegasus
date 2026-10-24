@@ -146,7 +146,7 @@ public sealed class AutomationAiJobIngressTests
         var counts = await queries.GetCountsAsync(CancellationToken.None);
         Assert.Equal(new AiJobCounts(1, 0), counts);
 
-        var history = await factory.Database.ScalarAsync<int>(
+        var history = await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -154,7 +154,7 @@ public sealed class AutomationAiJobIngressTests
               AND EventKind IN (N'ai_job_created', N'ai_job_taken', N'ai_job_expired')
             """);
         Assert.Equal(4, history);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -426,7 +426,7 @@ public sealed class AutomationAiJobIngressTests
                  })
         {
             Assert.True(
-                await factory.Database.ScalarAsync<int>(
+                await (await factory.DatabaseAsync).ScalarAsync<int>(
                     $"""
                     SELECT COUNT(*) FROM ActionHistory
                     WHERE AggregateType = N'ai_job' AND EventKind = N'{eventKind}'
@@ -435,7 +435,7 @@ public sealed class AutomationAiJobIngressTests
         }
 
         // The row has to lead back to the record, not just to the job id.
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -697,7 +697,7 @@ public sealed class AutomationAiJobIngressTests
 
         // Nothing was applied to any record: the ledger row is the only
         // business effect, and every step is attributed Automation history.
-        Assert.Equal(5, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(5, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -706,7 +706,7 @@ public sealed class AutomationAiJobIngressTests
               AND ActorSubjectId = N'{ClientId}'
               AND EventKind IN (N'ai_job_created', N'ai_job_taken', N'ai_job_progress', N'ai_job_draft_ready', N'ai_job_completed')
             """));
-        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(3, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
@@ -714,14 +714,14 @@ public sealed class AutomationAiJobIngressTests
               AND Outcome = N'Succeeded'
               AND EventKind = N'pegasus_ai_job_transition'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
               AND EventKind = N'pegasus_ai_job_create'
               AND Outcome = N'Succeeded'
             """));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM UnidentifiedItems"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM UnidentifiedItems"));
     }
 
     /// <summary>
@@ -798,7 +798,7 @@ public sealed class AutomationAiJobIngressTests
             Assert.Equal("Queued twice.", cancelled.GetProperty("closureReason").GetString());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -871,7 +871,7 @@ public sealed class AutomationAiJobIngressTests
 
         // Every refused claim is recorded against the Automation actor and
         // the queued job is untouched.
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
@@ -879,7 +879,7 @@ public sealed class AutomationAiJobIngressTests
               AND AggregateId = N'{queued:D}'
               AND Outcome = N'Failed'
             """));
-        Assert.Equal("Queued", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("Queued", await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT State FROM AiJobs WHERE JobId = '{queued:D}'"));
     }
 
@@ -948,11 +948,11 @@ public sealed class AutomationAiJobIngressTests
             Assert.True(result.GetProperty("isReplay").GetBoolean());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch' AND RetailValue = 12000 AND TradeValue IS NULL"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = N'ai_job' AND AggregateId = N'{taken.JobId:D}' AND EventKind = N'ai_job_completed' AND ActorKind = N'Automation' AND ActorSubjectId = N'{ClientId}'"));
     }
 
@@ -1033,9 +1033,9 @@ public sealed class AutomationAiJobIngressTests
             Assert.Equal(versionId, result.GetProperty("documentVersionId").GetGuid());
         }
 
-        Assert.Equal(Sha256Hex(findings), await factory.Database.ScalarAsync<string>(
+        Assert.Equal(Sha256Hex(findings), await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT UPPER(Sha256) FROM DocumentVersions WHERE Id = '{versionId:D}'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
     }
 
@@ -1100,9 +1100,9 @@ public sealed class AutomationAiJobIngressTests
             Assert.False(result.GetProperty("isReplay").GetBoolean());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
     }
 
@@ -1159,16 +1159,16 @@ public sealed class AutomationAiJobIngressTests
         var result = await ReadStructuredContentAsync(response);
 
         Assert.Equal("Completed", result.GetProperty("job").GetProperty("state").GetString());
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
         // The staff member's session and the Case version are as they were.
-        Assert.Equal(Staff.SubjectId, await factory.Database.ScalarAsync<string>(
+        Assert.Equal(Staff.SubjectId, await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT EditLeaseHolder FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        Assert.Equal(staffLease.Version, await factory.Database.ScalarAsync<long>(
+        Assert.Equal(staffLease.Version, await (await factory.DatabaseAsync).ScalarAsync<long>(
             $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflowEvents WHERE CaseId = '{caseId:D}' AND EventType = N'market_research_attached'"));
     }
 
@@ -1207,7 +1207,7 @@ public sealed class AutomationAiJobIngressTests
                 CancellationToken.None);
         }
 
-        await factory.Database.ExecuteAsync(closure == "archived"
+        await (await factory.DatabaseAsync).ExecuteAsync(closure == "archived"
             ? $"UPDATE CaseWorkflows SET ArchivedAtUtc = SYSDATETIMEOFFSET(), ArchivedByKind = N'Staff', ArchivedBySubjectId = N'staff', ArchivedByRolesJson = N'[]', ArchiveReason = N'Test archive' WHERE CaseId = '{caseId:D}'"
             : $"UPDATE CaseWorkflows SET State = '{nameof(Pegasus.Core.Workflow.CaseLifecycleState.PrincipalCancelled)}' WHERE CaseId = '{caseId:D}'");
 
@@ -1224,13 +1224,13 @@ public sealed class AutomationAiJobIngressTests
                 caseId,
                 $"mcp:market-research-{closure}-complete"));
 
-        Assert.Equal("Taken", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("Taken", await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT State FROM AiJobs WHERE JobId = '{taken.JobId:D}'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflowEvents WHERE CaseId = '{caseId:D}' AND EventType = N'market_research_attached'"));
     }
 

@@ -173,7 +173,7 @@ public sealed class AutomationMcpIngressTests
                 ResourceMetadataUri(unauthenticated));
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_access_denied' AND Outcome = N'Denied'
@@ -379,7 +379,7 @@ public sealed class AutomationMcpIngressTests
         Assert.Equal(
             "http://localhost/.well-known/oauth-protected-resource/mcp/mail",
             ResourceMetadataUri(response));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_access_denied' AND Outcome = N'Denied'
@@ -436,7 +436,7 @@ public sealed class AutomationMcpIngressTests
                 structured.GetProperty("correlationId").GetString()));
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -464,7 +464,7 @@ public sealed class AutomationMcpIngressTests
                 StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -508,7 +508,7 @@ public sealed class AutomationMcpIngressTests
             Assert.Contains("automation.intake", await ReadErrorTextAsync(response), StringComparison.Ordinal);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_scope_denied'
@@ -573,7 +573,7 @@ public sealed class AutomationMcpIngressTests
         var caseId = await SeedAcceptedCaseAsync(mcpFactory);
         await BeginEditAsync(client, accessToken, caseId, 0, rpcId: 5);
         var triageId = Guid.NewGuid();
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"""
             INSERT INTO EditScopes (ScopeKind, RecordId, HolderKind, Holder, TokenHash, ExpectedVersion, Generation, ExpiresAtUtc)
             VALUES (N'Triage', '{triageId:D}', N'Automation', N'stopped-grant', REPLICATE('a', 64), 0, 1, DATEADD(minute, 5, SYSDATETIMEOFFSET()))
@@ -609,14 +609,14 @@ public sealed class AutomationMcpIngressTests
 
         // Stop released both, so staff need not wait for the expiry, and the
         // Stop's history entry names the released Case.
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseWorkflows
             WHERE CaseId = '{caseId:D}' AND EditLeaseHolderKind IS NOT NULL
             """));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM EditScopes WHERE HolderKind = N'Automation'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE EventKind = N'automation_client_disabled'
@@ -624,7 +624,7 @@ public sealed class AutomationMcpIngressTests
               AND AfterJson LIKE N'%"EditScopes":1%'
             """));
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_client_disabled'
@@ -647,7 +647,7 @@ public sealed class AutomationMcpIngressTests
             Assert.Contains("unauthorized_client", body, StringComparison.Ordinal);
         }
 
-        Assert.True(await factory.Database.ScalarAsync<int>(
+        Assert.True(await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_token_rejected' AND Outcome = N'Denied'
@@ -680,7 +680,7 @@ public sealed class AutomationMcpIngressTests
             Assert.False(result.TryGetProperty("isError", out var isError) && isError.GetBoolean());
         }
 
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_client'
@@ -766,7 +766,7 @@ public sealed class AutomationMcpIngressTests
             Assert.DoesNotContain(RecordingAutomationLeases.HeldToken, body, StringComparison.Ordinal);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -778,7 +778,7 @@ public sealed class AutomationMcpIngressTests
         // recovery or a material denial in permanent history, so the successful renewal above must
         // leave nothing behind: an automation run that renews on a timer would otherwise write a
         // heartbeat into the case's permanent record.
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
@@ -830,7 +830,7 @@ public sealed class AutomationMcpIngressTests
             Assert.DoesNotContain(new string('c', 64), body, StringComparison.Ordinal);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'

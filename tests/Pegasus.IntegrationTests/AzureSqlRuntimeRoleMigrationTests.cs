@@ -70,7 +70,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
                 CancellationToken.None);
         }
         var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(factory.Services, receiptId);
-        await factory.Database.ExecuteAsync($"""
+        await (await factory.DatabaseAsync).ExecuteAsync($"""
             CREATE USER [pegasus_test_triage_pairing_worker] WITHOUT LOGIN;
             ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_triage_pairing_worker];
             """);

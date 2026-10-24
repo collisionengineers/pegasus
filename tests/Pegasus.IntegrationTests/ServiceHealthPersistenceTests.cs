@@ -210,7 +210,7 @@ public sealed class ServiceHealthPersistenceTests
             + $" (the shell {shell} and the snapshot {snapshotStatements}).");
         Assert.Equal(1, counter.CountContaining("[ApprovedSentPollStates]"));
 
-        await using (var context = await factory.Database.CreateContextAsync())
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             for (var index = 0; index < 3; index++)
             {

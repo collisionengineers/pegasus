@@ -123,7 +123,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = '{form["operationKey"]}' AND Reason IS NULL;"));
     }
 

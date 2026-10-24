@@ -445,7 +445,7 @@ public sealed class AutomationIntakeParityIngressTests
         });
         Assert.Equal(alreadyLinked ? null : instructionCaseId, LinkedCase(detail));
         version = Version(detail);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{instructionCaseId:D}' AND EditLeaseHolderKind IS NULL"));
 
         detail = await MutateAsync(client, token, 28, "pegasus_triage_case_link", new

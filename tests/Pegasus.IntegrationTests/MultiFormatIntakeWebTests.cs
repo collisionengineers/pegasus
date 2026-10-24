@@ -314,9 +314,9 @@ public sealed partial class MultiFormatIntakeWebTests
         Assert.Equal(1, candidate.PageNumber);
         Assert.Equal("uploaded full-page-scan.pdf", candidate.SourceLabel);
         var source = Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.Source);
-        Assert.Equal(source.Id, await factory.Database.ScalarAsync<Guid>(
+        Assert.Equal(source.Id, await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT IntakeAssetId FROM IntakeOcrOperations"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM ExternalWorkItems WHERE Kind = 'intake_ocr'"));
         // A white full-page raster is a scanned document page. Its raster IS
         // the page, so it stays inside the retained original and never becomes
@@ -343,7 +343,7 @@ public sealed partial class MultiFormatIntakeWebTests
 
         var candidate = Assert.Single(receipt.ScannedPdfPages);
         Assert.Equal(1, candidate.PageNumber);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM IntakeOcrOperations"));
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "scan-page-document");
         Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "scan-page-photograph");
@@ -391,7 +391,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
         Assert.Empty(receipt.ScannedPdfPages);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM IntakeOcrOperations"));
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "scan-page-photograph");
         Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "scanned-pdf-page");
@@ -421,9 +421,9 @@ public sealed partial class MultiFormatIntakeWebTests
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Equal(2, receipt.ScannedPdfPages.Select(candidate => candidate.SourceLabel).Distinct().Count());
         Assert.Equal(2, receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.Attachment));
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM ExternalWorkItems WHERE Kind = 'intake_ocr'"));
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(DISTINCT IntakeAssetId) FROM IntakeOcrOperations"));
     }
 

@@ -51,9 +51,9 @@ public sealed partial class OrganizationAdministrationWebTests
             new FormUrlEncodedContent(contactForm));
         Assert.True(contactPost.StatusCode == HttpStatusCode.Redirect,
             $"Expected a redirect but got {contactPost.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(contactPost)}");
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT Id FROM Organizations WHERE Name = 'Web Caller Claim Source';");
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM Organizations WHERE Id = '{contactId:D}' AND Role = 'claim_source';"));
         var contactEditHtml = await IntakeWebDriver.GetHtmlAsync(
             client,
@@ -80,9 +80,9 @@ public sealed partial class OrganizationAdministrationWebTests
             "/Administration/Contacts?handler=Create",
             new FormUrlEncodedContent(principalForm));
         Assert.Equal(HttpStatusCode.Redirect, principalPost.StatusCode);
-        var principalId = await factory.Database.ScalarAsync<Guid>(
+        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'WEBP';");
-        var principalContactId = await factory.Database.ScalarAsync<Guid>(
+        var principalContactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT OrganizationId FROM Principals WHERE Id = '" + principalId + "';");
 
         var principalIndexHtml = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts");
@@ -111,7 +111,7 @@ public sealed partial class OrganizationAdministrationWebTests
         // A new Principal starts with the default report sending rules.
         Assert.Equal(
             EfOrganizationAdministration.ToReportSendingJson(Pegasus.Core.Reports.PrincipalReportSendingRules.Default),
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}';"));
         var reportSettingsForm = new Dictionary<string, string>
         {
@@ -133,7 +133,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal($"{reportSettingsPath}?tab=report-generation", reportSettingsPost.Headers.Location?.OriginalString);
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT CASE WHEN DefaultFee = 205.00 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
         var locationHtml = await EditContactAsync(client, reportSettingsPath, "default-inspection-location");
@@ -149,7 +149,7 @@ public sealed partial class OrganizationAdministrationWebTests
             }));
         Assert.Equal(HttpStatusCode.Redirect, locationPost.StatusCode);
         Assert.Equal($"{reportSettingsPath}?tab=default-inspection-location", locationPost.Headers.Location?.OriginalString);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT CASE WHEN DefaultInspectionAddress IS NULL THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
         await AssertCredentialControlsAsync(factory, client, principalId, reportSettingsPath);
@@ -175,19 +175,19 @@ public sealed partial class OrganizationAdministrationWebTests
 
         Assert.Equal(
             0,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT CASE WHEN IsActive = 0 AND Code = 'WEBP' THEN 0 ELSE 1 END FROM Principals WHERE Id = '{principalId:D}';"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM Principals WHERE Code = 'WEBN' AND PredecessorId = '{principalId:D}' AND IsActive = 1;"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM Principals p JOIN Principals previous ON previous.Id = p.PredecessorId WHERE p.Code = 'WEBN' AND p.OrganizationId = previous.OrganizationId;"));
         Assert.Equal(
             2,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = '{replacementOperationKey}' AND ActorSubjectId = '{DevelopmentOfflineIdentity.AdministratorId:D}' AND Reason IS NULL;"));
     }
 
@@ -201,9 +201,9 @@ public sealed partial class OrganizationAdministrationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = await factory.Database.ScalarAsync<Guid>(
+        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'QDOS';");
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
         var path = $"/Administration/Contacts/Edit/{contactId:D}";
         var noMatrix = $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND SalvageMatrixJson IS NULL;";
@@ -228,7 +228,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains("value=\"2000\"", refusedHtml, StringComparison.Ordinal);
         // The refusal shows at the top of the panel that refused.
         AssertInsidePanel(refusedHtml, "principal-salvage-title", "Cat S: bands overlap");
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(noMatrix));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(noMatrix));
 
         html = await EditContactAsync(client, path, "salvage-matrix");
         using var saved = await client.PostAsync(
@@ -237,7 +237,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.True(
             saved.StatusCode == HttpStatusCode.Redirect,
             $"Expected a redirect but got {saved.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(saved)}");
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(noMatrix));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(noMatrix));
         // The save comes back to its panel, with the notice inside it.
         Assert.Equal($"{path}?tab=salvage-matrix", saved.Headers.Location?.OriginalString);
         var reloaded = await EditContactAsync(client, path, "salvage-matrix");
@@ -253,7 +253,7 @@ public sealed partial class OrganizationAdministrationWebTests
             $"{path}?handler=UpdateSalvageMatrix",
             SalvageForm(reloaded, [("S", "", "", "")]));
         Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(noMatrix));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(noMatrix));
     }
 
     /// <summary>
@@ -266,9 +266,9 @@ public sealed partial class OrganizationAdministrationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = await factory.Database.ScalarAsync<Guid>(
+        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'KERR';");
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
         var path = $"/Administration/Contacts/Edit/{contactId:D}";
         var principalVersion = $"SELECT Version FROM Principals WHERE Id = '{principalId:D}';";
@@ -311,7 +311,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var sendingStart = html.IndexOf("data-report-sending-editor", StringComparison.Ordinal);
         var sendingPanel = html[sendingStart..html.IndexOf("</form>", sendingStart, StringComparison.Ordinal)];
         Assert.DoesNotContain("maxlength", sendingPanel, StringComparison.Ordinal);
-        var versionBefore = await factory.Database.ScalarAsync<long>(principalVersion);
+        var versionBefore = await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion);
 
         using var refused = await client.PostAsync(
             $"{path}?handler=UpdateReportSending",
@@ -322,7 +322,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains("value=\"not an address\"", refusedHtml, StringComparison.Ordinal);
         Assert.Contains("value=\"Typed hold\"", refusedHtml, StringComparison.Ordinal);
         AssertInsidePanel(refusedHtml, "principal-sending-title", "Send to: enter valid e-mail addresses.");
-        Assert.Equal(versionBefore, await factory.Database.ScalarAsync<long>(principalVersion));
+        Assert.Equal(versionBefore, await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion));
 
         using var noValue = await client.PostAsync(
             $"{path}?handler=UpdateReportSending",
@@ -352,9 +352,9 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.True(
             saved.StatusCode == HttpStatusCode.Redirect,
             $"Expected a redirect but got {saved.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(saved)}");
-        Assert.Equal(versionBefore + 1, await factory.Database.ScalarAsync<long>(principalVersion));
-        Assert.Equal("Check first.", await factory.Database.ScalarAsync<string>(holdText));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(ruleCount));
+        Assert.Equal(versionBefore + 1, await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion));
+        Assert.Equal("Check first.", await (await factory.DatabaseAsync).ScalarAsync<string>(holdText));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(ruleCount));
         Assert.Equal($"{path}?tab=report-sending", saved.Headers.Location?.OriginalString);
 
         var reloaded = await EditContactAsync(client, path, "report-sending");
@@ -384,7 +384,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var badPrefixHtml = await badPrefix.Content.ReadAsStringAsync();
         AssertInsidePanel(badPrefixHtml, "principal-sending-title", $"Rule 1: {OperatorLabels.PrincipalAdministration.RefPrefixLettersOnly}");
         Assert.Contains("value=\"a1\"", badPrefixHtml, StringComparison.Ordinal);
-        Assert.Equal(versionBefore + 1, await factory.Database.ScalarAsync<long>(principalVersion));
+        Assert.Equal(versionBefore + 1, await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion));
 
         // A reference prefix, a previous job with no value, a Rate card and two
         // named attach choices are kept; an unnamed one stays As the Principal.
@@ -404,14 +404,14 @@ public sealed partial class OrganizationAdministrationWebTests
             $"Expected a redirect but got {v8.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(v8)}");
         string RuleValue(string jsonPath) =>
             $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.rules[0].{jsonPath}') FROM Principals WHERE Id = '{principalId:D}';";
-        Assert.Equal("a", await factory.Database.ScalarAsync<string>(RuleValue("if[0].values[0]")));
-        Assert.Equal("PreviousJob", await factory.Database.ScalarAsync<string>(RuleValue("if[1].kind")));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal("a", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("if[0].values[0]")));
+        Assert.Equal("PreviousJob", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("if[1].kind")));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules[0].if[1].values');"));
-        Assert.Equal("true", await factory.Database.ScalarAsync<string>(RuleValue("then.rateCard")));
-        Assert.Equal("true", await factory.Database.ScalarAsync<string>(RuleValue("then.attach.estimate")));
-        Assert.Equal("false", await factory.Database.ScalarAsync<string>(RuleValue("then.attach.figureBreakdown")));
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("then.rateCard")));
+        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("then.attach.estimate")));
+        Assert.Equal("false", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("then.attach.figureBreakdown")));
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules[0].then.attach');"));
 
         var shown = await EditContactAsync(client, path, "report-sending");
@@ -531,7 +531,7 @@ public sealed partial class OrganizationAdministrationWebTests
             $"{settingsPath}?handler=RevokeCredential", new FormUrlEncodedContent(CredentialForm(settings)));
         Assert.Equal(HttpStatusCode.Redirect, revoked.StatusCode);
         Assert.Null(await authenticate.ExecuteAsync(resetKeyId, resetSecret, default));
-        Assert.Equal(7, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(7, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';"));
     }
 
@@ -546,9 +546,9 @@ public sealed partial class OrganizationAdministrationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = await factory.Database.ScalarAsync<Guid>(
+        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'QDOS';");
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
         var path = $"/Administration/Contacts/Edit/{contactId:D}";
         var settings = await EditContactAsync(client, path, "principal-api");
@@ -571,9 +571,9 @@ public sealed partial class OrganizationAdministrationWebTests
         var getCredential = scope.ServiceProvider.GetRequiredService<IGetPrincipalCredential>();
         var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
         var before = await getCredential.ExecuteAsync(actor, principalId, default);
-        var historyBefore = await factory.Database.ScalarAsync<int>(
+        var historyBefore = await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';");
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"UPDATE Organizations SET Version = Version + 1 WHERE Id = '{contactId:D}';");
 
         using var refused = await client.PostAsync(
@@ -585,7 +585,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(InputValue(settings, "ExpectedVersion"), InputValue(refusedHtml, "ExpectedVersion"));
         Assert.DoesNotContain("id=\"issued-api-key\"", refusedHtml, StringComparison.Ordinal);
         Assert.Equal(before, await getCredential.ExecuteAsync(actor, principalId, default));
-        Assert.Equal(historyBefore, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(historyBefore, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';"));
 
         var reloaded = await EditContactAsync(client, path, "principal-api");
@@ -607,7 +607,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var counter = new CommandCountingInterceptor();
         using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
         using var client = IntakeWebDriver.CreateClient(factory);
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT OrganizationId FROM Principals WHERE Code = 'QDOS';");
         var path = $"/Administration/Contacts/Edit/{contactId:D}";
         var settings = await EditContactAsync(client, path, "principal-api");

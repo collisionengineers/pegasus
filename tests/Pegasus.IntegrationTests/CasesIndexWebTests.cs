@@ -740,7 +740,7 @@ public sealed class CasesIndexWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await SeedImagesIncompleteCaseAsync(
             factory, client, "QD21 CFG", "QUICK-DETAIL-03", CaseLifecycleState.NotReady);
-        await using (var context = await factory.Database.CreateContextAsync())
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             var configuration = await context.Set<WorkflowConfigurationEntity>().SingleAsync();
             configuration.RequireImages = false;
@@ -1067,7 +1067,7 @@ public sealed class CasesIndexWebTests
         bool audit = false)
     {
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(factory, client, registration, claimNumber);
-        await using var context = await factory.Database.CreateContextAsync();
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
         var workflow = await context.CaseWorkflows
             .Include(item => item.Case)
             .SingleAsync(item => item.CaseId == caseId);

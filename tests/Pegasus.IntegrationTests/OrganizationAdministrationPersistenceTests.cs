@@ -49,11 +49,11 @@ public sealed class OrganizationAdministrationPersistenceTests
             Request(principal.Version, principal.ContactVersion, "principal:report-settings:direct"), default);
         Assert.Equal(principal.Version + 1, updated.Version);
         Assert.Equal(205.00m, updated.DefaultFee);
-        Assert.Equal(205.00m, await factory.Database.ScalarAsync<decimal>(
+        Assert.Equal(205.00m, await (await factory.DatabaseAsync).ScalarAsync<decimal>(
             $"SELECT DefaultFee FROM Principals WHERE Id = '{principal.Id:D}';"));
         Assert.Equal(
             principal.ContactVersion + 1,
-            await factory.Database.ScalarAsync<long>(
+            await (await factory.DatabaseAsync).ScalarAsync<long>(
                 $"SELECT Version FROM Organizations WHERE Id = '{principal.OrganizationId:D}';"));
 
         var staleContact = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
@@ -118,21 +118,21 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(rules, updated.ReportSending);
         Assert.Equal(
             principal.ContactVersion + 1,
-            await factory.Database.ScalarAsync<long>(
+            await (await factory.DatabaseAsync).ScalarAsync<long>(
                 $"SELECT Version FROM Organizations WHERE Id = '{principal.OrganizationId:D}';"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 "SELECT COUNT(*) FROM OrganizationAdministrationOperations WHERE OperationKey = 'principal:report-sending:first' AND CommandKind = 'update_principal_report_sending';"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:report-sending:first' AND EventKind = 'principal_report_sending_updated';"));
         var after = await getPrincipal.ExecuteAsync(Administrator, principal.Id, default);
         Assert.Equal(rules, after!.Principal.ReportSending);
         Assert.Equal(
             "Check first.",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.hold') FROM Principals WHERE Id = '{principal.Id:D}';"));
 
         var conflict = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
@@ -209,7 +209,7 @@ public sealed class OrganizationAdministrationPersistenceTests
                 "principal:salvage-matrix:replacement", salvageMatrix,
                 initialContactVersion + 1), default);
         var receipt = await CreateReadyReceiptAsync(factory.Services);
-        var receiptVersion = await factory.Database.ScalarAsync<long>(
+        var receiptVersion = await (await factory.DatabaseAsync).ScalarAsync<long>(
             $"SELECT Version FROM IntakeReceipts WHERE Id = '{receipt.Id:D}';");
         var accepted = await acceptIntake.ExecuteAsync(
             new(
@@ -222,7 +222,7 @@ public sealed class OrganizationAdministrationPersistenceTests
                 new(true, true)),
             default);
         var originalReference = accepted.Identity.Reference;
-        var replacementContactVersion = await factory.Database.ScalarAsync<long>(
+        var replacementContactVersion = await (await factory.DatabaseAsync).ScalarAsync<long>(
             $"SELECT Version FROM Organizations WHERE Id = '{predecessor.OrganizationId:D}';");
         var replacementRequest = new ReplacePrincipalRequest(
             predecessor.Id,
@@ -269,7 +269,7 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Null(await caseMatrices.GetForCaseAsync(Guid.NewGuid(), default));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:salvage-matrix:replacement' AND EventKind = 'principal_salvage_matrix_updated';"));
         Assert.False(persistedPredecessor.IsActive);
         Assert.Equal(successor.Id, persistedPredecessor.SuccessorId);
@@ -279,23 +279,23 @@ public sealed class OrganizationAdministrationPersistenceTests
 
         Assert.Equal(
             predecessor.Id,
-            await factory.Database.ScalarAsync<Guid>(
+            await (await factory.DatabaseAsync).ScalarAsync<Guid>(
                 $"SELECT PrincipalId FROM Cases WHERE Id = '{accepted.Identity.CaseId:D}';"));
         Assert.Equal(
             originalReference,
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT Reference FROM Cases WHERE Id = '{accepted.Identity.CaseId:D}';"));
         Assert.Equal(
             2,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:replace:qdos';"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 "SELECT COUNT(*) FROM OrganizationAdministrationOperations WHERE OperationKey = 'principal:replace:qdos';"));
         Assert.Equal(
             initialContactVersion + 3,
-            await factory.Database.ScalarAsync<long>(
+            await (await factory.DatabaseAsync).ScalarAsync<long>(
                 $"SELECT Version FROM Organizations WHERE Id = '{predecessor.OrganizationId:D}';"));
 
         var conflict = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
@@ -303,7 +303,7 @@ public sealed class OrganizationAdministrationPersistenceTests
                 replacementRequest with { SuccessorCode = "CHANGED" },
                 default));
         Assert.Equal(OrganizationAdministrationError.OperationConflict, conflict.Error);
-        var currentPrincipalVersion = await factory.Database.ScalarAsync<long>(
+        var currentPrincipalVersion = await (await factory.DatabaseAsync).ScalarAsync<long>(
             $"SELECT Version FROM Principals WHERE Id = '{predecessor.Id:D}';");
         var stale = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
             replacePrincipal.ExecuteAsync(

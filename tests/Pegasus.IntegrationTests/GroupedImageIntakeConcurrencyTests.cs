@@ -362,7 +362,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
 
         var declined = (await groups.GetAsync(groupId))!.ImageMatchDeclined;
         Assert.Equal(new ImageMatchDeclined("staff-1", firstAt), declined);
-        await using var context = await factory.Database.CreateContextAsync();
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
         var history = await context.IntakeSubmissionGroupHistory.AsNoTracking()
             .Where(item => item.GroupId == groupId && item.EventType == "image_match_declined")
             .ToListAsync();
