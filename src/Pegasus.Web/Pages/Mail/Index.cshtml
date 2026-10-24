@@ -441,6 +441,7 @@
                            asp-route-search="@Model.SearchTerm"
                            asp-route-queue="@Model.QueueFilter"
                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                           asp-route-paged="@(Model.DeletedResults is null ? null : "true")"
                            asp-route-pageNumber="@(currentPage - 1)">Previous</a>
                     }
                     @if (currentPage < totalPages)
@@ -452,6 +453,7 @@
                            asp-route-search="@Model.SearchTerm"
                            asp-route-queue="@Model.QueueFilter"
                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                           asp-route-paged="@(Model.DeletedResults is null ? null : "true")"
                            asp-route-pageNumber="@(currentPage + 1)">Next</a>
                     }
                 </div>
