@@ -32,11 +32,14 @@ public interface IEngineerActivityQueries
 {
     /// <summary>
     /// One entry per staff member, and per other kind of sender, with any
-    /// activity in the period; a sender with none is absent.
+    /// activity in the period; a sender with none is absent. With
+    /// <paramref name="engineerId"/>, only that staff member's entry, which is
+    /// the same as theirs in the unfiltered read.
     /// </summary>
     Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
+        Guid? engineerId,
         CancellationToken cancellationToken);
 }
 
@@ -87,6 +90,7 @@ public sealed class GetEngineerActivityReport(
         ActionActor actor,
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
+        Guid? engineerId,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(actor);
@@ -104,7 +108,7 @@ public sealed class GetEngineerActivityReport(
                 "The report period cannot exceed 366 days.");
         }
 
-        var counts = await queries.GetAsync(fromUtc, toUtc, cancellationToken);
+        var counts = await queries.GetAsync(fromUtc, toUtc, engineerId, cancellationToken);
         ArgumentNullException.ThrowIfNull(counts);
         if (counts.Any(item => (item.SenderKind == ActorKind.Staff
                 ? item.EngineerId == Guid.Empty

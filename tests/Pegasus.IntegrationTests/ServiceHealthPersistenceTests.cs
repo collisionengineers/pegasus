@@ -172,7 +172,7 @@ public sealed class ServiceHealthPersistenceTests
     }
 
     /// <summary>
-    /// The Health page sends its shell's statements plus at most eleven of its
+    /// The Health page sends its shell's statements plus at most ten of its
     /// own for the snapshot, whatever the row count. The shell is measured on the
     /// Administration hub, which renders the same layout, the same filters and
     /// the same middleware and reads nothing else. The Automation ingress switch
@@ -180,7 +180,7 @@ public sealed class ServiceHealthPersistenceTests
     /// Sent-items cursors once, for the poll list.
     /// </summary>
     [Fact]
-    public async Task TheHealthPageSendsTheShellsStatementsAndElevenOfItsOwnWhateverTheRowCount()
+    public async Task TheHealthPageSendsTheShellsStatementsAndTenOfItsOwnWhateverTheRowCount()
     {
         var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
@@ -203,7 +203,7 @@ public sealed class ServiceHealthPersistenceTests
         _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
         var withNoRows = counter.Count;
         Assert.True(withNoRows > 0, "The interceptor observed no statements at all.");
-        const int snapshotStatements = 11;
+        const int snapshotStatements = 10;
         Assert.True(
             withNoRows <= shell + snapshotStatements,
             $"The Health page sent {withNoRows} statements; at most {shell + snapshotStatements} are allowed"

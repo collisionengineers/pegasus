@@ -72,37 +72,9 @@ internal sealed class EfMonthlyReportActivityQueries(
         // The fee belongs to each work's first confirmed report: an
         // Inspection + Audit Case's Audit carries its own fee.
         var workIds = artifacts.Select(x => x.WorkId).Distinct().ToArray();
-        var firstReports = workIds.Length == 0
-            ? []
-            : await FrozenReportSnapshot.ReadAsync(
-                from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
-                join artifact in db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
-                    on generation.Id equals artifact.GenerationId
-                join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
-                    on artifact.VersionId equals (Guid?)documentVersion.Id
-                where workIds.Contains(generation.WorkId)
-                    && artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
-                    && artifact.Sha256 != null
-                    && artifact.Sha256 == documentVersion.Sha256
-                    && documentVersion.CustodyStatus == Pegasus.Core.Documents.DocumentCustodyStatus.Confirmed
-                select new FrozenReportRow(
-                    generation.WorkId,
-                    generation.Id,
-                    generation.GeneratedAtUtc,
-                    SqlJson.Value(generation.SnapshotJson, FrozenReportSnapshot.AgreedFeePath)),
-                cancellationToken);
-
-        var firstReportByWork = firstReports
-            .GroupBy(x => x.WorkId)
-            .Select(group => group
-                .OrderBy(x => x.GeneratedAtUtc)
-                .ThenBy(x => x.GenerationId)
-                .First())
-            .Where(first => FirstReportFeeAttribution.InPeriod(first.GeneratedAtUtc, fromUtc, toUtc))
-            .ToDictionary(first => first.WorkId);
-        var fees = firstReportByWork.ToDictionary(
-            pair => pair.Key,
-            pair => FrozenReportSnapshot.AgreedFee(pair.Value.GenerationId, pair.Value.AgreedFee));
+        var firstReportByWork = await FrozenReportSnapshot.ReadFirstInPeriodFeesAsync(
+            db, workIds, fromUtc, toUtc, cancellationToken);
+        var fees = firstReportByWork.ToDictionary(pair => pair.Key, pair => pair.Value.AgreedFee);
         var feeMonthByWork = firstReportByWork.ToDictionary(
             pair => pair.Key,
             pair => MonthOf(pair.Value.GeneratedAtUtc));
@@ -169,12 +141,6 @@ internal sealed class EfMonthlyReportActivityQueries(
         /// <summary>MI-02's split: an Audit report (<see cref="CaseWorkKinds.IsAuditReport"/>) or an Inspection report.</summary>
         public bool IsAudit => CaseWorkKinds.IsAuditReport(CaseType, WorkKind);
     }
-
-    private sealed record FrozenReportRow(
-        Guid WorkId,
-        Guid GenerationId,
-        DateTimeOffset GeneratedAtUtc,
-        string? AgreedFee);
 
     private sealed record SentRow(
         Guid PrincipalId,

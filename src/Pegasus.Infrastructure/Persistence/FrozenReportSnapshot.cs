@@ -1,6 +1,8 @@
 using System.Globalization;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Documents;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -40,4 +42,95 @@ internal static class FrozenReportSnapshot
             throw new InvalidDataException("A frozen report snapshot is unreadable.", exception);
         }
     }
+
+    /// <summary>
+    /// Each work's first confirmed AssessmentReport generation globally, kept
+    /// only where it falls in the period (from inclusive, to exclusive; the
+    /// fee belongs to the one period holding the first report), with its
+    /// agreed fee. One statement: the first in-period generation is
+    /// chosen in the database and only it has its fee read from the snapshot,
+    /// so a later generation's snapshot is never opened. Generations that
+    /// share the earliest instant all come back and the lowest id is the first.
+    /// </summary>
+    public static async Task<Dictionary<Guid, FirstReportFee>> ReadFirstInPeriodFeesAsync(
+        PegasusDbContext db,
+        IReadOnlyCollection<Guid> workIds,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc,
+        CancellationToken cancellationToken)
+    {
+        if (workIds.Count == 0)
+        {
+            return [];
+        }
+
+        var confirmed = ConfirmedAssessmentReports(db);
+        var ids = workIds.ToArray();
+        var rows = await ReadAsync(
+            from report in confirmed
+            where ids.Contains(report.WorkId)
+                && report.GeneratedAtUtc >= fromUtc
+                && report.GeneratedAtUtc < toUtc
+                && !confirmed.Any(earlier =>
+                    earlier.WorkId == report.WorkId && earlier.GeneratedAtUtc < report.GeneratedAtUtc)
+            select new FirstReportRow
+            {
+                WorkId = report.WorkId,
+                GenerationId = report.GenerationId,
+                GeneratedAtUtc = report.GeneratedAtUtc,
+                AgreedFee = SqlJson.Value(report.SnapshotJson, AgreedFeePath),
+            },
+            cancellationToken);
+
+        return rows
+            .GroupBy(row => row.WorkId)
+            .Select(group => group.OrderBy(row => row.GenerationId).First())
+            .ToDictionary(
+                first => first.WorkId,
+                first => new FirstReportFee(first.GeneratedAtUtc, AgreedFee(first.GenerationId, first.AgreedFee)));
+    }
+
+    /// <summary>A confirmed report: its document version exists, carries the artifact's hash and is in confirmed custody.</summary>
+    private static IQueryable<ConfirmedAssessmentReport> ConfirmedAssessmentReports(PegasusDbContext db) =>
+        from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
+        join artifact in db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
+            on generation.Id equals artifact.GenerationId
+        join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
+            on artifact.VersionId equals (Guid?)documentVersion.Id
+        where artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
+            && artifact.Sha256 != null
+            && artifact.Sha256 == documentVersion.Sha256
+            && documentVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
+        select new ConfirmedAssessmentReport
+        {
+            WorkId = generation.WorkId,
+            GenerationId = generation.Id,
+            GeneratedAtUtc = generation.GeneratedAtUtc,
+            SnapshotJson = generation.SnapshotJson,
+        };
+
+    private sealed class ConfirmedAssessmentReport
+    {
+        public Guid WorkId { get; init; }
+
+        public Guid GenerationId { get; init; }
+
+        public DateTimeOffset GeneratedAtUtc { get; init; }
+
+        public string SnapshotJson { get; init; } = string.Empty;
+    }
+
+    private sealed class FirstReportRow
+    {
+        public Guid WorkId { get; init; }
+
+        public Guid GenerationId { get; init; }
+
+        public DateTimeOffset GeneratedAtUtc { get; init; }
+
+        public string? AgreedFee { get; init; }
+    }
 }
+
+/// <summary>A work's first report: when it was generated and the agreed fee frozen in it.</summary>
+internal readonly record struct FirstReportFee(DateTimeOffset GeneratedAtUtc, decimal AgreedFee);

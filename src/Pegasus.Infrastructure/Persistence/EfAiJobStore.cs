@@ -406,18 +406,47 @@ public sealed class EfAiJobStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var now = UtcNow();
-        var open = await OpenRows(context)
-            .Select(item => new { item.State, item.ExpiresAtUtc, item.LeaseExpiresAtUtc })
+        // One statement: the open rows, then one row carrying the Failed count
+        // (no such row when none has failed).
+        var rows = await OpenRows(context)
+            .Select(item => new CountRow
+            {
+                State = item.State,
+                ExpiresAtUtc = item.ExpiresAtUtc,
+                LeaseExpiresAtUtc = item.LeaseExpiresAtUtc,
+                Failed = 0,
+            })
+            .Concat(context.AiJobs.AsNoTracking()
+                .Where(item => item.State == nameof(AiJobState.Failed))
+                .GroupBy(_ => 1)
+                .Select(group => new CountRow
+                {
+                    State = null,
+                    ExpiresAtUtc = default,
+                    LeaseExpiresAtUtc = null,
+                    Failed = group.Count(),
+                }))
             .ToListAsync(cancellationToken);
-        var active = open.Count(item =>
-            !AiJobStates.IsTerminal(AiJobPolicy.EffectiveState(
+        var active = rows.Count(item =>
+            item.State is not null
+            && !AiJobStates.IsTerminal(AiJobPolicy.EffectiveState(
                 Parse<AiJobState>(item.State),
                 item.ExpiresAtUtc,
                 item.LeaseExpiresAtUtc,
                 now)));
-        var failed = await context.AiJobs.AsNoTracking()
-            .CountAsync(item => item.State == nameof(AiJobState.Failed), cancellationToken);
+        var failed = rows.Sum(item => item.Failed);
         return new(active, failed);
+    }
+
+    private sealed class CountRow
+    {
+        public string? State { get; init; }
+
+        public DateTimeOffset ExpiresAtUtc { get; init; }
+
+        public DateTimeOffset? LeaseExpiresAtUtc { get; init; }
+
+        public int Failed { get; init; }
     }
 
     private static IQueryable<AiJobEntity> OpenRows(PegasusDbContext context) =>

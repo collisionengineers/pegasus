@@ -302,6 +302,43 @@ public sealed class AdministrationReportsWebTests
     }
 
     /// <summary>
+    /// F254 (R326): with a Person chosen, the period before and the Engineer CSV
+    /// read only that sender; the Engineers tab's own period read stays
+    /// unfiltered because it draws the Person choices.
+    /// </summary>
+    [Fact]
+    public async Task AChosenPersonNarrowsThePreviousPeriodAndTheCsvReadsButNotTheChoices()
+    {
+        var recorder = new RecordingReportQueries();
+        var person = Guid.NewGuid();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IEngineerActivityQueries>();
+                services.AddSingleton<IEngineerActivityQueries>(recorder);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        using (var engineers = await client.GetAsync($"{Page}?engineerId={person:D}"))
+        {
+            Assert.Equal(HttpStatusCode.OK, engineers.StatusCode);
+        }
+        Assert.Equal(new Guid?[] { null, person }, recorder.EngineerIds);
+
+        recorder.Reset();
+        using (var csv = await client.GetAsync($"{Page}?handler=Csv&engineerId={person:D}"))
+        {
+            Assert.Equal(HttpStatusCode.OK, csv.StatusCode);
+        }
+        Assert.Equal(new Guid?[] { person }, recorder.EngineerIds);
+    }
+
+    /// <summary>
     /// PERF-WEB-08: a tab runs its own reports' reads and no other tab's. The
     /// Engineers and Principals tabs also read the period just before for the
     /// totals that show it (R156); Queues and Case list read none.
@@ -568,6 +605,7 @@ public sealed class AdministrationReportsWebTests
         public Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
+            Guid? engineerId,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<EngineerActivityCounts>>(
             [new(Guid.NewGuid(), 1, 1, AverageReceivedToSent: TimeSpan.FromHours(-1))]);
@@ -584,12 +622,17 @@ public sealed class AdministrationReportsWebTests
         private int monthly;
         private int outcomes;
         private int principal;
+        private readonly System.Collections.Concurrent.ConcurrentQueue<Guid?> engineerIds = new();
+
+        /// <summary>The sender each Engineer read asked for, in the order the reads started; null is every sender.</summary>
+        public IReadOnlyList<Guid?> EngineerIds => [.. engineerIds];
 
         public (int Engineer, int Monthly, int Outcomes, int Principal) Calls => (engineer, monthly, outcomes, principal);
 
         public void Reset()
         {
             engineer = 0;
+            engineerIds.Clear();
             monthly = 0;
             outcomes = 0;
             principal = 0;
@@ -607,9 +650,11 @@ public sealed class AdministrationReportsWebTests
         Task<IReadOnlyList<EngineerActivityCounts>> IEngineerActivityQueries.GetAsync(
             DateTimeOffset fromUtc,
             DateTimeOffset toUtc,
+            Guid? engineerId,
             CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref engineer);
+            engineerIds.Enqueue(engineerId);
             return Task.FromResult<IReadOnlyList<EngineerActivityCounts>>([]);
         }
 

@@ -37,13 +37,6 @@ public sealed record PrincipalReportActivity(
     public decimal InspectionAgreedFeeTotal => AgreedFeeTotal - AuditAgreedFeeTotal;
 }
 
-/// <summary>The frozen fee belongs only to the exact period containing the first confirmed report.</summary>
-public static class FirstReportFeeAttribution
-{
-    public static bool InPeriod(DateTimeOffset firstReportAtUtc, DateTimeOffset fromUtc, DateTimeOffset toUtc) =>
-        firstReportAtUtc >= fromUtc && firstReportAtUtc < toUtc;
-}
-
 public sealed record PrincipalReportActivityReport(
     DateTimeOffset FromUtc,
     DateTimeOffset ToUtc,

@@ -24,8 +24,13 @@ internal sealed class EfEngineerActivityQueries(
     public async Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
+        Guid? engineerId,
         CancellationToken cancellationToken)
     {
+        // One staff member asked for reads only that sender's report sends and
+        // the query Cases assigned to them; the sender's id is stored in the
+        // "D" form (ActionActor.Staff).
+        var staffSubjectId = engineerId?.ToString("D");
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         // A report send's context is its generation, which names its Case and
@@ -41,7 +46,9 @@ internal sealed class EfEngineerActivityQueries(
             .Where(item => item.Purpose == StaffMailPurpose.CaseReport
                 && item.State == StaffMailState.Sent
                 && item.ObservedSentAtUtc >= fromUtc
-                && item.ObservedSentAtUtc < toUtc)
+                && item.ObservedSentAtUtc < toUtc
+                && (staffSubjectId == null
+                    || (item.ActorKind == ActorKind.Staff && item.ActorSubjectId == staffSubjectId)))
             .Select(item => new { item.ActorKind, item.ActorSubjectId, item.ContextId, item.SecondContextId, SentAtUtc = item.ObservedSentAtUtc!.Value })
             .ToListAsync(cancellationToken))
             .SelectMany(item => item.SecondContextId is { } second
@@ -122,7 +129,8 @@ internal sealed class EfEngineerActivityQueries(
             : await context.CaseWorkflows
                 .AsNoTracking()
                 .Where(workflow => queryCaseIds.Contains(workflow.CaseId)
-                    && workflow.AssignedEngineerId != null)
+                    && workflow.AssignedEngineerId != null
+                    && (engineerId == null || workflow.AssignedEngineerId == engineerId))
                 .ToDictionaryAsync(
                     workflow => workflow.CaseId,
                     workflow => workflow.AssignedEngineerId!.Value,
