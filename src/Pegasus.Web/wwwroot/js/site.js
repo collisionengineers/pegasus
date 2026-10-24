@@ -684,11 +684,12 @@
                 window.fetch(form.action, {
                     method: 'POST',
                     body: new FormData(form),
-                    credentials: 'same-origin'
+                    credentials: 'same-origin',
+                    redirect: 'manual'
                 }).then(function (response) {
-                    // A followed redirect is the sign-in page: the session has
-                    // ended, so stop beating without a message.
-                    if (response.redirected) {
+                    // A redirect answer (not followed) is the sign-in page:
+                    // the session has ended, so stop beating without a message.
+                    if (response.type === 'opaqueredirect') {
                         stopped = true;
                         window.clearInterval(timer);
                         document.removeEventListener('visibilitychange', onVisible);
