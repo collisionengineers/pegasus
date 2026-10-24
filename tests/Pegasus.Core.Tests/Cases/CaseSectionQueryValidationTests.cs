@@ -306,6 +306,9 @@ public sealed class CaseSectionQueryValidationTests
     {
         public Task<IReadOnlyList<CaseTaskRecord>> ListAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseTaskRecord>>(tasks);
+
+        public Task<bool> HasOpenAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult(tasks.Any(task => task.State == CaseTaskState.Open));
     }
 
     private sealed class CountingStaff(params CaseEngineerChoice[] enabled) : ICaseEngineerChoices

@@ -201,6 +201,26 @@ public sealed class CaseTaskArchivePersistenceTests
         Assert.Equal(0, retained?.Version);
     }
 
+    /// <summary>
+    /// A1-07 (R249): the quick detail asks whether any task is open with one
+    /// exists read; only an Open task answers yes.
+    /// </summary>
+    [Fact]
+    public async Task HasOpenAnswersYesOnlyWhileATaskIsOpen()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        Assert.False(await harness.TaskQueries.HasOpenAsync(harness.TaskCaseId, default));
+
+        var taskId = Guid.NewGuid();
+        await harness.SeedOpenTaskAsync(taskId);
+        Assert.True(await harness.TaskQueries.HasOpenAsync(harness.TaskCaseId, default));
+        Assert.False(await harness.TaskQueries.HasOpenAsync(harness.FindingCaseId, default));
+
+        await harness.ExecuteSqlAsync($"UPDATE CaseTasks SET State = 'Completed' WHERE Id = '{taskId:D}'");
+        Assert.False(await harness.TaskQueries.HasOpenAsync(harness.TaskCaseId, default));
+    }
+
     [Fact]
     public async Task ArchiveRejectsAClosedCaseWithAnOpenTask()
     {
