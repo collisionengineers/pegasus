@@ -122,7 +122,7 @@ public sealed partial class DetailsModel
                 : null;
             var generation = reads.Start(token =>
                 reportGenerations.GetCurrentAsync(actor, id, work, token));
-            var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
+            var caseAiJobs = reads.Start(token => aiJobs.ListOpenForSubjectAsync(id, token));
             var holder = activeLease is { } lease && !viewerHoldsLease
                 ? reads.Start(token => describeEditAuthorityHolder.ExecuteAsync(
                     lease.HolderKind,

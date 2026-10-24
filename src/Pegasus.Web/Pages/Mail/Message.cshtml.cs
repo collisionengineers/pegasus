@@ -1750,7 +1750,7 @@ public sealed class MessageModel(
         // whenever the message is a query source.
         if (IsQueryResponseSource && CurrentCase is { } currentCase)
         {
-            AiJobs = await aiJobQueries.ListForSubjectAsync(
+            AiJobs = await aiJobQueries.ListOpenForSubjectAsync(
                 currentCase.Summary.CaseId,
                 cancellationToken);
             if (IsQueryResponseSource)

@@ -49,6 +49,14 @@ public sealed record RepairSpecificationSnapshot(
         Lines, CreatedBy, CreatedAtUtc, Details, Supplementary: Supplementary);
 }
 
+/// <summary>The scalar columns of one frozen version: what a listing shows without its header or lines.</summary>
+public sealed record RepairSpecificationSnapshotSummary(
+    Guid Id,
+    int Number,
+    RepairSpecificationSnapshotKind Kind,
+    DateTimeOffset CreatedAtUtc,
+    decimal Gross);
+
 public sealed record FreezeRepairSpecificationRequest(
     Guid CaseId,
     Guid SpecificationId,
@@ -71,6 +79,21 @@ public interface IRepairSpecificationSnapshotStore
     Task<RepairSpecificationSnapshot> FreezeAsync(FreezeRepairSpecificationRequest request, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<RepairSpecificationSnapshot>> ListAsync(Guid caseId, Guid specificationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One frozen version of the named specification, or null when the Case's
+    /// specification has no such version: the row <see cref="ListAsync"/>
+    /// would return with that id, read alone.
+    /// </summary>
+    Task<RepairSpecificationSnapshot?> GetAsync(
+        Guid caseId, Guid specificationId, Guid snapshotId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The scalar columns of each of the specification's frozen versions, by
+    /// number: <see cref="ListAsync"/> without the header and lines.
+    /// </summary>
+    Task<IReadOnlyList<RepairSpecificationSnapshotSummary>> ListSummariesAsync(
+        Guid caseId, Guid specificationId, CancellationToken cancellationToken);
 
     /// <summary>
     /// The listed specifications' frozen versions in one read, by

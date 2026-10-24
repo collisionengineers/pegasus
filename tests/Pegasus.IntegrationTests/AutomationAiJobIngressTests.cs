@@ -265,6 +265,83 @@ public sealed class AutomationAiJobIngressTests
     }
 
     /// <summary>
+    /// A Case's page draws its drafts, pending research and live Query response
+    /// jobs from the jobs that are still open: Queued, Taken or Draft ready,
+    /// newest first. A job that completed, failed or was cancelled, and another
+    /// subject's job, never come back.
+    /// </summary>
+    [Fact]
+    public async Task ASubjectsOpenJobListHoldsOnlyItsOpenJobsNewestFirst()
+    {
+        var clock = new CaseDataCompletenessPersistenceTests.MutableTimeProvider(SeedUtcNow);
+        using var factory = new IntakeWebApplicationFactory(clock);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        var queries = scope.ServiceProvider.GetRequiredService<IAiJobQueries>();
+        var caseId = Guid.NewGuid();
+
+        async Task<Guid> CreateAsync(Guid subjectId, string operationKey)
+        {
+            clock.Advance(TimeSpan.FromSeconds(1));
+            var created = await store.CreateAsync(
+                new(
+                    AiJobKind.QueryResponse,
+                    AiJobSubjectKind.Case,
+                    subjectId,
+                    "OPEN14001",
+                    Guid.NewGuid().ToString("D"),
+                    null,
+                    null,
+                    Staff,
+                    operationKey,
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            return created.JobId;
+        }
+
+        Task TakeAsync(Guid jobId, string operationKey) => store.TransitionAsync(
+            new(jobId, 0, AiJobState.Taken, Client, operationKey,
+                LeaseExpiresAtUtc: clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+
+        var queued = await CreateAsync(caseId, "open-list-queued");
+        var draftReady = await CreateAsync(caseId, "open-list-draft");
+        await TakeAsync(draftReady, "open-list-draft-take");
+        await store.TransitionAsync(
+            new(draftReady, 1, AiJobState.DraftReady, Client, "open-list-draft-ready",
+                Result: new(AiJobResultKind.DraftReply, null, "A drafted reply.")),
+            CancellationToken.None);
+        var taken = await CreateAsync(caseId, "open-list-taken");
+        await TakeAsync(taken, "open-list-taken-take");
+        var cancelled = await CreateAsync(caseId, "open-list-cancelled");
+        await store.TransitionAsync(
+            new(cancelled, 0, AiJobState.Cancelled, Staff, "open-list-cancel", Reason: "No longer needed."),
+            CancellationToken.None);
+        var failed = await CreateAsync(caseId, "open-list-failed");
+        await TakeAsync(failed, "open-list-failed-take");
+        await store.TransitionAsync(
+            new(failed, 1, AiJobState.Failed, Client, "open-list-fail", Reason: "The model refused."),
+            CancellationToken.None);
+        var completed = await CreateAsync(caseId, "open-list-completed");
+        await TakeAsync(completed, "open-list-completed-take");
+        await store.TransitionAsync(
+            new(completed, 1, AiJobState.DraftReady, Client, "open-list-completed-draft",
+                Result: new(AiJobResultKind.DraftReply, null, "A drafted reply.")),
+            CancellationToken.None);
+        await store.TransitionAsync(
+            new(completed, 2, AiJobState.Completed, Staff, "open-list-complete"),
+            CancellationToken.None);
+        await CreateAsync(Guid.NewGuid(), "open-list-other-subject");
+
+        var open = await queries.ListOpenForSubjectAsync(caseId, CancellationToken.None);
+
+        Assert.Equal([taken, draftReady, queued], open.Select(job => job.JobId));
+        Assert.Equal(
+            [AiJobState.Taken, AiJobState.DraftReady, AiJobState.Queued],
+            open.Select(job => job.State));
+    }
+
+    /// <summary>
     /// Action logs fold the AI job ledger in, so every state a job can reach has
     /// to leave one permanent, attributable row that names the record it was
     /// about — otherwise a job that failed or was cancelled simply vanishes from

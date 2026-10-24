@@ -985,7 +985,7 @@ public sealed class StartupWarmupTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListForSubjectAsync(
+        Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListOpenForSubjectAsync(
             Guid subjectId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

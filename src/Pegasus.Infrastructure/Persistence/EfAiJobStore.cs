@@ -339,7 +339,7 @@ public sealed class EfAiJobStore(
         return new(rows.Take(limit).Select(row => Map(row, now)).ToArray(), rows.Count > limit);
     }
 
-    public async Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(
+    public async Task<IReadOnlyList<AiJobRecord>> ListOpenForSubjectAsync(
         Guid subjectId,
         CancellationToken cancellationToken)
     {
@@ -350,7 +350,7 @@ public sealed class EfAiJobStore(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var now = UtcNow();
-        var rows = await context.AiJobs.AsNoTracking()
+        var rows = await OpenRows(context)
             .Where(item => item.SubjectId == subjectId)
             .OrderByDescending(item => item.CreatedAtUtc)
             .ThenByDescending(item => item.JobId)

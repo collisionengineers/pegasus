@@ -120,7 +120,7 @@ public sealed class DatabaseLessWebHostTests
             ("reviewed inspection locations", async services => await services
                 .GetRequiredService<IInspectionAddressChoicesQueries>().GetDirectoryLocationsAsync(caseId, none)),
             ("AI jobs", async services =>
-                await services.GetRequiredService<IAiJobQueries>().ListForSubjectAsync(caseId, none)),
+                await services.GetRequiredService<IAiJobQueries>().ListOpenForSubjectAsync(caseId, none)),
             ("pending market research", async services =>
                 await services.GetRequiredService<IAiJobQueries>().GetPendingMarketResearchAsync(caseId, none)),
             ("estimates", async services =>

@@ -2020,6 +2020,14 @@ public sealed partial class AssessmentReportDraftWebTests
             Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>([]);
 
+        public Task<RepairSpecificationSnapshot?> GetAsync(
+            Guid caseId, Guid specificationId, Guid snapshotId, CancellationToken cancellationToken) =>
+            Task.FromResult<RepairSpecificationSnapshot?>(null);
+
+        public Task<IReadOnlyList<RepairSpecificationSnapshotSummary>> ListSummariesAsync(
+            Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RepairSpecificationSnapshotSummary>>([]);
+
         public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListForSpecificationsAsync(
             Guid caseId, IReadOnlyCollection<Guid> specificationIds, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>([]);

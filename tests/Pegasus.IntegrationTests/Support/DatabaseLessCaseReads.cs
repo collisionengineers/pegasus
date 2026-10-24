@@ -117,7 +117,7 @@ internal sealed class DatabaseLessCaseReads :
         Guid caseId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<DirectoryInspectionLocation>>([]);
 
-    Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListForSubjectAsync(
+    Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListOpenForSubjectAsync(
         Guid subjectId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
 

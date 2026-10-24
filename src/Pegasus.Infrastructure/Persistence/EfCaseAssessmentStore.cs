@@ -51,14 +51,7 @@ public sealed class EfCaseAssessmentStore(
             .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
-        var specificationId = await EfRepairSpecificationStore.CurrentQuery(context, workId)
-            .Select(item => (Guid?)item.Id)
-            .SingleOrDefaultAsync(cancellationToken);
-        var lines = await context.CaseEstimateLines.AsNoTracking()
-            .Where(item => item.WorkId == workId
-                && item.RepairSpecificationId == specificationId)
-            .OrderBy(item => item.Position)
-            .ToArrayAsync(cancellationToken);
+        var lines = await CurrentLinesAsync(context, workId, cancellationToken);
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
             .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
@@ -196,19 +189,29 @@ public sealed class EfCaseAssessmentStore(
             .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
-        var specificationId = await EfRepairSpecificationStore.CurrentQuery(context, workId)
-            .Select(item => (Guid?)item.Id)
-            .SingleOrDefaultAsync(cancellationToken);
-        var lines = await context.CaseEstimateLines.AsNoTracking()
-            .Where(item => item.WorkId == workId
-                && item.RepairSpecificationId == specificationId)
-            .OrderBy(item => item.Position)
-            .ToArrayAsync(cancellationToken);
+        var lines = await CurrentLinesAsync(context, workId, cancellationToken);
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
             .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
         var originReceivedAtUtc = await OriginReceivedAtUtcAsync(context, workId, cancellationToken);
         return Map(workflow, fields, lines, caseDataFields, originReceivedAtUtc);
+    }
+
+    /// <summary>
+    /// The work's current specification's lines in one statement, in order;
+    /// none when the work has no current specification.
+    /// </summary>
+    private static Task<CaseEstimateLineEntity[]> CurrentLinesAsync(
+        PegasusDbContext context,
+        Guid workId,
+        CancellationToken cancellationToken)
+    {
+        var current = EfRepairSpecificationStore.CurrentQuery(context, workId);
+        return context.CaseEstimateLines.AsNoTracking()
+            .Where(item => item.WorkId == workId
+                && current.Any(specification => specification.Id == item.RepairSpecificationId))
+            .OrderBy(item => item.Position)
+            .ToArrayAsync(cancellationToken);
     }
 
     /// <summary>The origin receipt time <see cref="Map"/> takes, read off the work's snapshot.</summary>
