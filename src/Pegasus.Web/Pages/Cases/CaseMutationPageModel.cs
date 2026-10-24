@@ -135,6 +135,13 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     public string? LeaseToken { get; private set; }
 
     /// <summary>
+    /// Draws this request as the holder of a lease the browser presented to an
+    /// asynchronous read, once Core has validated it. Nothing is stored: that
+    /// read must not touch the cookie-backed state a redirect depends on.
+    /// </summary>
+    protected void AdoptRenderLease(string token) => LeaseToken = token;
+
+    /// <summary>
     /// A claim key belongs to one claim, so every render offers a new one: with no live lease the
     /// last key this browser used has either ended with its lease or never claimed anything, and
     /// replaying a finished claim would only refuse the operator.

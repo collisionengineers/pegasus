@@ -228,6 +228,15 @@ public sealed class CaseWorkspaceScriptContractTests
         Assert.Contains("section.replaceWith.apply(section, incoming);", show, StringComparison.Ordinal);
         Assert.Contains("window.history.replaceState(null, '', href);", show, StringComparison.Ordinal);
         Assert.DoesNotContain("swap(", show, StringComparison.Ordinal);
+        // The part is fetched from the fragment route with the lease header
+        // (not by a full-page GET), and a choice that cannot be redrawn still
+        // takes the navigation it replaced.
+        Assert.Contains(
+            "fetch(fragmentPath + new URL(href, window.location.href).search,",
+            show,
+            StringComparison.Ordinal);
+        Assert.Contains("headers['X-Pegasus-Edit-Lease'] = lease;", show, StringComparison.Ordinal);
+        Assert.Contains("window.location.assign(href);", show, StringComparison.Ordinal);
     }
 
     /// <summary>

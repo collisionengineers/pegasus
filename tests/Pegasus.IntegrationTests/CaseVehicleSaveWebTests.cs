@@ -224,6 +224,66 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     private const int CaseSaveCommands = 26;
 
     /// <summary>
+    /// What a spec tab, New repair spec or Compare switch costs in SQL commands
+    /// in an edit session. The script fetches the Repair Spec fragment alone
+    /// (R304) on the narrow section frame, so the count is a ceiling well under
+    /// the Case page's (13 against 38 for the same request through the full
+    /// page), and that request is measured beside it. A failure lists every
+    /// command sent.
+    /// </summary>
+    [Fact]
+    public async Task TheEstimateFragmentInAnEditSessionSendsFewerStatementsThanTheCasePage()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-estimate-fragment", withMileage: false);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
+        var lease = InputValue(editing, "editLeaseToken");
+        var query = "section=estimate&estimate=new";
+
+        async Task<string> FragmentAsync()
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get, $"/Cases/{caseId:D}/Section?{query}");
+            request.Headers.Add("X-Pegasus-Edit-Lease", lease);
+            using var response = await client.SendAsync(request);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.True(response.StatusCode == HttpStatusCode.OK, body);
+            return body;
+        }
+
+        // The first render of each shape pays one-off work; the counts are later ones.
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}?{query}");
+        _ = await FragmentAsync();
+
+        counter.Reset();
+        _ = await GetHtmlAsync(client, $"/Cases/{caseId:D}?{query}");
+        var pageCommands = counter.Count;
+
+        counter.Reset();
+        var fragment = await FragmentAsync();
+        var fragmentCommands = counter.Count;
+        var fragmentDescription = counter.Describe();
+        output.WriteLine($"Estimate fragment: {fragmentCommands} commands; the Case page: {pageCommands}.");
+
+        Assert.Contains("id=\"section-estimate\"", fragment, StringComparison.Ordinal);
+        Assert.True(
+            fragmentCommands <= EstimateFragmentCommands,
+            $"The Repair Spec fragment in an edit session sent {fragmentCommands} SQL commands; at most {EstimateFragmentCommands} are allowed."
+            + Environment.NewLine + fragmentDescription);
+        Assert.True(
+            fragmentCommands < pageCommands,
+            $"The Repair Spec fragment sent {fragmentCommands} SQL commands, no fewer than the Case page's {pageCommands}.");
+    }
+
+    private const int EstimateFragmentCommands = 13;
+
+    /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
     /// the parts it swaps, not with a redirect to the whole page. Three commits
     /// walk the real stores the way the script does: each carries the version,
