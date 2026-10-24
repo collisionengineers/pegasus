@@ -692,6 +692,156 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal(UnidentifiedState.Resolved, Assert.Single(harness.Store.Items).State);
     }
 
+    [Fact]
+    public async Task AGroupItemReadsItsMemberReceiptsAsOneSet()
+    {
+        var harness = new Harness();
+        var groupId = Guid.NewGuid();
+        var first = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting);
+        var second = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting);
+        var third = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting);
+        var unprocessed = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting);
+        harness.AddCompleteGroup(groupId, first, second, third, unprocessed);
+        harness.Receipts.Receipts.Remove(unprocessed.Id);
+        var item = harness.AddOpenItem(6, UnidentifiedOrigin.SubmissionGroup(groupId));
+
+        var result = await GroupContext(harness).ExecuteAsync(
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            item.Id,
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(1, harness.Receipts.GetManyCalls);
+        Assert.Equal(0, harness.Receipts.GetCalls);
+        // The members' Image Intake origins are one set read, shared by the
+        // offers and the group's search; the group discards Open the Triage,
+        // so no Triage is read.
+        Assert.Equal(new[] { first.Id, second.Id, third.Id }, Assert.Single(harness.ImageIntakes.OriginSetReads));
+        Assert.Empty(harness.ImageIntakes.OriginReads);
+        Assert.Empty(harness.Triages.OriginReads);
+        Assert.Equal(new[] { first.Id, second.Id, third.Id }, result.MemberReceipts.Select(receipt => receipt.Id));
+        // A member with no receipt still means the group is not complete.
+        Assert.False(result.CanRegisterImages);
+        Assert.Null(result.GroupRegistrationReceipt);
+    }
+
+    [Fact]
+    public async Task GroupRegistrationOffersEqualEachReceiptOnItsOwn()
+    {
+        var harness = new Harness();
+        var image = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting);
+        var registered = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
+        var pdf = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting, "application/pdf");
+        var triage = TriageRequestReceipt(Guid.NewGuid()) with
+        {
+            Evidence =
+            [
+                new IntakeEvidence(
+                    IntakeEvidenceSource.SystemDefault,
+                    IntakeEvidenceStrength.Strong,
+                    IntakeEvidenceFinding.AcceptedTriageMatch,
+                    "AB12CDE",
+                    "Accepted Triage fixture.",
+                    "fixture-match",
+                    1)
+            ]
+        };
+        var needsOcr = Receipt(Guid.NewGuid(), IntakeDecision.OcrRequired, "application/pdf");
+        harness.ImageIntakes.DetailsByOriginReceipt[registered.Id] = Detail(Guid.NewGuid(), registered, "AB12CDE-01");
+        var vrm = new UnusedVrmSuggestions();
+        vrm.Readings[image.Id] = [Reading(image.Id, "AB12CDE")];
+        var offers = new GetIntakeOfferedActions(
+            harness.ImageIntakes, harness.Triages, new FixedPrincipalGate(Guid.NewGuid()), vrm);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        IntakeReceipt[] receipts = [image, registered, pdf, triage, needsOcr];
+
+        var group = await offers.ExecuteForGroupAsync(actor, receipts, CancellationToken.None);
+
+        Assert.Equal(receipts.Length, group.Members.Count);
+        for (var index = 0; index < receipts.Length; index++)
+        {
+            var alone = await offers.ExecuteAsync(actor, receipts[index], CancellationToken.None);
+            Assert.Equal(alone.CanRegisterImages, group.Members[index].CanRegisterImages);
+            Assert.Equal(alone.RegistrationReadings, group.Members[index].RegistrationReadings);
+        }
+
+        Assert.True(group.Members[0].CanRegisterImages);
+        Assert.Single(group.Members[0].RegistrationReadings);
+        Assert.False(group.Members[1].CanRegisterImages);
+        Assert.Same(harness.ImageIntakes.DetailsByOriginReceipt[registered.Id], group.ImageIntake);
+    }
+
+    [Fact]
+    public async Task GroupRegistrationOffersReadReadingsOnceForEveryMember()
+    {
+        var harness = new Harness();
+        var vrm = new UnusedVrmSuggestions();
+        var offers = new GetIntakeOfferedActions(
+            harness.ImageIntakes, harness.Triages, new FixedPrincipalGate(null), vrm);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var pdf = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting, "application/pdf");
+        vrm.Readings[pdf.Id] = [Reading(pdf.Id, "AB12CDE")];
+
+        var group = await offers.ExecuteForGroupAsync(
+            actor,
+            [
+                Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+                Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+                pdf
+            ],
+            CancellationToken.None);
+
+        // One read over all three, the non-eligible member's included: the
+        // group page draws every member's readings from it.
+        Assert.Equal(1, vrm.SetReads);
+        Assert.Equal(3, Assert.Single(vrm.SetReadIds).Count);
+        Assert.Equal(0, vrm.SingleReads);
+        Assert.Single(group.ReadingsByReceipt[pdf.Id]);
+        Assert.Empty(group.Members[2].RegistrationReadings);
+
+        // No receipts: no read at all.
+        await offers.ExecuteForGroupAsync(actor, [], CancellationToken.None);
+
+        Assert.Equal(1, vrm.SetReads);
+    }
+
+    [Fact]
+    public async Task GroupRegistrationOffersReadTheMembersOriginsAsOneSetAndNoTriage()
+    {
+        var harness = new Harness();
+        var offers = new GetIntakeOfferedActions(
+            harness.ImageIntakes, harness.Triages, new FixedPrincipalGate(Guid.NewGuid()), new UnusedVrmSuggestions());
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var first = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting);
+        var second = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting);
+        var pdf = Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting, "application/pdf");
+
+        // Nothing registered: one set read over the three members, whatever
+        // their number or kind.
+        var none = await offers.ExecuteForGroupAsync(actor, [first, second, pdf], CancellationToken.None);
+
+        Assert.Equal(new[] { first.Id, second.Id, pdf.Id }, Assert.Single(harness.ImageIntakes.OriginSetReads));
+        Assert.Null(none.ImageIntake);
+        Assert.True(none.Members[0].CanRegisterImages);
+        Assert.True(none.Members[1].CanRegisterImages);
+        Assert.False(none.Members[2].CanRegisterImages);
+
+        // A member that reaches a record is not offered Register images, and
+        // the record is the group's.
+        harness.ImageIntakes.OriginSetReads.Clear();
+        var registered = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
+        harness.ImageIntakes.DetailsByOriginReceipt[first.Id] = Detail(Guid.NewGuid(), first, "AB12CDE-01");
+
+        var group = await offers.ExecuteForGroupAsync(actor, [registered, pdf, first, second], CancellationToken.None);
+
+        Assert.Single(harness.ImageIntakes.OriginSetReads);
+        Assert.False(group.Members[2].CanRegisterImages);
+        Assert.True(group.Members[3].CanRegisterImages);
+        Assert.Same(harness.ImageIntakes.DetailsByOriginReceipt[first.Id], group.ImageIntake);
+        Assert.Empty(harness.ImageIntakes.OriginReads);
+        Assert.Empty(harness.Triages.OriginReads);
+    }
+
     /// <summary>
     /// Open the Triage opens a Triage Case, which takes the receipt's
     /// Principal, so it is offered only once the receipt established one
@@ -769,6 +919,40 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             harness.Resolve.Requests.Select(request => request.UnidentifiedItemId));
     }
 
+    private static GetUnidentifiedItemContext GroupContext(Harness harness) =>
+        new(
+            harness.Store,
+            harness.Receipts,
+            harness.ImageIntakes,
+            harness.Triages,
+            new GetIntakeOfferedActions(
+                harness.ImageIntakes,
+                harness.Triages,
+                new FixedPrincipalGate(null),
+                new UnusedVrmSuggestions()),
+            harness.Groups);
+
+    private static ImageVrmSuggestion Reading(Guid receiptId, string registration) =>
+        new(
+            Guid.NewGuid(),
+            receiptId,
+            Guid.NewGuid(),
+            "storage/0",
+            ImageHash,
+            "fixture-engine",
+            "1",
+            "fixture-models",
+            VrmRecognitionOutcomeKind.Suggested,
+            registration,
+            0.9,
+            null,
+            null,
+            Now,
+            ImageVrmSuggestionDisposition.Pending,
+            null,
+            null,
+            null);
+
     private sealed class FixedPrincipalGate(Guid? principalId) : ITriagePrincipalGate
     {
         public Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken) =>
@@ -780,6 +964,14 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
     private sealed class UnusedVrmSuggestions : IVrmSuggestionStore
     {
+        public Dictionary<Guid, IReadOnlyList<ImageVrmSuggestion>> Readings { get; } = [];
+
+        public int SingleReads { get; private set; }
+
+        public int SetReads => SetReadIds.Count;
+
+        public List<IReadOnlyCollection<Guid>> SetReadIds { get; } = [];
+
         public Task<ImageVrmSuggestion> RecordAsync(
             ImageVrmSuggestionDraft draft,
             CancellationToken cancellationToken) =>
@@ -787,16 +979,22 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         public Task<IReadOnlyList<ImageVrmSuggestion>> ListForReceiptAsync(
             Guid intakeReceiptId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ImageVrmSuggestion>>([]);
+            CancellationToken cancellationToken)
+        {
+            SingleReads++;
+            return Task.FromResult(Readings.TryGetValue(intakeReceiptId, out var found) ? found : []);
+        }
 
         public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>> ListForReceiptsAsync(
             IReadOnlyCollection<Guid> intakeReceiptIds,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>>(
+            CancellationToken cancellationToken)
+        {
+            SetReadIds.Add(intakeReceiptIds);
+            return Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>>(
                 intakeReceiptIds.Distinct().ToDictionary(
                     id => id,
-                    id => (IReadOnlyList<ImageVrmSuggestion>)[]));
+                    id => Readings.TryGetValue(id, out var found) ? found : []));
+        }
 
         public Task<ImageVrmSuggestion> SetDispositionAsync(
             ImageVrmSuggestionDispositionRequest request,
@@ -1267,8 +1465,24 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     {
         public Dictionary<Guid, IntakeReceipt> Receipts { get; } = [];
 
-        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult(Receipts.TryGetValue(id, out var receipt) ? receipt : null);
+        public int GetCalls { get; private set; }
+
+        public int GetManyCalls { get; private set; }
+
+        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken)
+        {
+            GetCalls++;
+            return Task.FromResult(Receipts.TryGetValue(id, out var receipt) ? receipt : null);
+        }
+
+        public Task<IReadOnlyList<IntakeReceipt>> GetManyAsync(
+            IReadOnlyCollection<Guid> ids,
+            CancellationToken cancellationToken)
+        {
+            GetManyCalls++;
+            return Task.FromResult<IReadOnlyList<IntakeReceipt>>(
+                ids.Distinct().Select(id => Receipts.GetValueOrDefault(id)).OfType<IntakeReceipt>().ToArray());
+        }
     }
 
     internal sealed class FakeQueuedIntakeStatuses : IQueuedIntakeStatusQueries
@@ -1350,12 +1564,17 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail : null);
 
+        public List<Guid> OriginReads { get; } = [];
+
         public Task<TriageSummary?> GetByOriginReceiptAsync(
             Guid originReceiptId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(SummariesByOriginReceipt.TryGetValue(originReceiptId, out var summary)
+            CancellationToken cancellationToken)
+        {
+            OriginReads.Add(originReceiptId);
+            return Task.FromResult(SummariesByOriginReceipt.TryGetValue(originReceiptId, out var summary)
                 ? summary
                 : null);
+        }
     }
 
     internal sealed class FakeImageIntakeQueries : IImageIntakeQueries
@@ -1382,11 +1601,29 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
 
+        public List<Guid> OriginReads { get; } = [];
+
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
             Guid intakeReceiptId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(
+            CancellationToken cancellationToken)
+        {
+            OriginReads.Add(intakeReceiptId);
+            return Task.FromResult(
                 DetailsByOriginReceipt.TryGetValue(intakeReceiptId, out var detail) ? detail : null);
+        }
+
+        public List<IReadOnlyList<Guid>> OriginSetReads { get; } = [];
+
+        public Task<ImageIntakeOriginRecords> GetByOriginReceiptsAsync(
+            IReadOnlyList<Guid> intakeReceiptIds,
+            CancellationToken cancellationToken)
+        {
+            OriginSetReads.Add(intakeReceiptIds);
+            var found = intakeReceiptIds.Where(DetailsByOriginReceipt.ContainsKey).ToHashSet();
+            return Task.FromResult(new ImageIntakeOriginRecords(
+                found,
+                intakeReceiptIds.Where(found.Contains).Select(id => DetailsByOriginReceipt[id]).FirstOrDefault()));
+        }
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,

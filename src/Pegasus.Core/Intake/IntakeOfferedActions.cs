@@ -30,9 +30,44 @@ public sealed record IntakeOfferedActions(
         .ToArray() is [var single] ? single : null;
 }
 
+/// <summary>One member's Register images answer: the offer and the readings it carries.</summary>
+public sealed record MemberImageRegistrationOffer(
+    bool CanRegisterImages,
+    IReadOnlyList<ImageVrmSuggestion> RegistrationReadings);
+
+/// <summary>
+/// What an upload group's Register images needs from its member receipts, read
+/// once for the group: an entry per receipt in the order given, every
+/// receipt's readings (the group page shows the non-eligible members' too), and
+/// the first Image Intake record a member reaches.
+/// </summary>
+public sealed record GroupImageRegistrationOffers(
+    IReadOnlyList<MemberImageRegistrationOffer> Members,
+    IReadOnlyDictionary<Guid, IReadOnlyList<ImageVrmSuggestion>> ReadingsByReceipt,
+    ImageIntakeDetail? ImageIntake)
+{
+    public static readonly GroupImageRegistrationOffers None = new(
+        [],
+        new Dictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>(),
+        null);
+}
+
 public interface IGetIntakeOfferedActions
 {
     Task<IntakeOfferedActions> ExecuteAsync(ActionActor actor, IntakeReceipt receipt, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Register images part of <see cref="ExecuteAsync"/> for an upload
+    /// group's member receipts: each entry's offer and readings equal what
+    /// <see cref="ExecuteAsync"/> answers for that receipt alone. The readings of
+    /// every receipt are read in one read, each receipt's Image Intake origin
+    /// record at most once (shared between its offer and the group's first
+    /// record), and Create case and Open the Triage are not computed.
+    /// </summary>
+    Task<GroupImageRegistrationOffers> ExecuteForGroupAsync(
+        ActionActor actor,
+        IReadOnlyList<IntakeReceipt> receipts,
+        CancellationToken cancellationToken);
 }
 
 public sealed class GetIntakeOfferedActions(
@@ -61,14 +96,10 @@ public sealed class GetIntakeOfferedActions(
             && receipt.AllocationState is null
             && (IntakeDecisionPolicy.CanBecomeCase(receipt.Decision) || receipt.Decision == IntakeDecision.OcrRequired);
 
-        // Register images: the staff route for image-only material (the
-        // automatic route, or a message classified as images received).
-        var isImageEligible = ImageIntakeLifecycleRules.IsImageRegistrationEligible(receipt);
-        var readings = isImageEligible
+        var readings = ImageIntakeLifecycleRules.IsImageRegistrationEligible(receipt)
             ? await _vrmSuggestions.ListForReceiptAsync(receipt.Id, cancellationToken)
             : [];
-        var canRegisterImages = isImageEligible
-            && receipt.Decision == IntakeDecision.NeedsSorting
+        var canRegisterImages = IsRegistrationOfferable(receipt)
             && await _imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken) is null;
 
         // Open the Triage opens a Triage Case, which takes the receipt's
@@ -80,4 +111,46 @@ public sealed class GetIntakeOfferedActions(
 
         return new(canCreateCase, canOpenTriage, canRegisterImages, readings);
     }
+
+    public async Task<GroupImageRegistrationOffers> ExecuteForGroupAsync(
+        ActionActor actor,
+        IReadOnlyList<IntakeReceipt> receipts,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(receipts);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (receipts.Count == 0)
+        {
+            return GroupImageRegistrationOffers.None;
+        }
+
+        var found = await _vrmSuggestions.ListForReceiptsAsync(
+            receipts.Select(receipt => receipt.Id).Distinct().ToArray(),
+            cancellationToken);
+        var readingsByReceipt = new Dictionary<Guid, IReadOnlyList<ImageVrmSuggestion>>();
+        // The offers' origin reads and the group's search for its first record
+        // are one set read: which members reach a record, and the first one's
+        // detail.
+        var origins = await _imageIntakes.GetByOriginReceiptsAsync(
+            receipts.Select(receipt => receipt.Id).ToArray(),
+            cancellationToken);
+        var members = new List<MemberImageRegistrationOffer>(receipts.Count);
+        foreach (var receipt in receipts)
+        {
+            IReadOnlyList<ImageVrmSuggestion> readings = found.TryGetValue(receipt.Id, out var read) ? read : [];
+            readingsByReceipt[receipt.Id] = readings;
+            members.Add(new(
+                IsRegistrationOfferable(receipt) && !origins.ReceiptIds.Contains(receipt.Id),
+                ImageIntakeLifecycleRules.IsImageRegistrationEligible(receipt) ? readings : []));
+        }
+
+        return new(members, readingsByReceipt, origins.First);
+    }
+
+    // Register images: the staff route for image-only material (the automatic
+    // route, or a message classified as images received).
+    private static bool IsRegistrationOfferable(IntakeReceipt receipt) =>
+        ImageIntakeLifecycleRules.IsImageRegistrationEligible(receipt)
+        && receipt.Decision == IntakeDecision.NeedsSorting;
 }
