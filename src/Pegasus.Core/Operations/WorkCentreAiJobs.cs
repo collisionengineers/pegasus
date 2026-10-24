@@ -11,14 +11,17 @@ public interface IListWorkCentreAiJobs
     /// <summary>
     /// The office's unfinished AI work (D9) from the open jobs the caller has
     /// read: Queued, Taken and Draft ready, and the jobs that failed within the
-    /// New cases window, less those dismissed.
+    /// New cases window, less those dismissed. <paramref name="dismissals"/> is
+    /// the section's handle on a dismissal lookup shared with the attention
+    /// list; absent, the section reads its own.
     /// </summary>
     Task<IReadOnlyList<WorkCentreAiJob>> ExecuteAsync(
         ActionActor actor,
         IReadOnlyList<AiJobRecord> openJobs,
         int aiDraftTargetDays,
         DateTimeOffset asOfUtc,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IWorkCentreDismissalLookup? dismissals = null);
 }
 
 public sealed class ListWorkCentreAiJobs(
@@ -37,7 +40,8 @@ public sealed class ListWorkCentreAiJobs(
         IReadOnlyList<AiJobRecord> openJobs,
         int aiDraftTargetDays,
         DateTimeOffset asOfUtc,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IWorkCentreDismissalLookup? dismissals = null)
     {
         ArgumentNullException.ThrowIfNull(actor);
         ArgumentNullException.ThrowIfNull(openJobs);
@@ -64,7 +68,7 @@ public sealed class ListWorkCentreAiJobs(
             .ThenByDescending(job => job.CreatedAtUtc)
             .ToArray();
         var shown = await WorkCentreDismissalPolicy.WithoutDismissedAsync(
-            _dismissals,
+            dismissals ?? _dismissals,
             jobs,
             job => job.JobId,
             WorkCentreDismissalPolicy.AiJobQualifiedAt,
