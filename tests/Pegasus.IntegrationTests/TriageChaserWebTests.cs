@@ -1283,9 +1283,9 @@ public sealed partial class QdosTriageIntegrationTests
             return inner.GetByOriginReceiptAsync(originReceiptId, cancellationToken);
         }
 
-        public Task<Guid?> FindIdByOriginReceiptAsync(
-            Guid originReceiptId, CancellationToken cancellationToken) =>
-            inner.FindIdByOriginReceiptAsync(originReceiptId, cancellationToken);
+        public Task<Guid?> FindIdByExternalReceiptTokenAsync(
+            string externalReceiptToken, CancellationToken cancellationToken) =>
+            inner.FindIdByExternalReceiptTokenAsync(externalReceiptToken, cancellationToken);
 
         public Task<Guid?> FindReceiptIdAsync(Guid id, CancellationToken cancellationToken) =>
             inner.FindReceiptIdAsync(id, cancellationToken);
