@@ -1140,7 +1140,10 @@ public sealed class EfCaseQueryStore(
             HasOpenQuery = workflow != null && workflow.HasOpenQuery,
             EditLeaseHolder = workflow == null ? null : workflow.EditLeaseHolder,
             EditLeaseHolderKind = workflow == null ? null : workflow.EditLeaseHolderKind,
-            EditLeaseExpiresAtUtc = workflow == null ? null : workflow.EditLeaseExpiresAtUtc
+            EditLeaseExpiresAtUtc = workflow == null ? null : workflow.EditLeaseExpiresAtUtc,
+            WorkflowVersion = workflow == null ? null : workflow.Version,
+            Archived = workflow != null && workflow.ArchivedAtUtc != null,
+            TriageVersion = triage == null ? null : triage.Version
         };
 
     private static IQueryable<SearchRow> SearchRows(PegasusDbContext context) =>
@@ -1207,7 +1210,9 @@ public sealed class EfCaseQueryStore(
             HasOpenQuery = workflow.HasOpenQuery,
             EditLeaseHolder = workflow.EditLeaseHolder,
             EditLeaseHolderKind = workflow.EditLeaseHolderKind,
-            EditLeaseExpiresAtUtc = workflow.EditLeaseExpiresAtUtc
+            EditLeaseExpiresAtUtc = workflow.EditLeaseExpiresAtUtc,
+            WorkflowVersion = workflow.Version,
+            Archived = workflow.ArchivedAtUtc != null
         };
 
     internal static async Task<IReadOnlyList<CaseDocument>> ReadDocumentsAsync(
@@ -1501,7 +1506,10 @@ public sealed class EfCaseQueryStore(
         EditingStaffId = EditingStaffId(item, now),
         TriageState = item.CaseType == CaseTypeCodes.Triage
             ? (Pegasus.Core.Triage.TriageState?)EfTriageStore.ParseState(item.State)
-            : null
+            : null,
+        WorkflowVersion = item.WorkflowVersion,
+        Archived = item.Archived,
+        TriageVersion = item.TriageVersion
     };
 
     /// <summary>
@@ -1727,5 +1735,8 @@ public sealed class EfCaseQueryStore(
         public string? EditLeaseHolder { get; init; }
         public string? EditLeaseHolderKind { get; init; }
         public DateTimeOffset? EditLeaseExpiresAtUtc { get; init; }
+        public long? WorkflowVersion { get; init; }
+        public bool Archived { get; init; }
+        public long? TriageVersion { get; init; }
     }
 }

@@ -814,7 +814,9 @@ public sealed class MessageModel(
                 throw new IntakeVersionConflictException();
             }
 
-            var (current, _) = await GetCurrentDestinationAsync(caseId, actor, cancellationToken);
+            // Only the linked Case's authority row is read: the claim needs its
+            // version and the post shows none of its facts.
+            var current = await destinations.GetAuthorityAsync(caseId, actor, cancellationToken);
             if (current is null)
             {
                 throw new IntakeVersionConflictException();
@@ -884,7 +886,7 @@ public sealed class MessageModel(
                 return await ReloadAsync(actor, id, cancellationToken);
             }
 
-            var (current, _) = await GetCurrentDestinationAsync(currentCaseId, actor, cancellationToken);
+            var current = await destinations.GetAuthorityAsync(currentCaseId, actor, cancellationToken);
             if (current is null)
             {
                 throw new IntakeVersionConflictException();

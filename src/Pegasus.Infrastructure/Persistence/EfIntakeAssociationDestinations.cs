@@ -167,20 +167,6 @@ public sealed class EfIntakeAssociationDestinations(
                 break;
             }
 
-            var candidateIds = searched.Items.Select(item => item.CaseId).ToArray();
-            await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-            var states = (await context.CaseWorkflows
-                .AsNoTracking()
-                .Where(item => candidateIds.Contains(item.CaseId))
-                .Select(item => new { item.CaseId, item.State, item.ArchivedAtUtc, item.Version })
-                .ToArrayAsync(cancellationToken))
-                .ToDictionary(item => item.CaseId);
-            var triageVersions = (await context.Triage
-                .AsNoTracking()
-                .Where(item => candidateIds.Contains(item.CaseId))
-                .Select(item => new { item.CaseId, item.Version })
-                .ToArrayAsync(cancellationToken))
-                .ToDictionary(item => item.CaseId, item => item.Version);
             foreach (var item in searched.Items)
             {
                 if (item.CaseId == receipt.CurrentCaseId)
@@ -190,7 +176,7 @@ public sealed class EfIntakeAssociationDestinations(
 
                 IntakeAssociationDestination? destination = null;
                 if (item.TriageState is { } triageState
-                    && triageVersions.TryGetValue(item.CaseId, out var triageVersion))
+                    && item.TriageVersion is { } triageVersion)
                 {
                     destination = new(item.CaseId, item.Reference, item.Registration, item.Claimant, null, triageVersion)
                     {
@@ -198,12 +184,11 @@ public sealed class EfIntakeAssociationDestinations(
                         Principal = item.Principal
                     };
                 }
-                else if (states.TryGetValue(item.CaseId, out var state)
-                    && Enum.TryParse<CaseLifecycleState>(state.State, false, out var lifecycleState)
-                    && IntakeAssociationDestinationPolicy.IsViable(state.ArchivedAtUtc is not null))
+                else if (item.WorkflowVersion is { } workflowVersion
+                    && IntakeAssociationDestinationPolicy.IsViable(item.Archived))
                 {
                     destination = new(
-                        item.CaseId, item.Reference, item.Registration, item.Claimant, lifecycleState, state.Version)
+                        item.CaseId, item.Reference, item.Registration, item.Claimant, item.State, workflowVersion)
                     {
                         Principal = item.Principal
                     };

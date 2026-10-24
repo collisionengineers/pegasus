@@ -443,6 +443,42 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + "Six messages:" + Environment.NewLine + withSixDescription);
     }
 
+    /// <summary>
+    /// The Case / PO picker's search reads each destination's workflow state,
+    /// version, archived flag and Triage version from the search rows
+    /// themselves: no statement reads the workflow or Triage table without the
+    /// Case search's own join.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseOptionsSearchReadsNoWorkflowOrTriageRowOfItsOwn()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        _ = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, receiptId, "MAIL35001", nameof(CaseLifecycleState.Review));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var route = $"/Inbox/{messageId:D}?handler=LinkCaseOptions&q=MAIL35001";
+        // The first request pays one-off work; the count is the second.
+        _ = await client.GetAsync(route);
+
+        counter.Reset();
+        using var options = await client.GetAsync(route);
+        Assert.Equal(HttpStatusCode.OK, options.StatusCode);
+        Assert.Contains("value=\"MAIL35001\"", await options.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        var ownReads = counter.CountMentioning("[CaseWorkflows]", without: "[Cases]")
+            + counter.CountMentioning("[Triage]", without: "[Cases]");
+        Assert.True(
+            ownReads == 0,
+            $"The Case options search sent {ownReads} workflow or Triage statements of its own."
+            + Environment.NewLine + counter.Describe());
+    }
+
     [Fact]
     public async Task ExactMessageCanBeLinkedUnlinkedAndLinkedToAReplacementInOneStepEach()
     {
