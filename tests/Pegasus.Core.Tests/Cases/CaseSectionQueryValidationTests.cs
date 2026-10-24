@@ -93,6 +93,74 @@ public sealed class CaseSectionQueryValidationTests
     }
 
     /// <summary>
+    /// A lazy vehicle or valuation body needs the section frame and the
+    /// workspace, and neither needs the other, so the workspace read starts
+    /// while the frame read is still outstanding (B3-03).
+    /// </summary>
+    [Theory]
+    [InlineData("vehicle")]
+    [InlineData("valuation")]
+    public async Task ALazySectionStartsTheWorkspaceReadBesideTheFrameRead(string section)
+    {
+        var caseId = Guid.NewGuid();
+        var frame = new TaskCompletionSource<CaseSectionFrame?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new RecordingStore { SectionFrame = () => frame.Task };
+        var workspace = new StubWorkspace(() => Task.FromResult<AssessmentWorkspace?>(Workspace(caseId)));
+        var query = new GetCaseSectionQuery(caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]));
+
+        var read = section == "vehicle"
+            ? new GetCaseVehicleSection(store, workspace, new EmptyCaseData(), new EmptyVehicleEvidence())
+                .ExecuteAsync(query, CancellationToken.None).ContinueWith(item => item.Result?.Frame)
+            : new GetCaseValuationSection(store, workspace, new EmptyCaseData())
+                .ExecuteAsync(query, CancellationToken.None).ContinueWith(item => item.Result?.Frame);
+
+        Assert.Equal(1, store.SectionFrameReads);
+        Assert.Equal(1, workspace.Reads);
+        Assert.False(read.IsCompleted);
+        var expected = Frame(caseId);
+        frame.SetResult(expected);
+        Assert.Same(expected, await read);
+    }
+
+    /// <summary>
+    /// A missing Case is a quiet null from the frame whatever the workspace
+    /// read returned or faulted with, as the page frame already behaves.
+    /// </summary>
+    [Theory]
+    [InlineData("vehicle")]
+    [InlineData("valuation")]
+    public async Task ALazySectionForAMissingCaseIsNullEvenWhenTheWorkspaceReadFaults(string section)
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStore { SectionFrame = () => Task.FromResult<CaseSectionFrame?>(null) };
+        var workspace = new StubWorkspace(() => Task.FromException<AssessmentWorkspace?>(new InvalidDataException("no snapshot")));
+        var query = new GetCaseSectionQuery(caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]));
+
+        var result = section == "vehicle"
+            ? (object?)await new GetCaseVehicleSection(store, workspace, new EmptyCaseData(), new EmptyVehicleEvidence())
+                .ExecuteAsync(query, CancellationToken.None)
+            : await new GetCaseValuationSection(store, workspace, new EmptyCaseData())
+                .ExecuteAsync(query, CancellationToken.None);
+
+        Assert.Null(result);
+        Assert.Equal(1, workspace.Reads);
+    }
+
+    /// <summary>A workspace fault on a Case that exists still fails the section.</summary>
+    [Fact]
+    public async Task ALazySectionStillFailsWhenTheWorkspaceReadFaultsForAnExistingCase()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStore { SectionFrame = () => Task.FromResult<CaseSectionFrame?>(Frame(caseId)) };
+        var workspace = new StubWorkspace(() => Task.FromException<AssessmentWorkspace?>(new InvalidDataException("no snapshot")));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new GetCaseValuationSection(store, workspace, new EmptyCaseData()).ExecuteAsync(
+                new(caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])),
+                CancellationToken.None));
+    }
+
+    /// <summary>
     /// The Tasks body names only enabled staff: a task held by an account no
     /// longer enabled has no name, so it reads Unassigned (operator, 22 October
     /// 2026). One read of the enabled staff gives the names and the Assign choices.
@@ -241,6 +309,9 @@ public sealed class CaseSectionQueryValidationTests
         public int SectionFrameReads { get; private set; }
         public CaseSectionFrame? FilesFrame { get; private set; }
 
+        /// <summary>The section frame read's answer; unset, a frame read is a failure.</summary>
+        public Func<Task<CaseSectionFrame?>>? SectionFrame { get; init; }
+
         public Task<SearchCasesResult> SearchAsync(SearchCasesQuery query, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
@@ -250,7 +321,8 @@ public sealed class CaseSectionQueryValidationTests
         public Task<CaseSectionFrame?> GetSectionFrameAsync(Guid caseId, CancellationToken cancellationToken)
         {
             SectionFrameReads++;
-            throw new InvalidOperationException("A direct section must reuse its supplied frame.");
+            return SectionFrame?.Invoke()
+                ?? throw new InvalidOperationException("A direct section must reuse its supplied frame.");
         }
 
         public Task<CasePageFrameData?> GetPageFrameAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
@@ -315,6 +387,20 @@ public sealed class CaseSectionQueryValidationTests
         public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
             CancellationToken cancellationToken) => Task.FromResult<AssessmentWorkspace?>(null);
+    }
+
+    /// <summary>A workspace read that counts its starts and answers with what it was given.</summary>
+    private sealed class StubWorkspace(Func<Task<AssessmentWorkspace?>> read) : IGetAssessmentWorkspace
+    {
+        public int Reads { get; private set; }
+
+        public Task<AssessmentWorkspace?> ExecuteAsync(
+            GetAssessmentWorkspaceQuery query,
+            CancellationToken cancellationToken)
+        {
+            Reads++;
+            return read();
+        }
     }
 
     private sealed class EmptyCaseData : ICaseDataQueries

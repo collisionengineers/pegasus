@@ -50,6 +50,7 @@ public sealed class EstimateTests
     private static readonly ActionActor User = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
     private static readonly ActionActor Client = ActionActor.Automation("pegasus-automation");
     private static readonly string Lease = new('l', CaseEditAuthority.LeaseTokenLength);
+    private static readonly long[] CheckedVersions = [4L, 5L];
 
     [Fact]
     public void OneSnapshotRatePricesPanelAndPaintHoursAlike()
@@ -1169,6 +1170,103 @@ public sealed class EstimateTests
         Assert.Equal(actor.SubjectId, Assert.Single(save.AuthorityChecks).Actor.SubjectId);
     }
 
+    private static ImportRawEstimate ImporterOver(FakeSpecificationStore save) => new(
+        [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex"), JsonStub()],
+        Retained,
+        new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
+        new StubList(),
+        save, NoCards);
+
+    /// <summary>
+    /// A2-17: the check a caller makes before it retains a source is the only
+    /// one an import that nothing has changed under makes: one authority read
+    /// and one replay probe, however many times the import follows.
+    /// </summary>
+    [Fact]
+    public async Task AnImportDoesNotRepeatTheCheckItWasHandedUnchanged()
+    {
+        var save = new FakeSpecificationStore();
+        var import = ImporterOver(save);
+
+        var check = await import.CheckAsync(ImportRequest(), CancellationToken.None);
+        await import.ExecuteAsync(ImportRequest() with { Checked = check }, CancellationToken.None);
+
+        Assert.Null(check.Replay);
+        Assert.Single(save.AuthorityChecks);
+        Assert.Equal(1, save.ReplayProbes);
+        Assert.Single(save.Saved);
+    }
+
+    /// <summary>
+    /// A source retained between the check and the import consumes a version
+    /// and a lease, so the authority is proven again at the new ones; the
+    /// replay answer does not depend on either and is not read again.
+    /// </summary>
+    [Fact]
+    public async Task AnImportChecksAuthorityAgainAtANewVersionAndLeaseButNotTheReplay()
+    {
+        var save = new FakeSpecificationStore();
+        var import = ImporterOver(save);
+
+        var check = await import.CheckAsync(ImportRequest(), CancellationToken.None);
+        await import.ExecuteAsync(
+            ImportRequest(expectedVersion: 5, lease: new string('m', CaseEditAuthority.LeaseTokenLength)) with { Checked = check },
+            CancellationToken.None);
+
+        Assert.Equal(CheckedVersions, save.AuthorityChecks.Select(item => item.ExpectedVersion));
+        Assert.Equal(1, save.ReplayProbes);
+    }
+
+    [Fact]
+    public async Task AnImportRepeatsAnyCheckThatDoesNotCoverItsRequest()
+    {
+        var save = new FakeSpecificationStore();
+        var import = ImporterOver(save);
+        var check = await import.CheckAsync(ImportRequest(), CancellationToken.None);
+
+        await import.ExecuteAsync(
+            ImportRequest(operationKey: "another-operation-key") with { Checked = check },
+            CancellationToken.None);
+
+        Assert.Equal(2, save.ReplayProbes);
+        // The authority does not depend on the operation key, so the check still covers it.
+        Assert.Single(save.AuthorityChecks);
+    }
+
+    [Fact]
+    public async Task ACheckReportsAnEarlierImportAsAReplayAndRefusesInCoresWords()
+    {
+        var earlier = new EstimateImportResult(Guid.NewGuid());
+        var save = new FakeSpecificationStore { Replay = earlier };
+        var import = ImporterOver(save);
+
+        var check = await import.CheckAsync(ImportRequest(), CancellationToken.None);
+        var replayed = await import.ExecuteAsync(ImportRequest() with { Checked = check }, CancellationToken.None);
+
+        Assert.Equal(earlier, check.Replay);
+        Assert.Equal(earlier, replayed);
+        Assert.Empty(save.Saved);
+
+        save.RefuseAuthority = true;
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            import.CheckAsync(ImportRequest(), CancellationToken.None));
+        Assert.Equal("Current persisted authority is required.", refusal.Message);
+    }
+
+    [Fact]
+    public async Task AFaultInTheReplayProbeIsToldApartFromARefusalOfTheAuthority()
+    {
+        var fault = new TimeoutException("The probe timed out.");
+        var save = new FakeSpecificationStore { ProbeFault = fault };
+        var import = ImporterOver(save);
+
+        var unconfirmed = await Assert.ThrowsAsync<EstimateImportUnconfirmedException>(() =>
+            import.CheckAsync(ImportRequest(), CancellationToken.None));
+
+        Assert.Same(fault, unconfirmed.InnerException);
+        Assert.Single(save.AuthorityChecks);
+    }
+
     [Fact]
     public async Task AnImportAutoDetectsItsFormatAndLandsOneSourceLabelledDraft()
     {
@@ -1788,12 +1886,23 @@ public sealed class EstimateTests
             return Task.CompletedTask;
         }
 
+        public int ReplayProbes { get; private set; }
+        public EstimateImportResult? Replay { get; set; }
+        public Exception? ProbeFault { get; set; }
+
         public Task<EstimateImportResult?> ProbeSourceHashReplayAsync(
             Guid caseId,
             string operationKey,
             string sourceSha256,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<EstimateImportResult?>(null);
+            CancellationToken cancellationToken)
+        {
+            ReplayProbes++;
+            if (ProbeFault is not null)
+            {
+                throw ProbeFault;
+            }
+            return Task.FromResult(Replay);
+        }
 
         public Task<EstimateImportResult> BindSourceHashReplayAsync(
             Guid caseId,

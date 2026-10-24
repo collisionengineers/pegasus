@@ -73,6 +73,93 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             $"The assessment workspace load sent {counter.ExecutedReaderCommands} reader commands; at most 5 are allowed.");
     }
 
+    /// <summary>
+    /// B3-04: the Case page holds the Current spec with its lines from the
+    /// workspace, so its listing carries that version as held and reads the
+    /// lines of the others only. Three lines held and two elsewhere: the plain
+    /// listing reads 3 + 2 = 5 rows, the held listing 1 + 2 = 3; the estimates
+    /// returned are the same, and a held version that has since moved on is
+    /// read in full.
+    /// </summary>
+    [Fact]
+    public async Task AListingThatHoldsTheCurrentVersionDoesNotReadItsLinesAgain()
+    {
+        var statements = new SqlStatementCounter();
+        await using var harness = await Harness.CreateAsync(statements);
+        var caseId = (await harness.AcceptAsync("estimate-held-listing")).Identity.CaseId;
+        var actor = harness.EngineerActor;
+        var save = new SaveEstimate(harness.RepairSpecifications, new EfAiJobStore(harness.Factory, harness.Clock));
+        SaveEstimateRequest Request(long version, string key, string leaseToken, string name, int lines) =>
+            new(caseId, version, actor, key, "Recorded an estimate.", leaseToken, null,
+                new(name, 40m, null, 20m),
+                [.. Enumerable.Range(1, lines).Select(index => new EstimateLineInput(
+                    "repair", null, $"Repair {index}", 1m, null, false, null, null, "judgement", null))],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null));
+        var firstLease = await harness.AcquireLeaseAsync(caseId, 0, actor, "held-listing-lease-1");
+        await save.ExecuteAsync(Request(0, "held-listing-1", firstLease.Token, "Other", 2), default);
+        var secondLease = await harness.AcquireLeaseAsync(caseId, 1, actor, "held-listing-lease-2");
+        // A staff member's new estimate is the Case's Current at once, so the second is the one held.
+        var current = await save.ExecuteAsync(Request(1, "held-listing-2", secondLease.Token, "Current", 3), default);
+        var plain = await harness.RepairSpecifications.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default);
+        var held = Assert.Single(plain, estimate => estimate.IsCurrent);
+        Assert.Equal(current.SpecificationId, held.SpecificationId);
+
+        statements.Reset();
+        _ = await harness.RepairSpecifications.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default);
+        var plainRows = statements.Reads.Single().Rows;
+        statements.Reset();
+        var withHeld = await harness.RepairSpecifications.ListEstimatesAsync(
+            caseId, CaseWorkSelector.Current, held, default);
+        var heldRows = statements.Reads.Single().Rows;
+
+        Assert.Equal(5, plainRows);
+        Assert.Equal(3, heldRows);
+        Assert.Equal(plain.Select(item => item.SpecificationId), withHeld.Select(item => item.SpecificationId));
+        Assert.Equal(
+            plain.Select(item => item.Lines.Select(line => line.Id).ToArray()),
+            withHeld.Select(item => item.Lines.Select(line => line.Id).ToArray()));
+        Assert.Same(held.Lines, withHeld.Single(item => item.IsCurrent).Lines);
+
+        var stale = await harness.RepairSpecifications.ListEstimatesAsync(
+            caseId, CaseWorkSelector.Current, held with { Version = held.Version + 1, Lines = [] }, default);
+        Assert.Equal(3, stale.Single(item => item.IsCurrent).Lines.Count);
+    }
+
+    /// <summary>
+    /// B3-04: a save that keeps three recorded values it did not post reads
+    /// those values in one command, and they are the values the whole
+    /// workspace holds for the same paths; a path with no record is absent.
+    /// </summary>
+    [Fact]
+    public async Task TheRecordedFieldValuesComeFromOneCommandAndMatchTheWorkspace()
+    {
+        var counter = new ReaderCommandCounter();
+        await using var harness = await Harness.CreateAsync(counter);
+        var outcome = await harness.AcceptAsync("assessment-field-values-query-count");
+        var caseId = outcome.Identity.CaseId;
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.AutomationActor, "field-values-lease");
+        await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, lease.Version, harness.AutomationActor, "field-values-save", "Record damage.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.DamageImpacts] = "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Bonnet\"}]"
+            }), CancellationToken.None);
+        string[] paths = [AssessmentVocabulary.DamageImpacts, AssessmentVocabulary.ImpactSeverity, AssessmentVocabulary.ReportDate];
+        var source = new EfAssessmentWorkspaceSource(harness.Factory);
+        var workspace = await source.GetAsync(caseId, CaseWorkSelector.Current);
+        counter.Reset();
+
+        var values = await source.GetFieldValuesAsync(caseId, CaseWorkSelector.Current, paths);
+
+        Assert.Equal(1, counter.ExecutedReaderCommands);
+        Assert.NotNull(workspace);
+        var held = workspace.Assessment.Fields.Where(field => paths.Contains(field.Path)).ToArray();
+        Assert.Equal(held.Length, values.Count);
+        Assert.All(held, field => Assert.Equal(field.Value, values[field.Path]));
+        Assert.False(values.ContainsKey(AssessmentVocabulary.ReportDate));
+        Assert.Equal(2, values.Count);
+    }
+
     [Fact]
     public async Task ReportDraftGenerationThroughProductionProjectionResolvesSignOffAndFailsClosedWithoutIt()
     {

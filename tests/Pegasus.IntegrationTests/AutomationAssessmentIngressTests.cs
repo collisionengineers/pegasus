@@ -1378,6 +1378,9 @@ public sealed class AutomationAssessmentIngressTests
             Calls++;
             return Task.FromResult(Result);
         }
+
+        public Task<EstimateImportCheck> CheckAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     /// <summary>

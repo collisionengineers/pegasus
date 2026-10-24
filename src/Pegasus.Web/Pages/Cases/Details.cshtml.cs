@@ -1071,6 +1071,14 @@ public sealed partial class DetailsModel(
 
     private const string ClosureProbeReason = "closure-outcome-probe";
 
+    /// <summary>The recorded assessment values a Save keeps when its form does not post them.</summary>
+    private static readonly string[] RecordedAssessmentPaths =
+    [
+        AssessmentVocabulary.ReportDate,
+        AssessmentVocabulary.SettlementStoragePerDay,
+        AssessmentVocabulary.CostRecoveryCharge,
+    ];
+
     private static readonly string ClosureProbeLeaseToken =
         new('0', CaseEditAuthority.LeaseTokenLength);
 
@@ -1222,10 +1230,12 @@ public sealed partial class DetailsModel(
 
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
         // The authors' names depend only on the estimates, so they are read in
-        // the same slot and overlap the other reads in this phase.
+        // the same slot and overlap the other reads in this phase. The workspace
+        // already holds the Current spec with its lines, so the list does not
+        // read those again.
         var estimates = reads.Start(async token =>
         {
-            var listed = await listEstimates.ExecuteAsync(id, work, token);
+            var listed = await listEstimates.ExecuteAsync(id, work, workspace.CurrentSpecification, token);
             return (Listed: listed, AuthorNames: await ResolveSpecAuthorNamesAsync(listed, token));
         });
         var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
@@ -2135,11 +2145,14 @@ public sealed partial class DetailsModel(
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
                     || damageSubmitted || wordingSubmitted || guideEntries is { Length: > 0 }
                     || estimate is not null || adoption is not null;
-                // The edit basis and the workspace each open their own context, so
-                // they read side by side; a missing Case is still reported first.
+                // The edit basis and the recorded values each open their own
+                // context, so they read side by side; a missing Case is still
+                // reported first. The save keeps three recorded values it does not
+                // post, so those are all it reads of the assessment.
                 using var saveReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
                 var basisRead = saveReads.Start(readToken => getCaseEditBasis.ExecuteAsync(new(id, actor, work), readToken));
-                var workspaceRead = saveReads.Start(readToken => getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), readToken));
+                var recordedRead = saveReads.Start(readToken => getAssessmentWorkspace.FieldValuesAsync(
+                    new(id, actor, work), RecordedAssessmentPaths, readToken));
                 await saveReads.WhenAllAsync();
                 var current = await basisRead
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
@@ -2155,8 +2168,8 @@ public sealed partial class DetailsModel(
                 {
                     throw new InvalidOperationException("The case is read-only once archived.");
                 }
-                var assessment = (await workspaceRead)?.Assessment;
-                string? Recorded(string path) => assessment?.Field(path)?.Value;
+                var recorded = await recordedRead;
+                string? Recorded(string path) => recorded.GetValueOrDefault(path);
                 decimal? Money(string path) => decimal.TryParse(Recorded(path), NumberStyles.Number,
                     CultureInfo.InvariantCulture, out var value) ? value : null;
                 var persisted = data.Workspace;
@@ -4209,15 +4222,12 @@ public sealed partial class DetailsModel(
             ClearLeaseState();
             return Forbid();
         }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true)
+        // The access answer is the header's own workflow state, so the guard
+        // reads the Case once.
+        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
+        if (header is null || !AssessmentAccessPolicy.For(actor, header.Workflow).CanOpen)
         {
             return NotFound();
-        }
-        if (access.IsReadOnly)
-        {
-            TempData["CaseError"] = "The case is read-only once Complete.";
-            return RedirectToEstimate(id);
         }
         if (!IsOperationKeyValid(operationKey))
         {
@@ -4230,11 +4240,6 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id);
         }
 
-        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
-        if (header is null)
-        {
-            return NotFound();
-        }
         currentCaseVersion = header.Workflow.Version;
         return null;
     }
@@ -4585,7 +4590,7 @@ public sealed partial class DetailsModel(
 
         var fileBytes = buffer.ToArray();
         var uploadedSha256 = Convert.ToHexStringLower(SHA256.HashData(fileBytes));
-        var (activeLeaseToken, claimResult) = await ClaimEstimateImportAsync(
+        var (activeLeaseToken, importCheck, claimResult) = await ClaimEstimateImportAsync(
             actor!, id, expectedVersion, operationKey, editLeaseToken, uploadedSha256,
             "case-estimate-import-form", cancellationToken);
         if (claimResult is not null)
@@ -4670,7 +4675,7 @@ public sealed partial class DetailsModel(
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
             return await ImportRetainedEstimateAsync(new(actor!, id, importVersion, importLeaseToken,
                 source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty)
-                { Work = WorkSelector, EstimateId = target?.SpecificationId },
+                { Work = WorkSelector, EstimateId = target?.SpecificationId, Checked = importCheck },
                 cancellationToken, expectedVersion, resultingVersion);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
@@ -4710,7 +4715,7 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id);
         }
 
-        var (leaseToken, claimResult) = await ClaimEstimateImportAsync(
+        var (leaseToken, importCheck, claimResult) = await ClaimEstimateImportAsync(
             actor!, id, expectedVersion, operationKey, editLeaseToken, source.Version.Sha256,
             editor: null, cancellationToken);
         if (claimResult is not null)
@@ -4726,7 +4731,7 @@ public sealed partial class DetailsModel(
             return await ImportRetainedEstimateAsync(
                 new(actor!, id, expectedVersion, leaseToken!, source.Occurrence.Id, source.Version.Id,
                     source.Version.Sha256, operationKey, string.Empty)
-                { Work = WorkSelector, EstimateId = current?.SpecificationId },
+                { Work = WorkSelector, EstimateId = current?.SpecificationId, Checked = importCheck },
                 cancellationToken);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
@@ -4781,11 +4786,10 @@ public sealed partial class DetailsModel(
             ClearLeaseState();
             return (null, [], Forbid());
         }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true) return (null, [], NotFound());
         var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
         if (header is null) return (null, [], NotFound());
-        if (access.IsReadOnly || header.Workflow.Archive is not null
+        if (!AssessmentAccessPolicy.For(actor, header.Workflow).CanOpen) return (null, [], NotFound());
+        if (header.Workflow.Archive is not null
             || CaseLifecycleRules.IsTerminal(header.Workflow.State))
         {
             TempData["CaseError"] = "The Case is read-only and cannot accept estimate imports.";
@@ -4805,13 +4809,15 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Takes the edit lease when the import starts from read mode, proves the
-    /// import authority and answers a replay of the same operation and source.
-    /// A result means the import ends here; otherwise the lease token is the
-    /// one to import under. <paramref name="editor"/> names the client form
-    /// whose commit a replay records, when there is one.
+    /// Takes the edit lease when the import starts from read mode, makes
+    /// Core's one authority-and-replay check and answers a replay of the same
+    /// operation and source. A result means the import ends here; otherwise the
+    /// lease token is the one to import under and the check is handed on with
+    /// the request. A refusal shows Core's sentence.
+    /// <paramref name="editor"/> names the client form whose commit a replay
+    /// records, when there is one.
     /// </summary>
-    private async Task<(string? LeaseToken, IActionResult? Result)> ClaimEstimateImportAsync(
+    private async Task<(string? LeaseToken, EstimateImportCheck? Check, IActionResult? Result)> ClaimEstimateImportAsync(
         ActionActor actor,
         Guid id,
         long expectedVersion,
@@ -4831,51 +4837,59 @@ public sealed partial class DetailsModel(
                 activeLeaseToken = lease.Token;
                 StoreLeaseAuthority(id, lease.Token);
             }
-            catch (StaffAuthorizationException) { return (null, Forbid()); }
+            catch (StaffAuthorizationException) { return (null, null, Forbid()); }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 HandleLeaseFailure(id, null, exception);
                 TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
-                return (null, RedirectToEstimate(id));
+                return (null, null, RedirectToEstimate(id));
             }
         }
 
+        const string UnconfirmedLine = "The source was retained, but the import could not be confirmed. Retry the same file.";
+        EstimateImportCheck check;
         try
         {
-            await repairSpecifications.RequireImportAuthorityAsync(
+            check = await importRawEstimate.CheckAsync(
                 new(actor, id, expectedVersion, activeLeaseToken!, Guid.Empty, Guid.Empty,
                     sha256, operationKey, string.Empty), cancellationToken);
         }
-        catch (StaffAuthorizationException) { return (null, Forbid()); }
+        catch (StaffAuthorizationException) { return (null, null, Forbid()); }
+        catch (EstimateImportUnconfirmedException unconfirmed)
+        {
+            // A fault in the replay probe, after the authority was proven: the
+            // page's line for a fault it cannot name, Core's words for a refusal.
+            TempData["CaseError"] = MutationRefusalMessage(unconfirmed.InnerException!, UnconfirmedLine);
+            return (null, null, RedirectToEstimate(id));
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleLeaseFailure(id, activeLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
-            return (null, RedirectToEstimate(id));
+            TempData["CaseError"] = exception is InvalidOperationException or KeyNotFoundException or ArgumentException
+                ? exception.Message
+                : "The Case cannot be edited right now.";
+            return (null, null, RedirectToEstimate(id));
         }
 
+        if (check.Replay is not { } replay)
+        {
+            return (activeLeaseToken, check, null);
+        }
         try
         {
-            if (await repairSpecifications.ProbeSourceHashReplayAsync(
-                    id, operationKey, sha256, cancellationToken)
-                is { } replay)
+            if (editor is not null)
             {
-                if (editor is not null)
-                {
-                    RecordEditorCommit(editor, operationKey, expectedVersion, expectedVersion);
-                }
-                TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
-                return (null, RedirectToEstimate(id, replay.EstimateId.ToString("D")));
+                RecordEditorCommit(editor, operationKey, expectedVersion, expectedVersion);
             }
+            TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
+            return (null, null, RedirectToEstimate(id, replay.EstimateId.ToString("D")));
         }
-        catch (StaffAuthorizationException) { return (null, Forbid()); }
+        catch (StaffAuthorizationException) { return (null, null, Forbid()); }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
-            return (null, RedirectToEstimate(id));
+            TempData["CaseError"] = MutationRefusalMessage(exception, UnconfirmedLine);
+            return (null, null, RedirectToEstimate(id));
         }
-        return (activeLeaseToken, null);
     }
 
     private async Task<IActionResult> ImportRetainedEstimateAsync(

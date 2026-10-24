@@ -215,7 +215,13 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
 
     private const int CasePageCommands = 38;
 
-    private const int CaseSaveCommands = 30;
+    /// <summary>
+    /// 30 before B3-04: the save read the whole workspace (workflow, snapshot,
+    /// assessment fields, Current spec with its lines, latest observation: five
+    /// statements) to keep three recorded values, and now reads those values in
+    /// one, so 30 - 5 + 1 = 26.
+    /// </summary>
+    private const int CaseSaveCommands = 26;
 
     /// <summary>
     /// Roadmap Lane H (FRD-16): a commit the page script posts is answered with
