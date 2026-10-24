@@ -60,6 +60,23 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     }
 
     [Fact]
+    public async Task TheSweepReadsTheImageIntakeRecordAloneNotTheDetail()
+    {
+        var harness = new Harness();
+        var receipt = Receipt(Guid.NewGuid(), IntakeDecision.ImageIntakeRegistered);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        var intakeId = Guid.NewGuid();
+        harness.ImageIntakes.DetailsByOriginReceipt[receipt.Id] = Detail(intakeId, receipt, "AB12CDE-01");
+
+        await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(intakeId.ToString("N"), Assert.Single(harness.Resolve.Requests).TargetId);
+        Assert.Equal(1, harness.ImageIntakes.RecordReads);
+        Assert.Equal(0, harness.ImageIntakes.DetailReads);
+    }
+
+    [Fact]
     public async Task CaseCreatedReceiptResolvesToTheInstructionCase()
     {
         var harness = new Harness();
@@ -105,6 +122,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolve.TargetKind);
         Assert.Equal(caseId.ToString("N"), resolve.TargetId);
         Assert.Equal("QDOS26030", resolve.TargetReference);
+        // The link only needs to know whether the Case is a Triage: the record, never the detail.
+        Assert.Equal(0, harness.Triages.DetailCalls);
     }
 
     // Statement 2 — established precedence beats the trailing manual-link branch.
@@ -173,6 +192,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolve.TargetKind);
         Assert.Equal(triageCaseId.ToString("N"), resolve.TargetId);
         Assert.Equal("t.QDOS26033", resolve.TargetReference);
+        Assert.Equal(0, harness.Triages.DetailCalls);
     }
 
     // Statement 4.
@@ -1561,8 +1581,13 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public Task<TriageRecord?> GetRecordAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail.Record : null);
 
-        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail : null);
+        public int DetailCalls { get; private set; }
+
+        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            DetailCalls++;
+            return Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail : null);
+        }
 
         public List<Guid> OriginReads { get; } = [];
 
@@ -1593,8 +1618,23 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>>(
                 new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>());
 
-        public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<ImageIntakeDetail?>(null);
+        public HashSet<Guid> ExistingIds { get; } = [];
+
+        public int GetCalls { get; private set; }
+
+        public int ExistsCalls { get; private set; }
+
+        public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
+        {
+            GetCalls++;
+            return Task.FromResult<ImageIntakeDetail?>(null);
+        }
+
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken)
+        {
+            ExistsCalls++;
+            return Task.FromResult(ExistingIds.Contains(id));
+        }
 
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference,
@@ -1603,11 +1643,14 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         public List<Guid> OriginReads { get; } = [];
 
+        public int DetailReads { get; private set; }
+
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken)
         {
             OriginReads.Add(intakeReceiptId);
+            DetailReads++;
             return Task.FromResult(
                 DetailsByOriginReceipt.TryGetValue(intakeReceiptId, out var detail) ? detail : null);
         }
@@ -1623,6 +1666,17 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             return Task.FromResult(new ImageIntakeOriginRecords(
                 found,
                 intakeReceiptIds.Where(found.Contains).Select(id => DetailsByOriginReceipt[id]).FirstOrDefault()));
+        }
+
+        public int RecordReads { get; private set; }
+
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken)
+        {
+            RecordReads++;
+            return Task.FromResult(
+                DetailsByOriginReceipt.TryGetValue(intakeReceiptId, out var detail) ? detail.Record : null);
         }
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(

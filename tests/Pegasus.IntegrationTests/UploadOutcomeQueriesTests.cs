@@ -608,6 +608,9 @@ public sealed class UploadOutcomeQueriesTests
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(detail);
 
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(detail is not null);
+
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference, CancellationToken cancellationToken) =>
             Task.FromResult(detail);
@@ -615,6 +618,10 @@ public sealed class UploadOutcomeQueriesTests
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
             Guid intakeReceiptId, CancellationToken cancellationToken) =>
             Task.FromResult(detail);
+
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId, CancellationToken cancellationToken) =>
+            Task.FromResult(detail?.Record);
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId, CancellationToken cancellationToken) =>

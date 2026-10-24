@@ -715,9 +715,10 @@ internal sealed class EfIntakeMutationStore(
     /// Image-intake case eligibility; completing a staff group decision reaches
     /// every Case in any lifecycle state and every Triage Case, as the staff
     /// link it completes does (operator, 24 September 2026). It refuses to run
-    /// while any staff edit lease is active on the case.
+    /// while any staff edit lease is active on the case. It returns the Case
+    /// version the link recorded (a replay, the version it recorded then).
     /// </summary>
-    public async Task AutoLinkAsync(
+    public async Task<long> AutoLinkAsync(
         AutomaticIntakeLinkRequest request,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
@@ -748,7 +749,8 @@ internal sealed class EfIntakeMutationStore(
                 throw new IntakeOperationConflictException();
             }
 
-            return;
+            return replay.AfterCaseVersion
+                ?? throw new InvalidOperationException("The recorded automatic link has no Case version.");
         }
 
         var receipt = await LoadReceiptAsync(context, request.ReceiptId, cancellationToken)
@@ -943,6 +945,8 @@ internal sealed class EfIntakeMutationStore(
         {
             throw new IntakeVersionConflictException();
         }
+
+        return caseAuthority.Version;
     }
 
     private async Task<IntakeReceipt> ExecuteAsync(

@@ -133,49 +133,77 @@ public sealed class DetailsModel(
         }
 
         Detail = detail;
-        if (!IsEditing && TryGetActor(out var editActor)
-            && StaffAuthorization.IsAuthorized(editActor, StaffAccessRight.PerformCasework))
-        {
-            if (await editScopes.GetActiveAsync(
-                    EditScopeKind.ImageIntake, id, editActor, cancellationToken) is { } active)
-            {
-                ViewerHoldsEditScope = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, editActor);
-                CanTakeOverEdit = !ViewerHoldsEditScope;
-            }
-        }
-        Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
-        if (TryGetActor(out var sourceActor))
-        {
-            RetainedReceipts = await getIntake.ExecuteManyAsync(
+        var hasActor = TryGetActor(out var actor);
+        // The reads below are independent of one another, so they run side by
+        // side; the receipts, preparations and tags start once the images are in.
+        using var reads = new BoundedReads(cancellationToken);
+        var imagesRead = reads.Start(token => imageIntakeStore.ListImagesAsync(id, token));
+        var activeScopeRead = !IsEditing && hasActor
+            && StaffAuthorization.IsAuthorized(actor!, StaffAccessRight.PerformCasework)
+                ? reads.Start(token => editScopes.GetActiveAsync(
+                    EditScopeKind.ImageIntake, id, actor!, token))
+                : null;
+        var historyRead = reads.Start(token => imageIntakeStore.ListHistoryAsync(id, token));
+        var suggestionsRead = reads.Start(token => vrmSuggestionStore.ListForReceiptAsync(
+            detail.Record.Origin.ReceiptId, token));
+        var candidatesRead = detail.AssociatedCaseId is null
+            ? reads.Start(token => imageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
+                detail.Record.NormalizedVehicleRegistration, token))
+            : null;
+        var principalsRead = IsEditing
+            ? reads.Start(token => imageIntakeStore.ListActivePrincipalsAsync(token))
+            : null;
+        var triageRead = reads.Start(token => triageQueries.GetByOriginReceiptAsync(
+            detail.Record.Origin.ReceiptId, token));
+        var sourceMessageRead = getRetainedMail is not null && hasActor
+            ? reads.Start(token => getRetainedMail.FindIdBySourceAsync(
+                actor!, detail.Record.Origin.SourceIdentity, token))
+            : null;
+
+        var images = await imagesRead;
+        var receiptsRead = hasActor
+            ? reads.Start(token => getIntake.ExecuteManyAsync(
                 new[] { detail.Record.Origin.ReceiptId }
-                    .Concat(Images.Select(image => image.ReceiptId))
+                    .Concat(images.Select(image => image.ReceiptId))
                     .ToArray(),
-                sourceActor,
-                cancellationToken);
-        }
-        if (TryGetActor(out var preparationActor))
+                actor!,
+                token))
+            : null;
+        var preparationsRead = hasActor
+            ? reads.Start(token => getPreparations.ExecuteAsync(
+                actor!,
+                images.Where(image => image.AssetId is not null).Select(image => image.AssetId!.Value).ToArray(),
+                token))
+            : null;
+        var tagsRead = hasActor && images.Count > 0
+            ? reads.Start(token => tagVocabulary.ListAsync(token))
+            : null;
+        await reads.WhenAllAsync();
+
+        Images = images;
+        if (activeScopeRead is not null && await activeScopeRead is { } active)
         {
-            Preparations = await getPreparations.ExecuteAsync(
-                preparationActor,
-                Images.Where(image => image.AssetId is not null).Select(image => image.AssetId!.Value).ToArray(),
-                cancellationToken);
-            if (Images.Count > 0)
-            {
-                ImageTags = await tagVocabulary.ListAsync(cancellationToken);
-            }
+            ViewerHoldsEditScope = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor!);
+            CanTakeOverEdit = !ViewerHoldsEditScope;
         }
-        History = await imageIntakeStore.ListHistoryAsync(id, cancellationToken);
-        Suggestions = await vrmSuggestionStore.ListForReceiptAsync(
-            detail.Record.Origin.ReceiptId,
-            cancellationToken);
-        AssociationCandidates = detail.AssociatedCaseId is null
-            ? await imageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
-                detail.Record.NormalizedVehicleRegistration,
-                cancellationToken)
-            : [];
-        if (IsEditing)
+        if (receiptsRead is not null)
         {
-            PrincipalOptions = await imageIntakeStore.ListActivePrincipalsAsync(cancellationToken);
+            RetainedReceipts = await receiptsRead;
+        }
+        if (preparationsRead is not null)
+        {
+            Preparations = await preparationsRead;
+        }
+        if (tagsRead is not null)
+        {
+            ImageTags = await tagsRead;
+        }
+        History = await historyRead;
+        Suggestions = await suggestionsRead;
+        AssociationCandidates = candidatesRead is null ? [] : await candidatesRead;
+        if (principalsRead is not null)
+        {
+            PrincipalOptions = await principalsRead;
         }
 
         AutomationWithheld = detail.State == ImageInitiatedCaseState.AwaitingInstruction
@@ -185,15 +213,10 @@ public sealed class DetailsModel(
                 detail.Record.PrincipalId,
                 detail.GroupExpectedMemberCount)
             : null;
-        Triage = await triageQueries.GetByOriginReceiptAsync(
-            detail.Record.Origin.ReceiptId,
-            cancellationToken);
-        if (getRetainedMail is not null && TryGetActor(out var actor))
+        Triage = await triageRead;
+        if (sourceMessageRead is not null)
         {
-            SourceMessageId = await getRetainedMail.FindIdBySourceAsync(
-                actor,
-                detail.Record.Origin.SourceIdentity,
-                cancellationToken);
+            SourceMessageId = await sourceMessageRead;
         }
 
         return Page();

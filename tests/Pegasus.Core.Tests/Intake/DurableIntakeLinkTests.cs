@@ -246,7 +246,7 @@ public sealed class DurableIntakeLinkTests
             ReverseIntakeLinkRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task AutoLinkAsync(
+        public Task<long> AutoLinkAsync(
             AutomaticIntakeLinkRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }

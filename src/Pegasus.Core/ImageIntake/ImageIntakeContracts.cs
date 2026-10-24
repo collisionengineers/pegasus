@@ -313,6 +313,13 @@ public interface IImageIntakeQueries
 
     Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Whether an Image Intake with this identity exists, for a caller that
+    /// needs nothing else; <see cref="GetAsync"/> reads its association and
+    /// group besides.
+    /// </summary>
+    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
+
     Task<ImageIntakeDetail?> GetByReferenceAsync(
         string imageIntakeReference,
         CancellationToken cancellationToken);
@@ -343,6 +350,16 @@ public interface IImageIntakeQueries
 
         return new(found, first);
     }
+
+    /// <summary>
+    /// The record <see cref="GetByOriginReceiptAsync"/> resolves for a receipt
+    /// (its own registration, else its group's), for a caller that needs the
+    /// identity, reference or group alone: the detail reads the association,
+    /// the Case reference and the group count besides.
+    /// </summary>
+    Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
         Guid caseId,

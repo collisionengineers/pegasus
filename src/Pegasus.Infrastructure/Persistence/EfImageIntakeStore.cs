@@ -1155,6 +1155,13 @@ public sealed class EfImageIntakeStore(
         return await GetDetailAsync(context, item => item.Id == id, cancellationToken);
     }
 
+    public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ImageIntakes.AsNoTracking()
+            .AnyAsync(item => item.Id == id, cancellationToken);
+    }
+
     public async Task<ImageIntakeDetail?> GetByReferenceAsync(
         string imageIntakeReference,
         CancellationToken cancellationToken)
@@ -1181,6 +1188,15 @@ public sealed class EfImageIntakeStore(
         return entity is null
             ? null
             : await ToDetailAsync(context, entity, entity.Principal?.Code, cancellationToken);
+    }
+
+    public async Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken);
+        return entity is null ? null : Map(entity);
     }
 
     /// <summary>

@@ -23,6 +23,25 @@ public sealed class GroupedIntakeTests
     }
 
     [Fact]
+    public async Task TheRosterIsTheHeldMembersPlusTheOnesAddedWithoutReadingTheGroupAgain()
+    {
+        var submission = new FakeSubmission();
+        var store = new FakeGroupStore();
+        var request = Request("roster");
+        // The first call adds both files; the group then holds only ordinal 0, so the second adds ordinal 1.
+        await new SubmitGroupedIntake(submission, store, TimeProvider.System)
+            .ExecuteStreamedAsync(request);
+        store.Members.RemoveAll(member => member.Ordinal == 1);
+
+        var result = await new SubmitGroupedIntake(submission, store, TimeProvider.System)
+            .ExecuteStreamedAsync(request);
+
+        Assert.Equal([0, 1], result.Members.Select(item => item.Ordinal));
+        Assert.Equal([true, false], result.Members.Select(item => item.IsDuplicate));
+        Assert.Equal(0, store.ListMembersCalls);
+    }
+
+    [Fact]
     public async Task ReplaysExistingMembersWithoutSubmittingThemAgain()
     {
         var submission = new FakeSubmission();
@@ -202,8 +221,13 @@ public sealed class GroupedIntakeTests
             return Task.FromResult(member);
         }
 
-        public Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(Guid groupId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<IntakeSubmissionGroupMember>>(Members.OrderBy(item => item.Ordinal).ToArray());
+        public int ListMembersCalls { get; private set; }
+
+        public Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(Guid groupId, CancellationToken cancellationToken = default)
+        {
+            ListMembersCalls++;
+            return Task.FromResult<IReadOnlyList<IntakeSubmissionGroupMember>>(Members.OrderBy(item => item.Ordinal).ToArray());
+        }
 
         private IntakeSubmissionGroup EnsureGroup(IntakeSourceChannel channel, string token, int expectedMemberCount, string actor, DateTimeOffset received, Guid? parentReceiptId)
         {
@@ -221,6 +245,6 @@ public sealed class GroupedIntakeTests
         }
 
         private IntakeSubmissionGroup Group() =>
-            new(GroupId, Channel, Token ?? "", ExpectedMemberCount, Actor ?? "staff:test", ReceivedAt, Members, ParentReceiptId);
+            new(GroupId, Channel, Token ?? "", ExpectedMemberCount, Actor ?? "staff:test", ReceivedAt, Members.ToArray(), ParentReceiptId);
     }
 }

@@ -1352,7 +1352,11 @@ public interface IIntakeMutationStore
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);
 
-    Task AutoLinkAsync(
+    /// <summary>
+    /// Returns the Case version the link recorded, so the next member of a
+    /// group links against it instead of reading the Case again.
+    /// </summary>
+    Task<long> AutoLinkAsync(
         AutomaticIntakeLinkRequest request,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);

@@ -1330,6 +1330,9 @@ public sealed class AutomaticImageIntakeTests
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
 
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference,
             CancellationToken cancellationToken) =>
@@ -1338,6 +1341,10 @@ public sealed class AutomaticImageIntakeTests
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken) => Task.FromResult(Existing);
+
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) => Task.FromResult(Existing?.Record);
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,
@@ -1429,7 +1436,7 @@ public sealed class AutomaticImageIntakeTests
             DateTimeOffset occurredAtUtc,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task AutoLinkAsync(
+        public Task<long> AutoLinkAsync(
             AutomaticIntakeLinkRequest request,
             DateTimeOffset occurredAtUtc,
             CancellationToken cancellationToken)
@@ -1446,7 +1453,7 @@ public sealed class AutomaticImageIntakeTests
                 ReceiptQueries.Receipts[index] = ReceiptQueries.Receipts[index] with
                 { ManualLinkedCaseId = request.CaseId, ManualAssociationVersion = 0 };
             }
-            return Task.CompletedTask;
+            return Task.FromResult(request.ExpectedCaseVersion + 1);
         }
     }
 

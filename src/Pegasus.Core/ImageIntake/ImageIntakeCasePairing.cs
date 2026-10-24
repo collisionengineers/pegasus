@@ -221,32 +221,48 @@ public sealed class ImageIntakeCasePairing(
             var staffOriginVersion = originReceipt.AssociationWasStaffDecision
                 ? originReceipt.ManualAssociationVersion : null;
             var targetId = detail.AssociatedCaseId;
-            // The scan that chose the target also supplies the first link's Case
-            // version. Each link advances that version, so later members rescan.
-            IReadOnlyList<ImageIntakeCaseCandidate>? scanned = null;
+            // One scan per group link supplies the target and its Case version.
+            // Each link then returns the version it recorded, which the next
+            // member links against.
+            ImageIntakeCaseCandidate? linkTarget = null;
             if (targetId is null)
             {
-                var eligible = scanned = await caseCandidates.FindEligibleByRegistrationAsync(
+                var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
                     detail.Record.NormalizedVehicleRegistration, cancellationToken);
-                var target = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
+                linkTarget = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
                     detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
-                if (target is null)
+                if (linkTarget is null)
                 {
                     return new(1, 0, 0);
                 }
 
-                targetId = target.CaseId;
+                targetId = linkTarget.CaseId;
             }
 
             var images = manualImages
                 ?? await imageIntakeStore.ListImagesAsync(detail.Record.Id, cancellationToken);
             var receiptIds = images.Select(image => image.ReceiptId)
-                .Prepend(detail.Record.Origin.ReceiptId).Distinct();
+                .Prepend(detail.Record.Origin.ReceiptId).Distinct().ToArray();
+            // The members not already read are read together, as the manual
+            // path does; a missing receipt still fails at its turn below.
+            var unreadIds = receiptIds.Where(id => !knownReceipts.ContainsKey(id)).ToArray();
+            var unreadReceipts = await Task.WhenAll(unreadIds.Select(
+                id => receiptQueries.GetAsync(id, cancellationToken)));
+            for (var index = 0; index < unreadIds.Length; index++)
+            {
+                if (unreadReceipts[index] is { } unread)
+                {
+                    knownReceipts[unreadIds[index]] = unread;
+                }
+            }
+
+            // The staff group destination is read once, for the first member
+            // that needs a link; each link then returns the version it
+            // recorded, which the next member links against.
+            long? staffCaseVersion = null;
             foreach (var memberId in receiptIds)
             {
-                var member = (knownReceipts.TryGetValue(memberId, out var known)
-                        ? known
-                        : await receiptQueries.GetAsync(memberId, cancellationToken))
+                var member = (knownReceipts.TryGetValue(memberId, out var known) ? known : null)
                     ?? throw new KeyNotFoundException("The registered image receipt is unavailable.");
                 if (member.CurrentCaseId == targetId)
                 {
@@ -257,45 +273,60 @@ public sealed class ImageIntakeCasePairing(
                     throw new IntakeAssociationConflictException("A group member has a different association decision.");
                 }
 
-                // Each prior member link advances the Case version. Refresh it,
-                // and let the store recheck current uniqueness inside its write.
+                // The store rechecks current uniqueness and the Case version
+                // inside its write, so a Case another actor changed since the
+                // scan fails this link and a later pass links it.
                 long caseVersion;
                 string reason;
                 if (staffOriginVersion is not null)
                 {
-                    var currentGroup = await imageIntakeStore.GetByOriginReceiptAsync(
-                        detail.Record.Origin.ReceiptId, cancellationToken);
-                    if (currentGroup is null || currentGroup.AssociatedCaseId != targetId
-                        || currentGroup.AssociatedCaseVersion is null)
+                    if (staffCaseVersion is null)
                     {
-                        throw new IntakeAssociationConflictException("The current staff group destination changed.");
+                        // The pass read supplies the destination; the store
+                        // rechecks the association and the Case version inside
+                        // its write, so a stale one fails this link and a
+                        // later pass links it.
+                        if (detail.AssociatedCaseId != targetId || detail.AssociatedCaseVersion is null)
+                        {
+                            throw new IntakeAssociationConflictException("The current staff group destination changed.");
+                        }
+                        staffCaseVersion = detail.AssociatedCaseVersion.Value;
                     }
-                    caseVersion = currentGroup.AssociatedCaseVersion.Value;
+                    caseVersion = staffCaseVersion.Value;
                     reason = "Complete the current reasoned staff group association.";
                 }
                 else
                 {
-                    var eligible = scanned ?? await caseCandidates.FindEligibleByRegistrationAsync(
-                        detail.Record.NormalizedVehicleRegistration, cancellationToken);
-                    scanned = null;
-                    var target = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
-                        detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
-                    if (target is null || target.CaseId != targetId)
+                    if (linkTarget is null)
                     {
-                        throw new IntakeAssociationConflictException("The current image destination is no longer unique.");
+                        // The destination was recorded earlier, so no scan chose it yet.
+                        var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
+                            detail.Record.NormalizedVehicleRegistration, cancellationToken);
+                        linkTarget = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
+                            detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
+                        if (linkTarget is null || linkTarget.CaseId != targetId)
+                        {
+                            throw new IntakeAssociationConflictException("The current image destination is no longer unique.");
+                        }
                     }
-                    caseVersion = target.CaseVersion;
-                    reason = $"Automatic association: the confirmed registration matches case {target.CaseReference} unambiguously.";
+                    caseVersion = linkTarget.CaseVersion;
+                    reason = $"Automatic association: the confirmed registration matches case {linkTarget.CaseReference} unambiguously.";
                 }
-                await intakeMutationStore.AutoLinkAsync(
+                var recordedVersion = await intakeMutationStore.AutoLinkAsync(
                     new(memberId, targetId.Value, caseVersion, actor,
                         $"image-intake-associate:{memberId:N}", reason, staffOriginVersion),
                     timeProvider.GetUtcNow(), cancellationToken);
+                linkTarget = linkTarget is null ? null : linkTarget with { CaseVersion = recordedVersion };
+                if (staffOriginVersion is not null)
+                {
+                    staffCaseVersion = recordedVersion;
+                }
             }
 
-            await SyncMergeAfterLinkAsync(detail.Record.Origin.ReceiptId, targetId.Value, actor,
+            // The record the merge step read or wrote says whether the group
+            // merged, so the detail is not read a second time.
+            var current = await SyncMergeAfterLinkAsync(detail.Record.Origin.ReceiptId, targetId.Value, actor,
                 staffOriginVersion, cancellationToken);
-            var current = await imageIntakeStore.GetByOriginReceiptAsync(detail.Record.Origin.ReceiptId, cancellationToken);
             var merged = current is not null && current.State == ImageInitiatedCaseState.MergedIntoInstructionCase
                 && current.MergedIntoCaseId == targetId;
             if (!merged)
@@ -320,7 +351,7 @@ public sealed class ImageIntakeCasePairing(
         }
     }
 
-    private async Task SyncMergeAfterLinkAsync(
+    private async Task<ImageIntakeRecord?> SyncMergeAfterLinkAsync(
         Guid originReceiptId,
         Guid caseId,
         ActionActor actor,
@@ -329,24 +360,27 @@ public sealed class ImageIntakeCasePairing(
     {
         if (originReceiptId == Guid.Empty || caseId == Guid.Empty)
         {
-            return;
+            return null;
         }
 
-        var detail = await imageIntakeStore.GetByOriginReceiptAsync(originReceiptId, cancellationToken);
-        if (detail is null || detail.State != ImageInitiatedCaseState.AwaitingInstruction)
+        // The merge uses only the record's fields, so the record read is enough.
+        var record = await imageIntakeStore.GetRecordByOriginReceiptAsync(originReceiptId, cancellationToken);
+        if (record is null || record.State != ImageInitiatedCaseState.AwaitingInstruction)
         {
-            return;
+            return record;
         }
 
-        var originId = detail.Record.Origin.ReceiptId;
+        var originId = record.Origin.ReceiptId;
         var merged = await imageIntakeStore.MergeAsync(
-            new(detail.Record.Id, caseId, actor,
+            new(record.Id, caseId, actor,
                 $"image-intake-merge:{originId:N}",
-                $"The Image-initiated case {detail.Record.ImageIntakeReference} was merged into the linked formal Case.",
-                detail.LifecycleVersion, staffOriginVersion), cancellationToken);
+                $"The Image-initiated case {record.ImageIntakeReference} was merged into the linked formal Case.",
+                record.LifecycleVersion, staffOriginVersion), cancellationToken);
         if (merged.PendingExternalWorkId is { } workItemId)
         {
             await committedExternalWorkPublisher.PublishAsync(workItemId, cancellationToken);
         }
+
+        return merged;
     }
 }
