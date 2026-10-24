@@ -13,7 +13,8 @@ using Pegasus.Core.Vehicle;
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfVehicleLookupWorkStore(
-    IDbContextFactory<PegasusDbContext> contextFactory)
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    PrefetchedExternalWork? prefetched = null)
     : IVehicleLookupWorkStore
 {
     private const int MotJsonVersion = 1;
@@ -39,9 +40,10 @@ internal sealed class EfVehicleLookupWorkStore(
         while (true)
         {
             await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-            var work = await context.ExternalWorkItems
-                .AsNoTracking()
-                .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken)
+            var work = prefetched?.Take(workItemId)
+                ?? await context.ExternalWorkItems
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken)
                 ?? throw new InvalidOperationException("The vehicle lookup work item is unavailable.");
             if (!string.Equals(work.Kind, Pegasus.Core.Custody.ExternalWorkKinds.VehicleLookup, StringComparison.Ordinal))
             {

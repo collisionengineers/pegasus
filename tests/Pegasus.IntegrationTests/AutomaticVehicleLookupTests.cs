@@ -288,6 +288,47 @@ public sealed class AutomaticVehicleLookupTests
     }
 
     /// <summary>
+    /// The router's read of the work row is handed to the queued claim, so the
+    /// first pass reads the row once, not twice; the claim still compares the
+    /// state and lease it observed, and a later pass in the same scope reads
+    /// the row fresh.
+    /// </summary>
+    [Fact]
+    public async Task TheQueuedClaimTakesTheRoutersRowOnceAndRetriesReadFresh()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await CreateDatabaseAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        var caseId = await SeedCaseAsync(database, CaseLifecycleState.Review);
+        await SeedRegistrationFieldAsync(database, caseId, "AB12CDE", "fact");
+        Assert.Equal(1, await SweepAsync(database));
+        var workItemId = await database.ScalarAsync<Guid>(
+            $"SELECT Id FROM ExternalWorkItems WHERE CaseId = '{caseId:D}' AND Kind = 'vehicle_lookup'");
+        await using var scope = database.CreateAsyncScope();
+        var reader = scope.ServiceProvider.GetRequiredService<IQueuedExternalWorkReader>();
+        var workStore = scope.ServiceProvider.GetRequiredService<IVehicleLookupWorkStore>();
+
+        statements.Reset();
+        Assert.NotNull(await reader.GetAsync(workItemId, CancellationToken.None));
+        var claimed = await workStore.ClaimProcessingAsync(
+            workItemId, FixedUtcNow, TimeSpan.FromMinutes(5), CancellationToken.None);
+
+        Assert.NotNull(claimed);
+        Assert.Equal(VehicleLookupWorkState.Processing, claimed.State);
+        Assert.Equal(1, claimed.AttemptCount);
+        Assert.Single(statements.Reads, read =>
+            read.CommandText.Contains("FROM [ExternalWorkItems]", StringComparison.Ordinal));
+        // The router's read, the request payload read and the claiming update.
+        Assert.Equal(3, statements.Count);
+
+        statements.Reset();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => workStore.ClaimProcessingAsync(
+            workItemId, FixedUtcNow, TimeSpan.FromMinutes(5), CancellationToken.None));
+        Assert.Single(statements.Reads, read =>
+            read.CommandText.Contains("FROM [ExternalWorkItems]", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// A duplicate key in the batch rolls the whole save back. Each Case is then
     /// saved on its own, the one whose work item already exists stays unenqueued
     /// without failing the sweep, and the next sweep finds the same.
