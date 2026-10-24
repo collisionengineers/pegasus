@@ -168,6 +168,37 @@ public sealed class ProductionGraphSourceTests
     }
 
     [Fact]
+    public async Task ASmallAttachmentIsPostedAsItsExactBase64ContentBytes()
+    {
+        var bytes = Enumerable.Range(0, 1000).Select(value => (byte)(value % 251)).ToArray();
+        var attachment = new StaffMailAttachment(Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.Length, "report.pdf", "application/pdf");
+        string? posted = null;
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.Method == HttpMethod.Post)
+            {
+                posted = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            }
+            return Response(HttpStatusCode.Created, "{}");
+        });
+        var progress = new UploadProgressFake();
+        var sender = new GraphStaffMailSender(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new HttpClient(new DelegateHandler(_ => throw new InvalidOperationException())), progress);
+
+        await sender.AttachAsync(new(Guid.NewGuid(), "mailbox-id", 1, 10_000_000),
+            Guid.NewGuid(), "draft", attachment, new MemoryStream(bytes), CancellationToken.None);
+
+        using var document = System.Text.Json.JsonDocument.Parse(posted!);
+        Assert.Equal(
+            Convert.ToBase64String(bytes),
+            document.RootElement.GetProperty("contentBytes").GetString());
+        Assert.True(progress.Completed);
+    }
+
+    [Fact]
     public async Task AttachmentReconciliationIgnoresLargeNonMatchingAttachmentsWithoutFetchingContent()
     {
         var bytes = new byte[] { 4, 3, 2, 1 };
@@ -1572,6 +1603,207 @@ public sealed class ProductionGraphSourceTests
         Assert.False(page.HasMore);
         Assert.Equal(0, mimeReads);
         Assert.Contains("deltatoken", page.NextCursor, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SentReadsAtMostTwoMessagesAtOnceAndKeepsDeltaOrderAndCursors()
+    {
+        static string Mime(string id) =>
+            $"Message-Id: <{id}@example.test>\r\nContent-Type: text/plain\r\n\r\nBody {id}";
+
+        var inFlight = 0;
+        var peak = 0;
+        var secondRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new AsyncHandler(async request =>
+        {
+            if (!request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"sent-1","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:00:00Z","conversationId":"c","internetMessageId":"<sent-1@example.test>"},{"id":"sent-2","parentFolderId":"sent-items","sentDateTime":"2026-09-06T08:00:00Z","conversationId":"c","internetMessageId":"<sent-2@example.test>"},{"id":"sent-3","@removed":{"reason":"deleted"}},{"id":"sent-4","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:03:00Z","conversationId":"c","internetMessageId":"<sent-4@example.test>"},{"id":"sent-5","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:04:00Z","conversationId":"c","internetMessageId":"<sent-5@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/sent-items/messages/delta?$deltatoken=final"}""");
+            }
+
+            var id = request.RequestUri.Segments[^2].TrimEnd('/');
+            var now = Interlocked.Increment(ref inFlight);
+            int seen;
+            while ((seen = Volatile.Read(ref peak)) < now
+                && Interlocked.CompareExchange(ref peak, now, seen) != seen)
+            {
+            }
+            if (now >= 2)
+            {
+                secondRead.TrySetResult();
+            }
+            // Held until a second read is on the wire. A serial build never has one, so
+            // it waits out the timeout and the peak assertion fails rather than hangs.
+            await Task.WhenAny(secondRead.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+            secondRead.TrySetResult();
+            await Task.Delay(50);
+            Interlocked.Decrement(ref inFlight);
+            return Response(HttpStatusCode.OK, Mime(id), "message/rfc822");
+        });
+        var source = new GraphApprovedSentSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+
+        var page = await source.ReadAsync(
+            new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
+                Guid.NewGuid(), 2, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero)),
+            4, CancellationToken.None);
+
+        Assert.Equal(2, peak);
+        Assert.Equal(3, page.Items.Count);
+        Assert.Equal(ApprovedSentItemObservationKind.Discovered, page.Items[0].ObservationKind);
+        Assert.Equal(ApprovedSentItemObservationKind.Deleted, page.Items[1].ObservationKind);
+        Assert.Equal(ApprovedSentItemObservationKind.Discovered, page.Items[2].ObservationKind);
+        Assert.Equal(
+            [Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.ASCII.GetBytes(Mime("sent-1")))),
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.ASCII.GetBytes(Mime("sent-4"))))],
+            page.Items.Where(item => item.ObservationKind == ApprovedSentItemObservationKind.Discovered)
+                .Select(item => item.SourceSha256));
+        Assert.Equal(
+            [1, 3, 4],
+            page.Items.Select(item =>
+                GraphCursor.Parse(item.NextCursor, new Uri("https://example.test")).SkipCount));
+        Assert.Equal(page.NextCursor, page.Items[^1].NextCursor);
+        Assert.True(page.HasMore);
+    }
+
+    /// <summary>
+    /// One throttled read fails the whole page, as a serial read did, with the
+    /// throttle itself rather than an aggregate, and no page is returned.
+    /// </summary>
+    [Fact]
+    public async Task SentPageFailsWholeWhenOneOfTheParallelReadsIsThrottled()
+    {
+        var handler = new AsyncHandler(async request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (!path.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"sent-1","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:00:00Z","conversationId":"c"},{"id":"sent-2","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:01:00Z","conversationId":"c"},{"id":"sent-3","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:02:00Z","conversationId":"c"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/sent-items/messages/delta?$deltatoken=final"}""");
+            }
+
+            await Task.Delay(10);
+            return path.Contains("/sent-2/", StringComparison.Ordinal)
+                ? Response(HttpStatusCode.TooManyRequests, "{}")
+                : Response(HttpStatusCode.OK, "Message-Id: <m@example.test>\r\n\r\nBody", "message/rfc822");
+        });
+        var source = new GraphApprovedSentSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+
+        await Assert.ThrowsAsync<ApprovedSentSourceThrottledException>(() => source.ReadAsync(
+            new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
+                Guid.NewGuid(), 2, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero)),
+            10, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The poll runs under the Worker's folded-job budget, which cancels it with the
+    /// caller's token. A read in progress ends as a cancellation.
+    /// </summary>
+    [Fact]
+    public async Task SentReadStopsWhenTheCallerCancels()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new CancellableAsyncHandler(async (request, token) =>
+        {
+            if (!request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"sent-1","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:00:00Z","conversationId":"c"},{"id":"sent-2","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:01:00Z","conversationId":"c"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/sent-items/messages/delta?$deltatoken=final"}""");
+            }
+
+            started.TrySetResult();
+            await Task.Delay(TimeSpan.FromSeconds(30), token);
+            return Response(HttpStatusCode.OK, "Message-Id: <m@example.test>\r\n\r\nBody", "message/rfc822");
+        });
+        var source = new GraphApprovedSentSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+        using var cancellation = new CancellationTokenSource();
+
+        var read = source.ReadAsync(
+            new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
+                Guid.NewGuid(), 2, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero)),
+            10, cancellation.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => read);
+    }
+
+    /// <summary>
+    /// The Inbox poll and the Sent poll of one mailbox, started together on one client,
+    /// put at most two MIME reads on the mailbox between them; a webhook read of the
+    /// same mailbox is not held behind them.
+    /// </summary>
+    [Fact]
+    public async Task InboxAndSentPagesOfOneMailboxShareTwoReadsAndAWebhookReadIsNotHeld()
+    {
+        var inFlight = 0;
+        var peak = 0;
+        var pageReads = 0;
+        var twoHeld = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new AsyncHandler(async request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/messages/delta", StringComparison.Ordinal))
+            {
+                return path.Contains("/inbox-folder/", StringComparison.Ordinal)
+                    ? Response(HttpStatusCode.OK,
+                        """{"value":[{"id":"in-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"},{"id":"in-2","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:01:00Z"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/inbox-folder/messages/delta?$deltatoken=final"}""")
+                    : Response(HttpStatusCode.OK,
+                        """{"value":[{"id":"sent-1","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:00:00Z","conversationId":"c"},{"id":"sent-2","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:01:00Z","conversationId":"c"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/sent-items/messages/delta?$deltatoken=final"}""");
+            }
+            if (path.EndsWith("/messages/webhook-1", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK,
+                    """{"id":"webhook-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:02:00Z"}""");
+            }
+
+            var mime = Response(HttpStatusCode.OK, "Message-Id: <m@example.test>\r\n\r\nBody", "message/rfc822");
+            if (path.Contains("/webhook-1/", StringComparison.Ordinal))
+            {
+                return mime;
+            }
+
+            var now = Interlocked.Increment(ref inFlight);
+            int seen;
+            while ((seen = Volatile.Read(ref peak)) < now
+                && Interlocked.CompareExchange(ref peak, now, seen) != seen)
+            {
+            }
+            if (Interlocked.Increment(ref pageReads) >= 2)
+            {
+                twoHeld.TrySetResult();
+            }
+            await release.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Interlocked.Decrement(ref inFlight);
+            return mime;
+        });
+        var client = new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler));
+        var inbox = new GraphApprovedInboxSource(client, new NoQuarantineStore());
+        var sent = new GraphApprovedSentSource(client);
+
+        var inboxRead = inbox.ReadAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            10, CancellationToken.None);
+        var sentRead = sent.ReadAsync(
+            new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
+                Guid.NewGuid(), 2, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero)),
+            10, CancellationToken.None);
+        await twoHeld.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        // Give any third read the time to reach the wire if the bound let it.
+        await Task.Delay(200);
+        var webhook = await inbox.ReadNotifiedAsync(
+            Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
+            "webhook-1",
+            CancellationToken.None);
+        release.TrySetResult();
+        await Task.WhenAll(inboxRead, sentRead);
+
+        Assert.NotNull(webhook);
+        Assert.Equal(2, peak);
     }
 
     [Fact]
