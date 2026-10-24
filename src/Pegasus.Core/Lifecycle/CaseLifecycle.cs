@@ -801,7 +801,7 @@ public static class CaseLifecycleRules
     /// an Engineer to take (operator, 15 October 2026, #1213 ruling 3).
     /// </summary>
     public static void RequireReopenDestinationIsAllowed(
-        CaseReopenDestination destination,
+        CaseReopenDestination? destination,
         bool hasReportSentEvidence)
     {
         if (destination == CaseReopenDestination.ReportSent && !hasReportSentEvidence)
