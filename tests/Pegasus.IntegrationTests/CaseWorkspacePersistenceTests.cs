@@ -26,7 +26,8 @@ namespace Pegasus.IntegrationTests;
 /// exactly as it was.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseWorkspacePersistenceTests
+public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database)
+    : IClassFixture<CaseWorkspaceDatabase>
 {
     [Theory]
     [InlineData("a", "Current", "ReportPreparation", true)]
@@ -83,7 +84,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task FocusedPageAndFilesReadsKeepHistoryAndTypedCaseDataOutOfTheirBodies()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var documentId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
         var occurrenceId = Guid.NewGuid();
@@ -200,7 +201,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task RenderLeaseValidationUsesTheCurrentPersistedHashForValidWrongAndStaleTokens()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -236,7 +237,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ImageCropAndDamageCommitTogetherAndAStaleImageRollsBackBoth()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var documentId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
@@ -277,7 +278,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task OneWorkspaceSaveWritesOneWorkflowEventAndBumpsTheVersionExactlyOnce()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -354,7 +355,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task TwoSavesUnderOneOperationKeyAtOnceAreOneSaveAndOneReplay()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-concurrent-save");
         var request = Request(harness, initial.Version, lease.Token, "concurrent-workspace-save") with
@@ -409,7 +410,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task TheCaseSaveRecordsGuideCardsAndLeavesAnUnchangedCardAlone()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var april = new DateOnly(2030, 4, 1);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-guide-1");
@@ -466,7 +467,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task SavingUnchangedExtractedOverviewFactsAndANotePreservesReportFreshness()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var claimantFact = Assert.IsType<CaseDataValue<string>>(initial.Claimant.Name.Fact);
         Assert.Null(initial.Claimant.Name.Confirmed);
@@ -510,7 +511,7 @@ public sealed class CaseWorkspacePersistenceTests
     [InlineData("manual paragraph")]
     public async Task ReportWordingOnlyChangesPersistAndStaleTheCurrentGeneration(string change)
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
         var wording = change switch
@@ -578,7 +579,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task DirectAssessmentSaveStalesOnlyForAPrintedFactChange()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
         var actor = Engineer(harness);
@@ -665,7 +666,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ACaseFactSaveStalesOnlyForAPrintedFactChange()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
         var noteLease = await harness.AcquireLeaseAsync(
@@ -745,7 +746,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ReadinessIsReEvaluatedFromPersistedFactsInsideTheTransaction()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         Assert.True(initial.Completeness.Evaluation.SatisfiesPolicy);
 
@@ -786,7 +787,7 @@ public sealed class CaseWorkspacePersistenceTests
         // The Case save evaluates readiness from the row it just wrote, so
         // editing an unrelated fact cannot silently take a Review case back to
         // Not ready.
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -813,7 +814,7 @@ public sealed class CaseWorkspacePersistenceTests
         // Correcting Make is a separate confirmation and must not make the
         // vehicle-evidence reader reject the Case or invent registration
         // confirmation provenance.
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -859,7 +860,7 @@ public sealed class CaseWorkspacePersistenceTests
     public async Task SettlementAndReportSaveTogetherPreservingUnsubmittedFactsAndInvalidatingTheReport(
         CaseLifecycleState state)
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var engineer = Engineer(harness, StaffRole.User);
         var signOffEngineerId = Guid.Parse(engineer.SubjectId);
         var generationId = Guid.NewGuid();
@@ -945,7 +946,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task AStaleExpectedVersionRefusesTheWholeWorkspaceWithoutPartialWrites()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -972,7 +973,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task SubmittedOverviewPreservesAcceptedProvenanceAndDoesNotConfirmAnUnpostedSuggestion()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var source = await context.CaseDataFields.AsNoTracking().SingleAsync(row =>
@@ -1050,7 +1051,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task RepostingTheShownValuesUnchangedWritesANoteThatNamesNoField()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         Assert.NotNull(initial.Claimant.Name.Fact);
         Assert.Null(initial.Claimant.Name.Confirmed);
@@ -1091,7 +1092,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task MissingWrongHolderWrongTokenAndExpiredLeasesNeverWriteTheWorkspace()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -1147,7 +1148,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ALapsedLeaseNobodyClaimedStillSavesUntilAColleagueClaimsTheCase()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-lapsed-holder");
 
@@ -1189,7 +1190,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ATotalLossSavesWithoutItsSalvageCategoryOrValue()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-total-loss");
@@ -1213,7 +1214,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task AnExactReplayReturnsTheOriginalOutcomeAndAChangedPayloadConflicts()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -1246,7 +1247,7 @@ public sealed class CaseWorkspacePersistenceTests
         // The estimate section is validated and persisted inside the same
         // transaction as the case facts and the assessment fields, so a refusal
         // there must undo the writes that already happened in this transaction.
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(
@@ -1295,7 +1296,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ADiscardedEstimateAndAClosedCaseRefuseTheWorkspaceSave()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var discarded = DiscardedEstimateId();
         var engineer = Engineer(harness);
@@ -1326,7 +1327,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task TheDraftEstimateHeaderAndLinesJoinTheSameTransaction()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(
@@ -1378,7 +1379,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task AnUnchangedSpecIsNotRewrittenByTheCaseSave()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-spec-1");
@@ -1422,7 +1423,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task AWorkspaceSaveReturnsTheAssessmentLinesInPositionOrder()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-line-order");
@@ -1453,7 +1454,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ASaveThatCarriesAnEstimateReadsItsLinesOnlyWithTheSpecification()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-lines-read");
@@ -1489,7 +1490,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task AReplayWhoseSpecificationIsGoneReadsNoLines()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-lines-gone");
@@ -1555,7 +1556,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ACalculationIsRecordedAgainstTheBasisCardTheSameSaveRecorded()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var april = new DateOnly(2030, 4, 1);
         var may = new DateOnly(2030, 5, 1);
         var initial = await harness.GetRequiredDataAsync();
@@ -1626,7 +1627,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ATypedEngineersValueSavesWithoutAMileageAndRetailAndTradeAreNotTyped()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-typed-1");
@@ -1689,7 +1690,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task InspectionDateSaveThroughTheWorkspaceStalesTheReport()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var inspection = Inspection(CaseReportAddressTreatment.PhysicalVehicleLocation, "1 Depot Road");
         var firstLease = await harness.AcquireLeaseAsync(
@@ -1754,7 +1755,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task APrimarySaveOnAnAuditedCaseWritesThePrimaryWorkOnly()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var auditWorkId = await Reports.CaseReportGenerationPersistenceTests.GiveAuditAsync(
             harness.Factory, harness.CaseId, harness.TimeProvider.GetUtcNow());
@@ -1809,7 +1810,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ACalculationRecordsWithoutTheCaseMileage()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var april = new DateOnly(2030, 4, 1);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
@@ -1848,7 +1849,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task UsingACardTypedInTheSameSaveRecordsTheCalculationAgainstThatNewCard()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-use-new-1");
@@ -1886,7 +1887,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task AnEngineersValueTypedOverTheCalculationIsTheEngineersOwnAndNotRecordedAgainstTheCard()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-own-value-1");
@@ -1999,7 +2000,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ChosenCardWithAnEngineersValueBoxThatDoesNotMatchTheCalculationIsRefused()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-use-stale-1");
@@ -2034,7 +2035,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ThePreviewFromUnsavedFiguresIsTheCalculationTheSaveRecords()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var april = new DateOnly(2030, 4, 1);
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
@@ -2092,7 +2093,7 @@ public sealed class CaseWorkspacePersistenceTests
     {
         // The case is demoted through the workspace save, and the
         // Review-gated transitions then refuse.
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var initial = await harness.GetRequiredDataAsync();
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -2211,7 +2212,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task AStaffDueBySurvivesALaterInspectionDeadlineChange()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var manualDueBy = new DateOnly(2031, 5, 18);
         var before = await harness.GetRequiredDataAsync();
         var firstLease = await harness.AcquireLeaseAsync(before.Version, harness.StaffActor, "staff-due-lease");
@@ -2243,7 +2244,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ClearingAStaffDueByRestoresTheAcceptedInspectionDeadline()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var before = await harness.GetRequiredDataAsync();
         var firstLease = await harness.AcquireLeaseAsync(before.Version, harness.StaffActor, "set-due-lease");
         var withManualDueBy = await harness.WorkspaceStore.SaveAsync(
@@ -2271,7 +2272,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task SavingDueByWithoutDueWorkCreatesAStoppedProjectionWithoutAChase()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         await using (var initialContext = await harness.Factory.CreateDbContextAsync())
         {
             Assert.False(await initialContext.CaseDueWork.AnyAsync(item => item.CaseId == harness.CaseId));
@@ -2525,7 +2526,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ThePageFrameOverlapsItsReadsAndStillAnswersAMissingCaseWithNull()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(database);
         var store = new EfCaseQueryStore(harness.Factory, harness.TimeProvider);
 
         var frame = await store.GetPageFrameAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
@@ -2634,4 +2635,64 @@ public sealed class CaseWorkspacePersistenceTests
         operationKey,
         "Recorded the Case workspace",
         leaseToken);
+}
+
+/// <summary>
+/// The one database a class of Case workspace tests shares: restored and
+/// migrated once. A test accepts an intake into it, which makes a Case of its
+/// own, and removes that Case and the intake when it ends, so the next test
+/// finds the database as the one before it did. A test that reads or writes
+/// across the whole database (the retained Sent evidence of every Case, the
+/// default sign-off Engineer, the claim sources) accepts into a database of its
+/// own instead.
+/// </summary>
+public sealed class CaseWorkspaceDatabase : IAsyncLifetime
+{
+    private LocalDbTestDatabase? database;
+    private ForeignKeyRowRemoval? caseRemoval;
+    private ForeignKeyRowRemoval? receiptRemoval;
+
+    internal LocalDbTestDatabase Database =>
+        database ?? throw new InvalidOperationException("The database has not been created.");
+
+    internal PooledDbContextFactory<PegasusDbContext> Factory { get; private set; } = null!;
+
+    public async Task InitializeAsync()
+    {
+        database = await LocalDbTestDatabase.CreateAsync();
+        Factory = new PooledDbContextFactory<PegasusDbContext>(
+            new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(database.ConnectionString).Options);
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (database is not null)
+        {
+            await database.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Removes the intake receipt, the Case it made and everything that hangs
+    /// from either. The QDOS Principal and its sequence counter are left as
+    /// they are: the next Case takes the next number.
+    /// </summary>
+    internal async Task RemoveAsync(Guid receiptId)
+    {
+        caseRemoval ??= await ForeignKeyRowRemoval.CreateAsync(
+            Database, ForeignKeyRowRemoval.CasesTable, ForeignKeyRowRemoval.InRoots, []);
+        receiptRemoval ??= await ForeignKeyRowRemoval.CreateAsync(
+            Database, ForeignKeyRowRemoval.IntakeReceiptsTable, ForeignKeyRowRemoval.CasesTable);
+
+        // One batch: the Cases the receipt made go to @roots, then the walk from
+        // each, the walk from the receipt, and the history (it names a Case or
+        // a receipt without a key to it).
+        var sql = ForeignKeyRowRemoval.RootsDeclaration
+            + "INSERT @roots (Id) SELECT Id FROM [dbo].[Cases] WHERE OriginIntakeReceiptId = @id;\n"
+            + caseRemoval.Sql + ";\n"
+            + receiptRemoval.Sql + ";\n"
+            + "DELETE FROM [dbo].[ActionHistory] WHERE AggregateId IN (SELECT LOWER(CONVERT(nvarchar(36), Id)) FROM @roots)"
+            + " OR AggregateId = LOWER(CONVERT(nvarchar(36), @id))";
+        await ForeignKeyRowRemoval.ExecuteAsync(Database, sql, ("@id", receiptId));
+    }
 }

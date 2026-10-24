@@ -3419,31 +3419,11 @@ public sealed class ReportGenerationDatabase : IAsyncLifetime
     /// <summary>The default sign-off Engineer's signature image.</summary>
     internal static readonly byte[] SignatureBytes = [137, 80, 78, 71, 9, 9, 9, 9];
 
-    private const string CasesTable = "[dbo].[Cases]";
-
-    /// <summary>Every foreign key, one row for each column pair: its id, child table, parent table, then the columns.</summary>
-    private const string ForeignKeysSql = """
-        SELECT fk.object_id,
-               QUOTENAME(SCHEMA_NAME(child.schema_id)) + N'.' + QUOTENAME(child.name),
-               QUOTENAME(SCHEMA_NAME(parent.schema_id)) + N'.' + QUOTENAME(parent.name),
-               QUOTENAME(childColumn.name),
-               QUOTENAME(parentColumn.name)
-        FROM sys.foreign_keys AS fk
-        JOIN sys.tables AS child ON child.object_id = fk.parent_object_id
-        JOIN sys.tables AS parent ON parent.object_id = fk.referenced_object_id
-        JOIN sys.foreign_key_columns AS fkc ON fkc.constraint_object_id = fk.object_id
-        JOIN sys.columns AS childColumn
-            ON childColumn.object_id = fkc.parent_object_id AND childColumn.column_id = fkc.parent_column_id
-        JOIN sys.columns AS parentColumn
-            ON parentColumn.object_id = fkc.referenced_object_id AND parentColumn.column_id = fkc.referenced_column_id
-        ORDER BY fk.object_id, fkc.constraint_column_id
-        """;
-
     private readonly string contentRoot =
         Path.Combine(Path.GetTempPath(), "Pegasus.ReportTests", Guid.NewGuid().ToString("N"));
 
     private LocalDbTestDatabase? database;
-    private string? removeCaseSql;
+    private ForeignKeyRowRemoval? caseRemoval;
     private int caseNumber;
 
     /// <summary>The default sign-off Engineer, who signs off every Case in this database.</summary>
@@ -3522,18 +3502,8 @@ public sealed class ReportGenerationDatabase : IAsyncLifetime
     /// </summary>
     internal async Task RemoveCaseAsync(SeededCase seeded)
     {
-        removeCaseSql ??= await BuildRemoveCaseSqlAsync();
-        await using (var connection = Database.CreateConnection())
-        {
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText = removeCaseSql;
-            var caseId = command.CreateParameter();
-            caseId.ParameterName = "@caseId";
-            caseId.Value = seeded.CaseId;
-            command.Parameters.Add(caseId);
-            await command.ExecuteNonQueryAsync();
-        }
+        caseRemoval ??= await ForeignKeyRowRemoval.CreateAsync(Database, ForeignKeyRowRemoval.CasesTable);
+        await caseRemoval.RemoveAsync(seeded.CaseId);
 
         // The history names the Case without a key to it; the rest are what the Case hung from.
         await using var context = await Factory.CreateDbContextAsync();
@@ -3544,80 +3514,6 @@ public sealed class ReportGenerationDatabase : IAsyncLifetime
         await context.Organizations.Where(item => item.Id == seeded.OrganizationId).ExecuteDeleteAsync();
         await context.IntakeReceipts.Where(item => item.Id == seeded.ReceiptId).ExecuteDeleteAsync();
     }
-
-    /// <summary>
-    /// One batch that deletes the Case named by <c>@caseId</c> and every row that
-    /// reaches it through a foreign key, children before parents. The keys are
-    /// read from the database, so a table added later is covered without a
-    /// change here.
-    /// </summary>
-    private async Task<string> BuildRemoveCaseSqlAsync()
-    {
-        var keys = new Dictionary<int, ForeignKeyEdge>();
-        await using (var connection = Database.CreateConnection())
-        {
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText = ForeignKeysSql;
-            await using var reader = await command.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
-            {
-                var id = reader.GetInt32(0);
-                if (!keys.TryGetValue(id, out var key))
-                {
-                    keys[id] = key = new ForeignKeyEdge(reader.GetString(1), reader.GetString(2), []);
-                }
-
-                key.Columns.Add((reader.GetString(3), reader.GetString(4)));
-            }
-        }
-
-        // A table that references itself is deleted in one statement, so it needs no edge.
-        var edges = keys.Values.Where(edge => edge.Child != edge.Parent).ToList();
-        var tables = new List<string>();
-        var reached = new HashSet<string>(StringComparer.Ordinal);
-
-        // Depth first from the Case down to the tables that reference it: a table is listed after every table that references it.
-        void Visit(string table)
-        {
-            if (!reached.Add(table))
-            {
-                return;
-            }
-
-            foreach (var edge in edges.Where(candidate => candidate.Parent == table))
-            {
-                Visit(edge.Child);
-            }
-
-            tables.Add(table);
-        }
-
-        // The rows of a table that reach the Case: a row of the Case itself, or a row whose parent is such a row.
-        string Reaches(string table, string alias, int depth)
-        {
-            if (table == CasesTable)
-            {
-                return $"{alias}.[Id] = @caseId";
-            }
-
-            var parentAlias = $"p{depth}";
-            var routes = edges
-                .Where(edge => edge.Child == table && reached.Contains(edge.Parent))
-                .Select(edge => $"EXISTS (SELECT 1 FROM {edge.Parent} AS {parentAlias} "
-                    + $"WHERE {Reaches(edge.Parent, parentAlias, depth + 1)} AND "
-                    + string.Join(" AND ", edge.Columns.Select(column =>
-                        $"{alias}.{column.Child} = {parentAlias}.{column.Parent}")) + ")");
-            return "(" + string.Join(" OR ", routes) + ")";
-        }
-
-        Visit(CasesTable);
-        const string rows = "t";
-        return string.Join(
-            ";\n", tables.Select(table => $"DELETE {rows} FROM {table} AS {rows} WHERE {Reaches(table, rows, 0)}"));
-    }
-
-    private sealed record ForeignKeyEdge(string Child, string Parent, List<(string Child, string Parent)> Columns);
 
     /// <summary>A Case seeded for one test, with the rows it was seeded from.</summary>
     internal sealed record SeededCase(
