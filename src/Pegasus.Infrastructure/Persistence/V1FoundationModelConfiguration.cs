@@ -75,6 +75,7 @@ internal static class V1FoundationModelConfiguration
         {
             e.ToTable("GlassRepairEstimateSessions"); e.HasKey(x => x.Id); e.HasIndex(x => x.OperationKey).IsUnique();
             e.HasIndex(x => x.ActiveAccountKey).IsUnique().HasFilter("[ActiveAccountKey] IS NOT NULL");
+            e.HasIndex(x => x.CallbackDigest);
             e.Property(x => x.State).HasConversion<string>().HasMaxLength(40);
             e.Property(x => x.CallbackDigest).HasMaxLength(64).IsFixedLength(); e.Property(x => x.Version).IsConcurrencyToken();
             e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
