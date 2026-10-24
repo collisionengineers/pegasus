@@ -1014,18 +1014,7 @@ public sealed class UploadConfirmationWebTests
         var page = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
 
         Assert.Contains("data-upload-phase=\"decision\"", page, StringComparison.Ordinal);
-        // A whole-receipt read is a receipt statement and an Assets statement:
-        // count the receipt statements.
-        var wholeReceiptReads = counter.CountContaining(
-                "[IntakeReceipts]",
-                "[InstructionDrafts]",
-                "[IntakeMailRouteDecisions]")
-            - counter.CountContaining(
-                "[IntakeReceipts]",
-                "[IntakeAssets]",
-                "[InstructionDrafts]",
-                "[IntakeMailRouteDecisions]");
-        Assert.Equal(4, wholeReceiptReads);
+        Assert.Equal(4, counter.WholeReceiptReads());
     }
 
     [Fact]

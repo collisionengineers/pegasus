@@ -55,8 +55,6 @@ public sealed class UploadGroupStatusModel(
     /// </summary>
     public UploadOutcomeView? GroupRegistrationOutcome { get; private set; }
 
-    public bool RefreshAutomatically => AutomaticRefreshMilliseconds is not null;
-
     /// <summary>
     /// How long before this page reloads itself: the shortest wait among the
     /// members still moving, so one member waiting on a scheduled retry never
@@ -228,18 +226,10 @@ public sealed class UploadGroupStatusModel(
             return notFound;
         }
 
-        var nextDelayMs = AutomaticRefreshMilliseconds;
-        return new JsonResult(new
-        {
-            moving = nextDelayMs is not null,
-            nextDelayMs,
-            members = Group.Members.Select(member => new
-            {
-                id = member.StagedReceiptId,
-                state = (Statuses.GetValueOrDefault(member.StagedReceiptId)?.Status
-                    ?? QueuedIntakeStatusKind.Received).ToString().ToLowerInvariant()
-            })
-        });
+        return new JsonResult(UploadStatusAnswer.Of(
+            AutomaticRefreshMilliseconds,
+            Group.Members.Select(member => UploadStatusAnswerMember.Of(
+                member.StagedReceiptId, Statuses.GetValueOrDefault(member.StagedReceiptId)?.Status))));
     }
 
     public async Task<IActionResult> OnPostAttachGroupAsync(
@@ -494,11 +484,6 @@ public sealed class UploadGroupStatusModel(
                 CanDiscard = GroupMemberReceiptVersions.Count == group.Members.Count;
             }
         }
-        if (haveActor && OpenGroupDecision)
-        {
-            GroupSuggestedDestinations = await _caseDecision.GetSuggestionsForUploadsAsync(
-                OpenMemberReceiptIds, actor!, cancellationToken);
-        }
 
         return null;
     }
@@ -506,6 +491,14 @@ public sealed class UploadGroupStatusModel(
     private async Task BuildReviewAsync(Guid id, int? inspect, bool discard, CancellationToken cancellationToken)
     {
         var haveActor = TryGetActor(out var actor);
+        // The poll never draws the suggestions, so only a page that is drawn reads them.
+        if (haveActor && OpenGroupDecision)
+        {
+            GroupSuggestedDestinations = await _caseDecision.GetSuggestionsForUploadsAsync(
+                OpenMemberReceiptIds, actor!, cancellationToken);
+        }
+
+        var autoRefreshMilliseconds = AutomaticRefreshMilliseconds;
         var files = Group.Members
             .OrderBy(member => member.Ordinal)
             .Select(member => ReviewFile(member))
@@ -519,7 +512,7 @@ public sealed class UploadGroupStatusModel(
         {
             phase = UploadReviewPhase.Discarded;
         }
-        else if (RefreshAutomatically)
+        else if (autoRefreshMilliseconds is not null)
         {
             phase = UploadReviewPhase.Pending;
         }
@@ -587,7 +580,7 @@ public sealed class UploadGroupStatusModel(
             receiptVersions)
         {
             NowUtc = timeProvider.GetUtcNow(),
-            AutoRefreshMilliseconds = AutomaticRefreshMilliseconds,
+            AutoRefreshMilliseconds = autoRefreshMilliseconds,
             StatusUrl = $"/Upload/Group/{id:D}?handler=Status",
             Error = TempData["UploadConfirmationError"] as string,
             Candidates = GroupSuggestedDestinations.Select(UploadReviewCandidate.From).ToArray(),

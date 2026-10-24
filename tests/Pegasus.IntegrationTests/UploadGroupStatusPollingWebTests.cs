@@ -167,9 +167,44 @@ public sealed class UploadGroupStatusPollingWebTests
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
 
+    /// <summary>
+    /// The status call asks only for the members' moving states: each member's
+    /// whole receipt once, and never the case suggestions the page draws (the
+    /// terminal page of the same group reads one more receipt for them: four,
+    /// pinned by <c>UploadConfirmationWebTests</c>).
+    /// </summary>
+    [Fact]
+    public async Task TheStatusCallReadsEachMembersReceiptOnceAndNoSuggestions()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine(),
+            commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (upload, groupId) = await UploadImagesAsync(client, "overview.png", "close-up.png", "rear.png");
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
+        }
+
+        counter.Reset();
+        var answer = await GetStatusAsync(client, groupId);
+
+        Assert.False(answer.Moving);
+        Assert.Equal(3, counter.WholeReceiptReads());
+    }
+
     private static string StatusAddress(Guid groupId) => $"/Upload/Group/{groupId:D}?handler=Status";
 
-    private static async Task<(UploadResult Upload, Guid GroupId)> UploadTwoImagesAsync(HttpClient client)
+    private static Task<(UploadResult Upload, Guid GroupId)> UploadTwoImagesAsync(HttpClient client) =>
+        UploadImagesAsync(client, "overview.png", "close-up.png");
+
+    private static async Task<(UploadResult Upload, Guid GroupId)> UploadImagesAsync(
+        HttpClient client,
+        params string[] fileNames)
     {
         var png = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
         var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
@@ -177,10 +212,7 @@ public sealed class UploadGroupStatusPollingWebTests
             client,
             form.AntiforgeryToken,
             form.ExternalReceiptToken,
-            [
-                ("overview.png", "image/png", png),
-                ("close-up.png", "image/png", png)
-            ]);
+            fileNames.Select(fileName => (fileName, "image/png", png)).ToArray());
         Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
         return (upload, Guid.Parse(upload.Location!.OriginalString.Split('/').Last()));
     }
@@ -231,7 +263,7 @@ public sealed class UploadGroupStatusPollingWebTests
     }
 
     /// <summary>One member reads Processing with its next attempt already scheduled.</summary>
-    private sealed class OneMemberRetryDue(
+    internal sealed class OneMemberRetryDue(
         IQueuedIntakeStatusQueries inner,
         Guid stagedReceiptId,
         DateTimeOffset dueAtUtc) : IQueuedIntakeStatusQueries

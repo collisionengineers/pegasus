@@ -37,6 +37,15 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
         statements.Count(text => fragments.All(fragment =>
             text.Contains(fragment, StringComparison.Ordinal)));
 
+    /// <summary>
+    /// How many whole-receipt reads were sent: a whole-receipt read is a
+    /// receipt statement and an Assets statement, so the receipt statements
+    /// that name no Assets table are counted.
+    /// </summary>
+    public int WholeReceiptReads() =>
+        CountContaining("[IntakeReceipts]", "[InstructionDrafts]", "[IntakeMailRouteDecisions]")
+        - CountContaining("[IntakeReceipts]", "[IntakeAssets]", "[InstructionDrafts]", "[IntakeMailRouteDecisions]");
+
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command,
         CommandEventData eventData,
