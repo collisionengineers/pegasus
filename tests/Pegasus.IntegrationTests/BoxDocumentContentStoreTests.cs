@@ -537,6 +537,30 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Empty(TemporaryDownloadFiles().Except(filesBefore));
     }
 
+    /// <summary>
+    /// The rollback's delete rides the walk of the fence read just before it.
+    /// A file directly under the Case folder costs two requests a walk (the
+    /// file, then its folder, whose parent is the approved root): the exact
+    /// version read walks once and downloads once (3), the fence read walks
+    /// once (2), and the delete is one request (1), six in all where a second
+    /// walk before the delete made it eight.
+    /// </summary>
+    [Fact]
+    public async Task ARollbackDeleteReusesTheWalkOfTheFenceReadBeforeIt()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("deletable content");
+        await store.StoreVersionAsync(Address(), content, Sha256(content), CancellationToken.None);
+        var before = box.RequestCount;
+
+        await store.DeleteAsync(CaseId, CaseReference, VersionId, CancellationToken.None);
+
+        Assert.Equal(6, box.RequestCount - before);
+        Assert.Equal(1, box.DeleteCount);
+    }
+
     [Fact]
     public async Task UncommittedWriteRollbackIsTheOnlyDeleteAndNeverRemovesAcceptedCustody()
     {

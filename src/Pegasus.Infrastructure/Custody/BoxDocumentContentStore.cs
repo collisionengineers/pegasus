@@ -470,7 +470,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             throw new InvalidDataException(
                 "The managed Box file advanced after creation and cannot be rolled back safely.");
         }
-        await client.DeleteFileAsync(created.FileId, cancellationToken);
+        // GetFileAsync has just walked this file to the approved root.
+        await client.DeleteWalkedFileAsync(current, cancellationToken);
     }
 
     private static void Validate(ManagedDocumentContentAddress address)

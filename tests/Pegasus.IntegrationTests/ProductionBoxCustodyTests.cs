@@ -358,6 +358,46 @@ public sealed class ProductionBoxCustodyTests
     }
 
     /// <summary>
+    /// A name Box already holds is read back through the proof the upload was
+    /// made under: the folder's own ancestry is not walked again, the file is
+    /// walked once and stops at that folder, and content longer than one read
+    /// chunk is compared slice by slice, so one different byte, however late,
+    /// is refused as before.
+    /// </summary>
+    [Fact]
+    public async Task ANameBoxAlreadyHoldsIsReadBackThroughTheFolderProofTheUploadUsed()
+    {
+        var (box, client, folder) = await PartsEstateAsync();
+        var bytes = RandomNumberGenerator.GetBytes(200_000);
+        var different = bytes.ToArray();
+        different[^1] ^= 0xFF;
+        using var stream = new MemoryStream(bytes, writable: false);
+        var first = await client.UploadAsync(folder, "chunked.pdf", bytes, "application/pdf", default);
+        var fileId = first.File.Id;
+
+        var before = box.Requests.Count;
+        var replay = await client.UploadAsync(folder, "chunked.pdf", bytes, "application/pdf", default);
+        var replayRequests = box.Requests.Skip(before).ToArray();
+        before = box.Requests.Count;
+        var streamed = await client.UploadVerifiedAsync(
+            folder, "chunked.pdf", stream, bytes.Length, "application/pdf", Sha256(bytes), default);
+        var streamedRequests = box.Requests.Skip(before).ToArray();
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.UploadAsync(
+            folder, "chunked.pdf", different, "application/pdf", default));
+
+        Assert.False(replay.Created);
+        Assert.False(streamed.Created);
+        foreach (var requests in new[] { replayRequests, streamedRequests })
+        {
+            Assert.DoesNotContain(requests, request => IsFolderRead(request, folder.Id));
+            Assert.Equal(1, requests.Count(request =>
+                request.StartsWith($"GET /2.0/files/{fileId}?", StringComparison.Ordinal)));
+            Assert.Equal(1, requests.Count(request =>
+                request.StartsWith($"GET /2.0/folders/{folder.Id}/items?", StringComparison.Ordinal)));
+        }
+    }
+
+    /// <summary>
     /// The occupant of the name is checked before its bytes are: it must be a
     /// file, of the content's length and, when Box says, its type.
     /// </summary>
@@ -698,7 +738,9 @@ public sealed class ProductionBoxCustodyTests
 
         var requests = box.Requests.Skip(before).ToArray();
         Assert.Equal(status, Assert.IsAssignableFrom<HttpRequestException>(exception).StatusCode);
-        Assert.Equal(4, requests.Count(IsPartUpload));
+        // Parts 1 to 3 were sent before part 4 failed; with parts sent
+        // K at a time, up to K - 1 later parts may already have been started.
+        Assert.InRange(requests.Count(IsPartUpload), 4, 3 + BoxContentClient.ConcurrentUploadParts);
         Assert.DoesNotContain(requests, IsCommit);
         Assert.Equal(1, requests.Count(IsSessionAbort));
         Assert.Equal(mutations, box.MutationCount);
@@ -747,6 +789,215 @@ public sealed class ProductionBoxCustodyTests
         Assert.DoesNotContain(requests, IsCommit);
         Assert.Equal(1, requests.Count(IsSessionAbort));
         Assert.Equal(0L, stream.Position);
+    }
+
+    /// <summary>
+    /// Parts go up <see cref="BoxContentClient.ConcurrentUploadParts"/> at a
+    /// time and no more, read and sent in offset order, and the commit lists
+    /// them in offset order though Box answers the later part of each pair
+    /// first. The handler holds every part open, which the synchronous
+    /// <c>StatefulBox</c> cannot.
+    /// </summary>
+    [Theory]
+    [InlineData("memory")]
+    [InlineData("stream")]
+    public async Task PartsUploadAtMostKAtOnceAndCommitInOffsetOrder(string route)
+    {
+        var handler = new HoldingPartsHandler();
+        var client = HoldingPartsClient(handler);
+        var folder = new BoxContentClient.ProvedFolder(HoldingPartsHandler.FolderId);
+        var bytes = new byte[60_000_000];
+        using var stream = new MemoryStream(bytes, writable: false);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var upload = route == "memory"
+            ? client.UploadAsync(folder, "held.pdf", bytes, "application/pdf", timeout.Token)
+            : client.UploadVerifiedAsync(
+                folder, "held.pdf", stream, bytes.Length, "application/pdf", Sha256(bytes), timeout.Token);
+        var partCount = (int)((bytes.Length + HoldingPartsHandler.PartSize - 1) / HoldingPartsHandler.PartSize);
+        for (var pair = 0; pair < partCount / 2; pair++)
+        {
+            var first = await handler.NextArrivalAsync(timeout.Token);
+            var second = await handler.NextArrivalAsync(timeout.Token);
+            await Task.Delay(50, timeout.Token);
+            Assert.Equal(BoxContentClient.ConcurrentUploadParts, handler.InFlight);
+            handler.Release(second);
+            handler.Release(first);
+        }
+        var result = await upload;
+
+        Assert.True(result.Created);
+        Assert.Equal(BoxContentClient.ConcurrentUploadParts, handler.Peak);
+        Assert.Equal(
+            Enumerable.Range(0, partCount).Select(index => $"part-{index * HoldingPartsHandler.PartSize}"),
+            handler.CommittedPartIds);
+        Assert.Equal(0, handler.Aborts);
+        Assert.Equal(0L, stream.Position);
+    }
+
+    /// <summary>
+    /// A part Box refuses cancels the part held beside it, the session is
+    /// aborted once, nothing is committed, and the failure raised is Box's own.
+    /// </summary>
+    [Fact]
+    public async Task AFailedPartCancelsThePartHeldBesideItAndAbortsOnce()
+    {
+        var handler = new HoldingPartsHandler { FailOffset = HoldingPartsHandler.PartSize };
+        var client = HoldingPartsClient(handler);
+        var folder = new BoxContentClient.ProvedFolder(HoldingPartsHandler.FolderId);
+        var bytes = new byte[60_000_000];
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() => client.UploadAsync(
+            folder, "refused.pdf", bytes, "application/pdf", timeout.Token));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, failure.StatusCode);
+        Assert.InRange(handler.Cancelled, 1, BoxContentClient.ConcurrentUploadParts);
+        Assert.Equal(0, handler.Commits);
+        Assert.Equal(1, handler.Aborts);
+    }
+
+    /// <summary>
+    /// A part whose request times out reaches the caller as the timeout the
+    /// HTTP client threw (a <see cref="TaskCanceledException"/> holding a
+    /// <see cref="TimeoutException"/>), which the intake retry policy counts as
+    /// transient, and not as a bare cancellation. The part beside it is
+    /// cancelled and the session aborted once.
+    /// </summary>
+    [Fact]
+    public async Task APartThatTimesOutIsRaisedAsItsTimeoutNotAsACancellation()
+    {
+        var handler = new HoldingPartsHandler { TimeOutOffset = 0 };
+        var client = HoldingPartsClient(handler);
+        var folder = new BoxContentClient.ProvedFolder(HoldingPartsHandler.FolderId);
+        var bytes = new byte[60_000_000];
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.UploadAsync(
+            folder, "slow.pdf", bytes, "application/pdf", timeout.Token));
+
+        Assert.IsType<TimeoutException>(failure.InnerException);
+        Assert.False(timeout.IsCancellationRequested);
+        Assert.True(IntakeExceptionPolicy.IsTransientFailure(failure));
+        Assert.Equal(0, handler.Commits);
+        Assert.Equal(1, handler.Aborts);
+    }
+
+    private static BoxContentClient HoldingPartsClient(HoldingPartsHandler handler) => new(
+        BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "405543781910",
+            BoxConfigJson,
+            "client-secret",
+            "test-holding-folder"),
+        new HttpClient(handler),
+        new RecordingAuthorizationHeaderProvider(),
+        TimeProvider.System);
+
+    /// <summary>
+    /// An upload-session Box that holds each part's answer until the test
+    /// releases it, and records how many were open at once.
+    /// </summary>
+    private sealed class HoldingPartsHandler : HttpMessageHandler
+    {
+        public const string FolderId = "folder-1";
+        public const long PartSize = 8 * 1024 * 1024;
+
+        private readonly object gate = new();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<long, TaskCompletionSource> held = new();
+        private readonly System.Threading.Channels.Channel<long> arrivals =
+            System.Threading.Channels.Channel.CreateUnbounded<long>();
+        private int inFlight;
+        private int peak;
+        private int cancelled;
+        private int aborts;
+        private int commits;
+
+        /// <summary>The offset of the one part Box refuses at once, if any.</summary>
+        public long? FailOffset { get; init; }
+
+        /// <summary>The offset of the one part whose request times out at once, if any.</summary>
+        public long? TimeOutOffset { get; init; }
+
+        public int InFlight { get { lock (gate) { return inFlight; } } }
+
+        public int Peak { get { lock (gate) { return peak; } } }
+
+        public int Cancelled => Volatile.Read(ref cancelled);
+
+        public int Aborts => Volatile.Read(ref aborts);
+
+        public int Commits => Volatile.Read(ref commits);
+
+        public List<string> CommittedPartIds { get; } = [];
+
+        public async Task<long> NextArrivalAsync(CancellationToken cancellationToken) =>
+            await arrivals.Reader.ReadAsync(cancellationToken);
+
+        public void Release(long offset) => held[offset].SetResult();
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Delete)
+            {
+                Interlocked.Increment(ref aborts);
+                return new(HttpStatusCode.NoContent);
+            }
+            if (request.Method == HttpMethod.Post && path == "/api/2.0/files/upload_sessions")
+            {
+                return Json($$"""{"id":"session-1","part_size":{{PartSize}} }""");
+            }
+            if (request.Method == HttpMethod.Post)
+            {
+                Interlocked.Increment(ref commits);
+                using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                CommittedPartIds.AddRange(body.RootElement.GetProperty("parts").EnumerateArray()
+                    .Select(part => part.GetProperty("part_id").GetString()!));
+                return Json(
+                    """{"entries":[{"id":"file-1","name":"held.pdf","type":"file","etag":"1","file_version":{"id":"v1"},"parent":{"id":"folder-1"}}]}""");
+            }
+            var offset = request.Content!.Headers.ContentRange!.From!.Value;
+            lock (gate)
+            {
+                inFlight++;
+                peak = Math.Max(peak, inFlight);
+            }
+            try
+            {
+                if (offset == FailOffset)
+                {
+                    return new(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("refused") };
+                }
+                if (offset == TimeOutOffset)
+                {
+                    // What HttpClient throws when its Timeout elapses.
+                    throw new TaskCanceledException(
+                        "The request was canceled due to the configured HttpClient.Timeout.",
+                        new TimeoutException());
+                }
+                var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                held[offset] = release;
+                arrivals.Writer.TryWrite(offset);
+                await release.Task.WaitAsync(cancellationToken);
+                return Json($$"""{"part":{"part_id":"part-{{offset}}","offset":{{offset}} } }""");
+            }
+            catch (OperationCanceledException)
+            {
+                Interlocked.Increment(ref cancelled);
+                throw;
+            }
+            finally
+            {
+                lock (gate)
+                {
+                    inFlight--;
+                }
+            }
+        }
     }
 
     [Fact]
