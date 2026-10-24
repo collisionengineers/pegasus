@@ -32,6 +32,9 @@ public sealed class ProblemReportsWebTests
 {
     private const string ListPage = "/Administration/ProblemReports";
 
+    /// <summary>The Report a problem dialog as the shell fetches it on first open.</summary>
+    private const string ProblemDialog = "/Notifications?handler=ShellDialog&name=problem";
+
     /// <summary>The list's Page cell reads the page's name, never its route or a record's identifier (v41 A25).</summary>
     [Theory]
     [InlineData("/Cases/6a1f0f8e-3f56-4c43-9c11-2f4a8f0d7b1e?section=estimate", "Cases")]
@@ -47,8 +50,10 @@ public sealed class ProblemReportsWebTests
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = CreateClient(factory, sink, "Engineer");
 
-        var home = await GetHtmlAsync(client, "/");
-        Assert.Contains("data-dialog=\"problem-dialog\"", home, StringComparison.Ordinal);
+        // The page carries the empty dialog; the form arrives when it first opens.
+        var page = await GetHtmlAsync(client, "/");
+        Assert.Matches("<div class=\"dialog-backdrop\" data-dialog=\"problem-dialog\" data-dialog-fragment=\"[^\"]+\" hidden></div>", page);
+        var home = await GetHtmlAsync(client, ProblemDialog);
         Assert.Contains("data-problem-form", home, StringComparison.Ordinal);
         var sectionKeys = Regex.Match(home, "data-problem-case-sections=\"(?<keys>[^\"]+)\"")
             .Groups["keys"].Value.Split(',');
@@ -57,7 +62,7 @@ public sealed class ProblemReportsWebTests
         Assert.DoesNotContain("unknown-section", sectionKeys);
         Assert.Contains("name=\"method\" value=\"GET\"", home, StringComparison.Ordinal);
         var reportOpener = Regex.Match(
-            home,
+            await GetHtmlAsync(client, "/Notifications?handler=ShellDialog&name=account"),
             "<button[^>]*data-dialog-open=\"problem-dialog\"[^>]*>.*?</button>",
             RegexOptions.Singleline).Value;
         Assert.NotEmpty(reportOpener);
@@ -145,7 +150,7 @@ public sealed class ProblemReportsWebTests
         var sink = new RecordingSink();
         using var client = CreateClient(factory, sink, "User");
         client.DefaultRequestHeaders.Add("X-Test-Subject", reporterId.ToString("D"));
-        var home = await GetHtmlAsync(client, "/");
+        var home = await GetHtmlAsync(client, ProblemDialog);
 
         using var response = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
         {
@@ -165,7 +170,7 @@ public sealed class ProblemReportsWebTests
         var sink = new RecordingSink();
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = CreateClient(factory, sink, "User");
-        var home = await GetHtmlAsync(client, "/");
+        var home = await GetHtmlAsync(client, ProblemDialog);
         var key = Guid.NewGuid().ToString("N");
         var fields = new Dictionary<string, string>
         {
@@ -253,7 +258,7 @@ public sealed class ProblemReportsWebTests
         var sink = new RecordingSink { Failure = new HttpRequestException("first report failed") };
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = CreateClient(factory, sink, "Engineer");
-        var home = await GetHtmlAsync(client, "/");
+        var home = await GetHtmlAsync(client, ProblemDialog);
 
         using var first = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
         {
@@ -293,7 +298,7 @@ public sealed class ProblemReportsWebTests
         using var client = CreateClient(factory, sink, "Engineer");
         client.DefaultRequestHeaders.Referrer = new Uri("https://localhost:7139/Search?section=estimate&claimant=claimant-secret&mail=mail-secret");
 
-        var home = await GetHtmlAsync(client, "/");
+        var home = await GetHtmlAsync(client, ProblemDialog);
         using var response = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
         {
             ["description"] = "The filtered page failed."
@@ -315,7 +320,7 @@ public sealed class ProblemReportsWebTests
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = CreateClient(factory, sink, "User");
 
-        var home = await GetHtmlAsync(client, "/");
+        var home = await GetHtmlAsync(client, ProblemDialog);
         using var created = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
         {
             ["returnUrl"] = "/",
@@ -353,7 +358,7 @@ public sealed class ProblemReportsWebTests
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = CreateClient(factory, sink, "User");
 
-        var home = await GetHtmlAsync(client, "/");
+        var home = await GetHtmlAsync(client, ProblemDialog);
         using var created = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
         {
             ["returnUrl"] = "/",
@@ -406,7 +411,7 @@ public sealed class ProblemReportsWebTests
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = CreateClient(factory, sink, "User");
 
-        var home = await GetHtmlAsync(client, "/");
+        var home = await GetHtmlAsync(client, ProblemDialog);
         using var response = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
         {
             ["returnUrl"] = "/",
@@ -444,7 +449,7 @@ public sealed class ProblemReportsWebTests
         var sink = new RecordingSink();
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = CreateClient(factory, sink, "Engineer");
-        var home = await GetHtmlAsync(client, "/");
+        var home = await GetHtmlAsync(client, ProblemDialog);
 
         using var response = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
         {

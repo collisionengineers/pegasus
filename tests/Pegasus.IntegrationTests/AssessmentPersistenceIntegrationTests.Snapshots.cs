@@ -19,7 +19,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task RepairSpecificationVersionsAreNumberedAndReuseAnUnchangedDraft()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("spec-snapshot-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
@@ -93,7 +93,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     public async Task ListingSeveralSpecificationsReadsTheirVersionsInOneCommand()
     {
         var counter = new ReaderCommandCounter();
-        await using var harness = await Harness.CreateAsync(counter);
+        await using var harness = await Harness.CreateAsync(shared, counter);
         var caseId = (await harness.AcceptAsync("spec-snapshot-batch-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var workspace = new EfCaseWorkspaceStore(harness.Factory, harness.Clock);
@@ -154,10 +154,74 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(0, counter.ExecutedReaderCommands);
     }
 
+    /// <summary>
+    /// One version of the named specification is one command, and null for a
+    /// version of another specification, of another Case or that is not there.
+    /// The scalar summary of a specification's versions is one command and
+    /// carries the columns the list returns, by number.
+    /// </summary>
+    [Fact]
+    public async Task OneVersionAndTheScalarSummaryAreEachOneCommandAndAgreeWithTheList()
+    {
+        var counter = new ReaderCommandCounter();
+        await using var harness = await Harness.CreateAsync(counter);
+        var caseId = (await harness.AcceptAsync("spec-snapshot-one-version")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var workspace = new EfCaseWorkspaceStore(harness.Factory, harness.Clock);
+        var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
+        var caseVersion = 0L;
+
+        async Task<Guid> AddSpecificationAsync(string name)
+        {
+            var lease = await harness.AcquireLeaseAsync(caseId, caseVersion, engineer, $"{name}-lease");
+            var saved = await workspace.SaveAsync(
+                new SaveCaseWorkspaceRequest(caseId, lease.Version, engineer, $"{name}-save", null, lease.Token)
+                {
+                    Estimate = new(null, new(name, 40m, 0m, 20m),
+                        [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)]),
+                },
+                CancellationToken.None);
+            caseVersion = saved.Version;
+            return Assert.IsType<RepairSpecificationVersion>(saved.Estimate).SpecificationId;
+        }
+
+        Task<RepairSpecificationSnapshot> FreezeAsync(Guid specificationId, RepairSpecificationSnapshotKind kind) =>
+            snapshots.FreezeAsync(new(caseId, specificationId, engineer, kind, kind.ToString()), CancellationToken.None);
+
+        var first = await AddSpecificationAsync("Repairer");
+        var second = await AddSpecificationAsync("Engineer");
+        await FreezeAsync(first, RepairSpecificationSnapshotKind.BeforeScaling);
+        await FreezeAsync(first, RepairSpecificationSnapshotKind.BeforeRestore);
+        var elsewhere = await FreezeAsync(second, RepairSpecificationSnapshotKind.BeforeScaling);
+        var listed = await snapshots.ListAsync(caseId, first, CancellationToken.None);
+
+        counter.Reset();
+        var summaries = await snapshots.ListSummariesAsync(caseId, first, CancellationToken.None);
+
+        Assert.Equal(1, counter.ExecutedReaderCommands);
+        Assert.Equal(
+            listed.Select(item => (item.Id, item.Number, item.Kind, item.CreatedAtUtc, item.Gross)),
+            summaries.Select(item => (item.Id, item.Number, item.Kind, item.CreatedAtUtc, item.Gross)));
+        Assert.Empty(await snapshots.ListSummariesAsync(Guid.NewGuid(), first, CancellationToken.None));
+
+        counter.Reset();
+        var one = await snapshots.GetAsync(caseId, first, listed[1].Id, CancellationToken.None);
+
+        Assert.Equal(1, counter.ExecutedReaderCommands);
+        Assert.NotNull(one);
+        Assert.Equal(
+            (listed[1].Id, listed[1].Number, listed[1].Kind, listed[1].Origin, listed[1].Gross, listed[1].Details.Name, listed[1].Lines.Count),
+            (one.Id, one.Number, one.Kind, one.Origin, one.Gross, one.Details.Name, one.Lines.Count));
+        // The specification filter stays: another specification's version is not found under this one.
+        Assert.Null(await snapshots.GetAsync(caseId, first, elsewhere.Id, CancellationToken.None));
+        Assert.Null(await snapshots.GetAsync(Guid.NewGuid(), first, listed[1].Id, CancellationToken.None));
+        Assert.Null(await snapshots.GetAsync(caseId, first, Guid.NewGuid(), CancellationToken.None));
+    }
+
     [Fact]
     public async Task RestoreIsAtomicAndRecordsTheBeforeAndRestoredVersions()
     {
-        await using var harness = await Harness.CreateAsync();
+        await using var harness = await Harness.CreateAsync(shared);
         var caseId = (await harness.AcceptAsync("spec-restore-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
@@ -231,6 +295,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task ScalingARepairSpecificationIsFrozenAndReversible()
     {
+        // A database of its own: it changes the labour rate cards every Case prices from.
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("spec-scale-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;

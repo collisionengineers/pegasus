@@ -246,6 +246,40 @@ public sealed class UnidentifiedRecordWebTests
     }
 
     [Fact]
+    public async Task AGroupItemPageReadsItsMemberReceiptsOnce()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: false, commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (itemId, first, second) = await SeedGroupedPdfItemAsync(factory);
+
+        counter.Reset();
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
+
+        Assert.Contains(first.Source.FileName, html, StringComparison.Ordinal);
+        Assert.Contains(second.Source.FileName, html, StringComparison.Ordinal);
+        // A whole-receipt read is a receipt statement and an Assets statement:
+        // count the receipt statements. The context reads the members once and
+        // the page draws from that read.
+        Assert.Equal(
+            1,
+            counter.CountContaining(
+                "[IntakeReceipts]",
+                "[InstructionDrafts]",
+                "[IntakeMailRouteDecisions]",
+                "[IntakeManualAssociations]")
+            - counter.CountContaining(
+                "[IntakeReceipts]",
+                "[IntakeAssets]",
+                "[InstructionDrafts]",
+                "[IntakeMailRouteDecisions]",
+                "[IntakeManualAssociations]"));
+        // The members' readings are one set read, which the page draws from.
+        Assert.Equal(1, counter.CountContaining("[ImageVrmSuggestions]"));
+    }
+
+    [Fact]
     public async Task ListingSeveralReceiptsReadsTheirSuggestionsInOneCommand()
     {
         var counter = new CommandCountingInterceptor();
@@ -421,7 +455,7 @@ public sealed class UnidentifiedRecordWebTests
         {
             // StoreAsync records receipt metadata; custody confirmation is a
             // separate persisted fact, so make the synthetic fixture honest.
-            await using var context = await factory.Database.CreateContextAsync();
+            await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
             await context.IntakeAssets
                 .Where(asset => confirmedAssetIds.Contains(asset.Id))
                 .ExecuteUpdateAsync(update => update
@@ -511,7 +545,7 @@ public sealed class UnidentifiedRecordWebTests
                     [], [], null, [], null, null, "test-reader", "1", null, null,
                     Assets: [source, photo]),
                 CancellationToken.None);
-            await using (var context = await factory.Database.CreateContextAsync())
+            await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
             {
                 await context.IntakeAssets
                     .Where(asset => asset.Id == photo.Id)
@@ -584,7 +618,7 @@ public sealed class UnidentifiedRecordWebTests
                 $"unidentified-reading-test:{Guid.NewGuid():N}"),
             CancellationToken.None);
         // The factory's clock is fixed, so each reading is given its own time.
-        await using var context = await factory.Database.CreateContextAsync();
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
         await context.ImageVrmSuggestions
             .Where(item => item.Id == suggestion.Id)
             .ExecuteUpdateAsync(update => update.SetProperty(item => item.OccurredAtUtc, occurredAtUtc));
@@ -614,7 +648,7 @@ public sealed class UnidentifiedRecordWebTests
         var services = scope.ServiceProvider;
         var nowUtc = services.GetRequiredService<TimeProvider>().GetUtcNow();
         Guid mailboxId;
-        await using (var context = await factory.Database.CreateContextAsync())
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             mailboxId = await TestMailboxId.EnsureApprovedAsync(context, graphId, address, nowUtc.AddDays(-1));
             await context.SaveChangesAsync();
@@ -651,7 +685,7 @@ public sealed class UnidentifiedRecordWebTests
                 nowUtc),
             CancellationToken.None);
 
-        await using var readContext = await factory.Database.CreateContextAsync();
+        await using var readContext = await (await factory.DatabaseAsync).CreateContextAsync();
         return await readContext.RetainedMailboxMessages
             .Where(item => item.ImmutableMessageId == immutableId)
             .Select(item => item.Id)

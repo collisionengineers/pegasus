@@ -33,20 +33,29 @@ public sealed class DownloadIntakeSource(
             return null;
         }
 
-        var source = receipt.AssetRecords
-            .Where(asset => asset.Kind == IntakeAssetKind.Source
-                && asset.Disposition == IntakeAssetDisposition.Source)
-            .Take(2)
-            .ToArray();
-        if (source.Length != 1)
-        {
-            throw new IntakeArtifactIntegrityException();
-        }
+        return await ServeAsync(receipt, query.Actor, cancellationToken);
+    }
 
-        var sourceAsset = source[0];
+    public async Task<IntakeSourceDownload> ExecuteAsync(
+        AuthorizedIntakeSource authorized,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(authorized);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return await ServeAsync(authorized.Receipt, actor, cancellationToken);
+    }
+
+    private async Task<IntakeSourceDownload> ServeAsync(
+        IntakeReceipt receipt,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var sourceAsset = IntakeFileIdentity.SourceAsset(receipt)
+            ?? throw new IntakeArtifactIntegrityException();
         await using var logical = await contentReader.OpenAsync(
             new(
-                query.Actor,
+                actor,
                 DocumentId: null,
                 VersionId: null,
                 IntakeAssetId: sourceAsset.Id,

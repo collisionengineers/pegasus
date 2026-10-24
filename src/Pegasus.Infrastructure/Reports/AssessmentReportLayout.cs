@@ -42,10 +42,12 @@ internal static class AssessmentReportLayout
     internal static Document Compose(
         AssessmentReportSnapshot snapshot,
         CaseReportArtifactKind kind,
-        PreparedReportImages images)
+        PreparedReportImages images,
+        PageCountProbe pageCount)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(images);
+        ArgumentNullException.ThrowIfNull(pageCount);
         if (kind is not (CaseReportArtifactKind.AssessmentReport
             or CaseReportArtifactKind.ImagePack
             or CaseReportArtifactKind.FeeNote))
@@ -64,6 +66,7 @@ internal static class AssessmentReportLayout
                 images.Logo,
                 CompanyBlock(feeNote),
                 Footer(snapshot, feeNote),
+                pageCount,
                 feeNote ? FeeNoteBodyTop : ReportBodyTop,
                 body));
 

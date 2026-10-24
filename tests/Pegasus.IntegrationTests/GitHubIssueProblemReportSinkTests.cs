@@ -133,6 +133,36 @@ public sealed class GitHubIssueProblemReportSinkTests
     }
 
     [Fact]
+    public async Task ASuccessfulVerificationIsKeptSoLaterReportsPostWithoutAnotherGet()
+    {
+        var handler = new FakeHandler(HttpStatusCode.Created, "{\"number\":12,\"html_url\":\"https://github.com/collisionengineers/pegasus/issues/12\"}");
+        var sink = new GitHubIssueProblemReportSink(
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", null)!,
+            new HttpClient(handler));
+
+        await sink.SendAsync(Report, default);
+        await sink.SendAsync(Report, default);
+
+        Assert.Equal(["GET", "POST", "POST"], handler.Requests.Select(request => request.Method));
+    }
+
+    [Fact]
+    public async Task AFailedVerificationIsNotKeptAndTheNextReportVerifiesAgain()
+    {
+        var handler = new FakeHandler(HttpStatusCode.Created, "{\"number\":12,\"html_url\":\"https://github.com/collisionengineers/pegasus/issues/12\"}",
+            repositoryStatus: HttpStatusCode.Forbidden);
+        var sink = new GitHubIssueProblemReportSink(
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", null)!,
+            new HttpClient(handler));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => sink.SendAsync(Report, default));
+        handler.RepositoryStatus = HttpStatusCode.OK;
+        await sink.SendAsync(Report, default);
+
+        Assert.Equal(["GET", "GET", "POST"], handler.Requests.Select(request => request.Method));
+    }
+
+    [Fact]
     public void ConfigurationIsBothSettingsOrNeither()
     {
         Assert.Null(GitHubProblemReportOptions.FromConfiguration(null, null, null));
@@ -159,6 +189,7 @@ public sealed class GitHubIssueProblemReportSinkTests
     {
         public List<(string Method, string Uri, string? Authorization, string Body)> Requests { get; } = [];
         public bool ThrowPost { get; init; }
+        public HttpStatusCode RepositoryStatus { get; set; } = repositoryStatus;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -170,7 +201,7 @@ public sealed class GitHubIssueProblemReportSinkTests
             var isRepositoryRead = request.Method == HttpMethod.Get;
             if (!isRepositoryRead && ThrowPost)
                 throw new HttpRequestException("Response lost after POST.");
-            return new HttpResponseMessage(isRepositoryRead ? repositoryStatus : status)
+            return new HttpResponseMessage(isRepositoryRead ? RepositoryStatus : status)
             {
                 Content = new StringContent(isRepositoryRead ? repositoryBody : body, System.Text.Encoding.UTF8, "application/json")
             };

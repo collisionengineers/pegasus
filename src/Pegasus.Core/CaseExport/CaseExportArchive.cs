@@ -42,10 +42,11 @@ public sealed record CaseExportImage(
 public sealed record CaseExportImages(IReadOnlyList<CaseExportImage> RetainedImages);
 
 /// <summary>
-/// One retained image's bytes, asked for when the archive reaches it. The
-/// archive checks the bytes against the image's <c>Sha256</c> and lets go of
-/// them before it asks for the next, so a caller supplies one image at a
-/// time and never holds the set.
+/// One retained image's bytes, asked for when the archive reaches it or, one
+/// image ahead, while it writes the previous one. The archive checks the bytes
+/// against the image's <c>Sha256</c> and lets go of them as it moves on, so a
+/// caller supplies one image per call, never two reads at once, and never
+/// holds the set.
 /// </summary>
 public delegate ValueTask<ReadOnlyMemory<byte>> CaseExportImageContentReader(
     CaseExportImage image,
@@ -124,7 +125,7 @@ public static class CaseExportPolicy
 
 /// <summary>
 /// Produces replay-identical case export archives. It makes no call of its own:
-/// each image's bytes come from the reader the caller supplies, one image at a time.
+/// each image's bytes come from the reader the caller supplies, one image per call.
 /// The archive is the ordered thirteen-key JSON and Images/, and nothing else.
 /// JSON keys, archive entries, image order, timestamps, and hashes are explicit.
 /// </summary>
@@ -164,9 +165,9 @@ public static class CaseExportArchive
     ///
     /// <paramref name="images"/> is metadata only. Every check that needs no
     /// bytes runs before <paramref name="readContent"/> is called once; the
-    /// archive then asks for one image at a time, in ascending ordinal,
-    /// checks its bytes, writes its entry and drops the bytes before it asks
-    /// for the next.
+    /// archive then asks for one image per call, in ascending ordinal, asking
+    /// for the next while it checks and writes the current one: two images'
+    /// bytes at most, one read open at a time.
     /// </summary>
     public static async Task<CaseExportBundle> CreateAsync(
         CaseExportSource source,
@@ -387,30 +388,67 @@ public static class CaseExportArchive
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true, Encoding.UTF8))
         {
             WriteEntry(archive, jsonName, json);
-            foreach (var image in images)
-            {
-                // One read at a time: the next image is not asked for until this
-                // one's entry is written.
-                await WriteImageEntryAsync(archive, image, readContent, cancellationToken);
-            }
+            await WriteImageEntriesAsync(archive, images, readContent, cancellationToken);
         }
 
         // The buffer is the archive's own; the stream is not used again.
         return stream.GetBuffer().AsMemory(0, (int)stream.Length);
     }
 
-    // The image's bytes live in this method alone, so they are gone before the
-    // caller asks for the next image.
-    private static async Task WriteImageEntryAsync(
+    // Image by image, one read ahead: the next image is asked for as soon as this
+    // one's bytes are in hand, so its read runs while this one is checked and written.
+    // At most one read is open and at most two images' bytes are held, and the entries
+    // are written in the order given. An image's own check comes before the read
+    // ahead is looked at, so which failure surfaces is the one a serial export raises.
+    private static async Task WriteImageEntriesAsync(
         ZipArchive archive,
-        ImageEntry image,
+        IReadOnlyList<ImageEntry> images,
         CaseExportImageContentReader readContent,
         CancellationToken cancellationToken)
     {
-        var content = await readContent(image.Image, cancellationToken);
-        ValidateContent(image.Image, content);
-        WriteEntry(archive, image.Name, content.Span);
+        if (images.Count == 0)
+        {
+            return;
+        }
+
+        using var stopReading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task<ReadOnlyMemory<byte>>? pending = ReadImageAsync(readContent, images[0].Image, stopReading.Token);
+        try
+        {
+            for (var index = 0; index < images.Count; index++)
+            {
+                var content = await pending!;
+                pending = index + 1 < images.Count
+                    ? ReadImageAsync(readContent, images[index + 1].Image, stopReading.Token)
+                    : null;
+                ValidateContent(images[index].Image, content);
+                WriteEntry(archive, images[index].Name, content.Span);
+            }
+        }
+        finally
+        {
+            if (pending is not null)
+            {
+                // A failure leaves the read ahead of it unanswered: stop it and let
+                // it end, so no read outlives the export and its failure is not lost
+                // as an unobserved one. The export's own failure is the one raised.
+                stopReading.Cancel();
+                try
+                {
+                    await pending;
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
     }
+
+    private static async Task<ReadOnlyMemory<byte>> ReadImageAsync(
+        CaseExportImageContentReader readContent,
+        CaseExportImage image,
+        CancellationToken cancellationToken) =>
+        await readContent(image, cancellationToken);
 
     // The archive stores every entry uncompressed, so its size is the entries' content plus
     // a fixed cost per entry: a 30-byte local header and a 46-byte central-directory record,
@@ -514,7 +552,7 @@ public static class CaseExportArchive
     }
 
     private static string Hash(ReadOnlySpan<byte> content) =>
-        Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(content));
 
     private sealed record ImageEntry(string Name, CaseExportImage Image);
 }

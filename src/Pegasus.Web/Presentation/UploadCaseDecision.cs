@@ -627,7 +627,7 @@ public sealed class UploadCaseDecision(
         ActionActor actor)
     {
         var material = $"{scope}|{operationId:N}|{receiptId:N}|{caseId:N}|{receiptVersion}|{caseVersion}|{actor.Kind}|{actor.SubjectId}";
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))[..32].ToLowerInvariant();
+        var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(material)))[..32];
         return $"upload-confirm:{hash}";
     }
 

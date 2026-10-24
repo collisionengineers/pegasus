@@ -306,7 +306,7 @@ public sealed class EfPrincipalCredentialStore(
     // replayed operation key must match on what the administrator asked
     // for, and the secret is never persisted in any form but the verifier.
     private static string HashRequest(PrincipalCredentialCommandRequest request, string commandKind) =>
-        Convert.ToHexString(
+        Convert.ToHexStringLower(
             SHA256.HashData(
                 Encoding.UTF8.GetBytes(
                     JsonSerializer.Serialize(
@@ -321,8 +321,7 @@ public sealed class EfPrincipalCredentialStore(
                             request.OperationKey,
                             request.Reason
                         },
-                        SerializerOptions))))
-            .ToLowerInvariant();
+                        SerializerOptions))));
 
     private static async Task SaveChangesAsync(
         PegasusDbContext context,

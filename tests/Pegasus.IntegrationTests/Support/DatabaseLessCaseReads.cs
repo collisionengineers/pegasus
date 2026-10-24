@@ -83,7 +83,7 @@ internal sealed class DatabaseLessCaseReads :
     /// <c>20261017120000_ReportSendingSopV8</c> (0b) seed, in the store's name
     /// order. No migration seeds a repairer.
     /// </summary>
-    private static readonly IReadOnlyList<ContactDirectoryRecord> ClaimSources =
+    private static readonly IReadOnlyList<ContactChoice> ClaimSources =
     [
         SeededClaimSource("00000000-0000-4000-8000-00000000f001", "Car 2 Go"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f003", "CarClaims"),
@@ -117,7 +117,7 @@ internal sealed class DatabaseLessCaseReads :
         Guid caseId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<DirectoryInspectionLocation>>([]);
 
-    Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListForSubjectAsync(
+    Task<IReadOnlyList<AiJobRecord>> IAiJobQueries.ListOpenForSubjectAsync(
         Guid subjectId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
 
@@ -237,12 +237,12 @@ internal sealed class DatabaseLessCaseReads :
         Refused<ValuationPreset>(nameof(IValuationPresetStore));
 
     /// <summary>The page offers the claim sources and the repairers.</summary>
-    Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.ListByRoleAsync(
+    Task<IReadOnlyList<ContactChoice>> IContactDirectoryQueries.ListByRoleAsync(
         ActionActor actor, ContactRole role, CancellationToken cancellationToken) => role switch
         {
             ContactRole.ClaimSource => Task.FromResult(ClaimSources),
-            ContactRole.Repairer => Task.FromResult<IReadOnlyList<ContactDirectoryRecord>>([]),
-            _ => Refused<IReadOnlyList<ContactDirectoryRecord>>(nameof(IContactDirectoryQueries)),
+            ContactRole.Repairer => Task.FromResult<IReadOnlyList<ContactChoice>>([]),
+            _ => Refused<IReadOnlyList<ContactChoice>>(nameof(IContactDirectoryQueries)),
         };
 
     Task<ContactDirectoryRecord?> IContactDirectoryQueries.GetAsync(
@@ -253,9 +253,9 @@ internal sealed class DatabaseLessCaseReads :
         ContactDirectoryQuery query, CancellationToken cancellationToken) =>
         Refused<ContactDirectoryPage>(nameof(IContactDirectoryQueries));
 
-    Task<IReadOnlyList<ContactDirectoryRecord>> IContactDirectoryQueries.FindPossibleMatchesAsync(
+    Task<IReadOnlyList<ContactChoice>> IContactDirectoryQueries.FindPossibleMatchesAsync(
         ActionActor actor, string name, CancellationToken cancellationToken) =>
-        Refused<IReadOnlyList<ContactDirectoryRecord>>(nameof(IContactDirectoryQueries));
+        Refused<IReadOnlyList<ContactChoice>>(nameof(IContactDirectoryQueries));
 
     Task<IReadOnlyList<PrincipalAdministrationDetails>> IContactDirectoryQueries.ListPrincipalChoicesAsync(
         ActionActor actor, Guid? contactId, CancellationToken cancellationToken) =>
@@ -287,6 +287,9 @@ internal sealed class DatabaseLessCaseReads :
     Task<ImageIntakeDetail?> IImageIntakeQueries.GetAsync(Guid id, CancellationToken cancellationToken) =>
         Refused<ImageIntakeDetail?>(nameof(IImageIntakeQueries));
 
+    Task<bool> IImageIntakeQueries.ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+        Refused<bool>(nameof(IImageIntakeQueries));
+
     Task<ImageIntakeDetail?> IImageIntakeQueries.GetByReferenceAsync(
         string imageIntakeReference, CancellationToken cancellationToken) =>
         Refused<ImageIntakeDetail?>(nameof(IImageIntakeQueries));
@@ -294,6 +297,10 @@ internal sealed class DatabaseLessCaseReads :
     Task<ImageIntakeDetail?> IImageIntakeQueries.GetByOriginReceiptAsync(
         Guid intakeReceiptId, CancellationToken cancellationToken) =>
         Refused<ImageIntakeDetail?>(nameof(IImageIntakeQueries));
+
+    Task<ImageIntakeRecord?> IImageIntakeQueries.GetRecordByOriginReceiptAsync(
+        Guid intakeReceiptId, CancellationToken cancellationToken) =>
+        Refused<ImageIntakeRecord?>(nameof(IImageIntakeQueries));
 
     Task<IReadOnlyList<ImageIntakeSummary>> IImageIntakeQueries.SearchByRegistrationAsync(
         string normalizedVehicleRegistration, CancellationToken cancellationToken) =>
@@ -303,8 +310,8 @@ internal sealed class DatabaseLessCaseReads :
         new(new Guid(id), label, suggestedAmount, true, 1, "system:v1-foundation", DateTimeOffset.UnixEpoch);
 
     /// <summary>An active claim source as the seed writes it: a name and nothing else, at version 0.</summary>
-    private static ContactDirectoryRecord SeededClaimSource(string id, string name) =>
-        new(new Guid(id), name, null, null, null, null, null, true, ContactRole.ClaimSource, 0, null, null, [], []);
+    private static ContactChoice SeededClaimSource(string id, string name) =>
+        new(new Guid(id), name, ContactRole.ClaimSource, 0, null, null, null, null, null, null);
 
     private static Task<T> Refused<T>(string port) =>
         Task.FromException<T>(new NotSupportedException(

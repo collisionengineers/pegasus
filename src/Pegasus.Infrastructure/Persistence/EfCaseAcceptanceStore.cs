@@ -657,9 +657,8 @@ public sealed class EfCaseAcceptanceStore(
             request.StandaloneAuditEvidenceId,
             request.AcceptedInspectionDeadline,
             PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode)));
-        var fingerprint = Convert.ToHexString(
-                SHA256.HashData(Encoding.UTF8.GetBytes(materialJson)))
-            .ToLowerInvariant();
+        var fingerprint = Convert.ToHexStringLower(
+                SHA256.HashData(Encoding.UTF8.GetBytes(materialJson)));
         return new(materialJson, fingerprint);
     }
 

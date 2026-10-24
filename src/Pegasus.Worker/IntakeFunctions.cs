@@ -467,9 +467,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
 {
     /// <summary>
     /// How many plain thumbnails one run makes. The sweep runs every minute,
-    /// so a small number keeps up with filing without a burst on Box.
+    /// so this is the rate that keeps up with filing; the budget below ends a
+    /// run that Box holds up.
     /// </summary>
-    private const int ThumbnailsPerRun = 2;
+    private const int ThumbnailsPerRun = 12;
 
     /// <summary>
     /// The longest the thumbnail sweep may take in one run. The intake work
@@ -481,7 +482,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     /// How many filed versions one run reads for whether each is an estimate.
     /// Most are answered from their name and type without a read.
     /// </summary>
-    private const int EstimateRecognitionsPerRun = 10;
+    private const int EstimateRecognitionsPerRun = 60;
 
     /// <summary>The longest estimate recognition may take in one run.</summary>
     private static readonly TimeSpan EstimateRecognitionBudget = TimeSpan.FromSeconds(20);
@@ -493,12 +494,26 @@ public sealed partial class StagedArtifactReconciliationFunction(
     private const int UploadSweepPageSize = 5000;
 
     /// <summary>
-    /// A step's result line stays Information while nothing failed, and becomes a
-    /// Warning the moment a failure is counted, so a step that fails on every tick
-    /// shows up in the default log level instead of hiding among the routine lines.
+    /// A step's result line is written only when one of its counters is not zero.
+    /// It stays Information while nothing failed, and becomes a Warning the moment
+    /// a failure is counted, so a step that fails on every tick shows up in the
+    /// default log level; a tick that found nothing writes no line.
     /// </summary>
     private static LogLevel FailureLevel(int failures) =>
         failures > 0 ? LogLevel.Warning : LogLevel.Information;
+
+    private static bool AnyCounted(params ReadOnlySpan<int> counters)
+    {
+        foreach (var counter in counters)
+        {
+            if (counter != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     [Function(nameof(StagedArtifactReconciliationFunction))]
     public async Task RunAsync(
@@ -513,10 +528,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
         await RunStepAsync("staged artifacts", async () =>
         {
             var result = await reconcileStagedArtifacts.ExecuteAsync(50, cancellationToken);
-            var stagedLevel = FailureLevel(result.Failures);
-            LogStagedArtifactReconciliation(
-                logger,
-                stagedLevel,
+            if (AnyCounted(
                 result.RecoveredWorkItems,
                 result.Completed,
                 result.Expired,
@@ -524,7 +536,21 @@ public sealed partial class StagedArtifactReconciliationFunction(
                 result.Orphans,
                 result.Unmatched,
                 result.UnmatchedKept,
-                result.Failures);
+                result.Failures))
+            {
+                var stagedLevel = FailureLevel(result.Failures);
+                LogStagedArtifactReconciliation(
+                    logger,
+                    stagedLevel,
+                    result.RecoveredWorkItems,
+                    result.Completed,
+                    result.Expired,
+                    result.Retained,
+                    result.Orphans,
+                    result.Unmatched,
+                    result.UnmatchedKept,
+                    result.Failures);
+            }
         }, failures, cancellationToken);
 
         await RunStepAsync("document cache cleanup", async () =>
@@ -562,7 +588,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
         try
         {
             var settledReportFiles = await settleFiledCaseReportArtifacts.ExecuteAsync(50, cancellationToken);
-            LogFiledReportSettlement(logger, settledReportFiles);
+            if (settledReportFiles > 0)
+            {
+                LogFiledReportSettlement(logger, settledReportFiles);
+            }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -578,14 +607,21 @@ public sealed partial class StagedArtifactReconciliationFunction(
         await RunStepAsync("grouped images", async () =>
         {
             var groupedImageResult = await reconcileGroupedImageIntake.ExecuteAsync(50, cancellationToken);
-            var groupedLevel = FailureLevel(groupedImageResult.Failures);
-            LogGroupedImageIntakeReconciliation(
-                logger,
-                groupedLevel,
+            if (AnyCounted(
                 groupedImageResult.Candidates,
                 groupedImageResult.Retried,
                 groupedImageResult.Escaped,
-                groupedImageResult.Failures);
+                groupedImageResult.Failures))
+            {
+                var groupedLevel = FailureLevel(groupedImageResult.Failures);
+                LogGroupedImageIntakeReconciliation(
+                    logger,
+                    groupedLevel,
+                    groupedImageResult.Candidates,
+                    groupedImageResult.Retried,
+                    groupedImageResult.Escaped,
+                    groupedImageResult.Failures);
+            }
         }, failures, cancellationToken);
 
         // Files the evidence of a receipt associated with a Case whose filing
@@ -613,16 +649,22 @@ public sealed partial class StagedArtifactReconciliationFunction(
         await RunStepAsync("image pairing", async () =>
         {
             var pairing = await imageIntakeCasePairing.ReconcileAsync(50, cancellationToken);
-            var pairingLevel = FailureLevel(pairing.Failures);
-            LogImageIntakePairing(logger, pairingLevel, pairing.Candidates, pairing.Merged, pairing.Failures, pairing.FirstFailure);
+            if (AnyCounted(pairing.Candidates, pairing.Merged, pairing.Failures))
+            {
+                var pairingLevel = FailureLevel(pairing.Failures);
+                LogImageIntakePairing(logger, pairingLevel, pairing.Candidates, pairing.Merged, pairing.Failures, pairing.FirstFailure);
+            }
         }, failures, cancellationToken);
 
         await RunStepAsync("Triage pairing", async () =>
         {
             var triagePairing = await triageCasePairing.ReconcileAsync(50, cancellationToken);
-            var triageLevel = FailureLevel(triagePairing.Failures);
-            LogTriageCasePairing(logger, triageLevel, triagePairing.Candidates, triagePairing.Linked,
-                triagePairing.Failures, triagePairing.FirstFailure);
+            if (AnyCounted(triagePairing.Candidates, triagePairing.Linked, triagePairing.Failures))
+            {
+                var triageLevel = FailureLevel(triagePairing.Failures);
+                LogTriageCasePairing(logger, triageLevel, triagePairing.Candidates, triagePairing.Linked,
+                    triagePairing.Failures, triagePairing.FirstFailure);
+            }
         }, failures, cancellationToken);
 
         // Resolves an open Unidentified item whose origin receipt
@@ -633,13 +675,19 @@ public sealed partial class StagedArtifactReconciliationFunction(
         await RunStepAsync("Unidentified items", async () =>
         {
             var unidentifiedResult = await reconcileUnidentifiedDestinations.ExecuteAsync(50, cancellationToken);
-            var unidentifiedLevel = FailureLevel(unidentifiedResult.Failures);
-            LogUnidentifiedDestinationReconciliation(
-                logger,
-                unidentifiedLevel,
+            if (AnyCounted(
                 unidentifiedResult.Candidates,
                 unidentifiedResult.Resolved,
-                unidentifiedResult.Failures);
+                unidentifiedResult.Failures))
+            {
+                var unidentifiedLevel = FailureLevel(unidentifiedResult.Failures);
+                LogUnidentifiedDestinationReconciliation(
+                    logger,
+                    unidentifiedLevel,
+                    unidentifiedResult.Candidates,
+                    unidentifiedResult.Resolved,
+                    unidentifiedResult.Failures);
+            }
         }, failures, cancellationToken);
 
         // Any active case whose current registration has never been
@@ -649,7 +697,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
         await RunStepAsync("vehicle lookups", async () =>
         {
             var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
-            LogAutomaticVehicleLookups(logger, vehicleLookups);
+            if (vehicleLookups > 0)
+            {
+                LogAutomaticVehicleLookups(logger, vehicleLookups);
+            }
         }, failures, cancellationToken);
 
         // Repairs the staged-receipt back-reference and the missing
@@ -661,14 +712,20 @@ public sealed partial class StagedArtifactReconciliationFunction(
             var principalSubmissions = await reconcilePrincipalSubmissions.ExecuteAsync(
                 50,
                 cancellationToken);
-            var principalLevel = FailureLevel(principalSubmissions.Failures);
-            LogPrincipalSubmissionReconciliation(
-                logger,
-                principalLevel,
+            if (AnyCounted(
                 principalSubmissions.Candidates,
                 principalSubmissions.Repaired,
-                principalSubmissions.Failures,
-                principalSubmissions.FirstFailure);
+                principalSubmissions.Failures))
+            {
+                var principalLevel = FailureLevel(principalSubmissions.Failures);
+                LogPrincipalSubmissionReconciliation(
+                    logger,
+                    principalLevel,
+                    principalSubmissions.Candidates,
+                    principalSubmissions.Repaired,
+                    principalSubmissions.Failures,
+                    principalSubmissions.FirstFailure);
+            }
         }, failures, cancellationToken);
 
         // Work Centre D10: personal notifications past their 30-day retention drop
@@ -679,7 +736,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
             if (staffNotificationPurgeSchedule.TryStart())
             {
                 var purgedNotifications = await purgeStaffNotifications.ExecuteAsync(cancellationToken);
-                LogStaffNotificationPurge(logger, purgedNotifications);
+                if (purgedNotifications > 0)
+                {
+                    LogStaffNotificationPurge(logger, purgedNotifications);
+                }
             }
         }, failures, cancellationToken);
 
@@ -729,6 +789,12 @@ public sealed partial class StagedArtifactReconciliationFunction(
                     thumbnails.FirstFailure);
             }
         }
+        catch (OperationCanceledException) when (thumbnailBudget.IsCancellationRequested
+            && !cancellationToken.IsCancellationRequested)
+        {
+            // The budget ended the run: the rest wait for the next minute.
+            LogDocumentThumbnailBudgetEnded(logger, (int)ThumbnailBudget.TotalSeconds);
+        }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             LogDocumentThumbnailPreparationFailed(logger, exception);
@@ -756,6 +822,12 @@ public sealed partial class StagedArtifactReconciliationFunction(
                     recognised.Failures,
                     recognised.FirstFailure);
             }
+        }
+        catch (OperationCanceledException) when (recognitionBudget.IsCancellationRequested
+            && !cancellationToken.IsCancellationRequested)
+        {
+            // The budget ended the run: the rest wait for the next minute.
+            LogEstimateRecognitionBudgetEnded(logger, (int)EstimateRecognitionBudget.TotalSeconds);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -813,6 +885,16 @@ public sealed partial class StagedArtifactReconciliationFunction(
         Level = LogLevel.Warning,
         Message = "Recognising filed estimates failed; the next sweep tries again.")]
     private static partial void LogEstimateRecognitionFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "Estimate recognition used its {BudgetSeconds} second budget; the next sweep carries on.")]
+    private static partial void LogEstimateRecognitionBudgetEnded(ILogger logger, int budgetSeconds);
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "Document thumbnail preparation used its {BudgetSeconds} second budget; the next sweep carries on.")]
+    private static partial void LogDocumentThumbnailBudgetEnded(ILogger logger, int budgetSeconds);
 
     [LoggerMessage(
         Message = "Prepared document thumbnails: {Candidates} candidates, {Prepared} prepared, {Unrenderable} not renderable, {Failures} failures. First failure: {FirstFailure}")]

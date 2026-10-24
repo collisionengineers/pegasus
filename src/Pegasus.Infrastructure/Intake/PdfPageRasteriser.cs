@@ -37,22 +37,22 @@ internal static class PdfPageRasteriser
     }
 
     /// <summary>
-    /// The page drawn over paper white and encoded as a JPEG, or null when
-    /// nothing on the page draws. The small drawing that classified the page
+    /// The page drawn on paper white and encoded as a JPEG, or null when
+    /// nothing on it is not white. The small drawing that classified the page
     /// does not vouch for this one: the full-size decode can draw nothing
     /// where the small one drew (a stream cut off past its low-resolution
     /// data, a failed allocation near the peak), and a blank white page is
-    /// not the page's photograph.
+    /// not the page's photograph. Drawing on white needs no fill pass behind
+    /// the drawing, and the check stops at the first pixel that is not white.
     /// </summary>
     public static byte[]? RenderJpeg(ReadOnlyMemory<byte> pdf, int pageIndex, int width, int height, int quality)
     {
-        using var bitmap = Draw(pdf, pageIndex, width, height, SKColors.Transparent);
-        if (bitmap is null || !AnyPixelDrawn(bitmap))
+        using var bitmap = Draw(pdf, pageIndex, width, height, SKColors.White);
+        if (bitmap is null || !AnyPixelNotWhite(bitmap))
         {
             return null;
         }
 
-        FillWhiteBehind(bitmap);
         using var jpeg = bitmap.Encode(SKEncodedImageFormat.Jpeg, quality);
         return jpeg?.ToArray();
     }
@@ -93,6 +93,36 @@ internal static class PdfPageRasteriser
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether any colour byte of the bitmap is below 255, found with a
+    /// vectorised search that stops at the first one. The last byte of each
+    /// pixel is alpha (or padding) in both 32-bit layouts and says nothing
+    /// about the colour.
+    /// </summary>
+    private static bool AnyPixelNotWhite(SKBitmap bitmap)
+    {
+        var pixels = bitmap.GetPixelSpan();
+        var stride = bitmap.BytesPerPixel;
+        for (var start = 0; start < pixels.Length;)
+        {
+            var found = pixels[start..].IndexOfAnyExcept((byte)0xff);
+            if (found < 0)
+            {
+                return false;
+            }
+
+            var at = start + found;
+            if (at % stride != stride - 1)
+            {
+                return true;
+            }
+
+            start = at + 1;
         }
 
         return false;

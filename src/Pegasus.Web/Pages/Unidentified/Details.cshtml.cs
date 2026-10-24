@@ -22,7 +22,6 @@ namespace Pegasus.Web.Pages.Unidentified;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class DetailsModel(
     IGetUnidentifiedItemContext getContext,
-    IGetIntake getIntake,
     IUnidentifiedStore store,
     ICloseUnidentified closeUnidentified,
     IReopenUnidentified reopenUnidentified,
@@ -490,24 +489,15 @@ public sealed partial class DetailsModel(
         Context = context;
         MaterialReceipts = context.Receipt is { } originReceipt ? [originReceipt] : [];
         RegistrationReadings = context.RegistrationReadings;
-        if (context.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
+        if (context.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup && SubmissionGroup is not null)
         {
-            if (SubmissionGroup is not null)
-            {
-                var receiptIds = SubmissionGroup.Members
-                    .OrderBy(member => member.Ordinal)
-                    .Select(member => member.ProcessedReceiptId)
-                    .OfType<Guid>()
-                    .Distinct()
-                    .ToArray();
-                var receipts = await getIntake.ExecuteManyAsync(receiptIds, actor, cancellationToken);
-                var suggestions = await vrmSuggestions.ListForReceiptsAsync(
-                    receipts.Select(receipt => receipt.Id).ToArray(),
-                    cancellationToken);
-
-                MaterialReceipts = receipts;
-                RegistrationReadings = receipts.SelectMany(receipt => suggestions[receipt.Id]).ToArray();
-            }
+            // The context already holds the member receipts and every member's
+            // readings: the page shows all of them, not only those of the
+            // members that can register.
+            MaterialReceipts = context.MemberReceipts;
+            RegistrationReadings = context.MemberReceipts
+                .SelectMany(receipt => context.MemberReadings[receipt.Id])
+                .ToArray();
         }
 
         var imageAssetIds = EvidenceImages.Select(image => image.Asset.Id).ToArray();

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -7,10 +8,21 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfWorkflowConfigurationStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : IWorkflowConfigurationStore
+    TimeProvider timeProvider,
+    IMemoryCache cache) : IWorkflowConfigurationStore
 {
     private const string AggregateType = "workflow_configuration";
     private const string EventKind = "workflow_configuration_updated";
+
+    // The current configuration is kept for this long. Web's update evicts its
+    // own copy after it commits; the Worker composes this store too and its copy
+    // cannot be evicted from Web, so a Configuration change reaches Worker intake
+    // within this lifetime (R342). The reads inside a store's own transaction use
+    // ReadAsync and are never cached.
+    internal static readonly TimeSpan CurrentLifetime = TimeSpan.FromSeconds(30);
+
+    // A private key object, so no other IMemoryCache user can collide with the entry.
+    private static readonly object CurrentKey = new();
 
     internal static async Task<CaseWorkflowConfiguration> ReadAsync(
         PegasusDbContext context, CancellationToken cancellationToken)
@@ -21,7 +33,12 @@ public sealed class EfWorkflowConfigurationStore(
         return Map(entity);
     }
 
-    public async Task<CaseWorkflowConfiguration> GetCurrentAsync(
+    public Task<CaseWorkflowConfiguration> GetCurrentAsync(
+        CancellationToken cancellationToken) =>
+        EvictableCacheEntry.GetOrReadAsync(
+            cache, CurrentKey, CurrentLifetime, slidingWindow: null, ReadCurrentAsync, cancellationToken);
+
+    private async Task<CaseWorkflowConfiguration> ReadCurrentAsync(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -105,6 +122,7 @@ public sealed class EfWorkflowConfigurationStore(
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        EvictableCacheEntry.Evict(cache, CurrentKey);
         return Map(entity);
     }
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
@@ -52,7 +53,7 @@ public sealed class ConcurrencyTokenPersistenceTests
                 "QDOS",
                 new(true, true),
                 new(true, "concurrency-test-policy", 1),
-                await new EfWorkflowConfigurationStore(factory, timeProvider).GetCurrentAsync(CancellationToken.None),
+                await new EfWorkflowConfigurationStore(factory, timeProvider, new MemoryCache(new MemoryCacheOptions())).GetCurrentAsync(CancellationToken.None),
                 CaseInspectionMode.ImageBasedAssessment),
             CancellationToken.None);
 

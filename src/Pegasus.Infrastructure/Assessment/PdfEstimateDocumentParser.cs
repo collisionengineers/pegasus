@@ -1,5 +1,4 @@
 using Pegasus.Core.Assessment;
-using Pegasus.Core.Documents;
 using UglyToad.PdfPig;
 
 namespace Pegasus.Infrastructure.Assessment;
@@ -18,7 +17,7 @@ public sealed class PdfEstimateDocumentParser : IEstimateDocumentParser
         List<VisualRow> rows = [];
         try
         {
-            using var document = PdfDocument.Open(DocumentContentCachePublisherExtensions.ArrayOf(content));
+            using var document = PdfDocument.Open(content);
             foreach (var page in document.GetPages())
             {
                 var words = page.GetWords().Select(word =>

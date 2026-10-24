@@ -105,7 +105,7 @@ internal sealed partial class RuntimeHeartbeat(
     {
         try
         {
-            var values = Describe(ProcFs.ReadText);
+            var values = Describe(ProcFs.ReadText, ProcFs.ReadMajorFaults);
             LogHeartbeat(logger, values);
         }
         catch (Exception)
@@ -116,9 +116,11 @@ internal sealed partial class RuntimeHeartbeat(
 
     /// <summary>
     /// The figures as <c>name=value</c> pairs, memory in whole MiB. <paramref name="read"/>
-    /// returns a file's text, or null when it does not exist.
+    /// returns a file's text, or null when it does not exist. <paramref name="majorFaults"/>
+    /// gives the process's major faults from the shared sample on the kept handle, so
+    /// the stat file is not read again as text.
     /// </summary>
-    internal static string Describe(Func<string, string?> read)
+    internal static string Describe(Func<string, string?> read, Func<long?> majorFaults)
     {
         var values = new StringBuilder();
 
@@ -127,7 +129,7 @@ internal sealed partial class RuntimeHeartbeat(
         AppendMebibytes(values, "rssanon_mb", ProcFs.ParseKilobyteLine(status, "RssAnon"));
         AppendMebibytes(values, "rssfile_mb", ProcFs.ParseKilobyteLine(status, "RssFile"));
         AppendMebibytes(values, "rssshmem_mb", ProcFs.ParseKilobyteLine(status, "RssShmem"));
-        Append(values, "majflt", ProcFs.ParseMajorFaults(read("/proc/self/stat")));
+        Append(values, "majflt", majorFaults());
 
         var meminfo = read("/proc/meminfo");
         AppendMebibytes(values, "mem_total_mb", ProcFs.ParseKilobyteLine(meminfo, "MemTotal"));

@@ -269,7 +269,12 @@ public interface IAiJobQueries
         int limit,
         CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(
+    /// <summary>
+    /// The subject's non-terminal jobs (Queued, Taken or Draft ready), newest
+    /// first: what a record's drafts, pending research and live Query
+    /// response jobs are drawn from.
+    /// </summary>
+    Task<IReadOnlyList<AiJobRecord>> ListOpenForSubjectAsync(
         Guid subjectId,
         CancellationToken cancellationToken);
 

@@ -130,33 +130,9 @@ internal sealed class EfV1ActivityReportQueries(
             .Select(x => x.WorkId)
             .Distinct()
             .ToArray();
-        var firstReports = confirmedWorkIds.Length == 0
-            ? []
-            : await FrozenReportSnapshot.ReadAsync(
-                from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
-                join artifact in db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
-                    on generation.Id equals artifact.GenerationId
-                join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
-                    on artifact.VersionId equals (Guid?)documentVersion.Id
-                where confirmedWorkIds.Contains(generation.WorkId)
-                    && artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
-                    && artifact.Sha256 != null
-                    && artifact.Sha256 == documentVersion.Sha256
-                    && documentVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
-                select new FirstReportRow(
-                    generation.WorkId,
-                    generation.Id,
-                    generation.GeneratedAtUtc,
-                    SqlJson.Value(generation.SnapshotJson, FrozenReportSnapshot.AgreedFeePath)),
-                cancellationToken);
-        var agreedFees = firstReports
-            .GroupBy(x => x.WorkId)
-            .Select(group => group
-                .OrderBy(x => x.GeneratedAtUtc)
-                .ThenBy(x => x.GenerationId)
-                .First())
-            .Where(first => FirstReportFeeAttribution.InPeriod(first.GeneratedAtUtc, fromUtc, toUtc))
-            .ToDictionary(first => first.WorkId, first => FrozenReportSnapshot.AgreedFee(first.GenerationId, first.AgreedFee));
+        var agreedFees = (await FrozenReportSnapshot.ReadFirstInPeriodFeesAsync(
+                db, confirmedWorkIds, fromUtc, toUtc, cancellationToken))
+            .ToDictionary(pair => pair.Key, pair => pair.Value.AgreedFee);
 
         var receiptIds = artifacts.Select(x => x.OriginIntakeReceiptId)
             .Concat(readyTransitions.Select(x => x.OriginIntakeReceiptId))
@@ -347,11 +323,6 @@ internal sealed class EfV1ActivityReportQueries(
         /// <summary>MI-02's split: an Audit report (<see cref="CaseWorkKinds.IsAuditReport"/>) or an Inspection report.</summary>
         public bool IsAudit => CaseWorkKinds.IsAuditReport(CaseType, WorkKind);
     }
-    private sealed record FirstReportRow(
-        Guid WorkId,
-        Guid GenerationId,
-        DateTimeOffset GeneratedAtUtc,
-        string? AgreedFee);
     private sealed record ReadyEventRow(
         string AggregateId,
         DateTimeOffset OccurredAtUtc,

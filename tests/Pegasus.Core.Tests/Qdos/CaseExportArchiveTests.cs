@@ -66,6 +66,54 @@ public sealed class CaseExportArchiveTests
         Assert.Equal(1, photographs.MostInFlight);
     }
 
+    // The next image is asked for as soon as the current one is in hand, before the
+    // current one is checked: a current image that fails its check has already had
+    // the next one asked for, and no image beyond that one.
+    [Fact]
+    public async Task TheNextImageIsAskedForBeforeTheCurrentOneIsCheckedAndNoFurther()
+    {
+        var photographs = TamperedFirst();
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            CreateAsync(Source(), photographs));
+
+        Assert.Contains("failed SHA-256 integrity validation", exception.Message, StringComparison.Ordinal);
+        Assert.Equal<int>([2, 3], photographs.ReadOrdinals);
+        Assert.Equal(1, photographs.MostInFlight);
+    }
+
+    [Fact]
+    public async Task AReadAheadThatIsStillOpenWhenAnImageFailsIsStopped()
+    {
+        var photographs = TamperedFirst().OnRead(3, token => Task.Delay(Timeout.Infinite, token));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => CreateAsync(Source(), photographs));
+
+        Assert.Equal<int>([3], photographs.CancelledOrdinals);
+    }
+
+    [Fact]
+    public async Task AnImagesOwnFailureIsRaisedBeforeTheFailureOfTheReadAheadOfIt()
+    {
+        var photographs = TamperedFirst().OnRead(3, _ => throw new IOException("the next read failed"));
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            CreateAsync(Source(), photographs));
+
+        Assert.Contains("failed SHA-256 integrity validation", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AReadThatFailsIsRaisedWhenTheArchiveReachesItsImage()
+    {
+        var photographs = Images().OnRead(3, _ => throw new IOException("the read failed"));
+
+        var exception = await Assert.ThrowsAsync<IOException>(() => CreateAsync(Source(), photographs));
+
+        Assert.Equal("the read failed", exception.Message);
+        Assert.Equal<int>([2, 3], photographs.ReadOrdinals);
+    }
+
     [Fact]
     public async Task OneRetainedImageIsExportedExactlyOnceWithoutPreviewSelection()
     {
@@ -470,6 +518,18 @@ public sealed class CaseExportArchiveTests
         photographs.ReadAsync,
         fileNameReference);
 
+    // The first photograph's bytes are not the ones its record hashes; the rest are sound.
+    private static Photographs TamperedFirst()
+    {
+        var photographs = DefaultPhotographs();
+        return new(
+        [
+            (photographs[0].Image, "tampered image"u8.ToArray()),
+            photographs[1],
+            photographs[2]
+        ]);
+    }
+
     private static Photographs Images(IReadOnlyList<Guid>? order = null)
     {
         var photographs = DefaultPhotographs();
@@ -521,6 +581,7 @@ public sealed class CaseExportArchiveTests
     private sealed class Photographs
     {
         private readonly Dictionary<Guid, byte[]> contents;
+        private readonly Dictionary<int, Func<CancellationToken, Task>> behaviours = [];
         private int inFlight;
 
         public Photographs(IReadOnlyList<(CaseExportImage Image, byte[] Content)> photographs)
@@ -537,6 +598,16 @@ public sealed class CaseExportArchiveTests
         /// <summary>The most reads that were open at the same moment.</summary>
         public int MostInFlight { get; private set; }
 
+        /// <summary>The ordinal of each read that was stopped by its token.</summary>
+        public List<int> CancelledOrdinals { get; } = [];
+
+        /// <summary>What the read of the image at <paramref name="ordinal"/> does before it answers.</summary>
+        public Photographs OnRead(int ordinal, Func<CancellationToken, Task> behaviour)
+        {
+            behaviours[ordinal] = behaviour;
+            return this;
+        }
+
         public async ValueTask<ReadOnlyMemory<byte>> ReadAsync(
             CaseExportImage image,
             CancellationToken cancellationToken)
@@ -548,7 +619,16 @@ public sealed class CaseExportArchiveTests
                 // A read that yields would be overlapped by an archive that
                 // asked for the next image before this one was answered.
                 await Task.Yield();
+                if (behaviours.TryGetValue(image.Ordinal, out var behaviour))
+                {
+                    await behaviour(cancellationToken);
+                }
                 return contents[image.OccurrenceId];
+            }
+            catch (OperationCanceledException)
+            {
+                CancelledOrdinals.Add(image.Ordinal);
+                throw;
             }
             finally
             {

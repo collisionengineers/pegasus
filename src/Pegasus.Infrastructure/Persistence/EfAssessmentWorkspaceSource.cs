@@ -24,6 +24,22 @@ internal sealed class EfAssessmentWorkspaceSource(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<string, string>> GetFieldValuesAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        IReadOnlyCollection<string> paths,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
+        var requested = paths.ToArray();
+        var rows = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(item => selectedWorkIds.Contains(item.WorkId) && requested.Contains(item.FieldPath))
+            .Select(item => new { item.FieldPath, item.Value })
+            .ToArrayAsync(cancellationToken);
+        return rows.ToDictionary(row => row.FieldPath, row => row.Value, StringComparer.Ordinal);
+    }
+
     public async Task<AssessmentWorkspace?> GetAsync(
         Guid caseId,
         CaseWorkSelector work,

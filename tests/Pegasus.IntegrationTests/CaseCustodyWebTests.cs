@@ -80,7 +80,7 @@ public sealed class CaseCustodyWebTests
         Assert.Equal(tagId, applied.TagId);
         Assert.Equal(store.CaseVersion, applied.ExpectedCaseVersion);
         Assert.Equal(store.LeaseToken, applied.EditLeaseToken);
-        Assert.Equal("tag-image", applied.OperationKey);
+        Assert.Equal($"tag-image:{tagId:N}", applied.OperationKey);
 
         var removedTag = Assert.Single(store.ImageTagsRemoved);
         AssertClaimant(workspace, removedTag.Actor);
@@ -88,7 +88,7 @@ public sealed class CaseCustodyWebTests
         Assert.Equal(tagId, removedTag.TagId);
         Assert.Equal(store.CaseVersion, removedTag.ExpectedCaseVersion);
         Assert.Equal(store.LeaseToken, removedTag.EditLeaseToken);
-        Assert.Equal("untag-image", removedTag.OperationKey);
+        Assert.Equal($"untag-image:{tagId:N}", removedTag.OperationKey);
 
         await AssertRefusalKeepsEditModeAsync(
             workspace,

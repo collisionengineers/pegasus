@@ -126,6 +126,18 @@ public sealed record CaseSearchItem(
     /// for them (<see cref="CaseSearchFilters.IncludeTriage"/>).
     /// </summary>
     public Pegasus.Core.Triage.TriageState? TriageState { get; init; }
+
+    /// <summary>
+    /// The Case workflow's version, and whether the Case is archived: the facts
+    /// a destination search checks without a second read. Null (and false) for
+    /// a Triage Case, which has no workflow.
+    /// </summary>
+    public long? WorkflowVersion { get; init; }
+
+    public bool Archived { get; init; }
+
+    /// <summary>The Triage record's version, null for a Case with no Triage record.</summary>
+    public long? TriageVersion { get; init; }
 }
 
 public sealed record SearchCasesResult(
@@ -273,6 +285,11 @@ public sealed record CaseSectionFrame(
 /// focused reader. A supplied frame is request-local and must belong to the
 /// requested Case.
 /// </summary>
+/// <param name="ColleagueIsEditing">
+/// A colleague holds the Case's edit lease, as the page knows it; only the
+/// Tasks body uses it, to know whether task actions are offered
+/// (<see cref="CaseTaskActions.MayChange"/>).
+/// </param>
 public sealed record GetCaseSectionQuery(
     Guid CaseId,
     ActionActor Actor,
@@ -281,7 +298,8 @@ public sealed record GetCaseSectionQuery(
     CaseDataProjection? Data = null,
     IReadOnlyList<CaseDocument>? Documents = null,
     CaseSectionFrame? Frame = null,
-    CaseWorkSelector Work = CaseWorkSelector.Current);
+    CaseWorkSelector Work = CaseWorkSelector.Current,
+    bool ColleagueIsEditing = false);
 
 /// <summary>
 /// The Case page's first-response frame. It keeps the identity, workflow,
@@ -382,15 +400,32 @@ public sealed record CaseQueriesSection(
 /// <summary>
 /// The Tasks body source (CASE-20): the Case's tasks, open ones first; the names of the
 /// enabled staff they are assigned to; and the enabled staff, an open task's Assign
-/// choices, read only while a task is open or names an assignee. A task held by an
-/// account that is no longer enabled has no name here and reads Unassigned (operator,
-/// 22 October 2026).
+/// choices, read only while an Assign form can render or a task names an assignee. A task
+/// held by an account that is no longer enabled has no name here and reads Unassigned
+/// (operator, 22 October 2026).
 /// </summary>
 public sealed record CaseTasksSection(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseTaskRecord> Tasks,
     IReadOnlyDictionary<Guid, string> AssigneeNames,
     IReadOnlyList<CaseEngineerChoice> AssigneeChoices);
+
+/// <summary>
+/// Whether the Tasks body offers its actions: a Held or closed Case, an archived
+/// one and a Case a colleague is editing show the list without them. The Tasks
+/// body and the page that draws it both ask here.
+/// </summary>
+public static class CaseTaskActions
+{
+    public static bool MayChange(CaseWorkflowRecord workflow, bool colleagueIsEditing)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        return !CaseLifecycleRules.IsTerminal(workflow.State)
+            && workflow.State != CaseLifecycleState.Held
+            && workflow.Archive is null
+            && !colleagueIsEditing;
+    }
+}
 
 /// <summary>
 /// The Files body source. Documents and correspondence belong together because
@@ -758,13 +793,13 @@ public sealed class GetCaseVehicleSection(
     public async Task<CaseVehicleSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var (frame, workspace) = await CaseSectionQueries.FrameAndWorkspaceAsync(
+            query, store, workspaces, cancellationToken);
         if (frame is null)
         {
             return null;
         }
 
-        var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
         var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         // The workspace reads the Case's latest observation, so a workspace
@@ -784,13 +819,13 @@ public sealed class GetCaseValuationSection(
     public async Task<CaseValuationSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var (frame, workspace) = await CaseSectionQueries.FrameAndWorkspaceAsync(
+            query, store, workspaces, cancellationToken);
         if (frame is null)
         {
             return null;
         }
 
-        var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
         var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(frame, data, workspace?.Assessment);
@@ -891,9 +926,11 @@ public sealed class GetCaseTasksSection(
         // The enabled staff are an open task's Assign choices and the only
         // names an assignee reads as, so a task held by an account no longer
         // enabled reads Unassigned and has no option of its own (operator,
-        // 22 October 2026). They are read once, and only when a task is open
-        // or names an assignee.
-        IReadOnlyList<CaseEngineerChoice> enabled = anyOpen || assigneeIds.Count > 0
+        // 22 October 2026). They are read once, and only when an Assign form
+        // can render (a task is open and the actions are offered) or a task
+        // names an assignee.
+        var assignOffered = anyOpen && CaseTaskActions.MayChange(frame.Workflow, query.ColleagueIsEditing);
+        IReadOnlyList<CaseEngineerChoice> enabled = assignOffered || assigneeIds.Count > 0
             ? await enabledStaff.GetAsync(query.Actor, cancellationToken)
             : [];
         var names = new Dictionary<Guid, string>();
@@ -1062,6 +1099,40 @@ internal static class CaseSectionQueries
             ? Task.FromResult(query.AssessmentWorkspace)
             : workspaces.ExecuteAsync(new(query.CaseId, query.Actor, query.Work), cancellationToken);
 
+    /// <summary>
+    /// The section frame and the workspace, for a section that reads both. A
+    /// frame the page supplied is used as it is; otherwise the two reads need
+    /// only the Case id and work and each opens its own context, so they run
+    /// together. A missing Case is a quiet null whatever the workspace read
+    /// returned or faulted with; any other fault is the frame's, then the
+    /// workspace's.
+    /// </summary>
+    public static async Task<(CaseSectionFrame? Frame, AssessmentWorkspace? Workspace)> FrameAndWorkspaceAsync(
+        GetCaseSectionQuery query,
+        ICaseQueryStore store,
+        IGetAssessmentWorkspace workspaces,
+        CancellationToken cancellationToken)
+    {
+        if (query.Frame is { } supplied)
+        {
+            return (supplied, await WorkspaceAsync(query, workspaces, cancellationToken));
+        }
+
+        var frameRead = store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var workspaceRead = WorkspaceAsync(query, workspaces, cancellationToken);
+        try
+        {
+            // Both reads end before this method does, so neither outlives the
+            // request or faults unobserved.
+            await Task.WhenAll(frameRead, workspaceRead);
+        }
+        catch (Exception) when (frameRead.IsCompletedSuccessfully && frameRead.Result is null)
+        {
+            return (null, null);
+        }
+
+        return (frameRead.Result, workspaceRead.Result);
+    }
 }
 
 /// <summary>

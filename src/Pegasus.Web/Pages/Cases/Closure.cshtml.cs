@@ -22,7 +22,7 @@ public sealed class ClosureModel(
     IArchiveCase archiveCase,
     ICaseWorkflowQueries workflows,
     IAcquireCaseEditLease acquireLease,
-    ILogger<ClosureModel> logger) : CaseMutationPageModel(logger)
+    ILogger<ClosureModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// An action taken inside the edit session keeps it unless the Case is

@@ -328,6 +328,9 @@ public sealed class ImageIntakeLifecycleTests
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
 
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
         public Task<ImageIntakeDetail?> GetByReferenceAsync(
             string imageIntakeReference,
             CancellationToken cancellationToken) =>
@@ -337,6 +340,11 @@ public sealed class ImageIntakeLifecycleTests
             Guid intakeReceiptId,
             CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
+
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ImageIntakeRecord?>(null);
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,

@@ -140,7 +140,9 @@ operator, 15 and 19 October 2026,
 [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 **The bell** is the signed-in person's own notifications, never office-wide
-work or queue counts. It shows the unread count, absent at zero. A
+work or queue counts. It shows the unread count, absent at zero. Each page
+carries only that count; the dialog's list is read when the bell opens, and
+a page opened with `?notifications=1` carries the list with it. A
 notification is raised for exactly these causes:
 
 - an AI draft is ready on a Case: to the Case's Engineer, otherwise to

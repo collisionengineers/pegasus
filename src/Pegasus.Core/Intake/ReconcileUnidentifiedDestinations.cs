@@ -93,9 +93,9 @@ public sealed class ReconcileUnidentifiedDestinations(
         // so a resolution written this pass is examined once here and leaves
         // the queue in the same pass. Bounded like the open loop, and one
         // failure never stops the sweep. Every recheck row counts as a
-        // candidate, so "examined nothing this pass" is observable as
-        // Candidates = 0 and a queue that never advances shows as a non-zero
-        // candidate count pass after pass.
+        // candidate, so "examined nothing this pass" is observable as no
+        // result line at all and a queue that never advances shows as a
+        // non-zero candidate count pass after pass.
         var recheck = await unidentifiedStore.ListResolutionsToRecheckAsync(maximumItems, cancellationToken);
         foreach (var item in recheck)
         {
@@ -382,13 +382,13 @@ public sealed class ReconcileUnidentifiedDestinations(
 
         if (receipt.Decision == IntakeDecision.ImageIntakeRegistered)
         {
-            var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
-            return detail is null
+            var record = await imageIntakeQueries.GetRecordByOriginReceiptAsync(receipt.Id, cancellationToken);
+            return record is null
                 ? null
                 : new(
                     UnidentifiedResolutionTargetKind.ImageIntake,
-                    detail.Record.Id.ToString("N"),
-                    detail.Record.ImageIntakeReference);
+                    record.Id.ToString("N"),
+                    record.ImageIntakeReference);
         }
 
         // A Triage request held in Unidentified for want of a registration,
@@ -412,7 +412,7 @@ public sealed class ReconcileUnidentifiedDestinations(
         // Triage Case is a staff link destination too, resolved as a Triage.
         if (receipt.CurrentCaseId is { } linkedCaseId)
         {
-            var targetKind = await triageQueries.GetAsync(linkedCaseId, cancellationToken) is null
+            var targetKind = await triageQueries.GetRecordAsync(linkedCaseId, cancellationToken) is null
                 ? UnidentifiedResolutionTargetKind.InstructionCase
                 : UnidentifiedResolutionTargetKind.Triage;
             return new(
@@ -468,14 +468,14 @@ public sealed class ReconcileUnidentifiedDestinations(
         // its destination: the one registration stamped with this group,
         // reached through any member it moved to the registered decision.
         if (receipts.FirstOrDefault(receipt => receipt!.Decision == IntakeDecision.ImageIntakeRegistered) is { } registered
-            && await imageIntakeQueries.GetByOriginReceiptAsync(registered.Id, cancellationToken) is { } detail
-            && detail.Record.SubmissionGroupId == groupId)
+            && await imageIntakeQueries.GetRecordByOriginReceiptAsync(registered.Id, cancellationToken) is { } record
+            && record.SubmissionGroupId == groupId)
         {
             return new(
                 new(
                     UnidentifiedResolutionTargetKind.ImageIntake,
-                    detail.Record.Id.ToString("N"),
-                    detail.Record.ImageIntakeReference),
+                    record.Id.ToString("N"),
+                    record.ImageIntakeReference),
                 associationVersion);
         }
 

@@ -85,7 +85,7 @@ public sealed partial class CreateModel(
 
     public bool PrincipalIsImageBased { get; private set; }
 
-    public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
+    public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
 
     [BindProperty]
     public bool IsManual { get; set; }
@@ -618,7 +618,7 @@ public sealed partial class CreateModel(
             actor, ContactRole.ClaimSource, cancellationToken);
     }
 
-    private ContactDirectoryRecord? ResolveClaimSource()
+    private ContactChoice? ResolveClaimSource()
     {
         if (ClaimSourceId is not { } claimSourceId)
         {
@@ -798,9 +798,9 @@ public sealed partial class CreateModel(
 
         Receipt = receipt;
         ReceiptId = receipt.Id;
-        if (getRetainedMail is not null && receipt.SourceIdentity.Channel == IntakeSourceChannel.Mailbox)
+        if (getRetainedMail is not null)
         {
-            SourceMessageId = await getRetainedMail.FindIdByOriginReceiptAsync(actor, receipt.Id, cancellationToken);
+            SourceMessageId = await getRetainedMail.FindIdBySourceAsync(actor, receipt.SourceIdentity, cancellationToken);
         }
 
         var auditEvidence = await standaloneAuditEvidenceQueries.GetForReceiptAsync(

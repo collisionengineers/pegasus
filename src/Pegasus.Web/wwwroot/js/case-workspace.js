@@ -606,14 +606,16 @@
             fetch(form.getAttribute('action') || window.location.href, {
                 method: 'POST',
                 body: new FormData(form),
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                redirect: 'manual'
             }).then(function (response) {
                 if (generation !== heartbeatGeneration) {
                     return;
                 }
-                // A followed redirect is the sign-in page: the session has
-                // ended and no later beat can renew the lease.
-                if (response.redirected) {
+                // A redirect answer is the sign-in page: the session has
+                // ended and no later beat can renew the lease. It is not
+                // followed, so a stale tab costs no sign-in GET.
+                if (response.type === 'opaqueredirect') {
                     stopHeartbeat();
                     return;
                 }
@@ -1038,15 +1040,23 @@
     }
     // Choosing a repair spec (a spec tab, New repair spec, Compare's From and
     // To) changes only what the Repair Spec section draws: the section and
-    // the dialogs drawn after it. Only those are redrawn from the page the
-    // choice addresses, so nothing above them moves and the page stays where
-    // it is. A choice that cannot be redrawn takes the navigation it replaced.
+    // the dialogs drawn after it. Only those are fetched, as the Repair Spec
+    // fragment the choice addresses (its query carried over, the lease this
+    // page holds repeated in the header as a mounted body does), so nothing
+    // above them moves, the page stays where it is and the server does not
+    // read the rest of the Case. A choice that cannot be redrawn takes the
+    // navigation it replaced.
     function showEstimate(href) {
         glassRefreshGeneration += 1;
-        return fetch(href, {
-            credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' }
+        var headers = { 'Accept': 'text/html' };
+        var lease = editLeaseToken();
+        if (lease) { headers['X-Pegasus-Edit-Lease'] = lease; }
+        return fetch(fragmentPath + new URL(href, window.location.href).search, {
+            credentials: 'same-origin', cache: 'no-store', headers: headers
         }).then(function (response) {
-            if (!response.ok || !samePage(response.url || href)) { throw new Error('section estimate: ' + response.status); }
+            if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
+                throw new Error('section estimate: ' + response.status);
+            }
             return response.text();
         }).then(function (html) {
             var section = sectionFor('estimate');
@@ -1093,6 +1103,11 @@
     // button (or the one drawn in its place) shows its tick for a moment.
     function idle(form, done) {
         if (window.pegasusBusy) { window.pegasusBusy.end(form, done ? { done: true } : undefined); }
+    }
+    // A tag row (data-busy-solo) is busy and in flight on its own, beside the
+    // other rows of its tile's one form; every other press holds its form.
+    function holder(form, submitter) {
+        return submitter && submitter.hasAttribute('data-busy-solo') ? submitter : form;
     }
     function submitInPlace(form, submitter) {
         // A section-head Edit keeps its own section where it is on screen.
@@ -1184,8 +1199,8 @@
             showActionError(failure);
         }).finally(function () {
             form.removeAttribute('aria-busy');
-            form.removeAttribute('data-inplace-submitting');
-            idle(form, done);
+            holder(form, submitter).removeAttribute('data-inplace-submitting');
+            idle(holder(form, submitter), done);
             resetRefresh(form);
             if (importSection && importSection.isConnected) {
                 importSection.removeAttribute('data-estimate-importing');
@@ -1270,8 +1285,8 @@
             showActionError(error.message + ' Your last change is still on the page.');
         }).finally(function () {
             form.removeAttribute('aria-busy');
-            form.removeAttribute('data-inplace-submitting');
-            idle(form, done);
+            holder(form, submitter).removeAttribute('data-inplace-submitting');
+            idle(holder(form, submitter), done);
             submitting = false;
             settleQueue();
         });
@@ -1499,31 +1514,36 @@
         }
         event.preventDefault();
         var isCommit = !!editorLabels[form.getAttribute('id')];
-        if (form.dataset.inplaceSubmitting === 'true') {
+        if (holder(form, submitter).dataset.inplaceSubmitting === 'true') {
             return;
         }
         var name = submitter ? submitter.name : '';
         var value = submitter ? submitter.value : '';
         var formaction = submitter ? submitter.getAttribute('formaction') : null;
         // A refused commit drops what waited on it; the press is idle again.
-        function abandon() { idle(form); resetRefresh(form); }
+        function abandon() { idle(holder(form, submitter)); resetRefresh(form); }
         function proceed() {
             // A form that waited on a commit is found again: the ribbon's and
             // the dialogs' forms are drawn afresh with the Case's new authority.
             var next = refind(form);
-            if (!next || next.dataset.inplaceSubmitting === 'true') { idle(form); return; }
-            // Waiters run together once the queue empties; the first to post
-            // holds it, and the next follows that post.
-            if (submitting) { commitWaiters.push({ run: proceed, abandon: abandon }); return; }
+            if (!next) { idle(holder(form, submitter)); return; }
             var button = submitter && next !== form ? Array.prototype.find.call(next.elements, function (element) {
                 return element.type === 'submit' && element.name === name && element.value === value
                     && element.getAttribute('formaction') === formaction;
             }) || null : submitter;
+            // A tag row whose tag the redraw changed has no row to press: the
+            // press is idle again, and nothing is posted without its tag.
+            if (!button && submitter && submitter.hasAttribute('data-busy-solo')) { idle(submitter); return; }
+            var held = holder(next, button);
+            if (held.dataset.inplaceSubmitting === 'true') { idle(holder(form, submitter)); return; }
+            // Waiters run together once the queue empties; the first to post
+            // holds it, and the next follows that post.
+            if (submitting) { commitWaiters.push({ run: proceed, abandon: abandon }); return; }
             submitting = true;
-            next.dataset.inplaceSubmitting = 'true';
+            held.dataset.inplaceSubmitting = 'true';
             // The press shows at once, even while it waits behind a commit;
             // a form drawn afresh in the meantime takes the state over.
-            if (next !== form) { idle(form); }
+            if (held !== holder(form, submitter)) { idle(holder(form, submitter)); }
             busy(next, button);
             // A document action (tag, untag, new tag, In report) while editing
             // is not an edit of the Case: it posts at once and redraws its own
@@ -1557,8 +1577,9 @@
         if (id && document.getElementById(id)) { return document.getElementById(id); }
         var action = form.getAttribute('action');
         // Every image tile's In report and tag forms share their actions, so
-        // the form found again names the same image and tag: the first match
-        // by action alone would act on another image.
+        // the form found again names the same image: the first match by
+        // action alone would act on another image. The tag is the pressed
+        // button's value, which proceed() finds again in the form.
         function names(candidate, field) {
             var own = form.elements.namedItem(field);
             var theirs = candidate.elements.namedItem(field);
@@ -1568,7 +1589,7 @@
         var candidates = Array.prototype.slice.call(record.querySelectorAll('form[action]'))
             .concat(dialogs ? Array.prototype.slice.call(dialogs.querySelectorAll('form[action]')) : []);
         return candidates.find(function (candidate) {
-            return candidate.getAttribute('action') === action && names(candidate, 'occurrenceId') && names(candidate, 'tagId');
+            return candidate.getAttribute('action') === action && names(candidate, 'occurrenceId');
         }) || null;
     }
 

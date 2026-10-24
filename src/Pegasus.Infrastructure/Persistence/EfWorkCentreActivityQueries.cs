@@ -7,8 +7,9 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The Work Centre's activity figures (FRD-15, operator 5 October 2026), read
-/// straight from the records that hold each fact. Each figure is counted in
-/// SQL on its own context, and the five run concurrently.
+/// straight from the records that hold each fact. Each figure is one
+/// conditional aggregate in SQL on its own context, and the four run
+/// concurrently.
 /// </summary>
 internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbContext> contextFactory)
     : IWorkCentreActivityQueries
@@ -85,8 +86,9 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
     }
 
     /// <summary>
-    /// Counts one figure in SQL, on its own context: the week's instants, and
-    /// those since the day began.
+    /// Counts one figure in one command, on its own context: the week's
+    /// instants, and those since the day began. One statement reads one
+    /// snapshot, so the day never exceeds the week.
     /// </summary>
     private async Task<WorkCentreActivityFigure> CountAsync(
         Func<PegasusDbContext, DateTimeOffset, IQueryable<DateTimeOffset>> weekInstants,
@@ -95,11 +97,16 @@ internal sealed class EfWorkCentreActivityQueries(IDbContextFactory<PegasusDbCon
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var instants = weekInstants(context, weekStartUtc);
-        var week = await instants.CountAsync(cancellationToken);
-        var today = await instants.CountAsync(instant => instant >= dayStartUtc, cancellationToken);
-        // The two counts are separate commands; a row landing between them
-        // must not make today exceed the week.
-        return new WorkCentreActivityFigure(Math.Min(today, week), week);
+        var counts = await weekInstants(context, weekStartUtc)
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Week = group.Count(),
+                Today = group.Count(instant => instant >= dayStartUtc)
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        return counts is null
+            ? new WorkCentreActivityFigure(0, 0)
+            : new WorkCentreActivityFigure(counts.Today, counts.Week);
     }
 }

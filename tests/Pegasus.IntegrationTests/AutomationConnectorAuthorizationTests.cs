@@ -100,14 +100,14 @@ public sealed partial class AutomationConnectorAuthorizationTests
             Assert.Equal(HttpStatusCode.OK, call.StatusCode);
         }
 
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(DISTINCT AggregateId) FROM ActionHistory
             WHERE EventKind = N'automation_connector_authorized'
               AND AggregateId LIKE N'grant:%'
               AND Outcome = N'Succeeded'
             """));
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(DISTINCT ActorSubjectId) FROM ActionHistory
             WHERE EventKind = N'pegasus_case_search'
@@ -308,7 +308,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         }
 
         // The Administrator's decision is permanent history.
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE EventKind = N'automation_connector_authorized'
@@ -504,7 +504,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         Assert.Equal(State, callback["state"]);
         Assert.False(callback.ContainsKey("code"));
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE EventKind = N'automation_connector_denied' AND Outcome = N'Denied'

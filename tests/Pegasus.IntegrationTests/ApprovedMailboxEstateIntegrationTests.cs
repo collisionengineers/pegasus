@@ -512,6 +512,44 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         Assert.Equal("saved-inbox", only.InboxFolderIdentity);
     }
 
+    /// <summary>
+    /// A send reads the one mailbox it names, not the estate: the row is a
+    /// sender only while it is send-ready, exactly as the list would say.
+    /// </summary>
+    [Fact]
+    public async Task OneMailboxIsReadAsASenderOnlyWhileItIsSendReady()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var mailboxId = TestMailboxId.From("instructions");
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IApprovedMailboxStore>();
+
+        // The seeded row reads Incoming only.
+        Assert.Null(await store.GetSenderAsync(mailboxId, CancellationToken.None));
+
+        await database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes
+            SET AllowOutgoing = 1, State = 'Approved', MailboxIdentity = 'instructions',
+                SentFolderIdentity = 'sent-items', MailboxGeneration = 1,
+                ActivatedAtUtc = '2000-01-01T00:00:00+00:00'
+            WHERE Id = '{mailboxId:D}';
+            """);
+        var sender = Assert.IsType<ApprovedMailbox>(
+            await store.GetSenderAsync(mailboxId, CancellationToken.None));
+        var listed = Assert.Single(
+            await store.ListAsync(CancellationToken.None), item => item.Id == mailboxId);
+        Assert.True(listed.CanSend);
+        Assert.Equal(listed.Address, sender.Address);
+        Assert.Equal(listed.Generation, sender.Generation);
+        Assert.Equal(listed.Version, sender.Version);
+        Assert.Null(await store.GetSenderAsync(Guid.NewGuid(), CancellationToken.None));
+
+        await database.ExecuteAsync(
+            $"UPDATE ApprovedMailboxes SET SentFolderIdentity = NULL WHERE Id = '{mailboxId:D}';");
+        Assert.Null(await store.GetSenderAsync(mailboxId, CancellationToken.None));
+    }
+
     [Fact]
     public async Task WebReadsTheEstateAsSavedAndNeverBorrowsConfiguredIdentities()
     {

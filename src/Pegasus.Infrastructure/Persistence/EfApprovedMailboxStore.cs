@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -18,7 +19,8 @@ internal sealed record ApprovedIntakeMailboxCandidate(
 
 public sealed class EfApprovedMailboxStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : IApprovedMailboxStore, IApprovedIntakeMailboxes
+    TimeProvider timeProvider,
+    IMemoryCache cache) : IApprovedMailboxStore, IApprovedIntakeMailboxes
 {
     private const string AggregateType = "approved_mailbox";
     private const string EventKind = "approved_mailbox_updated";
@@ -110,6 +112,18 @@ public sealed class EfApprovedMailboxStore(
             .ThenBy(item => item.Id)
             .ToListAsync(cancellationToken);
         return entities.Select(Map).ToArray();
+    }
+
+    public async Task<ApprovedMailbox?> GetSenderAsync(
+        Guid mailboxId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<ApprovedMailboxEntity>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == mailboxId, cancellationToken);
+        var mailbox = entity is null ? null : Map(entity);
+        return mailbox is { CanSend: true } ? mailbox : null;
     }
 
     public async Task<bool> IsApprovedAsync(
@@ -334,6 +348,8 @@ public sealed class EfApprovedMailboxStore(
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        // The Inbox's mailbox list says whether each mailbox is polled.
+        EfRetainedMailboxMessageStore.EvictMailboxList(cache);
         return Map(entity);
     }
 

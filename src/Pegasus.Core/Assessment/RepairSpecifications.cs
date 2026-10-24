@@ -230,6 +230,19 @@ public interface IRepairSpecificationStore
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// The listing for a caller that already holds one version with its lines
+    /// (<paramref name="held"/>, as read a moment ago): the list carries it
+    /// as held and the SQL store does not read its lines again. The default
+    /// is the plain listing.
+    /// </summary>
+    Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        RepairSpecificationVersion? held,
+        CancellationToken cancellationToken) =>
+        ListEstimatesAsync(caseId, work, cancellationToken);
+
+    /// <summary>
     /// One estimate on the selected work of the Case, or null when the id
     /// is not one of them. The default lists and picks; the SQL store reads
     /// the one row.

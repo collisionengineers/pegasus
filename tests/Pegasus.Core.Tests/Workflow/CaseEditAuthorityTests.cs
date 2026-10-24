@@ -367,14 +367,20 @@ public sealed class CaseEditAuthorityTests
 
         public Task<StaffAccountSummary?> GetAsync(
             Guid requestedStaffId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException(
+                "A holder's name is read through the cached name read.");
+
+        public Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(
+            IReadOnlyCollection<Guid> requestedStaffIds,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Requested = requestedStaffId;
-            return Task.FromResult<StaffAccountSummary?>(
-                requestedStaffId == staffId
-                    ? new(staffId, userName, true, false, StaffRole.User)
-                    : null);
+            Requested = requestedStaffIds.Single();
+            return Task.FromResult<IReadOnlyDictionary<Guid, string>>(
+                requestedStaffIds.Contains(staffId)
+                    ? new Dictionary<Guid, string> { [staffId] = userName }
+                    : new Dictionary<Guid, string>());
         }
 
         public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(

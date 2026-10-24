@@ -391,7 +391,7 @@ internal sealed class AssessmentMcpTools(
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(estimateId, "estimate identifier");
                 var estimate = await FindEstimateAsync(caseId, estimateId, cancellationToken);
-                var snapshots = await estimateSnapshots.ListAsync(caseId, estimateId, cancellationToken);
+                var snapshots = await estimateSnapshots.ListSummariesAsync(caseId, estimateId, cancellationToken);
                 return new EstimateGetToolResult(
                     caseId,
                     MapEstimate(estimate),

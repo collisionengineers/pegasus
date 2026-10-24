@@ -52,7 +52,12 @@ public static class DependencyInjection
                 "A runtime profile supplies either a local artifact root or an external document storage registration, never both.");
         }
 
-        services.AddDbContextFactory<PegasusDbContext>((serviceProvider, options) =>
+        // One pool of contexts: a store's `await using` hands its context back
+        // for the next caller instead of building one (service scope, change
+        // tracker, internal services) per use. The pooled registration also
+        // registers the scoped context Identity and OpenIddict take from their
+        // own scope, leased from the same pool and returned when the scope ends.
+        services.AddPooledDbContextFactory<PegasusDbContext>((serviceProvider, options) =>
         {
             configureDatabase(serviceProvider, options);
         });
@@ -123,6 +128,7 @@ public static class DependencyInjection
         services.AddScoped<IRestoreRetainedMail, RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
         services.TryAddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
+        services.AddSingleton<DeletedMailSearchKeep>();
         services.AddScoped<SearchDeletedMail>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
@@ -417,8 +423,6 @@ public static class DependencyInjection
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
-        services.AddScoped<ICaseArchiveReadinessQueries>(
-            provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IAcquireCaseEditLease, AcquireCaseEditLease>();
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
         services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
@@ -572,7 +576,6 @@ public static class DependencyInjection
         services.AddScoped<IPutCaseOnHold, PutCaseOnHold>();
         services.AddScoped<IReleaseCaseHold, ReleaseCaseHold>();
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
-        services.AddScoped<ICaseEngineerEligibility, EfCaseEngineerEligibility>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
         services.AddScoped<IStartCaseWork, StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();
@@ -672,7 +675,8 @@ public static class DependencyInjection
             services.AddScoped<IReadCaseDocumentThumbnail>(provider =>
                 new CaseDocumentThumbnailReader(
                     provider.GetRequiredService<IReadLogicalDocumentVersion>(),
-                    provider.GetService<DocumentThumbnailCache>()));
+                    provider.GetService<DocumentThumbnailCache>(),
+                    provider.GetService<ILogger<CaseDocumentThumbnailReader>>()));
             // The Worker's sweep makes plain thumbnails through that same
             // reader before the first view.
             services.AddScoped<PrepareDocumentThumbnails>();
@@ -841,7 +845,8 @@ public static class DependencyInjection
 
         services.AddSingleton(provider => new AzureBlobIntakeArtifactStore(
             intakeContainerFactory(provider),
-            allowContainerCreateIfNotExists(provider)));
+            allowContainerCreateIfNotExists(provider),
+            provider.GetService<Microsoft.Extensions.Logging.ILogger<AzureBlobIntakeArtifactStore>>()));
         services.AddSingleton<IIntakeArtifactStore>(provider =>
             provider.GetRequiredService<AzureBlobIntakeArtifactStore>());
         services.AddSingleton<IIntakeQuarantineArtifactStore>(provider =>

@@ -256,7 +256,7 @@ public sealed class SentEvidencePollPersistenceTests
         var activatedAtUtc = factory.Services.GetRequiredService<TimeProvider>()
             .GetUtcNow()
             .AddMinutes(-10);
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"""
             UPDATE ApprovedMailboxes
             SET AllowOutgoing = 1,
@@ -371,7 +371,7 @@ public sealed class SentEvidencePollPersistenceTests
         // The completing poll schedules the next claim 30 seconds out and the
         // fixture clock is fixed, so make this mailbox due again for the
         // replay: a real due claim, never a weakened idempotency assertion.
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             "UPDATE ApprovedSentPollStates SET DueAtUtc = DATEADD(minute, -1, DueAtUtc) WHERE MailboxId = 'instructions'");
         var replay = await poll.ExecuteAsync(
             1,
@@ -382,23 +382,23 @@ public sealed class SentEvidencePollPersistenceTests
         Assert.Equal(1, replay.TriageResponsesRecorded);
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM EmailResponseEvidence WHERE SentEvidenceId = '{sentEvidence.Id:D}'"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageCaseId = '{triageId:D}'"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageHistory WHERE TriageCaseId = '{triageId:D}' AND EventType = 'triage_response_linked'"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 "SELECT COUNT(*) FROM ApprovedSentPollOutcomes WHERE OutcomeKind = 'TriageResponseRecorded'"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"""
                 SELECT COUNT(*)
                 FROM EmailResponseEvidence AS response
@@ -424,7 +424,7 @@ public sealed class SentEvidencePollPersistenceTests
         Assert.Equal(1, linkedHistory.BeforeVersion);
         Assert.Equal(2, linkedHistory.AfterVersion);
 
-        var pollOutcomeId = await factory.Database.ScalarAsync<Guid>(
+        var pollOutcomeId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             $"SELECT PollOutcomeId FROM EmailResponseEvidence WHERE SentEvidenceId = '{sentEvidence.Id:D}'");
         var unlinkLease = await scopedServices.GetRequiredService<IEditScopeLeases>().ClaimAsync(
             new(
@@ -462,7 +462,7 @@ public sealed class SentEvidencePollPersistenceTests
             Assert.Single(unlinkedDetail.ResponseEvidenceCandidates).PollOutcomeId);
         Assert.Equal(
             0,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageCaseId = '{triageId:D}'"));
 
         var relinkLease = await scopedServices.GetRequiredService<IEditScopeLeases>().ClaimAsync(
@@ -500,19 +500,19 @@ public sealed class SentEvidencePollPersistenceTests
         Assert.Empty(relinkedDetail.ResponseEvidenceCandidates);
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageCaseId = '{triageId:D}'"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM EmailResponseEvidence WHERE SentEvidenceId = '{sentEvidence.Id:D}'"));
         Assert.Equal(
             2,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageHistory WHERE TriageCaseId = '{triageId:D}' AND EventType = 'triage_response_linked'"));
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageHistory WHERE TriageCaseId = '{triageId:D}' AND EventType = 'triage_response_unlinked'"));
 
         var completionLease = await scopedServices.GetRequiredService<IEditScopeLeases>().ClaimAsync(

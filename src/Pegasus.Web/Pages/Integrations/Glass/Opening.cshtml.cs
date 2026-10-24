@@ -32,7 +32,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 public sealed class OpeningModel(
     IGlassRepairEstimateSessionReader glassSessions,
     GlassRepairEstimateAvailability glassAvailability,
-    ProviderWorkQueue glassWork) : StaffPageModel
+    ProviderWorkQueue glassWork) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     public GlassRepairEstimateSession Session { get; private set; } = null!;
 
@@ -80,20 +80,34 @@ public sealed class OpeningModel(
         [FromServices] IGlassRepairEstimateGateway glassEstimates,
         CancellationToken cancellationToken)
     {
-        if (await OwnSessionAsync(sessionId, cancellationToken) is not { } session
+        // The session is read once; the gateway is handed what was read.
+        if (!TryGetOwnerId(out var staffId)
+            || await glassSessions.GetOwnMaterialAsync(sessionId, staffId, cancellationToken) is not { } read
             || !TryGetActor(out var actor))
         {
             return NotFound();
         }
+        var session = read.Session;
         if (glassWork.IsInFlight(session.Id))
         {
             return RedirectToPage("/Integrations/Glass/Opening", new { sessionId });
         }
+        Uri? estimator;
         if (GlassRepairEstimateSessionPolicy.AwaitsProviderWork(session.State))
         {
-            session = await glassEstimates.SettleInterruptedAsync(actor, session.Id, cancellationToken);
+            // A settle writes Prepared or Unknown, neither of which has an
+            // estimator to open; only a session something else moved on to
+            // Active first is read afresh for its address.
+            session = await glassEstimates.SettleInterruptedAsync(actor, read, cancellationToken);
+            estimator = session.State == GlassRepairEstimateSessionState.Active
+                ? await glassEstimates.GetEstimatorUrlAsync(actor, session.Id, cancellationToken)
+                : null;
         }
-        if (await glassEstimates.GetEstimatorUrlAsync(actor, session.Id, cancellationToken) is { } estimator)
+        else
+        {
+            estimator = await glassEstimates.GetEstimatorUrlAsync(actor, read, cancellationToken);
+        }
+        if (estimator is not null)
         {
             // The Case keeps its edit authority: the operator is inside the
             // provider now and the result lands back on it.

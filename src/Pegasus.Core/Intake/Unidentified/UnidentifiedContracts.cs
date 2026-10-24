@@ -556,7 +556,7 @@ public sealed class ResolveUnidentified(
                 && kind != CaseType.Triage,
             UnidentifiedResolutionTargetKind.ImageIntake => Guid.TryParse(targetId, out var imageIntakeId)
                 && imageIntakeQueries is not null
-                && await imageIntakeQueries.GetAsync(imageIntakeId, cancellationToken) is not null,
+                && await imageIntakeQueries.ExistsAsync(imageIntakeId, cancellationToken),
             UnidentifiedResolutionTargetKind.Triage => Guid.TryParse(targetId, out var triageId)
                 && triageQueries is not null
                 && await triageQueries.GetRecordAsync(triageId, cancellationToken) is not null,

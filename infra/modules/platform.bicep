@@ -656,16 +656,16 @@ resource applicationExceptionAlert 'Microsoft.Insights/scheduledQueryRules@2023-
     description: 'One or more correlated Web or Worker exceptions were recorded.'
     severity: 2
     enabled: true
-    evaluationFrequency: 'PT5M'
+    evaluationFrequency: 'PT15M'
     scopes: [logAnalytics.id]
     targetResourceTypes: ['Microsoft.OperationalInsights/workspaces']
-    windowSize: 'PT15M'
+    windowSize: 'PT30M'
     criteria: {
       allOf: [
         {
           query: '''
             let CorrelatedExceptions = AppExceptions
-              | where TimeGenerated > ago(15m)
+              | where TimeGenerated > ago(30m)
               | extend ExceptionSignature = strcat(
                   coalesce(ExceptionType, 'UnknownException'),
                   '|',
@@ -675,11 +675,11 @@ resource applicationExceptionAlert 'Microsoft.Insights/scheduledQueryRules@2023-
               | summarize LastSeen=max(TimeGenerated), ExceptionRows=count(), AppRole=take_any(AppRoleName)
                   by ExceptionSignature, CorrelationId;
             let FailedRecentOperations = AppRequests
-              | where TimeGenerated > ago(5m) and Success == false
+              | where TimeGenerated > ago(15m) and Success == false
               | where isnotempty(OperationId)
               | summarize by CorrelationId=tostring(OperationId);
             let FailedRecent = CorrelatedExceptions
-              | where LastSeen > ago(5m)
+              | where LastSeen > ago(15m)
               | join kind=inner FailedRecentOperations on CorrelationId
               | project ExceptionSignature, AppRole, LastSeen, Reason='failed_operation';
             let PersistentCorrelated = CorrelatedExceptions
@@ -688,7 +688,7 @@ resource applicationExceptionAlert 'Microsoft.Insights/scheduledQueryRules@2023-
               | where DistinctOperations >= 3
               | project ExceptionSignature, AppRole, LastSeen, Reason='repeated_operations';
             let PersistentUncorrelated = AppExceptions
-              | where TimeGenerated > ago(15m) and isempty(OperationId)
+              | where TimeGenerated > ago(30m) and isempty(OperationId)
               | extend ExceptionSignature = strcat(
                   coalesce(ExceptionType, 'UnknownException'),
                   '|',

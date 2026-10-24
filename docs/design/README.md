@@ -118,7 +118,9 @@ Upload and Inbox retain their named navigation destinations.
 
 The **bell** is personal notifications and nothing else: never office-wide
 work, attention rows or queue counts. Its `.bell-count` shows the signed-in
-person's unread count and is absent at zero. The Notifications dialog lists
+person's unread count and is absent at zero. The page carries only that
+count; the dialog fetches its list when the bell opens (a page opened with
+`?notifications=1` draws the list itself). The Notifications dialog lists
 that person's notifications newest first — the Case reference with the
 registration in mono, the cause in operator words ("Estimate draft ready",
 "Assigned to you", "E-mail received", "Edited by …", "Query received"), when,
@@ -978,7 +980,7 @@ second caller and a recorded reason.
 | --- | --- |
 | `_Layout`, `_LayoutAuth` | Frames |
 | `wwwroot/images/lucide-sprite.svg` | The sprite, one fingerprinted static file |
-| `_ShellDialogs` | Account, Notifications, command palette, What's new, Report a problem |
+| `_ShellDialogs` | Account, Notifications, command palette, What's new, Report a problem; the Account, command palette and Report a problem content is `_ShellAccountDialog`, `_ShellCommandDialog` and `_ShellProblemDialog`, fetched when each first opens |
 | `_AdminNav` | Administration panel nav |
 | `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadReview` | Retained, restyled to the vocabulary |
 | `Presentation/OperatorLabels.cs` | The one label map |

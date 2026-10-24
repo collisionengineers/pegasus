@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -15,18 +16,27 @@ using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
+/// <summary>
+/// The class shares one database (<see cref="WorkflowDatabase"/>) and every test
+/// makes Cases of its own in it. A test that reads or writes across the whole
+/// database makes a database of its own (<c>CreateIsolatedAsync</c>): the
+/// retained Sent evidence and the approved mailbox's poll, a count of every
+/// Case, a search over all of them, the QDOS Principal and its sequence, the
+/// action history of every cancelled task, and an instruction draft.
+/// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseWorkflowPersistenceTests
+public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
+    : IClassFixture<WorkflowDatabase>
 {
     [Fact]
     public async Task HasOperationFindsAKeyInTheHistoryOrTheLeaseOperationsAndNothingElse()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-probe"),
             default);
-        await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(harness.CaseId, 0, actor, "start-probe", "Inspection work started", lease.Token),
             default);
 
@@ -39,7 +49,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task StartMovesDirectlyToReportPreparationAndRetainedSentEvidenceNeedsNoApproval()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var startLease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-start"),
@@ -51,7 +61,7 @@ public sealed class CaseWorkflowPersistenceTests
             "start-1",
             "Inspection work started",
             startLease.Token);
-        var start = new StartCaseWork(harness.Store, harness.EngineerEligibility);
+        var start = new StartCaseWork(harness.Store);
 
         var started = await start.ExecuteAsync(startRequest, default);
         await harness.SetStaffEnabledAsync(started.AssignedEngineerId!.Value, false);
@@ -101,21 +111,7 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Null(sent.ReportApproval);
         Assert.Equal(evidenceId, sent.ReportSentEvidence?.EvidenceId);
 
-        var closeLease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, sent.Version, actor, "claim-post-report-close"),
-            default);
-        // Core no longer closes a Report sent Case, so the store closes it, as
-        // the Cases closed before that rule were.
-        var closed = await harness.Store.CloseAsync(
-            new(
-                harness.CaseId,
-                sent.Version,
-                actor,
-                "close-post-report",
-                "Principal cancelled after report delivery",
-                closeLease.Token,
-                CaseClosureOutcome.PrincipalCancelled),
-            default);
+        var closed = await ArrangeClosedFromReportSentAsync(harness, harness.CaseId);
         var reopenLease = await harness.Store.ClaimAsync(
             new(harness.CaseId, closed.Version, actor, "claim-post-report-reopen"),
             default);
@@ -137,7 +133,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ReturnToEngineerAllowsReportSentWithTheNormalLeaseAndAssignedEngineerGates()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
@@ -150,8 +146,7 @@ public sealed class CaseWorkflowPersistenceTests
             new(harness.CaseId, 0, actor, "claim-return-query"),
             CancellationToken.None);
 
-        var returned = await new ReturnCaseToEngineer(
-            harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var returned = await new ReturnCaseToEngineer(harness.Store).ExecuteAsync(
             new(
                 harness.CaseId,
                 0,
@@ -168,14 +163,13 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ReturnToEngineerRefusesOtherStates()
     {
-        await using var stateHarness = await WorkflowHarness.CreateAsync();
+        await using var stateHarness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var reviewLease = await stateHarness.Store.ClaimAsync(
             new(stateHarness.CaseId, 0, actor, "claim-return-review"),
             CancellationToken.None);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ReturnCaseToEngineer(
-                stateHarness.Store, stateHarness.EngineerEligibility).ExecuteAsync(
+            new ReturnCaseToEngineer(stateHarness.Store).ExecuteAsync(
                 new(
                     stateHarness.CaseId,
                     0,
@@ -194,7 +188,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ReturnToEngineerAndReopenLandAnUnassignedCaseUnassigned()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
@@ -211,7 +205,7 @@ public sealed class CaseWorkflowPersistenceTests
         var returnLease = await harness.Store.ClaimAsync(
             new(harness.NotReadyCaseId, 0, actor, "claim-return-unassigned"),
             CancellationToken.None);
-        var returned = await new ReturnCaseToEngineer(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var returned = await new ReturnCaseToEngineer(harness.Store).ExecuteAsync(
             new(
                 harness.NotReadyCaseId,
                 0,
@@ -250,7 +244,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AWithEngineerCaseIsHandedOnWithoutTheReviewGateAndKeepsItsEntryTime()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actorId = Guid.NewGuid();
         var engineerId = Guid.NewGuid();
         await harness.SeedStaffAccountAsync(actorId, true, StaffRole.Engineer);
@@ -259,7 +253,6 @@ public sealed class CaseWorkflowPersistenceTests
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
-            harness.EngineerEligibility,
             new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
 
         async Task<CaseWorkflowRecord> HandAsync(Guid? to, string operationKey)
@@ -318,7 +311,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ALoggedQueryIsAnOpenStaffRowThatMarksTheReportSentCase()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.ReportSent);
         var lease = await harness.Store.ClaimAsync(
@@ -360,7 +353,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task LoggingAQueryBeforeTheReportIsSentIsRefused()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-log-review-query"),
@@ -386,6 +379,182 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
+    /// The Case commands read no Case of their own (eff-07-l, register A3-06): the
+    /// transition store asks each state rule of the workflow it reads under its lock,
+    /// before the archive, lease and version checks, and says it in the words the
+    /// command always used. A refusal changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task EachLifecycleCommandIsRefusedFromTheLockedStateInItsOwnWords()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var caseId = harness.CaseId;
+        var evidenceId = Guid.NewGuid();
+
+        async Task<string> LeaseAsync(string key) => (await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(caseId, 0, actor, $"claim-{key}") { TakeOver = true },
+            default)).Token;
+
+        async Task RefusedAsync(string words, Func<Task> command)
+        {
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(command);
+            Assert.Equal(words, exception.Message);
+        }
+
+        // Review: nothing to release, reopen, unlink, link, approve or resolve, and no report sent to query.
+        var token = await LeaseAsync("in-review");
+        await RefusedAsync(
+            "Only a held case can be released.",
+            () => new ReleaseCaseHold(harness.Store).ExecuteAsync(
+                new ChangeCaseStateRequest(caseId, 0, actor, "release-in-review", "Back to work", token), default));
+        await RefusedAsync(
+            "A case can enter Review only from With Engineer or Report sent.",
+            () => new ReturnCaseToReview(harness.Store).ExecuteAsync(
+                new ReturnCaseToReviewRequest(caseId, 0, actor, "return-in-review", "Back to Review", token), default));
+        await RefusedAsync(
+            "Only a closed case other than Created in error can be reopened.",
+            () => new ReopenCase(harness.Store).ExecuteAsync(
+                new ReopenCaseRequest(
+                    caseId, 0, actor, "reopen-in-review", "Resume", token, CaseReopenDestination.Review),
+                default));
+        await RefusedAsync(
+            "Report-Sent evidence can be unlinked only while report preparation is active.",
+            () => new UnlinkReportEvidence(harness.Store).ExecuteAsync(
+                new UnlinkReportEvidenceRequest(caseId, 0, actor, "unlink-in-review", "Wrong item", token, evidenceId),
+                default));
+        await RefusedAsync(
+            "Exact report-Sent evidence can enter post-report work only from Report preparation.",
+            () => new LinkReportEvidence(harness.Store).ExecuteAsync(
+                new LinkReportEvidenceRequest(caseId, 0, actor, "link-in-review", "Sent item", token, evidenceId),
+                default));
+        await RefusedAsync(
+            "A report can be approved only while report preparation is active.",
+            () => new RecordCaseReportApproval(harness.Store).ExecuteAsync(
+                new RecordCaseReportApprovalRequest(
+                    caseId, 0, actor, "approve-in-review", "Approved", token,
+                    new(Guid.NewGuid(), "case-report-v1.pdf", new string('A', 64))),
+                default));
+        await RefusedAsync(
+            "The case has no open query to resolve.",
+            () => new ResolveCaseQueries(harness.Store).ExecuteAsync(
+                new ResolveCaseQueriesRequest(caseId, 0, actor, "resolve-in-review", string.Empty, token), default));
+        await RefusedAsync(
+            "Only a terminal case can be archived.",
+            () => new ArchiveCase(harness.Store).ExecuteAsync(
+                new ArchiveCaseRequest(caseId, 0, actor, "archive-in-review", "Retain", token), default));
+        await RefusedAsync(
+            "A case can return to Engineer only from Report sent.",
+            () => new ReturnCaseToEngineer(harness.Store).ExecuteAsync(
+                new ReturnCaseToEngineerRequest(
+                    caseId, 0, actor, "return-to-engineer-in-review", "Query needs the report", token),
+                default));
+
+        // Report sent: no new hold, and a closure is for a Case whose report is not yet sent.
+        await SetStateAsync(harness, caseId, CaseLifecycleState.ReportSent);
+        token = await LeaseAsync("report-sent");
+        await RefusedAsync(
+            "A case can be held only from Not ready, Review or With Engineer.",
+            () => new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
+                new PutCaseOnHoldRequest(caseId, 0, actor, "hold-report-sent", "Waiting", token), default));
+        await RefusedAsync(
+            "A case can be closed only before its report is sent.",
+            () => new CloseCase(harness.Store).ExecuteAsync(
+                new CloseCaseRequest(
+                    caseId, 0, actor, "close-report-sent", "Cancelled", token, CaseClosureOutcome.PrincipalCancelled),
+                default));
+        await RefusedAsync(
+            "Case work can start only from Review after a staff member is assigned.",
+            () => new StartCaseWork(harness.Store).ExecuteAsync(
+                new ChangeCaseStateRequest(caseId, 0, actor, "start-report-sent", "Start work", token), default));
+        // The state is refused before the Engineer is looked up: this Engineer has no account.
+        await RefusedAsync(
+            "A staff member can be assigned only while the case is in Review or With Engineer.",
+            () => harness.Store.AssignEngineerAsync(
+                new AssignCaseEngineerRequest(
+                    caseId, 0, actor, "assign-report-sent", "Assign Engineer", token, Guid.NewGuid()),
+                CaseLifecycleState.ReportPreparation,
+                default));
+
+        // A closed Case: no second closure, no hold, and no unlink before a reasoned reopening.
+        await SetStateAsync(harness, caseId, CaseLifecycleState.PrincipalCancelled);
+        token = await LeaseAsync("closed");
+        await RefusedAsync(
+            "A closed case cannot be closed again.",
+            () => new CloseCase(harness.Store).ExecuteAsync(
+                new CloseCaseRequest(
+                    caseId, 0, actor, "close-closed", "Cancelled", token, CaseClosureOutcome.PrincipalCancelled),
+                default));
+        await RefusedAsync(
+            "A case can be held only from Not ready, Review or With Engineer.",
+            () => new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
+                new PutCaseOnHoldRequest(caseId, 0, actor, "hold-closed", "Waiting", token), default));
+        await RefusedAsync(
+            "A closed case must be reasonedly reopened before report-Sent evidence can be unlinked.",
+            () => new UnlinkReportEvidence(harness.Store).ExecuteAsync(
+                new UnlinkReportEvidenceRequest(caseId, 0, actor, "unlink-closed", "Wrong item", token, evidenceId),
+                default));
+
+        var persisted = Assert.IsType<CaseWorkflowRecord>(await harness.Store.GetAsync(caseId, default));
+        Assert.Equal(CaseLifecycleState.PrincipalCancelled, persisted.State);
+        Assert.Equal(0L, persisted.Version);
+    }
+
+    /// <summary>
+    /// An operation the store already committed is answered, not refused again, though the
+    /// Case has moved on: a Hold replayed from Held is the committed Hold, and a new
+    /// operation key on the same Held Case is refused.
+    /// </summary>
+    [Fact]
+    public async Task AReplayedHoldIsAnsweredFromHeldAndANewKeyIsRefused()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(new(harness.CaseId, 0, actor, "claim-hold-replay"), default);
+        var hold = new PutCaseOnHold(harness.Store, harness.TimeProvider);
+        var request = new PutCaseOnHoldRequest(harness.CaseId, 0, actor, "hold-once", "Waiting", lease.Token);
+
+        var held = await hold.ExecuteAsync(request, default);
+        var replay = await hold.ExecuteAsync(request, default);
+
+        Assert.Equal(CaseLifecycleState.Held, held.State);
+        Assert.Equal(held.Version, replay.Version);
+        Assert.Equal(CaseLifecycleState.Held, replay.State);
+        Assert.Equal(1L, await harness.WorkflowEventCountAsync("hold-once"));
+
+        var again = await harness.Store.ClaimAsync(new(harness.CaseId, held.Version, actor, "claim-hold-again"), default);
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => hold.ExecuteAsync(
+            request with { ExpectedVersion = held.Version, OperationKey = "hold-twice", EditLeaseToken = again.Token },
+            default));
+        Assert.Equal("A case can be held only from Not ready, Review or With Engineer.", refused.Message);
+    }
+
+    /// <summary>
+    /// A Close is answered from the committed record while the Case is still closed, and is
+    /// refused in the Close words once the Case has moved to Report sent, as Core always did.
+    /// </summary>
+    [Fact]
+    public async Task AReplayedCloseIsAnsweredWhileClosedAndRefusedOnceTheCaseIsReportSent()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync(database);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = await harness.Store.ClaimAsync(new(harness.CaseId, 0, actor, "claim-close-replay"), default);
+        var close = new CloseCase(harness.Store);
+        var request = new CloseCaseRequest(
+            harness.CaseId, 0, actor, "close-once", "Cancelled", lease.Token, CaseClosureOutcome.PrincipalCancelled);
+
+        var closed = await close.ExecuteAsync(request, default);
+        var replay = await close.ExecuteAsync(request, default);
+
+        Assert.Equal(CaseLifecycleState.PrincipalCancelled, closed.State);
+        Assert.Equal(closed.Version, replay.Version);
+
+        await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.ReportSent);
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => close.ExecuteAsync(request, default));
+        Assert.Equal("A case can be closed only before its report is sent.", refused.Message);
+    }
+
+    /// <summary>
     /// Resolve query closes every open query on the Case at once (operator, 11
     /// October 2026) and clears the mark; a second Resolve with nothing open
     /// is refused and changes nothing.
@@ -393,7 +562,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ResolveClosesEveryOpenQueryTogetherAndThenHasNothingToResolve()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.ReportSent);
         var version = 0L;
@@ -454,7 +623,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AHoldMigratedFromReportSentStillReleases()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.ReportSent);
         var logLease = await harness.Store.ClaimAsync(
@@ -485,6 +654,26 @@ public sealed class CaseWorkflowPersistenceTests
         await AssertOpenQueryMarkMatchesRowsAsync(harness, harness.CaseId);
     }
 
+    /// <summary>
+    /// Core refuses to close a Report sent Case and the store asks the same rule
+    /// of the workflow it reads under its lock, so a Case closed from Report sent,
+    /// as Cases were before that rule, is arranged in the database.
+    /// </summary>
+    private static async Task<CaseWorkflowRecord> ArrangeClosedFromReportSentAsync(
+        WorkflowHarness harness,
+        Guid caseId)
+    {
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+            workflow.State = nameof(CaseLifecycleState.PrincipalCancelled);
+            workflow.ClosureOutcome = nameof(CaseClosureOutcome.PrincipalCancelled);
+            await context.SaveChangesAsync();
+        }
+
+        return Assert.IsType<CaseWorkflowRecord>(await harness.Store.GetAsync(caseId, default));
+    }
+
     private static async Task SetStateAsync(WorkflowHarness harness, Guid caseId, CaseLifecycleState state)
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
@@ -511,7 +700,7 @@ public sealed class CaseWorkflowPersistenceTests
     {
         // The gate reads the case's own Instruction complete and
         // Images complete columns inside the transition's transaction.
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
@@ -522,6 +711,9 @@ public sealed class CaseWorkflowPersistenceTests
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-return-refused"),
             default);
+        // Return to Review asks its state rule (With Engineer or Report sent)
+        // before the readiness gate, so the Case is put in a state that passes it.
+        await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.ReportPreparation);
         await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
             harness.Store.ReturnToReviewAsync(
                 new(
@@ -532,6 +724,11 @@ public sealed class CaseWorkflowPersistenceTests
                     "Return to Review while the record is incomplete",
                     lease.Token),
                 default));
+        await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.Review);
+        // The store refuses an unknown Engineer before the readiness gate, so the
+        // hand-off names an enabled one.
+        var engineerId = Guid.NewGuid();
+        await harness.SeedStaffAccountAsync(engineerId, true, StaffRole.Engineer);
 
         await Assert.ThrowsAsync<CaseReviewReadinessException>(() =>
             harness.Store.AssignEngineerAsync(
@@ -542,8 +739,7 @@ public sealed class CaseWorkflowPersistenceTests
                     "assign-engineer-refused",
                     "Assign Engineer while the record is incomplete",
                     lease.Token,
-                    Guid.NewGuid()),
-                null,
+                    engineerId),
                 CaseLifecycleState.ReportPreparation,
                 default));
 
@@ -555,7 +751,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AssignedEngineersAreReadForManyCasesAtOnceAndAnUnknownCaseIsAbsent()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var unknownCaseId = Guid.NewGuid();
 
         var engineers = await harness.Store.GetAssignedEngineersAsync(
@@ -576,7 +772,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task StartRejectsEngineerDisabledAfterAssignment()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var workflow = Assert.IsType<CaseWorkflowRecord>(
             await harness.Store.GetAsync(harness.CaseId, default));
         var engineerId = Assert.IsType<Guid>(workflow.AssignedEngineerId);
@@ -587,7 +783,7 @@ public sealed class CaseWorkflowPersistenceTests
             default);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+            () => new StartCaseWork(harness.Store).ExecuteAsync(
                 new ChangeCaseStateRequest(
                     harness.CaseId,
                     workflow.Version,
@@ -607,9 +803,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ApprovedSentPollRetainsAndAutoLinksOneAuthoritativeCaseIdempotently()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -709,9 +905,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ReportApprovalIsServerStampedAndSentEvidenceFollowsPreparationAndApproval()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -854,9 +1050,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AutoLinkUsesCanonicalVersionAndHistoryKeepsTheLeaseAndReplays()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -921,7 +1117,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AutoLinkPolicyDenialsLeaveEvidenceUnlinkedAndWorkflowUnchanged()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var unreadyEvidence = await RetainReportEvidenceAsync(
             harness,
             "auto-link-unready",
@@ -954,7 +1150,7 @@ public sealed class CaseWorkflowPersistenceTests
             harness.TimeProvider.GetUtcNow().AddMinutes(-2),
             harness.TimeProvider.GetUtcNow().AddMinutes(-1));
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.SecondCaseId,
                 0,
@@ -990,9 +1186,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AutoLinkReplayAfterStaffRelinkDoesNotOverwriteCurrentAssociation()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var firstStarted = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var firstStarted = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1003,7 +1199,7 @@ public sealed class CaseWorkflowPersistenceTests
                     new(harness.CaseId, 0, staff, "claim-auto-link-origin"),
                     default)).Token),
             default);
-        var secondStarted = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var secondStarted = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.SecondCaseId,
                 0,
@@ -1031,24 +1227,7 @@ public sealed class CaseWorkflowPersistenceTests
         var linkedAssociation = Assert.IsType<AutoLinkedReportEvidence>(autoLinked.Link);
         Assert.Equal(firstStarted.Version + 1, linkedAssociation.Version);
 
-        // The store closes the Report sent Case, as the Cases closed before
-        // Core refused that were.
-        var closed = await harness.Store.CloseAsync(
-            new(
-                harness.CaseId,
-                linkedAssociation.Version,
-                staff,
-                "close-before-auto-unlink",
-                "Correct the automatic report-evidence association",
-                (await harness.Store.ClaimAsync(
-                    new(
-                        harness.CaseId,
-                        linkedAssociation.Version,
-                        staff,
-                        "claim-close-before-auto-unlink"),
-                    default)).Token,
-                CaseClosureOutcome.PrincipalCancelled),
-            default);
+        var closed = await ArrangeClosedFromReportSentAsync(harness, harness.CaseId);
         var reopened = await new ReopenCase(harness.Store).ExecuteAsync(
             new(
                 harness.CaseId,
@@ -1120,9 +1299,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ConcurrentStaffAndWorkerLinkExactlyOneCaseAssociation()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1199,7 +1378,7 @@ public sealed class CaseWorkflowPersistenceTests
         StaffRole role,
         string expectedMessage)
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var engineerId = Guid.NewGuid();
         if (createAccount)
         {
@@ -1216,7 +1395,6 @@ public sealed class CaseWorkflowPersistenceTests
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
-            harness.EngineerEligibility,
             new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -1241,7 +1419,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task NativeHandoffToAnEnabledUserIsAtomicGuardedAndReplaySurvivesLaterDisablement()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var engineerId = Guid.NewGuid();
         await harness.SeedStaffAccountAsync(
             engineerId,
@@ -1265,7 +1443,6 @@ public sealed class CaseWorkflowPersistenceTests
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
-            harness.EngineerEligibility,
             new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
 
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
@@ -1279,7 +1456,8 @@ public sealed class CaseWorkflowPersistenceTests
 
         var assigned = await sut.ExecuteAsync(request, default);
         await harness.SetStaffEnabledAsync(engineerId, false);
-        var disabled = await harness.EngineerEligibility.GetAsync(engineerId, default);
+        await using var eligibilityContext = await harness.Factory.CreateDbContextAsync();
+        var disabled = await EfCaseEngineerEligibility.ReadAsync(eligibilityContext, engineerId, default);
         var replay = await sut.ExecuteAsync(request, default);
 
         Assert.False(disabled.IsEnabled);
@@ -1330,7 +1508,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ArchivedCaseProjectionRetainsPersistedSignOffEngineer()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var signOffEngineerId = Guid.NewGuid();
         await harness.SeedStaffAccountAsync(
             signOffEngineerId,
@@ -1363,9 +1541,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task FabricatedOrAlreadyLinkedSentEvidenceCannotTransitionAnotherCase()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1451,7 +1629,7 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(retained.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
         Assert.Equal(1L, await harness.WorkflowEventCountAsync("link-exclusive-evidence"));
 
-        var secondStarted = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var secondStarted = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.SecondCaseId,
                 0,
@@ -1491,9 +1669,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ReportEvidenceUnlinkRequiresReportPreparationAndPreservesRetainedEvidence()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1553,18 +1731,10 @@ public sealed class CaseWorkflowPersistenceTests
                 retained.EvidenceId),
             default));
 
-        // The store closes the Report sent Case, as the Cases closed before
-        // Core refused that were.
-        var closed = await harness.Store.CloseAsync(
-            new(
-                harness.CaseId,
-                linked.Version,
-                actor,
-                "close-before-unlink",
-                "Principal cancelled after the report",
-                postReportLease.Token,
-                CaseClosureOutcome.PrincipalCancelled),
+        await harness.Store.ReleaseAsync(
+            new(harness.CaseId, actor, "release-post-report-correction", postReportLease.Token),
             default);
+        var closed = await ArrangeClosedFromReportSentAsync(harness, harness.CaseId);
         var reopened = await new ReopenCase(harness.Store).ExecuteAsync(
             new(
                 harness.CaseId,
@@ -1602,12 +1772,12 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task HoldReleaseRestoresReportPreparationAndNotReadyChaseInterval()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var startLease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-start"),
             default);
-        var reportPreparation = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var reportPreparation = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1690,7 +1860,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ManualChaseUsesTrustedUtcAndExactReplayDoesNotDuplicateWork()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var lease = await harness.Store.ClaimAsync(
             new(harness.NotReadyCaseId, 0, actor, "claim-manual-chase"),
@@ -1738,7 +1908,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ReopenToReportSentWithoutRetainedSentEvidenceFailsClosed()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var closeLease = await harness.Store.ClaimAsync(
             new(harness.SecondCaseId, 0, actor, "claim-close"),
@@ -1778,7 +1948,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task EditLeaseClaimAndRenewExpireFiveMinutesFromServerTime()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var claimedAtUtc = harness.TimeProvider.GetUtcNow();
 
@@ -1811,7 +1981,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ExactLeaseClaimReplayRecoversOpaqueTokenWithoutExtendingExpiry()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var staffId = Guid.NewGuid();
         var actor = ActionActor.Staff(
             staffId,
@@ -1848,7 +2018,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task LeaseClaimOperationKeyRejectsChangedFingerprintAndCompetingClaim()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var staffId = Guid.NewGuid();
         var actor = ActionActor.Staff(
             staffId,
@@ -1911,7 +2081,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AuthorisedColleagueTakeoverRotatesTheCaseTokenAndRecordsThePriorHolder()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var first = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var second = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var held = await harness.Store.ClaimAsync(
@@ -1947,11 +2117,11 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AColleagueTakesOverACaseWhoseCurrentVersionAlreadyHasItsOwnEvent()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var first = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var second = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var third = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -1996,7 +2166,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task TheHoldersOwnClaimIsRefusedUnlessTakenBackAndIsNeverATakeover()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var held = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, holder, "own-first-claim"),
@@ -2025,7 +2195,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ResumeHandsTheHolderTheirLiveLeaseAndNobodyElse()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var held = await harness.Store.ClaimAsync(
@@ -2058,7 +2228,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task StaffTakeOverOfAnAutomationHeldCaseRecordsTheAutomationActor()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var held = await harness.Store.ClaimAsync(
@@ -2087,10 +2257,10 @@ public sealed class CaseWorkflowPersistenceTests
                 new RenewCaseEditLeaseRequest(harness.CaseId, 0, automation, "automation-renew", held.Token),
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
-            harness.Store.ChangeStateAsync(
-                new ChangeCaseStateRequest(
-                    harness.CaseId, 0, automation, "automation-write", "Automation wrote after the takeover", held.Token),
-                CaseLifecycleState.Review,
+            harness.Store.CloseAsync(
+                new CloseCaseRequest(
+                    harness.CaseId, 0, automation, "automation-write", "Automation wrote after the takeover", held.Token,
+                    CaseClosureOutcome.PrincipalCancelled),
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.Store.ReleaseAsync(
@@ -2118,7 +2288,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AnAutomationClaimCannotTakeOverAnAutomationHeldCase()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
         var otherGrant = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
         var held = await harness.Store.ClaimAsync(
@@ -2142,7 +2312,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task LeaseReleaseAndExpiryDiscardReplayCredentialBeforeReplacement()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var request = new ClaimCaseEditLeaseRequest(
             harness.CaseId,
@@ -2213,7 +2383,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task EachClaimAdvancesLeaseGeneration()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var holderId = Guid.NewGuid();
         var holder = ActionActor.Staff(holderId, [StaffRole.User]);
         var first = await harness.Store.ClaimAsync(
@@ -2237,7 +2407,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ALiveLeaseProjectsItsHolderAndExpiryAndAnExpiredOneProjectsNoActiveEditor()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var claimedAtUtc = harness.TimeProvider.GetUtcNow();
         var lease = await harness.Store.ClaimAsync(
@@ -2272,7 +2442,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task HeartbeatExtendsTheLeaseWithoutWritingAReplayRowOrTouchingTheClaimKey()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-heartbeat"),
@@ -2303,7 +2473,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task HeartbeatIsRefusedForANonHolderAfterExpiryAndAfterAnotherClaim()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var other = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await harness.Store.ClaimAsync(
@@ -2334,7 +2504,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task RepeatedHeartbeatsHoldTheLeaseIndefinitelyAndStoppingThemLetsItLapse()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var editor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var waiting = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await harness.Store.ClaimAsync(
@@ -2370,7 +2540,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ASaveEndsEditModeImmediatelyAndALaterHeartbeatCannotResurrectIt()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-before-save"),
@@ -2396,7 +2566,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AnAutomationHeldLeaseRefusesEveryStaffOperationAndTheHolderStillSaves()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var automation = ActionActor.Automation("pegasus-automation");
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await harness.Store.ClaimAsync(
@@ -2443,7 +2613,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AStaffHeldLeaseRefusesEveryAutomationOperationAndTheHolderStillReleases()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var automation = ActionActor.Automation("pegasus-automation");
         var lease = await harness.Store.ClaimAsync(
@@ -2491,7 +2661,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task TheSameSubjectTextUnderAnotherActorKindIsACompetitorEvenWithTheLiveToken()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var staffId = Guid.NewGuid();
         var staff = ActionActor.Staff(staffId, [StaffRole.User]);
         var impostor = ActionActor.Automation(staffId.ToString("D"));
@@ -2547,7 +2717,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AnAbandonedLeaseExpiresAndIsReacquiredByADifferentHolder()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var firstActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var secondActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var abandoned = await harness.Store.ClaimAsync(
@@ -2605,7 +2775,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task CompetingLeaseAndFutureVersionAreRejectedButAPageBehindTheCaseClaims()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var firstActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var secondActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         _ = await harness.Store.ClaimAsync(new(harness.CaseId, 0, firstActor, "claim-1"), default);
@@ -2639,7 +2809,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task CreatedInErrorCannotUseTheGenericCloseCommand()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-close"),
@@ -2677,7 +2847,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AuditCaseLinkedCaseReplacementIsAllocatedLinkedAndReplayedAtomically()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var principal = await context.Principals.Include(item => item.Organization)
@@ -2819,7 +2989,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task WrongPrincipalReplacementRetainsClaimSourceOverridesAndStaffDueBy()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var manualDueBy = new DateOnly(2031, 5, 18);
         var replacementDeadline = new DateOnly(2031, 6, 2);
         await using (var context = await harness.Factory.CreateDbContextAsync())
@@ -2923,7 +3093,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AuditCaseReferenceFilterMatchesPrimaryAndSecondaryReferences()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         string secondaryReference;
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
@@ -2957,7 +3127,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task TheEngineerFiltersSelectUnassignedAndAssignedWithEngineerCases()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         Guid? engineerId;
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
@@ -2984,7 +3154,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AccidentCircumstancesAreReadForTheOneCaseFromItsConfirmedField()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateAsync(database);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             await InsertConfirmedCircumstancesAsync(context, harness.CaseId, "Rear-ended at lights");
@@ -2999,7 +3169,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AnInstructionDraftsAccidentCircumstancesWinOverTheConfirmedField()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var receiptId = await context.Cases
@@ -3022,7 +3192,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task WrongPrincipalReplacementCancelsTheOriginalsOpenTasksAndReplays()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var openTaskId = Guid.NewGuid();
         var completedTaskId = Guid.NewGuid();
         await harness.SeedCaseTaskAsync(harness.CaseId, openTaskId, CaseTaskState.Open);
@@ -3086,7 +3256,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ConcurrentTaskCreationAndWrongPrincipalReplacementUnderOneLeaseCommitExactlyOne()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-concurrent-task-replacement"),
@@ -3150,10 +3320,10 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AutoLinkCreatesTheSendsAfterSendTasksOnceInTheSendersNameAndAReplayCreatesNone()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var sender = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3225,9 +3395,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AutoLinkWithAfterSendTasksKeepsTheEditorsLease()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3279,9 +3449,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task AutoLinkWithoutASendOperationCreatesNoTasks()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3369,10 +3539,10 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task StaffMarkReportSentCreatesTheSendsTasksOnceInTheSendersName()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var sender = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3434,9 +3604,9 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task StaffMarkReportSentOfEvidenceThatIsNotAPegasusReportSendCreatesNoTasks()
     {
-        await using var harness = await WorkflowHarness.CreateAsync();
+        await using var harness = await WorkflowHarness.CreateIsolatedAsync();
         var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+        var started = await new StartCaseWork(harness.Store).ExecuteAsync(
             new ChangeCaseStateRequest(
                 harness.CaseId,
                 0,
@@ -3584,37 +3754,40 @@ public sealed class CaseWorkflowPersistenceTests
 
     private sealed class WorkflowHarness : IAsyncDisposable
     {
-        public const string ApprovedMailboxIdentity = "instructions";
-        public const string ApprovedMailboxAddress = "instructions@collisionengineers.co.uk";
-        public const string ApprovedSentFolderIdentity = "sent-items";
+        public const string ApprovedMailboxIdentity = WorkflowDatabase.ApprovedMailboxIdentity;
+        public const string ApprovedMailboxAddress = WorkflowDatabase.ApprovedMailboxAddress;
+        public const string ApprovedSentFolderIdentity = WorkflowDatabase.ApprovedSentFolderIdentity;
 
-        private static readonly DateTimeOffset StartUtc =
-            new(2026, 7, 29, 9, 0, 0, TimeSpan.Zero);
-        private readonly LocalDbTestDatabase database;
+        private static readonly DateTimeOffset StartUtc = WorkflowDatabase.StartUtc;
+        private readonly WorkflowDatabase database;
+        private readonly bool ownsDatabase;
+        private readonly WorkflowDatabase.SeededCases seeded;
         private readonly PooledDbContextFactory<PegasusDbContext> factory;
 
         public PooledDbContextFactory<PegasusDbContext> Factory => factory;
 
         private WorkflowHarness(
-            LocalDbTestDatabase database,
-            PooledDbContextFactory<PegasusDbContext> factory,
+            WorkflowDatabase database,
+            bool ownsDatabase,
+            WorkflowDatabase.SeededCases seeded,
             Guid caseId,
             Guid secondCaseId,
             Guid notReadyCaseId,
             MutableTimeProvider timeProvider)
         {
             this.database = database;
-            this.factory = factory;
+            this.ownsDatabase = ownsDatabase;
+            this.seeded = seeded;
+            factory = database.Factory;
             CaseId = caseId;
             SecondCaseId = secondCaseId;
             NotReadyCaseId = notReadyCaseId;
             TimeProvider = timeProvider;
             Store = new EfCaseWorkflowStore(factory, timeProvider);
             QueryStore = new EfCaseQueryStore(factory, timeProvider);
-            EngineerEligibility = new EfCaseEngineerEligibility(factory);
             ReportSentEvidenceStore = new EfCaseReportSentEvidenceStore(
                 factory,
-                new EfApprovedMailboxStore(factory, timeProvider));
+                new EfApprovedMailboxStore(factory, timeProvider, new MemoryCache(new MemoryCacheOptions())));
             ReplacementStore = new EfLinkedCaseReplacementStore(
                 factory,
                 timeProvider,
@@ -3630,7 +3803,6 @@ public sealed class CaseWorkflowPersistenceTests
         public string ConnectionString => database.ConnectionString;
         public EfCaseWorkflowStore Store { get; }
         public EfCaseQueryStore QueryStore { get; }
-        public EfCaseEngineerEligibility EngineerEligibility { get; }
         public EfCaseReportSentEvidenceStore ReportSentEvidenceStore { get; }
         public EfLinkedCaseReplacementStore ReplacementStore { get; }
         public EfCaseTaskStore TaskStore { get; }
@@ -3779,22 +3951,26 @@ public sealed class CaseWorkflowPersistenceTests
             database.ScalarAsync<long>(
                 "SELECT COUNT_BIG(*) FROM Cases WHERE Reference LIKE 'QDOS26%'");
 
-        public static async Task<WorkflowHarness> CreateAsync()
+        /// <summary>Cases of its own in the class's database, removed when the harness is disposed.</summary>
+        public static Task<WorkflowHarness> CreateAsync(WorkflowDatabase database) =>
+            OpenAsync(database, ownsDatabase: false);
+
+        /// <summary>
+        /// Cases in a database of its own, dropped when the harness is disposed,
+        /// for a test that reads or writes across the whole database.
+        /// </summary>
+        public static async Task<WorkflowHarness> CreateIsolatedAsync() =>
+            await OpenAsync(await WorkflowDatabase.CreateAsync(), ownsDatabase: true);
+
+        private static async Task<WorkflowHarness> OpenAsync(WorkflowDatabase database, bool ownsDatabase)
         {
-            var database = await LocalDbTestDatabase.CreateAsync();
+            WorkflowDatabase.SeededCases? seeded = null;
             try
             {
-                var options = new DbContextOptionsBuilder<PegasusDbContext>()
-                    .UseSqlServer(database.ConnectionString)
-                    .Options;
-                var factory = new PooledDbContextFactory<PegasusDbContext>(options);
-                await using var context = await factory.CreateDbContextAsync();
-
+                await using var context = await database.Factory.CreateDbContextAsync();
                 var timeProvider = new MutableTimeProvider(StartUtc);
                 var organizationId = Guid.NewGuid();
                 var tstLineageId = Guid.NewGuid();
-                var qdos = await SeededPrincipals.QdosAsync(context);
-                var qdosLineageId = qdos.SequenceLineageId;
                 var principalId = Guid.NewGuid();
                 var engineerId = Guid.NewGuid();
                 var caseId = Guid.NewGuid();
@@ -3803,22 +3979,26 @@ public sealed class CaseWorkflowPersistenceTests
                 var caseReceiptId = Guid.NewGuid();
                 var secondCaseReceiptId = Guid.NewGuid();
                 var notReadyReceiptId = Guid.NewGuid();
+                seeded = new(
+                    organizationId,
+                    tstLineageId,
+                    principalId,
+                    [caseId, secondCaseId, notReadyCaseId],
+                    [caseReceiptId, secondCaseReceiptId, notReadyReceiptId]);
 
-                // The Sent-evidence mailbox as the approved estate records it: the
-                // stable mailbox and Sent-folder identities, activated, on the seeded
-                // row whose generation is already positive.
-                var mailbox = (await context.ApprovedMailboxes.FindAsync(
-                    await TestMailboxId.EnsureApprovedAsync(
-                        context, ApprovedMailboxIdentity, ApprovedMailboxAddress, StartUtc.AddDays(-1))))!;
-                mailbox.AllowOutgoing = true;
-                mailbox.SentFolderIdentity = ApprovedSentFolderIdentity;
-                mailbox.Version = 2;
+                // The Principal's code and name, each Case's reference and each
+                // receipt's token and hash are unique in the database, so they come
+                // from the database's counter: the first harness in a database reads
+                // TST001 and the references TST26001 to TST26003.
+                var number = database.NextHarnessNumber();
+                var code = $"TST{number:000}";
+                var firstSequence = ((number - 1) * 3) + 1;
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {"Workflow test organization"}, {0L})");
+                    $"INSERT INTO Organizations (Role, Id, Name, Version) VALUES (N'principal', {organizationId}, {$"Workflow test organization {code}"}, {0L})");
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({tstLineageId}, {StartUtc})");
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, ReportSendingRulesJson, Version) VALUES ({principalId}, {organizationId}, {"TST"}, {tstLineageId}, {true}, {EfOrganizationAdministration.DefaultReportSendingJson}, {0L})");
+                    $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, ReportSendingRulesJson, Version) VALUES ({principalId}, {organizationId}, {code}, {tstLineageId}, {true}, {EfOrganizationAdministration.DefaultReportSendingJson}, {0L})");
                 var engineerRoleId = await context.Roles
                     .Where(role => role.NormalizedName == "ENGINEER")
                     .Select(role => role.Id)
@@ -3840,25 +4020,25 @@ public sealed class CaseWorkflowPersistenceTests
                     RoleId = engineerRoleId
                 });
                 await context.SaveChangesAsync();
-                await InsertReceiptAsync(context, caseReceiptId, 1);
-                await InsertReceiptAsync(context, secondCaseReceiptId, 2);
-                await InsertReceiptAsync(context, notReadyReceiptId, 3);
+                await InsertReceiptAsync(context, caseReceiptId, firstSequence);
+                await InsertReceiptAsync(context, secondCaseReceiptId, firstSequence + 1);
+                await InsertReceiptAsync(context, notReadyReceiptId, firstSequence + 2);
                 await InsertCaseAsync(
                     context,
                     caseId,
                     principalId,
                     tstLineageId,
                     caseReceiptId,
-                    "TST26001",
+                    $"TST26{firstSequence:000}",
                     1);
-                await InsertCaseDataSnapshotAsync(context, caseId, caseReceiptId);
+                await InsertCaseDataSnapshotAsync(context, caseId, caseReceiptId, firstSequence);
                 await InsertCaseAsync(
                     context,
                     secondCaseId,
                     principalId,
                     tstLineageId,
                     secondCaseReceiptId,
-                    "TST26002",
+                    $"TST26{firstSequence + 1:000}",
                     2);
                 await InsertCaseAsync(
                     context,
@@ -3866,7 +4046,7 @@ public sealed class CaseWorkflowPersistenceTests
                     principalId,
                     tstLineageId,
                     notReadyReceiptId,
-                    "TST26003",
+                    $"TST26{firstSequence + 2:000}",
                     3);
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO CaseWorkflows (CaseId, State, AssignedEngineerId, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.Review)}, {engineerId}, {0L}, {Guid.NewGuid()})");
@@ -3876,13 +4056,19 @@ public sealed class CaseWorkflowPersistenceTests
                     $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({notReadyCaseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO CaseDueWork (CaseId, MissingMaterialReason, State, NextChaseAtUtc, NextChaseAtUtcTicks, Version, ConcurrencyToken) VALUES ({notReadyCaseId}, {"Waiting for images"}, {nameof(CaseDueWorkState.Scheduled)}, {timeProvider.GetUtcNow().AddDays(3)}, {timeProvider.GetUtcNow().AddDays(3).UtcDateTime.Ticks}, {0L}, {Guid.NewGuid()})");
-                await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO ApprovedInboxPollStates (ApprovedMailboxId, MailboxAddress, ScopeFingerprint, ActivatedAtUtc, DueAtUtc) SELECT Id, Address, REPLICATE('0', 64), {StartUtc}, {timeProvider.GetUtcNow()} FROM ApprovedMailboxes WHERE Address = {"instructions@collisionengineers.co.uk"}");
-                return new(database, factory, caseId, secondCaseId, notReadyCaseId, timeProvider);
+                return new(database, ownsDatabase, seeded, caseId, secondCaseId, notReadyCaseId, timeProvider);
             }
             catch
             {
-                await database.DisposeAsync();
+                if (ownsDatabase)
+                {
+                    await database.DisposeAsync();
+                }
+                else if (seeded is not null)
+                {
+                    await database.RemoveAsync(seeded);
+                }
+
                 throw;
             }
         }
@@ -3904,10 +4090,11 @@ public sealed class CaseWorkflowPersistenceTests
         private static async Task InsertCaseDataSnapshotAsync(
             PegasusDbContext context,
             Guid caseId,
-            Guid receiptId)
+            Guid receiptId,
+            int sequence)
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {receiptId}, {"manual_upload"}, {"workflow-1"}, {1.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {StartUtc}, {"workflow-test-reader"}, {"1"}, {"workflow-fixture"}, {1}, {"case-workflow"}, {1}, {true}, {StartUtc})");
+                $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {receiptId}, {"manual_upload"}, {$"workflow-{sequence}"}, {sequence.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {StartUtc}, {"workflow-test-reader"}, {"1"}, {"workflow-fixture"}, {1}, {"case-workflow"}, {1}, {true}, {StartUtc})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"claimant_name"}, {"confirmed"}, {"text"}, {"Jane Workflow"}, {"intake_evidence"}, {receiptId.ToString("D")}, {"workflow fixture evidence"}, {"workflow-fixture"}, {1}, {"workflow-staff"}, {StartUtc})");
         }
@@ -4062,9 +4249,17 @@ public sealed class CaseWorkflowPersistenceTests
                 .SingleAsync();
         }
 
+        /// <summary>Ends a harness: drops the database it made, or removes its Cases from the shared one.</summary>
         public async ValueTask DisposeAsync()
         {
-            await database.DisposeAsync();
+            if (ownsDatabase)
+            {
+                await database.DisposeAsync();
+            }
+            else
+            {
+                await database.RemoveAsync(seeded);
+            }
         }
     }
 
@@ -4104,4 +4299,121 @@ public sealed class CaseWorkflowPersistenceTests
             _utcNow += interval;
         }
     }
+}
+
+/// <summary>
+/// The one database a class of workflow persistence tests shares: restored and
+/// migrated once, with the approved Sent-evidence mailbox set up as the estate
+/// has it. A test makes Cases of its own in it and removes them when it ends,
+/// so the next test finds the database as the one before it did. A test that
+/// reads or writes across the whole database makes a database of its own with
+/// <see cref="CreateAsync"/> instead.
+/// </summary>
+public sealed class WorkflowDatabase : IAsyncLifetime
+{
+    internal const string ApprovedMailboxIdentity = "instructions";
+    internal const string ApprovedMailboxAddress = "instructions@collisionengineers.co.uk";
+    internal const string ApprovedSentFolderIdentity = "sent-items";
+
+    internal static readonly DateTimeOffset StartUtc = new(2026, 7, 29, 9, 0, 0, TimeSpan.Zero);
+
+    private LocalDbTestDatabase? database;
+    private ForeignKeyRowRemoval? caseRemoval;
+    private int harnessNumber;
+
+    internal PooledDbContextFactory<PegasusDbContext> Factory { get; private set; } = null!;
+
+    internal string ConnectionString => Database.ConnectionString;
+
+    private LocalDbTestDatabase Database =>
+        database ?? throw new InvalidOperationException("The database has not been created.");
+
+    /// <summary>A database of its own, for a test that cannot share the class's.</summary>
+    internal static async Task<WorkflowDatabase> CreateAsync()
+    {
+        var created = new WorkflowDatabase();
+        try
+        {
+            await created.InitializeAsync();
+        }
+        catch
+        {
+            await created.DisposeAsync();
+            throw;
+        }
+
+        return created;
+    }
+
+    public async Task InitializeAsync()
+    {
+        database = await LocalDbTestDatabase.CreateAsync();
+        Factory = new PooledDbContextFactory<PegasusDbContext>(
+            new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(database.ConnectionString).Options);
+        await using var context = await Factory.CreateDbContextAsync();
+
+        // The Sent-evidence mailbox as the approved estate records it: the
+        // stable mailbox and Sent-folder identities, activated, on the seeded
+        // row whose generation is already positive.
+        var mailbox = (await context.ApprovedMailboxes.FindAsync(
+            await TestMailboxId.EnsureApprovedAsync(
+                context, ApprovedMailboxIdentity, ApprovedMailboxAddress, StartUtc.AddDays(-1))))!;
+        mailbox.AllowOutgoing = true;
+        mailbox.SentFolderIdentity = ApprovedSentFolderIdentity;
+        mailbox.Version = 2;
+        await context.SaveChangesAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO ApprovedInboxPollStates (ApprovedMailboxId, MailboxAddress, ScopeFingerprint, ActivatedAtUtc, DueAtUtc) SELECT Id, Address, REPLICATE('0', 64), {StartUtc}, {StartUtc} FROM ApprovedMailboxes WHERE Address = {ApprovedMailboxAddress}");
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (database is not null)
+        {
+            await database.DisposeAsync();
+        }
+    }
+
+    /// <summary>The next number for a harness's Principal code, references and receipts, each unique in the database.</summary>
+    internal int NextHarnessNumber() => Interlocked.Increment(ref harnessNumber);
+
+    internal Task<T> ScalarAsync<T>(string commandText) => Database.ScalarAsync<T>(commandText);
+
+    internal Task ExecuteAsync(string commandText) => Database.ExecuteAsync(commandText);
+
+    /// <summary>
+    /// Removes the Cases and everything that hangs from them, and the Principal,
+    /// Organization, sequence lineage and intake receipts they were seeded with.
+    /// The Engineer's account stays: its name is its own and no test reads the
+    /// accounts as a set.
+    /// </summary>
+    internal async Task RemoveAsync(SeededCases seeded)
+    {
+        caseRemoval ??= await ForeignKeyRowRemoval.CreateAsync(
+            Database, ForeignKeyRowRemoval.CasesTable, ForeignKeyRowRemoval.InRoots, []);
+
+        // One batch: the walk from every Case, then the history (it names a Case
+        // without a key to it) and the rows the Cases were seeded from.
+        var parameters = new List<(string Name, object Value)>
+        {
+            ("@principalId", seeded.PrincipalId),
+            ("@lineageId", seeded.LineageId),
+            ("@organizationId", seeded.OrganizationId),
+        };
+        var caseNames = ForeignKeyRowRemoval.AddParameters(parameters, "case", seeded.CaseIds);
+        var receiptNames = ForeignKeyRowRemoval.AddParameters(parameters, "receipt", seeded.ReceiptIds);
+        var sql = ForeignKeyRowRemoval.RootsDeclaration
+            + $"INSERT @roots (Id) VALUES {string.Join(", ", caseNames.Select(name => $"({name})"))};\n"
+            + caseRemoval.Sql + ";\n"
+            + "DELETE FROM [dbo].[ActionHistory] WHERE AggregateId IN (SELECT LOWER(CONVERT(nvarchar(36), Id)) FROM @roots);\n"
+            + "DELETE FROM [dbo].[Principals] WHERE Id = @principalId;\n"
+            + "DELETE FROM [dbo].[PrincipalSequenceLineages] WHERE Id = @lineageId;\n"
+            + "DELETE FROM [dbo].[Organizations] WHERE Id = @organizationId;\n"
+            + $"DELETE FROM [dbo].[IntakeReceipts] WHERE Id IN ({string.Join(", ", receiptNames)})";
+        await ForeignKeyRowRemoval.ExecuteAsync(Database, sql, [.. parameters]);
+    }
+
+    /// <summary>The Cases one harness seeded, with the rows they were seeded from.</summary>
+    internal sealed record SeededCases(
+        Guid OrganizationId, Guid LineageId, Guid PrincipalId, Guid[] CaseIds, Guid[] ReceiptIds);
 }

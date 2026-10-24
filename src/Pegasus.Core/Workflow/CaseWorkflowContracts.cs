@@ -475,6 +475,12 @@ public sealed record LinkReportEvidenceResult(
     CaseWorkflowRecord Workflow,
     IReadOnlyList<CaseTaskRecord> TasksCreated);
 
+/// <summary>
+/// The outcome of Assign Engineer: the Case's workflow as it now stands, and whether
+/// the store answered an operation it had already committed (which tells nobody again).
+/// </summary>
+public sealed record CaseEngineerAssignment(CaseWorkflowRecord Workflow, bool IsReplay);
+
 public sealed record UnlinkReportEvidenceRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -603,9 +609,12 @@ public sealed record AutomationLeasesReleased(IReadOnlyList<Guid> CaseIds, int E
 /// </summary>
 public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
 {
-    Task<CaseWorkflowRecord> ChangeStateAsync(
+    /// <summary>
+    /// Starts the Case's work (Review to With Engineer). The store refuses the state and
+    /// the assigned Engineer's eligibility inside its own transaction.
+    /// </summary>
+    Task<CaseWorkflowRecord> StartWorkAsync(
         CaseMutationRequest request,
-        CaseLifecycleState targetState,
         CancellationToken cancellationToken);
 
     Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken);
@@ -618,9 +627,13 @@ public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
         ReturnCaseToReviewRequest request,
         CancellationToken cancellationToken);
 
-    Task<CaseWorkflowRecord> AssignEngineerAsync(
+    /// <summary>
+    /// Hands the Case to the Engineer (or to nobody). The store refuses the state,
+    /// reads the Engineer's eligibility and resolves the Sign-off Engineer inside
+    /// its own transaction; a replay answers the committed record.
+    /// </summary>
+    Task<CaseEngineerAssignment> AssignEngineerAsync(
         AssignCaseEngineerRequest request,
-        Guid? signOffEngineerId,
         CaseLifecycleState targetState,
         CancellationToken cancellationToken);
 

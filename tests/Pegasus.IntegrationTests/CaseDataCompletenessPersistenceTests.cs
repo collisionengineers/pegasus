@@ -460,11 +460,13 @@ public sealed class CaseDataCompletenessPersistenceTests
         private static readonly DateTimeOffset StartUtc =
             new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private readonly LocalDbTestDatabase database;
+        private readonly CaseWorkspaceDatabase? shared;
         private readonly PooledDbContextFactory<PegasusDbContext> factory;
         private readonly AcquireCaseEditLease acquireLease;
 
         private CaseDataHarness(
             LocalDbTestDatabase database,
+            CaseWorkspaceDatabase? shared,
             PooledDbContextFactory<PegasusDbContext> factory,
             MutableTimeProvider timeProvider,
             Guid receiptId,
@@ -481,6 +483,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             WorkflowStore = workflowStore;
             WorkspaceStore = workspaceStore;
             this.database = database;
+            this.shared = shared;
             this.factory = factory;
             TimeProvider = timeProvider;
             ReceiptId = receiptId;
@@ -509,14 +512,36 @@ public sealed class CaseDataCompletenessPersistenceTests
             string? correctedAddress = null)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
+            var factory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>()
+                    .UseSqlServer(database.ConnectionString)
+                    .Options);
+            return await OpenAsync(database, shared: null, factory, addressDecision, correctedAddress);
+        }
+
+        /// <summary>
+        /// The accepted Case in the class's database, removed with the intake it
+        /// came from when the harness is disposed.
+        /// </summary>
+        public static Task<CaseDataHarness> CreateAsync(CaseWorkspaceDatabase shared) =>
+            OpenAsync(
+                shared.Database,
+                shared,
+                shared.Factory,
+                InspectionAddressStaffDecision.AcceptSuggestion,
+                correctedAddress: null);
+
+        private static async Task<CaseDataHarness> OpenAsync(
+            LocalDbTestDatabase database,
+            CaseWorkspaceDatabase? shared,
+            PooledDbContextFactory<PegasusDbContext> factory,
+            InspectionAddressStaffDecision addressDecision,
+            string? correctedAddress)
+        {
+            var receiptId = Guid.NewGuid();
             try
             {
-                var options = new DbContextOptionsBuilder<PegasusDbContext>()
-                    .UseSqlServer(database.ConnectionString)
-                    .Options;
-                var factory = new PooledDbContextFactory<PegasusDbContext>(options);
                 var timeProvider = new MutableTimeProvider(StartUtc);
-                var receiptId = Guid.NewGuid();
                 var staffId = Guid.NewGuid();
                 var staffActor = ActionActor.Staff(staffId, [StaffRole.User]);
                 var sourceHash = new string('a', 64);
@@ -571,6 +596,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                 var dataStore = new EfCaseDataStore(factory);
                 return new(
                     database,
+                    shared,
                     factory,
                     timeProvider,
                     receiptId,
@@ -585,7 +611,15 @@ public sealed class CaseDataCompletenessPersistenceTests
             }
             catch
             {
-                await database.DisposeAsync();
+                if (shared is null)
+                {
+                    await database.DisposeAsync();
+                }
+                else
+                {
+                    await shared.RemoveAsync(receiptId);
+                }
+
                 throw;
             }
         }
@@ -617,7 +651,17 @@ public sealed class CaseDataCompletenessPersistenceTests
                 .SingleAsync();
         }
 
-        public async ValueTask DisposeAsync() => await database.DisposeAsync();
+        public async ValueTask DisposeAsync()
+        {
+            if (shared is null)
+            {
+                await database.DisposeAsync();
+            }
+            else
+            {
+                await shared.RemoveAsync(ReceiptId);
+            }
+        }
 
         private static async Task SeedAsync(
             IDbContextFactory<PegasusDbContext> factory,

@@ -37,8 +37,8 @@
 @using ImportLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
-    var caseId = Model.Case!.Workflow.CaseId;
-    var caseVersion = Model.Case.Workflow.Version;
+    var caseId = Model.CurrentWorkflow!.CaseId;
+    var caseVersion = Model.CurrentWorkflow!.Version;
     // The section edits only inside the page-wide session (v26 J); an
     // estimate edits only while it is a Draft this staff member may change.
     var editing = Model.SectionIsEditable("estimate");

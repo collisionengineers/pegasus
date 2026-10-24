@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
     public partial class PegasusDbContextModel
     {
         private PegasusDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("46de67fd-7601-478f-85a0-47cb0ad34d48"), entityTypeCount: 120)
+            : base(skipDetectChanges: false, modelId: new Guid("384c9888-a65d-4142-8be8-59c20e110589"), entityTypeCount: 122)
         {
         }
 
@@ -31,6 +31,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             var openIddictEntityFrameworkCoreToken = OpenIddictEntityFrameworkCoreTokenEntityType.Create(this);
             var actionHistoryEntity = ActionHistoryEntityEntityType.Create(this);
             var aiJobEntity = AiJobEntityEntityType.Create(this);
+            var appliedValuationAdditionEntity = AppliedValuationAdditionEntityEntityType.Create(this);
+            var appliedValuationCalculationEntity = AppliedValuationCalculationEntityEntityType.Create(this);
             var appliedValuationSnapshotEntity = AppliedValuationSnapshotEntityEntityType.Create(this);
             var approvedInboxPoisonMessageEntity = ApprovedInboxPoisonMessageEntityEntityType.Create(this);
             var approvedInboxPollStateEntity = ApprovedInboxPollStateEntityEntityType.Create(this);
@@ -149,6 +151,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             OpenIddictEntityFrameworkCoreAuthorizationEntityType.CreateForeignKey1(openIddictEntityFrameworkCoreAuthorization, openIddictEntityFrameworkCoreApplication);
             OpenIddictEntityFrameworkCoreTokenEntityType.CreateForeignKey1(openIddictEntityFrameworkCoreToken, openIddictEntityFrameworkCoreApplication);
             OpenIddictEntityFrameworkCoreTokenEntityType.CreateForeignKey2(openIddictEntityFrameworkCoreToken, openIddictEntityFrameworkCoreAuthorization);
+            AppliedValuationAdditionEntityEntityType.CreateForeignKey1(appliedValuationAdditionEntity, appliedValuationSnapshotEntity);
+            AppliedValuationCalculationEntityEntityType.CreateForeignKey1(appliedValuationCalculationEntity, appliedValuationSnapshotEntity);
             AppliedValuationSnapshotEntityEntityType.CreateForeignKey1(appliedValuationSnapshotEntity, caseWorkEntity);
             ApprovedInboxPoisonMessageEntityEntityType.CreateForeignKey1(approvedInboxPoisonMessageEntity, approvedInboxPollStateEntity);
             ApprovedInboxPollStateEntityEntityType.CreateForeignKey1(approvedInboxPollStateEntity, approvedMailboxEntity);
@@ -288,6 +292,8 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             OpenIddictEntityFrameworkCoreTokenEntityType.CreateAnnotations(openIddictEntityFrameworkCoreToken);
             ActionHistoryEntityEntityType.CreateAnnotations(actionHistoryEntity);
             AiJobEntityEntityType.CreateAnnotations(aiJobEntity);
+            AppliedValuationAdditionEntityEntityType.CreateAnnotations(appliedValuationAdditionEntity);
+            AppliedValuationCalculationEntityEntityType.CreateAnnotations(appliedValuationCalculationEntity);
             AppliedValuationSnapshotEntityEntityType.CreateAnnotations(appliedValuationSnapshotEntity);
             ApprovedInboxPoisonMessageEntityEntityType.CreateAnnotations(approvedInboxPoisonMessageEntity);
             ApprovedInboxPollStateEntityEntityType.CreateAnnotations(approvedInboxPollStateEntity);

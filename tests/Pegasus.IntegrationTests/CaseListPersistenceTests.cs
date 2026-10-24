@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -151,6 +152,63 @@ public sealed class CaseListPersistenceTests
         Assert.Equal(new[] { inspection, audit, inspectionAndAudit }.Order(), june.Select(record => record.CaseId).Order());
         Assert.DoesNotContain(june, record => record.CaseId == outside);
         Assert.Equal(3, june.Count);
+    }
+
+    /// <summary>
+    /// A3-12 (R326): the Activity figures are one set query. The list sends the
+    /// Case rows, the Audit works, the one Activity statement and the query
+    /// receipts: four, where each figure used to be its own read (nine in this
+    /// scenario: rows, Audit works, six figure reads, receipts; the association
+    /// reads exit early because no query receipt exists). The statement count
+    /// is the same for 2 Cases and for 6.
+    /// </summary>
+    [Fact]
+    public async Task TheActivityFiguresAreReadInOneStatementWhateverTheCaseCount()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            AddCase(context, principal, 1, "inspection", Received);
+            AddCase(context, principal, 2, "audit", Received);
+            await context.SaveChangesAsync();
+        }
+
+        var activityOnly = new CaseListQuery(
+            null, null, IncludeTriage: false, CaseListFacts.Activity, new HashSet<string>(), new HashSet<string>());
+
+        async Task<(int Cases, int Statements)> MeasureAsync()
+        {
+            await using var scope = database.CreateAsyncScope();
+            var queries = scope.ServiceProvider.GetRequiredService<ICaseListQueries>();
+            counter.Reset();
+            var records = await queries.GetAsync(activityOnly, CancellationToken.None);
+            return (records.Count, counter.Count);
+        }
+
+        var few = await MeasureAsync();
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            for (var sequence = 3; sequence <= 6; sequence++)
+            {
+                AddCase(context, principal, sequence, "inspection", Received);
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        var many = await MeasureAsync();
+
+        Assert.Equal(2, few.Cases);
+        Assert.Equal(6, many.Cases);
+        Assert.True(
+            few.Statements <= 4,
+            $"The Activity list sent {few.Statements} statements; at most 4 are allowed (rows, Audit works, Activity, query receipts).");
+        Assert.Equal(few.Statements, many.Statements);
     }
 
     [Fact]

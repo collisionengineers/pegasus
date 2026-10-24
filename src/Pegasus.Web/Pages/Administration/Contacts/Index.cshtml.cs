@@ -15,7 +15,7 @@ public sealed class IndexModel(
     public IReadOnlyList<ContactDirectoryRecord> Contacts { get; private set; } = [];
     /// <summary>The types whose list has a page after the one shown.</summary>
     public IReadOnlySet<ContactRole> TypesWithNextPage { get; private set; } = new HashSet<ContactRole>();
-    public IReadOnlyList<ContactDirectoryRecord> PossibleMatches { get; private set; } = [];
+    public IReadOnlyList<ContactChoice> PossibleMatches { get; private set; } = [];
     public IReadOnlyList<PrincipalAdministrationDetails> PrincipalChoices { get; private set; } = [];
 
     [BindProperty(SupportsGet = true)] public ContactRole? Type { get; set; }

@@ -22,7 +22,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 baseEntityType,
                 propertyCount: 19,
                 foreignKeyCount: 2,
-                unnamedIndexCount: 4,
+                unnamedIndexCount: 5,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -191,13 +191,16 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             index.AddAnnotation("Relational:Filter", "[ActiveAccountKey] IS NOT NULL");
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { caseId });
+                new[] { callbackDigest });
 
             var index1 = runtimeEntityType.AddIndex(
+                new[] { caseId });
+
+            var index2 = runtimeEntityType.AddIndex(
                 new[] { operationKey },
                 unique: true);
 
-            var index2 = runtimeEntityType.AddIndex(
+            var index3 = runtimeEntityType.AddIndex(
                 new[] { userId });
 
             return runtimeEntityType;

@@ -47,6 +47,7 @@ internal static partial class CaseWebTestSupport
             {
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseSectionFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
@@ -263,6 +264,7 @@ internal static partial class CaseWebTestSupport
             {
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseSectionFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
@@ -477,7 +479,8 @@ internal static partial class CaseWebTestSupport
 
         public RecordingCaseDetailsStore Store(
             CaseLifecycleState state = CaseLifecycleState.NotReady,
-            bool acceptWorkspaceSaves = false)
+            bool acceptWorkspaceSaves = false,
+            IReadOnlyList<ImageTagAssignment>? overviewTags = null)
         {
             var store = new RecordingCaseDetailsStore
             {
@@ -487,7 +490,7 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments =
                 [
                     Document(CloseUpOccurrenceId, VersionOf(CloseUpOccurrenceId), CloseUpFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(OverviewOccurrenceId, VersionOf(OverviewOccurrenceId), OverviewFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(OverviewOccurrenceId, VersionOf(OverviewOccurrenceId), OverviewFileName, "image/jpeg", DocumentSemanticRole.Image, overviewTags),
                     Document(FirstSupportingOccurrenceId, VersionOf(FirstSupportingOccurrenceId), FirstSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
                     Document(SecondSupportingOccurrenceId, VersionOf(SecondSupportingOccurrenceId), SecondSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
                     Document(UnusedOccurrenceId, VersionOf(UnusedOccurrenceId), UnusedFileName, "image/jpeg", DocumentSemanticRole.Image)
@@ -742,6 +745,7 @@ internal static partial class CaseWebTestSupport
         RecordingCaseDetailsStore store)
     {
         Substitute<IGetCasePageFrame>(services, store);
+        Substitute<IGetCaseSectionFrame>(services, store);
         Substitute<IGetCaseVehicleSection>(services, store);
         Substitute<IGetCaseValuationSection>(services, store);
         Substitute<IGetCaseNotesSection>(services, store);
@@ -813,6 +817,7 @@ internal static partial class CaseWebTestSupport
     internal sealed partial class RecordingCaseDetailsStore :
         IGetCaseHeader, IGetCaseEditBasis,
         IGetCasePageFrame,
+        IGetCaseSectionFrame,
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
         IAcquireCaseEditLease,
@@ -983,6 +988,10 @@ internal static partial class CaseWebTestSupport
                 OldestOpenQuery = HasOpenQuery ? OldestOpenQuery : null
             });
         }
+
+        Task<CaseSectionFrame?> IGetCaseSectionFrame.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseSectionFrame?>(query.CaseId == CaseId ? FocusedFrame() : null);
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
             GetCaseSectionQuery query,
@@ -1405,6 +1414,7 @@ internal static partial class CaseWebTestSupport
             {
                 Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseSectionFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);

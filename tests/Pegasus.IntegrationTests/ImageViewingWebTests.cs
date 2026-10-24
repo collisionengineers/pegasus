@@ -311,7 +311,7 @@ public sealed class ImageViewingWebTests
 
         Guid occurrenceId;
         Guid versionId;
-        await using (var context = await factory.Database.CreateContextAsync())
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             var image = await context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 .SingleAsync(item => item.CaseId == caseId && item.SemanticRole == DocumentSemanticRole.Image);

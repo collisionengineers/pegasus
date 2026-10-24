@@ -48,7 +48,7 @@ public sealed partial class OrganizationDirectoryWebTests
                 $"Validation errors: {await DescribeValidationErrorsAsync(locationPost)}");
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF' AND DefaultInspectionLocationLabel = 'Directory Web Caller Yard';"));
 
         // The save comes back to its panel, with the notice inside it.
@@ -80,7 +80,7 @@ public sealed partial class OrganizationDirectoryWebTests
                 $"Validation errors: {await DescribeValidationErrorsAsync(reportSettingsPost)}");
         Assert.Equal(
             1,
-            await factory.Database.ScalarAsync<int>(
+            await (await factory.DatabaseAsync).ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF' AND DefaultFee = 225.50;"));
 
         using var indexGet = await client.GetAsync("/Administration/Contacts");
@@ -101,10 +101,10 @@ public sealed partial class OrganizationDirectoryWebTests
             client, factory, "Stale contact version provider", "STALEW");
         var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
         var settingsHtml = await GetContactSettingsAsync(client, $"{settingsPath}?tab=report-generation");
-        var feeBefore = await factory.Database.ScalarAsync<decimal>(
+        var feeBefore = await (await factory.DatabaseAsync).ScalarAsync<decimal>(
             $"SELECT DefaultFee FROM Principals WHERE Id = '{principalId:D}';");
 
-        await factory.Database.ExecuteAsync(
+        await (await factory.DatabaseAsync).ExecuteAsync(
             $"UPDATE Organizations SET Version = Version + 1 WHERE Id = '{contactId:D}';");
         var reportSettingsForm = new Dictionary<string, string>
         {
@@ -131,7 +131,7 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.Contains("value=\"250.00\"", refusedHtml, StringComparison.Ordinal);
         Assert.Equal(
             feeBefore,
-            await factory.Database.ScalarAsync<decimal>(
+            await (await factory.DatabaseAsync).ScalarAsync<decimal>(
                 $"SELECT DefaultFee FROM Principals WHERE Id = '{principalId:D}';"));
     }
 
@@ -149,9 +149,9 @@ public sealed partial class OrganizationDirectoryWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var principalId = await factory.Database.ScalarAsync<Guid>(
+        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'QDOS';");
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT OrganizationId FROM Principals WHERE Id = '" + principalId + "';");
         var locationHtml = await GetContactSettingsAsync(
             client, $"/Administration/Contacts/Edit/{contactId:D}?tab=default-inspection-location");
@@ -180,7 +180,7 @@ public sealed partial class OrganizationDirectoryWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         Assert.False(Pegasus.Core.Intake.PrincipalMailRoutePolicy.AcceptedIdentities.ContainsKey("WALKER"));
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT OrganizationId FROM Principals WHERE Code = 'WALKER';");
         var html = await GetContactSettingsAsync(client, $"/Administration/Contacts/Edit/{contactId:D}");
 
@@ -199,9 +199,9 @@ public sealed partial class OrganizationDirectoryWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = await factory.Database.ScalarAsync<Guid>(
+        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'QDOS';");
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT OrganizationId FROM Principals WHERE Id = '" + principalId + "';");
         var path = $"/Administration/Contacts/Edit/{contactId:D}";
 
@@ -242,11 +242,11 @@ public sealed partial class OrganizationDirectoryWebTests
                 $"Validation errors: {await DescribeValidationErrorsAsync(saved)}");
         Assert.Equal(
             "Ring the claimant before inspection.",
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT NotesOnEveryCase FROM Organizations WHERE Id = '{contactId:D}';"));
         Assert.Equal(
             Pegasus.Core.Cases.PrincipalInspectionModePolicy.ImageBasedAssessmentCode,
-            await factory.Database.ScalarAsync<string>(
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
                 $"SELECT InspectionMode FROM Principals WHERE Id = '{principalId:D}';"));
     }
 
@@ -255,9 +255,9 @@ public sealed partial class OrganizationDirectoryWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = await factory.Database.ScalarAsync<Guid>(
+        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT Id FROM Principals WHERE Code = 'YML';");
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             "SELECT OrganizationId FROM Principals WHERE Id = '" + principalId + "';");
         using var response = await client.GetAsync($"/Administration/Contacts/Edit/{contactId:D}");
         response.EnsureSuccessStatusCode();
@@ -293,9 +293,9 @@ public sealed partial class OrganizationDirectoryWebTests
             "/Administration/Contacts?handler=Create",
             new FormUrlEncodedContent(principalForm));
         Assert.Equal(HttpStatusCode.Redirect, principalPost.StatusCode);
-        var principalId = await factory.Database.ScalarAsync<Guid>(
+        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             $"SELECT Id FROM Principals WHERE Code = '{code}';");
-        var contactId = await factory.Database.ScalarAsync<Guid>(
+        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
         return (principalId, contactId);
     }

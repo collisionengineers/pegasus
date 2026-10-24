@@ -1,6 +1,8 @@
+using System.Buffers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -433,6 +435,18 @@ internal sealed partial class BoxContentClient(
         CancellationToken cancellationToken)
     {
         await EnsureDescendantAsync(parentId, cancellationToken);
+        return await ReadChildrenAsync(parentId, nameFilter, cancellationToken);
+    }
+
+    /// <summary>
+    /// The children of a folder whose ancestry the caller has already proved,
+    /// listed without walking it again.
+    /// </summary>
+    private async Task<IReadOnlyList<BoxItem>> ReadChildrenAsync(
+        string parentId,
+        string? nameFilter,
+        CancellationToken cancellationToken)
+    {
         const int pageLimit = 1000;
         var offset = 0;
         var children = new List<BoxItem>();
@@ -655,7 +669,7 @@ internal sealed partial class BoxContentClient(
                 folder,
                 name,
                 content.Length,
-                (offset, length, _) => ValueTask.FromResult(content.Slice((int)offset, length)),
+                (offset, length, _) => ValueTask.FromResult(new UploadPart(content.Slice((int)offset, length))),
                 cancellationToken)
             : await UploadInOneRequestAsync(
                 folder, name, new ReadOnlyMemoryContent(content), mediaType, cancellationToken);
@@ -672,15 +686,9 @@ internal sealed partial class BoxContentClient(
                 existing.Id,
                 existing.VersionId!,
                 content.Length,
-                cancellationToken);
-            var verified = new byte[content.Length];
-            await retained.ReadExactlyAsync(verified, cancellationToken);
-            if (await retained.ReadAsync(new byte[1], cancellationToken) != 0
-                || !verified.AsSpan().SequenceEqual(content.Span))
-            {
-                throw new InvalidDataException(
-                    "The occupied Box file name contains different content.");
-            }
+                cancellationToken,
+                folder);
+            await VerifyRetainedContentAsync(retained, content, cancellationToken);
             return new(existing, Created: false);
         }
         return new(await ReadUploadedFileAsync(response, folder, cancellationToken), Created: true);
@@ -765,7 +773,8 @@ internal sealed partial class BoxContentClient(
                     existing.Id,
                     existing.VersionId!,
                     contentLength,
-                    cancellationToken);
+                    cancellationToken,
+                    folder);
                 await VerifyExactContentAsync(retained, contentLength, normalizedHash, cancellationToken);
                 return new(existing, Created: false);
             }
@@ -791,7 +800,9 @@ internal sealed partial class BoxContentClient(
         long contentLength,
         CancellationToken cancellationToken)
     {
-        var existing = await FindChildAsync(folder.Id, name, "file", cancellationToken)
+        // The folder was proved for this upload, so its own ancestry is not
+        // walked again; only its items are listed.
+        var existing = SelectChild(await ReadChildrenAsync(folder.Id, name, cancellationToken), name, "file")
             ?? throw new HttpRequestException(
                 "Box reported an occupied file name but the exact existing file could not be resolved.",
                 null,
@@ -885,9 +896,12 @@ internal sealed partial class BoxContentClient(
 
     /// <summary>
     /// Uploads content over <see cref="SinglePartUploadLimit"/> through a Box
-    /// upload session: the session is created, the parts are sent one after
-    /// another, each exactly the session's part size except the last and each
-    /// with its own SHA-1 digest, and the commit carries the whole content's.
+    /// upload session: the session is created, the parts are read in order
+    /// and sent <see cref="ConcurrentUploadParts"/> at a time, each exactly the
+    /// session's part size except the last and each with its own SHA-1 digest,
+    /// and the commit lists the parts in offset order with the whole content's
+    /// digest. The first part Box refuses cancels the rest, and the session is
+    /// aborted once they have all ended.
     /// Every request goes to the configured upload host; the endpoints Box
     /// names for the session are not followed.
     /// </summary>
@@ -901,7 +915,7 @@ internal sealed partial class BoxContentClient(
         ProvedFolder folder,
         string name,
         long contentLength,
-        Func<long, int, CancellationToken, ValueTask<ReadOnlyMemory<byte>>> readPart,
+        Func<long, int, CancellationToken, ValueTask<UploadPart>> readPart,
         CancellationToken cancellationToken)
     {
         using var request = JsonContent.Create(
@@ -937,28 +951,8 @@ internal sealed partial class BoxContentClient(
             }
             using var whole = CreateSha1();
             using var partHash = CreateSha1();
-            var parts = new List<JsonElement>();
-            for (long offset = 0; offset < contentLength;)
-            {
-                var length = (int)Math.Min(partSize, contentLength - offset);
-                var part = await readPart(offset, length, cancellationToken);
-                whole.AppendData(part.Span);
-                partHash.AppendData(part.Span);
-                var digest = Digest(partHash);
-                var body = new ReadOnlyMemoryContent(part);
-                body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                body.Headers.ContentRange = new ContentRangeHeaderValue(offset, offset + length - 1, contentLength);
-                using var response = await SendAsync(
-                    HttpMethod.Put,
-                    sessionUri,
-                    body,
-                    cancellationToken,
-                    message => message.Headers.TryAddWithoutValidation("Digest", digest));
-                using var answer = await ReadSuccessJsonAsync(response, cancellationToken);
-                // The commit lists each part as Box recorded it.
-                parts.Add(answer.RootElement.GetProperty("part").Clone());
-                offset += length;
-            }
+            var parts = await SendPartsAsync(
+                sessionUri, contentLength, partSize, readPart, whole, partHash, cancellationToken);
             commit = await CommitUploadSessionAsync(
                 new Uri(options.UploadUri, session + "/commit"), parts, Digest(whole), cancellationToken);
             return commit;
@@ -973,6 +967,151 @@ internal sealed partial class BoxContentClient(
     }
 
     /// <summary>
+    /// How many parts of one upload are in flight at once (operator R401,
+    /// 22 October 2026). Memory is that many parts at most.
+    /// </summary>
+    internal const int ConcurrentUploadParts = 2;
+
+    /// <summary>
+    /// Sends every part of an upload with at most
+    /// <see cref="ConcurrentUploadParts"/> in flight. A part is read, hashed
+    /// into <paramref name="whole"/> and its own digest taken in offset order
+    /// before it is sent, and the answers come back in offset order whatever
+    /// order Box finished them in. A part that fails cancels the others; once
+    /// all have ended, the failure of the lowest-offset part that failed is
+    /// the one raised (a part's request timeout included, as the
+    /// <see cref="TaskCanceledException"/> the part itself threw), and a
+    /// cancellation by the caller is raised as it is.
+    /// </summary>
+    private async Task<IReadOnlyList<JsonElement>> SendPartsAsync(
+        Uri sessionUri,
+        long contentLength,
+        long partSize,
+        Func<long, int, CancellationToken, ValueTask<UploadPart>> readPart,
+        IncrementalHash whole,
+        IncrementalHash partHash,
+        CancellationToken cancellationToken)
+    {
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var slots = new SemaphoreSlim(ConcurrentUploadParts);
+        var puts = new List<Task<JsonElement>>();
+        // A part that ends in a cancellation neither the caller nor a sibling's
+        // failure caused (Box's request timeout) leaves its task Canceled, not
+        // Faulted, so the part records its own exception here.
+        var ownFailures = new Exception?[(contentLength + partSize - 1) / partSize];
+        try
+        {
+            for (long offset = 0; offset < contentLength;)
+            {
+                var length = (int)Math.Min(partSize, contentLength - offset);
+                await slots.WaitAsync(stop.Token);
+                UploadPart part;
+                try
+                {
+                    part = await readPart(offset, length, stop.Token);
+                }
+                catch
+                {
+                    slots.Release();
+                    throw;
+                }
+                whole.AppendData(part.Memory.Span);
+                partHash.AppendData(part.Memory.Span);
+                var index = puts.Count;
+                puts.Add(PutPartAsync(
+                    sessionUri, part, offset, contentLength, Digest(partHash), slots, stop,
+                    failure => ownFailures[index] = failure));
+                offset += length;
+            }
+            return await Task.WhenAll(puts);
+        }
+        catch
+        {
+            await stop.CancelAsync();
+            try
+            {
+                await Task.WhenAll(puts);
+            }
+            catch
+            {
+                // Each part's own outcome is read below, in offset order.
+            }
+            for (var index = 0; index < puts.Count; index++)
+            {
+                if (ownFailures[index] is { } own)
+                {
+                    ExceptionDispatchInfo.Capture(own).Throw();
+                }
+                if (puts[index].IsFaulted)
+                {
+                    ExceptionDispatchInfo.Capture(puts[index].Exception!.InnerExceptions[0]).Throw();
+                }
+            }
+            throw;
+        }
+    }
+
+    private async Task<JsonElement> PutPartAsync(
+        Uri sessionUri,
+        UploadPart part,
+        long offset,
+        long contentLength,
+        string digest,
+        SemaphoreSlim slots,
+        CancellationTokenSource stop,
+        Action<Exception> recordOwnFailure)
+    {
+        try
+        {
+            using (part)
+            {
+                var body = new ReadOnlyMemoryContent(part.Memory);
+                body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                body.Headers.ContentRange = new ContentRangeHeaderValue(
+                    offset, offset + part.Memory.Length - 1, contentLength);
+                using var response = await SendAsync(
+                    HttpMethod.Put,
+                    sessionUri,
+                    body,
+                    stop.Token,
+                    message => message.Headers.TryAddWithoutValidation("Digest", digest));
+                using var answer = await ReadSuccessJsonAsync(response, stop.Token);
+                // The commit lists each part as Box recorded it.
+                return answer.RootElement.GetProperty("part").Clone();
+            }
+        }
+        catch (Exception exception)
+        {
+            // Before the stop is signalled, a failure is the part's own: the
+            // caller's cancellation and a sibling's failure both signal it first.
+            if (!stop.IsCancellationRequested)
+            {
+                recordOwnFailure(exception);
+            }
+            await stop.CancelAsync();
+            throw;
+        }
+        finally
+        {
+            slots.Release();
+        }
+    }
+
+    /// <summary>One part of an upload: its bytes, and the pooled buffer to give back once they are sent.</summary>
+    private sealed class UploadPart(ReadOnlyMemory<byte> memory, byte[]? rented = null) : IDisposable
+    {
+        public ReadOnlyMemory<byte> Memory { get; } = memory;
+
+        public void Dispose()
+        {
+            if (rented is not null)
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+    }
+
+    /// <summary>
     /// Commits an upload session. While Box is still processing the parts it
     /// answers 202, and the commit is sent again after Box's
     /// <c>Retry-After</c>, waiting no longer than
@@ -981,7 +1120,7 @@ internal sealed partial class BoxContentClient(
     /// </summary>
     private async Task<HttpResponseMessage> CommitUploadSessionAsync(
         Uri commitUri,
-        List<JsonElement> parts,
+        IReadOnlyList<JsonElement> parts,
         string digest,
         CancellationToken cancellationToken)
     {
@@ -1037,24 +1176,30 @@ internal sealed partial class BoxContentClient(
     private static partial void LogUploadSessionAbortFailed(ILogger logger, Exception exception);
 
     /// <summary>
-    /// Reads a stream's parts in order into one buffer, the size of the first
-    /// and largest part. A stream that ends before its declared length fails
-    /// as the direct upload's bounded read does.
+    /// Reads a stream's parts in order, each into a pooled buffer of its own
+    /// that is given back when the part has been sent. A stream that ends
+    /// before its declared length fails as the direct upload's bounded read
+    /// does.
     /// </summary>
-    private static Func<long, int, CancellationToken, ValueTask<ReadOnlyMemory<byte>>> PartsOf(Stream content)
-    {
-        byte[]? buffer = null;
-        return async (_, length, cancellationToken) =>
+    private static Func<long, int, CancellationToken, ValueTask<UploadPart>> PartsOf(Stream content) =>
+        async (_, length, cancellationToken) =>
         {
-            buffer ??= new byte[length];
-            var part = buffer.AsMemory(0, length);
-            if (await content.ReadAtLeastAsync(part, length, throwOnEndOfStream: false, cancellationToken) < length)
+            var buffer = ArrayPool<byte>.Shared.Rent(length);
+            try
             {
-                throw new EndOfStreamException("Box upload content ended before its declared length.");
+                if (await content.ReadAtLeastAsync(
+                        buffer.AsMemory(0, length), length, throwOnEndOfStream: false, cancellationToken) < length)
+                {
+                    throw new EndOfStreamException("Box upload content ended before its declared length.");
+                }
             }
-            return part;
+            catch
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+                throw;
+            }
+            return new UploadPart(buffer.AsMemory(0, length), buffer);
         };
-    }
 
     /// <summary>
     /// A SHA-1 hash, the one digest Box takes for an upload's parts and its
@@ -1101,16 +1246,22 @@ internal sealed partial class BoxContentClient(
         return result;
     }
 
+    /// <summary>
+    /// The exact version of a file inside the approved root. A caller that
+    /// holds the proof of the folder the file sits in names it, and the walk
+    /// ends there rather than climbing the folder's own ancestry again.
+    /// </summary>
     public async Task<Stream> OpenVersionReadAsync(
         string fileId,
         string versionId,
         long maximumLength,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ProvedFolder? provedParent = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileId);
         ArgumentException.ThrowIfNullOrWhiteSpace(versionId);
         ArgumentOutOfRangeException.ThrowIfNegative(maximumLength);
-        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
+        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true, provedAncestor: provedParent);
         return await DownloadVersionAsync(fileId, versionId, maximumLength, cancellationToken);
     }
 
@@ -1454,6 +1605,24 @@ internal sealed partial class BoxContentClient(
     public async Task DeleteFileAsync(string fileId, CancellationToken cancellationToken)
     {
         await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
+        await SendFileDeleteAsync(fileId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Deletes a file the same call has just read through
+    /// <see cref="GetFileAsync"/>, whose walk to the approved root is the
+    /// proof, so the delete does not walk the file's ancestry a second time.
+    /// Nothing is remembered between calls: a file got in an earlier call
+    /// goes through <see cref="DeleteFileAsync"/>.
+    /// </summary>
+    public Task DeleteWalkedFileAsync(BoxItem walked, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(walked);
+        return SendFileDeleteAsync(walked.Id, cancellationToken);
+    }
+
+    private async Task SendFileDeleteAsync(string fileId, CancellationToken cancellationToken)
+    {
         using var response = await SendAsync(
             HttpMethod.Delete,
             new Uri(options.BaseUri, $"files/{Uri.EscapeDataString(fileId)}"),
@@ -1631,6 +1800,38 @@ internal sealed partial class BoxContentClient(
         }
     }
 
+    /// <summary>
+    /// Compares a retained version with the bytes offered, one
+    /// <see cref="ReadChunkSize"/> chunk at a time against the matching slice,
+    /// so the retained content is never held whole. A version that ends early
+    /// is an <see cref="EndOfStreamException"/>; an extra or different byte is
+    /// the same <see cref="InvalidDataException"/> as before.
+    /// </summary>
+    private static async Task VerifyRetainedContentAsync(
+        Stream retained,
+        ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[ReadChunkSize];
+        var offset = 0;
+        while (offset < content.Length)
+        {
+            var chunk = Math.Min(buffer.Length, content.Length - offset);
+            await retained.ReadExactlyAsync(buffer.AsMemory(0, chunk), cancellationToken);
+            if (!buffer.AsSpan(0, chunk).SequenceEqual(content.Span.Slice(offset, chunk)))
+            {
+                throw new InvalidDataException("The occupied Box file name contains different content.");
+            }
+            offset += chunk;
+        }
+        if (await retained.ReadAsync(buffer.AsMemory(0, 1), cancellationToken) != 0)
+        {
+            throw new InvalidDataException("The occupied Box file name contains different content.");
+        }
+    }
+
+    private const int ReadChunkSize = 81920;
+
     private static async Task VerifyExactContentAsync(
         Stream content,
         long expectedLength,
@@ -1638,7 +1839,7 @@ internal sealed partial class BoxContentClient(
         CancellationToken cancellationToken)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        var buffer = new byte[81920];
+        var buffer = new byte[ReadChunkSize];
         long copied = 0;
         while (true)
         {
@@ -1654,7 +1855,7 @@ internal sealed partial class BoxContentClient(
             }
             hash.AppendData(buffer, 0, read);
         }
-        var actualHash = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        var actualHash = Convert.ToHexStringLower(hash.GetHashAndReset());
         if (copied != expectedLength
             || !string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
         {

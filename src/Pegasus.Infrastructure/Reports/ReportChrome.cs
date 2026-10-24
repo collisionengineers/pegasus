@@ -102,6 +102,7 @@ internal static class ReportChrome
         Image logo,
         IReadOnlyList<string> companyBlock,
         string footer,
+        PageCountProbe pageCount,
         float bodyTop,
         Action<ColumnDescriptor> body,
         Action<IContainer>? runningLine = null)
@@ -131,7 +132,7 @@ internal static class ReportChrome
         }
         page.Footer()
             .Height(FooterBand, Unit.Millimetre)
-            .Element(band => RunningFooter(band, footer));
+            .Element(band => RunningFooter(band, footer, pageCount));
     }
 
     /// <summary>
@@ -177,9 +178,9 @@ internal static class ReportChrome
 
     /// <summary>
     /// The red rule, the footer beneath it at the centre, and the page
-    /// number at the right.
+    /// number at the right, with the probe that learns the page count.
     /// </summary>
-    private static void RunningFooter(IContainer container, string footer) =>
+    private static void RunningFooter(IContainer container, string footer, PageCountProbe pageCount) =>
         container.Layers(layers =>
         {
             layers.PrimaryLayer()
@@ -206,6 +207,7 @@ internal static class ReportChrome
                     text.Span(AssessmentReportWording.PageNumberJoin);
                     text.TotalPages();
                 });
+            layers.Layer().Dynamic(pageCount);
         });
 
     /// <summary>

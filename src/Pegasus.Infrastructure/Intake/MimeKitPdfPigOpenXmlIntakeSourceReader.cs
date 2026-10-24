@@ -785,15 +785,18 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         out string mediaType,
         out string extension)
     {
-        var raw = image.RawBytes.ToArray();
-        if (raw.Length >= 2 && raw[0] == 0xff && raw[1] == 0xd8)
+        var encoded = image.RawMemory;
+        if (encoded.Span is [0xff, 0xd8, ..])
         {
-            bytes = raw;
+            bytes = encoded;
             mediaType = "image/jpeg";
             extension = ".jpg";
             return true;
         }
 
+        // TryGetPng may convert PdfPig's own memory in place, and the refused
+        // path below decodes the encoded bytes afresh, so they are copied first.
+        var raw = encoded.ToArray();
         if (image.TryGetPng(out var png))
         {
             bytes = png;

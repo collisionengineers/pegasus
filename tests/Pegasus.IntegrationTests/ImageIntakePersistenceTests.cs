@@ -330,6 +330,17 @@ public sealed class ImageIntakePersistenceTests
             CancellationToken.None);
         Assert.Equal(record.Id, fromSibling!.Record.Id);
 
+        // The set lookup answers the same for a group's members: each reaches
+        // the one registration, an unknown receipt reaches none, and the full
+        // detail is the first asked receipt's that does.
+        var unknownReceiptId = Guid.NewGuid();
+        var fromSet = await queries.GetByOriginReceiptsAsync(
+            [unknownReceiptId, memberReceiptIds[1], memberReceiptIds[0]],
+            CancellationToken.None);
+        Assert.Equal(memberReceiptIds.Take(2).ToHashSet(), fromSet.ReceiptIds);
+        Assert.Equal(record.Id, fromSet.First!.Record.Id);
+        Assert.Empty((await queries.GetByOriginReceiptsAsync([unknownReceiptId], CancellationToken.None)).ReceiptIds);
+
         // A second registration for the same group — different operation key,
         // different member origin, exactly a racing sibling's attempt —
         // returns the one existing row instead of allocating a second
@@ -403,9 +414,11 @@ public sealed class ImageIntakePersistenceTests
                 $"image-intake-associate:{memberReceiptIds[1]:N}",
                 "Automatic association: unambiguous registration match.",
                 ExpectedStaffOriginAssociationVersion: staffOverride ? 2 : null);
-            await mutations.AutoLinkAsync(completionRequest, DateTimeOffset.UtcNow, CancellationToken.None);
+            // The link returns the Case version it recorded, which is the next member's expected version.
+            var recordedVersion = await mutations.AutoLinkAsync(completionRequest, DateTimeOffset.UtcNow, CancellationToken.None);
+            Assert.Equal(staffOverride ? 4 : 2, recordedVersion);
             var afterCompletion = await receipts.GetAsync(memberReceiptIds[1], CancellationToken.None);
-            await mutations.AutoLinkAsync(completionRequest, DateTimeOffset.UtcNow, CancellationToken.None);
+            Assert.Equal(recordedVersion, await mutations.AutoLinkAsync(completionRequest, DateTimeOffset.UtcNow, CancellationToken.None));
             await Assert.ThrowsAsync<IntakeOperationConflictException>(() => mutations.AutoLinkAsync(
                 completionRequest with { ExpectedStaffOriginAssociationVersion = staffOverride ? 3 : 0 },
                 DateTimeOffset.UtcNow, CancellationToken.None));
@@ -546,6 +559,64 @@ public sealed class ImageIntakePersistenceTests
 
         Assert.Empty(pending);
         Assert.Equal(1, statements.Count);
+    }
+
+    /// <summary>
+    /// An Unidentified resolve names an Image Intake destination and asks only
+    /// whether it exists: one statement, where the detail read sends more.
+    /// </summary>
+    [Fact]
+    public async Task AnImageIntakeExistsByOneStatement()
+    {
+        var statements = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: statements);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "exists-one-statement");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var registered = Assert.IsType<ImageIntakeDetail>(
+            await store.GetByOriginReceiptAsync(imageReceipt, CancellationToken.None));
+
+        statements.Reset();
+        Assert.True(await store.ExistsAsync(registered.Record.Id, CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+
+        statements.Reset();
+        Assert.False(await store.ExistsAsync(Guid.NewGuid(), CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+    }
+
+    /// <summary>
+    /// The reconciliation sweep needs only the record a receipt resolves to: one
+    /// statement for the receipt's own registration, the same record the detail
+    /// read resolves, where the detail sends the association and group reads
+    /// besides.
+    /// </summary>
+    [Fact]
+    public async Task AReceiptResolvesToItsImageIntakeRecordByOneStatement()
+    {
+        var statements = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: statements);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "record-one-statement");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var registered = Assert.IsType<ImageIntakeDetail>(
+            await store.GetByOriginReceiptAsync(imageReceipt, CancellationToken.None));
+
+        statements.Reset();
+        var record = Assert.IsType<ImageIntakeRecord>(
+            await store.GetRecordByOriginReceiptAsync(imageReceipt, CancellationToken.None));
+        Assert.Equal(1, statements.Count);
+        Assert.Equal(registered.Record, record);
+
+        Assert.Null(await store.GetRecordByOriginReceiptAsync(Guid.NewGuid(), CancellationToken.None));
     }
 
     /// <summary>

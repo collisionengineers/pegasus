@@ -29,6 +29,9 @@ internal sealed class CommandCountingInterceptor : DbCommandInterceptor
         texts.Count(text => text.Contains(fragment, StringComparison.Ordinal)
             && (without is null || !text.Contains(without, StringComparison.Ordinal)));
 
+    /// <summary>How many commands satisfy <paramref name="predicate"/>, for a pin on one statement's shape.</summary>
+    public int CountMatching(Func<string, bool> predicate) => texts.Count(predicate);
+
     /// <summary>Every command's text, for a failure message.</summary>
     public string Describe() => string.Join(
         Environment.NewLine,

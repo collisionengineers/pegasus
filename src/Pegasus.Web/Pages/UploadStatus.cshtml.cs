@@ -115,6 +115,33 @@ public sealed class UploadStatusModel(
         return Page();
     }
 
+    /// <summary>
+    /// What the page's script asks between reloads: whether the file is still
+    /// moving, how long to wait before asking again, and its queue state. It
+    /// reads the status, and the receipt only when the delay needs it, draws
+    /// nothing and writes nothing.
+    /// </summary>
+    public async Task<IActionResult> OnGetStatusAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var status = await queries.GetAsync(id, cancellationToken);
+        if (status is null)
+        {
+            return NotFound();
+        }
+
+        Status = status;
+        if (status.Status is not (QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing)
+            && TryGetActor(out var actor))
+        {
+            Receipt = await getIntake.ExecuteAsync(
+                new(status.ProcessedReceiptId ?? status.StagedReceiptId, actor), cancellationToken);
+        }
+
+        return new JsonResult(UploadStatusAnswer.Of(
+            AutomaticRefreshMilliseconds,
+            [UploadStatusAnswerMember.Of(status.StagedReceiptId, status.Status)]));
+    }
+
     public async Task<IActionResult> OnPostLeaveAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -222,6 +249,7 @@ public sealed class UploadStatusModel(
         {
             NowUtc = timeProvider.GetUtcNow(),
             AutoRefreshMilliseconds = AutomaticRefreshMilliseconds,
+            StatusUrl = $"/Upload/Status/{id:D}?handler=Status",
             Error = TempData["UploadConfirmationError"] as string,
             IsDuplicate = IsDuplicate,
             Candidates = suggestions.Select(UploadReviewCandidate.From).ToArray(),

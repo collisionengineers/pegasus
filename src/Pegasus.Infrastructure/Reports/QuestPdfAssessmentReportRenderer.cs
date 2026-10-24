@@ -4,7 +4,6 @@ using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Custody;
 using QuestPDF.Fluent;
 using SkiaSharp;
-using UglyToad.PdfPig;
 
 namespace Pegasus.Infrastructure.Reports;
 
@@ -16,6 +15,10 @@ namespace Pegasus.Infrastructure.Reports;
 /// </summary>
 internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : IAssessmentReportRenderer
 {
+    private const int SignatureCapacity = 16;
+
+    private static readonly PreparedSignatureCache Signatures = new(SignatureCapacity);
+
     private readonly ReportRenderGate gate = gate ?? throw new ArgumentNullException(nameof(gate));
 
     public string EngineVersion { get; } =
@@ -36,9 +39,10 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
         };
         var fileName = $"{ReportChrome.Slug(snapshot.OurReference)}_{suffix}.pdf";
-        var pdf = await gate.RunAsync(token => RenderPdfAsync(snapshot, kind, token), cancellationToken)
+        var pageCount = new PageCountProbe();
+        var pdf = await gate.RunAsync(token => RenderPdfAsync(snapshot, kind, pageCount, token), cancellationToken)
             .ConfigureAwait(false);
-        return Artifact(fileName, pdf);
+        return Artifact(fileName, pdf, pageCount.Count);
     }
 
     /// <summary>
@@ -48,7 +52,10 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
     /// instead of running on.
     /// </summary>
     private static async Task<byte[]> RenderPdfAsync(
-        AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
+        AssessmentReportSnapshot snapshot,
+        CaseReportArtifactKind kind,
+        PageCountProbe pageCount,
+        CancellationToken cancellationToken)
     {
         PreparedReportImages images;
         using (DocumentReadTelemetry.Start("report.photos.prepare"))
@@ -57,7 +64,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var document = AssessmentReportLayout.Compose(snapshot, kind, images);
+        var document = AssessmentReportLayout.Compose(snapshot, kind, images, pageCount);
         using var generating = DocumentReadTelemetry.Start("report.pdf.generate");
         return document.GeneratePdf();
     }
@@ -80,7 +87,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         }
         if (kind == CaseReportArtifactKind.AssessmentReport && !snapshot.IncludeVehicleImages)
         {
-            return new(null, [], PrepareSignature(snapshot.Signatory), ReportResources.Logo());
+            return new(null, [], SignatureFor(snapshot.Signatory), ReportResources.Logo());
         }
         var ordered = snapshot.OrderedPhotos;
         var overview = ordered.FirstOrDefault(photo => photo.Role == CaseAssetReportRole.Overview);
@@ -100,7 +107,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
                 await PreparePhotoAsync(photo, null, cancellationToken).ConfigureAwait(false),
                 fullPage));
         }
-        return new(leadImage, photos, PrepareSignature(snapshot.Signatory), ReportResources.Logo());
+        return new(leadImage, photos, SignatureFor(snapshot.Signatory), ReportResources.Logo());
     }
 
     private static async Task<byte[]> PreparePhotoAsync(
@@ -112,32 +119,27 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             content, photo.CustodyReference, photo.Rotation, photo.AppliedCrop, slotHeight, cancellationToken);
     }
 
-    private RenderedReportArtifact Artifact(string fileName, byte[] pdf)
-    {
-        int pageCount;
-        using (DocumentReadTelemetry.Start("report.pdf.pagecount"))
-        {
-            using var document = PdfDocument.Open(pdf);
-            pageCount = document.NumberOfPages;
-        }
-
-        return new RenderedReportArtifact(
+    private RenderedReportArtifact Artifact(string fileName, byte[] pdf, int pageCount) =>
+        new(
             fileName,
             pdf,
             pageCount,
             Convert.ToHexStringLower(SHA256.HashData(pdf)),
             AssessmentReportContract.TemplateVersion,
             EngineVersion);
-    }
+
+    private static byte[] SignatureFor(ReportSignatory signatory) =>
+        Signatures.GetOrPrepare(signatory.SignatureContent, PrepareSignature);
 
     /// <summary>
-    /// The signature as the page prints it: decoded once, EXIF orientation
+    /// The signature as the page prints it, prepared once per stored signature
+    /// (<see cref="PreparedSignatureCache"/>): decoded once, EXIF orientation
     /// applied, re-encoded losslessly so any accepted source format prints
     /// the same way and undecodable bytes fail closed.
     /// </summary>
-    private static byte[] PrepareSignature(ReportSignatory signatory)
+    private static byte[] PrepareSignature(byte[] stored)
     {
-        using var data = SKData.CreateCopy(signatory.SignatureContent);
+        using var data = SKData.CreateCopy(stored);
         using var codec = SKCodec.Create(data)
             ?? throw new ReportRenderRejectedException("The report signature image could not be decoded.");
         using var decoded = SKBitmap.Decode(codec)

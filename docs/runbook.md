@@ -851,8 +851,10 @@ bounds.
   `tp.pending` (thread-pool threads and queued work when the request began),
   `gc.gen2.delta` and `gc.pause.ms.delta` (second-generation collections and
   milliseconds paused during it) and `majflt.delta` (major page faults during
-  it; absent where `/proc` is). The deltas are the process's, not the
-  request's alone. Query:
+  it; absent where `/proc` is). `majflt.delta` is read from one sample of
+  `/proc/self/stat` a second, shared by every request and taken through one
+  handle kept open, so a request that starts and ends inside one second shows
+  zero. The deltas are the process's, not the request's alone. Query:
   `AppRequests | where TimeGenerated > ago(1d) and isnotempty(tostring(Properties["tp.threads"])) | project TimeGenerated, Name, DurationMs, threads=toint(Properties["tp.threads"]), pending=toint(Properties["tp.pending"]), gen2=toint(Properties["gc.gen2.delta"]), pauseMs=todouble(Properties["gc.pause.ms.delta"]), majflt=toint(Properties["majflt.delta"]) | order by DurationMs desc`.
 - **Memory heartbeat.** Every five minutes (`Diagnostics:HeartbeatInterval`;
   `00:00:00` turns it off) Web logs one trace, "Runtime heartbeat", of
@@ -879,8 +881,8 @@ bounds.
   (local CPU, including Entity Framework's own service provider) and `first
   connection` (the managed-identity token and the SQL login). Query:
   `AppTraces | where Message startswith "Startup warm-up step model" | project TimeGenerated, Message`.
-- **Report phases.** A Generate or Preview also records `report.photos.prepare`,
-  `report.pdf.generate` and `report.pdf.pagecount`, three events that join
+- **Report phases.** A Generate or Preview also records `report.photos.prepare`
+  and `report.pdf.generate`, two events that join
   `report.renderer.initialize`, which is kept and fires once per process.
   Query: the phase query above with those names.
 - **Deadlocks.** A command that loses a deadlock (SQL error 1205) logs a
@@ -1021,9 +1023,10 @@ above and the request's own trace.
 
 ### A failing sweep step names its cause
 
-The staged-artifact sweep logs each step's result line at Information. The line
-becomes a Warning when the step counted a failure, so the worker process's
-default level records it. A custody item that fails to file also logs its
+The staged-artifact sweep logs a step's result line at Information only when
+the step counted something; an idle tick writes none. The line becomes a Warning
+when the step counted a failure, so the worker process's default level records
+it. A custody item that fails to file also logs its
 exception type and message, once for each attempt, as
 `Pending artifact custody recovery failed for version ...`. The version id is
 the `CorrelationId` of its `ArtifactCustodyReconciliationAttempt` row in
@@ -1063,7 +1066,11 @@ A slow start shows there which phase took the time. The start limit
 `WEBSITES_CONTAINER_START_TIME_LIMIT` is not part of this design.
 
 After its first pass the warm-up repeats its reads every three minutes for the
-life of the process. `Startup:WarmupInterval` sets the wait (default
+life of the process, except that a tick skips its pass when a page request
+ran since the previous tick (a Debug line, "Warm-up pass skipped", says so;
+only a signed-in GET of a Razor page counts, so health probes, static files, the
+Always On ping, anonymous requests, POSTs such as the edit heartbeats and
+handler fetches such as the status poll do not). `Startup:WarmupInterval` sets the wait (default
 `00:03:00`). Write it with colons, such as `00:05:00`. `00:00:00` restores the
 once-only behaviour, and `Startup:Warmup` `false` still turns the whole warm-up
 off. Some values keep the default instead, and the warm-up logs one warning

@@ -109,8 +109,8 @@ public sealed class LinkReportEvidenceTasksTests
         public Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<CaseWorkflowRecord> ChangeStateAsync(
-            CaseMutationRequest request, CaseLifecycleState targetState, CancellationToken cancellationToken) =>
+        public Task<CaseWorkflowRecord> StartWorkAsync(
+            CaseMutationRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) =>
@@ -122,9 +122,8 @@ public sealed class LinkReportEvidenceTasksTests
         public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<CaseWorkflowRecord> AssignEngineerAsync(
+        public Task<CaseEngineerAssignment> AssignEngineerAsync(
             AssignCaseEngineerRequest request,
-            Guid? signOffEngineerId,
             CaseLifecycleState targetState,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();

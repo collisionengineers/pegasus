@@ -54,12 +54,12 @@ internal static class AutomationDocumentStreaming
         CancellationToken cancellationToken)
     {
         var actor = await resolver.RequireScopeAsync(AutomationMcp.IntakeScope, cancellationToken);
-        var metadata = await metadataReader.ExecuteAsync(new(receiptId, actor.Actor), cancellationToken);
-        if (metadata is null) return Results.NotFound();
+        var authorized = await metadataReader.ExecuteAsync(new(receiptId, actor.Actor), cancellationToken);
+        if (authorized is null) return Results.NotFound();
 
-        var download = await downloadSource.ExecuteAsync(new(receiptId, actor.Actor), cancellationToken);
-        if (download is null
-            || download.ContentLength != metadata.ContentLength
+        var metadata = authorized.Metadata;
+        var download = await downloadSource.ExecuteAsync(authorized, actor.Actor, cancellationToken);
+        if (download.ContentLength != metadata.ContentLength
             || !string.Equals(download.Sha256, metadata.Sha256, StringComparison.OrdinalIgnoreCase))
         {
             return Results.NotFound();

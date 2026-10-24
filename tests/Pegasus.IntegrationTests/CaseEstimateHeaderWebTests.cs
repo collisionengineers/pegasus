@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
@@ -170,6 +171,46 @@ public sealed class CaseEstimateHeaderWebTests
             body,
             StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A spec tab and New repair spec fetch the Repair Spec part from the
+    /// fragment route with the lease header (R304). It draws the very markup
+    /// the full page draws for the same choice, its forms carrying the lease
+    /// and nothing written to a cookie; only the per-render operation keys and
+    /// antiforgery tokens differ.
+    /// </summary>
+    [Fact]
+    public async Task TheEstimateFragmentDrawsTheMarkupTheFullPageDrawsForTheSameChoice()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var estimates = new SingleEstimateList(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+            Substitute<IListCaseEstimates>(services, estimates), StaffRole.User, keepDatabase: true);
+
+        foreach (var choice in new[] { estimates.Estimate.SpecificationId.ToString("D"), "new" })
+        {
+            var query = $"section=estimate&estimate={choice}";
+            var page = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?{query}");
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get, $"/Cases/{store.CaseId:D}/Section?{query}");
+            request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
+
+            using var response = await workspace.Client.SendAsync(request);
+            var fragment = await response.Content.ReadAsStringAsync();
+            Assert.True(response.IsSuccessStatusCode, fragment);
+
+            Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+            Assert.Equal(store.LeaseToken, InputValue(fragment, "editLeaseToken"));
+            Assert.StartsWith("<section", fragment.TrimStart(), StringComparison.Ordinal);
+            Assert.Contains(PerRender(fragment).Trim(), PerRender(page), StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>The markup with what every render draws afresh (operation keys, antiforgery tokens) removed.</summary>
+    private static string PerRender(string html) => Regex.Replace(
+        Regex.Replace(html, "[0-9a-f]{32}", "KEY"),
+        "(name=\"__RequestVerificationToken\"[^>]*value=\")[^\"]*",
+        "$1TOKEN");
 
     /// <summary>The Repair Spec section, up to its import drop overlay.</summary>
     private static string EstimateSection(string html)

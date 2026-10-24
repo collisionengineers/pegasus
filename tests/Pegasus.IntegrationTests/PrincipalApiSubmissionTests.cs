@@ -75,18 +75,18 @@ public sealed class PrincipalApiSubmissionTests
             Assert.DoesNotContain(secret, await wrong.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'principal_credential_missing' AND Outcome = N'Denied'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'principal_credential_rejected' AND Outcome = N'Denied'
               AND SubjectId = N'{secret.Substring(4, 16)}'
             """));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM SecurityEvents WHERE SubjectId LIKE N'%{secret}%'"));
     }
 
@@ -213,6 +213,16 @@ public sealed class PrincipalApiSubmissionTests
             var oldReceivedAtUtc = DateTimeOffset.UtcNow.AddMinutes(-2);
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE PrincipalSubmissions SET ReceivedAtUtc = {oldReceivedAtUtc} WHERE Id = {submissionId}"));
+        }
+
+        // Old enough to be a candidate, but its Accepted history is still there.
+        var beforeRepair = await scope.ServiceProvider
+            .GetRequiredService<ReconcilePrincipalSubmissions>()
+            .ExecuteAsync(50, CancellationToken.None);
+        Assert.Equal(0, beforeRepair.Candidates);
+
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
             Assert.Equal(1, await context.Database.ExecuteSqlInterpolatedAsync(
                 $"DELETE FROM ActionHistory WHERE AggregateType = {PrincipalSubmissionPolicy.ActionHistoryAggregateType} AND AggregateId = {submissionId:D} AND Outcome = {"Accepted"}"));
         }
@@ -375,12 +385,12 @@ public sealed class PrincipalApiSubmissionTests
             Assert.Equal(HttpStatusCode.OK, read.StatusCode);
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'principal_credential_paused' AND Outcome = N'Denied'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
     }
 
     [Fact]
@@ -429,7 +439,7 @@ public sealed class PrincipalApiSubmissionTests
         {
             Assert.Equal(HttpStatusCode.BadRequest, missingKey.StatusCode);
         }
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
 
         using var created = await SubmitAsync(client, secret, "order-5", [("note.pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
@@ -455,7 +465,7 @@ public sealed class PrincipalApiSubmissionTests
         using var spoofed = await SubmitAsync(client, secret, "spoofed-file",
             [("photo.jpg", "not a JPEG"u8.ToArray())]);
         Assert.Equal(HttpStatusCode.BadRequest, spoofed.StatusCode);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
 
         using var supported = await SubmitAsync(client, secret, "supported-file",
             [("photo.jpg", new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 })]);
@@ -564,13 +574,13 @@ public sealed class PrincipalApiSubmissionTests
         // A Triage is a Case type: it opens a Triage Case, whose t. Case/PO is
         // the result's reference, and links no instruction receipt (FRD-03, FRD-09).
         Assert.StartsWith("t.", result.GetProperty("caseReference").GetString(), StringComparison.Ordinal);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Triage"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Cases WHERE Type = N'triage'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseIntakeLinks"));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM Triage"));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM Cases WHERE Type = N'triage'"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM CaseIntakeLinks"));
         // The Triage is the destination. Without this the same material also
         // sits in the Unidentified queue, which is the two-queues defect
         // already closed for the mail route.
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM UnidentifiedItems"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM UnidentifiedItems"));
     }
 
     [Fact]
@@ -588,7 +598,7 @@ public sealed class PrincipalApiSubmissionTests
 
         Assert.Equal(HttpStatusCode.BadRequest, badType.StatusCode);
         Assert.Equal("caseType", (await ReadJsonAsync(badType)).GetProperty("field").GetString());
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM PrincipalSubmissions"));
     }
 
     [Fact]

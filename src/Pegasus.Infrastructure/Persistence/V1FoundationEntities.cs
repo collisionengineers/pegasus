@@ -149,6 +149,44 @@ internal sealed class AppliedValuationSnapshotEntity
     public required string PolicyVersion { get; set; }
 }
 
+/// <summary>
+/// The calculation an applied valuation recorded, as columns: the query form
+/// of the snapshot's JSON, which stays the immutable record the hash covers.
+/// One row per snapshot, written with it.
+/// </summary>
+internal sealed class AppliedValuationCalculationEntity
+{
+    public Guid SnapshotId { get; set; }
+    public long CaseVersion { get; set; }
+    public Guid GuideValuationId { get; set; }
+    public DateTimeOffset GuideValuationStampUtc { get; set; }
+    public decimal GuideRetailValue { get; set; }
+    public bool CommercialVatApplied { get; set; }
+    public decimal CommercialVatAmount { get; set; }
+    public decimal ValueIncludingVat { get; set; }
+    public decimal? PriorTotalLossPercentage { get; set; }
+    public decimal PriorTotalLossAmount { get; set; }
+    public decimal AdditionsTotal { get; set; }
+    public decimal ConditionDeduction { get; set; }
+    public decimal Proposal { get; set; }
+}
+
+/// <summary>
+/// One addition of an applied valuation, in its recorded order: the preset
+/// identity and version it was applied at (empty for a custom addition), the
+/// label and suggestion it carried, and the amount chosen.
+/// </summary>
+internal sealed class AppliedValuationAdditionEntity
+{
+    public Guid SnapshotId { get; set; }
+    public int Ordinal { get; set; }
+    public Guid PresetId { get; set; }
+    public long PresetVersion { get; set; }
+    public required string Label { get; set; }
+    public decimal? SuggestedAmount { get; set; }
+    public decimal Amount { get; set; }
+}
+
 internal sealed class GlassRepairEstimateSessionEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }

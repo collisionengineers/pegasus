@@ -470,7 +470,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             throw new InvalidDataException(
                 "The managed Box file advanced after creation and cannot be rolled back safely.");
         }
-        await client.DeleteFileAsync(created.FileId, cancellationToken);
+        // GetFileAsync has just walked this file to the approved root.
+        await client.DeleteWalkedFileAsync(current, cancellationToken);
     }
 
     private static void Validate(ManagedDocumentContentAddress address)
@@ -584,7 +585,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             }
         }
-        var actualHash = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        var actualHash = Convert.ToHexStringLower(hash.GetHashAndReset());
         if (copied != expectedLength
             || !string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
         {
@@ -651,7 +652,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         {
             throw new InvalidDataException(LengthVerificationFailed);
         }
-        var actualHash = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        var actualHash = Convert.ToHexStringLower(SHA256.HashData(content));
         if (!string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
         {
             throw new InvalidDataException(HashVerificationFailed);

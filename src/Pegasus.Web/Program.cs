@@ -321,7 +321,7 @@ var automationMcpOptions = AutomationMcpOptions.TryCreate(builder.Configuration)
 // without the flag no /api/principal route, scheme or policy exists.
 var principalApiEnabled = builder.Configuration.GetValue<bool>(PrincipalApi.FeatureFlag);
 
-// ShellPageFilter supplies the shell's rendered time, the bell's notifications
+// ShellPageFilter supplies the shell's rendered time, the bell's unread count
 // and the release note on authenticated full page results. RazorPagesOptions
 // has no Filters collection of its own, so the global filter is added through
 // the underlying MvcOptions instead.
@@ -656,7 +656,8 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompress
 // /health/warm answers the platform's start-up ping from the warm-up alone, so
 // a database outage never keeps a new instance from starting. The warm-up then
 // repeats its reads every Startup:WarmupInterval (three minutes; 00:00:00 runs
-// it once) so no staff request is the first to touch a cold path.
+// it once) so no staff request is the first to touch a cold path; a tick
+// is skipped when a page request ran since the last (PageRequestSignal).
 builder.Services.AddSingleton(provider =>
 {
     var configuration = provider.GetRequiredService<IConfiguration>();
@@ -819,8 +820,9 @@ builder.Services.AddScoped<DispatchPendingIntakeWork>();
 builder.Services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
     serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
 builder.Services.AddScoped<DispatchPendingExternalWork>();
-builder.Services.AddScoped<ICommittedExternalWorkPublisher>(serviceProvider =>
-    serviceProvider.GetRequiredService<DispatchPendingExternalWork>());
+// Web publishes committed external work after the response (R315); the Worker
+// composes the immediate publisher, and the recovery sweep is the fallback.
+builder.Services.AddScoped<ICommittedExternalWorkPublisher, DeferredExternalWorkPublisher>();
 // Presentation-layer read model for the Upload confirmation surface: composes
 // existing Core read ports only, and every action it offers routes to the
 // existing page that performs it (see Pegasus.Web.Presentation.UploadOutcome).
@@ -1162,17 +1164,23 @@ if (automationMcpOptions is not null)
     });
 }
 app.UseAuthentication();
+var keepWarmState = app.Services.GetRequiredService<StartupWarmupState>();
 app.Use(async (context, next) =>
 {
     // Identity's validation-driven cookie reissue used to incidentally attach
     // no-store to most protected Razor responses. Preserve that requirement at
     // the response owner without overwriting the document preview's explicit
-    // private cache policy or static-asset cache headers.
-    if (context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Mvc.RazorPages.PageActionDescriptor>() is not null
-        && context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is null
-        && !context.Response.Headers.ContainsKey("Cache-Control"))
+    // private cache policy or static-asset cache headers. A Razor page request
+    // also notes the keep-warm signal here, from the same endpoint lookup.
+    var endpointMetadata = context.GetEndpoint()?.Metadata;
+    if (endpointMetadata?.GetMetadata<Microsoft.AspNetCore.Mvc.RazorPages.PageActionDescriptor>() is not null)
     {
-        context.Response.Headers.CacheControl = "private, no-store";
+        PageRequestSignal.Note(context, keepWarmState);
+        if (endpointMetadata.GetMetadata<IAllowAnonymous>() is null
+            && !context.Response.Headers.ContainsKey("Cache-Control"))
+        {
+            context.Response.Headers.CacheControl = "private, no-store";
+        }
     }
 
     await next(context);

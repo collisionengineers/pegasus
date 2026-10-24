@@ -304,6 +304,35 @@ public sealed class CloseUnidentifiedTests
         }
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AnImageIntakeDestinationIsCheckedByAnExistenceReadAlone(bool exists)
+    {
+        var imageIntakes = new ReconcileUnidentifiedDestinationsTests.FakeImageIntakeQueries();
+        var imageIntakeId = Guid.NewGuid();
+        if (exists)
+        {
+            imageIntakes.ExistingIds.Add(imageIntakeId);
+        }
+        var sut = new ResolveUnidentified(new ClosingStore(), imageIntakeQueries: imageIntakes);
+        var request = new ResolveUnidentifiedRequest(
+            ItemId, 0, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), "resolve-images",
+            "Matched.", UnidentifiedResolutionTargetKind.ImageIntake, imageIntakeId.ToString(), null, Now);
+
+        if (exists)
+        {
+            Assert.False((await sut.ExecuteAsync(request)).IsReplay);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<UnidentifiedResolutionTargetNotFoundException>(() => sut.ExecuteAsync(request));
+        }
+
+        Assert.Equal(1, imageIntakes.ExistsCalls);
+        Assert.Equal(0, imageIntakes.GetCalls);
+    }
+
     private sealed class FixedCaseKind(CaseType? kind) : ICaseKindQueries
     {
         public Task<CaseType?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>

@@ -1066,9 +1066,16 @@ public interface IIntakeArtifactStore
         CancellationToken cancellationToken) =>
         Task.FromResult(new StagedArtifactInventoryPage([], null));
 
+    /// <summary>
+    /// Sets the staged artifact's disposition only while it still has
+    /// <paramref name="expectedConcurrencyToken"/>. <paramref name="expectedDisposition"/>
+    /// is the disposition the caller listed; the store's own tag wins where it
+    /// disagrees, and the disagreement is logged.
+    /// </summary>
     Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
         string storageKey,
         string expectedConcurrencyToken,
+        StagedArtifactDisposition expectedDisposition,
         StagedArtifactDisposition disposition,
         CancellationToken cancellationToken) =>
         Task.FromResult<StagedArtifactInventoryItem?>(null);
@@ -1223,6 +1230,16 @@ public interface IDownloadIntakeSource
     Task<IntakeSourceDownload?> ExecuteAsync(
         DownloadIntakeSourceQuery query,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Serves the source of a receipt <see cref="IGetIntakeSourceMetadata"/>
+    /// has already read and authorised, under the same right and checks,
+    /// without reading the receipt graph again.
+    /// </summary>
+    Task<IntakeSourceDownload> ExecuteAsync(
+        AuthorizedIntakeSource authorized,
+        ActionActor actor,
+        CancellationToken cancellationToken = default);
 }
 
 public enum IntakeResolutionKind
@@ -1335,7 +1352,11 @@ public interface IIntakeMutationStore
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);
 
-    Task AutoLinkAsync(
+    /// <summary>
+    /// Returns the Case version the link recorded, so the next member of a
+    /// group links against it instead of reading the Case again.
+    /// </summary>
+    Task<long> AutoLinkAsync(
         AutomaticIntakeLinkRequest request,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);

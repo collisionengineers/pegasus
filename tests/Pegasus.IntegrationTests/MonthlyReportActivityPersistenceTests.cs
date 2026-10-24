@@ -438,6 +438,85 @@ public sealed class MonthlyReportActivityPersistenceTests
         }
     }
 
+    /// <summary>R375: only the first in-period report has its snapshot read, so a later generation holding a snapshot that is not JSON stops neither activity read.</summary>
+    [Fact]
+    public async Task ALaterGenerationWithAnUnreadableSnapshotDoesNotStopEitherReadOfTheFirstReportFee()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var firstGeneratedAt = new DateTimeOffset(2031, 6, 5, 12, 0, 0, TimeSpan.Zero);
+        var laterGeneratedAt = new DateTimeOffset(2031, 7, 5, 12, 0, 0, TimeSpan.Zero);
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var caseId = Guid.NewGuid();
+            var generationIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+            var versionIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+            var documentIds = new[] { Guid.NewGuid(), Guid.NewGuid() };
+            var hashes = new[] { new string('a', 64), new string('b', 64) };
+
+            context.Add(new CaseEntity
+            {
+                Id = caseId,
+                PrincipalId = principal.Id,
+                SequenceLineageId = principal.SequenceLineageId,
+                Year = 2031,
+                Sequence = 1,
+                Reference = "QDOS31001",
+                Type = "inspection",
+                InitialState = "Review",
+                CustodyState = "Confirmed",
+                InstructionComplete = true,
+                ImagesComplete = true,
+                CreatedAtUtc = From,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            context.Set<CaseReportGenerationEntity>().AddRange(
+                Generation(generationIds[0], caseId, firstGeneratedAt, "{\"agreedFee\":100.00}", new string('d', 64)),
+                Generation(generationIds[1], caseId, laterGeneratedAt, "not json", new string('e', 64)));
+            context.Set<CaseDocumentEntity>().AddRange(
+                new CaseDocumentEntity { Id = documentIds[0], CaseId = caseId, Ordinal = 1, SourceOccurrenceIdentity = "later:first" },
+                new CaseDocumentEntity { Id = documentIds[1], CaseId = caseId, Ordinal = 2, SourceOccurrenceIdentity = "later:second" });
+            context.Set<DocumentVersionEntity>().AddRange(
+                Version(versionIds[0], documentIds[0], firstGeneratedAt, hashes[0], "QDOS31001_report.pdf"),
+                Version(versionIds[1], documentIds[1], laterGeneratedAt, hashes[1], "QDOS31001_report_2.pdf"));
+            context.Set<GeneratedCaseArtifactEntity>().AddRange(
+                Artifact(Guid.NewGuid(), generationIds[0], versionIds[0], hashes[0], nameof(CaseReportArtifactKind.AssessmentReport)),
+                Artifact(Guid.NewGuid(), generationIds[1], versionIds[1], hashes[1], nameof(CaseReportArtifactKind.AssessmentReport)));
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var monthly = await scope.ServiceProvider.GetRequiredService<IMonthlyReportActivityQueries>()
+            .GetAsync(From, To, CancellationToken.None);
+        var principalRow = Assert.Single(await scope.ServiceProvider.GetRequiredService<IV1ActivityReportQueries>()
+            .GetAsync(From, To, CancellationToken.None));
+
+        Assert.Equal(100m, monthly.Sum(row => row.AgreedFeeTotal));
+        Assert.Equal(100m, principalRow.AgreedFeeTotal);
+
+        // The period ends exclusive at the first report's instant, so the fee
+        // belongs to the half that starts there and not to the half that ends there.
+        var endingAtTheFirstInstantMonthly = await scope.ServiceProvider.GetRequiredService<IMonthlyReportActivityQueries>()
+            .GetAsync(From, firstGeneratedAt, CancellationToken.None);
+        var endingAtTheFirstInstantPrincipals = await scope.ServiceProvider.GetRequiredService<IV1ActivityReportQueries>()
+            .GetAsync(From, firstGeneratedAt, CancellationToken.None);
+
+        Assert.Equal(0m, endingAtTheFirstInstantMonthly.Sum(row => row.AgreedFeeTotal));
+        Assert.Equal(0m, endingAtTheFirstInstantPrincipals.Sum(row => row.AgreedFeeTotal));
+
+        // The period starts inclusive at the first report's instant, and a
+        // period after it holds no fee: the later report is not the first.
+        var fromTheFirstInstant = await scope.ServiceProvider.GetRequiredService<IMonthlyReportActivityQueries>()
+            .GetAsync(firstGeneratedAt, To, CancellationToken.None);
+        var afterTheFirstInstant = await scope.ServiceProvider.GetRequiredService<IMonthlyReportActivityQueries>()
+            .GetAsync(firstGeneratedAt.AddTicks(1), To, CancellationToken.None);
+
+        Assert.Equal(100m, fromTheFirstInstant.Sum(row => row.AgreedFeeTotal));
+        Assert.Equal(0m, afterTheFirstInstant.Sum(row => row.AgreedFeeTotal));
+    }
+
     private static StaffMailSendOperationEntity SentOperation(Guid generationId, DateTimeOffset sentAt) => new()
     {
         Id = Guid.NewGuid(),

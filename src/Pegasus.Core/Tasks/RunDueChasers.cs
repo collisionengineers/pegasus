@@ -96,6 +96,7 @@ public sealed class RunDueChasers(
     TimeProvider timeProvider)
 {
     public const int MaximumBatchSize = 500;
+    private const int MaximumConcurrentClaims = 3;
     public const string WorkerSubjectId = "due-work-sweep";
 
     private readonly ICaseDueChaserQueries _queries =
@@ -127,50 +128,65 @@ public sealed class RunDueChasers(
 
         var actor = ActionActor.SystemWorker(WorkerSubjectId);
         StaffAuthorization.Require(actor, StaffAccessRight.ExecuteSystemWork);
+        if (candidates.Count == 0)
+        {
+            return new(0, 0, 0, 0);
+        }
+
         var generated = 0;
         var replayed = 0;
         var superseded = 0;
 
-        foreach (var candidate in candidates)
-        {
-            ValidateCandidate(candidate, asOfUtc);
-            var nextChaseAtUtc = CaseChaseSchedule.NextChaseAt(candidate.ScheduledAtUtc, candidate.ChaseIntervalDays);
-            var transition = new DueChaserTransition(
-                Guid.NewGuid(),
-                candidate.CaseId,
-                candidate.DueWorkVersion,
-                candidate.ScheduledAtUtc.ToUniversalTime(),
-                asOfUtc,
-                nextChaseAtUtc,
-                CreateCopyableText(candidate),
-                CreateOperationKey(candidate),
-                actor) { ChaseIntervalDays = candidate.ChaseIntervalDays };
-
-            var result = await _store.TryClaimAndRecordAsync(
-                transition,
-                cancellationToken);
-            switch (result.Outcome)
+        // Each claim is its own transaction on its own context, so up to three run at once.
+        // The caller's token, not the loop's, goes to the store: a failed sibling stops new
+        // claims from starting but cancels none already under way, as one at a time never did.
+        await Parallel.ForEachAsync(
+            candidates,
+            new ParallelOptions
             {
-                case DueChaserClaimOutcome.Recorded:
-                    RequirePersistedChaser(result);
-                    generated++;
-                    break;
-                case DueChaserClaimOutcome.Replay:
-                    RequirePersistedChaser(result);
-                    replayed++;
-                    break;
-                case DueChaserClaimOutcome.Superseded:
-                    if (result.Chaser is not null)
-                    {
-                        throw new InvalidOperationException(
-                            "A superseded due-chaser claim cannot return a persisted draft.");
-                    }
-                    superseded++;
-                    break;
-                default:
-                    throw new InvalidOperationException("The due-chaser store returned an unknown outcome.");
-            }
-        }
+                MaxDegreeOfParallelism = MaximumConcurrentClaims,
+                CancellationToken = cancellationToken,
+            },
+            async (candidate, _) =>
+            {
+                ValidateCandidate(candidate, asOfUtc);
+                var nextChaseAtUtc = CaseChaseSchedule.NextChaseAt(candidate.ScheduledAtUtc, candidate.ChaseIntervalDays);
+                var transition = new DueChaserTransition(
+                    Guid.NewGuid(),
+                    candidate.CaseId,
+                    candidate.DueWorkVersion,
+                    candidate.ScheduledAtUtc.ToUniversalTime(),
+                    asOfUtc,
+                    nextChaseAtUtc,
+                    CreateCopyableText(candidate),
+                    CreateOperationKey(candidate),
+                    actor) { ChaseIntervalDays = candidate.ChaseIntervalDays };
+
+                var result = await _store.TryClaimAndRecordAsync(
+                    transition,
+                    cancellationToken);
+                switch (result.Outcome)
+                {
+                    case DueChaserClaimOutcome.Recorded:
+                        RequirePersistedChaser(result);
+                        Interlocked.Increment(ref generated);
+                        break;
+                    case DueChaserClaimOutcome.Replay:
+                        RequirePersistedChaser(result);
+                        Interlocked.Increment(ref replayed);
+                        break;
+                    case DueChaserClaimOutcome.Superseded:
+                        if (result.Chaser is not null)
+                        {
+                            throw new InvalidOperationException(
+                                "A superseded due-chaser claim cannot return a persisted draft.");
+                        }
+                        Interlocked.Increment(ref superseded);
+                        break;
+                    default:
+                        throw new InvalidOperationException("The due-chaser store returned an unknown outcome.");
+                }
+            });
 
         return new(candidates.Count, generated, replayed, superseded);
     }

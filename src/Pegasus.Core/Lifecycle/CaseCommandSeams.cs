@@ -154,15 +154,8 @@ public sealed class TransitionCase(
             cancellationToken);
 }
 
-public sealed class ArchiveCase(
-    ICaseWorkflowQueries queries,
-    ICaseArchiveReadinessQueries readiness,
-    ICaseArchiveStore store) : IArchiveCase
+public sealed class ArchiveCase(ICaseArchiveStore store) : IArchiveCase
 {
-    private readonly ICaseWorkflowQueries _queries =
-        queries ?? throw new ArgumentNullException(nameof(queries));
-    private readonly ICaseArchiveReadinessQueries _readiness =
-        readiness ?? throw new ArgumentNullException(nameof(readiness));
     private readonly ICaseArchiveStore _store =
         store ?? throw new ArgumentNullException(nameof(store));
 
@@ -171,42 +164,6 @@ public sealed class ArchiveCase(
         CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        var isReplay = await _readiness.HasCaseMutationOperationAsync(
-            request.CaseId,
-            request.OperationKey,
-            cancellationToken);
-        if (isReplay)
-        {
-            return await _store.ArchiveAsync(request, cancellationToken);
-        }
-
-        var current = await CaseLifecycleRules.GetRequiredAsync(
-            _queries,
-            request.CaseId,
-            cancellationToken);
-        if (current.Archive is not null)
-        {
-            throw new CaseArchivedException(request.CaseId);
-        }
-        if (!CaseLifecycleRules.IsTerminal(current.State))
-        {
-            throw new InvalidOperationException("Only a terminal case can be archived.");
-        }
-
-        var readiness = await _readiness.GetArchiveReadinessAsync(
-            request.CaseId,
-            cancellationToken);
-        if (!readiness.IsCustodyConfirmed)
-        {
-            throw new InvalidOperationException(
-                "A case can be archived only after its required custody is confirmed.");
-        }
-        if (readiness.HasBlockingExternalWork)
-        {
-            throw new InvalidOperationException(
-                "A case cannot be archived while required durable work is incomplete or unrecognized work exists.");
-        }
-
         return await _store.ArchiveAsync(request, cancellationToken);
     }
 }

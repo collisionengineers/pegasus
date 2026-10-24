@@ -61,6 +61,14 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "pageNumber")]
     public int? PageNumber { get; set; }
 
+    /// <summary>
+    /// Carried by the Deleted Items Next and Previous links only, so those two
+    /// reuse the kept search result. The search form, Refresh and a reload do not
+    /// carry it and read the source.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "paged")]
+    public bool Paged { get; set; }
+
     [BindProperty(SupportsGet = true, Name = "search")]
     public string? SearchTerm { get; set; }
 
@@ -259,6 +267,7 @@ public sealed class IndexModel(
                 SearchTerm,
                 page,
                 PageSize,
+                Paged,
                 cancellationToken);
             return;
         }

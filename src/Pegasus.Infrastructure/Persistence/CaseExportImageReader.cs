@@ -20,7 +20,8 @@ public sealed record CaseExportImageSet(
 /// Eligibility itself stays in Core with
 /// <see cref="CaseExportPolicy.SelectEligibleImages"/>; this reads what that
 /// policy chose. No byte is read here: the archive asks for the photographs
-/// one at a time as it writes them, so the set is never held in memory. Where
+/// one per call, the next while it writes the current one, so no more than
+/// two are held in memory. Where
 /// the document content cache is composed each photograph is read through it
 /// first, so a repeat export does not ask Box again.
 /// </summary>

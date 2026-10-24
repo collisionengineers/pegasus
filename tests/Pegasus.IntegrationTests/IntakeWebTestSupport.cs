@@ -63,7 +63,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly DbCommandInterceptor? commandInterceptor;
     private readonly bool useIntegrationTestAuthentication;
     private readonly bool initializeDevelopmentOffline;
-    private readonly LocalDbTestDatabase? database;
+    private readonly Task<LocalDbTestDatabase>? databaseRestore;
+    private bool databaseRestoreObserved;
     private readonly DatabaseOpenGuard? databaseOpenGuard;
     private bool databaseOpenAttemptsReported;
     private readonly string workingDirectory = Path.Combine(
@@ -117,8 +118,11 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         // Restored from the per-run template rather than migrated here: this
         // constructor is the suite's most-repeated database lifecycle.
         // CreateHost still runs DevelopmentOfflineInitialization, whose own
-        // MigrateAsync then finds nothing to apply.
-        database = LocalDbTestDatabase.CreateAsync().GetAwaiter().GetResult();
+        // MigrateAsync then finds nothing to apply. The restore starts here
+        // and runs beside the test's own set-up; the first use of the
+        // database awaits it (DatabaseAsync); only host creation, which
+        // cannot await, blocks on it once (RestoredDatabase).
+        databaseRestore = Task.Run(() => LocalDbTestDatabase.CreateAsync());
     }
 
     private IntakeWebApplicationFactory(DatabaseOpenGuard databaseOpenGuard)
@@ -143,7 +147,35 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// </summary>
     internal static IntakeWebApplicationFactory WithoutDatabase() => new(new DatabaseOpenGuard());
 
-    internal LocalDbTestDatabase Database => database
+    /// <summary>
+    /// The restore the constructor started, for an async caller to await;
+    /// throws for a database-less host. A failed restore throws where it is
+    /// awaited, and once more at disposal only if no use saw it.
+    /// </summary>
+    internal Task<LocalDbTestDatabase> DatabaseAsync
+    {
+        get
+        {
+            if (databaseRestore is null)
+            {
+                throw new InvalidOperationException(
+                    "This factory was built without a database (IntakeWebApplicationFactory.WithoutDatabase).");
+            }
+
+            databaseRestoreObserved = true;
+            return databaseRestore;
+        }
+    }
+
+    /// <summary>
+    /// The restored database for a caller that cannot await (host creation,
+    /// a synchronous read): blocks once on the restore, off the test's
+    /// synchronisation context. An async caller awaits <see cref="DatabaseAsync"/>.
+    /// </summary>
+    private LocalDbTestDatabase? RestoredDatabase
+        => databaseRestore is null ? null : DatabaseAsync.GetAwaiter().GetResult();
+
+    internal LocalDbTestDatabase Database => RestoredDatabase
         ?? throw new InvalidOperationException(
             "This factory was built without a database (IntakeWebApplicationFactory.WithoutDatabase).");
 
@@ -170,7 +202,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                     StringComparison.OrdinalIgnoreCase)
                     ? "DevelopmentOffline"
                     : "Production",
-                ["ConnectionStrings:Pegasus"] = database?.ConnectionString ?? UnresolvableConnectionString,
+                ["ConnectionStrings:Pegasus"] = RestoredDatabase?.ConnectionString ?? UnresolvableConnectionString,
                 ["Intake:LocalArtifactPath"] = ArtifactDirectory,
                 ["Features:LocalIntake"] = (localIntakeEnabled ?? false).ToString(),
                 ["Features:LocalDocumentCustody"] = environment.Equals(
@@ -336,7 +368,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             {
                 try
                 {
-                    database?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    DisposeDatabase();
                 }
                 finally
                 {
@@ -352,6 +384,19 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         {
             ReportDatabaseOpenAttempts();
         }
+    }
+
+    private void DisposeDatabase()
+    {
+        // A restore that failed has already disposed itself, and a test that
+        // used the database has already seen the failure; one nobody used
+        // still fails here, as the constructor used to.
+        if (databaseRestore is null || (databaseRestoreObserved && databaseRestore.IsFaulted))
+        {
+            return;
+        }
+
+        databaseRestore.GetAwaiter().GetResult().DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     /// <summary>

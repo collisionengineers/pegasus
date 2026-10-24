@@ -1155,6 +1155,13 @@ public sealed class EfImageIntakeStore(
         return await GetDetailAsync(context, item => item.Id == id, cancellationToken);
     }
 
+    public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ImageIntakes.AsNoTracking()
+            .AnyAsync(item => item.Id == id, cancellationToken);
+    }
+
     public async Task<ImageIntakeDetail?> GetByReferenceAsync(
         string imageIntakeReference,
         CancellationToken cancellationToken)
@@ -1181,6 +1188,86 @@ public sealed class EfImageIntakeStore(
         return entity is null
             ? null
             : await ToDetailAsync(context, entity, entity.Principal?.Code, cancellationToken);
+    }
+
+    public async Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
+    /// <summary>
+    /// <see cref="GetByOriginReceiptAsync"/> for a set of receipts in one or
+    /// two reads however many there are: the records whose origin is one of
+    /// them, then, for the others, the group-stamped records their submission
+    /// groups registered (the same rule as <see cref="FindForReceiptAsync"/>).
+    /// Only the first asked receipt that reaches a record is read in full.
+    /// </summary>
+    public async Task<ImageIntakeOriginRecords> GetByOriginReceiptsAsync(
+        IReadOnlyList<Guid> intakeReceiptIds,
+        CancellationToken cancellationToken)
+    {
+        var wanted = intakeReceiptIds.Distinct().ToArray();
+        if (wanted.Length == 0)
+        {
+            return new(new HashSet<Guid>(), null);
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var found = new Dictionary<Guid, (ImageIntakeEntity Intake, string? PrincipalCode)>();
+        var origins = await context.ImageIntakes
+            .AsNoTracking()
+            .Where(item => wanted.Contains(item.OriginReceiptId))
+            .Select(intake => new
+            {
+                ReceiptId = intake.OriginReceiptId,
+                Intake = intake,
+                PrincipalCode = intake.Principal != null ? intake.Principal.Code : null
+            })
+            .ToArrayAsync(cancellationToken);
+        foreach (var row in origins)
+        {
+            found[row.ReceiptId] = (row.Intake, row.PrincipalCode);
+        }
+
+        var remaining = wanted.Where(receiptId => !found.ContainsKey(receiptId)).ToArray();
+        if (remaining.Length > 0)
+        {
+            var grouped = await (
+                from evaluation in context.IntakeEvaluations.AsNoTracking()
+                where remaining.Contains(evaluation.ProcessedReceiptId)
+                    && context.IntakeMutationHistory.Any(history =>
+                        history.IntakeReceiptId == evaluation.ProcessedReceiptId
+                        && (history.EventType == "image_intake_registered"
+                            || history.EventType == "image_intake_registration_reasserted"))
+                join member in context.IntakeSubmissionGroupMembers.AsNoTracking()
+                    on evaluation.StagedReceiptId equals member.StagedReceiptId
+                join intake in context.ImageIntakes.AsNoTracking()
+                    on (Guid?)member.GroupId equals intake.SubmissionGroupId
+                select new
+                {
+                    ReceiptId = evaluation.ProcessedReceiptId,
+                    Intake = intake,
+                    PrincipalCode = intake.Principal != null ? intake.Principal.Code : null
+                })
+                .ToArrayAsync(cancellationToken);
+            foreach (var row in grouped)
+            {
+                found.TryAdd(row.ReceiptId, (row.Intake, row.PrincipalCode));
+            }
+        }
+
+        var firstReceiptId = wanted.FirstOrDefault(found.ContainsKey);
+        ImageIntakeDetail? first = null;
+        if (found.TryGetValue(firstReceiptId, out var firstRecord))
+        {
+            first = await ToDetailAsync(context, firstRecord.Intake, firstRecord.PrincipalCode, cancellationToken);
+        }
+
+        return new(found.Keys.ToHashSet(), first);
     }
 
     /// <summary>
@@ -1734,7 +1821,7 @@ public sealed class EfImageIntakeStore(
     });
 
     private static string Hash(string material) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
 
     private static string ToChannelCode(IntakeSourceChannel channel) => channel switch
     {

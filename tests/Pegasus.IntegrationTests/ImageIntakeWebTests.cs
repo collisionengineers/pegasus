@@ -397,7 +397,7 @@ public sealed class ImageIntakeWebTests
             .GetRequiredService<IImageIntakeQueries>()
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
-        await using (var context = await factory.Database.CreateContextAsync())
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             Assert.False(await context.ExternalWorkItems.AsNoTracking()
                 .AnyAsync(item => item.Kind == ExternalWorkKinds.CreateImageCaseCustody));
@@ -489,7 +489,7 @@ public sealed class ImageIntakeWebTests
             Assert.Equal(seeded[field] ?? printed[field], after[field]);
         }
 
-        await using var context = await factory.Database.CreateContextAsync();
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
         var vin = await context.CaseAssessmentFields.AsNoTracking()
             .SingleAsync(item => item.WorkId == caseId && item.FieldPath == AssessmentVocabulary.VehicleVin);
         Assert.Equal("JTDKB3FU703577122", vin.Value);
@@ -501,7 +501,7 @@ public sealed class ImageIntakeWebTests
         Guid caseId,
         string[] fieldNames)
     {
-        await using var context = await factory.Database.CreateContextAsync();
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
         var rows = await context.CaseDataFields.AsNoTracking()
             .Where(item => item.WorkId == caseId
                 && fieldNames.Contains(item.FieldName)
@@ -653,7 +653,7 @@ public sealed class ImageIntakeWebTests
             factory, client, "AB12 CDE", "WEB-PRINCIPAL-01");
         var imageIntakeId = await RegisterImageIntakeForPrincipalAsync(factory, client);
         Guid casePrincipal;
-        await using (var context = await factory.Database.CreateContextAsync())
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             casePrincipal = await context.Cases.AsNoTracking()
                 .Where(item => item.Id == caseId).Select(item => item.PrincipalId).SingleAsync();
@@ -943,7 +943,7 @@ internal static class ImageIntakeTestData
     {
         await using var scope = factory.Services.CreateAsyncScope();
         Guid[] workIds;
-        await using (var context = await factory.Database.CreateContextAsync())
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             workIds = await context.ExternalWorkItems.AsNoTracking()
                 .Where(item => item.Kind == kind)

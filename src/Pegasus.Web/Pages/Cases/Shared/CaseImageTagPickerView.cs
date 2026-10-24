@@ -8,9 +8,11 @@ namespace Pegasus.Web.Pages.Cases;
 /// the view of the Case record it was drawn in among it.
 /// </summary>
 /// <remarks>
-/// Each row is a real form posting to the Case's Custody handlers, so the
-/// picker works with script off exactly as it does with script on; the
-/// disclosure that hides it is the browser's own.
+/// The rows are buttons of one real form posting to the Case's Custody
+/// handlers, so the picker works with script off exactly as it does with
+/// script on; the disclosure that hides it is the browser's own. The three
+/// handler URLs name the Case alone, so the section builds them once for
+/// every tile.
 /// </remarks>
 public sealed record CaseImageTagPickerView(
     Guid CaseId,
@@ -19,6 +21,9 @@ public sealed record CaseImageTagPickerView(
     string? EditLeaseToken,
     IReadOnlyList<ImageTag> Vocabulary,
     IReadOnlyList<ImageTagAssignment> Applied,
+    string TagAction,
+    string UntagAction,
+    string CreateAction,
     string? View = null)
 {
     public bool IsApplied(Guid tagId) => Applied.Any(tag => tag.TagId == tagId);

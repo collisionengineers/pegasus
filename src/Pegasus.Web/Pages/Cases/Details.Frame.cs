@@ -34,6 +34,15 @@ public sealed partial class DetailsModel
         !ViewerHoldsEditAuthority && CurrentEditLease is not null && EditAuthorityHolder is not null;
 
     /// <summary>
+    /// The Tasks dialog offers its actions (Add task, Assign, Complete, Cancel).
+    /// Core owns the rule; the dialog draws from this and the Tasks body's
+    /// roster read follows it.
+    /// </summary>
+    public bool TasksMayChange =>
+        (TasksSection?.Frame.Workflow ?? Case?.Workflow) is { } workflow
+        && CaseTaskActions.MayChange(workflow, ColleagueIsEditing);
+
+    /// <summary>
     /// Create audit is listed in the Actions menu of every Inspection + Audit
     /// Case, in every state (operator, 1 October 2026); the type is fixed
     /// identity, so no other Case lists it.

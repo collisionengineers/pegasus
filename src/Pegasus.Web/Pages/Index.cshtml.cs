@@ -42,6 +42,7 @@ public partial class IndexModel(
     IAssignCaseEngineer assignEngineer,
     IConfirmAiJob confirmAiJob,
     IListWorkCentreAiJobs listAiJobs,
+    IWorkCentreDismissalStore dismissalStore,
     IDismissWorkCentreItem dismissItem,
     IGetWorkCentreActivity getActivity,
     TimeProvider timeProvider,
@@ -463,9 +464,12 @@ public partial class IndexModel(
         // The open AI jobs and the workflow configuration feed both the
         // attention list and the AI jobs section, so they are read once.
         var sharedRead = ReadSharedAiInputsAsync(cancellationToken);
-        var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, sharedRead, cancellationToken);
+        // The attention list and the AI jobs section look up dismissals once
+        // between them; a section that ends without looking up withdraws.
+        var dismissals = new WorkCentreDismissalBatch(dismissalStore, sections: 2, cancellationToken);
+        var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, sharedRead, dismissals, cancellationToken);
         var newCasesRead = ReadNewCasesAsync(actor, markSeen: NewCasesPage == 1 && !refresh, cancellationToken);
-        var aiJobsRead = ReadAiJobsAsync(actor, clientId, sharedRead, cancellationToken);
+        var aiJobsRead = ReadAiJobsAsync(actor, clientId, sharedRead, dismissals, cancellationToken);
         var activityRead = ReadActivityAsync(actor, cancellationToken);
         try
         {
@@ -565,24 +569,30 @@ public partial class IndexModel(
         Guid? selected,
         bool assign,
         Task<SharedAiInputs> sharedRead,
+        WorkCentreDismissalBatch dismissalBatch,
         CancellationToken cancellationToken)
     {
         using var timing = DocumentReadTelemetry.Start("web.workcentre.attention");
         var filter = kinds.Count > 0 ? kinds : null;
-        SharedAiInputs? shared = null;
-        try
+        OperationsSnapshot snapshot;
+        using (var dismissals = dismissalBatch.Join())
         {
-            shared = await sharedRead;
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            // The AI jobs section reports this failure. The list still reads
-            // for itself, so a section that cannot read never hides the other.
+            SharedAiInputs? shared = null;
+            try
+            {
+                shared = await sharedRead;
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // The AI jobs section reports this failure. The list still reads
+                // for itself, so a section that cannot read never hides the other.
+            }
+
+            snapshot = await getOperationsSnapshot.ExecuteAsync(
+                new NeedsAttentionQuery(actor, scope, page, filter, NowUtc, search, shared?.OpenJobs, shared?.Configuration, dismissals),
+                cancellationToken);
         }
 
-        var snapshot = await getOperationsSnapshot.ExecuteAsync(
-            new NeedsAttentionQuery(actor, scope, page, filter, NowUtc, search, shared?.OpenJobs, shared?.Configuration),
-            cancellationToken);
         // Core lands a page past the end on the last page; the page it read is the one shown.
         page = snapshot.Attention.Page;
 
@@ -678,12 +688,18 @@ public partial class IndexModel(
         ActionActor actor,
         string? clientId,
         Task<SharedAiInputs> sharedRead,
+        WorkCentreDismissalBatch dismissalBatch,
         CancellationToken cancellationToken)
     {
         using var timing = DocumentReadTelemetry.Start("web.workcentre.aijobs");
-        var shared = await sharedRead;
-        var jobs = await listAiJobs.ExecuteAsync(
-            actor, shared.OpenJobs, shared.Configuration.AiDraftTargetDays, NowUtc, cancellationToken);
+        IReadOnlyList<WorkCentreAiJob> jobs;
+        using (var dismissals = dismissalBatch.Join())
+        {
+            var shared = await sharedRead;
+            jobs = await listAiJobs.ExecuteAsync(
+                actor, shared.OpenJobs, shared.Configuration.AiDraftTargetDays, NowUtc, cancellationToken, dismissals);
+        }
+
         var names = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
             AiJobActions.StaffCreatorIds(jobs.Select(row => row.Job)),

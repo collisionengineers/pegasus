@@ -55,13 +55,23 @@ public sealed class EngineerActivityReportPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
 
-        var all = await queries.GetAsync(From, To, CancellationToken.None);
+        var all = await queries.GetAsync(From, To, null, CancellationToken.None);
 
         Assert.Equal(
             new[] { new EngineerActivityCounts(engineerA, 1, 2), new EngineerActivityCounts(engineerB, 2, 1) }
                 .OrderBy(item => item.EngineerId)
                 .Append(new EngineerActivityCounts(Guid.Empty, 1, 0) { SenderKind = Pegasus.Core.Identity.ActorKind.Automation }),
             all);
+
+        // F254 (R326): one staff member asked for is exactly that sender's row of
+        // the unfiltered read, with no other sender's sends or queries; one
+        // with no activity is absent.
+        foreach (var engineer in new[] { engineerA, engineerB })
+        {
+            var chosen = await queries.GetAsync(From, To, engineer, CancellationToken.None);
+            Assert.Equal(all.Where(item => item.EngineerId == engineer), chosen);
+        }
+        Assert.Empty(await queries.GetAsync(From, To, Guid.NewGuid(), CancellationToken.None));
     }
 
     /// <summary>
@@ -104,7 +114,7 @@ public sealed class EngineerActivityReportPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
-        var row = Assert.Single(await queries.GetAsync(From, To, CancellationToken.None));
+        var row = Assert.Single(await queries.GetAsync(From, To, null, CancellationToken.None));
 
         Assert.Equal(3, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
@@ -150,7 +160,7 @@ public sealed class EngineerActivityReportPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
-        var row = Assert.Single(await queries.GetAsync(From, To, CancellationToken.None));
+        var row = Assert.Single(await queries.GetAsync(From, To, null, CancellationToken.None));
 
         Assert.Equal(2, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
@@ -186,7 +196,7 @@ public sealed class EngineerActivityReportPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
 
-        Assert.Empty(await queries.GetAsync(From, To, CancellationToken.None));
+        Assert.Empty(await queries.GetAsync(From, To, null, CancellationToken.None));
     }
 
     private static StaffMailSendOperationEntity SentOperation(

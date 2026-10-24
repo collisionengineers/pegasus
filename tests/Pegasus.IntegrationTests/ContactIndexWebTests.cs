@@ -45,9 +45,9 @@ public sealed partial class ContactIndexWebTests
             "/Administration/Contacts?handler=Create",
             new FormUrlEncodedContent(form));
         Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Wizard Claim Source';"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Wizard Claim Source' AND Role = 'claim_source';"));
     }
 
@@ -80,7 +80,7 @@ public sealed partial class ContactIndexWebTests
         Assert.Equal(HttpStatusCode.OK, post.StatusCode);
         var body = await post.Content.ReadAsStringAsync();
         Assert.Contains("Phone must be digits.", body, StringComparison.Ordinal);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Lettered Telephone Contact';"));
     }
 
@@ -100,7 +100,7 @@ public sealed partial class ContactIndexWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        using var index = await client.GetAsync("/Administration/Contacts");
+        using var index = await client.GetAsync("/Administration/Contacts?createType=ClaimSource");
         var indexHtml = await index.Content.ReadAsStringAsync();
         index.EnsureSuccessStatusCode();
         var newId = Guid.NewGuid();
@@ -118,7 +118,7 @@ public sealed partial class ContactIndexWebTests
             }));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Rejected edit contact';"));
     }
 
@@ -170,7 +170,7 @@ public sealed partial class ContactIndexWebTests
         Assert.Contains("Match Contact · Claim Source", foundHtml, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Administration/Contacts/Edit/{existingId:D}\"", foundHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Use this contact", foundHtml, StringComparison.Ordinal);
-        Assert.Equal("claim_source", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("claim_source", await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT Role FROM Organizations WHERE Id = '{existingId:D}';"));
     }
 
@@ -398,7 +398,7 @@ public sealed partial class ContactIndexWebTests
 
         Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
         Assert.Contains("A contact with that name already exists.", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.Equal("Duplicate Fixture Two", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("Duplicate Fixture Two", await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT Name FROM Organizations WHERE Id = '{secondId:D}';"));
     }
 
@@ -451,9 +451,9 @@ public sealed partial class ContactIndexWebTests
             }));
 
         Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
-        Assert.Equal("Inactive Link Fixture Repairer renamed", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("Inactive Link Fixture Repairer renamed", await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT Name FROM Organizations WHERE Id = '{repairerId:D}';"));
-        Assert.Equal(inactivePrincipalId, await factory.Database.ScalarAsync<Guid>(
+        Assert.Equal(inactivePrincipalId, await (await factory.DatabaseAsync).ScalarAsync<Guid>(
             $"SELECT PrincipalId FROM ContactPrincipalLinks WHERE OrganizationId = '{repairerId:D}';"));
     }
 
@@ -520,7 +520,7 @@ public sealed partial class ContactIndexWebTests
             }));
 
         Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
-        Assert.Equal(PrincipalInspectionModePolicy.ImageBasedAssessmentCode, await factory.Database.ScalarAsync<string>(
+        Assert.Equal(PrincipalInspectionModePolicy.ImageBasedAssessmentCode, await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT InspectionMode FROM Principals WHERE Id = '{successorId:D}';"));
     }
 

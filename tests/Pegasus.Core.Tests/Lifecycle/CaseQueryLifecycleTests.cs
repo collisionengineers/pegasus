@@ -6,8 +6,9 @@ namespace Pegasus.Core.Tests.Lifecycle;
 
 /// <summary>
 /// Log query and Resolve query (operator, 11 October 2026): the use cases
-/// check the Core rule against the Case as read, then hand the store the
-/// request as it is; a replay of the same operation key skips the gate.
+/// hand the store the request as it is. The store asks the Core rule of the
+/// workflow it read under its lock and skips it for a replay of the same
+/// operation key (eff-07-l, register A3-06).
 /// </summary>
 public sealed class CaseQueryLifecycleTests
 {
@@ -38,18 +39,21 @@ public sealed class CaseQueryLifecycleTests
     }
 
     [Theory]
-    [InlineData(CaseLifecycleState.ReportPreparation)]
-    [InlineData(CaseLifecycleState.Review)]
-    [InlineData(CaseLifecycleState.Held)]
-    public async Task AQueryIsRefusedBeforeTheReportIsSent(CaseLifecycleState state)
+    [InlineData("not sent", false, false)]
+    [InlineData("archived", true, true)]
+    [InlineData("not sent and archived", false, true)]
+    public void AQueryIsRefusedBeforeTheReportIsSentOrOnAnArchivedCase(string label, bool reportIsSent, bool archived)
     {
-        var store = new QueryStore(state, hasOpenQuery: false);
+        Assert.NotEmpty(label);
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => CaseQueryRules.RequireCanLog(reportIsSent, archived));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new RaiseCaseQuery(store).ExecuteAsync(Raise(CaseQueryChannel.Email, "A query."), default));
-
-        Assert.Null(store.Raised);
+        Assert.Equal("A query can be logged only once the report is sent.", exception.Message);
     }
+
+    [Fact]
+    public void AQueryIsLoggedOnceTheReportIsSentOnAnArchivableCase() =>
+        CaseQueryRules.RequireCanLog(reportIsSent: true, archived: false);
 
     [Fact]
     public async Task AnUnknownChannelIsRefused()
@@ -83,27 +87,30 @@ public sealed class CaseQueryLifecycleTests
         Assert.NotNull(store.Resolved);
     }
 
-    [Fact]
-    public async Task ResolvingWithNothingOpenIsRefused()
+    [Theory]
+    [InlineData("nothing open", false, false)]
+    [InlineData("archived", true, true)]
+    [InlineData("nothing open and archived", false, true)]
+    public void ResolvingWithNothingOpenOrOnAnArchivedCaseIsRefused(string label, bool hasOpenQuery, bool archived)
     {
-        var store = new QueryStore(CaseLifecycleState.ReportSent, hasOpenQuery: false);
+        Assert.NotEmpty(label);
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => CaseQueryRules.RequireCanResolve(hasOpenQuery, archived));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ResolveCaseQueries(store).ExecuteAsync(Resolve(), default));
-
-        Assert.Null(store.Resolved);
+        Assert.Equal("The case has no open query to resolve.", exception.Message);
     }
 
     [Fact]
-    public async Task AReplayedOperationSkipsTheGate()
+    public async Task NeitherActionReadsTheCaseBeforeTheStore()
     {
-        var store = new QueryStore(CaseLifecycleState.Review, hasOpenQuery: false) { Replayed = true };
+        var store = new QueryStore(CaseLifecycleState.ReportSent, hasOpenQuery: true);
 
         await new RaiseCaseQuery(store).ExecuteAsync(Raise(CaseQueryChannel.Other, "A query."), default);
         await new ResolveCaseQueries(store).ExecuteAsync(Resolve(), default);
 
         Assert.NotNull(store.Raised);
         Assert.NotNull(store.Resolved);
+        Assert.Equal(0, store.Reads);
     }
 
     [Fact]
@@ -129,18 +136,26 @@ public sealed class CaseQueryLifecycleTests
     {
         private CaseWorkflowRecord _current = CaseQueryRulesTests.Workflow(state, hasOpenQuery);
 
-        public bool Replayed { get; init; }
         public RaiseCaseQueryRequest? Raised { get; private set; }
         public ResolveCaseQueriesRequest? Resolved { get; private set; }
 
-        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? _current : null);
+        /// <summary>Every read of the Case or of its operations a command made before the write.</summary>
+        public int Reads { get; private set; }
+
+        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? _current : null);
+        }
 
         public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(IReadOnlyCollection<Guid> caseIds, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
-            Task.FromResult(Replayed);
+        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult(false);
+        }
 
         public Task<CaseWorkflowRecord> RaiseQueryAsync(RaiseCaseQueryRequest request, CancellationToken cancellationToken)
         {
@@ -156,11 +171,11 @@ public sealed class CaseQueryLifecycleTests
             return Task.FromResult(_current);
         }
 
-        public Task<CaseWorkflowRecord> ChangeStateAsync(CaseMutationRequest request, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseWorkflowRecord> StartWorkAsync(CaseMutationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReleaseHoldAsync(CaseMutationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseWorkflowRecord> AssignEngineerAsync(AssignCaseEngineerRequest request, Guid? signOffEngineerId, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseEngineerAssignment> AssignEngineerAsync(AssignCaseEngineerRequest request, CaseLifecycleState targetState, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> RecordReportApprovalAsync(RecordCaseReportApprovalRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<LinkReportEvidenceResult> LinkReportEvidenceAsync(LinkReportEvidenceRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> UnlinkReportEvidenceAsync(UnlinkReportEvidenceRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();

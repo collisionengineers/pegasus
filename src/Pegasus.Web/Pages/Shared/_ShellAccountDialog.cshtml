@@ -1,0 +1,49 @@
+@*
+    The Account dialog's content, answered by /Notifications?handler=ShellDialog&name=account
+    the first time the dialog opens. _ShellDialogs keeps the empty backdrop
+    (data-dialog="account-dialog") that site.js fills with this.
+*@
+@{
+    var userName = User.Identity?.Name ?? string.Empty;
+    var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
+}
+<section class="dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
+    <div class="dialog-head">
+        <h2 id="account-dialog-title" tabindex="-1">Account</h2>
+        <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+        </button>
+    </div>
+    <div class="dialog-body">
+        <div class="definition-list">
+            <dl class="definition"><dt>Name</dt><dd>@userName</dd></dl>
+            <dl class="definition"><dt>Role</dt><dd>@role</dd></dl>
+            <dl class="definition"><dt>Idle lock</dt><dd>@OperatorLabels.Duration(Pegasus.Core.Actors.StaffSessionPolicy.IdleLifetime)</dd></dl>
+        </div>
+        @* Release notes, Report a problem and Change password sit in the
+           body (v41 S1); the foot keeps Close and Sign out. *@
+        <div class="button-row section-gap">
+            <a class="btn" asp-page="/ReleaseNotes">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-flag")" /></svg>
+                <span>@OperatorLabels.Shell.ReleaseNotes</span>
+            </a>
+            <button type="button" class="btn" data-dialog-open="problem-dialog">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+                <span>@OperatorLabels.Shell.ReportProblem</span>
+            </button>
+            <a class="btn" asp-page="/Account/PasswordChange">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-key")" /></svg>
+                <span>Change password</span>
+            </a>
+        </div>
+    </div>
+    <div class="dialog-foot">
+        <button type="button" class="btn" data-dialog-close>Close</button>
+        <form method="post" asp-page="/Account/SignOut">
+            <button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.SigningOut">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-log-out")" /></svg>
+                <span>Sign out</span>
+            </button>
+        </form>
+    </div>
+</section>

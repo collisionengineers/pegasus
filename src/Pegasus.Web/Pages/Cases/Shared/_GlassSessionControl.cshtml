@@ -4,7 +4,7 @@
 @using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
-    var caseId = Model.Case!.Workflow.CaseId;
+    var caseId = Model.CurrentWorkflow!.CaseId;
     var glassSession = Model.GlassSession;
     var showGlassLine = glassSession is not null &&
         (GlassRepairEstimateSessionPolicy.OccupiesAccount(glassSession.State) || glassSession.State == GlassRepairEstimateSessionState.Failed);

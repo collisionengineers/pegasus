@@ -24,7 +24,7 @@ public sealed class CustodyModel(
     ICreateImageTag createImageTag,
     ICaseWorkflowQueries workflows,
     IAcquireCaseEditLease acquireLease,
-    ILogger<CustodyModel> logger) : CaseMutationPageModel(logger)
+    ILogger<CustodyModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// Tagging and removing are immediate posts inside the edit
@@ -89,6 +89,15 @@ public sealed class CustodyModel(
             RedirectToFiles,
             keepEditing: true);
 
+    /// <summary>
+    /// A tile's tag buttons share one form and so one operation key; each tag
+    /// is its own action, so the key it records is the posted one with the tag.
+    /// Pressing another tag after a lost response meets the Case's own guard,
+    /// not a replay of the first tag.
+    /// </summary>
+    private static string TagOperationKey(string operationKey, Guid tagId) =>
+        string.IsNullOrWhiteSpace(operationKey) ? operationKey : $"{operationKey}:{tagId:N}";
+
     public Task<IActionResult> OnPostTagImageAsync(
         Guid id,
         Guid occurrenceId,
@@ -107,7 +116,7 @@ public sealed class CustodyModel(
                     occurrenceId,
                     tagId,
                     actor,
-                    operationKey,
+                    TagOperationKey(operationKey, tagId),
                     expectedVersion,
                     editLeaseToken),
                 cancellationToken),
@@ -133,7 +142,7 @@ public sealed class CustodyModel(
                     occurrenceId,
                     tagId,
                     actor,
-                    operationKey,
+                    TagOperationKey(operationKey, tagId),
                     expectedVersion,
                     editLeaseToken),
                 cancellationToken),

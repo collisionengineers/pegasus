@@ -662,6 +662,19 @@ function Get-MigrationPermissionMatrix {
         [void]$expected.RemoveAll([Predicate[string]] { param($row) $row -ceq $denied })
         $expected.Add("pegasus_web_runtime_role|G|DELETE|$table")
     }
+    # 20261023160000_AppliedValuationCalculationRows: the applied valuation's
+    # calculation and additions as rows beside the snapshot JSON. Web writes
+    # them in the Case save and Create audit's copy and reads them; the same
+    # posture as AppliedValuationSnapshots (20260906054658_V1PlatformFoundation):
+    # SELECT and INSERT, no DELETE for either role, the Worker has no caller.
+    foreach ($table in @('AppliedValuationCalculations', 'AppliedValuationAdditions')) {
+        foreach ($permission in @('SELECT', 'INSERT')) {
+            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
+        }
+        foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+            $expected.Add("$role|D|DELETE|$table")
+        }
+    }
     # 20260929120000_PrincipalVocabulary renames these tables. The earlier
     # migrations this matrix reads still name them, and SQL Server keeps a
     # table's permission rows across a rename, so the rows read here are the

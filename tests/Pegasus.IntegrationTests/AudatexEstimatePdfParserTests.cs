@@ -37,6 +37,21 @@ public sealed class AudatexEstimatePdfParserTests
         Assert.Equal(expected, parser.CanParse(fileName, mediaType));
 
     [Fact]
+    public void ASliceOfALargerBufferParsesAsTheWholePdfDoes()
+    {
+        var pdf = AudatexEstimateFixture.Build();
+        var padded = new byte[pdf.Length + 64];
+        pdf.CopyTo(padded, 32);
+
+        var whole = Parse(pdf);
+        var slice = Parse(padded.AsMemory(32, pdf.Length));
+
+        Assert.Equal(whole.SourceVersion, slice.SourceVersion);
+        Assert.Equal(whole.Lines.Count, slice.Lines.Count);
+        Assert.Equal(whole.Lines.Select(line => line.Price), slice.Lines.Select(line => line.Price));
+    }
+
+    [Fact]
     public void ParsesEveryLineWithItsOwnMoney()
     {
         var result = Parse(AudatexEstimateFixture.Build());

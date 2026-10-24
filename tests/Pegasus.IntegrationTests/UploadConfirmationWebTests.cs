@@ -696,7 +696,7 @@ public sealed class UploadConfirmationWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "AB12 CDE", "WAIT-GROUP-01");
-        await using (var setupDb = await factory.Database.CreateContextAsync())
+        await using (var setupDb = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             await setupDb.Cases.Where(value => value.Id == caseId).ExecuteUpdateAsync(update => update
                 .SetProperty(value => value.CustodyState, "confirmed")
@@ -728,7 +728,7 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
         var memberReceiptIds = confirmation.ReceiptVersions.Keys.ToArray();
         Assert.Equal(5, memberReceiptIds.Length);
-        await using (var beforeDb = await factory.Database.CreateContextAsync())
+        await using (var beforeDb = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             var heldBeforeAttach = await beforeDb.IntakeAssets.AsNoTracking()
                 .Where(asset => memberReceiptIds.Contains(asset.IntakeReceiptId))
@@ -753,7 +753,7 @@ public sealed class UploadConfirmationWebTests
             await AssertFiledOnCaseAsync(factory, receiptId, caseId, minimumDocuments: 1);
         }
 
-        await using (var afterDb = await factory.Database.CreateContextAsync())
+        await using (var afterDb = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             var versions = await (
                 from occurrence in afterDb.Set<DocumentOccurrenceEntity>().AsNoTracking()
@@ -817,7 +817,7 @@ public sealed class UploadConfirmationWebTests
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
         Assert.NotNull(detail);
         Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, detail!.State);
-        await using var context = await factory.Database.CreateContextAsync();
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
         var work = await context.ExternalWorkItems.AsNoTracking()
             .SingleAsync(item => item.ImageIntakeId == detail.Record.Id
                 && item.Kind == ExternalWorkKinds.CreateImageCaseCustody);
@@ -831,7 +831,7 @@ public sealed class UploadConfirmationWebTests
 
     private static async Task AssertNoRecordFolderQueuedAsync(IntakeWebApplicationFactory factory)
     {
-        await using var context = await factory.Database.CreateContextAsync();
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
         Assert.False(await context.ExternalWorkItems.AsNoTracking()
             .AnyAsync(item => item.Kind == ExternalWorkKinds.CreateImageCaseCustody));
     }
@@ -1014,18 +1014,7 @@ public sealed class UploadConfirmationWebTests
         var page = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
 
         Assert.Contains("data-upload-phase=\"decision\"", page, StringComparison.Ordinal);
-        // A whole-receipt read is a receipt statement and an Assets statement:
-        // count the receipt statements.
-        var wholeReceiptReads = counter.CountContaining(
-                "[IntakeReceipts]",
-                "[InstructionDrafts]",
-                "[IntakeMailRouteDecisions]")
-            - counter.CountContaining(
-                "[IntakeReceipts]",
-                "[IntakeAssets]",
-                "[InstructionDrafts]",
-                "[IntakeMailRouteDecisions]");
-        Assert.Equal(4, wholeReceiptReads);
+        Assert.Equal(4, counter.WholeReceiptReads());
     }
 
     [Fact]

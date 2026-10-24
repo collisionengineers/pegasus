@@ -4,7 +4,8 @@
 @using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
-    var caseId = Model.Case!.Workflow.CaseId;
+    var caseId = Model.CurrentWorkflow!.CaseId;
+    var caseVersion = Model.CurrentWorkflow!.Version;
     var glassSession = Model.GlassSession;
     var editing = Model.SectionIsEditable("estimate");
 }
@@ -31,7 +32,7 @@
                   asp-route-id="@caseId" asp-route-section="estimate"
                   target="_blank" data-glass-window data-glass-slot="fetch-again">
                 <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
-                <input type="hidden" name="expectedCaseVersion" value="@Model.Case.Workflow.Version" />
+                <input type="hidden" name="expectedCaseVersion" value="@caseVersion" />
                 <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <input type="hidden" name="sessionId" value="@glassSession.Id" />
@@ -46,7 +47,7 @@
               asp-route-id="@caseId" asp-route-section="estimate"
               target="_blank" data-glass-window data-glass-slot="launch">
             <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
-            <input type="hidden" name="expectedCaseVersion" value="@Model.Case.Workflow.Version" />
+            <input type="hidden" name="expectedCaseVersion" value="@caseVersion" />
             <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
             <input type="hidden" name="view" value="@Model.ViewRoute" />
             @if (Model.GlassSpecificationId is { } specificationId)

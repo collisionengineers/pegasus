@@ -49,9 +49,16 @@ public sealed record IntakeFileMetadata(
 
 public sealed record IntakeSourceMetadataQuery(Guid ReceiptId, ActionActor Actor);
 
+/// <summary>
+/// A receipt's source metadata together with the receipt it was read from, so
+/// the download that follows serves that same read rather than reading the
+/// receipt graph again.
+/// </summary>
+public sealed record AuthorizedIntakeSource(IntakeFileMetadata Metadata, IntakeReceipt Receipt);
+
 public interface IGetIntakeSourceMetadata
 {
-    Task<IntakeFileMetadata?> ExecuteAsync(
+    Task<AuthorizedIntakeSource?> ExecuteAsync(
         IntakeSourceMetadataQuery query,
         CancellationToken cancellationToken = default);
 }
@@ -133,7 +140,7 @@ public static class IntakeFileIdentity
 public sealed class GetIntakeSourceMetadata(IIntakeReceiptQueries queries)
     : IGetIntakeSourceMetadata
 {
-    public async Task<IntakeFileMetadata?> ExecuteAsync(
+    public async Task<AuthorizedIntakeSource?> ExecuteAsync(
         IntakeSourceMetadataQuery query,
         CancellationToken cancellationToken = default)
     {
@@ -154,7 +161,7 @@ public sealed class GetIntakeSourceMetadata(IIntakeReceiptQueries queries)
         }
 
         var source = IntakeFileIdentity.SourceAsset(receipt);
-        return source is null ? null : IntakeFileIdentity.Describe(receipt, source);
+        return source is null ? null : new(IntakeFileIdentity.Describe(receipt, source), receipt);
     }
 }
 

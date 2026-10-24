@@ -394,9 +394,9 @@ public sealed class MailWorkspaceWebTests
             + Environment.NewLine + dialogDescription);
     }
 
-    private const int InboxMessageCommands = 19;
+    private const int InboxMessageCommands = 18;
 
-    private const int InboxListCommands = 13;
+    private const int InboxListCommands = 10;
 
     /// <summary>
     /// The Inbox list reads nothing once per row: the same request over six
@@ -441,6 +441,42 @@ public sealed class MailWorkspaceWebTests
             $"The Inbox list grew with the messages: {withThreeMessages} commands for three and {withSixMessages} for six."
             + Environment.NewLine + "Three messages:" + Environment.NewLine + withThreeDescription
             + Environment.NewLine + "Six messages:" + Environment.NewLine + withSixDescription);
+    }
+
+    /// <summary>
+    /// The Case / PO picker's search reads each destination's workflow state,
+    /// version, archived flag and Triage version from the search rows
+    /// themselves: no statement reads the workflow or Triage table without the
+    /// Case search's own join.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseOptionsSearchReadsNoWorkflowOrTriageRowOfItsOwn()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        _ = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, receiptId, "MAIL35001", nameof(CaseLifecycleState.Review));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var route = $"/Inbox/{messageId:D}?handler=LinkCaseOptions&q=MAIL35001";
+        // The first request pays one-off work; the count is the second.
+        _ = await client.GetAsync(route);
+
+        counter.Reset();
+        using var options = await client.GetAsync(route);
+        Assert.Equal(HttpStatusCode.OK, options.StatusCode);
+        Assert.Contains("value=\"MAIL35001\"", await options.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        var ownReads = counter.CountMentioning("[CaseWorkflows]", without: "[Cases]")
+            + counter.CountMentioning("[Triage]", without: "[Cases]");
+        Assert.True(
+            ownReads == 0,
+            $"The Case options search sent {ownReads} workflow or Triage statements of its own."
+            + Environment.NewLine + counter.Describe());
     }
 
     [Fact]
@@ -848,7 +884,7 @@ public sealed class MailWorkspaceWebTests
         {
             var jobs = await scope.ServiceProvider
                 .GetRequiredService<IAiJobQueries>()
-                .ListForSubjectAsync(caseId, CancellationToken.None);
+                .ListOpenForSubjectAsync(caseId, CancellationToken.None);
             var job = Assert.Single(jobs);
             Assert.Equal(AiJobKind.QueryResponse, job.Kind);
             Assert.Equal(AiJobSubjectKind.Case, job.SubjectKind);
@@ -869,7 +905,7 @@ public sealed class MailWorkspaceWebTests
         {
             jobId = Assert.Single(await scope.ServiceProvider
                 .GetRequiredService<IAiJobQueries>()
-                .ListForSubjectAsync(caseId, CancellationToken.None)).JobId;
+                .ListOpenForSubjectAsync(caseId, CancellationToken.None)).JobId;
         }
         Assert.DoesNotContain("handler=CreateQueryResponse", rendered, StringComparison.Ordinal);
         Assert.Contains($"data-query-ai-pending=\"{jobId:D}\"", rendered, StringComparison.Ordinal);
@@ -910,7 +946,7 @@ public sealed class MailWorkspaceWebTests
         {
             var job = Assert.Single(await scope.ServiceProvider
                 .GetRequiredService<IAiJobQueries>()
-                .ListForSubjectAsync(caseId, CancellationToken.None));
+                .ListOpenForSubjectAsync(caseId, CancellationToken.None));
             Assert.Equal(AiJobKind.QueryResponse, job.Kind);
             Assert.Equal(caseId, job.SubjectId);
             Assert.Equal(messageId.ToString("D"), job.Instruction);
@@ -1301,13 +1337,12 @@ public sealed class MailWorkspaceWebTests
         var oldest = html.IndexOf("Message 0 from instructions", StringComparison.Ordinal);
         Assert.True(newest < oldest, "The list must default to newest received first.");
 
-        // Reading changes nothing. Beyond the layout's sign-out, the only POST
-        // forms are the rows' Dismiss actions (Inbox, 13 September), one per row,
-        // and the one bulk form above the list (v41 I18).
+        // Reading changes nothing. The only POST forms are the rows' Dismiss
+        // actions (Inbox, 13 September), one per row, and the one bulk form
+        // above the list (v41 I18); the shell's dialogs arrive when they open.
         Assert.Equal(3, CountOccurrences(html, "data-mail-row-action=\"dismiss\""));
-        // Sign-out, the shell's Report a problem, the bulk form and the three dismissals.
-        Assert.Equal(2 + 1 + 3, CountOccurrences(html, "method=\"post\""));
-        Assert.Contains("/Account/SignOut", html, StringComparison.Ordinal);
+        // The bulk form and the three dismissals.
+        Assert.Equal(1 + 3, CountOccurrences(html, "method=\"post\""));
     }
 
     /// <summary>
@@ -1868,14 +1903,26 @@ public sealed class MailWorkspaceWebTests
 
         var secondPage = await GetHtmlAsync(
             client,
-            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle&pageNumber=2");
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle&paged=true&pageNumber=2");
         Assert.Contains("Deleted match 0", secondPage, StringComparison.Ordinal);
         Assert.Contains("Page 2 of 2", secondPage, StringComparison.Ordinal);
+        // Next carries the paging marker and reused the kept result: one search for both pages.
+        Assert.Contains("paged=true", firstPage, StringComparison.Ordinal);
+        Assert.Equal(1, source.SearchCount);
 
+        // Refresh on page 2 carries the page but not the marker: it reads the source again.
+        var refreshed = await GetHtmlAsync(
+            client,
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle&pageNumber=2");
+        Assert.Contains("Page 2 of 2", refreshed, StringComparison.Ordinal);
+        Assert.Equal(2, source.SearchCount);
+
+        // The same search again, once the source is unavailable, shows the notice.
         source.Result = new([], false, DeletedMailSearchState.Unavailable);
         var unavailable = await GetHtmlAsync(
             client,
             "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle");
+        Assert.Equal(3, source.SearchCount);
         Assert.Contains(
             "Deleted Items search is unavailable. Retained Inbox mail remains available.",
             unavailable,
@@ -2250,8 +2297,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains($">{OperatorLabels.Inbox.NoCase}</strong>", message, StringComparison.Ordinal);
         // Back reconstructs the exact list position.
         Assert.Contains($"/Inbox?mailbox={FirstMailboxFilter}", message, StringComparison.Ordinal);
-        // Beyond the layout's sign-out and Report a problem, the record's only POST is Dismiss (Inbox, 13 September).
-        Assert.Equal(3, CountOccurrences(message, "method=\"post\""));
+        // The record's only POST is Dismiss (Inbox, 13 September); the shell's dialogs arrive when they open.
+        Assert.Equal(1, CountOccurrences(message, "method=\"post\""));
         Assert.Contains("data-message-dismissal=\"dismiss\"", message, StringComparison.Ordinal);
 
         var attachments = await GetHtmlAsync(
@@ -2281,8 +2328,8 @@ public sealed class MailWorkspaceWebTests
 
         // The Decision card shows only populated rows.
         Assert.Contains("<h2 class=\"decision-head\">Decision</h2>", html, StringComparison.Ordinal);
-        // Sign-out, Report a problem and the record's Dismiss.
-        Assert.Equal(3, CountOccurrences(html, "method=\"post\""));
+        // The record's Dismiss.
+        Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
     }
 
     [Fact]
@@ -4077,6 +4124,8 @@ public sealed class MailWorkspaceWebTests
 
         internal int MaximumMessages { get; private set; }
 
+        internal int SearchCount { get; private set; }
+
         internal DeletedMailSourceResult Result { get; set; } = new(
             Enumerable.Range(0, 26)
                 .Select(index => new DeletedMailSearchItem(
@@ -4110,6 +4159,7 @@ public sealed class MailWorkspaceWebTests
             MailboxId = mailboxId;
             SearchTerm = searchTerm;
             MaximumMessages = maximumMessages;
+            SearchCount++;
             return Task.FromResult(Result);
         }
     }

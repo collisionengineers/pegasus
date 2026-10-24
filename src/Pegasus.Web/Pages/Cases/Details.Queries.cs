@@ -15,7 +15,7 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed partial class DetailsModel
 {
     /// <summary>
-    /// The Case's AI jobs, read once for the Next action's drafts, the
+    /// The Case's open AI jobs, read once for the Next action's drafts, the
     /// Valuation section's pending research and the Queries rows' live
     /// Query response jobs.
     /// </summary>
@@ -37,7 +37,7 @@ public sealed partial class DetailsModel
     /// </summary>
     private async Task LoadQueryDraftsAsync(Guid id, CaseQueriesSection section, CancellationToken cancellationToken)
     {
-        CaseAiJobs = await aiJobs.ListForSubjectAsync(id, cancellationToken);
+        CaseAiJobs = await aiJobs.ListOpenForSubjectAsync(id, cancellationToken);
         QueryDraftCondition = await QueryDraftConditionAsync(section, cancellationToken);
     }
 

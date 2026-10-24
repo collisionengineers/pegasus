@@ -735,17 +735,22 @@ public sealed class EfRepairSpecificationStore(
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
-        var entity = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
+        // The rule reads the specification alone: its lines and numbered
+        // versions are deleted below without being read.
+        var entity = await context.CaseRepairSpecifications
+            .SingleOrDefaultAsync(item => item.Id == request.EstimateId && item.WorkId == workId, cancellationToken)
+            ?? throw new InvalidOperationException("The estimate was not found on this case.");
         EstimatePolicy.ValidateDiscard(Map(entity));
         // Discard deletes the spec with its lines and numbered versions
         // (operator, 11 October 2026); the history below keeps who, when and
         // why. The Current spec cannot be discarded, so no report it feeds
         // changes.
-        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
-        context.CaseRepairSpecificationSnapshots.RemoveRange(
-            await context.CaseRepairSpecificationSnapshots
-                .Where(item => item.WorkId == workId && item.SpecificationId == entity.Id)
-                .ToListAsync(cancellationToken));
+        await context.CaseEstimateLines
+            .Where(line => line.RepairSpecificationId == entity.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+        await context.CaseRepairSpecificationSnapshots
+            .Where(item => item.WorkId == workId && item.SpecificationId == entity.Id)
+            .ExecuteDeleteAsync(cancellationToken);
         context.CaseRepairSpecifications.Remove(entity);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_discarded", requestHash, new { entity.Id, entity.Version, entity.Name }, now);
@@ -805,18 +810,49 @@ public sealed class EfRepairSpecificationStore(
         return Map(entity);
     }
 
+    public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        CancellationToken cancellationToken) =>
+        ListEstimatesAsync(caseId, work, held: null, cancellationToken);
+
     public async Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
         Guid caseId,
         CaseWorkSelector work,
+        RepairSpecificationVersion? held,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
-        var entities = await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
+        // The lines of the version the caller holds are not read again.
+        var heldId = held?.SpecificationId ?? Guid.Empty;
+        var entities = await context.CaseRepairSpecifications.AsNoTracking()
+            .Include(item => item.Lines.Where(line => line.RepairSpecificationId != heldId))
             .Where(item => selectedWorkIds.Contains(item.WorkId))
             .OrderBy(item => item.Version)
             .ToArrayAsync(cancellationToken);
-        return entities.Select(Map).ToArray();
+        var estimates = new RepairSpecificationVersion[entities.Length];
+        for (var index = 0; index < entities.Length; index++)
+        {
+            var entity = entities[index];
+            if (held is null || entity.Id != held.SpecificationId)
+            {
+                estimates[index] = Map(entity);
+            }
+            else if (entity.Version == held.Version)
+            {
+                estimates[index] = Map(entity) with { Lines = held.Lines };
+            }
+            else
+            {
+                // Edited since the caller read it: its lines are not the version listed.
+                entity.Lines = await context.CaseEstimateLines.AsNoTracking()
+                    .Where(line => line.RepairSpecificationId == entity.Id)
+                    .ToListAsync(cancellationToken);
+                estimates[index] = Map(entity);
+            }
+        }
+        return estimates;
     }
 
     public async Task<RepairSpecificationVersion?> GetEstimateAsync(

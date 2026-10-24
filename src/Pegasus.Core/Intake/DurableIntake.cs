@@ -1596,14 +1596,46 @@ public sealed class ReconcileStagedArtifacts(
                     && !kept
                     && nowUtc - item.FirstSeenAtUtc >= ExpiryGracePeriod;
                 var current = item;
-                // An expiring blob is set even when it lists with its target: a
-                // listed Unmatched may carry another tag, which the delete's tag
-                // condition would refuse on every run.
+                // A completed item's blob not yet listed Completed goes by the one
+                // complete-and-delete operation, which tags Completed and deletes
+                // under that tag; a blob already listed Completed is only deleted.
+                if (target == StagedArtifactDisposition.Completed
+                    && current.Disposition != StagedArtifactDisposition.Completed)
+                {
+                    if (await artifactStore.TryCompleteStagedAsync(item.StorageKey, cancellationToken))
+                    {
+                        completed++;
+                    }
+                    else
+                    {
+                        failures++;
+                    }
+
+                    continue;
+                }
+
+                // An expiring blob is deleted at once under the listed ETag and the
+                // listed tag, whatever that is: the set before the delete is never
+                // seen. A listed Unmatched may carry another tag, a changed blob
+                // fails the ETag, and a refused delete falls through to the set
+                // and the delete below.
+                if (expires
+                    && await artifactStore.DeleteStagedAsync(
+                        item.StorageKey,
+                        item.ConcurrencyToken,
+                        current.Disposition,
+                        cancellationToken))
+                {
+                    expired++;
+                    continue;
+                }
+
                 if (current.Disposition != target || expires)
                 {
                     current = await artifactStore.TrySetStagedDispositionAsync(
                         item.StorageKey,
                         item.ConcurrencyToken,
+                        current.Disposition,
                         target,
                         cancellationToken);
                     if (current is null)

@@ -243,7 +243,7 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled,
             await processor.ExecuteAsync(received.StagedReceiptId));
         Assert.Null(await workStore.GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None));
-        Assert.Equal(1L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
+        Assert.Equal(1L, await (await factory.DatabaseAsync).ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
         var original = Assert.IsType<IntakeReceipt>(await receipts.FindBySourceIdentityAsync(
             source.Source.SourceIdentity, CancellationToken.None));
@@ -260,8 +260,8 @@ public sealed class CustodyOutboxIntegrationTests
         var repaired = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(original.Id, CancellationToken.None));
         Assert.Equal(originalIds, repaired.AssetRecords.Select(asset => asset.Id).Order());
         Assert.All(repaired.AssetRecords, asset => Assert.Equal(IncomingArtifactCustodyState.Confirmed, asset.CustodyState));
-        Assert.Equal(1L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
-        Assert.Equal(1L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
+        Assert.Equal(1L, await (await factory.DatabaseAsync).ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
+        Assert.Equal(1L, await (await factory.DatabaseAsync).ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
     }
 
     private sealed class FailFirstHoldingHandover(ICaseArtifactCustody inner) : ICaseArtifactCustody
@@ -328,10 +328,10 @@ public sealed class CustodyOutboxIntegrationTests
             inner.ListStagedAsync(maximumItems, continuation, cancellationToken);
 
         public Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
-            string storageKey, string expectedConcurrencyToken, StagedArtifactDisposition disposition,
-            CancellationToken cancellationToken) =>
+            string storageKey, string expectedConcurrencyToken, StagedArtifactDisposition expectedDisposition,
+            StagedArtifactDisposition disposition, CancellationToken cancellationToken) =>
             inner.TrySetStagedDispositionAsync(
-                storageKey, expectedConcurrencyToken, disposition, cancellationToken);
+                storageKey, expectedConcurrencyToken, expectedDisposition, disposition, cancellationToken);
 
         public Task<bool> DeleteStagedAsync(
             string storageKey, string expectedConcurrencyToken, StagedArtifactDisposition expectedDisposition,

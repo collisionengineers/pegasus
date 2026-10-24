@@ -160,14 +160,14 @@ public sealed class StreamedGroupedIntakeTests
         public Task<IntakeSubmissionGroup?> GetAsync(
             Guid requestedGroupId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(requestedGroupId == groupId ? group : null);
+            Task.FromResult(requestedGroupId == groupId ? Current() : null);
 
         public Task<IntakeSubmissionGroup?> FindAsync(
             IntakeSourceChannel channel,
             string submissionToken,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(group?.Channel == channel && group.SubmissionToken == submissionToken
-                ? group
+                ? Current()
                 : null);
 
         public Task<IntakeSubmissionGroup> GetOrCreateAsync(
@@ -188,10 +188,13 @@ public sealed class StreamedGroupedIntakeTests
                 expectedMemberCount,
                 actor,
                 receivedAtUtc,
-                members,
+                [],
                 parentReceiptId);
-            return Task.FromResult(group);
+            return Task.FromResult(Current()!);
         }
+
+        // The store hands back the members it holds now, as a snapshot.
+        private IntakeSubmissionGroup? Current() => group is null ? null : group with { Members = members.ToArray() };
 
         public Task<IntakeSubmissionGroupMember> AddMemberAsync(
             Guid requestedGroupId,

@@ -396,7 +396,8 @@ public sealed class StaffCorrespondenceWebTests
         var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 RECORD", "SC08-RECORD-REPLY-ALL");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
-        using var factory = Configure(baseFactory, send);
+        var resolver = new StableAttachmentResolver();
+        using var factory = Configure(baseFactory, send, attachmentResolver: resolver);
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var recordGet = await client.GetAsync($"/Inbox/{seeded.MessageId:D}");
@@ -415,6 +416,8 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal("reply-all", InputValue(composer, "compose"));
         Assert.Equal("Re: Source subject", InputValue(composer, "CorrespondenceSubject"));
         Assert.Equal(0, send.SendCalls);
+        var listsBeforeSend = resolver.ListCalls;
+        Assert.True(listsBeforeSend > 0, "The composer listed the Case's files.");
 
         var form = RetainedReplyForm(
             composer, InputValue(composer, "CorrespondenceOperationKey"), "Reviewed response.");
@@ -424,6 +427,10 @@ public sealed class StaffCorrespondenceWebTests
             new FormUrlEncodedContent(form));
 
         Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
+        // With nothing selected the send reads none of the Case's files.
+        Assert.Equal(listsBeforeSend, resolver.ListCalls);
+        Assert.Equal(0, resolver.SelectCalls);
+        Assert.Equal(0, resolver.ResolveCalls);
         var command = Assert.Single(send.Commands);
         Assert.Equal(StaffMailComposeMode.ReplyAll, command.ComposeMode);
         Assert.Equal(caseId, command.ContextId);
@@ -456,10 +463,11 @@ public sealed class StaffCorrespondenceWebTests
         var selectedCaseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 SELECTED", "SC08-MSG-SELECTED");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, associatedCaseId);
+        var resolver = new StableAttachmentResolver();
         using var factory = Configure(
             baseFactory,
             send,
-            attachmentResolver: new StableAttachmentResolver());
+            attachmentResolver: resolver);
         using var client = IntakeWebDriver.CreateClient(factory);
         // No unread scope: the v26 Inbox has no Unread filter (read state is not a queue).
         var listContext = $"mailbox={seeded.MailboxId:D}&folder=inbox&pageNumber=2&sort=oldest";
@@ -546,6 +554,9 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(["selected@example.invalid"], command.To.Select(item => item.Address));
         Assert.Equal(["copy@example.invalid"], command.Cc.Select(item => item.Address));
         Assert.Single(command.Attachments);
+        // The send read the Case's files once, for the options and the selection together.
+        Assert.Equal(1, resolver.SelectCalls);
+        Assert.Equal(0, resolver.ResolveCalls);
     }
 
     [Fact]
@@ -1091,6 +1102,101 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Empty(send.Commands);
     }
 
+    /// <summary>
+    /// A refused send redraws from what the send already read: with nothing
+    /// selected the reload lists the Case's files once, and the mailbox and
+    /// the message's latest operation are each read once for the request.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedSendWithNoSelectionReadsTheMailboxAndOperationOnce()
+    {
+        var send = new RecordingStaffMailSend();
+        var counts = new ReadCounts();
+        var resolver = new StableAttachmentResolver();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await SeedSupportedCaseAsync(baseFactory, null!, string.Empty, string.Empty);
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = CountReads(Configure(baseFactory, send, attachmentResolver: resolver), counts);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward");
+        var html = await get.Content.ReadAsStringAsync();
+        var lists = resolver.ListCalls;
+        var senders = counts.MailboxSenderReads;
+        var mailboxLists = counts.MailboxLists;
+        var operations = send.LatestForOriginalCalls;
+
+        using var response = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Forward",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+                ["CorrespondenceTo"] = string.Empty,
+                ["CorrespondenceSubject"] = "Fwd: Source subject",
+                ["CorrespondenceBody"] = "Forwarded material."
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(send.Commands);
+        Assert.Equal(1, resolver.ListCalls - lists);
+        Assert.Equal(0, resolver.SelectCalls);
+        Assert.Equal(0, resolver.ResolveCalls);
+        Assert.Equal(1, counts.MailboxSenderReads - senders);
+        Assert.Equal(0, counts.MailboxLists - mailboxLists);
+        Assert.Equal(1, send.LatestForOriginalCalls - operations);
+    }
+
+    /// <summary>
+    /// With files selected and a Case typed other than the message's own, a
+    /// refused send reads the files once (options and selection together),
+    /// resolves the Case once, and reads the mailbox and the latest operation
+    /// once, so its reload repeats none of them.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedSendWithASelectionAndATypedCaseReadsEachThingOnce()
+    {
+        var send = new RecordingStaffMailSend();
+        var counts = new ReadCounts();
+        var resolver = new StableAttachmentResolver();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var associatedCaseId = await SeedSupportedCaseAsync(baseFactory, null!, string.Empty, string.Empty);
+        var selectedCaseId = await SeedSupportedCaseAsync(baseFactory, null!, string.Empty, string.Empty);
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, associatedCaseId);
+        using var factory = CountReads(Configure(baseFactory, send, attachmentResolver: resolver), counts);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward");
+        var html = await get.Content.ReadAsStringAsync();
+        var selectedReference = await CaseReferenceAsync(factory, selectedCaseId);
+        var lists = resolver.ListCalls;
+        var searches = counts.CaseSearches;
+        var senders = counts.MailboxSenderReads;
+        var mailboxLists = counts.MailboxLists;
+        var operations = send.LatestForOriginalCalls;
+
+        using var response = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Forward",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
+                ["CorrespondenceCaseReference"] = selectedReference,
+                ["CorrespondenceTo"] = string.Empty,
+                ["CorrespondenceSubject"] = "Fwd: Source subject",
+                ["CorrespondenceBody"] = "Forwarded material.",
+                ["SelectedAttachments"] = StableAttachmentResolver.Selection
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(send.Commands);
+        Assert.Equal(1, resolver.SelectCalls);
+        Assert.Equal(0, resolver.ResolveCalls);
+        Assert.Equal(0, resolver.ListCalls - lists);
+        Assert.Equal(1, counts.CaseSearches - searches);
+        Assert.Equal(1, counts.MailboxSenderReads - senders);
+        Assert.Equal(0, counts.MailboxLists - mailboxLists);
+        Assert.Equal(1, send.LatestForOriginalCalls - operations);
+    }
+
     [Fact]
     public async Task RetainedReplyRejectsAStaleCaseContextWithoutSending()
     {
@@ -1407,6 +1513,66 @@ public sealed class StaffCorrespondenceWebTests
         ["CorrespondenceBody"] = body
     };
 
+    /// <summary>How many times a request read the approved mailboxes and searched Cases.</summary>
+    private sealed class ReadCounts
+    {
+        public int MailboxLists { get; set; }
+
+        public int MailboxSenderReads { get; set; }
+
+        public int CaseSearches { get; set; }
+    }
+
+    private static WebApplicationFactory<Program> CountReads(
+        WebApplicationFactory<Program> factory,
+        ReadCounts counts) =>
+        factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddScoped<IApprovedMailboxStore>(provider => new CountingApprovedMailboxStore(
+                    provider.GetRequiredService<EfApprovedMailboxStore>(), counts));
+                services.RemoveAll<ISearchCases>();
+                services.AddScoped<ISearchCases>(provider => new CountingCaseSearch(
+                    ActivatorUtilities.CreateInstance<SearchCases>(provider), counts));
+            }));
+
+    private sealed class CountingApprovedMailboxStore(IApprovedMailboxStore inner, ReadCounts counts)
+        : IApprovedMailboxStore
+    {
+        public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
+        {
+            counts.MailboxLists++;
+            return inner.ListAsync(cancellationToken);
+        }
+
+        public Task<ApprovedMailbox?> GetSenderAsync(Guid mailboxId, CancellationToken cancellationToken)
+        {
+            counts.MailboxSenderReads++;
+            return inner.GetSenderAsync(mailboxId, cancellationToken);
+        }
+
+        public Task<ApprovedMailbox> UpdateAsync(
+            UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            inner.UpdateAsync(request, cancellationToken);
+
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress,
+            ApprovedMailboxRouteScope routeScope,
+            CancellationToken cancellationToken) =>
+            inner.IsApprovedAsync(mailboxAddress, routeScope, cancellationToken);
+    }
+
+    private sealed class CountingCaseSearch(ISearchCases inner, ReadCounts counts) : ISearchCases
+    {
+        public Task<SearchCasesResult> ExecuteAsync(
+            SearchCasesQuery query, CancellationToken cancellationToken)
+        {
+            counts.CaseSearches++;
+            return inner.ExecuteAsync(query, cancellationToken);
+        }
+    }
+
     private sealed class FixedApprovedMailboxStore(IReadOnlyList<ApprovedMailbox> mailboxes)
         : IApprovedMailboxStore
     {
@@ -1605,14 +1771,47 @@ public sealed class StaffCorrespondenceWebTests
             Guid.Parse("8c2bc8f2-d8c5-4cce-8602-17e6b27464e9"),
             new string('A', 64), 1, "instruction.pdf", "application/pdf");
 
+        /// <summary>How many times each kind of Case document read was made.</summary>
+        public int ListCalls { get; private set; }
+
+        public int SelectCalls { get; private set; }
+
+        public int ResolveCalls { get; private set; }
+
         public Task<IReadOnlyList<StaffMailAttachmentOption>> ListCaseAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StaffMailAttachmentOption>>(
-                [new(Selection, Attachment.FileName, Attachment.MediaType, Attachment.ContentLength)]);
+            ActionActor actor, Guid caseId, CancellationToken cancellationToken)
+        {
+            ListCalls++;
+            return Task.FromResult(Options());
+        }
 
         public Task<IReadOnlyList<StaffMailAttachment>> ResolveCaseAsync(
             ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
             CancellationToken cancellationToken)
+        {
+            ResolveCalls++;
+            return Task.FromResult(Resolve(selections));
+        }
+
+        public Task<StaffMailCaseSelection> SelectCaseAsync(
+            ActionActor actor, Guid caseId, IReadOnlyList<string> selections,
+            CancellationToken cancellationToken)
+        {
+            SelectCalls++;
+            try
+            {
+                return Task.FromResult(new StaffMailCaseSelection(Options(), Resolve(selections), null));
+            }
+            catch (StaffMailAttachmentSelectionException exception)
+            {
+                return Task.FromResult(new StaffMailCaseSelection(Options(), [], exception.Message));
+            }
+        }
+
+        private static IReadOnlyList<StaffMailAttachmentOption> Options() =>
+            [new(Selection, Attachment.FileName, Attachment.MediaType, Attachment.ContentLength)];
+
+        private static IReadOnlyList<StaffMailAttachment> Resolve(IReadOnlyList<string> selections)
         {
             if (selections.Count != 1 || selections[0] != Selection)
             {
@@ -1620,7 +1819,7 @@ public sealed class StaffCorrespondenceWebTests
                     "One or more selected attachments changed or are no longer available. Review the attachments and try again.");
             }
 
-            return Task.FromResult<IReadOnlyList<StaffMailAttachment>>([Attachment]);
+            return [Attachment];
         }
 
         public Task<IReadOnlyList<StaffMailAttachmentOption>> ListIntakeAsync(
@@ -1763,11 +1962,15 @@ public sealed class StaffCorrespondenceWebTests
             ActionActor actor, Guid operationId, CancellationToken cancellationToken) =>
             LockedGet(operationId);
 
+        /// <summary>How many times a page read the latest operation of a message.</summary>
+        public int LatestForOriginalCalls { get; private set; }
+
         public Task<StaffMailOperation?> GetLatestForOriginalAsync(
             ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken)
         {
             lock (sync)
             {
+                LatestForOriginalCalls++;
                 var matching = commands
                     .Where(item => item.OriginalMessage?.RetainedMessageId == retainedMessageId)
                     .Select(item => byOperationKey[item.OperationKey])

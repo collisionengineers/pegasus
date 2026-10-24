@@ -22,7 +22,7 @@ namespace Pegasus.Web.Pages.Intake;
 public sealed partial class AssetModel(
     IDownloadIntakeAsset downloadAsset,
     IReadPreCaseImageThumbnail readPreCaseThumbnail,
-    ILogger<AssetModel> logger) : StaffPageModel
+    ILogger<AssetModel> logger) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// <c>size=thumb</c> asks for a pre-Case image's tile: the recorded crop and
@@ -108,7 +108,7 @@ public sealed partial class AssetModel(
         }
         catch (IntakeCustodyUnavailableException)
         {
-            return CustodyUnavailable();
+            return IntakeCustodyUnavailableResult.Create();
         }
         catch (FileNotFoundException)
         {
@@ -141,13 +141,6 @@ public sealed partial class AssetModel(
         return File(rendering.Content, rendering.MediaType);
     }
 
-
-    private static ContentResult CustodyUnavailable() => new()
-    {
-        StatusCode = StatusCodes.Status409Conflict,
-        ContentType = "text/plain; charset=utf-8",
-        Content = "The retained file is not available until durable storage is confirmed. Refresh this record and try again."
-    };
 
     [LoggerMessage(
         EventId = 1207,

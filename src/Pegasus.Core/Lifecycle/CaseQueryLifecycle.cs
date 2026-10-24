@@ -29,17 +29,19 @@ public static class CaseQueryRules
         return workflow.HasOpenQuery && workflow.Archive is null;
     }
 
-    public static void RequireCanLog(CaseWorkflowRecord workflow)
+    /// <summary><see cref="CanLog"/> asked of the facts the transition store reads under its lock.</summary>
+    public static void RequireCanLog(bool reportIsSent, bool archived)
     {
-        if (!CanLog(workflow))
+        if (!reportIsSent || archived)
         {
             throw new InvalidOperationException("A query can be logged only once the report is sent.");
         }
     }
 
-    public static void RequireCanResolve(CaseWorkflowRecord workflow)
+    /// <summary><see cref="CanResolve"/> asked of the facts the transition store reads under its lock.</summary>
+    public static void RequireCanResolve(bool hasOpenQuery, bool archived)
     {
-        if (!CanResolve(workflow))
+        if (!hasOpenQuery || archived)
         {
             throw new InvalidOperationException("The case has no open query to resolve.");
         }
@@ -86,12 +88,6 @@ public sealed class RaiseCaseQuery(ICaseWorkflowStore store) : IRaiseCaseQuery
             throw new ArgumentOutOfRangeException(nameof(request), "The query channel is invalid.");
         }
 
-        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (!await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
-        {
-            CaseQueryRules.RequireCanLog(current);
-        }
-
         return await _store.RaiseQueryAsync(request, cancellationToken);
     }
 }
@@ -104,12 +100,6 @@ public sealed class ResolveCaseQueries(ICaseWorkflowStore store) : IResolveCaseQ
     public async Task<CaseWorkflowRecord> ExecuteAsync(ResolveCaseQueriesRequest request, CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request, requireReason: false);
-        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
-        if (!await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
-        {
-            CaseQueryRules.RequireCanResolve(current);
-        }
-
         return await _store.ResolveQueriesAsync(request, cancellationToken);
     }
 }

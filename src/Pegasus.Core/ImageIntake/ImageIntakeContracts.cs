@@ -175,6 +175,14 @@ public sealed record ImageIntakeDetail(
 }
 
 /// <summary>
+/// What <see cref="IImageIntakeQueries.GetByOriginReceiptsAsync"/> found for a
+/// set of receipts: <see cref="ReceiptIds"/> are those that reach an Image
+/// Intake record (their own, or their submission group's), and
+/// <see cref="First"/> is the full detail of the first asked receipt that does.
+/// </summary>
+public sealed record ImageIntakeOriginRecords(IReadOnlySet<Guid> ReceiptIds, ImageIntakeDetail? First);
+
+/// <summary>
 /// The formal Case reference is deliberately not carried on this request: the
 /// store resolves it from the persisted Case by <see cref="CaseId"/> inside the
 /// same transaction, so a caller can never record a stale or mistyped
@@ -305,11 +313,51 @@ public interface IImageIntakeQueries
 
     Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Whether an Image Intake with this identity exists, for a caller that
+    /// needs nothing else; <see cref="GetAsync"/> reads its association and
+    /// group besides.
+    /// </summary>
+    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken);
+
     Task<ImageIntakeDetail?> GetByReferenceAsync(
         string imageIntakeReference,
         CancellationToken cancellationToken);
 
     Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <see cref="GetByOriginReceiptAsync"/> for a set of receipts: which of
+    /// them reach a record, and the detail of the first, in the order given,
+    /// that does. The default asks each receipt in turn.
+    /// </summary>
+    async Task<ImageIntakeOriginRecords> GetByOriginReceiptsAsync(
+        IReadOnlyList<Guid> intakeReceiptIds,
+        CancellationToken cancellationToken)
+    {
+        var found = new HashSet<Guid>();
+        ImageIntakeDetail? first = null;
+        foreach (var intakeReceiptId in intakeReceiptIds.Distinct())
+        {
+            if (await GetByOriginReceiptAsync(intakeReceiptId, cancellationToken) is { } detail)
+            {
+                found.Add(intakeReceiptId);
+                first ??= detail;
+            }
+        }
+
+        return new(found, first);
+    }
+
+    /// <summary>
+    /// The record <see cref="GetByOriginReceiptAsync"/> resolves for a receipt
+    /// (its own registration, else its group's), for a caller that needs the
+    /// identity, reference or group alone: the detail reads the association,
+    /// the Case reference and the group count besides.
+    /// </summary>
+    Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
 

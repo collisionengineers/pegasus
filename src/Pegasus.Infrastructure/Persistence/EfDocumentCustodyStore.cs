@@ -1521,7 +1521,7 @@ internal sealed class EfDocumentCustodyStore(
         || string.Equals(mediaType, "image/png", StringComparison.OrdinalIgnoreCase);
 
     internal static string ComputeSha256(ReadOnlySpan<byte> content) =>
-        Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(content));
 
     internal static DocumentOccurrence ToOccurrence(DocumentOccurrenceEntity value) => new(
         value.Id,

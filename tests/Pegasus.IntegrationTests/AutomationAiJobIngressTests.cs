@@ -146,7 +146,7 @@ public sealed class AutomationAiJobIngressTests
         var counts = await queries.GetCountsAsync(CancellationToken.None);
         Assert.Equal(new AiJobCounts(1, 0), counts);
 
-        var history = await factory.Database.ScalarAsync<int>(
+        var history = await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -154,7 +154,7 @@ public sealed class AutomationAiJobIngressTests
               AND EventKind IN (N'ai_job_created', N'ai_job_taken', N'ai_job_expired')
             """);
         Assert.Equal(4, history);
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -162,6 +162,183 @@ public sealed class AutomationAiJobIngressTests
               AND EventKind = N'ai_job_expired'
               AND Reason LIKE N'%{ClientId}%'
             """));
+    }
+
+    /// <summary>
+    /// A2-11 (R278): the counts are one statement. A live Queued job and a Taken
+    /// one are active, a Queued job past its expiry is not, and every Failed job
+    /// is counted; the active count is still the policy's, read in memory.
+    /// </summary>
+    [Fact]
+    public async Task TheCountsReadActiveAndFailedJobsInOneStatement()
+    {
+        var clock = new CaseDataCompletenessPersistenceTests.MutableTimeProvider(SeedUtcNow);
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true, clock, commandInterceptor: counter);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        var queries = scope.ServiceProvider.GetRequiredService<IAiJobQueries>();
+
+        async Task<Guid> QueueAsync(string operationKey, TimeSpan expiry) =>
+            (await store.CreateAsync(
+                new(
+                    AiJobKind.UnidentifiedQueuePass,
+                    AiJobSubjectKind.Queue,
+                    null,
+                    AiJobPolicy.QueueSubjectReference,
+                    "Pass the queue.",
+                    null,
+                    null,
+                    Staff,
+                    operationKey,
+                    expiry),
+                CancellationToken.None)).JobId;
+
+        Task TakeAsync(Guid jobId, string operationKey) =>
+            store.TransitionAsync(
+                new(jobId, 0, AiJobState.Taken, Client, operationKey,
+                    LeaseExpiresAtUtc: clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
+                CancellationToken.None);
+
+        await QueueAsync("counts-lapsed", TimeSpan.FromMinutes(1));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        await QueueAsync("counts-live", AiJobPolicy.DefaultExpiry);
+        var taken = await QueueAsync("counts-taken", AiJobPolicy.DefaultExpiry);
+        await TakeAsync(taken, "counts-taken-take");
+        foreach (var name in new[] { "counts-failed-1", "counts-failed-2" })
+        {
+            var failed = await QueueAsync(name, AiJobPolicy.DefaultExpiry);
+            await TakeAsync(failed, $"{name}-take");
+            await store.TransitionAsync(
+                new(failed, 1, AiJobState.Failed, Client, $"{name}-report", Reason: "The model refused."),
+                CancellationToken.None);
+        }
+
+        counter.Reset();
+        var counts = await queries.GetCountsAsync(CancellationToken.None);
+
+        Assert.Equal(new AiJobCounts(2, 2), counts);
+        Assert.Equal(1, counter.Count);
+    }
+
+    /// <summary>A2-11: with no open job the one statement still returns the Failed count, and with nothing at all it returns zeros.</summary>
+    [Fact]
+    public async Task TheCountsOfOnlyFailedJobsAreNoneActiveAndTheFailedCount()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        var queries = scope.ServiceProvider.GetRequiredService<IAiJobQueries>();
+
+        counter.Reset();
+        Assert.Equal(new AiJobCounts(0, 0), await queries.GetCountsAsync(CancellationToken.None));
+        Assert.Equal(1, counter.Count);
+
+        for (var index = 0; index < 2; index++)
+        {
+            var created = await store.CreateAsync(
+                new(
+                    AiJobKind.UnidentifiedQueuePass,
+                    AiJobSubjectKind.Queue,
+                    null,
+                    AiJobPolicy.QueueSubjectReference,
+                    "Pass the queue.",
+                    null,
+                    null,
+                    Staff,
+                    $"counts-only-failed-{index}",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            await store.TransitionAsync(
+                new(created.JobId, 0, AiJobState.Taken, Client, $"counts-only-failed-{index}-take",
+                    LeaseExpiresAtUtc: SeedUtcNow + AiJobPolicy.LeaseDuration),
+                CancellationToken.None);
+            await store.TransitionAsync(
+                new(created.JobId, 1, AiJobState.Failed, Client, $"counts-only-failed-{index}-report", Reason: "The model refused."),
+                CancellationToken.None);
+        }
+
+        counter.Reset();
+        Assert.Equal(new AiJobCounts(0, 2), await queries.GetCountsAsync(CancellationToken.None));
+        Assert.Equal(1, counter.Count);
+    }
+
+    /// <summary>
+    /// A Case's page draws its drafts, pending research and live Query response
+    /// jobs from the jobs that are still open: Queued, Taken or Draft ready,
+    /// newest first. A job that completed, failed or was cancelled, and another
+    /// subject's job, never come back.
+    /// </summary>
+    [Fact]
+    public async Task ASubjectsOpenJobListHoldsOnlyItsOpenJobsNewestFirst()
+    {
+        var clock = new CaseDataCompletenessPersistenceTests.MutableTimeProvider(SeedUtcNow);
+        using var factory = new IntakeWebApplicationFactory(clock);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        var queries = scope.ServiceProvider.GetRequiredService<IAiJobQueries>();
+        var caseId = Guid.NewGuid();
+
+        async Task<Guid> CreateAsync(Guid subjectId, string operationKey)
+        {
+            clock.Advance(TimeSpan.FromSeconds(1));
+            var created = await store.CreateAsync(
+                new(
+                    AiJobKind.QueryResponse,
+                    AiJobSubjectKind.Case,
+                    subjectId,
+                    "OPEN14001",
+                    Guid.NewGuid().ToString("D"),
+                    null,
+                    null,
+                    Staff,
+                    operationKey,
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            return created.JobId;
+        }
+
+        Task TakeAsync(Guid jobId, string operationKey) => store.TransitionAsync(
+            new(jobId, 0, AiJobState.Taken, Client, operationKey,
+                LeaseExpiresAtUtc: clock.GetUtcNow() + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+
+        var queued = await CreateAsync(caseId, "open-list-queued");
+        var draftReady = await CreateAsync(caseId, "open-list-draft");
+        await TakeAsync(draftReady, "open-list-draft-take");
+        await store.TransitionAsync(
+            new(draftReady, 1, AiJobState.DraftReady, Client, "open-list-draft-ready",
+                Result: new(AiJobResultKind.DraftReply, null, "A drafted reply.")),
+            CancellationToken.None);
+        var taken = await CreateAsync(caseId, "open-list-taken");
+        await TakeAsync(taken, "open-list-taken-take");
+        var cancelled = await CreateAsync(caseId, "open-list-cancelled");
+        await store.TransitionAsync(
+            new(cancelled, 0, AiJobState.Cancelled, Staff, "open-list-cancel", Reason: "No longer needed."),
+            CancellationToken.None);
+        var failed = await CreateAsync(caseId, "open-list-failed");
+        await TakeAsync(failed, "open-list-failed-take");
+        await store.TransitionAsync(
+            new(failed, 1, AiJobState.Failed, Client, "open-list-fail", Reason: "The model refused."),
+            CancellationToken.None);
+        var completed = await CreateAsync(caseId, "open-list-completed");
+        await TakeAsync(completed, "open-list-completed-take");
+        await store.TransitionAsync(
+            new(completed, 1, AiJobState.DraftReady, Client, "open-list-completed-draft",
+                Result: new(AiJobResultKind.DraftReply, null, "A drafted reply.")),
+            CancellationToken.None);
+        await store.TransitionAsync(
+            new(completed, 2, AiJobState.Completed, Staff, "open-list-complete"),
+            CancellationToken.None);
+        await CreateAsync(Guid.NewGuid(), "open-list-other-subject");
+
+        var open = await queries.ListOpenForSubjectAsync(caseId, CancellationToken.None);
+
+        Assert.Equal([taken, draftReady, queued], open.Select(job => job.JobId));
+        Assert.Equal(
+            [AiJobState.Taken, AiJobState.DraftReady, AiJobState.Queued],
+            open.Select(job => job.State));
     }
 
     /// <summary>
@@ -249,7 +426,7 @@ public sealed class AutomationAiJobIngressTests
                  })
         {
             Assert.True(
-                await factory.Database.ScalarAsync<int>(
+                await (await factory.DatabaseAsync).ScalarAsync<int>(
                     $"""
                     SELECT COUNT(*) FROM ActionHistory
                     WHERE AggregateType = N'ai_job' AND EventKind = N'{eventKind}'
@@ -258,7 +435,7 @@ public sealed class AutomationAiJobIngressTests
         }
 
         // The row has to lead back to the record, not just to the job id.
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -520,7 +697,7 @@ public sealed class AutomationAiJobIngressTests
 
         // Nothing was applied to any record: the ledger row is the only
         // business effect, and every step is attributed Automation history.
-        Assert.Equal(5, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(5, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -529,7 +706,7 @@ public sealed class AutomationAiJobIngressTests
               AND ActorSubjectId = N'{ClientId}'
               AND EventKind IN (N'ai_job_created', N'ai_job_taken', N'ai_job_progress', N'ai_job_draft_ready', N'ai_job_completed')
             """));
-        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(3, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
@@ -537,14 +714,14 @@ public sealed class AutomationAiJobIngressTests
               AND Outcome = N'Succeeded'
               AND EventKind = N'pegasus_ai_job_transition'
             """));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
               AND EventKind = N'pegasus_ai_job_create'
               AND Outcome = N'Succeeded'
             """));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM UnidentifiedItems"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM UnidentifiedItems"));
     }
 
     /// <summary>
@@ -621,7 +798,7 @@ public sealed class AutomationAiJobIngressTests
             Assert.Equal("Queued twice.", cancelled.GetProperty("closureReason").GetString());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'ai_job'
@@ -694,7 +871,7 @@ public sealed class AutomationAiJobIngressTests
 
         // Every refused claim is recorded against the Automation actor and
         // the queued job is untouched.
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM ActionHistory
             WHERE AggregateType = N'automation_mcp'
@@ -702,7 +879,7 @@ public sealed class AutomationAiJobIngressTests
               AND AggregateId = N'{queued:D}'
               AND Outcome = N'Failed'
             """));
-        Assert.Equal("Queued", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("Queued", await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT State FROM AiJobs WHERE JobId = '{queued:D}'"));
     }
 
@@ -771,11 +948,11 @@ public sealed class AutomationAiJobIngressTests
             Assert.True(result.GetProperty("isReplay").GetBoolean());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch' AND RetailValue = 12000 AND TradeValue IS NULL"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = N'ai_job' AND AggregateId = N'{taken.JobId:D}' AND EventKind = N'ai_job_completed' AND ActorKind = N'Automation' AND ActorSubjectId = N'{ClientId}'"));
     }
 
@@ -856,9 +1033,9 @@ public sealed class AutomationAiJobIngressTests
             Assert.Equal(versionId, result.GetProperty("documentVersionId").GetGuid());
         }
 
-        Assert.Equal(Sha256Hex(findings), await factory.Database.ScalarAsync<string>(
+        Assert.Equal(Sha256Hex(findings), await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT UPPER(Sha256) FROM DocumentVersions WHERE Id = '{versionId:D}'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
     }
 
@@ -923,9 +1100,9 @@ public sealed class AutomationAiJobIngressTests
             Assert.False(result.GetProperty("isReplay").GetBoolean());
         }
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
     }
 
@@ -982,16 +1159,16 @@ public sealed class AutomationAiJobIngressTests
         var result = await ReadStructuredContentAsync(response);
 
         Assert.Equal("Completed", result.GetProperty("job").GetProperty("state").GetString());
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
         // The staff member's session and the Case version are as they were.
-        Assert.Equal(Staff.SubjectId, await factory.Database.ScalarAsync<string>(
+        Assert.Equal(Staff.SubjectId, await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT EditLeaseHolder FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        Assert.Equal(staffLease.Version, await factory.Database.ScalarAsync<long>(
+        Assert.Equal(staffLease.Version, await (await factory.DatabaseAsync).ScalarAsync<long>(
             $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflowEvents WHERE CaseId = '{caseId:D}' AND EventType = N'market_research_attached'"));
     }
 
@@ -1030,7 +1207,7 @@ public sealed class AutomationAiJobIngressTests
                 CancellationToken.None);
         }
 
-        await factory.Database.ExecuteAsync(closure == "archived"
+        await (await factory.DatabaseAsync).ExecuteAsync(closure == "archived"
             ? $"UPDATE CaseWorkflows SET ArchivedAtUtc = SYSDATETIMEOFFSET(), ArchivedByKind = N'Staff', ArchivedBySubjectId = N'staff', ArchivedByRolesJson = N'[]', ArchiveReason = N'Test archive' WHERE CaseId = '{caseId:D}'"
             : $"UPDATE CaseWorkflows SET State = '{nameof(Pegasus.Core.Workflow.CaseLifecycleState.PrincipalCancelled)}' WHERE CaseId = '{caseId:D}'");
 
@@ -1047,13 +1224,13 @@ public sealed class AutomationAiJobIngressTests
                 caseId,
                 $"mcp:market-research-{closure}-complete"));
 
-        Assert.Equal("Taken", await factory.Database.ScalarAsync<string>(
+        Assert.Equal("Taken", await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT State FROM AiJobs WHERE JobId = '{taken.JobId:D}'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseWorkflowEvents WHERE CaseId = '{caseId:D}' AND EventType = N'market_research_attached'"));
     }
 

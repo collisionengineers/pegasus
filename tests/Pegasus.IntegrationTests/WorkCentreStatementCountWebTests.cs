@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -38,16 +39,76 @@ public sealed class WorkCentreStatementCountWebTests
         _ = await response.Content.ReadAsStringAsync();
 
         // The workflow configuration is read once and shared by the attention list
-        // and the AI jobs section.
+        // and the AI jobs section, and the first load kept it, so this load sends none.
         Assert.True(
-            counter.CountMentioning("[WorkflowConfigurations]") == 1,
-            "The workflow configuration was not read exactly once." + Environment.NewLine + counter.Describe());
+            counter.CountMentioning("[WorkflowConfigurations]") == 0,
+            "The workflow configuration was read, not served from the kept copy." + Environment.NewLine + counter.Describe());
         Assert.True(
             counter.Count <= WorkCentreCommands,
             $"A full Work Centre load sent {counter.Count} SQL commands; at most {WorkCentreCommands} are allowed." + Environment.NewLine + counter.Describe());
     }
 
-    private const int WorkCentreCommands = 27;
+    private const int WorkCentreCommands = 21;
+
+    /// <summary>
+    /// A Draft ready job sits in both the attention list and the AI jobs
+    /// section, and the two look up its dismissal together: one lookup, not one
+    /// each. The New cases reads also name the dismissals table, so the lookup
+    /// is the statement that names it and no Case table.
+    /// </summary>
+    [Fact]
+    public async Task TheWorkCentreLooksUpDismissalsOnceForAJobBothSectionsShow()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+        await SeedDraftReadyJobAsync(factory);
+        (await client.GetAsync("/")).Dispose();
+
+        counter.Reset();
+        using var response = await client.GetAsync("/");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        _ = await response.Content.ReadAsStringAsync();
+
+        var lookups = counter.CountMentioning("[WorkCentreDismissals]", without: "[Cases]");
+        Assert.True(
+            lookups == 1,
+            $"The Work Centre sent {lookups} dismissal lookups; one serves both sections." + Environment.NewLine + counter.Describe());
+    }
+
+    private static async Task SeedDraftReadyJobAsync(IntakeWebApplicationFactory factory)
+    {
+        var staff = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var client = ActionActor.Automation("statement-count-client");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+        var created = await store.CreateAsync(
+            new(
+                AiJobKind.UnidentifiedQueuePass,
+                AiJobSubjectKind.Queue,
+                null,
+                AiJobPolicy.QueueSubjectReference,
+                "Pass the queue.",
+                null,
+                null,
+                staff,
+                "statement-count-create",
+                AiJobPolicy.DefaultExpiry),
+            CancellationToken.None);
+        await store.TransitionAsync(
+            new(created.JobId, 0, AiJobState.Taken, client, "statement-count-take",
+                LeaseExpiresAtUtc: IntakeWebApplicationFactory.FixedUtcNow + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+        await store.TransitionAsync(
+            new(created.JobId, 1, AiJobState.DraftReady, client, "statement-count-draft",
+                Result: new(AiJobResultKind.ProposedResolution, null, "A proposal.")),
+            CancellationToken.None);
+    }
 
     /// <summary>
     /// The Work Centre reads no section once per row: a load with six new Cases

@@ -125,6 +125,59 @@ public sealed class WorkCentreDismissalTests
         Assert.All(rows.Skip(1), row => Assert.Null(row.Draft));
     }
 
+    [Fact]
+    public async Task TwoSectionsShareOneStoreLookupForBothTheirRecords()
+    {
+        var store = new InMemoryWorkCentreDismissals();
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        await store.DismissAsync(first, NowUtc, Staff(), CancellationToken.None);
+        var batch = new WorkCentreDismissalBatch(store, sections: 2, CancellationToken.None);
+        using var attention = batch.Join();
+        using var aiJobs = batch.Join();
+
+        var attentionRead = attention.ListAsync([first, second], CancellationToken.None);
+        Assert.False(attentionRead.IsCompleted);
+        var aiJobsRead = await aiJobs.ListAsync([first], CancellationToken.None);
+
+        Assert.Equal(1, store.Reads);
+        Assert.Equal(NowUtc, aiJobsRead[first]);
+        Assert.Equal(NowUtc, (await attentionRead)[first]);
+    }
+
+    [Fact]
+    public async Task ASectionThatWithdrawsNeverHoldsTheOtherBack()
+    {
+        var store = new InMemoryWorkCentreDismissals();
+        var recordId = Guid.NewGuid();
+        await store.DismissAsync(recordId, NowUtc, Staff(), CancellationToken.None);
+        var batch = new WorkCentreDismissalBatch(store, sections: 2, CancellationToken.None);
+        var failed = batch.Join();
+        using var shown = batch.Join();
+
+        var read = shown.ListAsync([recordId], CancellationToken.None);
+        Assert.False(read.IsCompleted);
+        failed.Dispose();
+
+        Assert.Equal(NowUtc, (await read)[recordId]);
+        Assert.Equal(1, store.Reads);
+    }
+
+    [Fact]
+    public async Task NoStoreLookupIsSentWhenNoSectionHasARecord()
+    {
+        var store = new InMemoryWorkCentreDismissals();
+        var batch = new WorkCentreDismissalBatch(store, sections: 2, CancellationToken.None);
+        using var attention = batch.Join();
+        using var aiJobs = batch.Join();
+
+        var read = attention.ListAsync([], CancellationToken.None);
+        aiJobs.Dispose();
+
+        Assert.Empty(await read);
+        Assert.Equal(0, store.Reads);
+    }
+
     private static ActionActor Staff() => ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
     private static AiJobRecord NewJob(AiJobState state, DateTimeOffset createdAtUtc) => new(
@@ -152,7 +205,7 @@ public sealed class WorkCentreDismissalTests
         public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<AiJobRecord?> GetPendingMarketResearchAsync(Guid subjectId, CancellationToken cancellationToken) =>

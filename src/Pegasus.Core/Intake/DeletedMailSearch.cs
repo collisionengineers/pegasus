@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Intake;
@@ -51,7 +52,70 @@ public sealed record DeletedMailSearchPage(
         : (int)Math.Ceiling((double)TotalCount / PageSize);
 }
 
-public sealed class SearchDeletedMail(IDeletedMailSearchSource source)
+/// <summary>
+/// The parsed result of a Deleted Items search, kept for a few minutes per staff
+/// member, mailbox and term so Next and Previous reuse it instead of listing and
+/// parsing the same 100 messages again. Only an Available result is kept, and a
+/// search, a Refresh or a reload is never answered from it: only a paging request
+/// reads it. An expired entry is dropped when its key is read or when another
+/// result is kept, so the last entries stay until the next search.
+/// </summary>
+public sealed class DeletedMailSearchKeep(TimeProvider timeProvider)
+{
+    internal static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(5);
+
+    private readonly ConcurrentDictionary<(string StaffId, Guid? MailboxId, string Term), Kept> kept = new();
+
+    internal bool TryGet(
+        string staffId,
+        Guid? mailboxId,
+        string term,
+        out DeletedMailSearchItem[] items,
+        out bool isTruncated)
+    {
+        var key = (staffId, mailboxId, term);
+        if (kept.TryGetValue(key, out var entry))
+        {
+            if (entry.ExpiresAt > timeProvider.GetUtcNow())
+            {
+                items = entry.Items;
+                isTruncated = entry.IsTruncated;
+                return true;
+            }
+
+            kept.TryRemove(new KeyValuePair<(string, Guid?, string), Kept>(key, entry));
+        }
+
+        items = [];
+        isTruncated = false;
+        return false;
+    }
+
+    internal void Keep(
+        string staffId,
+        Guid? mailboxId,
+        string term,
+        DeletedMailSearchItem[] items,
+        bool isTruncated)
+    {
+        var now = timeProvider.GetUtcNow();
+        foreach (var expired in kept.Where(pair => pair.Value.ExpiresAt <= now))
+        {
+            kept.TryRemove(expired);
+        }
+
+        kept[(staffId, mailboxId, term)] = new(items, isTruncated, now + Lifetime);
+    }
+
+    private sealed record Kept(
+        DeletedMailSearchItem[] Items,
+        bool IsTruncated,
+        DateTimeOffset ExpiresAt);
+}
+
+public sealed class SearchDeletedMail(
+    IDeletedMailSearchSource source,
+    DeletedMailSearchKeep keep)
 {
     internal const int MaximumMessages = 100;
 
@@ -69,6 +133,7 @@ public sealed class SearchDeletedMail(IDeletedMailSearchSource source)
         string searchTerm,
         int page,
         int pageSize,
+        bool paging = false,
         CancellationToken cancellationToken = default)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
@@ -88,23 +153,42 @@ public sealed class SearchDeletedMail(IDeletedMailSearchSource source)
             throw new ArgumentOutOfRangeException(nameof(pageSize));
         }
 
+        // Only Next and Previous reuse the kept result; a new search, a Refresh
+        // and a reload read the source, as before.
+        if (paging && keep.TryGet(actor.SubjectId, mailboxId, term, out var ordered, out var isTruncated))
+        {
+            return Page(ordered, page, pageSize, isTruncated, DeletedMailSearchState.Available);
+        }
+
         var result = await source.SearchAsync(
             mailboxId,
             term,
             MaximumMessages,
             cancellationToken);
-        var ordered = result.Items
+        ordered = result.Items
             .OrderByDescending(item => item.ReceivedAtUtc)
             .ThenBy(item => item.ImmutableMessageId, StringComparer.Ordinal)
             .ToArray();
-        return new(
+        if (result.State == DeletedMailSearchState.Available)
+        {
+            keep.Keep(actor.SubjectId, mailboxId, term, ordered, result.IsTruncated);
+        }
+
+        return Page(ordered, page, pageSize, result.IsTruncated, result.State);
+    }
+
+    private static DeletedMailSearchPage Page(
+        DeletedMailSearchItem[] ordered,
+        int page,
+        int pageSize,
+        bool isTruncated,
+        DeletedMailSearchState state) => new(
             ordered.Skip((page - 1) * pageSize).Take(pageSize).ToArray(),
             page,
             pageSize,
             ordered.Length,
-            result.IsTruncated,
-            result.State);
-    }
+            isTruncated,
+            state);
 }
 
 public sealed class UnavailableDeletedMailSearchSource : IDeletedMailSearchSource

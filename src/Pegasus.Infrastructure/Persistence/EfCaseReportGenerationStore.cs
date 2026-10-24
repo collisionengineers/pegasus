@@ -827,7 +827,9 @@ public sealed class EfCaseReportGenerationStore(
     /// Marks the current generation of <paramref name="workId"/> stale: an
     /// edit stales the report of the work it edited, never the other work's
     /// (operator, 2 October 2026). A superseded generation keeps its bytes,
-    /// its state and its history exactly as issued. This never saves.
+    /// its state and its history exactly as issued. This never calls
+    /// <c>SaveChanges</c>: the state is one UPDATE in the open transaction and
+    /// the history rows ride the caller's save.
     /// </summary>
     internal static async Task<int> MarkWorkStaleAsync(
         PegasusDbContext context,
@@ -837,18 +839,89 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        var current = await context.Set<CaseReportGenerationEntity>()
-            .Where(item => item.WorkId == workId
-                && item.SupersededById == null
-                && item.State != nameof(CaseReportGenerationState.Stale))
-            .ToArrayAsync(cancellationToken)
-            .ConfigureAwait(false);
+        // A generation this context already staled and has not yet saved still
+        // reads as not Stale to a caller that has not saved (the state used to
+        // reach the database only with the save), so a second rule in the same
+        // save records its own stale history row against it, as before. The
+        // record is the short list of instances this context staled since its
+        // last save; an instance a pooled context's reset has detached reads
+        // Detached and is not met again. The list is read, never the tracker.
+        Guid[] pending = [];
+        if (StalingContexts.TryGetValue(context, out var staled))
+        {
+            pending = staled
+                .Where(item => item.WorkId == workId
+                    && item.SupersededById == null
+                    && context.Entry(item).State != EntityState.Detached)
+                .Select(item => item.Id)
+                .ToArray();
+        }
+        var query = context.Set<CaseReportGenerationEntity>()
+            .Where(item => item.WorkId == workId && item.SupersededById == null);
+        if (pending.Length == 0)
+        {
+            query = query.Where(item => item.State != nameof(CaseReportGenerationState.Stale));
+        }
+        else
+        {
+            query = query.Where(item => item.State != nameof(CaseReportGenerationState.Stale)
+                || pending.Contains(item.Id));
+        }
+
+        var current = await query.ToArrayAsync(cancellationToken).ConfigureAwait(false);
+        if (current.Length == 0)
+        {
+            return 0;
+        }
+
+        // History first: an unreadable snapshot throws before any row is written.
         foreach (var generation in current)
         {
             MarkGenerationStale(context, caseId, generation, reasonCode, nowUtc);
         }
 
+        // One UPDATE over the set, in the caller's open transaction. The rows
+        // read above carry Stale in memory; the column is now Stale in the
+        // database too, so its original value is set to Stale and SaveChanges
+        // is told not to write it again. Clearing IsModified alone would revert
+        // the current value to the original one.
+        var fresh = current.Where(item => !pending.Contains(item.Id)).ToArray();
+        if (fresh.Length > 0)
+        {
+            var ids = fresh.Select(item => item.Id).ToArray();
+            await context.Set<CaseReportGenerationEntity>()
+                .Where(item => ids.Contains(item.Id))
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(item => item.State, nameof(CaseReportGenerationState.Stale)),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            StalingContexts.GetValue(context, StartRecord).AddRange(fresh);
+        }
+
+        foreach (var generation in current)
+        {
+            var state = context.Entry(generation).Property(item => item.State);
+            state.OriginalValue = nameof(CaseReportGenerationState.Stale);
+            state.IsModified = false;
+        }
+
         return current.Length;
+    }
+
+    // The generations a context has staled by set UPDATE and not yet saved.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DbContext, List<CaseReportGenerationEntity>>
+        StalingContexts = new();
+
+    private static List<CaseReportGenerationEntity> StartRecord(DbContext context)
+    {
+        void Forget(object? sender, SavedChangesEventArgs e)
+        {
+            context.SavedChanges -= Forget;
+            StalingContexts.Remove(context);
+        }
+
+        context.SavedChanges += Forget;
+        return [];
     }
 
     private static void MarkGenerationStale(

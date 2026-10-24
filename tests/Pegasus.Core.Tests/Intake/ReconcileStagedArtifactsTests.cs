@@ -13,7 +13,7 @@ public sealed class ReconcileStagedArtifactsTests
     private static readonly ReconcileStagedArtifactsResult None = new(0, 0, 0, 0, 0, 0, 0, 0);
 
     [Fact]
-    public async Task AnAgedOrphanIsSetToOrphanThenDeletedUnderThatTag()
+    public async Task AnAgedOrphanListedPendingIsDeletedUnderItsListedTagWithoutASet()
     {
         var harness = new Harness();
         var orphan = harness.Store.Add(1, Aged, StagedArtifactDisposition.Pending);
@@ -21,7 +21,7 @@ public sealed class ReconcileStagedArtifactsTests
         var result = await harness.RunAsync();
 
         Assert.Equal(None with { Expired = 1 }, result);
-        Assert.Equal(new[] { $"set {orphan} Orphan", $"delete {orphan} Orphan" }, harness.Store.Calls);
+        Assert.Equal(new[] { $"delete {orphan} Pending" }, harness.Store.Calls);
         Assert.False(harness.Store.IsStaged(orphan));
     }
 
@@ -58,11 +58,41 @@ public sealed class ReconcileStagedArtifactsTests
     }
 
     /// <summary>
-    /// A blob whose metadata and tag disagree lists as Unmatched whatever its
-    /// tag, so the delete's tag condition holds only after the set.
+    /// An expiring blob is deleted in one call under the listed ETag and the
+    /// listed tag, whatever that is, without a set first.
     /// </summary>
     [Fact]
-    public async Task AnAgedBlobListedWithItsTargetIsStillSetBeforeTheDelete()
+    public async Task AnAgedBlobListedWithItsTargetIsDeletedInOneCall()
+    {
+        var harness = new Harness();
+        var orphan = harness.Store.Add(1, Aged, StagedArtifactDisposition.Orphan);
+        var unmatched = harness.Store.Add(2, Aged, StagedArtifactDisposition.Unmatched);
+        harness.Authority.Add(unmatched, StagedArtifactAuthorityState.Pending, hash: new string('C', 64));
+        var pendingOrphan = harness.Store.Add(3, Aged, StagedArtifactDisposition.Pending);
+
+        var result = await harness.RunAsync();
+
+        Assert.Equal(None with { Expired = 3 }, result);
+        Assert.Equal(
+            new[]
+            {
+                $"delete {orphan} Orphan",
+                $"delete {unmatched} Unmatched",
+                $"delete {pendingOrphan} Pending"
+            },
+            harness.Store.Calls);
+        Assert.False(harness.Store.IsStaged(orphan));
+        Assert.False(harness.Store.IsStaged(unmatched));
+        Assert.False(harness.Store.IsStaged(pendingOrphan));
+    }
+
+    /// <summary>
+    /// A blob whose metadata and tag disagree lists as Unmatched whatever its
+    /// tag, so the delete under the listed tag is refused and the delete holds
+    /// only after the set.
+    /// </summary>
+    [Fact]
+    public async Task AnAgedBlobListedWithItsTargetButAnotherTagIsSetAfterTheDeleteIsRefused()
     {
         var harness = new Harness();
         var unmatched = harness.Store.Add(
@@ -76,8 +106,14 @@ public sealed class ReconcileStagedArtifactsTests
 
         Assert.Equal(None with { Expired = 1 }, result);
         Assert.Equal(
-            new[] { $"set {unmatched} Unmatched", $"delete {unmatched} Unmatched" },
+            new[]
+            {
+                $"delete {unmatched} Unmatched",
+                $"set {unmatched} Unmatched",
+                $"delete {unmatched} Unmatched"
+            },
             harness.Store.Calls);
+        Assert.False(harness.Store.IsStaged(unmatched));
     }
 
     /// <summary>
@@ -116,18 +152,63 @@ public sealed class ReconcileStagedArtifactsTests
 
         Assert.Equal(None with { Completed = 1, Retained = 2 }, result);
         Assert.Equal(
-            new[] { $"set {failed} Failed", $"set {completed} Completed", $"delete {completed} Completed" },
+            new[] { $"set {failed} Failed", $"complete {completed}" },
             harness.Store.Calls);
+        Assert.Equal(
+            new[] { (failed, StagedArtifactDisposition.Pending) },
+            harness.Store.SetExpectations);
         Assert.True(harness.Store.IsStaged(pending));
         Assert.True(harness.Store.IsStaged(failed));
         Assert.False(harness.Store.IsStaged(completed));
+    }
+
+    /// <summary>
+    /// A completed item's blob listed Pending takes the one complete operation
+    /// (tag and delete), not a set followed by a delete; one already listed
+    /// Completed, left by a delete that was refused, is only deleted.
+    /// </summary>
+    [Fact]
+    public async Task ACompletedItemIsCompletedInOneOperationOrOnlyDeletedWhenListedCompleted()
+    {
+        var harness = new Harness();
+        var pending = harness.Store.Add(1, Young, StagedArtifactDisposition.Pending);
+        harness.Authority.Add(pending, StagedArtifactAuthorityState.Completed);
+        var listedCompleted = harness.Store.Add(2, Young, StagedArtifactDisposition.Completed);
+        harness.Authority.Add(listedCompleted, StagedArtifactAuthorityState.Completed);
+
+        var result = await harness.RunAsync();
+
+        Assert.Equal(None with { Completed = 2 }, result);
+        Assert.Equal(
+            new[] { $"complete {pending}", $"delete {listedCompleted} Completed" },
+            harness.Store.Calls);
+        Assert.False(harness.Store.IsStaged(pending));
+        Assert.False(harness.Store.IsStaged(listedCompleted));
+    }
+
+    [Fact]
+    public async Task ACompleteOperationThatIsRefusedIsAFailureAndLeavesTheBlob()
+    {
+        var harness = new Harness();
+        var completed = harness.Store.Add(1, Young, StagedArtifactDisposition.Pending);
+        harness.Authority.Add(completed, StagedArtifactAuthorityState.Completed);
+        harness.Store.RefuseDelete.Add(completed);
+
+        var result = await harness.RunAsync();
+
+        Assert.Equal(None with { Failures = 1 }, result);
+        Assert.True(harness.Store.IsStaged(completed));
     }
 
     [Fact]
     public async Task ARefusedSetOrDeleteOfAnAgedBlobIsAFailure()
     {
         var harness = new Harness();
-        var setRefused = harness.Store.Add(1, Aged, StagedArtifactDisposition.Pending);
+        var setRefused = harness.Store.Add(
+            1,
+            Aged,
+            StagedArtifactDisposition.Pending,
+            tag: StagedArtifactDisposition.Failed);
         harness.Store.RefuseSet.Add(setRefused);
         var deleteRefused = harness.Store.Add(2, Aged, StagedArtifactDisposition.Pending);
         harness.Store.RefuseDelete.Add(deleteRefused);
@@ -215,6 +296,9 @@ public sealed class ReconcileStagedArtifactsTests
 
         public List<string> Calls { get; } = [];
 
+        /// <summary>The disposition the sweep listed, per set it made.</summary>
+        public List<(string StorageKey, StagedArtifactDisposition Listed)> SetExpectations { get; } = [];
+
         public List<string?> Continuations { get; } = [];
 
         public List<int> PageSizes { get; } = [];
@@ -258,10 +342,12 @@ public sealed class ReconcileStagedArtifactsTests
         public Task<StagedArtifactInventoryItem?> TrySetStagedDispositionAsync(
             string storageKey,
             string expectedConcurrencyToken,
+            StagedArtifactDisposition expectedDisposition,
             StagedArtifactDisposition disposition,
             CancellationToken cancellationToken)
         {
             Calls.Add($"set {storageKey} {disposition}");
+            SetExpectations.Add((storageKey, expectedDisposition));
             if (RefuseSet.Contains(storageKey)
                 || !entries.TryGetValue(storageKey, out var entry)
                 || !string.Equals(entry.Item.ConcurrencyToken, expectedConcurrencyToken, StringComparison.Ordinal))
@@ -290,6 +376,16 @@ public sealed class ReconcileStagedArtifactsTests
                 && entries.TryGetValue(storageKey, out var entry)
                 && string.Equals(entry.Item.ConcurrencyToken, expectedConcurrencyToken, StringComparison.Ordinal)
                 && entry.Tag == expectedDisposition
+                && entries.Remove(storageKey));
+        }
+
+        public Task<bool> TryCompleteStagedAsync(
+            string storageKey,
+            CancellationToken cancellationToken)
+        {
+            Calls.Add($"complete {storageKey}");
+            return Task.FromResult(
+                !RefuseDelete.Contains(storageKey)
                 && entries.Remove(storageKey));
         }
 

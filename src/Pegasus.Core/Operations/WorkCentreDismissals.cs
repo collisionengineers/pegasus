@@ -15,7 +15,15 @@ namespace Pegasus.Core.Operations;
 /// </summary>
 public sealed record DismissWorkCentreItemRequest(Guid RecordId, ActionActor Actor);
 
-public interface IWorkCentreDismissalStore
+public interface IWorkCentreDismissalLookup
+{
+    /// <summary>The dismissal instant of each listed record that has one.</summary>
+    Task<IReadOnlyDictionary<Guid, DateTimeOffset>> ListAsync(
+        IReadOnlyCollection<Guid> recordIds,
+        CancellationToken cancellationToken);
+}
+
+public interface IWorkCentreDismissalStore : IWorkCentreDismissalLookup
 {
     /// <summary>
     /// Records the record as dismissed at <paramref name="dismissedAtUtc"/>. A
@@ -26,11 +34,87 @@ public interface IWorkCentreDismissalStore
         DateTimeOffset dismissedAtUtc,
         ActionActor actor,
         CancellationToken cancellationToken);
+}
 
-    /// <summary>The dismissal instant of each listed record that has one.</summary>
-    Task<IReadOnlyDictionary<Guid, DateTimeOffset>> ListAsync(
-        IReadOnlyCollection<Guid> recordIds,
-        CancellationToken cancellationToken);
+/// <summary>
+/// One dismissal lookup for the sections of one Work Centre load. Each section
+/// takes a <see cref="Join"/> handle and looks up through it, or withdraws
+/// (disposes it) when it has no rows or fails first; once every section has
+/// done one or the other, the store is read once for all their records and each
+/// section takes its answer. A section that ends without looking up never holds
+/// the others back.
+/// </summary>
+public sealed class WorkCentreDismissalBatch(
+    IWorkCentreDismissalStore store,
+    int sections,
+    CancellationToken cancellationToken)
+{
+    private readonly IWorkCentreDismissalStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly object _gate = new();
+    private readonly HashSet<Guid> _recordIds = [];
+    private readonly TaskCompletionSource<IReadOnlyDictionary<Guid, DateTimeOffset>> _read =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _pending = sections;
+
+    /// <summary>A section's handle; dispose it when the section ends.</summary>
+    public Section Join() => new(this);
+
+    private Task<IReadOnlyDictionary<Guid, DateTimeOffset>> Arrive(IReadOnlyCollection<Guid> recordIds)
+    {
+        bool last;
+        lock (_gate)
+        {
+            _recordIds.UnionWith(recordIds);
+            last = --_pending == 0;
+        }
+
+        if (last)
+        {
+            _ = ReadAsync();
+        }
+
+        return _read.Task;
+    }
+
+    private async Task ReadAsync()
+    {
+        try
+        {
+            _read.SetResult(_recordIds.Count == 0
+                ? new Dictionary<Guid, DateTimeOffset>()
+                : await _store.ListAsync(_recordIds.ToArray(), cancellationToken));
+        }
+        catch (Exception exception)
+        {
+            _read.SetException(exception);
+        }
+    }
+
+    public sealed class Section(WorkCentreDismissalBatch batch) : IWorkCentreDismissalLookup, IDisposable
+    {
+        private int _arrived;
+
+        public Task<IReadOnlyDictionary<Guid, DateTimeOffset>> ListAsync(
+            IReadOnlyCollection<Guid> recordIds,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(recordIds);
+            if (Interlocked.Exchange(ref _arrived, 1) == 1)
+            {
+                throw new InvalidOperationException("A section looks up its dismissals once.");
+            }
+
+            return batch.Arrive(recordIds).WaitAsync(cancellationToken);
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _arrived, 1) == 0)
+            {
+                _ = batch.Arrive([]);
+            }
+        }
+    }
 }
 
 public interface IDismissWorkCentreItem
@@ -64,22 +148,22 @@ public static class WorkCentreDismissalPolicy
         };
     }
 
-    /// <summary>The rows not dismissed, read with one store call (none when there are no rows).</summary>
+    /// <summary>The rows not dismissed, read with one lookup (none when there are no rows).</summary>
     public static async Task<IReadOnlyList<T>> WithoutDismissedAsync<T>(
-        IWorkCentreDismissalStore store,
+        IWorkCentreDismissalLookup lookup,
         IReadOnlyList<T> rows,
         Func<T, Guid> recordId,
         Func<T, DateTimeOffset> qualifiedAtUtc,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(lookup);
         ArgumentNullException.ThrowIfNull(rows);
         if (rows.Count == 0)
         {
             return rows;
         }
 
-        var dismissed = await store.ListAsync(rows.Select(recordId).Distinct().ToArray(), cancellationToken);
+        var dismissed = await lookup.ListAsync(rows.Select(recordId).Distinct().ToArray(), cancellationToken);
         if (dismissed.Count == 0)
         {
             return rows;

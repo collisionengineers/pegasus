@@ -37,60 +37,37 @@ namespace Pegasus.Web.Pages.Cases;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 [RequestSizeLimit(ImportRawEstimate.MaximumDocumentBytes + 64 * 1024)]
 public sealed partial class DetailsModel(
-    IGetCaseHeader getCaseHeader,
-    IGetCaseEditBasis getCaseEditBasis,
-    ICaseWorkflowQueries caseWorkflows,
     IGetCasePageFrame getCasePageFrame,
+    IGetCaseSectionFrame getCaseSectionFrame,
     IGetCaseVehicleSection getCaseVehicleSection,
     IGetCaseValuationSection getCaseValuationSection,
     IGetCaseNotesSection getCaseNotesSection,
     IGetCaseTasksSection getCaseTasksSection,
-    Pegasus.Core.Tasks.ICreateCaseTask createCaseTask,
-    Pegasus.Core.Tasks.IAssignCaseTask assignCaseTask,
-    Pegasus.Core.Tasks.ICompleteCaseTask completeCaseTask,
-    Pegasus.Core.Tasks.ICancelCaseTask cancelCaseTask,
     ICaseEngineerChoices caseEngineerChoices,
     IGetCaseFilesSection getCaseFilesSection,
     IGetCaseQueriesSection getCaseQueriesSection,
-    ICaseDocumentQueries caseDocuments,
     IListCaseReferences listCaseReferences,
     IGetAssessmentAccess getAssessmentAccess,
     IGetAssessmentWorkspace getAssessmentWorkspace,
     ICaseReportSnapshotSource reportSnapshotSource,
     TimeProvider clock,
-    ICreateAiJob createAiJob,
     ISendToAiControl sendToAiControl,
     IRenderCaseEstimateDocument renderEstimateDocument,
     IEstimateDocumentPresentationStore estimateDocumentPresentations,
     IGeneratedCaseArtifactStore generatedArtifacts,
     ICaseReportGenerationStore reportGenerations,
-    ISendCaseReport sendCaseReport,
     IReportRecipientSuggestionQueries reportRecipientSuggestions,
     ResolveCaseMailSender caseMailSenders,
     ICaseReportSendHistoryQueries reportSendHistory,
     RenderEmailTemplate renderEmailTemplate,
     IListCaseEstimates listEstimates,
     LabourRateCardAdministration labourRateCards,
-    IDuplicateEstimate duplicateEstimate,
-    IDiscardEstimate discardEstimate,
-    ISetCurrentEstimate setCurrentEstimate,
-    IRepairSpecificationStore repairSpecifications,
-    IImportRawEstimate importRawEstimate,
     IEnumerable<IEstimateDocumentParser> estimateParsers,
     IRepairSpecificationSnapshotStore specificationSnapshots,
     IUnroadworthyReasonBankStore unroadworthyReasonBank,
     IPrincipalSalvageMatrixQueries principalSalvageMatrices,
-    ISaveUnroadworthyReason saveUnroadworthyReasonAction,
-    IScaleRepairSpecification scaleRepairSpecification,
-    IRemoveRepairSpecificationScaling removeRepairSpecificationScaling,
-    IRestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot,
-    IAddCaseDocument addCaseDocument,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
-    IAcquireCaseEditLease acquireLease,
-    IHeartbeatCaseEditLease heartbeatLease,
     IResumeCaseEditLease resumeLease,
-    IReleaseCaseEditLease releaseLease,
-    ISaveCaseWorkspace saveCaseWorkspace,
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
     IContactDirectoryQueries contactDirectory,
     IImageIntakeQueries imageIntakeQueries,
@@ -101,17 +78,12 @@ public sealed partial class DetailsModel(
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
     GlassRepairEstimateAvailability glassAvailability,
-    ICreateAudit createAudit,
     IAiJobQueries aiJobs,
-    IStartQueryResponse startQueryResponse,
-    IStartMarketResearch startMarketResearch,
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
-    IPreviewValuationCalculation previewValuation,
     IListAppliedValuations listAppliedValuations,
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
-    IGetCaseHasAuditWork getCaseHasAuditWork,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
@@ -175,7 +147,7 @@ public sealed partial class DetailsModel(
     /// staff can link this Case's repairer to a maintained record.
     /// Loaded only while the record is being edited.
     /// </summary>
-    public IReadOnlyList<ContactDirectoryRecord> RepairerChoices { get; private set; } = [];
+    public IReadOnlyList<ContactChoice> RepairerChoices { get; private set; } = [];
 
     /// <summary>
     /// The active Claim source records the Overview's claim source select
@@ -183,7 +155,7 @@ public sealed partial class DetailsModel(
     /// record's notes and contact line so the notes band follows a change
     /// without another request.
     /// </summary>
-    public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
+    public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
 
     /// <summary>
     /// "is-collapsed" when this browser folded the panel <paramref name="collapseKey"/>
@@ -273,6 +245,9 @@ public sealed partial class DetailsModel(
 
     /// <summary>The Tasks dialog, whose body the fragment route also serves.</summary>
     private const string TasksView = "/Pages/Cases/Shared/_CaseTasks.cshtml";
+
+    /// <summary>The Repair Spec section and the dialogs drawn after it, which the fragment route also serves.</summary>
+    private const string EstimateView = "/Pages/Cases/Shared/_CaseEstimate.cshtml";
 
     /// <summary>
     /// Whether <paramref name="key"/> is fetched rather than rendered with the
@@ -369,12 +344,22 @@ public sealed partial class DetailsModel(
     public CaseFilesSection? FilesSection { get; private set; }
     public CaseQueriesSection? QueriesSection { get; private set; }
 
+    /// <summary>
+    /// The Repair Spec fragment's frame and data: it draws only the workflow,
+    /// lease, works and the accepted data, so it reads those and not the page
+    /// frame's documents, notes, Triage, tasks and query route.
+    /// </summary>
+    private CaseSectionFrame? estimateFrame;
+
+    private CaseDataProjection? estimateData;
+
     public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
         ?? ValuationSection?.Frame
         ?? NotesSection?.Frame
         ?? TasksSection?.Frame
         ?? FilesSection?.Frame
-        ?? QueriesSection?.Frame;
+        ?? QueriesSection?.Frame
+        ?? estimateFrame;
 
     public CaseWorkflowRecord? CurrentWorkflow => Case?.Workflow ?? SectionFrame?.Workflow;
     public CaseSearchItem? CurrentSummary => Case?.Summary ?? SectionFrame?.Summary;
@@ -448,16 +433,27 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken)
     {
         var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var authors = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
         foreach (var createdBy in versions.Select(version => version.CreatedBy).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (!Guid.TryParse(createdBy, out var accountId))
+            if (Guid.TryParse(createdBy, out var accountId))
             {
-                continue;
+                authors[createdBy] = accountId;
             }
-            var account = await staffAccountQueries.GetAsync(accountId, cancellationToken);
-            if (account is not null && !string.IsNullOrWhiteSpace(account.UserName))
+        }
+        if (authors.Count == 0)
+        {
+            return names;
+        }
+        // One read names every distinct author, however many there are.
+        var accountNames = await staffAccountQueries.GetNamesAsync(
+            [.. authors.Values.Distinct()],
+            cancellationToken);
+        foreach (var (createdBy, accountId) in authors)
+        {
+            if (accountNames.TryGetValue(accountId, out var userName) && !string.IsNullOrWhiteSpace(userName))
             {
-                names[createdBy] = account.UserName;
+                names[createdBy] = userName;
             }
         }
         return names;
@@ -576,7 +572,7 @@ public sealed partial class DetailsModel(
     {
         get
         {
-            var data = Case?.Data;
+            var data = Case?.Data ?? estimateData;
             if (data is null)
             {
                 return [];
@@ -1089,6 +1085,14 @@ public sealed partial class DetailsModel(
 
     private const string ClosureProbeReason = "closure-outcome-probe";
 
+    /// <summary>The recorded assessment values a Save keeps when its form does not post them.</summary>
+    private static readonly string[] RecordedAssessmentPaths =
+    [
+        AssessmentVocabulary.ReportDate,
+        AssessmentVocabulary.SettlementStoragePerDay,
+        AssessmentVocabulary.CostRecoveryCharge,
+    ];
+
     private static readonly string ClosureProbeLeaseToken =
         new('0', CaseEditAuthority.LeaseTokenLength);
 
@@ -1196,6 +1200,12 @@ public sealed partial class DetailsModel(
         return (await frameRead, await workspaceRead);
     }
 
+    /// <summary>
+    /// The sign-off list the report snapshot read this request, kept whether or
+    /// not the assessment can open so the extras do not read it again.
+    /// </summary>
+    private IReadOnlyList<SignOffEngineerProfile>? snapshotSignOffEngineers;
+
     private async Task LoadEngineerSectionsAsync(
         Guid id,
         ActionActor actor,
@@ -1233,7 +1243,15 @@ public sealed partial class DetailsModel(
             Case.Frame);
 
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
-        var estimates = reads.Start(token => listEstimates.ExecuteAsync(id, work, token));
+        // The authors' names depend only on the estimates, so they are read in
+        // the same slot and overlap the other reads in this phase. The workspace
+        // already holds the Current spec with its lines, so the list does not
+        // read those again.
+        var estimates = reads.Start(async token =>
+        {
+            var listed = await listEstimates.ExecuteAsync(id, work, workspace.CurrentSpecification, token);
+            return (Listed: listed, AuthorNames: await ResolveSpecAuthorNamesAsync(listed, token));
+        });
         var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
         var savedReasons = reads.Start(token => unroadworthyReasonBank.ListAsync(principalCode, token));
         var salvageMatrix = CanEditEngineering
@@ -1253,14 +1271,14 @@ public sealed partial class DetailsModel(
         var glass = reads.Start(token => ReadGlassSessionAsync(id, actor, token));
         await reads.WhenAllAsync();
 
-        Estimates = await estimates;
-        SpecAuthorNames = await ResolveSpecAuthorNamesAsync(Estimates, cancellationToken);
+        (Estimates, SpecAuthorNames) = await estimates;
         LabourRateCards = await cards;
         ApplyEstimateSelection(estimate);
         var saved = await savedReasons;
         UnroadworthyReasonWordings = [.. UnroadworthyReasonBank.Standard, .. saved.Select(item => item.Text)];
         PrincipalSalvageMatrix = salvageMatrix is null ? null : await salvageMatrix;
         var inputs = await reportInputs;
+        snapshotSignOffEngineers = inputs?.Readiness.EligibleSignOffEngineers;
         if (inputs is not null && canOpen)
         {
             var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
@@ -1312,24 +1330,7 @@ public sealed partial class DetailsModel(
             : null;
         await reads.WhenAllAsync();
 
-        IReadOnlyList<RepairSpecificationSnapshot> frozen = snapshotRead is null ? [] : await snapshotRead;
-        var frozenBySpecification = frozen.ToLookup(item => item.SpecificationId);
-        EstimateSnapshots = Estimates.ToDictionary(
-            item => item.SpecificationId,
-            item => (IReadOnlyList<RepairSpecificationSnapshot>)frozenBySpecification[item.SpecificationId].ToArray());
-        if (SelectedEstimate is not null)
-        {
-            SelectedEstimateSnapshots = EstimateSnapshots.GetValueOrDefault(SelectedEstimate.SpecificationId, []);
-            if (SelectedEstimate.Supplementary is { } supplementary)
-            {
-                SupplementaryBase = SelectedEstimateSnapshots.FirstOrDefault(item => item.Id == supplementary.OfSnapshotId);
-                SupplementaryDiff = SupplementaryBase is null
-                    ? null
-                    : RepairSpecificationComparison.Compare(SupplementaryBase, SelectedEstimate);
-            }
-        }
-        ComparisonOptions = BuildComparisonOptions();
-        ResolveComparison(Request.Query["from"], Request.Query["to"], dialog);
+        ApplyEstimateSnapshots(snapshotRead is null ? [] : await snapshotRead, dialog);
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None
             : await history;
@@ -1358,15 +1359,97 @@ public sealed partial class DetailsModel(
             ? CaseReportSendHistory.None
             : await otherHistory;
         ReportDeliveryMessage = await RenderReportDeliveryMessageAsync(actor, cancellationToken);
-        OpenDialog = dialog switch
+        OpenDialog = EstimateDialogOf(dialog);
+    }
+
+    /// <summary>
+    /// What the selected spec's frozen versions decide: Compare's sides, the
+    /// scaling readout and the Supplementary difference. Compare's From and To
+    /// come from the request's query.
+    /// </summary>
+    private void ApplyEstimateSnapshots(IReadOnlyList<RepairSpecificationSnapshot> frozen, string? dialog)
+    {
+        var frozenBySpecification = frozen.ToLookup(item => item.SpecificationId);
+        EstimateSnapshots = Estimates.ToDictionary(
+            item => item.SpecificationId,
+            item => (IReadOnlyList<RepairSpecificationSnapshot>)frozenBySpecification[item.SpecificationId].ToArray());
+        if (SelectedEstimate is not null)
         {
-            "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
-            "compare-estimates" when ComparisonOffered => "compare-estimates",
-            "versions" when SelectedEstimate is not null => "versions",
-            "delete-estimate" when SelectedEstimateIsEditable
-                && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
-            _ => null
-        };
+            SelectedEstimateSnapshots = EstimateSnapshots.GetValueOrDefault(SelectedEstimate.SpecificationId, []);
+            if (SelectedEstimate.Supplementary is { } supplementary)
+            {
+                SupplementaryBase = SelectedEstimateSnapshots.FirstOrDefault(item => item.Id == supplementary.OfSnapshotId);
+                SupplementaryDiff = SupplementaryBase is null
+                    ? null
+                    : RepairSpecificationComparison.Compare(SupplementaryBase, SelectedEstimate);
+            }
+        }
+        ComparisonOptions = BuildComparisonOptions();
+        ResolveComparison(Request.Query["from"], Request.Query["to"], dialog);
+    }
+
+    /// <summary>The dialog of the Estimate section the request asks to draw open, when it may open.</summary>
+    private string? EstimateDialogOf(string? dialog) => dialog switch
+    {
+        "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
+        "compare-estimates" when ComparisonOffered => "compare-estimates",
+        "versions" when SelectedEstimate is not null => "versions",
+        "delete-estimate" when SelectedEstimateIsEditable
+            && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
+        _ => null
+    };
+
+    /// <summary>
+    /// The Repair Spec section's fragment: what the section and its dialogs
+    /// draw and nothing else. A spec tab, New repair spec and Compare's From
+    /// and To redraw only this part (case-workspace.js showEstimate), so the
+    /// reads the rest of the page needs (the direct sections, the report's
+    /// inputs, generations and delivery, the extras) are not repeated.
+    /// </summary>
+    private async Task LoadEstimateSectionAsync(
+        Guid id,
+        ActionActor actor,
+        AssessmentWorkspace? workspace,
+        CaseWorkSelector work,
+        string? estimate,
+        string? dialog,
+        CancellationToken cancellationToken)
+    {
+        if (workspace is null)
+        {
+            await EvaluateEngineerSectionConditionsAsync(cancellationToken);
+            return;
+        }
+
+        Assessment = workspace.Assessment;
+        CurrentSpecification = workspace.CurrentSpecification;
+        using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var estimates = reads.Start(token => listEstimates.ExecuteAsync(id, work, token));
+        var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
+        var sendingToAi = AssessmentCanOpen && !AssessmentIsReadOnly
+            ? reads.Start(token => sendToAiControl.IsEnabledAsync(token))
+            : null;
+        var glass = reads.Start(token => ReadGlassSessionAsync(id, actor, token));
+        await reads.WhenAllAsync();
+
+        Estimates = await estimates;
+        LabourRateCards = await cards;
+        ApplyEstimateSelection(estimate);
+        EvaluateEngineerSectionConditions(sendingToAi is not null && await sendingToAi);
+        ApplyGlassSession(await glass);
+
+        // Both of these need only the estimates, so they run together.
+        var specificationIds = Estimates.Select(item => item.SpecificationId).ToArray();
+        var specAuthors = Estimates;
+        using var dependentReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var authorNames = dependentReads.Start(token => ResolveSpecAuthorNamesAsync(specAuthors, token));
+        var snapshotRead = specificationIds.Length > 0
+            ? dependentReads.Start(token => specificationSnapshots.ListForSpecificationsAsync(id, specificationIds, token))
+            : null;
+        await dependentReads.WhenAllAsync();
+        SpecAuthorNames = await authorNames;
+        ApplyEstimateSnapshots(snapshotRead is null ? [] : await snapshotRead, dialog);
+        OpenDialog = EstimateDialogOf(dialog);
     }
 
     /// <summary>What the Estimate section's Glass's surface shows.</summary>
@@ -1544,6 +1627,8 @@ public sealed partial class DetailsModel(
     public async Task<IActionResult> OnGetSectionAsync(
         Guid id,
         string? section,
+        string? estimate,
+        string? dialog,
         [FromHeader(Name = "X-Pegasus-Edit-Lease")] string? renderLeaseToken,
         CancellationToken cancellationToken)
     {
@@ -1559,7 +1644,12 @@ public sealed partial class DetailsModel(
         // The Tasks dialog's body is fetched here as the dialog opens; it is
         // not a section, so the section vocabulary does not name it.
         var key = string.Equals(section, "tasks", StringComparison.Ordinal) ? "tasks" : NormalizeSection(section);
-        var view = key == "tasks" ? TasksView : LazySectionViews.GetValueOrDefault(key);
+        var view = key switch
+        {
+            "tasks" => TasksView,
+            "estimate" => EstimateView,
+            _ => LazySectionViews.GetValueOrDefault(key)
+        };
         if (view is null)
         {
             return FragmentNotFound();
@@ -1607,6 +1697,9 @@ public sealed partial class DetailsModel(
                         return FragmentNotFound();
                     }
                     break;
+                case "estimate":
+                    return await GetEstimateFragmentAsync(
+                        id, actor, estimate, dialog, renderLeaseToken, cancellationToken);
                 case "queries":
                     QueriesSection = await getCaseQueriesSection.ExecuteAsync(new(id, actor), cancellationToken);
                     if (QueriesSection is null)
@@ -1658,6 +1751,62 @@ public sealed partial class DetailsModel(
             LogCaseDetailsQueryFailed(logger, id, exception);
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
+    }
+
+    /// <summary>
+    /// The Repair Spec section for a tab, New repair spec or Compare switch,
+    /// drawn from the same view as the full page. Like every mounted body this
+    /// GET reads and writes no TempData; the browser repeats the lease it
+    /// holds in a header, and once Core validates it the section is drawn as
+    /// the full page draws it for the lease's holder.
+    /// </summary>
+    private async Task<IActionResult> GetEstimateFragmentAsync(
+        Guid id,
+        ActionActor actor,
+        string? estimate,
+        string? dialog,
+        string? renderLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        var work = WorkSelector;
+        // The section draws the workflow, lease, works and accepted data, so
+        // the frame is the narrow one (no documents, notes, Triage, tasks or
+        // query route), and the lease check needs only the id, actor and
+        // header, so all three reads start together.
+        var checksLease = !string.IsNullOrWhiteSpace(renderLeaseToken) && validateCaseRenderLease is not null;
+        using var firstReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var frameRead = firstReads.Start(async token =>
+        {
+            using (DocumentReadTelemetry.Start("web.case.frame"))
+            {
+                return await getCaseSectionFrame.ExecuteAsync(new(id, actor, work), token);
+            }
+        });
+        var workspaceRead = firstReads.Start(async token =>
+        {
+            using (DocumentReadTelemetry.Start("web.case.workspace"))
+            {
+                return await getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), token);
+            }
+        });
+        var leaseRead = checksLease
+            ? firstReads.Start(token => validateCaseRenderLease!.ExecuteAsync(new(id, actor, renderLeaseToken!), token))
+            : null;
+        await firstReads.WhenAllAsync();
+        estimateFrame = await frameRead;
+        if (estimateFrame is null)
+        {
+            return FragmentNotFound();
+        }
+        var workspace = await workspaceRead;
+        estimateData = workspace?.Data;
+        ApplyAssessmentAccess(actor, estimateFrame.Workflow);
+        if (leaseRead is not null && await leaseRead)
+        {
+            AdoptRenderLease(renderLeaseToken!);
+        }
+        await LoadEstimateSectionAsync(id, actor, workspace, work, estimate, dialog, cancellationToken);
+        return Partial(EstimateView, this);
     }
 
     /// <summary>The Files body's image-intake records, tag vocabulary and galleries.</summary>
@@ -1726,7 +1875,11 @@ public sealed partial class DetailsModel(
             Data: Case!.Data,
             Documents: Case.Documents,
             Frame: Case.Frame,
-            Work: work);
+            Work: work,
+            // The roster read by the Tasks body depends on it, and the extras
+            // below name the same colleague once they have run.
+            ColleagueIsEditing: Case.ActiveEditLease is { } lease
+                && !CaseEditAuthority.IsHolder(lease.HolderKind, lease.Holder, actor));
         var rendered = LazySectionViews.Keys.Where(key => !SectionIsDeferred(key)).ToHashSet(StringComparer.Ordinal);
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
         var vehicle = rendered.Contains("vehicle")
@@ -1815,6 +1968,7 @@ public sealed partial class DetailsModel(
             actor,
             AssessmentCanOpen,
             EligibleSignOffEngineers,
+            snapshotSignOffEngineers,
             LeaseToken);
         var activeLease = details.ActiveEditLease;
         var viewerHoldsLease = activeLease is not null
@@ -1844,7 +1998,7 @@ public sealed partial class DetailsModel(
                 actor,
                 token))
             : null;
-        var caseAiJobs = reads.Start(token => aiJobs.ListForSubjectAsync(id, token));
+        var caseAiJobs = reads.Start(token => aiJobs.ListOpenForSubjectAsync(id, token));
         await reads.WhenAllAsync();
 
         if (claimSources is not null)
@@ -2136,11 +2290,14 @@ public sealed partial class DetailsModel(
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
                     || damageSubmitted || wordingSubmitted || guideEntries is { Length: > 0 }
                     || estimate is not null || adoption is not null;
-                // The edit basis and the workspace each open their own context, so
-                // they read side by side; a missing Case is still reported first.
+                // The edit basis and the recorded values each open their own
+                // context, so they read side by side; a missing Case is still
+                // reported first. The save keeps three recorded values it does not
+                // post, so those are all it reads of the assessment.
                 using var saveReads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
                 var basisRead = saveReads.Start(readToken => getCaseEditBasis.ExecuteAsync(new(id, actor, work), readToken));
-                var workspaceRead = saveReads.Start(readToken => getAssessmentWorkspace.ExecuteAsync(new(id, actor, work), readToken));
+                var recordedRead = saveReads.Start(readToken => getAssessmentWorkspace.FieldValuesAsync(
+                    new(id, actor, work), RecordedAssessmentPaths, readToken));
                 await saveReads.WhenAllAsync();
                 var current = await basisRead
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
@@ -2156,8 +2313,8 @@ public sealed partial class DetailsModel(
                 {
                     throw new InvalidOperationException("The case is read-only once archived.");
                 }
-                var assessment = (await workspaceRead)?.Assessment;
-                string? Recorded(string path) => assessment?.Field(path)?.Value;
+                var recorded = await recordedRead;
+                string? Recorded(string path) => recorded.GetValueOrDefault(path);
                 decimal? Money(string path) => decimal.TryParse(Recorded(path), NumberStyles.Number,
                     CultureInfo.InvariantCulture, out var value) ? value : null;
                 var persisted = data.Workspace;
@@ -3416,8 +3573,8 @@ public sealed partial class DetailsModel(
         {
             reason = RepairSpecificationComparison.SupplementaryReasons[0].Code;
         }
-        var baseVersion = (await specificationSnapshots.ListAsync(caseId, existing.SpecificationId, cancellationToken))
-            .FirstOrDefault(version => version.Id == baseId);
+        var baseVersion = await specificationSnapshots.GetAsync(
+            caseId, existing.SpecificationId, baseId, cancellationToken);
         if (baseVersion is null)
         {
             return null;
@@ -4210,15 +4367,12 @@ public sealed partial class DetailsModel(
             ClearLeaseState();
             return Forbid();
         }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true)
+        // The access answer is the header's own workflow state, so the guard
+        // reads the Case once.
+        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
+        if (header is null || !AssessmentAccessPolicy.For(actor, header.Workflow).CanOpen)
         {
             return NotFound();
-        }
-        if (access.IsReadOnly)
-        {
-            TempData["CaseError"] = "The case is read-only once Complete.";
-            return RedirectToEstimate(id);
         }
         if (!IsOperationKeyValid(operationKey))
         {
@@ -4231,11 +4385,6 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id);
         }
 
-        var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
-        if (header is null)
-        {
-            return NotFound();
-        }
         currentCaseVersion = header.Workflow.Version;
         return null;
     }
@@ -4586,7 +4735,7 @@ public sealed partial class DetailsModel(
 
         var fileBytes = buffer.ToArray();
         var uploadedSha256 = Convert.ToHexStringLower(SHA256.HashData(fileBytes));
-        var (activeLeaseToken, claimResult) = await ClaimEstimateImportAsync(
+        var (activeLeaseToken, importCheck, claimResult) = await ClaimEstimateImportAsync(
             actor!, id, expectedVersion, operationKey, editLeaseToken, uploadedSha256,
             "case-estimate-import-form", cancellationToken);
         if (claimResult is not null)
@@ -4671,7 +4820,7 @@ public sealed partial class DetailsModel(
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
             return await ImportRetainedEstimateAsync(new(actor!, id, importVersion, importLeaseToken,
                 source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty)
-                { Work = WorkSelector, EstimateId = target?.SpecificationId },
+                { Work = WorkSelector, EstimateId = target?.SpecificationId, Checked = importCheck },
                 cancellationToken, expectedVersion, resultingVersion);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
@@ -4711,7 +4860,7 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id);
         }
 
-        var (leaseToken, claimResult) = await ClaimEstimateImportAsync(
+        var (leaseToken, importCheck, claimResult) = await ClaimEstimateImportAsync(
             actor!, id, expectedVersion, operationKey, editLeaseToken, source.Version.Sha256,
             editor: null, cancellationToken);
         if (claimResult is not null)
@@ -4727,7 +4876,7 @@ public sealed partial class DetailsModel(
             return await ImportRetainedEstimateAsync(
                 new(actor!, id, expectedVersion, leaseToken!, source.Occurrence.Id, source.Version.Id,
                     source.Version.Sha256, operationKey, string.Empty)
-                { Work = WorkSelector, EstimateId = current?.SpecificationId },
+                { Work = WorkSelector, EstimateId = current?.SpecificationId, Checked = importCheck },
                 cancellationToken);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
@@ -4782,11 +4931,10 @@ public sealed partial class DetailsModel(
             ClearLeaseState();
             return (null, [], Forbid());
         }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true) return (null, [], NotFound());
         var header = await getCaseHeader.ExecuteAsync(new(id, actor), cancellationToken);
         if (header is null) return (null, [], NotFound());
-        if (access.IsReadOnly || header.Workflow.Archive is not null
+        if (!AssessmentAccessPolicy.For(actor, header.Workflow).CanOpen) return (null, [], NotFound());
+        if (header.Workflow.Archive is not null
             || CaseLifecycleRules.IsTerminal(header.Workflow.State))
         {
             TempData["CaseError"] = "The Case is read-only and cannot accept estimate imports.";
@@ -4806,13 +4954,15 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Takes the edit lease when the import starts from read mode, proves the
-    /// import authority and answers a replay of the same operation and source.
-    /// A result means the import ends here; otherwise the lease token is the
-    /// one to import under. <paramref name="editor"/> names the client form
-    /// whose commit a replay records, when there is one.
+    /// Takes the edit lease when the import starts from read mode, makes
+    /// Core's one authority-and-replay check and answers a replay of the same
+    /// operation and source. A result means the import ends here; otherwise the
+    /// lease token is the one to import under and the check is handed on with
+    /// the request. A refusal shows Core's sentence.
+    /// <paramref name="editor"/> names the client form whose commit a replay
+    /// records, when there is one.
     /// </summary>
-    private async Task<(string? LeaseToken, IActionResult? Result)> ClaimEstimateImportAsync(
+    private async Task<(string? LeaseToken, EstimateImportCheck? Check, IActionResult? Result)> ClaimEstimateImportAsync(
         ActionActor actor,
         Guid id,
         long expectedVersion,
@@ -4832,51 +4982,59 @@ public sealed partial class DetailsModel(
                 activeLeaseToken = lease.Token;
                 StoreLeaseAuthority(id, lease.Token);
             }
-            catch (StaffAuthorizationException) { return (null, Forbid()); }
+            catch (StaffAuthorizationException) { return (null, null, Forbid()); }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 HandleLeaseFailure(id, null, exception);
                 TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
-                return (null, RedirectToEstimate(id));
+                return (null, null, RedirectToEstimate(id));
             }
         }
 
+        const string UnconfirmedLine = "The source was retained, but the import could not be confirmed. Retry the same file.";
+        EstimateImportCheck check;
         try
         {
-            await repairSpecifications.RequireImportAuthorityAsync(
+            check = await importRawEstimate.CheckAsync(
                 new(actor, id, expectedVersion, activeLeaseToken!, Guid.Empty, Guid.Empty,
                     sha256, operationKey, string.Empty), cancellationToken);
         }
-        catch (StaffAuthorizationException) { return (null, Forbid()); }
+        catch (StaffAuthorizationException) { return (null, null, Forbid()); }
+        catch (EstimateImportUnconfirmedException unconfirmed)
+        {
+            // A fault in the replay probe, after the authority was proven: the
+            // page's line for a fault it cannot name, Core's words for a refusal.
+            TempData["CaseError"] = MutationRefusalMessage(unconfirmed.InnerException!, UnconfirmedLine);
+            return (null, null, RedirectToEstimate(id));
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleLeaseFailure(id, activeLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
-            return (null, RedirectToEstimate(id));
+            TempData["CaseError"] = exception is InvalidOperationException or KeyNotFoundException or ArgumentException
+                ? exception.Message
+                : "The Case cannot be edited right now.";
+            return (null, null, RedirectToEstimate(id));
         }
 
+        if (check.Replay is not { } replay)
+        {
+            return (activeLeaseToken, check, null);
+        }
         try
         {
-            if (await repairSpecifications.ProbeSourceHashReplayAsync(
-                    id, operationKey, sha256, cancellationToken)
-                is { } replay)
+            if (editor is not null)
             {
-                if (editor is not null)
-                {
-                    RecordEditorCommit(editor, operationKey, expectedVersion, expectedVersion);
-                }
-                TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
-                return (null, RedirectToEstimate(id, replay.EstimateId.ToString("D")));
+                RecordEditorCommit(editor, operationKey, expectedVersion, expectedVersion);
             }
+            TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
+            return (null, null, RedirectToEstimate(id, replay.EstimateId.ToString("D")));
         }
-        catch (StaffAuthorizationException) { return (null, Forbid()); }
+        catch (StaffAuthorizationException) { return (null, null, Forbid()); }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
-            return (null, RedirectToEstimate(id));
+            TempData["CaseError"] = MutationRefusalMessage(exception, UnconfirmedLine);
+            return (null, null, RedirectToEstimate(id));
         }
-        return (activeLeaseToken, null);
     }
 
     private async Task<IActionResult> ImportRetainedEstimateAsync(
@@ -4976,6 +5134,7 @@ public sealed partial class DetailsModel(
         ActionActor Actor,
         bool AssessmentCanOpen,
         IReadOnlyList<SignOffEngineerProfile> EligibleSignOffEngineers,
+        IReadOnlyList<SignOffEngineerProfile>? SnapshotSignOffEngineers,
         string? LeaseToken);
 
     private sealed record WorkspaceExtras(
@@ -4996,23 +5155,43 @@ public sealed partial class DetailsModel(
         var workflow = details.Workflow;
         // Where Assign Engineer runs, its choices are the enabled staff, the
         // signed-in person first, as the Triage Assign list reads them (#1213).
-        // They name the assigned Engineer too, so that account is read on its
-        // own only when the list does not hold it.
+        // They name the assigned Engineer too, so that account's name is read on
+        // its own only when the list does not hold it.
         var viewerStaffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(inputs.Actor);
-        IReadOnlyList<CaseEngineerChoice> roster = CaseLifecycleRules.CanBeAssigned(workflow.State)
-            ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, cancellationToken))
-                .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
-            : [];
-        string? engineerDisplayName = null;
-        if (workflow.AssignedEngineerId is { } engineerId)
-        {
-            engineerDisplayName = roster.FirstOrDefault(listed => listed.StaffId == engineerId)?.DisplayName
-                ?? (await staffAccountQueries.GetAsync(engineerId, cancellationToken))?.UserName
-                ?? ActorDisplayNames.UnknownStaff;
-        }
 
+        // The sign-off list is the one the report snapshot already read this
+        // request (R276); it is read here only when no snapshot ran, and then
+        // beside the roster and name reads, which do not depend on it.
+        using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
+        var fallbackProfiles = !inputs.AssessmentCanOpen && inputs.SnapshotSignOffEngineers is null
+            ? reads.Start(token => staffAccountQueries.ListSignOffEngineersAsync(token))
+            : null;
+        var rosterAndName = reads.Start(async token =>
+        {
+            IReadOnlyList<CaseEngineerChoice> listed = CaseLifecycleRules.CanBeAssigned(workflow.State)
+                ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, token))
+                    .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
+                : [];
+            string? displayName = null;
+            if (workflow.AssignedEngineerId is { } engineerId)
+            {
+                displayName = listed.FirstOrDefault(choice => choice.StaffId == engineerId)?.DisplayName;
+                if (displayName is null)
+                {
+                    var names = await staffAccountQueries.GetNamesAsync([engineerId], token);
+                    displayName = names.TryGetValue(engineerId, out var name)
+                        ? name
+                        : ActorDisplayNames.UnknownStaff;
+                }
+            }
+
+            return (Roster: listed, EngineerDisplayName: displayName);
+        });
+        await reads.WhenAllAsync();
+        var (roster, engineerDisplayName) = await rosterAndName;
         var profiles = inputs.AssessmentCanOpen ? inputs.EligibleSignOffEngineers
-            : await staffAccountQueries.ListSignOffEngineersAsync(cancellationToken);
+            : inputs.SnapshotSignOffEngineers
+                ?? await fallbackProfiles!;
         var signOffEngineer = CaseSignOffEngineerResolver.Resolve(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,

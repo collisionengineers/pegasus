@@ -208,6 +208,9 @@ public sealed class StaffMailSendTests
         Assert.Equal(1, transport.SendCount);
         Assert.Equal(bytes, Assert.Single(transport.Attached));
         Assert.Equal(4, store.CurrentStaffChecks);
+        // A correspondence send is filed under the Case its command names:
+        // the execution is read only to find a report's Case.
+        Assert.Equal(0, store.ExecutionReads);
     }
 
     [Fact]
@@ -389,8 +392,9 @@ public sealed class StaffMailSendTests
             [custodyAttachment]);
         var readiness = new Readiness();
         var transport = new Transport();
+        var store = new Store();
         var send = new StaffMailSend(
-            new Store(),
+            store,
             new Mailboxes(mail.ApprovedMailboxId, mail.ExpectedMailboxGeneration),
             new Reader(bytes, custodyAttachment),
             transport,
@@ -402,6 +406,8 @@ public sealed class StaffMailSendTests
 
         Assert.Equal(StaffMailState.Submitted, result.State);
         Assert.Equal(1, readiness.Calls);
+        // A report send keeps its execution read: the generations name its Case.
+        Assert.Equal(1, store.ExecutionReads);
         Assert.Equal(bytes, Assert.Single(transport.Attached));
         Assert.Equal([deliveryAttachment.FileName], transport.AttachedNames);
 
@@ -788,6 +794,7 @@ public sealed class StaffMailSendTests
         public StaffMailOperation? Operation => operation;
         public bool RejectCurrentStaff { get; init; }
         public int CurrentStaffChecks { get; private set; }
+        public int ExecutionReads { get; private set; }
         public int LatestOriginalReads { get; private set; }
         public Guid? LatestOriginalMessageId { get; private set; }
         public Task<StaffMailOperation> PrepareAsync(StaffMailSendCommand command, string payloadHash, DateTimeOffset nowUtc, CancellationToken cancellationToken)
@@ -805,10 +812,13 @@ public sealed class StaffMailSendTests
             LatestOriginalMessageId = retainedMessageId;
             return Task.FromResult(operation);
         }
-        public Task<StaffMailExecution?> GetExecutionAsync(string actorSubjectId, Guid operationId, CancellationToken cancellationToken) =>
-            Task.FromResult<StaffMailExecution?>(operation is null ? null : new(
+        public Task<StaffMailExecution?> GetExecutionAsync(string actorSubjectId, Guid operationId, CancellationToken cancellationToken)
+        {
+            ExecutionReads++;
+            return Task.FromResult<StaffMailExecution?>(operation is null ? null : new(
                 actorSubjectId, operation, operation.State is StaffMailState.DraftReady or StaffMailState.Sending ? "draft" : null,
                 [], StaffMailPurpose.GeneralCorrespondence, Guid.NewGuid(), 1, Guid.NewGuid()));
+        }
         public Task<StaffMailExecution?> GetExecutionForObservationAsync(ActionActor systemActor, Guid operationId, CancellationToken cancellationToken) => Task.FromResult<StaffMailExecution?>(null);
         public Task RequireCurrentStaffAsync(string actorSubjectId, CancellationToken cancellationToken) { CurrentStaffChecks++; return RejectCurrentStaff ? Task.FromException(new UnauthorizedAccessException()) : Task.CompletedTask; }
         public Task<StaffMailOperation> TransitionAsync(string actorSubjectId, Guid operationId, long expectedVersion, StaffMailState state, StaffMailAttemptStage? stage, string? draftImmutableId, DateTimeOffset? submittedAtUtc, DateTimeOffset? observedSentAtUtc, string? failureCode, CancellationToken cancellationToken)

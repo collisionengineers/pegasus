@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -565,7 +566,7 @@ public sealed class CaseMatchIntegrationTests
             .Where(item => item.ExternalReceiptToken == "mail-case-association-token")
             .Select(item => item.Id)
             .SingleAsync();
-        var retainedDetail = await new EfRetainedMailboxMessageStore(harness.Factory)
+        var retainedDetail = await new EfRetainedMailboxMessageStore(harness.Factory, new MemoryCache(new MemoryCacheOptions()))
             .GetAsync(retainedMessageId, CancellationToken.None);
         Assert.Equal(accepted.Identity.CaseId, retainedDetail?.Summary.CaseId);
 

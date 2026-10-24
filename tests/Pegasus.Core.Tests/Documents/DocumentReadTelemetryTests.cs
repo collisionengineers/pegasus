@@ -54,7 +54,6 @@ public sealed class DocumentReadTelemetryTests
     [InlineData("web.workcentre.aijobs")]
     [InlineData("report.photos.prepare")]
     [InlineData("report.pdf.generate")]
-    [InlineData("report.pdf.pagecount")]
     public void EveryPhaseTheDiagnosticsLaneAddsIsAllowlisted(string phase)
     {
         Assert.True(DocumentReadTelemetry.IsAllowedPhase(phase));

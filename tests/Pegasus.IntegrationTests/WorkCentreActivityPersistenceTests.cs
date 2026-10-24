@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
@@ -17,10 +18,56 @@ public sealed class WorkCentreActivityPersistenceTests
     private static readonly DateTimeOffset DayStart = new(2026, 10, 6, 23, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset WeekStart = new(2026, 10, 4, 23, 0, 0, TimeSpan.Zero);
 
+    private static readonly WorkCentreActivityCounts SeededCounts = new(
+        NewCases: new(Today: 2, ThisWeek: 3),
+        SentToEngineer: new(Today: 1, ThisWeek: 2),
+        ReportsSent: new(Today: 1, ThisWeek: 2),
+        EmailsReceived: new(Today: 2, ThisWeek: 3));
+
     [Fact]
     public async Task EachFigureCountsOnlyItsOwnFactsInsideItsOwnWindow()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedAsync(database);
+
+        await using var scope = database.CreateAsyncScope();
+        var counts = await scope.ServiceProvider.GetRequiredService<IWorkCentreActivityQueries>()
+            .GetAsync(DayStart, WeekStart, CancellationToken.None);
+
+        Assert.Equal(SeededCounts, counts);
+    }
+
+    /// <summary>
+    /// Each figure is one command whatever rows it reads: the week and the day
+    /// come from one conditional aggregate, so a load sends four.
+    /// </summary>
+    [Fact]
+    public async Task EachFigureIsOneCommandWhateverRowsItReads()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IWorkCentreActivityQueries>();
+
+        counter.Reset();
+        _ = await queries.GetAsync(DayStart, WeekStart, CancellationToken.None);
+        var withNoRows = counter.Count;
+
+        await SeedAsync(database);
+        counter.Reset();
+        var counts = await queries.GetAsync(DayStart, WeekStart, CancellationToken.None);
+
+        Assert.Equal(SeededCounts, counts);
+        Assert.True(withNoRows == 4, $"An empty estate sent {withNoRows} commands; one per figure is four.");
+        Assert.True(
+            counter.Count == 4,
+            $"The seeded estate sent {counter.Count} commands; one per figure is four."
+            + Environment.NewLine + string.Join(Environment.NewLine, counter.Statements));
+    }
+
+    private static async Task SeedAsync(LocalDbTestDatabase database)
+    {
         await using (var context = await database.CreateContextAsync())
         {
             var principal = await SeededPrincipals.QdosAsync(context);
@@ -75,16 +122,6 @@ public sealed class WorkCentreActivityPersistenceTests
                 Receipt("mailbox", WeekStart.AddHours(-1)));
             await context.SaveChangesAsync();
         }
-
-        await using var scope = database.CreateAsyncScope();
-        var counts = await scope.ServiceProvider.GetRequiredService<IWorkCentreActivityQueries>()
-            .GetAsync(DayStart, WeekStart, CancellationToken.None);
-
-        Assert.Equal(new WorkCentreActivityCounts(
-            NewCases: new(Today: 2, ThisWeek: 3),
-            SentToEngineer: new(Today: 1, ThisWeek: 2),
-            ReportsSent: new(Today: 1, ThisWeek: 2),
-            EmailsReceived: new(Today: 2, ThisWeek: 3)), counts);
     }
 
     [Fact]

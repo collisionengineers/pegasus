@@ -287,8 +287,9 @@ internal static class AutomationMcpTestSupport
 
     /// <summary>
     /// Walks Not ready → Review through the store's gated
-    /// <see cref="ICaseWorkflowStore.ReturnToReviewAsync"/>: the Core command no
-    /// longer admits Not ready. Does not write workflow state in SQL.
+    /// <see cref="ICaseWorkflowStore.ReturnToReviewAsync"/>: neither the Core
+    /// command nor the store admits Not ready, so the state is first set to With
+    /// Engineer in SQL, which the store does admit.
     /// </summary>
     public static async Task EnsureInReviewAsync(
         WebApplicationFactory<Program> factory,
@@ -308,6 +309,16 @@ internal static class AutomationMcpTestSupport
 
         Assert.Equal(CaseLifecycleState.NotReady, workflow.State);
         var lease = await BeginEditAsync(client, token, caseId, workflow.Version, rpcId: 900);
+        // Return to Review asks its state rule (With Engineer or Report sent) before the
+        // readiness gate, so the fixture puts the Case in a state that passes it.
+        await using (var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportPreparation)} WHERE CaseId = {caseId}");
+        }
+
         await scope.ServiceProvider.GetRequiredService<ICaseWorkflowStore>()
             .ReturnToReviewAsync(
                 new(

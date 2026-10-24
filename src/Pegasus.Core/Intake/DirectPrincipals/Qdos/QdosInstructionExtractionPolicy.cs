@@ -391,9 +391,13 @@ public sealed partial class QdosInstructionExtractionPolicy
         {
             extended.AddRange(LetterBlocks(readResult.Content[index], fragmentLines[index]));
         }
-        foreach (var fragment in readResult.Content.Concat(readResult.CompanionContent))
+        for (var index = 0; index < readResult.Content.Count; index++)
         {
-            extended.AddRange(ReportFacts(fragment));
+            extended.AddRange(ReportFacts(readResult.Content[index], fragmentLines[index]));
+        }
+        foreach (var fragment in readResult.CompanionContent)
+        {
+            extended.AddRange(ReportFacts(fragment, SplitLines(fragment.Text)));
         }
 
         return WithSubjectFacts(readResult, extended);
@@ -449,9 +453,10 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// carries none). Appended after all content, so the letter outranks.
     /// </summary>
     private static IEnumerable<IntakeContentFragment> ReportFacts(
-        IntakeContentFragment fragment)
+        IntakeContentFragment fragment,
+        string[] lines)
     {
-        foreach (var rawLine in SplitLines(fragment.Text))
+        foreach (var rawLine in lines)
         {
             // The third-party rows are the claimant's fields' one real
             // hazard here, and these rules read labels mid-line, so the

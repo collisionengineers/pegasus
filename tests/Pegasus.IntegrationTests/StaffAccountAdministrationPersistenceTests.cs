@@ -224,8 +224,9 @@ public sealed class StaffAccountAdministrationPersistenceTests
 
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var choices = await services.GetRequiredService<ICaseEngineerChoices>().GetAsync(actor, default);
-        var administratorEligibility = await services.GetRequiredService<ICaseEngineerEligibility>()
-            .GetAsync(administrator.Id, default);
+        await using var eligibilityContext = await database.CreateContextAsync();
+        var administratorEligibility = await EfCaseEngineerEligibility.ReadAsync(
+            eligibilityContext, administrator.Id, default);
 
         Assert.Equal([administrator.Id, engineer.Id, user.Id], choices.Select(choice => choice.StaffId));
         Assert.True(administratorEligibility.AccountExists);

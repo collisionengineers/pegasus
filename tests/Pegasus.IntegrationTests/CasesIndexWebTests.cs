@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
@@ -739,13 +740,16 @@ public sealed class CasesIndexWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var caseId = await SeedImagesIncompleteCaseAsync(
             factory, client, "QD21 CFG", "QUICK-DETAIL-03", CaseLifecycleState.NotReady);
-        await using (var context = await factory.Database.CreateContextAsync())
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
         {
             var configuration = await context.Set<WorkflowConfigurationEntity>().SingleAsync();
             configuration.RequireImages = false;
             configuration.Version++;
             await context.SaveChangesAsync();
         }
+        // The row was changed beneath the store, so drop the kept configuration
+        // as the store's own update does.
+        ((MemoryCache)factory.Services.GetRequiredService<IMemoryCache>()).Compact(1.0);
         var step = Pegasus.Web.Presentation.OperatorLabels.CaseStage(CaseLifecycleState.NotReady);
 
         Assert.Matches(
@@ -776,6 +780,128 @@ public sealed class CasesIndexWebTests
 
         Assert.Matches(CurrentWork(Pegasus.Web.Presentation.CaseWorkspaceLabels.AssignEngineer), html);
         Assert.Equal(0, counter.CountContaining("[CaseDataSnapshots]"));
+    }
+
+    /// <summary>
+    /// A1-07 (R249): a selected Case whose report is sent asks whether any
+    /// task is open with one EXISTS over its tasks, not the ordered task list
+    /// and the Case-version read the list made.
+    /// </summary>
+    [Fact]
+    public async Task TheQuickDetailOfAReportSentCaseAsksForAnOpenTaskWithOneExistsRead()
+    {
+        var counter = new SqlStatementCounter();
+        using var baseFactory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: counter);
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            // The readiness of the report is not what this test reads.
+            services.RemoveAll<Pegasus.Core.Reports.ICaseReportSnapshotSource>();
+            services.AddSingleton<Pegasus.Core.Reports.ICaseReportSnapshotSource>(new NoReportInputs());
+        }));
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            baseFactory, seedClient, "QD21 RSN", "QUICK-DETAIL-05");
+        await SeedReportSentCaseWithOpenTaskAsync(baseFactory, caseId);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        counter.Reset();
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=with_engineer&selected={caseId:D}");
+
+        Assert.Equal(
+            Pegasus.Web.Presentation.OperatorLabels.WorkCentre.OpenTasks,
+            Regex.Match(html, @"<dt>Current work</dt>\s*<dd>(.*?)</dd>", RegexOptions.Singleline).Groups[1].Value);
+        var taskReads = counter.Statements.Where(text => text.Contains("[CaseTasks]", StringComparison.Ordinal)).ToArray();
+        var taskRead = Assert.Single(taskReads);
+        Assert.Contains("EXISTS", taskRead, StringComparison.Ordinal);
+        Assert.DoesNotContain("TOP(", taskRead, StringComparison.Ordinal);
+        // The dropped list read began with a Case-version read of its own: one
+        // column of the Case's workflow row, no join.
+        Assert.DoesNotContain(
+            counter.Statements,
+            text => Regex.IsMatch(text, @"SELECT TOP\(2\) \[\w+\]\.\[Version\]\s+FROM \[CaseWorkflows\]"));
+    }
+
+    private static async Task SeedReportSentCaseWithOpenTaskAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    {
+        var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var generationId = Guid.NewGuid();
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var sha256 = new string('a', 64);
+        await using var context = await factory.Database.CreateContextAsync();
+        var workflow = await context.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleAsync(item => item.CaseId == caseId);
+        // An Inspection Case: an Inspection + Audit Case without its Audit
+        // would answer Create audit after its stored report, not its tasks.
+        workflow.Case.Type = CaseTypeCodes.Inspection;
+        workflow.State = nameof(CaseLifecycleState.ReportPreparation);
+        workflow.AssignedEngineerId = Guid.NewGuid();
+        workflow.ReportSentEvidence = new CaseReportSentEvidenceEntity
+        {
+            Id = Guid.NewGuid(), CaseId = caseId, MailboxIdentity = "test-mailbox",
+            SentFolderIdentity = "sent", ImmutableItemIdentity = "sent-item",
+            InternetMessageIdentity = "sent@test.invalid", ConversationIdentity = "conversation",
+            ReplyChainIdentity = "reply-chain", SourceOccurrenceIdentity = "sent-source",
+            SourceSha256 = new string('A', 64), MimeSha256 = new string('B', 64),
+            SentAtUtc = now, DiscoveredAtUtc = now,
+            DiscoveredByKind = nameof(ActorKind.SystemWorker), DiscoveredBySubjectId = "test",
+            RetentionOperationKey = "retained-sent-test", RetentionRequestHash = new string('C', 64),
+            LinkedAtUtc = now, LinkedByKind = nameof(ActorKind.SystemWorker), LinkedBySubjectId = "test",
+            LinkedByRolesJson = "[]"
+        };
+        context.Add(workflow.ReportSentEvidence);
+        context.AddRange(
+            new CaseReportGenerationEntity
+            {
+                Id = generationId,
+                CaseId = caseId,
+                WorkId = caseId,
+                CaseVersion = workflow.Version,
+                SnapshotHash = new string('b', 64),
+                SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "quick-detail-report-sent"),
+                TemplateVersion = "test",
+                RendererVersion = "test",
+                State = nameof(Pegasus.Core.Reports.CaseReportGenerationState.Confirmed),
+                GeneratedAtUtc = now,
+                Version = 1
+            },
+            new CaseDocumentEntity
+            {
+                Id = documentId, CaseId = caseId, Ordinal = 99, SourceOccurrenceIdentity = "report-output"
+            },
+            new DocumentVersionEntity
+            {
+                Id = versionId, DocumentId = documentId, Version = 1, FileName = "report.pdf",
+                MediaType = "application/pdf", ContentLength = 1, Sha256 = sha256,
+                CustodyStatus = Pegasus.Core.Documents.DocumentCustodyStatus.Confirmed,
+                CreatedAtUtc = now, CreatedBy = "test", IsCurrent = true
+            },
+            new GeneratedCaseArtifactEntity
+            {
+                Id = Guid.NewGuid(), GenerationId = generationId, VersionId = versionId,
+                Kind = "AssessmentReport", Sha256 = sha256, State = "Confirmed",
+                OperationKey = $"artifact:{Guid.NewGuid():N}"
+            },
+            new CaseTaskEntity
+            {
+                Id = Guid.NewGuid(), CaseId = caseId, Description = "Chase the Principal", State = "Open",
+                Version = 0, ConcurrencyToken = Guid.NewGuid(), CreatedAtUtc = now
+            });
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>A report snapshot source with nothing to read, so no readiness blocker stands in the Next action.</summary>
+    private sealed class NoReportInputs : Pegasus.Core.Reports.ICaseReportSnapshotSource
+    {
+        public Task<Pegasus.Core.Reports.CaseReportFreezeInputs?> GetAsync(
+            Guid caseId,
+            ActionActor actor,
+            CaseWorkSelector work,
+            Pegasus.Core.Reports.ReportProjectionReuse? reuse,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<Pegasus.Core.Reports.CaseReportFreezeInputs?>(null);
     }
 
     /// <summary>
@@ -941,7 +1067,7 @@ public sealed class CasesIndexWebTests
         bool audit = false)
     {
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(factory, client, registration, claimNumber);
-        await using var context = await factory.Database.CreateContextAsync();
+        await using var context = await (await factory.DatabaseAsync).CreateContextAsync();
         var workflow = await context.CaseWorkflows
             .Include(item => item.Case)
             .SingleAsync(item => item.CaseId == caseId);
@@ -1199,7 +1325,15 @@ public sealed class CasesIndexWebTests
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ImageIntakeRecord?> GetRecordByOriginReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
