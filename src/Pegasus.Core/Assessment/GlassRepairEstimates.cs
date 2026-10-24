@@ -358,6 +358,14 @@ public interface IGlassRepairEstimateGateway
         GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken);
     Task<GlassRepairEstimateStep> AcceptCallbackAsync(
         GlassRepairEstimateCallback callback, CancellationToken cancellationToken);
+    /// <summary>
+    /// <see cref="AcceptCallbackAsync(GlassRepairEstimateCallback, CancellationToken)"/>
+    /// for a session the caller has just read, so it is not read again. The
+    /// correlation and the version are still proved against what was read.
+    /// </summary>
+    Task<GlassRepairEstimateStep> AcceptCallbackAsync(
+        GlassRepairEstimateCallback callback, GlassRepairEstimateSessionMaterial material,
+        CancellationToken cancellationToken);
     Task<GlassRepairEstimateSession> ContinueImportAsync(
         GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken);
     /// <summary>
@@ -367,10 +375,22 @@ public interface IGlassRepairEstimateGateway
     /// </summary>
     Task<GlassRepairEstimateSession> SettleInterruptedAsync(
         ActionActor actor, Guid sessionId, CancellationToken cancellationToken);
+    /// <summary>
+    /// <see cref="SettleInterruptedAsync(ActionActor, Guid, CancellationToken)"/>
+    /// for a session the caller has just read, so it is not read again.
+    /// </summary>
+    Task<GlassRepairEstimateSession> SettleInterruptedAsync(
+        ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken);
     Task<GlassRepairEstimateSession> CloseAsync(
         GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken);
     Task<Uri?> GetEstimatorUrlAsync(
         ActionActor actor, Guid sessionId, CancellationToken cancellationToken);
+    /// <summary>
+    /// <see cref="GetEstimatorUrlAsync(ActionActor, Guid, CancellationToken)"/>
+    /// for a session the caller has just read, so it is not read again.
+    /// </summary>
+    Task<Uri?> GetEstimatorUrlAsync(
+        ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken);
 }
 
 /// <summary>

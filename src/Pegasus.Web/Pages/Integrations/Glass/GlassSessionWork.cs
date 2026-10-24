@@ -22,7 +22,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// <para>
 /// Work admitted to the in-memory queue but lost to a host recycle before it
 /// is picked up leaves the session as its prepare half wrote it: Prepared or
-/// Importing, which <see cref="IGlassRepairEstimateGateway.SettleInterruptedAsync"/>
+/// Importing, which <see cref="IGlassRepairEstimateGateway.SettleInterruptedAsync(ActionActor, Guid, CancellationToken)"/>
 /// settles exactly as it settles work stopped mid-run, or, for a reopen, a
 /// session Resume takes again as it stands.
 /// </para>

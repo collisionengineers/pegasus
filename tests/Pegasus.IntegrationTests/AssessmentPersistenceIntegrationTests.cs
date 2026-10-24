@@ -1780,6 +1780,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
         var link = new GlassEstimateLink("33584499", "1954488", "10203040", Placeholder: false, "AB12CDE", 33000);
         var authority = new Pegasus.Infrastructure.Glass.EfGlassRepairEstimateCaseAuthority(harness.Factory, harness.Clock);
+        // The Case has no Audit work, so its current work is the primary work, whose id is the Case id.
+        var workId = caseId;
 
         var firstLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "glass-update-lease-1");
         var first = await harness.RepairSpecifications.SaveImportedEstimateAsync(
@@ -1790,7 +1792,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 GlassEstimate = link,
             },
             CancellationToken.None);
-        Assert.Equal(link, await authority.FindEstimateAsync(caseId, first.SpecificationId, CancellationToken.None));
+        Assert.Equal(link, await authority.FindEstimateAsync(workId, first.SpecificationId, CancellationToken.None));
         Assert.Equal(
             first.SpecificationId,
             await authority.FindSpecificationAsync(caseId, link.VehicleId, CancellationToken.None));
@@ -1805,7 +1807,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
         Assert.True(typed.IsCurrent);
-        Assert.Null(await authority.FindEstimateAsync(caseId, typed.SpecificationId, CancellationToken.None));
+        Assert.Null(await authority.FindEstimateAsync(workId, typed.SpecificationId, CancellationToken.None));
 
         var secondHash = new string('c', 64);
         var updateLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "glass-update-lease-2");
@@ -1829,7 +1831,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(first.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
         Assert.Equal(
             "1954489",
-            (await authority.FindEstimateAsync(caseId, first.SpecificationId, CancellationToken.None))!.EstimateId);
+            (await authority.FindEstimateAsync(workId, first.SpecificationId, CancellationToken.None))!.EstimateId);
     }
 
     /// <summary>

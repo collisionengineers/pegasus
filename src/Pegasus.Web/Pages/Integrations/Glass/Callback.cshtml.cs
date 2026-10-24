@@ -94,11 +94,13 @@ public sealed class CallbackModel(
             return Forbid();
         }
 
-        var session = await glassSessions.FindByCallbackAsync(correlation, cancellationToken);
-        if (session is null)
+        // The session is read once; the gateway is handed what was read.
+        var read = await glassSessions.FindByCallbackAsync(correlation, cancellationToken);
+        if (read is null)
         {
             return NotFound();
         }
+        var session = read.Session;
         if (!Guid.TryParse(actor.SubjectId, out var staffId) || staffId != session.PegasusUserId)
         {
             // Another staff member's session, refused before its one-use token is
@@ -117,6 +119,7 @@ public sealed class CallbackModel(
             var step = await glassEstimates.AcceptCallbackAsync(
                 new GlassRepairEstimateCallback(
                     actor, session.Id, session.Version, correlation, Request.QueryString.Value ?? string.Empty),
+                read,
                 cancellationToken);
             if (step.Continuation != GlassRepairEstimateContinuation.None)
             {
@@ -140,9 +143,16 @@ public sealed class CallbackModel(
                 return DetailsModel.GlassOpening(this, step.Session.Id);
             }
 
-            return Report(GlassRepairEstimateSessionPolicy.AwaitsProviderWork(step.Session.State)
-                ? await glassEstimates.SettleInterruptedAsync(actor, step.Session.Id, cancellationToken)
-                : step.Session);
+            if (!GlassRepairEstimateSessionPolicy.AwaitsProviderWork(step.Session.State))
+            {
+                return Report(step.Session);
+            }
+
+            // A return that wrote nothing is settled from what this request
+            // read; one that moved the session on is read afresh.
+            return Report(step.Session.Version == read.Session.Version
+                ? await glassEstimates.SettleInterruptedAsync(actor, read, cancellationToken)
+                : await glassEstimates.SettleInterruptedAsync(actor, step.Session.Id, cancellationToken));
         }
         catch (StaffAuthorizationException)
         {
