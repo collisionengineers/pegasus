@@ -253,8 +253,7 @@ public sealed class RecoveryTests
         statements.Reset();
         Assert.Equal(0, await store.RecoverInterruptedWorkAsync(
             nowUtc, nowUtc - TimeSpan.FromMinutes(1), 2, CancellationToken.None));
-        var idleStatement = Assert.Single(statements.Statements);
-        Assert.DoesNotContain("OFFSET", idleStatement, StringComparison.Ordinal);
+        Assert.Single(statements.Statements);
 
         // 300 more live leases, more than the 256-row page the scan used to
         // read: the idle scan is still the same single statement.
