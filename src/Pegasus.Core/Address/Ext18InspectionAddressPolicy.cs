@@ -121,7 +121,7 @@ public static class Ext18InspectionAddressPolicy
             Append(hash, source.PolicyVersion.ToString(CultureInfo.InvariantCulture));
         }
 
-        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
 
     private static bool IsSupportedValue(string value)

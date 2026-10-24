@@ -2111,7 +2111,7 @@ public sealed class EfTriageStore(
     private DateTimeOffset UtcNow() => timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
 
     private static string Hash(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
     /// <summary>
     /// The Triage Case as a record; <paramref name="entity"/> carries its

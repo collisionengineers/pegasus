@@ -1821,7 +1821,7 @@ public sealed class EfImageIntakeStore(
     });
 
     private static string Hash(string material) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
 
     private static string ToChannelCode(IntakeSourceChannel channel) => channel switch
     {

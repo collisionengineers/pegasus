@@ -434,8 +434,8 @@ public sealed class RetryCaseCustody(ICustodyRecoveryPersistence persistence) : 
             reason,
             leaseToken
         });
-        var requestHash = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
+        var requestHash = Convert.ToHexStringLower(
+            SHA256.HashData(Encoding.UTF8.GetBytes(material)));
         return await persistence.RetryAsync(
             request with
             {

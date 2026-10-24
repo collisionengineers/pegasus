@@ -759,7 +759,7 @@ internal sealed class EfVehicleWorkflowStore(
             JsonOptions);
 
     private static string Hash(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
     private static bool IsDuplicateKeyFailure(Exception exception) => exception switch
     {

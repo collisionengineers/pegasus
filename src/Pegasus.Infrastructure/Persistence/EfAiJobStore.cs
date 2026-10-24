@@ -557,7 +557,7 @@ public sealed class EfAiJobStore(
             job.OperationKey,
             Expiry = job.Expiry.Ticks
         }, JsonOptions);
-        return Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
+        return Convert.ToHexStringLower(
+            SHA256.HashData(Encoding.UTF8.GetBytes(material)));
     }
 }

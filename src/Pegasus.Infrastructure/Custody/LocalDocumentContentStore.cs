@@ -17,7 +17,7 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
     {
         ValidateIdentifiers(caseId, caseReference, versionId);
         var normalizedHash = NormalizeSha256(expectedSha256);
-        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
+        var actualHash = Convert.ToHexStringLower(SHA256.HashData(content.Span));
         if (!string.Equals(normalizedHash, actualHash, StringComparison.Ordinal))
         {
             throw new InvalidDataException("Document content does not match its custody hash.");
@@ -126,7 +126,7 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
 
                 if (copied != contentLength
                     || !string.Equals(
-                        Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant(),
+                        Convert.ToHexStringLower(hash.GetHashAndReset()),
                         normalizedHash,
                         StringComparison.Ordinal))
                 {
@@ -261,8 +261,7 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
             throw new InvalidDataException("Document custody length verification failed.");
         }
 
-        var actualHash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken))
-            .ToLowerInvariant();
+        var actualHash = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, cancellationToken));
         if (!string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
         {
             throw new InvalidDataException("Document custody hash verification failed.");

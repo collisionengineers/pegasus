@@ -552,7 +552,7 @@ public static class CaseExportArchive
     }
 
     private static string Hash(ReadOnlySpan<byte> content) =>
-        Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(content));
 
     private sealed record ImageEntry(string Name, CaseExportImage Image);
 }

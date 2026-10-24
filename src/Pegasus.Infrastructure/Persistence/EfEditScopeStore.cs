@@ -81,7 +81,7 @@ public sealed class EfEditScopeStore(
                 ? scope!.Holder
                 : null;
 
-        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+        var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var generation = checked((scope?.Generation ?? 0) + 1);
         if (scope is null)
         {
@@ -452,5 +452,5 @@ public sealed class EfEditScopeStore(
     }
 
     private static string Hash(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }

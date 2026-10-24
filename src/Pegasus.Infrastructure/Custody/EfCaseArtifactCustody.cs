@@ -1096,7 +1096,7 @@ internal sealed class EfCaseArtifactCustody(
                 hash.AppendData(buffer, 0, read);
                 await staged.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             }
-            var actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+            var actual = Convert.ToHexStringLower(hash.GetHashAndReset());
             if (copied != request.ContentLength
                 || !string.Equals(actual, NormalizeHash(request.Sha256), StringComparison.Ordinal))
             {
@@ -1523,7 +1523,7 @@ public sealed partial class ReconcilePendingArtifactCustody
 
     private static void Verify(ReadOnlySpan<byte> bytes, string expectedHash, long expectedLength)
     {
-        var actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        var actual = Convert.ToHexStringLower(SHA256.HashData(bytes));
         if (bytes.Length != expectedLength
             || !string.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
         {
