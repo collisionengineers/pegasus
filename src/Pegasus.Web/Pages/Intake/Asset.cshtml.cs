@@ -22,7 +22,7 @@ namespace Pegasus.Web.Pages.Intake;
 public sealed partial class AssetModel(
     IDownloadIntakeAsset downloadAsset,
     IReadPreCaseImageThumbnail readPreCaseThumbnail,
-    ILogger<AssetModel> logger) : StaffPageModel
+    ILogger<AssetModel> logger) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// <c>size=thumb</c> asks for a pre-Case image's tile: the recorded crop and

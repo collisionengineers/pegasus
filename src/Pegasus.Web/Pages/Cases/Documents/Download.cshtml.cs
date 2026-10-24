@@ -36,7 +36,7 @@ public sealed partial class DownloadModel(
     IReadLogicalDocumentVersion readLogicalDocumentVersion,
     IReadCaseDocumentThumbnail readCaseDocumentThumbnail,
     ICaseAssetPreparationQueries assetPreparations,
-    ILogger<DownloadModel> logger) : StaffPageModel
+    ILogger<DownloadModel> logger) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// How long a browser may keep one preview. The content of a document

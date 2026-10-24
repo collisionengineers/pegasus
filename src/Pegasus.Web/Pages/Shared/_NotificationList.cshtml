@@ -1,0 +1,38 @@
+@*
+    The bell's list (Work Centre D10): the person's own notifications, newest
+    first. Each row is a form that opens the notification (marks it read, lands
+    on its route) so no script is needed. The page draws it when the dialog opens
+    on load (?notifications=1); otherwise /Notifications?handler=List answers
+    it when the bell opens.
+*@
+@model NotificationListView
+@if (Model.Unavailable)
+{
+    <p class="empty-state" role="status">@OperatorLabels.Shell.NotificationsUnavailable</p>
+}
+else if (Model.Rows is { Count: > 0 })
+{
+    <div class="row-list" data-row-list data-notification-list>
+        @foreach (var notification in Model.Rows)
+        {
+            <form method="post" asp-page="/Notifications" asp-page-handler="Open" asp-route-id="@notification.Id" class="row-form">
+                <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+                <button type="submit" class="row-button@(notification.IsUnread ? " row-button--unread" : "")" data-notification="@notification.Id" data-busy-label="@OperatorLabels.Busy.Opening">
+                    <span class="title">@OperatorLabels.NotificationCause(notification)</span>
+                    <span class="sub"><span class="ref">@notification.Reference</span>@if (!string.IsNullOrWhiteSpace(notification.Registration)){<text> · <span class="mono">@notification.Registration</span></text>}</span>
+                    <span class="side">
+                        @if (notification.IsUnread)
+                        {
+                            <span class="status status--navy">@OperatorLabels.Shell.Unread</span>
+                        }
+                        <time datetime="@notification.RaisedAtUtc.ToString("O")" title="@OperatorLabels.OfficeTime(notification.RaisedAtUtc)">@OperatorLabels.RelativeTime(notification.RaisedAtUtc, Model.Now)</time>
+                    </span>
+                </button>
+            </form>
+        }
+    </div>
+}
+else
+{
+    <p class="empty-state" role="status">@OperatorLabels.Shell.NoNotifications</p>
+}

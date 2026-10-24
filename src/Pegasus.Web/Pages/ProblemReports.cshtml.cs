@@ -18,7 +18,7 @@ namespace Pegasus.Web.Pages;
 public sealed class ProblemReportsModel(
     ReportProblem reportProblem,
     ApplicationBuild build,
-    IMemoryCache cache) : StaffPageModel
+    IMemoryCache cache) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     public IActionResult OnGet() => Redirect("/");
 

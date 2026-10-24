@@ -25,7 +25,7 @@ public sealed class WorkflowModel(
     ICreateLinkedReplacement createLinkedReplacement,
     ICaseWorkflowQueries workflows,
     IAcquireCaseEditLease acquireLease,
-    ILogger<WorkflowModel> logger) : CaseMutationPageModel(logger)
+    ILogger<WorkflowModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// An action taken inside the edit session keeps it: after one succeeds

@@ -13,6 +13,9 @@ internal sealed class EmptyStaffNotifications : IMyStaffNotifications
     public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<StaffNotification>>([]);
 
+    public Task<int> UnreadCountAsync(ActionActor actor, CancellationToken cancellationToken) =>
+        Task.FromResult(0);
+
     public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken) =>
         Task.FromResult<StaffNotification?>(null);
 

@@ -22,7 +22,7 @@ public sealed class TasksModel(
     TimeProvider timeProvider,
     ICaseWorkflowQueries workflows,
     IAcquireCaseEditLease acquireLease,
-    ILogger<TasksModel> logger) : CaseMutationPageModel(logger)
+    ILogger<TasksModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// Linking report evidence inside the edit session keeps it (operator,

@@ -867,7 +867,59 @@
                     });
             }
 
+            // The Account, command palette and Report a problem dialogs are
+            // empty backdrops carrying data-dialog-fragment: the first open
+            // fetches their content and binds it, so a page does not carry
+            // their markup. A failed fetch opens nothing and the next open
+            // asks again.
+            var loading = null;
+
+            function load() {
+                if (!dialog.hasAttribute('data-dialog-fragment')) {
+                    return Promise.resolve();
+                }
+                if (!loading) {
+                    loading = fetch(dialog.getAttribute('data-dialog-fragment'), {
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: { 'Accept': 'text/html' }
+                    })
+                        .then(function (response) {
+                            if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
+                                throw new Error('dialog: ' + response.status);
+                            }
+                            return response.text();
+                        })
+                        .then(function (html) {
+                            var parsed = new DOMParser().parseFromString(html, 'text/html');
+                            dialog.replaceChildren.apply(dialog, Array.prototype.map.call(parsed.body.children, function (node) {
+                                return document.importNode(node, true);
+                            }));
+                            dialog.removeAttribute('data-dialog-fragment');
+                            bindCloseControls();
+                            (window.pegasusMountBinders || []).forEach(function (bind) { bind(dialog); });
+                        })
+                        .catch(function (error) {
+                            loading = null;
+                            throw error;
+                        });
+                }
+                return loading;
+            }
+
             function open(source) {
+                if (dialog.hasAttribute('data-dialog-fragment')) {
+                    load().then(function () {
+                        if (dialog.hidden) {
+                            openLoaded(source);
+                        }
+                    }, function () { /* the next open asks again */ });
+                    return;
+                }
+                openLoaded(source);
+            }
+
+            function openLoaded(source) {
                 invoker = source;
                 // A dialog opened as a sibling of an already-open dialog (the
                 // Accounts settings dialog auto-opens, and Disable/Delete are
@@ -929,6 +981,7 @@
 
             dialog.pegasusClose = close;
             dialog.pegasusOpen = open;
+            dialog.pegasusLoad = load;
 
             function onKeydown(event) {
                 // Every open dialog keeps its own document-level listener
@@ -966,14 +1019,18 @@
                 }
             }
 
-            dialog.querySelectorAll('[data-dialog-close]').forEach(function (control) {
-                // A nested dialog's own controls close only that dialog; the
-                // parent must keep its unsaved values when a confirmation is cancelled.
-                if (control.closest('[data-dialog]') !== dialog) {
-                    return;
-                }
-                control.addEventListener('click', close);
-            });
+            function bindCloseControls() {
+                dialog.querySelectorAll('[data-dialog-close]').forEach(function (control) {
+                    // A nested dialog's own controls close only that dialog; the
+                    // parent must keep its unsaved values when a confirmation is cancelled.
+                    if (control.closest('[data-dialog]') !== dialog || control.dataset.dialogCloseBound === 'true') {
+                        return;
+                    }
+                    control.dataset.dialogCloseBound = 'true';
+                    control.addEventListener('click', close);
+                });
+            }
+            bindCloseControls();
 
             dialog.addEventListener('click', function (event) {
                 if (event.target === dialog) {
@@ -1889,6 +1946,57 @@
     }
 })();
 
+// --- The bell's list ---------------------------------------------------------
+// The page carries only the unread count; the Notifications dialog fetches its
+// list from /Notifications?handler=List each time it opens, so a page pays for
+// the list only when the bell is used. A page opened with ?notifications=1
+// draws the list itself, and its dialog opens on load before this listener
+// exists, so that first open fetches nothing. A failure says so in the
+// dialog's own words (data-notifications-failed) and the next open asks again.
+(function () {
+    'use strict';
+    var latest = 0;
+    document.addEventListener('pegasus:dialog-open', function (event) {
+        var dialog = event.target;
+        if (!(dialog instanceof Element) || !dialog.matches('[data-dialog="notifications-dialog"]')) { return; }
+        var body = dialog.querySelector('[data-notifications-body]');
+        var url = dialog.getAttribute('data-notifications-url');
+        if (!body || !url) { return; }
+        var mine = ++latest;
+        body.setAttribute('aria-busy', 'true');
+        var returnUrl = window.location.pathname + window.location.search;
+        fetch(url + '&returnUrl=' + encodeURIComponent(returnUrl), {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'Accept': 'text/html' }
+        })
+            .then(function (response) {
+                if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
+                    throw new Error('notifications: ' + response.status);
+                }
+                return response.text();
+            })
+            .then(function (html) {
+                if (mine !== latest) { return; }
+                var parsed = new DOMParser().parseFromString(html, 'text/html');
+                body.replaceChildren.apply(body, Array.prototype.map.call(parsed.body.children, function (node) {
+                    return document.importNode(node, true);
+                }));
+                body.removeAttribute('aria-busy');
+                (window.pegasusMountBinders || []).forEach(function (bind) { bind(body); });
+            })
+            .catch(function () {
+                if (mine !== latest) { return; }
+                var status = document.createElement('p');
+                status.className = 'empty-state';
+                status.setAttribute('role', 'status');
+                status.textContent = dialog.getAttribute('data-notifications-failed') || '';
+                body.replaceChildren(status);
+                body.removeAttribute('aria-busy');
+            });
+    });
+})();
+
 // --- Command palette --------------------------------------------------------
 // The command dialog is pre-rendered with one [data-route] result per route
 // the operator may reach plus a "Search Cases for ..." fallback. Typing
@@ -1900,14 +2008,14 @@
     if (!dialog) {
         return;
     }
-    var input = dialog.querySelector('[data-command-palette-input]');
-    var results = Array.prototype.slice.call(dialog.querySelectorAll('.command-result'));
-    var fallback = dialog.querySelector('[data-command-fallback]');
-    var fallbackTerm = dialog.querySelector('[data-command-fallback-term]');
     var globalInput = document.querySelector('[data-command-input]');
-    if (!input || results.length === 0) {
-        return;
-    }
+    // The palette's content arrives the first time it opens (data-dialog-fragment),
+    // so its parts are found and wired then.
+    var input = null;
+    var results = [];
+    var fallback = null;
+    var fallbackTerm = null;
+    var ready = false;
 
     var index = 0;
 
@@ -1961,43 +2069,28 @@
         // for the palette (the search box on Enter, whatever had focus on
         // Ctrl+K).
         var source = opener || document.activeElement;
-        if (!dialog.hidden) {
+        var loaded = dialog.pegasusLoad ? dialog.pegasusLoad() : Promise.resolve();
+        loaded.then(function () {
+            if (!wire()) {
+                return;
+            }
+            if (!dialog.hidden) {
+                input.value = seed || '';
+                filter();
+                input.focus();
+                return;
+            }
+            if (dialog.pegasusOpen) {
+                dialog.pegasusOpen(source);
+            }
             input.value = seed || '';
             filter();
             input.focus();
-            return;
-        }
-        if (dialog.pegasusOpen) {
-            dialog.pegasusOpen(source);
-        }
-        input.value = seed || '';
-        filter();
-        input.focus();
+        }, function () { /* the next open asks again */ });
     }
 
     window.pegasusOpenCommandPalette = open;
 
-    input.addEventListener('input', filter);
-    input.addEventListener('keydown', function (event) {
-        if (event.key === 'ArrowDown') {
-            event.preventDefault();
-            select(index + 1);
-        } else if (event.key === 'ArrowUp') {
-            event.preventDefault();
-            select(index - 1);
-        } else if (event.key === 'Enter') {
-            event.preventDefault();
-            var items = visible();
-            if (items[index]) {
-                go(items[index]);
-            } else {
-                window.location.assign(searchUrl());
-            }
-        }
-    });
-    results.forEach(function (result) {
-        result.addEventListener('click', function () { go(result); });
-    });
     if (globalInput) {
         globalInput.addEventListener('keydown', function (event) {
             if (event.key === 'Enter') {
@@ -2006,7 +2099,48 @@
             }
         });
     }
-    filter();
+
+    // Finds the loaded palette's parts and wires them once.
+    function wire() {
+        if (ready) {
+            return true;
+        }
+        input = dialog.querySelector('[data-command-palette-input]');
+        results = Array.prototype.slice.call(dialog.querySelectorAll('.command-result'));
+        fallback = dialog.querySelector('[data-command-fallback]');
+        fallbackTerm = dialog.querySelector('[data-command-fallback-term]');
+        if (!input || results.length === 0) {
+            return false;
+        }
+        ready = true;
+        bindPalette();
+        filter();
+        return true;
+    }
+
+    function bindPalette() {
+        input.addEventListener('input', filter);
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                select(index + 1);
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                select(index - 1);
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                var items = visible();
+                if (items[index]) {
+                    go(items[index]);
+                } else {
+                    window.location.assign(searchUrl());
+                }
+            }
+        });
+        results.forEach(function (result) {
+            result.addEventListener('click', function () { go(result); });
+        });
+    }
 })();
 
 // --- Layout preference cookies (Phase 5b) ------------------------------------
@@ -2270,32 +2404,41 @@ window.pegasusPreferences = (function () {
 (function () {
     'use strict';
     var ROW = '.row-button, .scope-button, tr[data-select-href], tr[data-cases-row]';
-    document.querySelectorAll('[data-row-list]').forEach(function (list) {
-        list.addEventListener('keydown', function (event) {
-            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+    // By root, so the bell's list, fetched when the dialog opens, roves too.
+    function bindRowLists(root) {
+        root.querySelectorAll('[data-row-list]').forEach(function (list) {
+            if (list.dataset.rowListBound === 'true') {
                 return;
             }
-            var rows = Array.prototype.filter.call(
-                list.querySelectorAll(ROW),
-                function (row) { return !row.hidden; });
-            if (rows.length === 0) {
-                return;
-            }
-            var at = rows.indexOf(document.activeElement.closest(ROW));
-            event.preventDefault();
-            var next = event.key === 'ArrowDown' ? Math.min(at + 1, rows.length - 1) : Math.max(at - 1, 0);
-            var row = rows[next];
-            if (row.tagName === 'TR' && !row.hasAttribute('tabindex')) {
-                row.setAttribute('tabindex', '-1');
-            }
-            // A row that is a container rather than a control (the Inbox's
-            // rows) hands focus to its first link, which is what Enter opens.
-            if (row.tagName === 'DIV') {
-                row = row.querySelector('a[href]') || row;
-            }
-            row.focus();
+            list.dataset.rowListBound = 'true';
+            list.addEventListener('keydown', function (event) {
+                if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+                    return;
+                }
+                var rows = Array.prototype.filter.call(
+                    list.querySelectorAll(ROW),
+                    function (row) { return !row.hidden; });
+                if (rows.length === 0) {
+                    return;
+                }
+                var at = rows.indexOf(document.activeElement.closest(ROW));
+                event.preventDefault();
+                var next = event.key === 'ArrowDown' ? Math.min(at + 1, rows.length - 1) : Math.max(at - 1, 0);
+                var row = rows[next];
+                if (row.tagName === 'TR' && !row.hasAttribute('tabindex')) {
+                    row.setAttribute('tabindex', '-1');
+                }
+                // A row that is a container rather than a control (the Inbox's
+                // rows) hands focus to its first link, which is what Enter opens.
+                if (row.tagName === 'DIV') {
+                    row = row.querySelector('a[href]') || row;
+                }
+                row.focus();
+            });
         });
-    });
+    }
+    bindRowLists(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindRowLists);
 })();
 
 // --- Report period ------------------------------------------------------------
@@ -2528,21 +2671,24 @@ window.pegasusPreferences = (function () {
         var reason = event.reason && event.reason.message ? event.reason.message : String(event.reason);
         remember('unhandled rejection: ' + reason);
     });
-    document.querySelectorAll('[data-problem-form]').forEach(function (form) {
-        form.addEventListener('submit', function () {
-            var set = function (selector, value) {
-                var input = form.querySelector(selector);
-                if (input) { input.value = value; }
-            };
-            set('[data-problem-route]', reportRoute(form));
-            set('[data-problem-return]', window.location.pathname + window.location.search);
-            set('[data-problem-viewport]', window.innerWidth + 'x' + window.innerHeight);
-            set('[data-problem-editing]', document.querySelector('.case-record.is-editing') ? 'true' : 'false');
-            set('[data-problem-errors]', JSON.stringify(read()));
-            var reference = document.querySelector('.case-record .ribbon-value');
-            set('[data-problem-case]', reference ? reference.textContent.trim() : '');
-        });
-    });
+    // Delegated: the shell's form arrives with its dialog, the first time it opens.
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof Element) || !form.matches('[data-problem-form]')) {
+            return;
+        }
+        var set = function (selector, value) {
+            var input = form.querySelector(selector);
+            if (input) { input.value = value; }
+        };
+        set('[data-problem-route]', reportRoute(form));
+        set('[data-problem-return]', window.location.pathname + window.location.search);
+        set('[data-problem-viewport]', window.innerWidth + 'x' + window.innerHeight);
+        set('[data-problem-editing]', document.querySelector('.case-record.is-editing') ? 'true' : 'false');
+        set('[data-problem-errors]', JSON.stringify(read()));
+        var reference = document.querySelector('.case-record .ribbon-value');
+        set('[data-problem-case]', reference ? reference.textContent.trim() : '');
+    }, true);
 })();
 
 // --- Files tabs and the Correspondence message dialog ----------------------------

@@ -100,7 +100,7 @@ public sealed partial class ContactIndexWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        using var index = await client.GetAsync("/Administration/Contacts");
+        using var index = await client.GetAsync("/Administration/Contacts?createType=ClaimSource");
         var indexHtml = await index.Content.ReadAsStringAsync();
         index.EnsureSuccessStatusCode();
         var newId = Guid.NewGuid();

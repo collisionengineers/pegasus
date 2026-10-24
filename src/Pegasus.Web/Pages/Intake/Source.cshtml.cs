@@ -7,7 +7,7 @@ namespace Pegasus.Web.Pages.Intake;
 
 public sealed partial class SourceModel(
     IDownloadIntakeSource downloadSource,
-    ILogger<SourceModel> logger) : StaffPageModel
+    ILogger<SourceModel> logger) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     public async Task<IActionResult> OnGetAsync(
         Guid id,

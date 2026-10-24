@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -225,7 +226,7 @@ public sealed class ShellAndStatusPageWebTests
         // the confirmation. It is a one-time state of the sign-in page, not a
         // page of its own, so a bookmark cannot assert a sign-out that did not
         // just happen.
-        var signOutPage = await client.GetStringAsync("/Search");
+        var signOutPage = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=account");
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = AntiforgeryValue(signOutPage)
@@ -326,7 +327,7 @@ public sealed class ShellAndStatusPageWebTests
     /// else, newest first, each row a form that opens the notification.
     /// </summary>
     [Fact]
-    public async Task BellShowsTheEmptyStateAndNoCountWhenNothingIsUnread()
+    public async Task BellShowsNoCountWhenNothingIsUnreadAndListsNothingUntilItOpens()
     {
         var notifications = new StubNotifications([]);
         using var host = FactoryWith(notifications);
@@ -336,12 +337,26 @@ public sealed class ShellAndStatusPageWebTests
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains(">No notifications<", html, StringComparison.Ordinal);
         Assert.DoesNotContain("bell-count", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Mark all read<", html, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Notifications\"", html, StringComparison.Ordinal);
+        // The page carries the count only: the list is asked for when the bell opens.
+        Assert.Contains("data-notifications-url=\"/Notifications?handler=List\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<div class=\"dialog-body dialog-body--list\" data-notifications-body aria-busy=\"true\">",
+            html,
+            StringComparison.Ordinal);
+        Assert.Equal(1, notifications.CountCalls);
+        Assert.Equal(0, notifications.ListCalls);
+
         // The bell never carries office-wide work.
-        Assert.DoesNotContain("data-notification-list", html, StringComparison.Ordinal);
+        using var list = await client.GetAsync("/Notifications?handler=List&returnUrl=%2FSearch");
+        list.EnsureSuccessStatusCode();
+        var listHtml = await list.Content.ReadAsStringAsync();
+        Assert.Equal(
+            $"<p class=\"empty-state\" role=\"status\">{OperatorLabels.Shell.NoNotifications}</p>",
+            listHtml.Trim());
+        Assert.Equal(1, notifications.ListCalls);
     }
 
     [Fact]
@@ -372,24 +387,41 @@ public sealed class ShellAndStatusPageWebTests
         Assert.Contains("<span class=\"bell-count\" aria-hidden=\"true\">2</span>", html, StringComparison.Ordinal);
         // The middle dot is HTML-encoded by Razor; the count and word are what matter.
         Assert.Contains(" 2 unread\"", html, StringComparison.Ordinal);
-        Assert.Contains(">AI Proposal ready<", html, StringComparison.Ordinal);
-        Assert.Contains(">Assigned to you<", html, StringComparison.Ordinal);
-        Assert.Contains(">Query received<", html, StringComparison.Ordinal);
-        Assert.Contains("MA59BDY", html, StringComparison.Ordinal);
-        Assert.Contains(">Unread<", html, StringComparison.Ordinal);
         // Mark all read sits in the dialog's head and the foot keeps Close (v41 S2).
         var notificationsDialog = Between(html, "data-dialog=\"notifications-dialog\"", "data-dialog=\"command-dialog\"");
         Assert.Contains(">Mark all read<", Between(notificationsDialog, "class=\"dialog-head\"", "class=\"dialog-body"), StringComparison.Ordinal);
         Assert.Contains(">Close<", notificationsDialog[notificationsDialog.IndexOf("class=\"dialog-foot\"", StringComparison.Ordinal)..], StringComparison.Ordinal);
-        Assert.Contains($"data-notification=\"{unreadEstimate.Id:D}\"", html, StringComparison.Ordinal);
-        Assert.Contains("row-button row-button--unread", html, StringComparison.Ordinal);
+        // The page counted the unread rows and drew none of them.
+        Assert.Equal(1, notifications.CountCalls);
+        Assert.Equal(0, notifications.ListCalls);
+        Assert.Contains(
+            "<div class=\"dialog-body dialog-body--list\" data-notifications-body aria-busy=\"true\">",
+            notificationsDialog,
+            StringComparison.Ordinal);
+
+        // Opening the bell asks for the list, whose forms return to the page it was opened on.
+        using var list = await client.GetAsync("/Notifications?handler=List&returnUrl=%2FSearch%3Fquery%3Dabc");
+        list.EnsureSuccessStatusCode();
+        var listHtml = await list.Content.ReadAsStringAsync();
+        Assert.Contains(">AI Proposal ready<", listHtml, StringComparison.Ordinal);
+        Assert.Contains(">Assigned to you<", listHtml, StringComparison.Ordinal);
+        Assert.Contains(">Query received<", listHtml, StringComparison.Ordinal);
+        Assert.Contains("MA59BDY", listHtml, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Shell.Unread}<", listHtml, StringComparison.Ordinal);
+        Assert.Contains($"data-notification=\"{unreadEstimate.Id:D}\"", listHtml, StringComparison.Ordinal);
+        Assert.Contains("row-button row-button--unread", listHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"returnUrl\" value=\"/Search?query=abc\"", listHtml, StringComparison.Ordinal);
         // The vendor never appears in operator copy.
-        Assert.DoesNotContain("Claude", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Claude", listHtml, StringComparison.Ordinal);
         // The list is the store's order: newest first, exactly as returned.
         Assert.True(
-            html.IndexOf("AI Proposal ready", StringComparison.Ordinal)
-                < html.IndexOf("Assigned to you", StringComparison.Ordinal),
+            listHtml.IndexOf("AI Proposal ready", StringComparison.Ordinal)
+                < listHtml.IndexOf("Assigned to you", StringComparison.Ordinal),
             "The bell must keep the store's newest-first order.");
+
+        // A return address that is not local falls back to the Work Centre.
+        using var foreign = await client.GetAsync("/Notifications?handler=List&returnUrl=https%3A%2F%2Fexample.test%2F");
+        Assert.Contains("name=\"returnUrl\" value=\"/\"", await foreign.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -404,7 +436,7 @@ public sealed class ShellAndStatusPageWebTests
         using var host = FactoryWith(notifications);
         using var client = host.CreateClient();
 
-        var page = await client.GetStringAsync("/Search");
+        var page = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=problem");
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = AntiforgeryValue(page),
@@ -435,7 +467,7 @@ public sealed class ShellAndStatusPageWebTests
         using var host = FactoryWith(notifications);
         using var client = host.CreateClient();
 
-        var page = await client.GetStringAsync("/Search");
+        var page = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=problem");
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = AntiforgeryValue(page),
@@ -455,15 +487,24 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     [Fact]
-    public async Task NotificationsQueryOpensTheDialogOnLoad()
+    public async Task NotificationsQueryOpensTheDialogOnLoadWithTheListDrawnByThePage()
     {
-        var notifications = new StubNotifications([]);
+        var notifications = new StubNotifications([
+            new StaffNotification(
+                Guid.NewGuid(), Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId, Guid.NewGuid(),
+                "QDOS26214", "MA59BDY", StaffNotificationCause.CaseAssigned,
+                "/Cases/x", new DateTimeOffset(2031, 5, 6, 10, 0, 0, TimeSpan.Zero), ReadAtUtc: null)]);
         using var host = FactoryWith(notifications);
         using var client = host.CreateClient();
 
         var html = await client.GetStringAsync("/?notifications=1");
 
         Assert.Contains("data-dialog=\"notifications-dialog\" data-dialog-open-on-load=\"true\"", html, StringComparison.Ordinal);
+        // The dialog opens on load, so the page reads the list once and counts its unread rows.
+        Assert.Contains(">Assigned to you<", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"bell-count\" aria-hidden=\"true\">1</span>", html, StringComparison.Ordinal);
+        Assert.Equal(1, notifications.ListCalls);
+        Assert.Equal(0, notifications.CountCalls);
     }
 
     [Fact]
@@ -480,6 +521,26 @@ public sealed class ShellAndStatusPageWebTests
         Assert.DoesNotContain("No notifications", html, StringComparison.Ordinal);
         Assert.DoesNotContain("sensitive store failure", html, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(InvalidOperationException), html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The bell's list handler fails as the page's own bell read does: the
+    /// request answers 200 with the dialog's unavailable wording, nothing of
+    /// the fault, and no unhandled exception.
+    /// </summary>
+    [Fact]
+    public async Task AFailedBellListAnswersTheUnavailableStateAndNotAnError()
+    {
+        using var host = FactoryWith(new UnavailableNotifications());
+        using var client = host.CreateClient();
+
+        using var response = await client.GetAsync("/Notifications?handler=List&returnUrl=%2FSearch");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            $"<p class=\"empty-state\" role=\"status\">{OperatorLabels.Shell.NotificationsUnavailable}</p>",
+            html.Trim());
     }
 
     [Theory]
@@ -520,10 +581,23 @@ public sealed class ShellAndStatusPageWebTests
     /// Runs the shell filter around a handler that returns its page, for a
     /// signed-in person whose request token is <paramref name="requestAborted"/>.
     /// </summary>
+    private static Task<ShellProbePage> RunShellFilterAsync(
+        IMyStaffNotifications notifications,
+        IMyReleaseNotes releaseNotes,
+        ILogger<ShellPageFilter> logger,
+        CancellationToken requestAborted) =>
+        RunShellFilterAsync(
+            notifications, releaseNotes, logger, new HandlerMethodDescriptor(), new ShellProbePage(),
+            () => new PageResult(), method: "GET", requestAborted);
+
     private static async Task<ShellProbePage> RunShellFilterAsync(
         IMyStaffNotifications notifications,
         IMyReleaseNotes releaseNotes,
         ILogger<ShellPageFilter> logger,
+        HandlerMethodDescriptor? handler,
+        ShellProbePage page,
+        Func<IActionResult> handlerResult,
+        string method,
         CancellationToken requestAborted)
     {
         var person = new ClaimsPrincipal(new ClaimsIdentity(
@@ -533,28 +607,87 @@ public sealed class ShellAndStatusPageWebTests
             ],
             authenticationType: "Test"));
         var http = new DefaultHttpContext { User = person, RequestAborted = requestAborted };
+        http.Request.Method = method;
         var pageContext = new PageContext(new Microsoft.AspNetCore.Mvc.ActionContext(
             http, new Microsoft.AspNetCore.Routing.RouteData(), new CompiledPageActionDescriptor()))
         {
             ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         };
-        var page = new ShellProbePage { PageContext = pageContext };
+        page.PageContext = pageContext;
         var filter = new ShellPageFilter(notifications, releaseNotes, TimeProvider.System, logger);
         var executing = new PageHandlerExecutingContext(
             pageContext,
             [],
-            new HandlerMethodDescriptor(),
+            handler!,
             new Dictionary<string, object?>(),
             page);
 
         await filter.OnPageHandlerExecutionAsync(
             executing,
             () => Task.FromResult(new PageHandlerExecutedContext(
-                pageContext, [], new HandlerMethodDescriptor(), page)
+                pageContext, [], handler!, page)
             {
-                Result = new PageResult()
+                Result = handlerResult()
             }));
         return page;
+    }
+
+    /// <summary>
+    /// A full-page GET starts the shell's reads before its handler and a POST,
+    /// a named handler or a page whose GET never renders the shell does not:
+    /// the order the handler and the bell are touched in is the evidence (R347).
+    /// </summary>
+    [Theory]
+    [InlineData("get-page", "GET", null, false, "page", "bell,handler")]
+    [InlineData("get-redirect", "GET", null, false, "redirect", "bell,handler")]
+    [InlineData("post-page", "POST", null, false, "page", "handler,bell")]
+    [InlineData("named-get-page", "GET", "Section", false, "page", "handler,bell")]
+    [InlineData("named-get-redirect", "GET", "Section", false, "redirect", "handler")]
+    [InlineData("shell-free-get", "GET", null, true, "redirect", "handler")]
+    [InlineData("shell-free-get-page", "GET", null, true, "page", "handler")]
+    [InlineData("shell-free-post", "POST", "Open", true, "redirect", "handler")]
+    public async Task OnlyAnUnnamedGetStartsTheShellReadsBeforeTheHandler(
+        string name, string method, string? handlerName, bool shellFree, string result, string expectedOrder)
+    {
+        var events = new List<string>();
+        var notifications = new StubNotifications([], events);
+        var descriptor = new HandlerMethodDescriptor { HttpMethod = method, Name = handlerName };
+        ShellProbePage page = shellFree ? new ShellFreeProbePage() : new ShellProbePage();
+
+        await RunShellFilterAsync(
+            notifications, new NoReleaseNotes(), new CapturingLogger<ShellPageFilter>(),
+            descriptor, page,
+            () =>
+            {
+                events.Add("handler");
+                return result == "page" ? new PageResult() : new RedirectResult("/");
+            },
+            method, CancellationToken.None);
+
+        Assert.True(expectedOrder == string.Join(",", events), $"{name}: the handler and the bell ran as {string.Join(",", events)}.");
+        // A page result is given the count; a redirect is given nothing and its reads were drained;
+        // a shell-free GET reads nothing even when it returns a page.
+        Assert.Equal(
+            result == "page" && !(shellFree && handlerName is null),
+            page.ViewData.ContainsKey("NotificationsUnread"));
+    }
+
+    [Fact]
+    public async Task AGetToAPageWithNoHandlerStartsTheShellReadsBeforeItRenders()
+    {
+        var events = new List<string>();
+
+        await RunShellFilterAsync(
+            new StubNotifications([], events), new NoReleaseNotes(), new CapturingLogger<ShellPageFilter>(),
+            handler: null, new ShellProbePage(),
+            () =>
+            {
+                events.Add("handler");
+                return new PageResult();
+            },
+            method: "GET", CancellationToken.None);
+
+        Assert.Equal("bell,handler", string.Join(",", events));
     }
 
     /// <summary>
@@ -568,9 +701,12 @@ public sealed class ShellAndStatusPageWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var html = await client.GetStringAsync("/Search");
+        var page = await client.GetStringAsync("/Search");
+        var dialog = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=account");
 
-        var dialog = Between(html, "data-dialog=\"account-dialog\"", "data-dialog=\"notifications-dialog\"");
+        // The page carries the empty dialog and where its content comes from, not the content.
+        Assert.Contains("data-dialog=\"account-dialog\" data-dialog-fragment=\"/Notifications?", page, StringComparison.Ordinal);
+        Assert.Matches("<div class=\"dialog-backdrop\" data-dialog=\"account-dialog\" data-dialog-fragment=\"[^\"]+\" hidden></div>", page);
         var body = Between(dialog, "class=\"dialog-body\"", "class=\"dialog-foot\"");
         var foot = dialog[dialog.IndexOf("class=\"dialog-foot\"", StringComparison.Ordinal)..];
         Assert.Contains("href=\"/ReleaseNotes\"", body, StringComparison.Ordinal);
@@ -592,9 +728,36 @@ public sealed class ShellAndStatusPageWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await client.GetStringAsync("/Search");
+        var palette = await client.GetStringAsync("/Notifications?handler=ShellDialog&name=command");
 
         Assert.Matches("href=\"/Cases\"[^>]*>\\s*<svg[^>]*><use href=\"[^\"]*#icon-list-checks\"", html);
-        Assert.Matches("data-route=\"/Cases\">\\s*<svg[^>]*><use href=\"[^\"]*#icon-list-checks\"", html);
+        Assert.Matches("data-route=\"/Cases\">\\s*<svg[^>]*><use href=\"[^\"]*#icon-list-checks\"", palette);
+    }
+
+    /// <summary>
+    /// The Report a problem dialog is fetched on first open and names the page
+    /// it was opened on: the request carries that page's trace and method, which
+    /// the form posts back; an unknown dialog is not found.
+    /// </summary>
+    [Fact]
+    public async Task TheReportAProblemDialogIsFetchedOnFirstOpenAndCarriesThePagesTraceAndMethod()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await client.GetStringAsync("/Search");
+        Assert.Matches("<div class=\"dialog-backdrop\" data-dialog=\"problem-dialog\" data-dialog-fragment=\"/Notifications\\?[^\"]+\" hidden></div>", page);
+
+        var dialog = await client.GetStringAsync(
+            "/Notifications?handler=ShellDialog&name=problem&traceId=00-abc123-def456-01&method=POST");
+
+        Assert.Contains("data-problem-form", dialog, StringComparison.Ordinal);
+        Assert.Contains("name=\"traceId\" value=\"00-abc123-def456-01\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("name=\"method\" value=\"POST\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("name=\"operationKey\"", dialog, StringComparison.Ordinal);
+
+        using var unknown = await client.GetAsync("/Notifications?handler=ShellDialog&name=nothing");
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
 
     /// <summary>The Not found page's one action is the primary button (v41 S7).</summary>
@@ -663,6 +826,9 @@ public sealed class ShellAndStatusPageWebTests
         public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("sensitive store failure");
 
+        public Task<int> UnreadCountAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("sensitive store failure");
+
         public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("sensitive store failure");
 
@@ -673,11 +839,16 @@ public sealed class ShellAndStatusPageWebTests
     /// <summary>What SqlClient's cancelled command says, as the exception a store raises.</summary>
     private const string CancelledCommandWording = "Operation cancelled by user.";
 
-    private sealed class ShellProbePage : PageModel;
+    private class ShellProbePage : PageModel;
+
+    private sealed class ShellFreeProbePage : ShellProbePage, IShellFreeGet;
 
     private sealed class CancelledCommandNotifications : IMyStaffNotifications
     {
         public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(CancelledCommandWording);
+
+        public Task<int> UnreadCountAsync(ActionActor actor, CancellationToken cancellationToken) =>
             throw new InvalidOperationException(CancelledCommandWording);
 
         public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken) =>
@@ -699,7 +870,9 @@ public sealed class ShellAndStatusPageWebTests
             throw new NotSupportedException();
     }
 
-    private sealed class StubNotifications(IReadOnlyList<StaffNotification> rows) : IMyStaffNotifications
+    private sealed class StubNotifications(
+        IReadOnlyList<StaffNotification> rows,
+        List<string>? events = null) : IMyStaffNotifications
     {
         private readonly List<StaffNotification> _rows = [.. rows];
 
@@ -707,8 +880,23 @@ public sealed class ShellAndStatusPageWebTests
 
         public int MarkAllReadCalls { get; private set; }
 
-        public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StaffNotification>>(_rows.ToArray());
+        public int ListCalls { get; private set; }
+
+        public int CountCalls { get; private set; }
+
+        public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken)
+        {
+            ListCalls++;
+            events?.Add("bell");
+            return Task.FromResult<IReadOnlyList<StaffNotification>>(_rows.ToArray());
+        }
+
+        public Task<int> UnreadCountAsync(ActionActor actor, CancellationToken cancellationToken)
+        {
+            CountCalls++;
+            events?.Add("bell");
+            return Task.FromResult(_rows.Count(row => row.IsUnread));
+        }
 
         public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken)
         {

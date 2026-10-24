@@ -11,7 +11,7 @@ namespace Pegasus.Web.Pages.Cases.Documents;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class ExportModel(
     IExportCaseBundle exportCaseBundle,
-    ILogger<ExportModel> logger) : CaseMutationPageModel(logger)
+    ILogger<ExportModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// Export answered a GET with the archive until it became a POST, so a

@@ -195,12 +195,14 @@ public sealed class ServiceHealthPersistenceTests
 
         counter.Reset();
         _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration");
+        // The bell's unread count is kept 30 s per person, so a repeat load of the hub
+        // may send no statement at all; the Health page's own reads are counted below.
         var shell = counter.Count;
-        Assert.True(shell > 0, "The interceptor observed no statements at all.");
 
         counter.Reset();
         _ = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
         var withNoRows = counter.Count;
+        Assert.True(withNoRows > 0, "The interceptor observed no statements at all.");
         const int snapshotStatements = 11;
         Assert.True(
             withNoRows <= shell + snapshotStatements,
