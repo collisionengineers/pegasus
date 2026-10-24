@@ -315,7 +315,7 @@ public sealed class AutomationDocumentIngressTests
     /// still be more UTF-8 bytes, once pound signs and accents are counted.
     /// The batch charges the UTF-8 bytes (R192): at a limit of the text's
     /// characters the PDF does not fit whole, so it is withheld and the
-    /// photograph after it is not read; at a limit of its UTF-8 bytes the
+    /// photograph after it is not delivered; at a limit of its UTF-8 bytes the
     /// multi-byte text comes back whole, within that limit.
     /// </summary>
     [Fact]
