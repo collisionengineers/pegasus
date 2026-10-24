@@ -735,17 +735,22 @@ public sealed class EfRepairSpecificationStore(
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
         var workId = await CaseWorkScope.ResolveIdAsync(context, request.CaseId, request.Work, cancellationToken);
-        var entity = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
+        // The rule reads the specification alone: its lines and numbered
+        // versions are deleted below without being read.
+        var entity = await context.CaseRepairSpecifications
+            .SingleOrDefaultAsync(item => item.Id == request.EstimateId && item.WorkId == workId, cancellationToken)
+            ?? throw new InvalidOperationException("The estimate was not found on this case.");
         EstimatePolicy.ValidateDiscard(Map(entity));
         // Discard deletes the spec with its lines and numbered versions
         // (operator, 11 October 2026); the history below keeps who, when and
         // why. The Current spec cannot be discarded, so no report it feeds
         // changes.
-        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
-        context.CaseRepairSpecificationSnapshots.RemoveRange(
-            await context.CaseRepairSpecificationSnapshots
-                .Where(item => item.WorkId == workId && item.SpecificationId == entity.Id)
-                .ToListAsync(cancellationToken));
+        await context.CaseEstimateLines
+            .Where(line => line.RepairSpecificationId == entity.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+        await context.CaseRepairSpecificationSnapshots
+            .Where(item => item.WorkId == workId && item.SpecificationId == entity.Id)
+            .ExecuteDeleteAsync(cancellationToken);
         context.CaseRepairSpecifications.Remove(entity);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_discarded", requestHash, new { entity.Id, entity.Version, entity.Name }, now);
