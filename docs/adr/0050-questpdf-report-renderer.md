@@ -43,8 +43,10 @@ embedded resources registered with QuestPDF (Liberation Sans, metric-compatible
 with the Arial stack the templates used); no system font is relied on. The
 logo remains an embedded resource; signature and evidence image bytes are
 supplied per render. `EngineVersion` identifies QuestPDF and its version. The
-page count is read from the produced PDF with PdfPig; PDFsharp and Playwright
-leave the solution. The QuestPDF Community licence is declared in code at
+page count is the total the layout reports for the footer's "page x of y",
+captured as the document is laid out, so the produced PDF is not opened again
+to count its pages (operator ruling R243, 22 October 2026); PDFsharp and
+Playwright leave the solution. The QuestPDF Community licence is declared in code at
 composition, as the operator's organisation qualifies.
 
 `IEstimateDocumentRenderer` uses the same embedded resources and shared report
@@ -84,3 +86,12 @@ page style. The requirement is owned by
 next. A retry does not depend on that. It asks what was filed before it draws
 anything, and it never draws again a file that is already held
 ([FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+
+## Update — 2026-10-22 page count
+
+The engine decision above is unchanged. The Decision's clause on how the page
+count is read is replaced: the produced PDF is no longer opened with PdfPig to
+read its pages. The count is the total the layout reports for the footer's
+"page x of y", captured as the document is laid out (operator ruling R243,
+22 October 2026). The Decision's sentence is edited in place, with this note,
+as R411 ruled. `RenderedReportArtifact.PageCount` stays, as R410 ruled.

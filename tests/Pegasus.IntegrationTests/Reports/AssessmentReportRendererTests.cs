@@ -821,18 +821,18 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
-    /// A render is timed in three phases besides the one-off font start, each
-    /// wrapping only its own call: the photo preparation, QuestPDF's
-    /// GeneratePdf and the PdfPig page count. They are allowlisted names with
-    /// no tags, so nothing about the Case or the images leaves the process.
+    /// A render is timed in two phases besides the one-off font start, each
+    /// wrapping only its own call: the photo preparation and QuestPDF's
+    /// GeneratePdf. They are allowlisted names with no tags, so nothing about
+    /// the Case or the images leaves the process.
     /// </summary>
     [Fact]
-    public async Task ARenderEmitsItsThreeAllowlistedPhasesInOrder()
+    public async Task ARenderEmitsItsTwoAllowlistedPhasesInOrder()
     {
         await using var provider = RendererProvider();
         var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
         var stopped = new List<System.Diagnostics.Activity>();
-        using var scope = new System.Diagnostics.Activity(nameof(ARenderEmitsItsThreeAllowlistedPhasesInOrder))
+        using var scope = new System.Diagnostics.Activity(nameof(ARenderEmitsItsTwoAllowlistedPhasesInOrder))
             .SetIdFormat(System.Diagnostics.ActivityIdFormat.W3C)
             .Start();
         using var listener = new System.Diagnostics.ActivityListener
@@ -864,7 +864,7 @@ public sealed partial class AssessmentReportRendererTests
                 .ToArray();
         }
 
-        Assert.Equal(["report.photos.prepare", "report.pdf.generate", "report.pdf.pagecount"], phases);
+        Assert.Equal(["report.photos.prepare", "report.pdf.generate"], phases);
         Assert.All(phases, phase => Assert.True(DocumentReadTelemetry.IsAllowedPhase(phase)));
         lock (stopped)
         {

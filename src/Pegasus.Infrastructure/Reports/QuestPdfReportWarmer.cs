@@ -1,7 +1,6 @@
 using Pegasus.Core.Reports;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
-using UglyToad.PdfPig;
 
 namespace Pegasus.Infrastructure.Reports;
 
@@ -9,8 +8,8 @@ namespace Pegasus.Infrastructure.Reports;
 /// The <see cref="IWarmReportRenderer"/> adapter. The first render in a process
 /// registers the embedded faces and starts the layout engine, which took 2.4 to
 /// 7 s inside a staff request. This does the same work with a one-line page in
-/// the report's typeface and no image, and reads the page count back as a real
-/// render does, then drops the bytes. It runs through the one
+/// the report's typeface and no image, and learns the page count from the
+/// layout as a real render does, then drops the bytes. It runs through the one
 /// <see cref="ReportRenderGate"/>, so a real render that arrives meanwhile
 /// waits for it, and it can never be admitted beside another render.
 /// <para>
@@ -34,14 +33,15 @@ internal sealed class QuestPdfReportWarmer(ReportRenderGate gate) : IWarmReportR
         cancellationToken.ThrowIfCancellationRequested();
         ReportResources.RegisterFonts();
         cancellationToken.ThrowIfCancellationRequested();
+        var pageCount = new PageCountProbe();
         var pdf = Document.Create(document => document.Page(page =>
         {
             page.Size(PageSizes.A4);
             page.DefaultTextStyle(style => style.FontFamily(ReportChrome.FontFamily));
             page.Content().Text("Warm-up");
+            page.Footer().Dynamic(pageCount);
         })).GeneratePdf();
-        using var opened = PdfDocument.Open(pdf);
-        return opened.NumberOfPages > 0
+        return pageCount.Counted
             ? pdf
             : throw new InvalidOperationException("The warm-up page did not render.");
     }
