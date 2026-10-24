@@ -509,14 +509,13 @@ public interface IRetainedMailQueries
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// The identifier of the retained message an origin receipt came from, or
-    /// null when it has none. A store that can answer without loading the
-    /// message overrides this; the default reads the whole detail.
+    /// The identifier of the retained message with this external receipt token,
+    /// or null when it has none or the token is empty. A caller that holds the
+    /// receipt already holds the token, so no receipt is joined.
     /// </summary>
-    async Task<Guid?> FindIdByOriginReceiptAsync(
-        Guid originReceiptId,
-        CancellationToken cancellationToken) =>
-        (await GetByOriginReceiptAsync(originReceiptId, cancellationToken))?.Summary.Id;
+    Task<Guid?> FindIdByExternalReceiptTokenAsync(
+        string externalReceiptToken,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// The identifier of the intake receipt a retained message became, or null
@@ -707,23 +706,24 @@ public sealed class GetRetainedMail(
     }
 
     /// <summary>
-    /// Only the identifier of the message an origin receipt came from, for a
-    /// caller that links to it and needs nothing else of the detail.
+    /// Only the identifier of the message a receipt's source is, for a caller
+    /// that links to it and needs nothing else of the detail. The caller holds
+    /// the receipt's source identity, so the lookup is by its external receipt
+    /// token; only a mailbox source has a retained message.
     /// </summary>
-    public Task<Guid?> FindIdByOriginReceiptAsync(
+    public Task<Guid?> FindIdBySourceAsync(
         ActionActor actor,
-        Guid originReceiptId,
+        IntakeSourceIdentity source,
         CancellationToken cancellationToken = default)
     {
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (originReceiptId == Guid.Empty)
+        ArgumentNullException.ThrowIfNull(source);
+        if (source.Channel != IntakeSourceChannel.Mailbox)
         {
-            throw new ArgumentException(
-                "An origin receipt identifier is required.",
-                nameof(originReceiptId));
+            return Task.FromResult<Guid?>(null);
         }
 
-        return queries.FindIdByOriginReceiptAsync(originReceiptId, cancellationToken);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return queries.FindIdByExternalReceiptTokenAsync(source.ExternalReceiptToken, cancellationToken);
     }
 
     /// <summary>

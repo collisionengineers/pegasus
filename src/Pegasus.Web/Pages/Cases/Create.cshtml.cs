@@ -798,9 +798,9 @@ public sealed partial class CreateModel(
 
         Receipt = receipt;
         ReceiptId = receipt.Id;
-        if (getRetainedMail is not null && receipt.SourceIdentity.Channel == IntakeSourceChannel.Mailbox)
+        if (getRetainedMail is not null)
         {
-            SourceMessageId = await getRetainedMail.FindIdByOriginReceiptAsync(actor, receipt.Id, cancellationToken);
+            SourceMessageId = await getRetainedMail.FindIdBySourceAsync(actor, receipt.SourceIdentity, cancellationToken);
         }
 
         var auditEvidence = await standaloneAuditEvidenceQueries.GetForReceiptAsync(

@@ -989,6 +989,10 @@ public sealed class StartupWarmupTests
             Guid originReceiptId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<Guid?> FindIdByExternalReceiptTokenAsync(
+            string externalReceiptToken, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task WarmAsync(CancellationToken cancellationToken = default)
         {
             Note("renderer");
