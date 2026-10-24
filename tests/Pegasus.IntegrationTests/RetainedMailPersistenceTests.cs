@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,10 +16,14 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The retained-mail read model against the real migration: what the poll writes,
-/// what the workspace reads back, and the paging the list depends on.
+/// what the workspace reads back, and the paging the list depends on. The class
+/// shares one database (<see cref="RetainedMailDatabase"/>), handed to each test
+/// as the template left it; the tests that need services or an interceptor of
+/// their own make a database of their own.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class RetainedMailPersistenceTests
+public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
+    : IClassFixture<RetainedMailDatabase>
 {
     private const string MailboxId = "instructions";
     private const string MailboxAddress = "instructions@collisionengineers.co.uk";
@@ -242,7 +247,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task ARetainedMessageRoundTripsThroughTheMigration()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
 
         await RetainAsync(database, Message("message-1"));
@@ -290,7 +295,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task ThePreviewReadCarriesWhatThePaneRendersAndTheFullReadWould()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         await RetainAsync(database, Message("message-preview"));
 
@@ -347,7 +352,7 @@ public sealed class RetainedMailPersistenceTests
     [InlineData(1, false)]
     public async Task TheStoredExcerptNeverOverflowsItsColumn(int pastTheColumn, bool moreFollows)
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var line = new string('x', 5 + pastTheColumn) + string.Concat(Enumerable.Repeat(" word", 79));
         Assert.Equal(EfRetainedMailboxMessageStore.StoredExcerptLength + pastTheColumn, line.Length);
@@ -374,7 +379,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task AttachmentProjectionUsesOrdinalAndSourceLabelForDuplicateFileNamesIncludingUnsearchableFiles()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message("duplicate-attachments") with
         {
@@ -432,7 +437,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task AttachmentProjectionWithholdsTheAssetIdWhenTheSourceLabelIsMissingOrAmbiguous()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message("unresolved-attachments") with
         {
@@ -475,7 +480,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task AttachmentProjectionRefusesAmbiguousOrdinalLabelsAndCaseInsensitiveAssetMatches()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message("ambiguous-ordinal-labels") with
         {
@@ -519,7 +524,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task OriginMailboxReceiptResolvesItsExactRetainedMessage()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message("origin-query");
         await RetainAsync(database, message);
@@ -543,7 +548,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task OriginReceiptLookupReturnsNullOutsideTheExactMailboxMapping()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         var nonMailboxId = Guid.NewGuid();
         var missingTokenId = Guid.NewGuid();
         var unretainedId = Guid.NewGuid();
@@ -571,7 +576,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task OriginReceiptLookupRefusesAnAmbiguousRetainedToken()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var first = Message("ambiguous-origin");
         var second = Message("ambiguous-origin-copy") with
@@ -594,7 +599,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task MissingStoredReplyToMetadataRemainsUnavailable()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         await RetainAsync(database, Message("message-without-reply-metadata"));
 
@@ -618,7 +623,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task CategoryScopesUseTheCurrentClassificationAndNoCaseFoundIgnoresIt()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var fixtures = new[]
         {
@@ -678,7 +683,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task NoCaseFoundListsReceivedMailWhoseReceiptStandsLinkedToNoCase()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var (caseId, otherCaseId) = await SeedQueryCasesAsync(database);
         var plain = Message("ncf-plain", subject: "Plain");
@@ -789,7 +794,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task CountManyMatchesEachInboxRailScopeAndKeepsDuplicateAndEmptyScopePositions()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var fixtures = new[]
         {
@@ -844,7 +849,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task CaseQueryStoreProjectsEveryCurrentlyLinkedEmailNewestFirst()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var (caseId, otherCaseId) = await SeedQueryCasesAsync(database);
         // The instruction email a Case was created from is correspondence like
@@ -977,7 +982,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task CategoryViewFiltersBeforeSqlCountAndPagingAndUsesCorrections()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var instruction = MailClassificationResult.Classified(
             MailCategory.NewInstruction,
@@ -1055,7 +1060,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task SearchFiltersBeforePagingAndIdentifiesBodyFileNameAndProjectedContentMatches()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message(
             "message-search",
@@ -1123,7 +1128,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task RedeliveryIsRefusedByTheUniqueIndexAndRetainIsANoOperation()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
 
         await RetainAsync(database, Message("message-1"));
@@ -1215,7 +1220,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task ChangedProviderItemIdentityDoesNotDuplicateTheSameRfcMessage()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
 
         await RetainAsync(database, Message("provider-item-before-move"));
@@ -1272,7 +1277,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task ContradictoryIdentityForAnImmutableItemFailsClosed()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
 
         await RetainAsync(database, Message("provider-item"));
@@ -1285,7 +1290,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task AThreadNeverCrossesMailboxScope()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         await SeedPollStateAsync(database, "desk", "desk@collisionengineers.co.uk");
         await RetainAsync(database, Message("instructions-item", subject: "instructions message"));
@@ -1312,7 +1317,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task PagingIsStableAndComplete()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         for (var index = 0; index < 6; index++)
         {
@@ -1350,7 +1355,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task TheReceiptAndCaseJoinLightsUpWithoutTouchingTheRetainedRow()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message("message-1");
         await RetainAsync(database, message);
@@ -1398,7 +1403,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task ASucceededAllocationAttemptResolvesTheCaseWithoutALinkRow()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message("message-1");
         await RetainAsync(database, message);
@@ -1447,7 +1452,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task CorrectionIsAtomicAppendOnlyAndProtectedFromAutomatedReevaluation()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message("message-correction");
         await RetainAsync(database, message);
@@ -1502,7 +1507,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task ReevaluationNeverRemovesOrOverwritesACorrectedClassification()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message("message-reevaluated-correction");
         await RetainAsync(database, message);
@@ -1558,7 +1563,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task CorrectingToAndFromTriageRequestKeepsTheReceiptsAcceptedMatchInStep()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message("message-triage-correction");
         await RetainAsync(database, message);
@@ -1604,7 +1609,7 @@ public sealed class RetainedMailPersistenceTests
         // second mailbox identity must never be a fabricated address.
         const string secondMailboxId = "engineers";
         const string secondMailboxAddress = "engineers@collisionengineers.co.uk";
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         await SeedPollStateAsync(database, secondMailboxId, secondMailboxAddress);
         var messages = new[]
@@ -1708,7 +1713,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task AForwardedMessageUsesTheProvenOriginalSenderAndRetainsTheForwarder()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         var message = Message(
             "message-forwarded",
@@ -1817,7 +1822,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task ADisabledMailboxKeepsItsMessagesAndReportsThatItIsNoLongerPolled()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         await RetainAsync(database, Message("message-1"));
 
@@ -1847,7 +1852,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task ASentRowListsUnderSentOnlyAndDeletedHoldsNothing()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
         await RetainAsync(database, Message("message-1"));
         await RetainAsync(database, Message(
@@ -1886,7 +1891,7 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task AMailboxThatPolledBeforeRetentionReportsUnretainedHistory()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
 
         await using var scope = database.CreateAsyncScope();
@@ -2329,5 +2334,151 @@ public sealed class RetainedMailPersistenceTests
             var message = remaining.Dequeue();
             return Task.FromResult(new ApprovedInboxPage([message], message.NextCursor));
         }
+    }
+}
+
+/// <summary>
+/// The one database a class of retained-mail tests shares: restored and migrated
+/// once. These tests list the whole inbox and count whole tables, so a test cannot
+/// keep rows of its own beside another's; <see cref="FreshAsync"/> hands each test
+/// the database as the template left it, by emptying every table the template left
+/// empty and putting the approved mailboxes back. A test that needs services or an
+/// interceptor of its own makes a database of its own instead.
+/// </summary>
+public sealed class RetainedMailDatabase : IAsyncLifetime
+{
+    /// <summary>The most tables one existence probe names, so no statement grows without bound.</summary>
+    private const int ProbeTables = 50;
+
+    private const int ForeignKeyViolation = 547;
+
+    private LocalDbTestDatabase? database;
+    private string[] emptyTables = [];
+    private ApprovedMailboxEntity[] approvedMailboxes = [];
+    private bool handedOut;
+
+    private LocalDbTestDatabase Database =>
+        database ?? throw new InvalidOperationException("The database has not been created.");
+
+    public async Task InitializeAsync()
+    {
+        database = await LocalDbTestDatabase.CreateAsync();
+        var tables = await ReadStringsAsync(
+            """
+            SELECT QUOTENAME(SCHEMA_NAME(schema_id)) + N'.' + QUOTENAME(name)
+            FROM sys.tables
+            WHERE is_ms_shipped = 0
+            """);
+        var seeded = await NonEmptyAsync(tables);
+        emptyTables = [.. tables.Except(seeded, StringComparer.Ordinal)];
+        await using var context = await database.CreateContextAsync();
+        approvedMailboxes = await context.ApprovedMailboxes.AsNoTracking().ToArrayAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (database is not null)
+        {
+            await database.DisposeAsync();
+        }
+    }
+
+    /// <summary>The database as the template left it. One test uses it at a time, because a class's tests run one after another.</summary>
+    internal async Task<LocalDbTestDatabase> FreshAsync()
+    {
+        var current = Database;
+        if (handedOut)
+        {
+            await ResetAsync(current);
+        }
+
+        handedOut = true;
+        return current;
+    }
+
+    private async Task ResetAsync(LocalDbTestDatabase current)
+    {
+        // A foreign key refuses a parent while a child still names it, so a pass
+        // empties what it can and the next pass empties what was refused.
+        var pending = await NonEmptyAsync(emptyTables);
+        while (pending.Count > 0)
+        {
+            var refused = new List<string>();
+            foreach (var table in pending)
+            {
+                try
+                {
+                    await current.ExecuteAsync($"DELETE FROM {table};");
+                }
+                catch (SqlException exception) when (exception.Number == ForeignKeyViolation)
+                {
+                    refused.Add(table);
+                }
+            }
+
+            if (refused.Count == pending.Count)
+            {
+                throw new InvalidOperationException(
+                    $"These tables could not be emptied: {string.Join(", ", refused)}.");
+            }
+
+            pending = refused;
+        }
+
+        // The template approves the mailboxes; a test activates, adds or disables them.
+        await using var context = await current.CreateContextAsync();
+        var live = await context.ApprovedMailboxes.ToListAsync();
+        foreach (var row in live)
+        {
+            var template = approvedMailboxes.SingleOrDefault(item => item.Id == row.Id);
+            if (template is null)
+            {
+                context.ApprovedMailboxes.Remove(row);
+            }
+            else
+            {
+                context.Entry(row).CurrentValues.SetValues(template);
+            }
+        }
+
+        foreach (var template in approvedMailboxes.Where(item => live.All(row => row.Id != item.Id)))
+        {
+            var restored = new ApprovedMailboxEntity { Address = template.Address, State = template.State };
+            context.ApprovedMailboxes.Add(restored);
+            context.Entry(restored).CurrentValues.SetValues(template);
+        }
+
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>The tables, of those named, that hold a row now. Asked of the rows themselves, not of the catalogue's counts.</summary>
+    private async Task<List<string>> NonEmptyAsync(IEnumerable<string> tables)
+    {
+        var found = new List<string>();
+        foreach (var chunk in tables.Chunk(ProbeTables))
+        {
+            found.AddRange(await ReadStringsAsync(string.Join(
+                " UNION ALL ",
+                chunk.Select(table =>
+                    $"SELECT N'{table.Replace("'", "''", StringComparison.Ordinal)}' WHERE EXISTS (SELECT 1 FROM {table})"))));
+        }
+
+        return found;
+    }
+
+    private async Task<List<string>> ReadStringsAsync(string commandText)
+    {
+        var values = new List<string>();
+        await using var connection = Database.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = commandText;
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            values.Add(reader.GetString(0));
+        }
+
+        return values;
     }
 }
