@@ -396,7 +396,7 @@ public sealed class MailWorkspaceWebTests
 
     private const int InboxMessageCommands = 18;
 
-    private const int InboxListCommands = 12;
+    private const int InboxListCommands = 10;
 
     /// <summary>
     /// The Inbox list reads nothing once per row: the same request over six

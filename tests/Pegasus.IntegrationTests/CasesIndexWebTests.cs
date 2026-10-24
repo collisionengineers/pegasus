@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
@@ -746,6 +747,9 @@ public sealed class CasesIndexWebTests
             configuration.Version++;
             await context.SaveChangesAsync();
         }
+        // The row was changed beneath the store, so drop the kept configuration
+        // as the store's own update does.
+        ((MemoryCache)factory.Services.GetRequiredService<IMemoryCache>()).Compact(1.0);
         var step = Pegasus.Web.Presentation.OperatorLabels.CaseStage(CaseLifecycleState.NotReady);
 
         Assert.Matches(

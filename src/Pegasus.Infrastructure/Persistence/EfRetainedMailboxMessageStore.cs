@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -14,9 +15,23 @@ namespace Pegasus.Infrastructure.Persistence;
 /// The retained-mail read model: written by the poll, read by the workspace.
 /// </summary>
 internal sealed class EfRetainedMailboxMessageStore(
-    IDbContextFactory<PegasusDbContext> contextFactory)
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    IMemoryCache cache)
     : IRetainedMailboxMessageStore, IRetainedMailQueries, IRetainedMailClassificationStore
 {
+    // The mailbox list is kept in IMemoryCache like a person's release note
+    // (R141's 30 s sliding window under the 300 s ceiling). A Mail settings save
+    // evicts it; a mailbox first seen by a poll shows once the entry expires
+    // (R334).
+    private static readonly TimeSpan MailboxListSlidingWindow = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan MailboxListCeiling = Pegasus.Core.Actors.StaffSessionPolicy.AccountReadLifetime;
+
+    private static readonly object MailboxListKey = new();
+
+    /// <summary>Drops the kept mailbox list, so a read begun before this call is never kept.</summary>
+    internal static void EvictMailboxList(IMemoryCache memoryCache) =>
+        EvictableCacheEntry.Evict(memoryCache, MailboxListKey);
+
     /// <summary>The preview's excerpt: eight lines or this many characters, whichever comes first.</summary>
     private const int ExcerptLength = 600;
     private const int ExcerptLines = 8;
@@ -576,7 +591,17 @@ internal sealed class EfRetainedMailboxMessageStore(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+    public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+        CancellationToken cancellationToken) =>
+        EvictableCacheEntry.GetOrReadAsync(
+            cache,
+            MailboxListKey,
+            MailboxListCeiling,
+            MailboxListSlidingWindow,
+            ReadMailboxesAsync,
+            cancellationToken);
+
+    private async Task<IReadOnlyList<RetainedMailMailbox>> ReadMailboxesAsync(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);

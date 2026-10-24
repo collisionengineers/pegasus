@@ -38,10 +38,10 @@ public sealed class WorkCentreStatementCountWebTests
         _ = await response.Content.ReadAsStringAsync();
 
         // The workflow configuration is read once and shared by the attention list
-        // and the AI jobs section.
+        // and the AI jobs section, and the first load kept it, so this load sends none.
         Assert.True(
-            counter.CountMentioning("[WorkflowConfigurations]") == 1,
-            "The workflow configuration was not read exactly once." + Environment.NewLine + counter.Describe());
+            counter.CountMentioning("[WorkflowConfigurations]") == 0,
+            "The workflow configuration was read, not served from the kept copy." + Environment.NewLine + counter.Describe());
         Assert.True(
             counter.Count <= WorkCentreCommands,
             $"A full Work Centre load sent {counter.Count} SQL commands; at most {WorkCentreCommands} are allowed." + Environment.NewLine + counter.Describe());
