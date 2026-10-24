@@ -362,8 +362,16 @@
         var next = (form.id && document.getElementById(form.id)) || null;
         var action = form.getAttribute('action');
         if (!next && action) {
+            // A tag row (data-busy-solo) shares its action with the tag form of
+            // every other image tile: the form drawn in place of its own is
+            // the one naming the same image. Other forms are found by action.
+            var image = control.hasAttribute('data-busy-solo') ? form.elements.namedItem('occurrenceId') : null;
             next = Array.prototype.find.call(document.forms, function (candidate) {
-                return candidate.getAttribute('action') === action;
+                if (candidate.getAttribute('action') !== action) {
+                    return false;
+                }
+                var theirs = image && candidate.elements.namedItem('occurrenceId');
+                return !image || (theirs && theirs.value === image.value);
             }) || null;
         }
         if (!(next instanceof HTMLFormElement) || next === form) {
@@ -407,7 +415,14 @@
     }
     // words overrides the control's own, for a control that stands in for
     // another: a menu's button while the item pressed inside it loads.
+    // A control marked data-busy-solo is one of many that share a form (a
+    // tag row of an image tile) and is busy on its own: its form is not held
+    // and its siblings neither stand aside nor are refused.
     function startBusy(control, form, words) {
+        if (control && control.hasAttribute('data-busy-solo')) {
+            startControl(control, words);
+            return;
+        }
         form = form || (control && control.form) || null;
         if (form && !control) {
             control = defaultSubmitter(form);

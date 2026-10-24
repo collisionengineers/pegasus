@@ -479,7 +479,8 @@ internal static partial class CaseWebTestSupport
 
         public RecordingCaseDetailsStore Store(
             CaseLifecycleState state = CaseLifecycleState.NotReady,
-            bool acceptWorkspaceSaves = false)
+            bool acceptWorkspaceSaves = false,
+            IReadOnlyList<ImageTagAssignment>? overviewTags = null)
         {
             var store = new RecordingCaseDetailsStore
             {
@@ -489,7 +490,7 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments =
                 [
                     Document(CloseUpOccurrenceId, VersionOf(CloseUpOccurrenceId), CloseUpFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(OverviewOccurrenceId, VersionOf(OverviewOccurrenceId), OverviewFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(OverviewOccurrenceId, VersionOf(OverviewOccurrenceId), OverviewFileName, "image/jpeg", DocumentSemanticRole.Image, overviewTags),
                     Document(FirstSupportingOccurrenceId, VersionOf(FirstSupportingOccurrenceId), FirstSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
                     Document(SecondSupportingOccurrenceId, VersionOf(SecondSupportingOccurrenceId), SecondSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
                     Document(UnusedOccurrenceId, VersionOf(UnusedOccurrenceId), UnusedFileName, "image/jpeg", DocumentSemanticRole.Image)

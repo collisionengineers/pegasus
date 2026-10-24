@@ -29,6 +29,13 @@
     var reportImages = Model.ReportImagesByOccurrence;
     var images = Model.ReportOrderedCaseImageFiles(reportImages);
     var includedCount = reportImages.Count;
+    // Every tile's In report form and tag picker post to the same handlers of
+    // this Case; the first tile that draws one builds its URLs, so a render
+    // that draws none builds none.
+    var inReportAction = string.Empty;
+    var tagAction = string.Empty;
+    var untagAction = string.Empty;
+    var createTagAction = string.Empty;
 
     // The tile is the image's preparation card (v26 § Crop and tag): the crop
     // taken on the viewer stage, the Report section's card and this tile all
@@ -115,8 +122,14 @@ else
                         @if (preparation is not null)
                         {
                             <div class="image-tile-row">
-                                <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId"
-                                      asp-page-handler="SetImageInReport" data-image-in-report-form="@occurrence.Id" data-document-action>
+                                @{
+                                    if (inReportAction.Length == 0)
+                                    {
+                                        inReportAction = Url.Page("/Cases/Custody", "SetImageInReport", new { id = workflow.CaseId })!;
+                                    }
+                                }
+                                <form method="post" action="@inReportAction" asp-antiforgery="true"
+                                      data-image-in-report-form="@occurrence.Id" data-document-action>
                                     <input type="hidden" name="id" value="@workflow.CaseId" />
                                     <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
                                     <input type="hidden" name="inReport" value="@(preparation.InReport ? "false" : "true")" />
@@ -136,6 +149,14 @@ else
                             </div>
                         }
                         <div class="image-tile-row image-tile-toolbar">
+                            @{
+                                if (tagAction.Length == 0)
+                                {
+                                    tagAction = Url.Page("/Cases/Custody", "TagImage", new { id = workflow.CaseId })!;
+                                    untagAction = Url.Page("/Cases/Custody", "UntagImage", new { id = workflow.CaseId })!;
+                                    createTagAction = Url.Page("/Cases/Custody", "CreateImageTag", new { id = workflow.CaseId })!;
+                                }
+                            }
                             <partial name="Cases/Shared/_CaseImageTagPicker"
                                      model="@(new CaseImageTagPickerView(
                                          workflow.CaseId,
@@ -144,6 +165,9 @@ else
                                          leaseToken,
                                          vocabulary,
                                          occurrence.Tags,
+                                         tagAction,
+                                         untagAction,
+                                         createTagAction,
                                          Model.ViewRoute))" />
                             @if (mayCrop)
                             {
