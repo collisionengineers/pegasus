@@ -28,7 +28,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             command.RecordedTime,
             command.Mileage,
             command.RetailValue,
-            command.TradeValue,
+            null,
             command.GuideMonth));
         var documentCommand = new AddCaseDocumentCommand(
             command.CaseId,
@@ -141,11 +141,6 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             job.MarketResearchDocumentOccurrenceId = pending.Result.Occurrence.Id;
             job.MarketResearchDocumentVersionId = pending.Result.Version.Id;
             job.MarketResearchValuationId = valuation.ValuationId;
-            job.MarketResearchRecordedDate = details.Date;
-            job.MarketResearchRecordedTime = details.Time;
-            job.MarketResearchMileage = details.Mileage;
-            job.MarketResearchRetailValue = details.RetailValue;
-            job.MarketResearchTradeValue = details.TradeValue;
             job.MarketResearchCompletionHash = completionHash;
             EfAiJobStore.AddHistory(
                 context,
@@ -297,7 +292,6 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             command.RecordedTime,
             command.Mileage,
             command.RetailValue,
-            command.TradeValue,
             ActorKind = command.Actor.Kind.ToString(),
             command.Actor.SubjectId
         }, JsonOptions);

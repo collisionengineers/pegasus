@@ -135,7 +135,7 @@ public sealed class CaseViewsWebTests
     /// Once the Case has its Audit, the Views card is the aside's first card
     /// and the page opens on the Audit: its row reads plain with the Case's
     /// state chip exactly as the ribbon renders it, and the Inspection row is
-    /// the link to <c>?view=inspection</c> with its Sent chip.
+    /// the link to <c>?view=inspection</c> with its Report sent chip.
     /// </summary>
     [Fact]
     public async Task TheViewsCardHeadsTheAsideAndTheCaseOpensOnItsAudit()
@@ -158,7 +158,7 @@ public sealed class CaseViewsWebTests
             $"<a href=\"/Cases/{store.CaseId:D}?view=inspection\">{Frame.InspectionView} · {Reference}</a>",
             inspection,
             StringComparison.Ordinal);
-        Assert.Contains($"<span class=\"status status--plain status--green\">{Frame.Sent}</span>", inspection, StringComparison.Ordinal);
+        Assert.Contains($"<span class=\"status status--green\">{OperatorLabels.CaseStage(CaseLifecycleState.ReportSent)}</span>", inspection, StringComparison.Ordinal);
         Assert.DoesNotContain("aria-current", inspection, StringComparison.Ordinal);
 
         var audit = ViewRow(card, "audit");
@@ -172,7 +172,7 @@ public sealed class CaseViewsWebTests
     /// <summary>
     /// Create audit no longer waits for the Inspection report to be sent
     /// (operator, 1 October 2026): an Audit created before that leaves the
-    /// Inspection row without a Sent chip, never with one it did not earn.
+    /// Inspection row without a Report sent chip, never with one it did not earn.
     /// </summary>
     [Fact]
     public async Task TheInspectionRowHasNoSentChipWhenItsReportWasNeverSent()
@@ -189,7 +189,7 @@ public sealed class CaseViewsWebTests
 
         var inspection = ViewRow(ViewsCard(html), "inspection");
         Assert.Contains($"{Frame.InspectionView} · {Reference}</a>", inspection, StringComparison.Ordinal);
-        Assert.DoesNotContain(Frame.Sent, inspection, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.CaseStage(CaseLifecycleState.ReportSent), inspection, StringComparison.Ordinal);
         Assert.DoesNotContain("status--green", inspection, StringComparison.Ordinal);
         // Razor keeps a data- attribute whose value is null, empty: no view is named.
         Assert.DoesNotMatch("data-case-view=\"[^\"]", html);
@@ -316,7 +316,7 @@ public sealed class CaseViewsWebTests
         var reports = new ReportsPerWork(store.CaseId);
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
             Substitute<ICaseReportGenerationStore>(services, reports), keepDatabase: true);
-        var sentLine = $"{Reference} · {Frame.Sent} {OperatorLabels.OfficeTime(InspectionSentAtUtc)}";
+        var sentLine = $"{Reference} · {OperatorLabels.CaseStage(CaseLifecycleState.ReportSent)} {OperatorLabels.OfficeTime(InspectionSentAtUtc)}";
 
         var auditHtml = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
         var auditReport = Section(auditHtml, "section-report-title");
@@ -484,7 +484,7 @@ public sealed class CaseViewsWebTests
 
         var inspectionHtml = WebUtility.HtmlDecode(await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?view=inspection"));
         var inspectionReport = Section(inspectionHtml, "section-report-title");
-        Assert.DoesNotContain(Frame.Sent, ReportStatus(inspectionReport), StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.CaseStage(CaseLifecycleState.ReportSent), ReportStatus(inspectionReport), StringComparison.Ordinal);
         Assert.Contains("data-send-report", inspectionReport, StringComparison.Ordinal);
         Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", inspectionReport, StringComparison.Ordinal);
         Assert.Contains(reports.Inspection!.Id.ToString("D"), inspectionReport, StringComparison.Ordinal);
@@ -545,22 +545,19 @@ public sealed class CaseViewsWebTests
         // observed: nothing more for the Inspection, and the Audit still
         // sends its own.
         sends.Inspection = 1;
-        next = NextAction(await host.ReadAsync(inspectionPath));
-        Assert.DoesNotContain("data-next-label", next, StringComparison.Ordinal);
+        AssertNoNextActionCard(await host.ReadAsync(inspectionPath));
         auditNext = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
         Assert.Contains($"<strong data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</strong>", auditNext, StringComparison.Ordinal);
 
-        // A send of the Audit report accepted: the Audit's step is done too.
+        // A send of the Audit report accepted: the Audit's step is done too,
+        // and its card is not drawn.
         sends.Audit = 1;
-        auditNext = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
-        Assert.Contains("<strong data-next-label>None</strong>", auditNext, StringComparison.Ordinal);
+        AssertNoNextActionCard(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
 
         // The Inspection report's Sent item observed: still nothing.
         sends.Inspection = 0;
         store.GiveAudit(InspectionSentAtUtc, inspectionSent: true);
-        next = NextAction(await host.ReadAsync(inspectionPath));
-        Assert.DoesNotContain("data-next-label", next, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-report-not-ready", next, StringComparison.Ordinal);
+        AssertNoNextActionCard(await host.ReadAsync(inspectionPath));
     }
 
     /// <summary>
@@ -595,13 +592,19 @@ public sealed class CaseViewsWebTests
                 new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
         });
 
-        var next = NextAction(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
 
+        if (caseType != CaseType.InspectionAndAudit && sent)
+        {
+            AssertNoNextActionCard(html);
+            return;
+        }
+        var next = NextAction(html);
         Assert.DoesNotContain("data-next-mark-completed", next, StringComparison.Ordinal);
         if (caseType != CaseType.InspectionAndAudit)
         {
             Assert.Contains(
-                $"<strong data-next-label>{(sent ? "None" : CaseWorkspaceLabels.ReportDelivery.SendReport)}</strong>",
+                $"<strong data-next-label>{CaseWorkspaceLabels.ReportDelivery.SendReport}</strong>",
                 next,
                 StringComparison.Ordinal);
             Assert.DoesNotContain("data-next-create-audit", next, StringComparison.Ordinal);
@@ -711,10 +714,9 @@ public sealed class CaseViewsWebTests
         });
 
         var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
-        var next = NextAction(html);
 
-        Assert.Contains("<strong data-next-label>None</strong>", next, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-next-resolve-query", next, StringComparison.Ordinal);
+        AssertNoNextActionCard(html);
+        Assert.DoesNotContain("data-next-resolve-query", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-resolve-query", html, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.CaseStage(CaseLifecycleState.ReportSent)}</span>", RibbonStateChip(html), StringComparison.Ordinal);
     }
@@ -722,7 +724,7 @@ public sealed class CaseViewsWebTests
     /// <summary>
     /// Once Report sent is recorded, the Case's open tasks are the Next
     /// action, oldest first, each a jump to Tasks (operator, 6 October 2026);
-    /// no None line is drawn above them.
+    /// no line is drawn above them.
     /// </summary>
     [Fact]
     public async Task OpenTasksAreListedInTheNextActionOnceTheReportIsSent()
@@ -751,7 +753,6 @@ public sealed class CaseViewsWebTests
         var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
 
         var next = NextAction(html);
-        Assert.DoesNotContain("<strong data-next-label>None</strong>", next, StringComparison.Ordinal);
         var listStart = next.IndexOf("data-open-tasks>", StringComparison.Ordinal);
         Assert.True(listStart >= 0, "The Next action must list the open tasks.");
         var list = next[listStart..];
@@ -792,11 +793,43 @@ public sealed class CaseViewsWebTests
                 services,
                 new PageFrameWithOpenTasks(store, [new(Guid.NewGuid(), "Return the keys")])));
 
-        var bar = RecordBar(await host.ReadAsync($"/Cases/{store.CaseId:D}"));
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+        var bar = RecordBar(html);
 
         Assert.Contains($"<span class=\"menu-gated\" title=\"{condition}\" data-open-tasks-condition=\"{condition}\">", bar, StringComparison.Ordinal);
         Assert.Contains("disabled aria-disabled=\"true\" data-archive-case>", bar, StringComparison.Ordinal);
         Assert.DoesNotContain("data-dialog-open=\"case-archive-dialog\"", bar, StringComparison.Ordinal);
+
+        // The task remains, so the card is drawn, holding the task list.
+        Assert.Contains("data-open-tasks>", NextAction(html), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A closed or archived Case with nothing left to do draws no Next action
+    /// card, not one reading None with a Notes link (operator, 19 October
+    /// 2026).
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, false)]
+    [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
+    [InlineData(CaseLifecycleState.CreatedInError, false)]
+    [InlineData(CaseLifecycleState.SourceEmailUnlinked, false)]
+    [InlineData(CaseLifecycleState.ReportSent, true)]
+    public async Task AClosedOrArchivedCaseDrawsNoNextActionCard(CaseLifecycleState state, bool archived)
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = state,
+            ReportSentEvidence = SentEvidence(InspectionSentAtUtc),
+            Archive = archived
+                ? new(InspectionSentAtUtc, ActionActor.SystemWorker("archiver"), "Archived for this test")
+                : null
+        };
+        using var host = new ReadingHost(store);
+
+        var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
+
+        AssertNoNextActionCard(html);
     }
 
     /// <summary>
@@ -996,6 +1029,13 @@ public sealed class CaseViewsWebTests
         return card.Value;
     }
 
+    /// <summary>The aside draws no Next action card at all.</summary>
+    private static void AssertNoNextActionCard(string html)
+    {
+        Assert.False(NextActionRegex().IsMatch(html), "A Next action card is rendered.");
+        Assert.DoesNotContain("data-next-action", html, StringComparison.Ordinal);
+    }
+
     /// <summary>The report card's status line.</summary>
     private static string ReportStatus(string report)
     {
@@ -1075,7 +1115,7 @@ public sealed class CaseViewsWebTests
     /// Each work's report sends Graph accepted whose Sent item is not yet
     /// observed, as the send history counts them.
     /// </summary>
-    private sealed class SendsPerWork : ICaseReportSendHistoryQueries
+    internal sealed class SendsPerWork : ICaseReportSendHistoryQueries
     {
         public int Inspection { get; set; }
 
@@ -1087,7 +1127,7 @@ public sealed class CaseViewsWebTests
                 0, null, work == CaseWorkSelector.Primary ? Inspection : Audit));
     }
 
-    private sealed class ReportsPerWork(Guid caseId) : ICaseReportGenerationStore
+    internal sealed class ReportsPerWork(Guid caseId) : ICaseReportGenerationStore
     {
         /// <summary>The Audit's current generation; null while it has none.</summary>
         public CaseReportGenerationRecord? Audit { get; set; } = Generation(caseId, AuditReference, CaseWorkKind.Audit);

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
@@ -26,6 +27,15 @@ internal static class AutomationMcpTestSupport
     public const string ConnectorRedirectUri = "https://connector.example/api/mcp/auth_callback";
     public const string AllScopes =
         "automation.cases automation.intake automation.documents automation.assessment automation.mail";
+
+    // One server per scope (ADR-0080), each at its own path.
+    public const string CasesServer = "/mcp/cases";
+    public const string IntakeServer = "/mcp/intake";
+    public const string DocumentsServer = "/mcp/documents";
+    public const string AssessmentServer = "/mcp/assessment";
+    public const string MailServer = "/mcp/mail";
+    public const string JobsServer = "/mcp/jobs";
+    public const string SendServer = "/mcp/send";
 
     public static readonly DateTimeOffset SeedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
@@ -64,10 +74,11 @@ internal static class AutomationMcpTestSupport
 
     public static async Task<HttpResponseMessage> PostMcpAsync(
         HttpClient client,
+        string server,
         string? accessToken,
         string payload)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp");
+        using var request = new HttpRequestMessage(HttpMethod.Post, server);
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Accept.ParseAdd("text/event-stream");
@@ -78,6 +89,18 @@ internal static class AutomationMcpTestSupport
 
         return await client.SendAsync(request);
     }
+
+    /// <summary>
+    /// A server refuses a token without one of its scopes in its endpoint
+    /// policy, with 403 before any tool runs (ADR-0080 decision 4): the
+    /// transport denial is recorded, and no refusal names the missing scope.
+    /// </summary>
+    public static Task<int> CountServerRefusalsAsync(IntakeWebApplicationFactory factory) =>
+        factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SecurityEvents
+            WHERE ReasonCode = N'automation_access_denied' AND Outcome = N'Denied'
+            """);
 
     public static async Task<JsonDocument> ReadJsonRpcAsync(HttpResponseMessage response)
     {
@@ -148,6 +171,54 @@ internal static class AutomationMcpTestSupport
             @params = new { name = tool, arguments }
         });
 
+    public static string Sha256Hex(byte[] content) => Convert.ToHexString(SHA256.HashData(content));
+
+    /// <summary>
+    /// Stages a document in parts on the documents server (R203): begins the
+    /// upload under the key, then sends every part with its own SHA-256.
+    /// </summary>
+    public static async Task<Guid> StageUploadAsync(
+        HttpClient client,
+        string token,
+        byte[] document,
+        string operationKey)
+    {
+        Guid uploadId;
+        int partBytes;
+        int partCount;
+        using (var begin = await PostMcpAsync(
+            client,
+            DocumentsServer,
+            token,
+            ToolCallPayload(
+                1,
+                "pegasus_upload_begin",
+                new { totalBytes = document.Length, sha256 = Sha256Hex(document), operationKey })))
+        {
+            var ticket = await ReadStructuredContentAsync(begin);
+            uploadId = ticket.GetProperty("uploadId").GetGuid();
+            partBytes = ticket.GetProperty("partBytes").GetInt32();
+            partCount = ticket.GetProperty("partCount").GetInt32();
+        }
+
+        for (var partNumber = 1; partNumber <= partCount; partNumber++)
+        {
+            var offset = (partNumber - 1) * partBytes;
+            var part = document[offset..Math.Min(document.Length, offset + partBytes)];
+            using var sent = await PostMcpAsync(
+                client,
+                DocumentsServer,
+                token,
+                ToolCallPayload(
+                    1 + partNumber,
+                    "pegasus_upload_part",
+                    new { uploadId, partNumber, contentBase64 = Convert.ToBase64String(part), sha256 = Sha256Hex(part) }));
+            await ReadStructuredContentAsync(sent);
+        }
+
+        return uploadId;
+    }
+
     public static async Task<Guid> SeedAcceptedCaseAsync(
         WebApplicationFactory<Program> factory,
         CaseCompleteness? completeness = null)
@@ -185,6 +256,7 @@ internal static class AutomationMcpTestSupport
     {
         using var response = await PostMcpAsync(
             client,
+            CasesServer,
             token,
             ToolCallPayload(
                 rpcId,

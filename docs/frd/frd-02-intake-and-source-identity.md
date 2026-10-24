@@ -131,6 +131,17 @@ Unidentified item or U-reference:
 - non-image material from other channels (the Principal API, Automation)
   that cannot be placed gets no item.
 
+A PDF the third-party report profiles recognise as an engineer's report is
+correspondence or evidence, never photographs; its embedded images are not
+Image Intake candidates. A PDF with a readable text layer is a document
+(correspondence or evidence on the Case), never an Image Intake or
+Unidentified candidate, whatever its issuer. An image-only PDF attached to an
+e-mail is treated as a document too, never Unidentified. An e-mail carrying a
+PDF is a document carrier: its loose photograph attachments open no Image
+Intake or Unidentified item and are filed with it once the Case is matched;
+with no Case the e-mail waits in No Case Found. The PDF's images become Case
+images after filing (operator, 22 October 2026).
+
 One item covers one source occurrence or one inseparable submission group.
 Group membership is permanent: the group gets one `U<n>` reference, and each
 member keeps its own filename, receipt identity, custody, and chronology.
@@ -304,8 +315,9 @@ and is offered only where it applies:
 
 Each records the actor, reason, time, and before and after state, and
 replays by operation key. The Automation Actor retries an allocation,
-settles a received item's inspection address, and turns the item into a Case
-as **Create case** does, through `pegasus_intake_action`
+settles a received item's inspection address, turns the item into a Case
+as **Create case** does, and opens the Triage as **Open the Triage** does
+(operator, 22 October 2026; R223), through `pegasus_intake_action`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
 
 A retained message's attachments each state their own outcome in operator

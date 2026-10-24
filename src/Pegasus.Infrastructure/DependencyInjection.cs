@@ -91,6 +91,7 @@ public static class DependencyInjection
         services.AddScoped<EfIntakeSubmissionGroupStore>();
         services.AddScoped<IIntakeSubmissionGroupStore>(provider =>
             provider.GetRequiredService<EfIntakeSubmissionGroupStore>());
+        services.AddScoped<ICaseFilingReplayStore, EfCaseFilingReplayStore>();
         services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
@@ -602,6 +603,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<FileSystemIntakeArtifactStore>());
             services.AddSingleton<IIntakeQuarantineArtifactStore>(provider =>
                 provider.GetRequiredService<FileSystemIntakeArtifactStore>());
+            services.AddSingleton<IDocumentUploadStaging>(provider =>
+                new FileSystemDocumentUploadStaging(localArtifactRootFactory(provider)));
 
             services.AddSingleton(provider =>
                 new LocalDocumentContentStore(Path.Combine(localArtifactRootFactory(provider), "custody")));
@@ -645,6 +648,7 @@ public static class DependencyInjection
                 new PrincipalApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
             services.AddScoped<ProcessIntake>();
+            services.AddScoped<RegisterUnidentifiedSubmissionGroup>();
 
             services.AddScoped<CaseExportImageReader>();
             services.AddScoped<EfCaseExportStore>();
@@ -709,6 +713,11 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IMarketResearchAiJobCompletionStore, EfMarketResearchAiJobCompletionStore>();
             services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
+            // A document staged in parts for the call that adds it (R203).
+            services.AddScoped<DocumentUploads>();
+            services.AddScoped<IBeginDocumentUpload>(provider => provider.GetRequiredService<DocumentUploads>());
+            services.AddScoped<IAppendDocumentUploadPart>(provider => provider.GetRequiredService<DocumentUploads>());
+            services.AddScoped<IOpenDocumentUpload>(provider => provider.GetRequiredService<DocumentUploads>());
         }
         return services;
     }
@@ -837,6 +846,9 @@ public static class DependencyInjection
             provider.GetRequiredService<AzureBlobIntakeArtifactStore>());
         services.AddSingleton<IIntakeQuarantineArtifactStore>(provider =>
             provider.GetRequiredService<AzureBlobIntakeArtifactStore>());
+        services.AddSingleton<IDocumentUploadStaging>(provider => new AzureBlobDocumentUploadStaging(
+            intakeContainerFactory(provider),
+            allowContainerCreateIfNotExists(provider)));
         services.AddScoped(provider => new CachedDocumentContentStore(
             provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
             intakeContainerFactory(provider),

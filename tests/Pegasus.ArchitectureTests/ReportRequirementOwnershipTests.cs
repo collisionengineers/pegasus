@@ -158,15 +158,13 @@ public sealed class ReportRequirementOwnershipTests
         var reasons = ReportBlockerTriggers()
             .SelectMany(input => CaseReportReadiness.Evaluate(input).Reasons)
             .ToArray();
-        // Both repairer VAT blockers are among them: an unknown status, and a
-        // hand-picked set of costs the template has no words for.
+        // The repairer VAT blocker is among them: a hand-picked set of costs
+        // the template has no words for.
         Assert.Equal(
-            2,
-            reasons
+            CaseReportReadiness.RepairerVatHandPicked,
+            Assert.Single(reasons
                 .Where(item => item.Requirement == CaseReportReadiness.RepairerVatRequirement)
-                .Select(item => item.WhyOutstanding)
-                .Distinct(StringComparer.Ordinal)
-                .Count());
+                .Distinct()));
         Assert.All(
             reasons.Where(item => item.Requirement is not (CaseReportReadiness.SignatoryRequirement
                 or CaseReportReadiness.EngineerRequirement)),
@@ -464,11 +462,8 @@ public sealed class ReportRequirementOwnershipTests
                 Lines: [],
                 CreatedBy: "engineer-1",
                 CreatedAtUtc: RecordedAtUtc,
-                // Still stored as Unknown, so that blocker is among the triggers.
-                // An omitted status is Registered and would not name it.
                 Details: new EstimateDetails(
-                    "Repair spec", LabourRate: null, OtherCosts: null, VatPercent: 20m,
-                    Vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
+                    "Repair spec", LabourRate: null, OtherCosts: null, VatPercent: 20m),
                 IsCurrent: true)
         };
         // VAT charged by hand on labour alone: the template has no row for it.

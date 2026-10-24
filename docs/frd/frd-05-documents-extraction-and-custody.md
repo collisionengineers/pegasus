@@ -178,7 +178,15 @@ a member of staff later links held material to a Case, its copies are filed
 on that Case; the holding copies remain as retained intake. The holding
 decision is taken after destination automation; a held source, its
 documents and its selected photographs each carry verified content and
-confirmed file and version IDs.
+confirmed file and version IDs. Skip Box holding upload while a group member
+is `GroupPending` (keep all members in retained blob storage until the
+group's routing or staff decision settles) (that is, only if the group
+resolves to Unidentified) (operator, 19 October 2026; R382). For the intake
+escape window, Core owns the window with one clock: one Core rule decides
+when the window closes, using the store's clock, the SQL server's clock
+(`SYSUTCDATETIME()` in the query), not the process clock; the group's
+stored ReceivedAtUtc is the start of the window; the adapter only reads it
+(operator, 22 October 2026; R191, R379).
 One receipt's holding retention is a batch sharing one proof of the holding
 folder, and up to four of its files are retained at once; a Box 429 is waited
 out before that call is tried again (12 October 2026).
@@ -186,7 +194,15 @@ Each intake asset records the Box folder its confirmed copy is in (holding,
 the Case root or the Vehicle images folder), and reads expect exactly that
 folder. Unknown or pending holding custody is unfinished work, not success.
 The existing bounded retries reuse the same asset and operation identities.
-Exhausted failures stay visible for staff recovery. Re-evaluation reads the
+Exhausted failures stay visible for staff recovery. A Case-filing replay has
+five attempts, then record and keep completed: the existing
+transient-failure class count, spaced like the live filing path, from 30
+seconds out to two hours, so a short Box or SQL outage does not exhaust
+them; a non-transient fault still stops at once; then a `replay_exhausted`
+history row is recorded and the work item keeps its completed state so
+later replays still run (operator, 22 October 2026; R190, R378;
+[FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
+Re-evaluation reads the
 retained source bytes after checking their hash and length. Missing or
 corrupt bytes fail closed.
 

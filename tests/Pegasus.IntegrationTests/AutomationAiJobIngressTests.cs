@@ -12,7 +12,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// Caller-equivalent evidence for the AI job ledger (ADR-0035): the store
 /// on real LocalDB persistence and the <c>automation.jobs</c> tools over
-/// real HTTP against the gated /mcp surface, with the same attribution
+/// real HTTP against the gated jobs server, with the same attribution
 /// assertions as the other Automation Actor tranches.
 /// </summary>
 [Trait("Category", "SqlServer")]
@@ -27,7 +27,7 @@ public sealed class AutomationAiJobIngressTests
         var token = await RequestTokenAsync(client, JobsScope);
         for (var index = 0; index < 3; index++)
         {
-            using var create = await PostMcpAsync(client, token, ToolCallPayload(
+            using var create = await PostMcpAsync(client, JobsServer, token, ToolCallPayload(
                 70 + index, "pegasus_ai_job_create", new
                 {
                     kind = "UnidentifiedQueuePass",
@@ -39,7 +39,7 @@ public sealed class AutomationAiJobIngressTests
 
         string continuation;
         Guid[] firstIds;
-        using (var first = await PostMcpAsync(client, token, ToolCallPayload(
+        using (var first = await PostMcpAsync(client, JobsServer, token, ToolCallPayload(
             74, "pegasus_ai_job_list", new { kind = "UnidentifiedQueuePass", pageSize = 2 })))
         {
             var result = await ReadStructuredContentAsync(first);
@@ -48,7 +48,7 @@ public sealed class AutomationAiJobIngressTests
             Assert.Equal(2, firstIds.Length);
             continuation = result.GetProperty("continuation").GetString()!;
         }
-        using (var second = await PostMcpAsync(client, token, ToolCallPayload(
+        using (var second = await PostMcpAsync(client, JobsServer, token, ToolCallPayload(
             75, "pegasus_ai_job_list", new { kind = "UnidentifiedQueuePass", pageSize = 2, continuation })))
         {
             var result = await ReadStructuredContentAsync(second);
@@ -57,7 +57,7 @@ public sealed class AutomationAiJobIngressTests
             Assert.Single(secondIds);
             Assert.Empty(firstIds.Intersect(secondIds));
         }
-        using (var foreignFilter = await PostMcpAsync(client, token, ToolCallPayload(
+        using (var foreignFilter = await PostMcpAsync(client, JobsServer, token, ToolCallPayload(
             76, "pegasus_ai_job_list", new { kind = "Estimate", continuation })))
         {
             using var result = await ReadJsonRpcAsync(foreignFilter);
@@ -275,25 +275,18 @@ public sealed class AutomationAiJobIngressTests
         using var mcpFactory = WithAutomationMcp(factory);
         using var client = mcpFactory.CreateClient();
 
-        var metadata = await client.GetStringAsync("/.well-known/oauth-protected-resource/mcp");
+        var metadata = await client.GetStringAsync("/.well-known/oauth-protected-resource/mcp/jobs");
         Assert.Contains(JobsScope, metadata, StringComparison.Ordinal);
 
+        // The jobs server refuses a token without its scope before any tool runs.
         var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
         using var response = await PostMcpAsync(
             client,
+            JobsServer,
             casesOnlyToken,
             ToolCallPayload(1, "pegasus_ai_job_list", new { }));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = await ReadJsonRpcAsync(response);
-        Assert.Contains(JobsScope, document.RootElement.ToString(), StringComparison.Ordinal);
-
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'automation_scope_denied'
-              AND Outcome = N'Denied'
-              AND SubjectId = N'pegasus-automation'
-            """));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(1, await CountServerRefusalsAsync(factory));
     }
 
     [Fact]
@@ -306,6 +299,7 @@ public sealed class AutomationAiJobIngressTests
 
         using var response = await PostMcpAsync(
             client,
+            JobsServer,
             casesOnlyToken,
             MarketResearchCompletionPayload(
                 2,
@@ -313,18 +307,8 @@ public sealed class AutomationAiJobIngressTests
                 0,
                 Guid.NewGuid(),
                 "mcp:market-research-scope-denied"));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = await ReadJsonRpcAsync(response);
-        Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
-        Assert.Contains(JobsScope, document.RootElement.ToString(), StringComparison.Ordinal);
-
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'automation_scope_denied'
-              AND Outcome = N'Denied'
-              AND SubjectId = N'pegasus-automation'
-            """));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(1, await CountServerRefusalsAsync(factory));
     }
 
     [Fact]
@@ -339,6 +323,7 @@ public sealed class AutomationAiJobIngressTests
         // action names: an Estimate job names its Case.
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 1,
@@ -351,6 +336,7 @@ public sealed class AutomationAiJobIngressTests
         // A subject another kind needs is refused, not ignored.
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 11,
@@ -369,6 +355,7 @@ public sealed class AutomationAiJobIngressTests
         Guid jobId;
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 2,
@@ -389,6 +376,7 @@ public sealed class AutomationAiJobIngressTests
 
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(3, "pegasus_ai_job_list", new { kind = "UnidentifiedQueuePass" })))
         {
@@ -402,6 +390,7 @@ public sealed class AutomationAiJobIngressTests
         long version;
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 4,
@@ -417,6 +406,7 @@ public sealed class AutomationAiJobIngressTests
 
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 5,
@@ -431,6 +421,7 @@ public sealed class AutomationAiJobIngressTests
         // An action outside the seven is refused by name, before any Core call.
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 9,
@@ -443,6 +434,7 @@ public sealed class AutomationAiJobIngressTests
         // Complete without its result kind is refused by name.
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 10,
@@ -455,6 +447,7 @@ public sealed class AutomationAiJobIngressTests
         // A result of the wrong kind for the job is refused.
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 6,
@@ -475,6 +468,7 @@ public sealed class AutomationAiJobIngressTests
 
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 7,
@@ -498,6 +492,7 @@ public sealed class AutomationAiJobIngressTests
         // Draft ready waits for staff: the client can no longer release it.
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 8,
@@ -512,6 +507,7 @@ public sealed class AutomationAiJobIngressTests
         // Complete job does; the Actor confirms it as staff would.
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 12,
@@ -568,6 +564,7 @@ public sealed class AutomationAiJobIngressTests
         long version;
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 1,
@@ -581,6 +578,7 @@ public sealed class AutomationAiJobIngressTests
 
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 2,
@@ -592,6 +590,7 @@ public sealed class AutomationAiJobIngressTests
 
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 3,
@@ -603,6 +602,7 @@ public sealed class AutomationAiJobIngressTests
 
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 4,
@@ -658,6 +658,7 @@ public sealed class AutomationAiJobIngressTests
 
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(1, "pegasus_ai_job_transition", new { jobId = queued, expectedVersion = 0, action = "Take", operationKey = "mcp:take-off" })))
         {
@@ -667,6 +668,7 @@ public sealed class AutomationAiJobIngressTests
 
         using (var refused = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 2,
@@ -679,6 +681,7 @@ public sealed class AutomationAiJobIngressTests
 
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(
                 3,
@@ -745,12 +748,12 @@ public sealed class AutomationAiJobIngressTests
             recordedDate = "2031-05-06",
             recordedTime = "10:30",
             mileage = 42000,
-            retailValue = 12000m,
-            tradeValue = 10000m
+            retailValue = 12000m
         };
 
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(21, "pegasus_ai_job_complete_market_research", arguments)))
         {
@@ -760,6 +763,7 @@ public sealed class AutomationAiJobIngressTests
         }
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(22, "pegasus_ai_job_complete_market_research", arguments)))
         {
@@ -770,9 +774,92 @@ public sealed class AutomationAiJobIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch' AND RetailValue = 12000 AND TradeValue IS NULL"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = N'ai_job' AND AggregateId = N'{taken.JobId:D}' AND EventKind = N'ai_job_completed' AND ActorKind = N'Automation' AND ActorSubjectId = N'{ClientId}'"));
+    }
+
+    /// <summary>
+    /// R203: a findings document too large for one argument is staged on the
+    /// documents server and completes the job on the jobs server by its
+    /// uploadId; the replay returns the original completion.
+    /// </summary>
+    [Fact]
+    public async Task MarketResearchCompletesFromAStagedUploadAndReplays()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        AiJobRecord taken;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var created = await services.GetRequiredService<IAiJobStore>().CreateAsync(
+                new(
+                    AiJobKind.MarketResearch,
+                    AiJobSubjectKind.Case,
+                    caseId,
+                    "fixture-reference",
+                    "Research comparable vehicles.",
+                    null,
+                    null,
+                    Staff,
+                    "market-research-staged-seed",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
+                new(created.JobId, created.Version, Client, "market-research-staged-take"),
+                CancellationToken.None);
+        }
+
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, $"{AutomationMcp.DocumentsScope} {JobsScope}");
+        var findings = new byte[Pegasus.Core.Documents.DocumentUploadLimits.PartBytes * 3 + 17];
+        new Random(findings.Length).NextBytes(findings);
+        var uploadId = await StageUploadAsync(client, token, findings, "mcp:market-research-staged-upload");
+        var arguments = new
+        {
+            jobId = taken.JobId,
+            expectedJobVersion = taken.Version,
+            caseId,
+            operationKey = "mcp:market-research-staged",
+            fileName = "market-research.pdf",
+            mediaType = "application/pdf",
+            uploadId,
+            recordedDate = "2031-05-06",
+            recordedTime = "10:30",
+            mileage = 42000,
+            retailValue = 12000m,
+            tradeValue = 10000m
+        };
+
+        Guid versionId;
+        using (var response = await PostMcpAsync(
+            client,
+            JobsServer,
+            token,
+            ToolCallPayload(23, "pegasus_ai_job_complete_market_research", arguments)))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.Equal("Completed", result.GetProperty("job").GetProperty("state").GetString());
+            Assert.False(result.GetProperty("isReplay").GetBoolean());
+            versionId = result.GetProperty("documentVersionId").GetGuid();
+        }
+        using (var response = await PostMcpAsync(
+            client,
+            JobsServer,
+            token,
+            ToolCallPayload(24, "pegasus_ai_job_complete_market_research", arguments)))
+        {
+            var result = await ReadStructuredContentAsync(response);
+            Assert.True(result.GetProperty("isReplay").GetBoolean());
+            Assert.Equal(versionId, result.GetProperty("documentVersionId").GetGuid());
+        }
+
+        Assert.Equal(Sha256Hex(findings), await factory.Database.ScalarAsync<string>(
+            $"SELECT UPPER(Sha256) FROM DocumentVersions WHERE Id = '{versionId:D}'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
     }
 
     [Fact]
@@ -822,12 +909,12 @@ public sealed class AutomationAiJobIngressTests
             recordedDate = "2031-05-06",
             recordedTime = "10:30",
             mileage = 42000,
-            retailValue = 12000m,
-            tradeValue = 10000m
+            retailValue = 12000m
         };
 
         using (var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             ToolCallPayload(27, "pegasus_ai_job_complete_market_research", arguments)))
         {
@@ -884,6 +971,7 @@ public sealed class AutomationAiJobIngressTests
         var token = await RequestTokenAsync(client, JobsScope);
         using var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             MarketResearchCompletionPayload(
                 23,
@@ -950,6 +1038,7 @@ public sealed class AutomationAiJobIngressTests
         var token = await RequestTokenAsync(client, JobsScope);
         using var response = await PostMcpAsync(
             client,
+            JobsServer,
             token,
             MarketResearchCompletionPayload(
                 31,
@@ -989,7 +1078,6 @@ public sealed class AutomationAiJobIngressTests
                 recordedDate = "2031-05-06",
                 recordedTime = "10:30",
                 mileage = 42000,
-                retailValue = 12000m,
-                tradeValue = 10000m
+                retailValue = 12000m
             });
 }

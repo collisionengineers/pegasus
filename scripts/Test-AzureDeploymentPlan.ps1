@@ -119,7 +119,6 @@ $webPlanMatches = [regex]::Matches($platformBicep, "(?ms)^resource webPlan 'Micr
 if ($webPlanMatches.Count -ne 1) {
     throw 'The production template must declare exactly one Web App Service plan.'
 }
-$webPlanResource = $webPlanMatches[0].Value
 Assert-Text $mainBicep "param\s+classifierActivation\s+string\s*=\s*'disabled'" 'Base provisioning must leave classifier activation disabled by default.'
 Assert-Text $parameters '"classifierActivation"\s*:\s*\{\s*"value"\s*:\s*"\$\{PEGASUS_CLASSIFIER_ACTIVATION=disabled\}"\s*\}' 'The azd parameter map must default PEGASUS_CLASSIFIER_ACTIVATION to disabled.'
 Assert-Text $classifierBicep "classifierActivationApproved\s*=\s*classifierActivation\s*==\s*'approved'" 'Only the exact approved value may create the classifier Function App.'
@@ -414,48 +413,6 @@ if ($Mode -eq 'PreProvision') {
         throw 'The desired Worker activation differs from the explicit PEGASUS_WORKER_ACTIVATION azd environment value.'
     }
 
-    # ADR-0049 quota pre-flight. The Web plan is fixed compute, so the Web
-    # region must hold App Service VM quota for the plan SKU before provision.
-    # On 2026-09-13 the subscription's per-SKU quota in the platform region
-    # read 0 for every SKU while other UK regions carried only an aggregate
-    # row, so the SKU row is checked first and the aggregate ('*') row only
-    # when no SKU row exists. Read-only.
-    $webRegion = if ($environmentValues.ContainsKey('PEGASUS_WEB_LOCATION') -and
-        -not [string]::IsNullOrWhiteSpace([string]$environmentValues['PEGASUS_WEB_LOCATION'])) {
-        [string]$environmentValues['PEGASUS_WEB_LOCATION']
-    }
-    elseif ($environmentValues.ContainsKey('AZURE_LOCATION') -and
-        -not [string]::IsNullOrWhiteSpace([string]$environmentValues['AZURE_LOCATION'])) {
-        [string]$environmentValues['AZURE_LOCATION']
-    }
-    else {
-        'uksouth'
-    }
-    if ($webRegion -cnotmatch '^[a-z0-9]+$') {
-        throw "The Web region '$webRegion' is not a lowercase Azure region name."
-    }
-    $webPlanSku = [regex]::Match($webPlanResource, "sku:\s*\{\s*name:\s*'([^']+)'").Groups[1].Value
-    if ([string]::IsNullOrWhiteSpace($webPlanSku)) { throw 'Unable to read the Web plan SKU from the template.' }
-    $quotaJson = (& az rest --method get `
-        --url "https://management.azure.com/subscriptions/$($environmentValues['AZURE_SUBSCRIPTION_ID'])/providers/Microsoft.Web/locations/$webRegion/providers/Microsoft.Quota/quotas?api-version=2023-02-01" `
-        --output json) -join "`n"
-    if ($LASTEXITCODE -ne 0) { throw "Unable to read the App Service quota for $webRegion." }
-    try { $quotaItems = @(($quotaJson | ConvertFrom-Json).value) }
-    catch { throw "The App Service quota read-back for $webRegion was not valid JSON." }
-    $skuQuota = @($quotaItems | Where-Object { [string]$_.name -ceq $webPlanSku })
-    $aggregateQuota = @($quotaItems | Where-Object { [string]$_.name -ceq '*' })
-    $effectiveQuota = if ($skuQuota.Count -eq 1) { $skuQuota[0] } elseif ($aggregateQuota.Count -eq 1) { $aggregateQuota[0] } else { $null }
-    if ($null -eq $effectiveQuota) {
-        throw "The App Service quota list for $webRegion has neither a $webPlanSku row nor an aggregate row."
-    }
-    $effectiveLimit = [int]$effectiveQuota.properties.limit.value
-    if ($effectiveLimit -lt 1) {
-        $summary = ($quotaItems | Where-Object { [int]$_.properties.limit.value -gt 0 } |
-            ForEach-Object { "$($_.name)=$($_.properties.limit.value)" }) -join ', '
-        if ([string]::IsNullOrWhiteSpace($summary)) { $summary = 'none' }
-        throw "App Service $webPlanSku quota in $webRegion is $effectiveLimit ($($effectiveQuota.name) row). Request a quota increase for $webRegion or set PEGASUS_WEB_LOCATION to a region with quota. Rows with quota in ${webRegion}: $summary."
-    }
-    Write-Output "App Service quota pre-flight passed: $webPlanSku in $webRegion has limit $effectiveLimit ($($effectiveQuota.name) row)."
     if ($AllowWorkerDisable -and
         ($ExpectedLiveWorkerActivation -ne 'approved-live-worker' -or
             $WorkerActivation -ne 'disabled')) {

@@ -59,16 +59,6 @@ function New-ExactSettings {
     return , $settings
 }
 
-function New-QuotaDocument {
-    param([Parameter(Mandatory)][object[]] $Rows)
-
-    return @{
-        value = @($Rows | ForEach-Object {
-            [ordered]@{ name = $_[0]; properties = [ordered]@{ limit = @{ value = $_[1] }; name = @{ value = $_[0] }; unit = 'Instances' } }
-        })
-    } | ConvertTo-Json -Depth 6 -Compress
-}
-
 function New-CompiledWorkerTemplate {
     $resources = @($expectedSettingNames | ForEach-Object {
         [ordered]@{ name = $_; value = "[if(variables('workerActivationApproved'), 'false', 'true')]" }
@@ -115,9 +105,11 @@ function New-ValidPreProvisionEnvironment {
 function Write-FakeCli {
     <#
         The fake `az` appends its arguments to PEGASUS_TEST_AZ_ARGUMENTS_PATH,
-        answers `bicep build` with the compiled-template fixture, a Quota read
-        with the quota fixture, a PendingWorkRecoverySchedule query with the
-        once-per-minute cron, and every other call with the settings fixture.
+        answers `bicep build` with the compiled-template fixture, a
+        PendingWorkRecoverySchedule query with the once-per-minute cron,
+        `functionapp list` and the classifier's `resource show` from the
+        classifier-state fixture (empty: no classifier), and every other call
+        with the settings fixture.
         The fake `azd` prints the environment fixture.
     #>
     param([Parameter(Mandatory)][string] $Directory)
@@ -130,8 +122,9 @@ param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
 $joined = $Arguments -join ' '
 Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value $joined
 if ($joined.Contains('bicep build')) { Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH; exit 0 }
-if ($joined.Contains('Microsoft.Quota')) { Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_QUOTA_PATH; exit 0 }
 if ($joined.Contains('PendingWorkRecoverySchedule')) { '0 * * * * *'; exit 0 }
+if ($joined.Contains('functionapp list')) { if ($env:PEGASUS_TEST_AZ_CLASSIFIER_STATE) { 'pegasus-prod-classifier-252ow37gij' }; exit 0 }
+if ($joined.Contains('resource show') -and $joined.Contains('pegasus-prod-classifier-252ow37gij')) { $env:PEGASUS_TEST_AZ_CLASSIFIER_STATE; exit 0 }
 Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_SETTINGS_PATH
 exit 0
 '@ -Encoding ascii
@@ -154,7 +147,7 @@ function Invoke-Isolated {
         [Parameter(Mandatory)][string[]] $Arguments,
         [Parameter(Mandatory)][object[]] $Settings,
         [System.Collections.IDictionary] $AzdEnvironment,
-        [string] $QuotaDocument
+        [string] $ClassifierState
     )
 
     $script:caseIndex++
@@ -173,11 +166,6 @@ function Invoke-Isolated {
     Set-Content -LiteralPath $environmentPath -Value $lines -Encoding ascii
     $templatePath = Join-Path $caseRoot 'compiled-template.json'
     Set-Content -LiteralPath $templatePath -Value (New-CompiledWorkerTemplate) -Encoding ascii
-    $quotaPath = Join-Path $caseRoot 'app-service-quota.json'
-    if ([string]::IsNullOrEmpty($QuotaDocument)) {
-        $QuotaDocument = New-QuotaDocument -Rows @(@('B1', 1), @('*', 1))
-    }
-    Set-Content -LiteralPath $quotaPath -Value $QuotaDocument -Encoding ascii
 
     $savedPath = $env:PATH
     $env:PATH = $caseRoot + [IO.Path]::PathSeparator + $savedPath
@@ -185,7 +173,7 @@ function Invoke-Isolated {
     $env:PEGASUS_TEST_AZ_SETTINGS_PATH = $settingsPath
     $env:PEGASUS_TEST_AZD_VALUES_PATH = $environmentPath
     $env:PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH = $templatePath
-    $env:PEGASUS_TEST_AZ_QUOTA_PATH = $quotaPath
+    $env:PEGASUS_TEST_AZ_CLASSIFIER_STATE = $ClassifierState
     try {
         $output = @(& pwsh -NoLogo -NoProfile -File $Script @Arguments 2>&1 | ForEach-Object { "$_" })
         $exitCode = $LASTEXITCODE
@@ -193,7 +181,7 @@ function Invoke-Isolated {
     finally {
         $env:PATH = $savedPath
         foreach ($name in 'PEGASUS_TEST_AZ_ARGUMENTS_PATH', 'PEGASUS_TEST_AZ_SETTINGS_PATH', 'PEGASUS_TEST_AZD_VALUES_PATH',
-            'PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH', 'PEGASUS_TEST_AZ_QUOTA_PATH') {
+            'PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH', 'PEGASUS_TEST_AZ_CLASSIFIER_STATE') {
             Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
         }
     }
@@ -211,24 +199,29 @@ function Invoke-WorkerSmoke {
     param(
         [Parameter(Mandatory)][object[]] $Settings,
         [Parameter(Mandatory)][string] $ExpectedActivation,
-        [string] $SubscriptionId = $approvedSubscription
+        [string] $SubscriptionId = $approvedSubscription,
+        [string] $ExpectedClassifierState,
+        [string] $ClassifierState
     )
 
-    return Invoke-Isolated -Script $productionSmoke -Settings $Settings -Arguments @(
+    $arguments = @(
         '-WorkerOnly',
         '-SubscriptionId', $SubscriptionId,
         '-ResourceGroupName', 'rg-pegasus-prod',
         '-ExpectedWorkerActivation', $ExpectedActivation)
+    if ($ExpectedClassifierState) {
+        $arguments += '-ExpectedClassifierState', $ExpectedClassifierState
+    }
+    return Invoke-Isolated -Script $productionSmoke -Settings $Settings -Arguments $arguments -ClassifierState $ClassifierState
 }
 
 function Invoke-PreProvision {
     param(
-        [Parameter(Mandatory)][System.Collections.IDictionary] $Environment,
-        [string] $QuotaDocument
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Environment
     )
 
     return Invoke-Isolated -Script $deploymentPlan -Settings (New-ExactSettings 'true') `
-        -AzdEnvironment $Environment -QuotaDocument $QuotaDocument -Arguments @(
+        -AzdEnvironment $Environment -Arguments @(
             '-Mode', 'PreProvision',
             '-Environment', 'test',
             '-WorkerActivation', 'disabled',
@@ -302,6 +295,29 @@ try {
     Assert-True ($result.Output.Contains("do not match the intended 'disabled' activation value")) $case 'did not report the value mismatch.' $result.Diagnostic
     Assert-True (-not $result.Output.Contains('SentEvidencePollFunction') -and -not $result.Output.Contains('false')) $case 'echoed a live setting.' $result.Diagnostic
 
+    # #1490: the containment route reads the classifier Function App state.
+    $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'true') -ExpectedActivation 'disabled' -ExpectedClassifierState 'Stopped' -ClassifierState 'Stopped'
+    $case = 'Classifier Stopped as expected'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Classifier Function App state smoke passed (Stopped).')) $case 'did not report success.' $result.Diagnostic
+    Assert-True ($result.AzureArguments.Contains('resource show') -and $result.AzureArguments.Contains('--name pegasus-prod-classifier-252ow37gij')) $case 'did not read the classifier state.' $result.Diagnostic
+
+    $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'true') -ExpectedActivation 'disabled' -ExpectedClassifierState 'Stopped' -ClassifierState 'Running'
+    $case = 'Classifier Running when Stopped is expected'
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("The classifier Function App state is 'Running', not Stopped.")) $case 'did not name the state.' $result.Diagnostic
+
+    $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'false') -ExpectedActivation 'approved-live-worker' -ExpectedClassifierState 'Running' -ClassifierState 'Running'
+    $case = 'Classifier Running as expected'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Classifier Function App state smoke passed (Running).')) $case 'did not report success.' $result.Diagnostic
+
+    $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'true') -ExpectedActivation 'disabled' -ExpectedClassifierState 'Stopped'
+    $case = 'Classifier absent'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Classifier Function App absent; no state to check.')) $case 'did not report the absent classifier.' $result.Diagnostic
+    Assert-True (-not $result.AzureArguments.Contains('resource show')) $case 'read a state for an absent classifier.' $result.Diagnostic
+
     # --- Test-AzureDeploymentPlan.ps1 -Mode PreProvision ---------------------
 
     foreach ($key in 'BOX_HOLDING_FOLDER_ID', 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
@@ -367,33 +383,10 @@ try {
     $result = Invoke-PreProvision -Environment (New-ValidPreProvisionEnvironment)
     $case = 'Valid pre-provision environment'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('App Service quota pre-flight passed: B1 in uksouth has limit 1')) $case 'did not pass the quota pre-flight.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Azure deployment plan validation passed (PreProvision')) $case 'did not report success.' $result.Diagnostic
-    Assert-True ($result.AzureArguments.Contains('Microsoft.Web/locations/uksouth/providers/Microsoft.Quota/quotas')) $case 'did not read the platform-region quota.' $result.Diagnostic
     Assert-True ($result.AzureArguments.Contains('functionapp config appsettings list')) $case 'did not reach the Worker smoke.' $result.Diagnostic
 
-    $environment = New-ValidPreProvisionEnvironment
-    $environment['PEGASUS_WEB_LOCATION'] = 'ukwest'
-    $result = Invoke-PreProvision -Environment $environment -QuotaDocument (New-QuotaDocument -Rows @(, @('*', 30)))
-    $case = 'Chosen Web region quota'
-    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('App Service quota pre-flight passed: B1 in ukwest has limit 30 (* row)')) $case 'did not use the aggregate row.' $result.Diagnostic
-    Assert-True ($result.AzureArguments.Contains('Microsoft.Web/locations/ukwest/providers/Microsoft.Quota/quotas')) $case 'did not read the chosen region.' $result.Diagnostic
-
-    # ADR-0049: the 2026-09-13 read of the platform region showed every SKU at
-    # 0; a B1 row at 0 must stop provision even when v4 rows have quota, and the
-    # aggregate row must not rescue a present SKU row.
-    $result = Invoke-PreProvision -Environment (New-ValidPreProvisionEnvironment) -QuotaDocument (New-QuotaDocument -Rows @(@('B1', 0), @('P0v4', 30), @('*', 0)))
-    $case = 'Zero App Service quota'
-    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('App Service B1 quota in uksouth is 0 (B1 row)')) $case 'did not name the zero row.' $result.Diagnostic
-    Assert-True ($result.Output.Contains('P0v4=30')) $case 'did not list the rows with quota.' $result.Diagnostic
-    Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.Diagnostic
-
     Write-Output "Release validation behaviour tests passed ($script:caseIndex isolated runs)."
-    # The last isolated run is an expected failure; its exit code must not
-    # become this script's verdict under a `pwsh -command` step wrapper.
-    $global:LASTEXITCODE = 0
 }
 finally {
     if (Test-Path -LiteralPath $root) {

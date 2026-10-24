@@ -39,8 +39,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new UnreachableGroupStore(),
             workStore,
             new UnreachableProcessQueuedIntake(),
-            TimeProvider.System,
-            new UnreachableRegisterUnidentified());
+            new RegisterUnidentifiedSubmissionGroup(null!, new UnreachableRegisterUnidentified()));
         var unidentifiedReconciler = new ReconcileUnidentifiedDestinations(
             new EmptyUnidentifiedStore(),
             new UnreachableResolveUnidentified(),
@@ -63,6 +62,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var pairing = new RecordingPairing();
         var triagePairing = new RecordingTriagePairing();
         var settlement = new RecordingSettlement();
+        var caseFilings = new EmptyCaseFilingReplayStore();
         var function = new StagedArtifactReconciliationFunction(
             reconciler,
             new EmptyCacheCleanup(),
@@ -72,6 +72,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new EmptyStagedArtifactStore()),
             settlement,
             groupedImageReconciler,
+            CaseFilingReplay(caseFilings),
             pairing,
             triagePairing,
             unidentifiedReconciler,
@@ -79,6 +80,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             principalSubmissionReconciler,
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
             new StaffNotificationPurgeSchedule(TimeProvider.System),
+            new SweepAbandonedDocumentUploads(
+                new RecordingUploadStaging(), new DocumentUploadSweepCursor(), TimeProvider.System),
+            new DocumentUploadSweepSchedule(TimeProvider.System),
             new PrepareDocumentThumbnails(thumbnailCandidates, new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(estimateCandidates, new UnreachableDocumentReads(), []),
             logger);
@@ -88,6 +92,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(50, workStore.MaximumItems);
         Assert.True(pendingCustodyFactory.CreateCount > 0);
         Assert.Equal(50, settlement.MaximumItems);
+        // The Case-filing replay asks for a page of 50; with none due it logs nothing.
+        Assert.Equal(50, caseFilings.MaximumItems);
         Assert.Equal(50, pairing.MaximumItems);
         Assert.Equal(50, triagePairing.MaximumItems);
         // The thumbnail sweep asks for a small number each run; with none to
@@ -98,7 +104,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         // Eight reconciliation results and the staff-notification purge. Still nine:
         // the failure lines were always logged, and only their level depends on the
         // count now. The per-attempt cause of a failed custody item is logged by the
-        // sweep's own logger, not by this function's.
+        // sweep's own logger, not by this function's. The upload sweep found nothing
+        // to delete, so it logs nothing.
         Assert.Equal(9, logger.States.Count);
         // A result line that counts failures is a Warning; the same line with none stays
         // Information. Only the image pairing (2 failures) and Triage pairing (1) counted any.
@@ -199,6 +206,33 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         clock.Advance(TimeSpan.FromHours(1));
         await RunPairingTimerAsync(new RecordingPairing(), contextFactory, purgeSchedule: schedule, notifications: store);
         Assert.Equal(2, store.Purges);
+    }
+
+    /// <summary>
+    /// The abandoned-upload sweep shares the minute timer behind its own
+    /// hourly gate: two ticks inside an hour list once, the next hour lists
+    /// again, and an idle sweep logs nothing.
+    /// </summary>
+    [Fact]
+    public async Task TheAbandonedUploadSweepRunsAboutHourlyAcrossTicks()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var clock = new SteppedClock(new DateTimeOffset(2026, 10, 23, 9, 0, 0, TimeSpan.Zero));
+        var schedule = new DocumentUploadSweepSchedule(clock);
+        var uploads = new RecordingUploadStaging();
+        var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+
+        await RunPairingTimerAsync(new RecordingPairing(), contextFactory, logger: logger, uploads: uploads, uploadSchedule: schedule);
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await RunPairingTimerAsync(new RecordingPairing(), contextFactory, uploads: uploads, uploadSchedule: schedule);
+        Assert.Equal(1, uploads.Listings);
+
+        clock.Advance(TimeSpan.FromHours(1));
+        await RunPairingTimerAsync(new RecordingPairing(), contextFactory, uploads: uploads, uploadSchedule: schedule);
+        Assert.Equal(2, uploads.Listings);
+        Assert.DoesNotContain(logger.States, state => state.ContainsKey("Deleted"));
     }
 
     /// <summary>
@@ -321,6 +355,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         IDocumentContentCacheCleanup? cacheCleanup = null,
         IListDocumentThumbnailCandidates? thumbnailCandidates = null,
         IEstimateRecognitionCandidates? estimateCandidates = null,
+        IDocumentUploadStaging? uploads = null,
+        DocumentUploadSweepSchedule? uploadSchedule = null,
         CancellationToken cancellationToken = default)
     {
         workStore ??= new ReconciliationWorkStore(0);
@@ -332,7 +368,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcilePendingArtifactCustody(contextFactory, new EmptyDocumentContentStore(), new EmptyStagedArtifactStore()),
             settlement ?? new EfSettleFiledCaseReportArtifacts(contextFactory, TimeProvider.System),
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
-                new UnreachableProcessQueuedIntake(), TimeProvider.System, new UnreachableRegisterUnidentified()),
+                new UnreachableProcessQueuedIntake(),
+                new RegisterUnidentifiedSubmissionGroup(null!, new UnreachableRegisterUnidentified())),
+            CaseFilingReplay(new EmptyCaseFilingReplayStore()),
             pairing,
             new TriageCasePairing(new EfTriageStore(contextFactory,
                 [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())])),
@@ -343,12 +381,38 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcilePrincipalSubmissions(new EmptyPrincipalSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             new PurgeStaffNotifications(notifications ?? new EmptyStaffNotificationStore(), TimeProvider.System),
             purgeSchedule ?? new StaffNotificationPurgeSchedule(TimeProvider.System),
+            new SweepAbandonedDocumentUploads(
+                uploads ?? new RecordingUploadStaging(), new DocumentUploadSweepCursor(), TimeProvider.System),
+            uploadSchedule ?? new DocumentUploadSweepSchedule(TimeProvider.System),
             new PrepareDocumentThumbnails(
                 thumbnailCandidates ?? new NoDocumentThumbnailCandidates(), new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(
                 estimateCandidates ?? new RecordingEstimateCandidates(), new UnreachableDocumentReads(), []),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, cancellationToken);
+    }
+
+    /// <summary>A Case-filing replay over an empty page: the filer is never reached.</summary>
+    private static ReplayCaseFilings CaseFilingReplay(ICaseFilingReplayStore store) =>
+        new(store, new EmptyIntakeReceiptQueries(), new PromoteAssociatedIntakeCaseEvidence(null!, null!, null!), TimeProvider.System);
+
+    private sealed class EmptyCaseFilingReplayStore : ICaseFilingReplayStore
+    {
+        public int MaximumItems { get; private set; }
+
+        public Task<IReadOnlyList<CaseFilingReplayCandidate>> ListDueAsync(
+            CaseFilingReplayCursor? after,
+            DateTimeOffset systemAssociationCutoff,
+            DateTimeOffset nowUtc,
+            int maximumItems,
+            CancellationToken cancellationToken)
+        {
+            MaximumItems = maximumItems;
+            return Task.FromResult<IReadOnlyList<CaseFilingReplayCandidate>>([]);
+        }
+
+        public Task RecordAsync(CaseFilingReplayRecord entry, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("An empty Case-filing page must not record a replay.");
     }
 
     private sealed class RecordingTriagePairing : ITriageCasePairing
@@ -505,6 +569,53 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CaseDocumentThumbnailRequest request,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException("No thumbnail is made without a candidate.");
+    }
+
+    /// <summary>An upload staging with nothing staged, counting its listings.</summary>
+    private sealed class RecordingUploadStaging : IDocumentUploadStaging
+    {
+        public int Listings { get; private set; }
+
+        public Task<DocumentUploadStagedPage> ListAsync(
+            int maximumItems,
+            string? continuation,
+            CancellationToken cancellationToken)
+        {
+            Listings++;
+            return Task.FromResult(new DocumentUploadStagedPage([], null));
+        }
+
+        public Task<bool> CreateManifestAsync(DocumentUploadManifest manifest, CancellationToken cancellationToken) =>
+            throw Unreachable();
+
+        public Task<DocumentUploadManifest?> ReadManifestAsync(Guid uploadId, CancellationToken cancellationToken) =>
+            throw Unreachable();
+
+        public Task<DocumentUploadPartWrite> CreatePartAsync(
+            Guid uploadId,
+            int partNumber,
+            ReadOnlyMemory<byte> content,
+            string sha256,
+            CancellationToken cancellationToken) =>
+            throw Unreachable();
+
+        public Task<IReadOnlyList<int>> ListPartNumbersAsync(Guid uploadId, CancellationToken cancellationToken) =>
+            throw Unreachable();
+
+        public Task<ReadOnlyMemory<byte>?> ReadPartAsync(
+            Guid uploadId,
+            int partNumber,
+            CancellationToken cancellationToken) =>
+            throw Unreachable();
+
+        public Task<bool> DeleteAsync(
+            string name,
+            DateTimeOffset createdAtOrBeforeUtc,
+            CancellationToken cancellationToken) =>
+            throw Unreachable();
+
+        private static InvalidOperationException Unreachable() =>
+            new("The timer's sweep of an empty upload staging only lists it.");
     }
 
     private sealed class EmptyCacheCleanup : IDocumentContentCacheCleanup
@@ -671,13 +782,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
-        public Task RecordTerminalReplayFailureAsync(
-            Guid stagedReceiptId,
-            string failureCode,
-            DateTimeOffset failedAtUtc,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
         public Task<Guid?> FindStagedReceiptIdForReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken) =>
@@ -738,7 +842,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
     private sealed class UnreachableProcessQueuedIntake : IProcessQueuedIntake
     {
-        public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+        public Task<QueuedIntakeProcessingResult> ProcessAsync(
             Guid stagedReceiptId,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException(

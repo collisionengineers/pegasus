@@ -78,7 +78,7 @@ internal sealed class TriageMcpTools(
         [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_triage_list", cancellationToken);
         return await auditor.RecordAsync(context, "pegasus_triage_list", "triage", null,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -109,7 +109,7 @@ internal sealed class TriageMcpTools(
         [Description(TriageIdDescription)] Guid caseId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_triage_get", cancellationToken);
         return await auditor.RecordAsync(context, "pegasus_triage_get", Resource(caseId), null,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -127,7 +127,7 @@ internal sealed class TriageMcpTools(
         [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_triage_source_download", cancellationToken);
         return await auditor.RecordAsync(context, "pegasus_triage_source_download", Resource(caseId), null,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
@@ -337,7 +337,7 @@ internal sealed class TriageMcpTools(
         Func<ActionActor, string, string, Task> action,
         CancellationToken cancellationToken)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync(tool, cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(context, tool, Resource(caseId), key,
             () => AutomationMcpErrors.ExecuteAsync(async () =>

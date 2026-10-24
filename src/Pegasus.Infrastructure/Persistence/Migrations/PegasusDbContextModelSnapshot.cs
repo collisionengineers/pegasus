@@ -503,23 +503,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("MarketResearchDocumentVersionId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<long?>("MarketResearchMileage")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateOnly?>("MarketResearchRecordedDate")
-                        .HasColumnType("date");
-
-                    b.Property<TimeOnly?>("MarketResearchRecordedTime")
-                        .HasColumnType("time");
-
-                    b.Property<decimal?>("MarketResearchRetailValue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("MarketResearchTradeValue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<Guid?>("MarketResearchValuationId")
                         .HasColumnType("uniqueidentifier");
 
@@ -597,7 +580,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_AiJobs_Kind", "[Kind] IN ('Estimate', 'UnidentifiedResolution', 'QueryResponse', 'UnidentifiedQueuePass', 'MarketResearch')");
 
-                            t.HasCheckConstraint("CK_AiJobs_MarketResearchResult", "([ResultKind] = 'MarketResearch' AND [MarketResearchDocumentOccurrenceId] IS NOT NULL AND [MarketResearchDocumentVersionId] IS NOT NULL AND [MarketResearchValuationId] IS NOT NULL AND [MarketResearchRecordedDate] IS NOT NULL AND [MarketResearchRecordedTime] IS NOT NULL AND [MarketResearchMileage] IS NOT NULL AND [MarketResearchMileage] >= 0 AND [MarketResearchRetailValue] IS NOT NULL AND [MarketResearchRetailValue] >= 0 AND [MarketResearchTradeValue] IS NOT NULL AND [MarketResearchTradeValue] >= 0 AND [MarketResearchCompletionHash] IS NOT NULL) OR (([ResultKind] IS NULL OR [ResultKind] <> 'MarketResearch') AND [MarketResearchDocumentOccurrenceId] IS NULL AND [MarketResearchDocumentVersionId] IS NULL AND [MarketResearchValuationId] IS NULL AND [MarketResearchRecordedDate] IS NULL AND [MarketResearchRecordedTime] IS NULL AND [MarketResearchMileage] IS NULL AND [MarketResearchRetailValue] IS NULL AND [MarketResearchTradeValue] IS NULL AND [MarketResearchCompletionHash] IS NULL)");
+                            t.HasCheckConstraint("CK_AiJobs_MarketResearchResult", "([ResultKind] = 'MarketResearch' AND [MarketResearchDocumentOccurrenceId] IS NOT NULL AND [MarketResearchDocumentVersionId] IS NOT NULL AND [MarketResearchValuationId] IS NOT NULL AND [MarketResearchCompletionHash] IS NOT NULL) OR (([ResultKind] IS NULL OR [ResultKind] <> 'MarketResearch') AND [MarketResearchDocumentOccurrenceId] IS NULL AND [MarketResearchDocumentVersionId] IS NULL AND [MarketResearchValuationId] IS NULL AND [MarketResearchCompletionHash] IS NULL)");
 
                             t.HasCheckConstraint("CK_AiJobs_ResultKind", "[ResultKind] IS NULL OR [ResultKind] IN ('Estimate', 'ProposedResolution', 'DraftReply', 'MarketResearch')");
 
@@ -4894,6 +4877,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("LastOperationKey")
                         .IsUnique();
 
+                    b.HasIndex("ActorKind", "LinkedAtUtc", "IntakeReceiptId")
+                        .HasFilter("[IsActive] = 1");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ActorKind", "LinkedAtUtc", "IntakeReceiptId"), new[] { "CaseId", "Version" });
+
                     b.ToTable("IntakeManualAssociations", null, t =>
                         {
                             t.HasCheckConstraint("CK_IntakeManualAssociations_Version", "[Version] >= 0");
@@ -5601,6 +5589,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperationKey")
                         .IsUnique();
+
+                    b.HasIndex("ProcessedReceiptId");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ProcessedReceiptId"), new[] { "State", "StagedReceiptId" });
 
                     b.HasIndex("StagedReceiptId")
                         .IsUnique();

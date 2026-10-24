@@ -21,7 +21,7 @@ namespace Pegasus.Web.Mcp;
 /// </summary>
 internal static class AutomationMcpErrors
 {
-    public const int MaximumDocumentBytes = 10 * 1024 * 1024;
+    public const int MaximumDocumentBytes = Pegasus.Core.Documents.DocumentUploadLimits.MaximumContentBytes;
 
     public static async Task<TResult> ExecuteAsync<TResult>(
         Func<Task<TResult>> action)

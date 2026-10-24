@@ -113,6 +113,31 @@ public sealed class AssessmentReportProjectionTests
     }
 
     /// <summary>
+    /// R311: an AI market research basis carries no Trade, so the report
+    /// projects without one and prints no Trade Value row.
+    /// </summary>
+    [Fact]
+    public void AMarketResearchBasisProjectsWithoutATradeValue()
+    {
+        var input = ReadyInput();
+        AssessmentFieldValue[] fields =
+        [
+            .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.ValueTrade),
+            Field(AssessmentVocabulary.ValueFromMarketResearch, "true"),
+        ];
+
+        var result = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = fields } });
+
+        Assert.True(result.IsReady);
+        var snapshot = result.Snapshot!;
+        Assert.Null(snapshot.TradeValue);
+        snapshot.Validate();
+        Assert.DoesNotContain(
+            AssessmentReportWording.VehicleData(snapshot), row => row.Label == "Trade Value");
+    }
+
+    /// <summary>
     /// The Damage section's Incident narrative is the Nature of Incident block
     /// the report prints (operator, 24 September 2026): the sentence composed
     /// from the headline impact, or the Engineer's own wording, whether or not
@@ -560,28 +585,6 @@ public sealed class AssessmentReportProjectionTests
         // (DESIGN_SPEC.md line 129).
         Assert.Equal("VAT (20% — parts & paint only)", costs.VatLabel);
         costs.Validate();
-    }
-
-    /// <summary>
-    /// A repair spec whose repairer VAT status is Unknown charges VAT on
-    /// nothing, so its report would understate the repair cost: it blocks the
-    /// report (operator, 27 September 2026). The preview and generation name
-    /// the one item, and its resolution says where to record the status.
-    /// </summary>
-    [Fact]
-    public void AnUnknownRepairerVatStatusIsNotReady()
-    {
-        var estimate = CurrentEstimate(
-            new("Repairer", 45m, 15m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
-            materials: 60m);
-
-        var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = estimate });
-
-        var reason = AssertNotReady(result, CaseReportReadiness.RepairerVatRequirement);
-        Assert.Equal(CaseReportReadiness.RepairerVatStatusUnknown, reason);
-        Assert.Equal("Repairer VAT status", reason.Requirement);
-        Assert.Contains("on the Repair Spec section", reason.HowToResolve, StringComparison.Ordinal);
-        Assert.Equal(reason, Assert.Single(result.Reasons));
     }
 
     /// <summary>

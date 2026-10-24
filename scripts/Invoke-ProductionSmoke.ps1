@@ -30,6 +30,11 @@ param(
     [ValidateSet('disabled', 'approved-live-worker')]
     [string] $ExpectedWorkerActivation,
 
+    # The release route's classifier Function App state: Stopped before
+    # destructive SQL, Running after activation. An absent app passes.
+    [ValidateSet('Running', 'Stopped')]
+    [string] $ExpectedClassifierState,
+
     [Parameter(Mandatory, ParameterSetName = 'WorkerOnly')]
     [switch] $WorkerOnly,
 
@@ -44,6 +49,7 @@ $ErrorActionPreference = 'Stop'
 $expectedWorkerSettings = @(Get-PegasusWorkerDisabledSettingNames)
 $workerAppName = 'pegasus-prod-worker-252ow37gij'
 $webAppName = 'pegasus-prod-web-252ow37gij'
+$classifierAppName = 'pegasus-prod-classifier-252ow37gij'
 
 $settingsJson = (& az functionapp config appsettings list `
     --subscription $SubscriptionId `
@@ -123,6 +129,38 @@ if (-not $ActivationOnly) {
     if ($LASTEXITCODE -ne 0 -or
         -not [StringComparer]::Ordinal.Equals($recoverySchedule.Trim(), '0 * * * * *')) {
         throw 'The live PendingWorkRecoverySchedule is not configured to run once per minute.'
+    }
+}
+
+if (-not [string]::IsNullOrEmpty($ExpectedClassifierState)) {
+    $classifierNames = @(& az functionapp list `
+        --subscription $SubscriptionId `
+        --resource-group $ResourceGroupName `
+        --query "[?name=='$classifierAppName'].name" `
+        --output tsv)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to read whether the classifier Function App exists.'
+    }
+    if ($classifierNames -cnotcontains $classifierAppName) {
+        Write-Output 'Classifier Function App absent; no state to check.'
+    }
+    else {
+        # A Flex Consumption app reports no state through az functionapp show.
+        $classifierState = ((& az resource show `
+            --subscription $SubscriptionId `
+            --resource-group $ResourceGroupName `
+            --name $classifierAppName `
+            --resource-type 'Microsoft.Web/sites' `
+            --api-version 2024-04-01 `
+            --query properties.state `
+            --output tsv) -join '').Trim()
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unable to read the classifier Function App state from $ResourceGroupName/$classifierAppName."
+        }
+        if ($classifierState -cne $ExpectedClassifierState) {
+            throw "The classifier Function App state is '$classifierState', not $ExpectedClassifierState."
+        }
+        Write-Output "Classifier Function App state smoke passed ($ExpectedClassifierState)."
     }
 }
 

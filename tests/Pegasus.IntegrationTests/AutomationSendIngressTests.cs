@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -44,7 +45,7 @@ public sealed class AutomationSendIngressTests
         // Every casework scope but sending: a grant can hold casework without sending.
         var token = await RequestTokenAsync(client, AllScopes + " automation.jobs");
 
-        using (var mail = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_mail_send", new
+        using (var mail = await PostMcpAsync(client, SendServer, token, ToolCallPayload(1, "pegasus_mail_send", new
         {
             mode = "chaser",
             caseId,
@@ -55,10 +56,9 @@ public sealed class AutomationSendIngressTests
             to = Handler,
         })))
         {
-            using var document = await ReadJsonRpcAsync(mail);
-            Assert.Contains("automation.send", document.RootElement.ToString(), StringComparison.Ordinal);
+            Assert.Equal(HttpStatusCode.Forbidden, mail.StatusCode);
         }
-        using (var report = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_report_send", new
+        using (var report = await PostMcpAsync(client, SendServer, token, ToolCallPayload(2, "pegasus_report_send", new
         {
             caseId,
             expectedVersion = 0,
@@ -66,17 +66,11 @@ public sealed class AutomationSendIngressTests
             coveringMessage = "Please find our report attached.",
         })))
         {
-            using var document = await ReadJsonRpcAsync(report);
-            Assert.Contains("automation.send", document.RootElement.ToString(), StringComparison.Ordinal);
+            Assert.Equal(HttpStatusCode.Forbidden, report.StatusCode);
         }
 
-        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'automation_scope_denied'
-              AND Outcome = N'Denied'
-              AND SubjectId = N'pegasus-automation'
-            """));
+        // The send server refuses the token before either tool runs.
+        Assert.Equal(2, await CountServerRefusalsAsync(factory));
     }
 
     [Fact]
@@ -101,7 +95,7 @@ public sealed class AutomationSendIngressTests
         await EnsureInReviewAsync(mcpFactory, client, token, caseId);
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using (var badAttach = await PostMcpAsync(client, token, ToolCallPayload(10, "pegasus_report_send", new
+        using (var badAttach = await PostMcpAsync(client, SendServer, token, ToolCallPayload(10, "pegasus_report_send", new
         {
             caseId,
             expectedVersion = version,
@@ -114,7 +108,7 @@ public sealed class AutomationSendIngressTests
         }
         Assert.Empty(sends.Requests);
 
-        using var sent = await PostMcpAsync(client, token, ToolCallPayload(11, "pegasus_report_send", new
+        using var sent = await PostMcpAsync(client, SendServer, token, ToolCallPayload(11, "pegasus_report_send", new
         {
             caseId,
             expectedVersion = version,
@@ -177,7 +171,7 @@ public sealed class AutomationSendIngressTests
         await EnsureInReviewAsync(mcpFactory, client, token, caseId);
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using var sent = await PostMcpAsync(client, token, ToolCallPayload(12, "pegasus_report_send", new
+        using var sent = await PostMcpAsync(client, SendServer, token, ToolCallPayload(12, "pegasus_report_send", new
         {
             caseId,
             expectedVersion = version,
@@ -211,7 +205,7 @@ public sealed class AutomationSendIngressTests
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
         // Refusals before anything is sent.
-        using (var stale = await PostMcpAsync(client, token, ToolCallPayload(20, "pegasus_mail_send", new
+        using (var stale = await PostMcpAsync(client, SendServer, token, ToolCallPayload(20, "pegasus_mail_send", new
         {
             mode = "chaser", caseId, expectedVersion = version + 7, subject = "Images", body = "Please send the images.",
             operationKey = "mcp:mail-stale", to = Handler, fromMailbox = mailbox.Address,
@@ -219,7 +213,7 @@ public sealed class AutomationSendIngressTests
         {
             Assert.Contains("changed since it was read", await ReadErrorTextAsync(stale), StringComparison.Ordinal);
         }
-        using (var noMessage = await PostMcpAsync(client, token, ToolCallPayload(21, "pegasus_mail_send", new
+        using (var noMessage = await PostMcpAsync(client, SendServer, token, ToolCallPayload(21, "pegasus_mail_send", new
         {
             mode = "reply", caseId, expectedVersion = version, subject = "Re: Images", body = "Thanks.",
             operationKey = "mcp:mail-reply-no-message",
@@ -227,7 +221,7 @@ public sealed class AutomationSendIngressTests
         {
             Assert.Contains("needs messageId", await ReadErrorTextAsync(noMessage), StringComparison.Ordinal);
         }
-        using (var badAddress = await PostMcpAsync(client, token, ToolCallPayload(22, "pegasus_mail_send", new
+        using (var badAddress = await PostMcpAsync(client, SendServer, token, ToolCallPayload(22, "pegasus_mail_send", new
         {
             mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
             operationKey = "mcp:mail-bad-address", to = NotAnAddress, fromMailbox = mailbox.Address,
@@ -235,7 +229,7 @@ public sealed class AutomationSendIngressTests
         {
             Assert.Contains("plain e-mail address", await ReadErrorTextAsync(badAddress), StringComparison.Ordinal);
         }
-        using (var noFrom = await PostMcpAsync(client, token, ToolCallPayload(24, "pegasus_mail_send", new
+        using (var noFrom = await PostMcpAsync(client, SendServer, token, ToolCallPayload(24, "pegasus_mail_send", new
         {
             mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
             operationKey = "mcp:mail-no-from", to = Handler,
@@ -243,7 +237,7 @@ public sealed class AutomationSendIngressTests
         {
             Assert.Contains(new CaseMailSenderRequiredException().Message, await ReadErrorTextAsync(noFrom), StringComparison.Ordinal);
         }
-        using (var unknownFrom = await PostMcpAsync(client, token, ToolCallPayload(25, "pegasus_mail_send", new
+        using (var unknownFrom = await PostMcpAsync(client, SendServer, token, ToolCallPayload(25, "pegasus_mail_send", new
         {
             mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
             operationKey = "mcp:mail-unknown-from", to = Handler, fromMailbox = "someone@example.invalid",
@@ -251,7 +245,7 @@ public sealed class AutomationSendIngressTests
         {
             Assert.Contains("not an Outgoing approved mailbox", await ReadErrorTextAsync(unknownFrom), StringComparison.Ordinal);
         }
-        using (var forwardFrom = await PostMcpAsync(client, token, ToolCallPayload(26, "pegasus_mail_send", new
+        using (var forwardFrom = await PostMcpAsync(client, SendServer, token, ToolCallPayload(26, "pegasus_mail_send", new
         {
             mode = "forward", caseId, expectedVersion = version, subject = "Fw: Images", body = "For you.",
             operationKey = "mcp:mail-forward-from", to = Handler, fromMailbox = mailbox.Address,
@@ -261,7 +255,7 @@ public sealed class AutomationSendIngressTests
         }
         Assert.Empty(mail.Commands);
 
-        using var sent = await PostMcpAsync(client, token, ToolCallPayload(23, "pegasus_mail_send", new
+        using var sent = await PostMcpAsync(client, SendServer, token, ToolCallPayload(23, "pegasus_mail_send", new
         {
             mode = "chaser",
             caseId,
@@ -330,7 +324,7 @@ public sealed class AutomationSendIngressTests
         var token = await RequestTokenAsync(client, SendScopes);
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(40, "pegasus_mail_send", new
+        using (var refused = await PostMcpAsync(client, SendServer, token, ToolCallPayload(40, "pegasus_mail_send", new
         {
             mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
             operationKey = "mcp:mail-new-resolve", to = Handler, fromMailbox = address, resolveQuery = true,
@@ -340,7 +334,7 @@ public sealed class AutomationSendIngressTests
         }
         Assert.Empty(mail.Commands);
 
-        using var sent = await PostMcpAsync(client, token, ToolCallPayload(41, "pegasus_mail_send", new
+        using var sent = await PostMcpAsync(client, SendServer, token, ToolCallPayload(41, "pegasus_mail_send", new
         {
             mode = "reply",
             caseId,
@@ -383,7 +377,7 @@ public sealed class AutomationSendIngressTests
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
         var jobId = Guid.NewGuid();
 
-        using var sent = await PostMcpAsync(client, token, ToolCallPayload(42, "pegasus_mail_send", new
+        using var sent = await PostMcpAsync(client, SendServer, token, ToolCallPayload(42, "pegasus_mail_send", new
         {
             mode = "reply",
             caseId,
@@ -432,7 +426,7 @@ public sealed class AutomationSendIngressTests
         var token = await RequestTokenAsync(client, SendScopes);
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using (var named = await PostMcpAsync(client, token, ToolCallPayload(50, "pegasus_mail_send", new
+        using (var named = await PostMcpAsync(client, SendServer, token, ToolCallPayload(50, "pegasus_mail_send", new
         {
             mode = "chaser", caseId, expectedVersion = version, subject = "Re: The labour rate", body = "Please send the images.",
             operationKey = "mcp:chaser-instruction-from", to = Handler, fromMailbox = address,
@@ -442,7 +436,7 @@ public sealed class AutomationSendIngressTests
         }
         Assert.Empty(mail.Commands);
 
-        using var sent = await PostMcpAsync(client, token, ToolCallPayload(51, "pegasus_mail_send", new
+        using var sent = await PostMcpAsync(client, SendServer, token, ToolCallPayload(51, "pegasus_mail_send", new
         {
             mode = "chaser",
             caseId,
@@ -533,7 +527,7 @@ public sealed class AutomationSendIngressTests
         var token = await RequestTokenAsync(client, SendScopes);
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using var refused = await PostMcpAsync(client, token, ToolCallPayload(30, "pegasus_mail_send", new
+        using var refused = await PostMcpAsync(client, SendServer, token, ToolCallPayload(30, "pegasus_mail_send", new
         {
             mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
             operationKey = "mcp:mail-offline", to = Handler, fromMailbox = "claims@collisionengineers.example",

@@ -173,7 +173,7 @@ internal sealed class MailMcpTools(
         [Description("Page size from 1 to 100; 0 selects 50.")] int pageSize = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.MailScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_mail_list", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_mail_list",
@@ -243,7 +243,7 @@ internal sealed class MailMcpTools(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.MailScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_mail_get", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_mail_get",
@@ -271,7 +271,7 @@ internal sealed class MailMcpTools(
         [Description("The case type a New instruction names: Inspection, Audit or InspectionAndAudit; required only with the new-instruction key.")] string? workType = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.MailScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_mail_correct_classification", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -322,7 +322,7 @@ internal sealed class MailMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.MailScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_mail_action", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -363,7 +363,7 @@ internal sealed class MailMcpTools(
         [Description("Optional search text; omit it for the matched suggestions.")] string? query = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.MailScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_mail_link_destinations", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_mail_link_destinations",
@@ -412,7 +412,7 @@ internal sealed class MailMcpTools(
         [Description("The destination's edit lease token from pegasus_edit_begin; omit it and the tool holds the lease for this one command.")] string? caseEditLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.MailScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_mail_link_case", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,

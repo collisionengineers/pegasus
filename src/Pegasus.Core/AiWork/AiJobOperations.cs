@@ -722,7 +722,7 @@ public sealed class CompleteMarketResearchAiJob(
             command.RecordedTime,
             command.Mileage,
             command.RetailValue,
-            command.TradeValue));
+            null));
         AiJobPolicy.ValidateTransition(new(
             command.JobId,
             command.ExpectedJobVersion,

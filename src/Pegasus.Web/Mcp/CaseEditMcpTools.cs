@@ -196,7 +196,7 @@ internal sealed class CaseEditMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_case_update_details", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -417,7 +417,7 @@ internal sealed class CaseEditMcpTools(
         [Description("The note text.")] string note,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_case_note_add", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -446,7 +446,7 @@ internal sealed class CaseEditMcpTools(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_valuation_list", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_valuation_list",
@@ -481,7 +481,7 @@ internal sealed class CaseEditMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_valuation_save", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -565,7 +565,7 @@ internal sealed class CaseEditMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.AssessmentScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_valuation_get", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -656,7 +656,7 @@ internal sealed class CaseEditMcpTools(
     [Description("Returns the vocabularies the write tools accept: every assessment field path with its type, accepted codes, the format a structured value takes (damage.impacts), staff label and whether pegasus_assessment_update may write it (for example Roadworthiness is assessment.legal_status and the outcome is assessment.outcome); the estimate line types and evidence labels with their meanings; repairer VAT statuses and VAT categories; valuation sources; and the shared image tags pegasus_document_action applies.")]
     public async Task<VocabularyToolResult> GetVocabularyAsync(CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_vocabulary_get", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_vocabulary_get",
@@ -685,7 +685,7 @@ internal sealed class CaseEditMcpTools(
                 EstimateLineCodes.EvidenceLabelMeanings
                     .Select(label => new CodeMeaningItem(label.Key, label.Value))
                     .ToArray(),
-                RepairerVatStatuses.Choosable.Select(status => status.ToString()).ToArray(),
+                RepairerVatStatuses.ChoosableNames,
                 [nameof(EstimateVatCategories.Labour), nameof(EstimateVatCategories.Parts),
                     nameof(EstimateVatCategories.Materials), nameof(EstimateVatCategories.Specialist)],
                 Enum.GetNames<ValuationSource>(),
@@ -710,7 +710,7 @@ internal sealed class CaseEditMcpTools(
         [Description("Optional text the organisation's name must contain, ignoring case.")] string? name = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_directory_search", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_directory_search",

@@ -104,6 +104,86 @@ public sealed partial class TriageCaseWebTests
         Assert.Contains("id=\"section-files\"", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// R309: the Principal's "Notes on every Case" shows on a Triage Case in
+    /// every state, read-only (no control) and once; a Principal with no note,
+    /// or only blanks, draws nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(TriageState.Open)]
+    [InlineData(TriageState.AwaitingInformation)]
+    [InlineData(TriageState.FindingRecorded)]
+    [InlineData(TriageState.Completed)]
+    [InlineData(TriageState.Cancelled)]
+    public async Task TheTriagePageShowsThePrincipalsStandingNoteReadOnlyAndNothingWhenBlank(TriageState state)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, $"principal-note-{state}");
+        await SetTriageStateAsync(factory.Services, triage.CaseId, state);
+        var path = $"/Cases/{triage.CaseId:D}";
+
+        // The test database seeds QDOS with its SOP text, so the note starts cleared.
+        await SetPrincipalNoteAsync(factory.Services, "QDOS", null);
+        var withoutNote = await GetHtmlAsync(client, path);
+        await SetPrincipalNoteAsync(factory.Services, "QDOS", "   ");
+        var withBlankNote = await GetHtmlAsync(client, path);
+        await SetPrincipalNoteAsync(factory.Services, "QDOS", "Send every report to the desk first");
+        var withNote = await GetHtmlAsync(client, path);
+
+        Assert.DoesNotContain("data-record-notes=\"principal\"", withoutNote, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-record-notes=\"principal\"", withBlankNote, StringComparison.Ordinal);
+        var start = withNote.IndexOf("data-record-notes=\"principal\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Principal's note is not drawn.");
+        Assert.Equal(start, withNote.LastIndexOf("data-record-notes=\"principal\"", StringComparison.Ordinal));
+        var note = withNote[start..withNote.IndexOf("</div></div>", start, StringComparison.Ordinal)];
+        Assert.Contains(Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.PrincipalNotes, note, StringComparison.Ordinal);
+        Assert.Contains("Send every report to the desk first", note, StringComparison.Ordinal);
+        Assert.DoesNotContain("<input", note, StringComparison.Ordinal);
+        Assert.DoesNotContain("<textarea", note, StringComparison.Ordinal);
+        // It stands in the record body, outside the tab panels, so it shows on every tab.
+        Assert.True(start > withNote.IndexOf("class=\"record-body\"", StringComparison.Ordinal));
+        Assert.True(start < withNote.IndexOf("data-file-tab-panel=\"files\"", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// R309 and P17: every Triage Case of a Principal reads the Principal's
+    /// current note, a change of the organisation's note shows on the next read
+    /// with no Triage write, and the note is read inside the Triage statements
+    /// (the organisation is joined, never read by a command of its own).
+    /// </summary>
+    [Fact]
+    public async Task TheTriageReadCarriesThePrincipalsLiveNoteInTheSameStatements()
+    {
+        var counter = new CommandCountingInterceptor();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        var services = factory.Services;
+        var first = await CreateManualTriageAsync(services, "principal-note-first");
+        var second = await CreateManualTriageAsync(services, "principal-note-second");
+        await SetPrincipalNoteAsync(services, "QDOS", "Standing note one");
+        await using var scope = services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<ITriageQueries>();
+
+        counter.Reset();
+        var firstRead = Assert.IsType<TriageDetail>(await queries.GetAsync(first.CaseId, CancellationToken.None));
+        var secondRead = Assert.IsType<TriageDetail>(await queries.GetAsync(second.CaseId, CancellationToken.None));
+        var organizationOnlyCommands = counter.CountMentioning("[Organizations]", without: "[Triage]");
+
+        Assert.Equal("Standing note one", firstRead.PrincipalNotes);
+        Assert.Equal("Standing note one", secondRead.PrincipalNotes);
+        Assert.True(counter.Count > 0, "The interceptor observed no commands at all.");
+        Assert.True(
+            organizationOnlyCommands == 0,
+            "The Principal's note was read by a command of its own." + Environment.NewLine + counter.Describe());
+
+        await SetPrincipalNoteAsync(services, "QDOS", "Standing note two");
+        var changed = Assert.IsType<TriageDetail>(await queries.GetAsync(first.CaseId, CancellationToken.None));
+
+        Assert.Equal("Standing note two", changed.PrincipalNotes);
+        Assert.Equal(firstRead.Record.Version, changed.Record.Version);
+        Assert.Equal(firstRead.History.Count, changed.History.Count);
+    }
+
     [Fact]
     public async Task ATriageCaseIsNotFoundOnEveryCaseWorkflowSubRoute()
     {
@@ -823,6 +903,20 @@ public sealed partial class TriageCaseWebTests
             .ExecuteUpdateAsync(update => update.SetProperty(item => item.State, code));
     }
 
+    /// <summary>The Principal's organisation note, as Contacts edit stores it.</summary>
+    private static async Task SetPrincipalNoteAsync(IServiceProvider services, string principalCode, string? note)
+    {
+        await using var scope = services.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        var organizationId = await context.Principals
+            .Where(item => item.Code == principalCode)
+            .Select(item => item.OrganizationId)
+            .SingleAsync();
+        await context.Organizations.Where(item => item.Id == organizationId)
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.NotesOnEveryCase, note));
+    }
+
     private static async Task<Guid> CustodyWorkIdAsync(IServiceProvider services, Guid caseId)
     {
         await using var scope = services.CreateAsyncScope();
@@ -986,6 +1080,9 @@ public sealed partial class TriageCaseWebTests
     {
         public Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken) =>
             Task.FromResult<Guid?>(null);
+
+        public Task<bool> ThreadHoldsCaseOrTriageAsync(Guid receiptId, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     private sealed class FailingCaseCustody : ICaseCustody

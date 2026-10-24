@@ -12,11 +12,10 @@ namespace Pegasus.Core.Assessment;
 /// Which repairer VAT position the repair spec stands on (B04), recorded on
 /// the spec itself, the only owner of the fact. A spec with no recorded
 /// status stands on <see cref="RepairerVatStatuses.Default"/> (operator, 19
-/// October 2026). <see cref="RepairerVatStatus.Unknown"/> remains a stored
-/// state: its totals charge VAT on nothing, it never gates Use repair spec
-/// (v28 P10), and it blocks the report, which would otherwise understate the
-/// repair cost (operator, 27 September 2026). Nothing new writes it. The
-/// claimant's VAT position never controls estimate VAT.
+/// October 2026). <see cref="RepairerVatStatus.Unknown"/> is stored nowhere:
+/// live specs and frozen versions were rewritten to Registered (R386), a save
+/// refuses it and a restore records <see cref="RepairerVatStatuses.Default"/>
+/// (R199, R200). The claimant's VAT position never controls estimate VAT.
 /// </summary>
 public enum RepairerVatStatus
 {
@@ -28,18 +27,23 @@ public enum RepairerVatStatus
 /// <summary>
 /// The repairer VAT status a spec stands on when none was recorded, and the
 /// statuses staff and the tools may choose. <see cref="RepairerVatStatus.Unknown"/>
-/// stays on the enum so a row still stored as Unknown parses and still blocks
-/// the report; it is not a choice.
+/// is the enum's zero value and not a choice.
 /// </summary>
 public static class RepairerVatStatuses
 {
     public const RepairerVatStatus Default = RepairerVatStatus.Registered;
 
+    /// <summary>The refusal for any save whose status is not a choice.</summary>
+    public const string NotAChoice = "The repairer VAT status must be Registered or NotRegistered.";
+
     public static IReadOnlyList<RepairerVatStatus> Choosable { get; } =
         [RepairerVatStatus.Registered, RepairerVatStatus.NotRegistered];
 
-    public static bool IsChoosable(RepairerVatStatus status) =>
-        status is RepairerVatStatus.Registered or RepairerVatStatus.NotRegistered;
+    /// <summary>The names of <see cref="Choosable"/>, which the tool vocabulary lists.</summary>
+    public static IReadOnlyList<string> ChoosableNames { get; } =
+        [.. Choosable.Select(status => status.ToString())];
+
+    public static bool IsChoosable(RepairerVatStatus status) => Choosable.Contains(status);
 }
 
 /// <summary>
@@ -99,13 +103,21 @@ public sealed record EstimateVatPolicy(
     }
 
     /// <summary>
-    /// An unknown repairer VAT status with no hand-made override: the totals
-    /// carry no VAT. A new spec does not land here; the unrecorded status is
-    /// <see cref="RepairerVatStatuses.Default"/>. It never gates Use repair
-    /// spec (v28 P10, 18 September 2026).
+    /// The policy a live spec may stand on. A choosable status stands as it
+    /// is; Unknown (a version frozen before Registered became the default)
+    /// stands on <see cref="RepairerVatStatuses.Default"/>, keeping hand-picked
+    /// categories and taking the default's own otherwise (R199).
     /// </summary>
-    public bool TreatmentPending =>
-        RepairerStatus == RepairerVatStatus.Unknown && !CategoriesOverridden;
+    public EstimateVatPolicy Standing()
+    {
+        if (RepairerVatStatuses.IsChoosable(RepairerStatus))
+        {
+            return this;
+        }
+        var own = DefaultFor(RepairerVatStatuses.Default);
+        var categories = CategoriesOverridden ? Categories : own;
+        return new(RepairerVatStatuses.Default, categories, categories != own);
+    }
 
     public bool Charges(EstimateVatCategories category) => (Categories & category) == category;
 }
@@ -148,9 +160,7 @@ public sealed record EstimateRateSnapshot(
 /// <c>Taxable × VatPercent / 100</c>. The percentage never states a
 /// repairer's VAT position: an estimate that records no <see cref="Vat"/>
 /// policy stands on <see cref="RepairerVatStatuses.Default"/> and charges
-/// VAT on all four categories. A policy still stored as
-/// <see cref="RepairerVatStatus.Unknown"/> charges VAT on nothing and blocks
-/// the report; that never gates Use repair spec (v28 P10).
+/// VAT on all four categories.
 /// </remarks>
 public sealed record EstimateDetails(
     string Name,
@@ -638,7 +648,9 @@ public static class EstimatePolicy
     /// evidence. Resolve that evidence only after the operation replay check.
     /// A line's guide code, betterment, evidence label and justification are
     /// carried unless the save supplies its own; its source provenance always
-    /// is.
+    /// is. A line keeps its stored type unless the edit changed the operation
+    /// (<see cref="EstimateOperations.Carry"/>), and its stored hours while the
+    /// posted figure is still their <see cref="EditorHoursDecimals"/> reading.
     /// </summary>
     public static SaveEstimateRequest ApplyEditorEvidence(
         SaveEstimateRequest request, RepairSpecificationVersion? existing, DateTimeOffset savedAtUtc)
@@ -849,9 +861,23 @@ public static class EstimatePolicy
     /// </summary>
     private static decimal? CarryHours(decimal? submitted, decimal? previous) =>
         submitted is { } hours && previous is { } stored
-        && hours == decimal.Round(stored, 2, MidpointRounding.AwayFromZero)
+        && hours == decimal.Round(stored, EditorHoursDecimals, MidpointRounding.AwayFromZero)
             ? stored
             : submitted;
+
+    /// <summary>
+    /// The decimals the editor reads and shows hours to (R193); stored hours
+    /// keep <see cref="WorkUnitDecimals"/>.
+    /// </summary>
+    public const int EditorHoursDecimals = 2;
+
+    /// <summary>An hours box's text: the figure to <see cref="EditorHoursDecimals"/> decimals.</summary>
+    public static string EditorHoursText(decimal hours) =>
+        hours.ToString("F" + EditorHoursDecimals, CultureInfo.InvariantCulture);
+
+    /// <summary>An hours box's <c>step</c>: one unit of <see cref="EditorHoursDecimals"/>'s last decimal.</summary>
+    public static string EditorHoursStep { get; } =
+        new decimal(1, 0, 0, false, EditorHoursDecimals).ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     /// The precision an estimate line's hours are kept to. A provider states
@@ -918,13 +944,18 @@ public static class EstimatePolicy
     }
 
     /// <summary>
-    /// Categories that were not overridden by hand must be the repairer
-    /// status's own defaults, so the recorded policy and the status can
-    /// never disagree about why VAT is charged.
+    /// The status must be a choice, whoever saves (FRD-11; R200). Categories
+    /// that were not overridden by hand must be the repairer status's own
+    /// defaults, so the recorded policy and the status can never disagree
+    /// about why VAT is charged.
     /// </summary>
     public static EstimateVatPolicy ValidateVatPolicy(EstimateVatPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(policy);
+        if (!RepairerVatStatuses.IsChoosable(policy.RepairerStatus))
+        {
+            throw new ArgumentException(RepairerVatStatuses.NotAChoice, nameof(policy));
+        }
         if ((policy.Categories & ~EstimateVatCategories.All) != 0)
         {
             throw new ArgumentException("Unknown estimate VAT categories.", nameof(policy));

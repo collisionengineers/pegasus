@@ -88,6 +88,77 @@ public sealed class StructuredIntakeSourceReaderTests
     }
 
     /// <summary>
+    /// #1493 (criterion 10, R225): a letterhead placed on every page of a ten
+    /// page report is one image object to the reader. Every placement is its
+    /// own candidate, all ten share one converted buffer, and the reading
+    /// states the report's ten pages and its readable text layer.
+    /// </summary>
+    [Fact]
+    public async Task ALetterheadOnEveryPageIsConvertedOnceAndTheReportIsStated()
+    {
+        var letterhead = new PdfFixtureImage(
+            PhotoWidth,
+            PhotoHeight,
+            "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode",
+            Jpeg(PhotographPixels(31)),
+            "100 0 0 100 20 680");
+        var result = await ReadAsync(new TestEmail(
+            "letterheaded-report.pdf",
+            "application/pdf",
+            BuildPdf([.. Enumerable.Range(1, 10).Select(page => new PdfFixturePage(ReadableReportPage(page), letterhead))])));
+
+        var placements = result.AssetCandidates.Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage).ToArray();
+        Assert.Equal(Enumerable.Range(1, 10), placements.Select(asset => asset.PageNumber!.Value));
+        var buffers = placements
+            .Select(asset => MemoryMarshal.TryGetArray(asset.Content, out var segment) ? segment.Array : null)
+            .Distinct(ReferenceEqualityComparer.Instance)
+            .ToArray();
+        Assert.NotNull(Assert.Single(buffers));
+        Assert.Equal(
+            new IntakePdfReading("uploaded letterheaded-report.pdf", IsRoot: true, PageCount: 10, HasTextLayer: true),
+            Assert.Single(result.PdfReadings));
+    }
+
+    /// <summary>
+    /// #1493 (R297): an e-mail's PDF attachment is stated whatever its media
+    /// type says, the reader's own test, and a PDF of photographs alone states
+    /// no text layer.
+    /// </summary>
+    [Fact]
+    public async Task AnAttachedPdfIsStatedWithoutATextLayer()
+    {
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Sender", "sender@example.test"));
+        message.To.Add(new MimeKit.MailboxAddress("Intake", "intake@example.test"));
+        message.Subject = "Vehicle images";
+        message.Body = new MimeKit.Multipart("mixed")
+        {
+            new MimeKit.TextPart("plain") { Text = "Images attached." },
+            new MimeKit.MimePart("application", "octet-stream")
+            {
+                FileName = "VD IMAGES.pdf",
+                ContentDisposition = new MimeKit.ContentDisposition(MimeKit.ContentDisposition.Attachment),
+                ContentTransferEncoding = MimeKit.ContentEncoding.Base64,
+                Content = new MimeKit.MimeContent(new MemoryStream(BuildPdf(
+                    new PdfFixturePage(null, RawRgbImage(PhotoWidth, PhotoHeight, PhotographPixels(32))))))
+            }
+        };
+        using var serialized = new MemoryStream();
+        message.WriteTo(serialized);
+
+        var result = await ReadAsync(new TestEmail("images.eml", "message/rfc822", serialized.ToArray()));
+
+        var reading = Assert.Single(result.PdfReadings);
+        Assert.False(reading.IsRoot);
+        Assert.Equal(1, reading.PageCount);
+        Assert.False(reading.HasTextLayer);
+        Assert.EndsWith("VD IMAGES.pdf", reading.SourceLabel, StringComparison.Ordinal);
+    }
+
+    private static string ReadableReportPage(int page) =>
+        $"Engineer report page {page} of ten, printed with enough words to be a readable text layer for intake review today";
+
+    /// <summary>
     /// Issue #989: a photograph filling a page whose image PdfPig hands over as
     /// neither a JPEG nor a PNG is read by the third decode path, kept as an
     /// image and not sent to OCR.

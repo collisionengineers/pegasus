@@ -220,7 +220,6 @@ public sealed record CompleteMarketResearchAiJobCommand(
     TimeOnly RecordedTime,
     long Mileage,
     decimal RetailValue,
-    decimal TradeValue,
     DateOnly? GuideMonth = null);
 
 public sealed record MarketResearchAiJobCompletion(

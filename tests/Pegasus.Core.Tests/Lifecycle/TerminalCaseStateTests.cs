@@ -76,6 +76,24 @@ public sealed class TerminalCaseStateTests
         Assert.Equal("A case can be closed only before its report is sent.", exception.Message);
     }
 
+    [Fact]
+    public void AReopenWithNoDestinationIsRefused()
+    {
+        var request = new ReopenCaseRequest(
+            Guid.NewGuid(),
+            3,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+            "reopen:terminal-state-tests",
+            "The Principal reinstated the instruction.",
+            new string('t', 64),
+            null);
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CaseLifecycleRules.ValidateReopen(request));
+
+        Assert.Contains("The reopen destination is invalid.", exception.Message, StringComparison.Ordinal);
+    }
+
     private static CloseCaseRequest CloseWith(CaseClosureOutcome outcome) => new(
         Guid.NewGuid(),
         3,

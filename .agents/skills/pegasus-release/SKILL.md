@@ -264,14 +264,30 @@ function Wait-PegasusExpectedWebSite {
 
 The classifier Function App exists only when its activation is approved. Every
 deployment route deploys `classifier.zip` to it when it exists, after the
-Worker:
+Worker. The destructive route also stops and starts it (sections 7 and 10):
 
 ```powershell
-function Publish-PegasusClassifierIfPresent {
+function Test-PegasusClassifierPresent {
   $classifierNames = @(az functionapp list --subscription $subscriptionId `
     --resource-group $resourceGroup --query "[?name=='$classifierApp'].name" --output tsv)
   if ($LASTEXITCODE -ne 0) { throw 'Unable to read whether the classifier Function App exists.' }
-  if ($classifierNames -cnotcontains $classifierApp) { return }
+  return $classifierNames -ccontains $classifierApp
+}
+
+function Wait-PegasusClassifierState([string] $Expected) {
+  for ($attempt = 1; $attempt -le 12; $attempt++) {
+    $classifierState = (az resource show --subscription $subscriptionId `
+      --resource-group $resourceGroup --name $classifierApp --resource-type 'Microsoft.Web/sites' `
+      --api-version 2024-04-01 --query properties.state --output tsv).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to read classifier state.' }
+    if ($classifierState -ceq $Expected) { return }
+    Start-Sleep -Seconds 5
+  }
+  throw "Classifier did not read back as $Expected."
+}
+
+function Publish-PegasusClassifierIfPresent {
+  if (-not (Test-PegasusClassifierPresent)) { return }
   az functionapp deployment source config-zip --subscription $subscriptionId `
     --resource-group $resourceGroup --name $classifierApp `
     --src "./artifacts/releases/$version/classifier.zip"
@@ -379,6 +395,18 @@ route. An unhealthy host, trigger-disabled setting, or missing response is not
 containment evidence. Stopping the site does not stop its deployment (Kudu)
 endpoint, which section 9 relies on.
 
+The classifier Function App is a client of the Web App. When it exists, stop it
+first, before the Worker, and require a bounded `Stopped` read-back; section 10
+starts it again after the Web App is healthy.
+
+```powershell
+if (Test-PegasusClassifierPresent) {
+  az functionapp stop --subscription $subscriptionId --resource-group $resourceGroup --name $classifierApp
+  if ($LASTEXITCODE -ne 0) { throw 'Classifier stop failed.' }
+  Wait-PegasusClassifierState 'Stopped'
+}
+```
+
 ```powershell
 az functionapp stop --subscription $subscriptionId --resource-group $resourceGroup --name $workerApp
 if ($LASTEXITCODE -ne 0) { throw 'Worker stop failed.' }
@@ -432,6 +460,10 @@ $preSqlWorkerState = (az resource show --subscription $subscriptionId `
 if ($LASTEXITCODE -ne 0 -or $preSqlWorkerState -cne 'Stopped') {
   throw 'Worker is not freshly confirmed Stopped before destructive SQL.'
 }
+pwsh ./scripts/Invoke-ProductionSmoke.ps1 -WorkerOnly `
+  -ResourceGroupName $resourceGroup -SubscriptionId $subscriptionId `
+  -ExpectedWorkerActivation disabled -ExpectedClassifierState Stopped
+if ($LASTEXITCODE -ne 0) { throw 'Pre-SQL Worker census and classifier smoke failed.' }
 $preSqlWebState = (az webapp show --subscription $subscriptionId `
   --resource-group $resourceGroup --name $webApp --query state --output tsv).Trim()
 if ($LASTEXITCODE -ne 0 -or $preSqlWebState -cne 'Stopped') {
@@ -448,9 +480,9 @@ if ($preSqlServing) { throw 'Web App is still serving the application before des
 
 Then follow [references/database-migration.md](references/database-migration.md).
 If SQL, grants, or migration-head verification fails, leave the Worker stopped,
-the Web App stopped and every Disabled setting true. From this point recover
-forward only: never start the old Worker package or the old Web package against
-changed or unknown schema.
+the classifier stopped, the Web App stopped and every Disabled setting true.
+From this point recover forward only: never start the old Worker package or the
+old Web package against changed or unknown schema.
 
 ## 8. Normal route: provision, deploy Web, then deploy Worker
 
@@ -463,11 +495,10 @@ containment steps or its disabled-first staging exception for this route.
 
 `PEGASUS_WEB_LOCATION` is set only when the approval names a Web region other
 than the platform region (the quota route chosen in section 12); leave it unset
-otherwise. `PreProvision` reads the App Service quota for the effective Web
-region and refuses a region without quota for the plan SKU. `az webapp deploy`
-authenticates with the operator's Entra token; basic publishing credentials are
-disabled by the template. `--clean true` removes the previous package contents
-and `--restart true` restarts the site onto the new package.
+otherwise. `az webapp deploy` authenticates with the operator's Entra token;
+basic publishing credentials are disabled by the template. `--clean true`
+removes the previous package contents and `--restart true` restarts the site
+onto the new package.
 
 ```powershell
 azd env set PEGASUS_WEB_ACTIVATION approved -e $releaseEnvironment
@@ -566,9 +597,11 @@ Keep the same approved manifest. Set only
 `PEGASUS_WORKER_ACTIVATION=approved-live-worker`, preflight against the observed
 disabled Worker, and provision once. Start the Web App and require the exact
 release read-back of section 5. If the Worker remains stopped, start the exact
-approved target and require a `Running` read-back. Completion requires the Web
-App `Running` at the approved release, the Worker `Running`, every Disabled
-value `false`, and a successful full smoke. If any of those fail, report an
+approved target and require a `Running` read-back. When the classifier exists,
+start it and require a `Running` read-back before `classifier.zip` deploys.
+Completion requires the Web App `Running` at the approved release, the Worker
+`Running`, the classifier `Running` when it exists, every Disabled value
+`false`, and a successful full smoke. If any of those fail, report an
 unfinished outage; do not call the release successful or revive old bytes.
 
 ```powershell
@@ -604,13 +637,18 @@ for ($attempt = 1; $attempt -le 12; $attempt++) {
   Start-Sleep -Seconds 5
 }
 if (-not $workerRunning) { throw 'Worker did not read back as Running.' }
+if (Test-PegasusClassifierPresent) {
+  az functionapp start --subscription $subscriptionId --resource-group $resourceGroup --name $classifierApp
+  if ($LASTEXITCODE -ne 0) { throw 'Classifier start failed.' }
+  Wait-PegasusClassifierState 'Running'
+}
 Publish-PegasusClassifierIfPresent
 pwsh ./scripts/Invoke-ProductionSmoke.ps1 `
   -BaseUri $webOrigin `
   -ExpectedSourceRevision $releaseSha -ExpectedVersion $version `
   -ExpectedWebPackageSha256 $webPackageSha256 `
   -ResourceGroupName $resourceGroup -SubscriptionId $subscriptionId `
-  -ExpectedWorkerActivation approved-live-worker
+  -ExpectedWorkerActivation approved-live-worker -ExpectedClassifierState Running
 if ($LASTEXITCODE -ne 0) { throw 'Exact release smoke failed.' }
 ```
 
@@ -635,6 +673,14 @@ identities there. Link retained attempts and failures from the release record. F
 changes data access or telemetry, snapshot Query Store before and after as the
 [runbook](../../../docs/runbook.md#statement-level-evidence-from-query-store) says
 and name the saved files in the record.
+
+A release that moves an Automation MCP server path
+([ADR-0080](../../../docs/adr/0080-automation-mcp-one-server-per-scope.md))
+has an Administrator re-add each connector at `<origin>/mcp/<scope word>`, one
+per row of `AutomationMcp.Servers`, and consent once per server; the old path
+has no alias. The classifier's `PEGASUS_MCP_URL` changes at `azd provision`,
+not with `classifier.zip`. Record the classifier's read-back URL and one tick
+that connects on the new path.
 
 Copy `artifacts/releases/$version` outside the disposable worktree before
 removing it. The release is unfinished until operations records the deployed observation
@@ -677,9 +723,7 @@ foreach ($region in @('uksouth', 'ukwest')) {
   storage, Key Vault, telemetry and the Worker stay in `uksouth`; Web traffic
   to them crosses regions. Record the chosen region in the release record.
 
-`Test-AzureDeploymentPlan.ps1 -Mode PreProvision` repeats the read for the
-effective Web region and refuses to continue at 0. A quota that reads 0 is
-not repaired by retrying the provision.
+A quota that reads 0 is not repaired by retrying the provision.
 
 ### 12.2 Read the retiring Container App
 

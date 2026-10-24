@@ -95,8 +95,10 @@ whose functions move to the utility bar and account dialog.
 
 No rail item carries a count (operator, 15 October 2026).
 
-The **account dialog** opens from the rail-foot button and shows Name, Role,
-Session started (an `auth_time` claim) and Idle lock, with Close and Sign out.
+The **account dialog** opens from the rail-foot button and shows Name, Role
+and Idle lock, with Close and Sign out. Session started is not required
+(operator, 15 October 2026,
+[v41 plan](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 
 **Rail collapse.** A Collapse control at the rail foot folds the rail to 64px:
 icons stay, labels become each link's `title`, and the control's
@@ -164,8 +166,9 @@ the card's list scrolls inside it.
 
 Once an Inspection + Audit Case has its Audit, a **Views** card heads the
 aside, above Figures, in the context-card pattern: two rows, "Inspection ·
-{Case/PO}" with a plain green "Sent" chip when the Inspection report was
-sent (no chip when the Audit was created first) and "Audit · a.{Case/PO}"
+{Case/PO}" with a "Report sent" chip, dot and green as the state chip draws
+it, when the Inspection report was sent (no chip when the Audit was created
+first; operator, 22 October 2026) and "Audit · a.{Case/PO}"
 with the Case's state chip as the ribbon draws it. The current view reads plain
 (`aria-current="page"`) and the other is a link; the Audit view is the
 default. Before the Audit exists, and on a standalone Audit or a Triage Case,
@@ -185,8 +188,8 @@ unavailable**. Report in the Audit view shows the Audit report alone
 sent, the Inspection view's Report keeps the generation and delivery
 controls for that report alone (operator, 1 October 2026), and Next action
 there states that report's own step and blockers, with links that stay in
-the view; once it is sent, Next action states nothing (operator, 2 October
-2026). A Triage Case
+the view; once it is sent, Next action is not drawn (operator, 2 and 19
+October 2026). A Triage Case
 at `/Cases/{id}` keeps the Triage page's own layout (v31 C, operator,
 5 October 2026): the ribbon's next step and one Actions menu, then sticky
 Images, Files (Documents and Correspondence) and Notes tabs with the finding
@@ -375,7 +378,7 @@ design-dev` bundle, the 2026-07 warm palette) are superseded and not retained.
 | `--red-dark` | `#9e1720` | Pressed primary |
 | `--amber` / `--amber-bg` | `#975b07` / `#fff4dc` | Incomplete, pending, Held, exceptions |
 | `--navy` / `--navy-bg` | `#274f70` / `#eaf1f6` | Review |
-| `--green` / `--green-bg` | `#2b643d` / `#e9f4ec` | Confirmed completion |
+| `--green` / `--green-bg` | `#2b643d` / `#e9f4ec` | Confirmed completion; Service health Working ([v41 A22](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | `--blue` / `--blue-bg` | `#285f88` / `#eaf3f8` | Informational, With Engineer, external work in progress |
 | `--danger` / `--danger-bg` | `#98272c` / `#fff0f1` | Danger actions, blocked, failed |
 | `--purple` / `--purple-bg` | `#5b3f8f` / `#f1ecf9` | A Case with an open query (operator, 11 October 2026) |
@@ -937,7 +940,7 @@ deleted in wave 5.
 | `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
 | `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Overview and Close-up their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
-| `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it |
+| `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it; the Engineer blocker is the one exception and links the ribbon's Assign Engineer action, not a section (operator, 22 October 2026) |
 | `next-step`, `next-step-go` | The Next action's one step and its full-width control, which shares its row with Take while the Case is Unassigned ([v41 K9](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
@@ -1087,17 +1090,17 @@ this section holds the cross-cutting rules every page is held to.
 | Field provenance | Every source-derived Case datum shows its current source tag; a staff value carries none. Origin and status remain distinct. |
 | Supporting detail navigation | Opening evidence or supporting detail preserves list/detail position, the current context, and every unsaved edit; returning never silently discards or replaces proposed values. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
-| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record the aside's Report not ready card lists each report blocker with a link to the section that clears it; no opaque aggregate blocker. |
+| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record the aside's Report not ready card lists each report blocker with a link to the section that clears it, except the Engineer blocker, which links the ribbon's Assign Engineer action (operator, 22 October 2026); no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
 | Inspection address | Principal-determined default; reasoned per-Case override; previous values selectable. |
-| Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. The default repairer VAT status is Registered (19 October 2026). A status still stored as Unknown does not block Use repair spec; it does block the report (27 September 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
+| Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. The default repairer VAT status is Registered (19 October 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
 | Message dialog | The subject opens one dialog over the Inbox, with Previous message and Next message in its head; opening, reading and moving between messages change no message or Case state; `/Inbox/{id}` stays for a new tab and for no script (v41 I2, I6, I17; [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)). |
 | Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
-| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail and Image Intake; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in the shared dialog because the row is removed ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/pages/administration/README.md)). |
+| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail and Image Intake; Administration actions post on the click with no confirmation dialog, except Delete access, which confirms in the shared dialog because the row is removed ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)). |
 
 ### Presentation responsibilities
 

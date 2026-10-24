@@ -690,15 +690,7 @@ public static class CaseReportReadiness
         "The Current repair spec has no labour rate, and the report prints the hourly rate.",
         "Record the labour rate on the Repair Spec section.");
 
-    // The repairer's VAT status decides what VAT is charged on, so a report
-    // on an unknown status would understate the repair cost (operator, 27
-    // September 2026). Both are public so the Case page can open the control
-    // each one names (issue 898).
-    public static readonly AssessmentReadinessItem RepairerVatStatusUnknown = new(
-        RepairerVatRequirement, "Estimates",
-        "The Current repair spec does not say whether the repairer is VAT registered, so the report cannot work out the VAT.",
-        "Choose Registered or Not registered as the Repairer VAT status on the Repair Spec section.");
-
+    // Public so the Case page can open the control it names (issue 898).
     public static readonly AssessmentReadinessItem RepairerVatHandPicked = new(
         RepairerVatRequirement, "Estimates",
         "The Current repair spec charges VAT on a hand-picked set of costs, and the report has no wording for that set.",
@@ -712,12 +704,8 @@ public static class CaseReportReadiness
     internal static AssessmentReadinessItem? RepairerVatBlocker(RepairSpecificationVersion currentEstimate)
     {
         ArgumentNullException.ThrowIfNull(currentEstimate);
-        var policy = currentEstimate.Details.VatPolicy;
-        if (policy.RepairerStatus == RepairerVatStatus.Unknown)
-        {
-            return RepairerVatStatusUnknown;
-        }
-        return ReportRepairCosts.VatLabelOf(policy, currentEstimate.Details.VatPercent) is null
+        var details = currentEstimate.Details;
+        return ReportRepairCosts.VatLabelOf(details.VatPolicy, details.VatPercent) is null
             ? RepairerVatHandPicked
             : null;
     }

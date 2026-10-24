@@ -76,6 +76,7 @@ internal sealed class AiJobMcpTools(
     ICancelAiJob cancel,
     IConfirmAiJob confirm,
     ICompleteMarketResearchAiJob completeMarketResearch,
+    Pegasus.Core.Documents.IOpenDocumentUpload uploads,
     IStartQueryResponse startQueryResponse,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
@@ -96,7 +97,7 @@ internal sealed class AiJobMcpTools(
         [Description("Page size from 1 to 100; 0 selects 50.")] int pageSize = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_ai_job_list", cancellationToken);
         return await auditor.RecordDenialAsync(
             context,
             "pegasus_ai_job_list",
@@ -150,7 +151,7 @@ internal sealed class AiJobMcpTools(
         [Description("UnidentifiedResolution only: the open item's exact U-reference, for example U17.")] string? unidentifiedReference = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_ai_job_create", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -312,7 +313,7 @@ internal sealed class AiJobMcpTools(
         CancellationToken cancellationToken = default)
     {
         var parsedAction = ParseAction(action);
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_ai_job_transition", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         Task<AiJobToolItem> Run() => AutomationMcpErrors.ExecuteAsync(async () =>
         {
@@ -353,7 +354,7 @@ internal sealed class AiJobMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Completes this client's MarketResearch job as Completed with one retained findings document and one AI market research valuation. Requires automation.jobs only: it takes no Case edit lease and no Case version, because a source card is not a Case field edit and the Engineer is usually still editing the Case, so it never waits on or ends their session. Nothing is accepted automatically.")]
+    [Description("Completes this client's MarketResearch job as Completed with one retained findings document and one AI market research valuation. Requires automation.jobs only: it takes no Case edit lease and no Case version, because a source card is not a Case field edit and the Engineer is usually still editing the Case, so it never waits on or ends their session. The findings document comes as base64 in contentBase64, or as the uploadId of a document this client staged with pegasus_upload_begin and pegasus_upload_part on the documents server; exactly one of the two. Nothing is accepted automatically.")]
     public async Task<MarketResearchCompletionToolResult> CompleteMarketResearchAsync(
         [Description("The MarketResearch job identifier this client holds.")] Guid jobId,
         [Description("The job version the caller observed; a stale value fails closed.")] long expectedJobVersion,
@@ -361,16 +362,16 @@ internal sealed class AiJobMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         [Description("Leaf name for the findings document, at most 255 characters.")] string fileName,
         [Description("Media type for the findings document, at most 200 characters.")] string mediaType,
-        [Description("Base64 findings document, at most 10 MiB after decoding.")] string contentBase64,
         [Description("Valuation date, yyyy-MM-dd.")] string recordedDate,
         [Description("Valuation time, HH:mm or HH:mm:ss.")] string recordedTime,
         [Description("The mileage the valuation assumes.")] long mileage,
         [Description("Retail value in pounds.")] decimal retailValue,
-        [Description("Trade value in pounds.")] decimal tradeValue,
+        [Description("Base64 findings document, at most 10 MiB after decoding; omit it when uploadId is given.")] string? contentBase64 = null,
+        [Description("A staged findings document from pegasus_upload_begin whose parts are all sent; omit it when contentBase64 is given.")] Guid? uploadId = null,
         [Description("Optional guide month the research is for, yyyy-MM; the valuation for that month replaces an earlier card for it.")] string? guideMonth = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_ai_job_complete_market_research", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -379,24 +380,32 @@ internal sealed class AiJobMcpTools(
             key,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
+                var validJobId = RequireJobId(jobId);
+                var validCaseId = AutomationMcpErrors.RequireId(caseId, "case identifier");
+                var safeFileName = AutomationMcpErrors.RequireFileName(fileName);
+                var safeMediaType = AutomationMcpErrors.RequireMediaType(mediaType);
+                // Opened before the completion's transaction, which never covers a storage read.
+                var content = await DocumentUploadMcpTools.ReadContentAsync(
+                    uploads,
+                    context,
+                    contentBase64,
+                    uploadId,
+                    "Findings document content",
+                    cancellationToken);
                 var completion = await completeMarketResearch.ExecuteAsync(
                     new(
-                        RequireJobId(jobId),
+                        validJobId,
                         expectedJobVersion,
-                        AutomationMcpErrors.RequireId(caseId, "case identifier"),
+                        validCaseId,
                         context.Actor,
                         key,
-                        AutomationMcpErrors.RequireFileName(fileName),
-                        AutomationMcpErrors.RequireMediaType(mediaType),
-                        AutomationMcpErrors.DecodeContent(
-                            contentBase64,
-                            AutomationMcpErrors.MaximumDocumentBytes,
-                            "Findings document content"),
+                        safeFileName,
+                        safeMediaType,
+                        content,
                         ParseDate(recordedDate),
                         ParseTime(recordedTime),
                         mileage,
                         retailValue,
-                        tradeValue,
                         guideMonth is null ? null : ParseGuideMonth(guideMonth)),
                     cancellationToken);
                 return new MarketResearchCompletionToolResult(

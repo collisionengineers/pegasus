@@ -378,8 +378,10 @@ public sealed class CaseTasksWebTests
         var formerAssignee = Guid.NewGuid();
         var former = new CaseTaskRecord(
             Guid.NewGuid(), store.CaseId, "Collect the keys", formerAssignee, CaseTaskState.Open, 2, store.CaseVersion);
-        store.Tasks.AddRange([open, done, former]);
         var colleague = new CaseEngineerChoice(Guid.NewGuid(), "colleague.engineer");
+        var held = new CaseTaskRecord(
+            Guid.NewGuid(), store.CaseId, "Chase the repairer", colleague.StaffId, CaseTaskState.Open, 3, store.CaseVersion);
+        store.Tasks.AddRange([open, done, former, held]);
         store.TaskStaff.Add(colleague);
         using var workspace = await EnterEditModeAsync(store, services =>
         {
@@ -408,6 +410,7 @@ public sealed class CaseTasksWebTests
         Assert.Contains("handler=CancelCaseTask", section, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"reason\"", section, StringComparison.Ordinal);
         Assert.Contains("id=\"case-task-description\"", section, StringComparison.Ordinal);
+        Assert.Matches("<form [^>]*class=\"note-form\"[^>]*data-case-task-form", section);
         Assert.Contains("class=\"task-compose-row\"", section, StringComparison.Ordinal);
         Assert.DoesNotContain("maxlength", section, StringComparison.Ordinal);
         var openRow = Regex.Match(
@@ -416,7 +419,10 @@ public sealed class CaseTasksWebTests
             RegexOptions.Singleline | RegexOptions.CultureInvariant);
         Assert.True(openRow.Success, "The open task's row is not rendered.");
         Assert.Contains("class=\"row-actions\"", openRow.Value, StringComparison.Ordinal);
-        Assert.DoesNotContain("button-row", openRow.Value, StringComparison.Ordinal);
+        // The gap before Cancel task is written against task-cancel: only the Cancel form carries it.
+        var cancelTagged = Assert.Single(
+            Regex.Matches(openRow.Value, "<form\\b[^>]*\\bclass=\"task-cancel\"[^>]*>", RegexOptions.CultureInvariant).Cast<Match>());
+        Assert.Contains("handler=CancelCaseTask", cancelTagged.Value, StringComparison.Ordinal);
         Assert.Contains("handler=AssignCaseTask", openRow.Value, StringComparison.Ordinal);
         Assert.Contains("name=\"assigneeId\"", openRow.Value, StringComparison.Ordinal);
         Assert.Contains($"<option value=\"\" selected=\"selected\">{TaskLabels.Unassigned}</option>", openRow.Value, StringComparison.Ordinal);
@@ -436,6 +442,18 @@ public sealed class CaseTasksWebTests
             formerRow.Value,
             StringComparison.Ordinal);
         Assert.DoesNotContain($"value=\"{formerAssignee:D}\"", formerRow.Value, StringComparison.Ordinal);
+        var heldRow = Regex.Match(
+            section,
+            $"<tr data-case-task=\"{held.Id:D}\".*?</tr>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(heldRow.Success, "The task assigned to an enabled colleague is not rendered.");
+        Assert.Contains($"<td>{colleague.DisplayName}</td>", heldRow.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("<option value=\"\"", heldRow.Value, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<option value=\"{colleague.StaffId:D}\" selected=\"selected\">{colleague.DisplayName}</option>",
+            heldRow.Value,
+            StringComparison.Ordinal);
+        Assert.Contains($">{TaskLabels.Assign}</span>", heldRow.Value, StringComparison.Ordinal);
         var doneRow = Regex.Match(
             section,
             $"<tr data-case-task=\"{done.Id:D}\".*?</tr>",

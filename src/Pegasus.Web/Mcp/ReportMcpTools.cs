@@ -127,7 +127,7 @@ internal sealed class ReportMcpTools(
         [Description("current (the default; the Audit once a Case has one) or inspection (the Inspection report of a Case that has its Audit).")] string? work = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_report_list", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_report_list",
@@ -199,7 +199,7 @@ internal sealed class ReportMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.DocumentsScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_report_action", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,

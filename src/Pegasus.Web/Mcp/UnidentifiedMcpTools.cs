@@ -83,7 +83,7 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Items to return; omit for the default 50, maximum 100.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_unidentified_list", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_unidentified_list",
@@ -127,7 +127,7 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Exact canonical U-reference, for example U17.")] string reference,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_unidentified_get", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_unidentified_get",
@@ -161,7 +161,7 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Byte budget for inline content; 0 selects 100 KiB, at most 10 MiB.")] int maxInlineBytes = 0,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_unidentified_source_download", cancellationToken);
         var normalizedReference = reference?.Trim() ?? "invalid";
         return await auditor.RecordAsync(
             context,
@@ -267,7 +267,7 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Optional display reference for the destination; not taken by Closed.")] string? targetReference = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_unidentified_resolve", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,
@@ -325,7 +325,7 @@ internal sealed class UnidentifiedMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_unidentified_reopen", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         return await auditor.RecordAsync(
             context,

@@ -100,7 +100,7 @@ internal sealed class CaseMcpTools(
         [Description("Page size between 1 and 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_case_search", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_case_search",
@@ -161,7 +161,7 @@ internal sealed class CaseMcpTools(
         [Description("Maximum documents and history entries per page, 1 to 100; omit for 50.")] int? limit = null,
         CancellationToken cancellationToken = default)
     {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
+        var context = await resolver.RequireAsync("pegasus_case_get", cancellationToken);
         return await auditor.RecordAsync(
             context,
             "pegasus_case_get",

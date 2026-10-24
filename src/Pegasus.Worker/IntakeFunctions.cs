@@ -321,7 +321,7 @@ public sealed partial class UnifiedWorkFunction(
         switch (kind)
         {
             case UnifiedWorkQueueKind.Intake:
-                await processQueuedIntake.ExecuteAsync(identifier, cancellationToken);
+                await processQueuedIntake.ProcessAsync(identifier, cancellationToken);
                 return;
             case UnifiedWorkQueueKind.External:
                 try
@@ -412,12 +412,23 @@ public sealed class UnifiedWorkPoisonFunction(
 /// builds the function class afresh for every tick.
 /// </summary>
 public sealed class StaffNotificationPurgeSchedule(TimeProvider timeProvider)
+    : HourlyStepSchedule(timeProvider);
+
+/// <summary>When the abandoned document-upload sweep last ran, as the purge's gate.</summary>
+public sealed class DocumentUploadSweepSchedule(TimeProvider timeProvider)
+    : HourlyStepSchedule(timeProvider);
+
+/// <summary>
+/// The gate of a sweep step that runs about hourly on the minute timer; each
+/// step has its own singleton.
+/// </summary>
+public abstract class HourlyStepSchedule(TimeProvider timeProvider)
 {
     private static readonly TimeSpan Interval = TimeSpan.FromHours(1);
     private readonly object _gate = new();
     private DateTimeOffset? _lastStartedUtc;
 
-    /// <summary>True when the purge is due, and records it as started.</summary>
+    /// <summary>True when the step is due, and records it as started.</summary>
     public bool TryStart()
     {
         var now = timeProvider.GetUtcNow();
@@ -440,6 +451,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcilePendingArtifactCustody reconcilePendingArtifactCustody,
     ISettleFiledCaseReportArtifacts settleFiledCaseReportArtifacts,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
+    ReplayCaseFilings replayCaseFilings,
     IImageIntakeCasePairing imageIntakeCasePairing,
     ITriageCasePairing triageCasePairing,
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
@@ -447,6 +459,8 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcilePrincipalSubmissions reconcilePrincipalSubmissions,
     PurgeStaffNotifications purgeStaffNotifications,
     StaffNotificationPurgeSchedule staffNotificationPurgeSchedule,
+    SweepAbandonedDocumentUploads sweepAbandonedDocumentUploads,
+    DocumentUploadSweepSchedule documentUploadSweepSchedule,
     PrepareDocumentThumbnails prepareDocumentThumbnails,
     RecogniseFiledEstimates recogniseFiledEstimates,
     ILogger<StagedArtifactReconciliationFunction> logger)
@@ -473,6 +487,12 @@ public sealed partial class StagedArtifactReconciliationFunction(
     private static readonly TimeSpan EstimateRecognitionBudget = TimeSpan.FromSeconds(20);
 
     /// <summary>
+    /// The staged objects one about-hourly upload sweep lists: one listing
+    /// page, the most Blob storage returns, since a 10 MiB upload is 215.
+    /// </summary>
+    private const int UploadSweepPageSize = 5000;
+
+    /// <summary>
     /// A step's result line stays Information while nothing failed, and becomes a
     /// Warning the moment a failure is counted, so a step that fails on every tick
     /// shows up in the default log level instead of hiding among the routine lines.
@@ -485,7 +505,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
         [TimerTrigger("%IntakeStagedArtifactReconciliationSchedule%", RunOnStartup = false, UseMonitor = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
-        // Steps 1 to 3 and 5 to 11 each run under RunStepAsync: a step that throws
+        // Steps 1 to 3 and 5 to 12 each run under RunStepAsync: a step that throws
         // is logged and the steps after it still run, then the tick fails after
         // the last step so the failed request reaches the exception alert.
         var failures = new List<ExceptionDispatchInfo>();
@@ -568,6 +588,28 @@ public sealed partial class StagedArtifactReconciliationFunction(
                 groupedImageResult.Failures);
         }, failures, cancellationToken);
 
+        // Files the evidence of a receipt associated with a Case whose filing
+        // waited for an editor or failed, calling the filer directly, within
+        // the bounded replay window and attempts (FRD-22, FRD-05). Same
+        // existing timer trigger deliberately; this is not a new schedule. A
+        // result line is logged only when there were candidates.
+        await RunStepAsync("case filings", async () =>
+        {
+            var caseFilings = await replayCaseFilings.ExecuteAsync(50, cancellationToken);
+            if (caseFilings.Candidates > 0)
+            {
+                var caseFilingsLevel = FailureLevel(caseFilings.Failures);
+                LogCaseFilingReplay(
+                    logger,
+                    caseFilingsLevel,
+                    caseFilings.Candidates,
+                    caseFilings.Filed,
+                    caseFilings.Deferred,
+                    caseFilings.Failures,
+                    caseFilings.Exhausted);
+            }
+        }, failures, cancellationToken);
+
         await RunStepAsync("image pairing", async () =>
         {
             var pairing = await imageIntakeCasePairing.ReconcileAsync(50, cancellationToken);
@@ -638,6 +680,29 @@ public sealed partial class StagedArtifactReconciliationFunction(
             {
                 var purgedNotifications = await purgeStaffNotifications.ExecuteAsync(cancellationToken);
                 LogStaffNotificationPurge(logger, purgedNotifications);
+            }
+        }, failures, cancellationToken);
+
+        // A document staged in parts lives 24 hours (R203, R100); each staged
+        // object older than that is deleted, one listing page about hourly.
+        // Same existing timer trigger deliberately; this is not a new schedule.
+        // An idle run logs nothing.
+        await RunStepAsync("abandoned document uploads", async () =>
+        {
+            if (documentUploadSweepSchedule.TryStart())
+            {
+                var swept = await sweepAbandonedDocumentUploads.ExecuteAsync(
+                    UploadSweepPageSize,
+                    cancellationToken);
+                if (swept.Deleted > 0 || swept.Failures > 0)
+                {
+                    var sweepLevel = FailureLevel(swept.Failures);
+                    LogAbandonedDocumentUploadSweep(
+                        logger,
+                        sweepLevel,
+                        swept.Deleted,
+                        swept.Failures);
+                }
             }
         }, failures, cancellationToken);
 
@@ -826,6 +891,17 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int failures);
 
     [LoggerMessage(
+        Message = "Replayed Case filings: {Candidates} candidates, {Filed} filed, {Deferred} waiting for an editor, {Failures} failures, {Exhausted} exhausted.")]
+    private static partial void LogCaseFilingReplay(
+        ILogger logger,
+        LogLevel level,
+        int candidates,
+        int filed,
+        int deferred,
+        int failures,
+        int exhausted);
+
+    [LoggerMessage(
         Message = "Reconciled Unidentified destinations: {Candidates} candidates, {Resolved} resolved, {Failures} failures.")]
     private static partial void LogUnidentifiedDestinationReconciliation(
         ILogger logger,
@@ -852,4 +928,9 @@ public sealed partial class StagedArtifactReconciliationFunction(
         Level = LogLevel.Information,
         Message = "Purged {Purged} staff notifications past retention.")]
     private static partial void LogStaffNotificationPurge(ILogger logger, int purged);
+
+    [LoggerMessage(
+        Message = "Swept abandoned document uploads: {Deleted} staged objects deleted, {Failures} failures.")]
+    private static partial void LogAbandonedDocumentUploadSweep(
+        ILogger logger, LogLevel level, int deleted, int failures);
 }

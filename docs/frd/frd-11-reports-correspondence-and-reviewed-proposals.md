@@ -654,11 +654,10 @@ VAT comes only from the
 Current repair spec
 ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report)).
 Readiness reads that spec's repairer VAT status. The default is Registered.
-The choices are Registered and Not registered. A status still stored as
-Unknown blocks the report, and so does a hand-picked set of VAT categories
-the report has no wording for. Live repair specs are rewritten to Registered
-and snapshots are left as they were (operator, 27 September 2026; default,
-19 October 2026).
+The choices are Registered and Not registered. A hand-picked set of VAT
+categories the report has no wording for blocks the report. Live repair
+specs and frozen versions are rewritten to Registered (operator, 27 September
+2026; default, 19 October 2026; frozen versions, 22 October 2026).
 
 ### Report correction, finality, and post-report work
 
@@ -712,14 +711,12 @@ Requirements:
 Each estimate has its own VAT percentage, default 20, and selected VAT
 categories. No recorded status stands on Registered and charges labour,
 parts, materials and specialist. Registered and Not registered are the
-choices. Unknown is not offered and is not written. Use repair spec is not
-gated by the status.
+choices. Unknown is not offered and is not written: Core refuses it for every
+caller, and a restored version frozen as Unknown records Registered (operator,
+22 October 2026). Use repair spec is not gated by the status.
 
-A spec still stored as Unknown blocks the report, because the report would
-understate the repair cost (operator, 27 September 2026). The blocker is
-named Repairer VAT status. Staff clear it on Repair Spec by choosing
-Registered or Not registered. The migration rewrites live repair specs to
-Registered and leaves snapshots as they were (operator, 19 October 2026).
+The migrations rewrite live repair specs (operator, 19 October 2026) and
+frozen versions (operator, 22 October 2026) to Registered.
 VAT categories nobody chose by hand follow the status, so choosing one
 charges what that status charges (operator, 28 September 2026). One edge is
 accepted: an operator who changes the status and then ticks the categories
@@ -735,14 +732,13 @@ the estimate's own.
 | Parts and Materials only, as for a repairer who is not registered | `VAT (20% — parts & paint only)` |
 
 Any other hand-picked set of VAT categories blocks the report, because no
-accepted wording exists for it. Staff clear it on Repair Spec with Reset to
-repairer status.
+accepted wording exists for it. The blocker is named Repairer VAT status.
+Staff clear it on Repair Spec with Reset to repairer status.
 
-Where the viewer can edit the Repair Spec, both blockers' links in the Next
+Where the viewer can edit the Repair Spec, the blocker's links in the Next
 action's blocker list open it for editing on the Current
-spec and put the focus on the control that clears the blocker: Repairer VAT
-status for an unknown status, Reset to repairer status for a hand-picked set
-(operator, 28 September 2026). Otherwise they jump to the section.
+spec and put the focus on Reset to repairer status, the control that clears
+it (operator, 28 September 2026). Otherwise they jump to the section.
 
 On a rendered report, VAT is `Taxable × VatPercent / 100`, where Taxable is
 the selected discounted Labour, Parts, Materials and Specialist categories.
@@ -787,9 +783,8 @@ The Case's own states are in
 - A missing printed fact, such as a total loss with no salvage category, is
   a named readiness item: preview and Generate refuse before any generation
   is recorded, never at render.
-- A status still stored as Unknown, or a hand-picked set of VAT categories
-  the report has no wording for, is a named readiness item. A new spec
-  defaults to Registered.
+- A hand-picked set of VAT categories the report has no wording for is a
+  named readiness item. A new spec defaults to Registered.
 - A report still being filed never reads as stored, and a retry never draws
   again a file that is already held.
 - No generated file, preview, draft or export counts as Report sent.

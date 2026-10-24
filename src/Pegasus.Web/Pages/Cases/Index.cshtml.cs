@@ -690,7 +690,12 @@ public sealed class IndexModel(
             reportSent,
             hasOpenTasks);
 
-        var work = new List<(string Label, string Value)>(3) { ("Current work", next.Label) };
+        // With no step remaining the row is omitted (R306).
+        var work = new List<(string Label, string Value)>(3);
+        if (next is not null)
+        {
+            work.Add(("Current work", next.Label));
+        }
 
         var engineer = "Not assigned";
         if (workflow.AssignedEngineerId is { } engineerId)

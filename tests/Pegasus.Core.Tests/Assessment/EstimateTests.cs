@@ -645,18 +645,16 @@ public sealed class EstimateTests
         var details = new EstimateDetails("Repairer", 40m, null, 20m);
 
         Assert.Equal(EstimateVatPolicy.For(RepairerVatStatus.Registered), details.VatPolicy);
-        Assert.False(details.VatPolicy.TreatmentPending);
     }
 
     [Fact]
     public void AnUnknownRepairerVatStatusNoLongerGatesUseAsCurrent()
     {
         // v28 P10: Use repair spec is simply available; an unknown status
-        // means the totals carry no VAT, which the policy still names.
+        // means the totals carry no VAT.
         var unknown = Estimate(
             Header(rate: 40m, vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
             Line("repair", workUnits: 1m));
-        Assert.True(unknown.Details.VatPolicy.TreatmentPending);
         Assert.Equal(0m, EstimateTotals.Compute(unknown).Printed.Vat);
         EstimatePolicy.ValidateSetCurrent(unknown, Engineer);
 
@@ -667,7 +665,6 @@ public sealed class EstimateTests
                 Vat = new(RepairerVatStatus.Unknown, EstimateVatCategories.Parts, true),
             },
         };
-        Assert.False(overridden.Details.VatPolicy.TreatmentPending);
         EstimatePolicy.ValidateSetCurrent(overridden, Engineer);
     }
 
@@ -729,6 +726,61 @@ public sealed class EstimateTests
             new(RepairerVatStatus.Registered, EstimateVatCategories.Parts, false)));
         EstimatePolicy.ValidateVatPolicy(
             new(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true));
+    }
+
+    [Theory]
+    [InlineData("unknown", RepairerVatStatus.Unknown, EstimateVatCategories.None, false)]
+    [InlineData("handpicked", RepairerVatStatus.Unknown, EstimateVatCategories.Parts, true)]
+    [InlineData("undefined", (RepairerVatStatus)7, EstimateVatCategories.None, true)]
+    public void AStatusThatIsNotAChoiceIsRefusedOnEverySave(
+        string variant, RepairerVatStatus status, EstimateVatCategories categories, bool overridden)
+    {
+        var policy = new EstimateVatPolicy(status, categories, overridden);
+
+        var policyRefusal = Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateVatPolicy(policy));
+        var saveRefusal = Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateDetails(
+            new("Repairer", 40m, null, 20m, Vat: policy)));
+
+        Assert.True(
+            policyRefusal.Message.StartsWith(RepairerVatStatuses.NotAChoice, StringComparison.Ordinal), variant);
+        Assert.True(
+            saveRefusal.Message.StartsWith(RepairerVatStatuses.NotAChoice, StringComparison.Ordinal), variant);
+    }
+
+    [Fact]
+    public void AStoredUnknownStandsOnTheDefaultKeepingHandPickedCategories()
+    {
+        var registered = EstimateVatPolicy.For(RepairerVatStatus.Registered);
+        var notRegisteredByHand = new EstimateVatPolicy(
+            RepairerVatStatus.NotRegistered, EstimateVatCategories.Parts, true);
+        Assert.Same(registered, registered.Standing());
+        Assert.Same(notRegisteredByHand, notRegisteredByHand.Standing());
+
+        Assert.Equal(registered, EstimateVatPolicy.For(RepairerVatStatus.Unknown).Standing());
+        var handPicked = new EstimateVatPolicy(RepairerVatStatus.Unknown, EstimateVatCategories.Parts, true);
+        Assert.Equal(
+            new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true),
+            handPicked.Standing());
+        // Hand-picked to what Registered charges anyway is no override.
+        Assert.Equal(
+            registered,
+            new EstimateVatPolicy(RepairerVatStatus.Unknown, EstimateVatCategories.All, true).Standing());
+
+        EstimatePolicy.ValidateVatPolicy(handPicked.Standing());
+    }
+
+    [Fact]
+    public void TheChoosableSetIsDefinedOnce()
+    {
+        foreach (var status in Enum.GetValues<RepairerVatStatus>())
+        {
+            Assert.Equal(RepairerVatStatuses.Choosable.Contains(status), RepairerVatStatuses.IsChoosable(status));
+        }
+        Assert.Equal(
+            RepairerVatStatuses.Choosable.Select(status => status.ToString()),
+            RepairerVatStatuses.ChoosableNames);
+        Assert.False(RepairerVatStatuses.IsChoosable((RepairerVatStatus)7));
+        Assert.True(RepairerVatStatuses.IsChoosable(RepairerVatStatuses.Default));
     }
 
     // ---- Off-pattern values ----
@@ -1029,6 +1081,67 @@ public sealed class EstimateTests
             LineInput("repair") with { PaintWorkUnits = EstimatePolicy.MaximumLineWorkUnits + 1m }));
         Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateLineAmounts(
             LineInput("repair") with { Materials = 1.005m }));
+    }
+
+    [Fact]
+    public void TheEditorsHoursReadingIsOneConstantAndAMidpointStaysStored()
+    {
+        Assert.Equal(2, EstimatePolicy.EditorHoursDecimals);
+        Assert.Equal(6, EstimatePolicy.WorkUnitDecimals);
+        Assert.Equal("0.33", EstimatePolicy.EditorHoursText(1m / 3m));
+        Assert.Equal("0.13", EstimatePolicy.EditorHoursText(0.125m));
+        Assert.Equal("0.01", EstimatePolicy.EditorHoursStep);
+
+        // A stored 0.125 reads 0.13 in the editor (a midpoint rounds away
+        // from zero); posted back as 0.13 it stays 0.125 and is no amendment.
+        var storedLine = Line("repair", workUnits: 0.125m, paintWorkUnits: 0.91m);
+        var existing = Estimate(Details(), storedLine);
+        var submitted = SaveRequest(Engineer, RepairSpecificationSourceRoute.Manual) with
+        {
+            EstimateId = existing.SpecificationId,
+            ExistingLineIds = [storedLine.Id],
+            Lines =
+            [
+                LineInput("repair") with
+                {
+                    Description = storedLine.Description,
+                    WorkUnits = 0.13m,
+                    PaintWorkUnits = 0.91m,
+                },
+            ],
+        };
+
+        var untouched = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted), existing, Now.AddMinutes(1));
+        var untouchedLine = Assert.Single(untouched.Lines);
+        Assert.Equal(0.125m, untouchedLine.WorkUnits);
+        Assert.Null(untouchedLine.AmendedBy);
+        Assert.True(EstimatePolicy.IsUnchanged(untouched, existing));
+
+        var retyped = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted with
+            {
+                Lines = [submitted.Lines[0] with { WorkUnits = 0.12m }],
+            }),
+            existing,
+            Now.AddMinutes(2));
+        var retypedLine = Assert.Single(retyped.Lines);
+        Assert.Equal(0.12m, retypedLine.WorkUnits);
+        Assert.Equal(Engineer.SubjectId, retypedLine.AmendedBy);
+
+        // A paint-hours-only change is an amendment too.
+        var repainted = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted with
+            {
+                Lines = [submitted.Lines[0] with { PaintWorkUnits = 0.94m }],
+            }),
+            existing,
+            Now.AddMinutes(3));
+        var repaintedLine = Assert.Single(repainted.Lines);
+        Assert.Equal(0.125m, repaintedLine.WorkUnits);
+        Assert.Equal(0.94m, repaintedLine.PaintWorkUnits);
+        Assert.Equal(Engineer.SubjectId, repaintedLine.AmendedBy);
+        Assert.Equal(Now.AddMinutes(3), repaintedLine.AmendedAtUtc);
     }
 
     // ---- The one canonical raw-estimate import ----

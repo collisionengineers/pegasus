@@ -255,6 +255,15 @@ public interface ITriagePrincipalGate
     /// when the receipt established none.
     /// </summary>
     Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the receipt's mailbox thread already holds a Case or a Triage:
+    /// another message of its exact mailbox conversation is linked to a Case
+    /// or opened a Triage (R195, operator, 22 October 2026). False for a
+    /// receipt that opened its own Triage, so a redelivery replays it, and for
+    /// one with no retained conversation.
+    /// </summary>
+    Task<bool> ThreadHoldsCaseOrTriageAsync(Guid receiptId, CancellationToken cancellationToken);
 }
 
 public interface IAssignTriage
@@ -418,7 +427,14 @@ public sealed record TriageDetail(
     /// The code of the Triage Case's Principal, read in the same round trip as
     /// the record.
     /// </summary>
-    string? PrincipalCode = null)
+    string? PrincipalCode = null,
+    /// <summary>
+    /// The Principal's standing note ("Notes on every Case"), read live from
+    /// the Principal's organisation in the same round trip; the same text
+    /// <c>CaseRecordNotes.PrincipalNotes</c> carries for a Case. Null or blank
+    /// when the organisation has none.
+    /// </summary>
+    string? PrincipalNotes = null)
 {
     /// <summary>
     /// The claimant read from the request the Triage Case was opened from (its
@@ -524,6 +540,18 @@ public interface ITriageQueries
     Task<TriageSummary?> GetByOriginReceiptAsync(
         Guid originReceiptId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The record of the Triage this receipt opened, when one of its history
+    /// rows carries <paramref name="operationKey"/>: one read, for a caller
+    /// that asks whether its own operation made the Triage.
+    /// </summary>
+    Task<TriageRecord?> GetRecordByOriginOperationAsync(
+        Guid originReceiptId,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        Task.FromException<TriageRecord?>(
+            new NotSupportedException("The Triage lookup by operation key is not available."));
 }
 
 public interface ITriageResponseEvidenceCandidateQueries

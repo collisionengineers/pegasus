@@ -45,8 +45,8 @@ through MCP, and a person reviews a draft before it is sent (operator ruling,
 15 October 2026).
 
 A Principal's standing-note preferences apply to the Case page, not to the
-report. This is `MAIL-17`'s standing-note clause, a ruling awaiting delivery
-(operator ruling, 15 October 2026).
+report. This is `MAIL-17`'s standing-note clause (operator ruling, 15 October
+2026).
 
 **Send to AI.** The vendor-neutral `Send to AI` action queues an AI job
 ([ADR-0035](../adr/0035-ai-job-ledger.md)); there is no separate push

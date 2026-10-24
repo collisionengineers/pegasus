@@ -262,21 +262,11 @@ internal static class AssessmentModelConfiguration
                     + "AND [MarketResearchDocumentOccurrenceId] IS NOT NULL "
                     + "AND [MarketResearchDocumentVersionId] IS NOT NULL "
                     + "AND [MarketResearchValuationId] IS NOT NULL "
-                    + "AND [MarketResearchRecordedDate] IS NOT NULL "
-                    + "AND [MarketResearchRecordedTime] IS NOT NULL "
-                    + "AND [MarketResearchMileage] IS NOT NULL AND [MarketResearchMileage] >= 0 "
-                    + "AND [MarketResearchRetailValue] IS NOT NULL AND [MarketResearchRetailValue] >= 0 "
-                    + "AND [MarketResearchTradeValue] IS NOT NULL AND [MarketResearchTradeValue] >= 0 "
                     + "AND [MarketResearchCompletionHash] IS NOT NULL) OR "
                     + "(([ResultKind] IS NULL OR [ResultKind] <> 'MarketResearch') "
                     + "AND [MarketResearchDocumentOccurrenceId] IS NULL "
                     + "AND [MarketResearchDocumentVersionId] IS NULL "
                     + "AND [MarketResearchValuationId] IS NULL "
-                    + "AND [MarketResearchRecordedDate] IS NULL "
-                    + "AND [MarketResearchRecordedTime] IS NULL "
-                    + "AND [MarketResearchMileage] IS NULL "
-                    + "AND [MarketResearchRetailValue] IS NULL "
-                    + "AND [MarketResearchTradeValue] IS NULL "
                     + "AND [MarketResearchCompletionHash] IS NULL)");
             });
             entity.HasKey(item => item.JobId);
@@ -296,10 +286,6 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.ResultKind).HasMaxLength(40);
             entity.Property(item => item.ResultReference).HasMaxLength(200);
             entity.Property(item => item.ResultText).HasMaxLength(4000);
-            entity.Property(item => item.MarketResearchRecordedDate).HasColumnType("date");
-            entity.Property(item => item.MarketResearchRecordedTime).HasColumnType("time");
-            entity.Property(item => item.MarketResearchRetailValue).HasPrecision(18, 2);
-            entity.Property(item => item.MarketResearchTradeValue).HasPrecision(18, 2);
             entity.Property(item => item.MarketResearchCompletionHash).HasMaxLength(64).IsFixedLength();
             entity.Property(item => item.ClosureReason).HasMaxLength(500);
             entity.Property(item => item.LastOperationKey).HasMaxLength(100);

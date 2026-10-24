@@ -75,7 +75,8 @@ public sealed partial class ThirdPartyReportExtractionTests
     {
         var mail = VehicleCaptureSamples.Mail();
 
-        Assert.False(ThirdPartyReportProfiles.HasRecognizedNonImageDocument(mail));
+        Assert.False(ThirdPartyReportProfiles.HasRecognizedNonImageDocument(
+            mail, VehicleCaptureImages.Designate(mail)));
         Assert.DoesNotContain(ThirdPartyReportProfiles.KnownIssuers, issuer =>
             issuer.Contains("Tractable", StringComparison.OrdinalIgnoreCase));
     }

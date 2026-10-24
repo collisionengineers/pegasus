@@ -70,7 +70,7 @@ public sealed class ResponseCompressionWebTests : IClassFixture<IntakeWebApplica
         using var mcpFactory = WithAutomationMcp(factory);
         using var client = CreateClient(mcpFactory);
         using var request = new HttpRequestMessage(
-            HttpMethod.Get, "/.well-known/oauth-protected-resource/mcp");
+            HttpMethod.Get, "/.well-known/oauth-protected-resource/mcp/cases");
         request.Headers.TryAddWithoutValidation("Accept-Encoding", offered);
 
         using var response = await client.SendAsync(request);
@@ -119,7 +119,7 @@ public sealed class ResponseCompressionWebTests : IClassFixture<IntakeWebApplica
         var accessToken = await RequestTokenAsync(client, AllScopes);
         client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Encoding", "br, gzip");
 
-        using var response = await PostMcpAsync(client, accessToken, ToolsListPayload(1));
+        using var response = await PostMcpAsync(client, CasesServer, accessToken, ToolsListPayload(1));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var streamed = response.Content.Headers.ContentType?.MediaType == "text/event-stream";

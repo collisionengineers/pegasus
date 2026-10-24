@@ -63,7 +63,9 @@ is not offered on a Triage Case.
 - an authenticated Principal declares one over the Principal API;
 - an authorised staff member classifies safely retained, attributable
   material as Triage with **Open the Triage** on the message classified, or
-  corrected to, Triage request;
+  corrected to, Triage request; the Automation Actor does so with
+  `pegasus_intake_action` `open_triage`, and a correction to Triage request
+  opens nothing by itself (operator, 22 October 2026; R223);
 - an authorised staff member chooses Triage in **Create case**, giving only
   the Principal and the registration.
 
@@ -86,7 +88,9 @@ not treat it as an instruction. The classification decision itself is the
 match evidence, with its policy key and version on the record. With an
 established Principal and a known registration, Pegasus allocates the `t.`
 Case/PO, opens the Triage Case as `Open`, records its origin receipt and
-history, and starts standard Case custody, all in one transaction. With no
+history, and starts standard Case custody, all in one transaction. A
+request in reply form opens the Triage unless the thread already holds a
+Case or Triage (operator, 22 October 2026; R195). With no
 known registration no Triage opens and no Unidentified item is made: the
 message shows in the Inbox's No Case Found scope until staff open the
 Triage from it with a registration. A message left Unclassified

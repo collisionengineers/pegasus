@@ -113,7 +113,9 @@ public static class WorkerDependencyInjection
         services.AddSingleton<Pegasus.Core.ICursorProtector, Pegasus.Infrastructure.Support.UnavailableCursorProtector>();
         azureClientRegistration.AddTo(services);
         services.AddSingleton<StaffNotificationPurgeSchedule>();
+        services.AddSingleton<DocumentUploadSweepSchedule>();
         services.AddSingleton<StagedArtifactSweepCursor>();
+        services.AddSingleton<Pegasus.Core.Documents.DocumentUploadSweepCursor>();
         services.AddSingleton<Pegasus.Core.Triage.TriagePairingSweepCursor>();
 
         if (developmentOffline)
@@ -183,7 +185,9 @@ public static class WorkerDependencyInjection
             serviceProvider.GetRequiredService<ProcessQueuedIntake>());
         services.AddScoped<ReconcilePoisonedIntakeWork>();
         services.AddScoped<ReconcileStagedArtifacts>();
+        services.AddScoped<Pegasus.Core.Documents.SweepAbandonedDocumentUploads>();
         services.AddScoped<ReconcileGroupedImageIntake>();
+        services.AddScoped<ReplayCaseFilings>();
         services.AddSingleton<IExternalWorkEnqueuer>(serviceProvider =>
         {
             var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();

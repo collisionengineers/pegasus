@@ -4,7 +4,7 @@ Use this reference only after the normal route fails or rollback is requested.
 
 | Symptom | Cause and action |
 | --- | --- |
-| Provision fails creating the Web plan or Web App | Read the App Service quota for the effective Web region (`PreProvision` prints it). A `B1` or aggregate limit of 0 is a quota block, not a transient failure: request the increase or set `PEGASUS_WEB_LOCATION` per the skill's cutover section, then provision once more. |
+| Provision fails creating the Web plan or Web App | Read the App Service quota for the effective Web region. A `B1` or aggregate limit of 0 is a quota block, not a transient failure: request the increase or set `PEGASUS_WEB_LOCATION` per the skill's cutover section, then provision once more. |
 | Provision fails after changing Worker settings | Provision can partially update the Function App before failing on Web. Re-read Worker settings before deciding what remains. |
 | Old code is serving | `/diagnostics/version` reports the previous SHA: the package deployment did not complete or the site did not restart onto it. Re-run `az webapp deploy ... --restart true` with the approved `web.zip` and wait for the exact release read-back. Never trust `azd provision` success alone; provision changes settings, not the served bytes. |
 | `az webapp deploy` is refused (401/403) | Basic publishing credentials are disabled by design. The caller's Entra identity needs write access to the Web App (Contributor or Website Contributor on the site); do not enable basic auth to get past it. |

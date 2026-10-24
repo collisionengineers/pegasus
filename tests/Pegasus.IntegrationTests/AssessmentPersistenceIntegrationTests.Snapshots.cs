@@ -396,4 +396,132 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 new(caseId, secondRemovalLease.Version, engineer, "spec-scale-remove-again", secondRemovalLease.Token, specification.SpecificationId),
                 CancellationToken.None));
     }
+
+    /// <summary>
+    /// A version frozen before Registered became the default can say Unknown;
+    /// the live row it restores to records Registered, hand-picked categories
+    /// kept, and the frozen version still says what it was frozen as (R199).
+    /// </summary>
+    [Theory]
+    [InlineData("plain", false)]
+    [InlineData("handpicked", true)]
+    public async Task RestoringAVersionFrozenAsUnknownRecordsRegistered(string variant, bool handPickedParts)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync($"spec-restore-unknown-{variant}")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var save = new SaveEstimate(harness.RepairSpecifications, new EfAiJobStore(harness.Factory, harness.Clock));
+        var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, $"spec-restore-unknown-lease-{variant}");
+        var specification = await save.ExecuteAsync(
+            new(caseId, lease.Version, engineer, $"spec-restore-unknown-save-{variant}", "Recorded the estimate.",
+                lease.Token, null,
+                new("Repairer", 80m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+                [new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "official", null, Quantity: 1)],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+        await SetLiveVatAsync(harness, specification.SpecificationId, "Unknown", handPickedParts);
+        var unknownVersion = await snapshots.FreezeAsync(
+            new(caseId, specification.SpecificationId, engineer, RepairSpecificationSnapshotKind.Imported, "Frozen as Unknown"),
+            CancellationToken.None);
+        await SetLiveVatAsync(harness, specification.SpecificationId, "NotRegistered", false);
+
+        var restoreLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, $"spec-restore-unknown-restore-lease-{variant}");
+        var restored = await new RestoreRepairSpecificationSnapshot(harness.RepairSpecifications).ExecuteAsync(
+            new(caseId, restoreLease.Version, engineer, $"spec-restore-unknown-restore-{variant}",
+                restoreLease.Token, specification.SpecificationId, unknownVersion.Id),
+            CancellationToken.None);
+
+        Assert.Equal(RepairerVatStatus.Registered, restored.Details.VatPolicy.RepairerStatus);
+        await AssertLiveRegisteredAsync(harness, specification.SpecificationId, handPickedParts);
+        await AssertFrozenAsUnknownAsync(harness, unknownVersion.Id);
+    }
+
+    /// <summary>
+    /// Scale freezes the live row as it stands, here Unknown, and writes the
+    /// scaled figures as Registered; Remove scaling restores the version
+    /// frozen as Unknown and it comes back as Registered (R199).
+    /// </summary>
+    [Fact]
+    public async Task RemovingScalingFromAVersionFrozenAsUnknownRecordsRegistered()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("spec-scale-unknown-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var save = new SaveEstimate(harness.RepairSpecifications, new EfAiJobStore(harness.Factory, harness.Clock));
+        var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "spec-scale-unknown-lease-1");
+        var specification = await save.ExecuteAsync(
+            new(caseId, lease.Version, engineer, "spec-scale-unknown-save", "Recorded the estimate.",
+                lease.Token, null,
+                new("Repairer", 80m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+                [
+                    new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "official", null, Quantity: 1),
+                    new("repair", null, "Repair door", 4m, null, false, null, null, "judgement", null),
+                ],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+            CancellationToken.None);
+        await SetLiveVatAsync(harness, specification.SpecificationId, "Unknown", true);
+
+        // The store scales the live row as it stands (the act only reads the
+        // Engineer's Value, which this test supplies): Scale freezes the
+        // Unknown row as BeforeScaling through the real Freeze, then writes
+        // the scaled figures through ApplyDetails.
+        var scaleLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "spec-scale-unknown-lease-2");
+        var scaled = await harness.RepairSpecifications.ScaleAsync(
+            new(caseId, scaleLease.Version, engineer, "spec-scale-unknown-apply", scaleLease.Token,
+                specification.SpecificationId, 15m, ScalingFloors.Default, 5000m),
+            CancellationToken.None);
+
+        Assert.Equal(RepairerVatStatus.Registered, scaled.Details.VatPolicy.RepairerStatus);
+        await AssertLiveRegisteredAsync(harness, specification.SpecificationId, true);
+        var versions = await snapshots.ListAsync(caseId, specification.SpecificationId, CancellationToken.None);
+        Assert.Equal(
+            [RepairSpecificationSnapshotKind.BeforeScaling, RepairSpecificationSnapshotKind.Scaled],
+            versions.Select(version => version.Kind));
+        await AssertFrozenAsUnknownAsync(harness, versions[0].Id);
+
+        var removeLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "spec-scale-unknown-lease-3");
+        var restored = await new RemoveRepairSpecificationScaling(harness.RepairSpecifications).ExecuteAsync(
+            new(caseId, removeLease.Version, engineer, "spec-scale-unknown-remove", removeLease.Token, specification.SpecificationId),
+            CancellationToken.None);
+
+        Assert.Equal(RepairerVatStatus.Registered, restored.Details.VatPolicy.RepairerStatus);
+        await AssertLiveRegisteredAsync(harness, specification.SpecificationId, true);
+        await AssertFrozenAsUnknownAsync(harness, versions[0].Id);
+    }
+
+    /// <summary>The live row's status, and the four category flags: Parts only when hand-picked, else none.</summary>
+    private static async Task SetLiveVatAsync(Harness harness, Guid specificationId, string status, bool handPickedParts)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var row = await context.CaseRepairSpecifications.SingleAsync(item => item.Id == specificationId);
+        row.RepairerVatStatus = status;
+        row.LabourVatApplicable = handPickedParts ? false : (bool?)null;
+        row.PartsVatApplicable = handPickedParts ? true : (bool?)null;
+        row.MaterialsVatApplicable = handPickedParts ? false : (bool?)null;
+        row.SpecialistVatApplicable = handPickedParts ? false : (bool?)null;
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task AssertLiveRegisteredAsync(Harness harness, Guid specificationId, bool handPickedParts)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var row = await context.CaseRepairSpecifications.AsNoTracking().SingleAsync(item => item.Id == specificationId);
+        Assert.Equal("Registered", row.RepairerVatStatus);
+        Assert.Equal(handPickedParts ? false : (bool?)null, row.LabourVatApplicable);
+        Assert.Equal(handPickedParts ? true : (bool?)null, row.PartsVatApplicable);
+        Assert.Equal(handPickedParts ? false : (bool?)null, row.MaterialsVatApplicable);
+        Assert.Equal(handPickedParts ? false : (bool?)null, row.SpecialistVatApplicable);
+    }
+
+    private static async Task AssertFrozenAsUnknownAsync(Harness harness, Guid snapshotId)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var json = await context.CaseRepairSpecificationSnapshots.AsNoTracking()
+            .Where(item => item.Id == snapshotId)
+            .Select(item => item.DetailsJson)
+            .SingleAsync();
+        Assert.Contains("\"RepairerStatus\":0,", json, StringComparison.Ordinal);
+    }
 }

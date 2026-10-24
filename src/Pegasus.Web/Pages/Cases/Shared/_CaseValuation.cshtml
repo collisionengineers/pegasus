@@ -180,14 +180,12 @@
                 var asks = researchOffered && row == 0;
                 var usable = editable && valuation is { Details.RetailValue: > 0m };
                 var retail = valuation?.Details.RetailValue;
-                var trade = valuation?.Details.TradeValue;
                 <div class="valuation-card valuation-card--research @(selected ? "sel" : null) @(pending is null ? null : "is-pending")"
                      tabindex="@(usable ? "0" : null)"
                      data-valuation-pending="@pending?.JobId"
                      data-valuation-card="@(valuation?.ValuationId.ToString("D") ?? researchSlug)"
                      data-valuation-source-card="@ValuationSource.AiMarketResearch"
-                     data-retail="@Figure(retail)"
-                     data-trade="@Figure(trade)">
+                     data-retail="@Figure(retail)">
                     @if (asks)
                     {
                         @* The research form carries the month, the lease, the
@@ -217,8 +215,7 @@
                         <span class="valuation-card-word" data-valuation-chosen-word hidden="@(selected ? null : "hidden")">@ValuationLabels.Selected</span>
                     </div>
                     <div class="valuation-card-figs">
-                        @{ CardFigure(false, null, ValuationLabels.Retail, retail, null, null, pending is not null);
-                            CardFigure(false, null, ValuationLabels.Trade, trade, null, null, pending is not null); }
+                        @{ CardFigure(false, null, ValuationLabels.Retail, retail, null, null, pending is not null); }
                         <div class="valuation-card-fig valuation-card-month">
                             @if (asks)
                             {

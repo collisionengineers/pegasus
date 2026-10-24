@@ -853,11 +853,13 @@ internal static partial class IntakeWebDriver
     }
 
     /// <summary>
-    /// Runs the Worker's grouped-image reconcile sweep once, standing in for
-    /// its timer. A grouped upload's members can drain in an order that
-    /// leaves a member's group outcome pending for this sweep (the ordinal-
-    /// zero member's group lookup resolves only through it), so a test about
-    /// a group's settled state must run it just as production does.
+    /// Runs the Worker's grouped-image reconcile sweep and its Case-filing
+    /// replay once each, in the timer's order, standing in for its timer. A
+    /// grouped upload's members can drain in an order that leaves a member's
+    /// group outcome pending for this sweep (the ordinal-zero member's group
+    /// lookup resolves only through it), and a filing that waited for an
+    /// editor is filed by the replay, so a test about a settled state must
+    /// run both just as production does.
     /// </summary>
     internal static async Task ReconcileGroupedImageIntakeAsync(
         IServiceProvider services,
@@ -867,6 +869,8 @@ internal static partial class IntakeWebDriver
             services,
             (IProcessQueuedIntake)CreateProcessor(services));
         _ = await reconcile.ExecuteAsync(50, cancellationToken);
+        _ = await ActivatorUtilities.CreateInstance<ReplayCaseFilings>(services)
+            .ExecuteAsync(50, cancellationToken);
     }
 
     /// <summary>

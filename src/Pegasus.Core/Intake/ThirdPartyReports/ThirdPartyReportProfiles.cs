@@ -332,10 +332,25 @@ public static class ThirdPartyReportProfiles
     /// classification fact; it must not manufacture a receipt or asset identity
     /// merely to test a route guard. A capture PDF is not one: its
     /// photographs are the material image automation exists to place.
+    ///
+    /// A source carrying a PDF is one too, whatever its issuer (operator,
+    /// 22 October 2026): any PDF a source carries, and an uploaded PDF with a
+    /// readable text layer. One signal covers the whole source, so its loose
+    /// photographs are filed with it once its Case is matched. A capture PDF is
+    /// known from the reading's capture designation, the one retention already
+    /// made, so its signature is not matched a second time.
     /// </summary>
-    public static bool HasRecognizedNonImageDocument(IntakeSourceReadResult readResult)
+    internal static bool HasRecognizedNonImageDocument(
+        IntakeSourceReadResult readResult,
+        VehicleCaptureDesignation capture)
     {
         ArgumentNullException.ThrowIfNull(readResult);
+        ArgumentNullException.ThrowIfNull(capture);
+
+        if (CarriesPdfDocument(readResult, capture))
+        {
+            return true;
+        }
 
         var pages = ThirdPartySourcePage.Read(readResult);
         if (pages.Count == 0)
@@ -347,6 +362,20 @@ public static class ThirdPartyReportProfiles
         return Compiled.Any(candidate =>
             candidate.Signature.Role is not (ThirdPartyDocumentRole.ImageEvidence or ThirdPartyDocumentRole.VehicleCapture)
             && candidate.Matches(document));
+    }
+
+    /// <summary>
+    /// Whether the source carries a PDF that makes it a document carrier (R296,
+    /// R297): read from the reader's PDF readings alone, with no page read and
+    /// no signature match. An incomplete read asks only this.
+    /// </summary>
+    internal static bool CarriesPdfDocument(IntakeSourceReadResult readResult, VehicleCaptureDesignation capture)
+    {
+        ArgumentNullException.ThrowIfNull(readResult);
+        ArgumentNullException.ThrowIfNull(capture);
+
+        return capture.Documents.Count == 0
+            && readResult.PdfReadings.Any(pdf => !pdf.IsRoot || pdf.HasTextLayer);
     }
 
     /// <summary>

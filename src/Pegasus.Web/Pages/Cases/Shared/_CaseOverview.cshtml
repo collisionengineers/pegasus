@@ -39,6 +39,8 @@
     var incidentDate = incidentDateValue?.Value;
     var dueBy = workflow.DueWork?.DueBy
         ?? Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.Deadline)?.Value;
+    // Overdue beside Due by is the Work Centre's one rule on the persisted due instant (CASE-17), once per render.
+    var dueIsOverdue = Model.DueIsOverdue;
     var circumstancesValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.Circumstances);
     var circumstances = circumstancesValue?.Value;
     var contactNameValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.Name);
@@ -127,7 +129,7 @@
                     <div class="fc @Ro()" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.ClaimNumber">@{ Lbl("f-claim-reference", Frame.ClaimReference, claimNumberValue?.Source); }<div class="@ValueClass(claimNumber) mono">@Value(claimNumber)</div>@if (mayEdit){<input id="f-claim-reference" class="fi mono" name="claimNumber" form="case-edit-form" maxlength="200" value="@claimNumber" />}</div>
                     <div class="fc @Ro()" data-field="@Pegasus.Core.Cases.CaseDataFieldNames.IncidentDate">@{ Lbl("f-incident-date", Frame.IncidentDate, incidentDateValue?.Source); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     <div class="fc ro"><span class="lbl">@Frame.Received</span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
-                    <div class="fc @Ro()">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
+                    <div class="fc @Ro()@(dueIsOverdue ? " fc--flag" : null)">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}@if (dueIsOverdue){<partial name="Shared/_StatusChip" model="@OperatorLabels.NeedsAttentionPriority(Pegasus.Core.Operations.NeedsAttentionPriority.Overdue)" />}</div>
                     @* The Sign-off Engineer (v28 P38): decided with the Case, not the report. *@
                     @{ var signOffEditable = Model.SectionIsEditable("report") && data is not null; }
                     <div class="fc @(signOffEditable ? null : "ro")" data-field="signOffEngineerId">

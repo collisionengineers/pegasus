@@ -901,6 +901,8 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
 .fc textarea.fi{min-height:72px;resize:vertical}
 .fc.span2{grid-column:span 2}
 .fc.span4{grid-column:span 4}
+.fc.fc--flag{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 6px;align-items:center}
+.fc.fc--flag>label,.fc.fc--flag>.lbl{grid-column:1/-1}
 .fc .choice{min-height:var(--control);display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500}
 .fc .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
 .is-editing .fc:not(.ro) .fv{display:none}

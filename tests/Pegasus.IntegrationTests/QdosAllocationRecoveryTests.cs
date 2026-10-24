@@ -1422,7 +1422,6 @@ public sealed class QdosAllocationRecoveryTests
         public Task<IntakeEvaluationRevision?> GetCompletedEvaluationAsync(Guid stagedReceiptId, CancellationToken cancellationToken) => inner.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
         public Task RetryProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, string failureCode, bool terminal, CancellationToken cancellationToken) => inner.RetryProcessingAsync(workItemId, leaseToken, dueAtUtc, failureCode, terminal, cancellationToken);
         public Task MarkPoisonedAsync(Guid stagedReceiptId, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) => inner.MarkPoisonedAsync(stagedReceiptId, failedAtUtc, cancellationToken);
-        public Task RecordTerminalReplayFailureAsync(Guid stagedReceiptId, string failureCode, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) => inner.RecordTerminalReplayFailureAsync(stagedReceiptId, failureCode, failedAtUtc, cancellationToken);
         public Task<int> RecoverInterruptedWorkAsync(DateTimeOffset nowUtc, DateTimeOffset staleDispatchedBeforeUtc, int maximumItems, CancellationToken cancellationToken) => inner.RecoverInterruptedWorkAsync(nowUtc, staleDispatchedBeforeUtc, maximumItems, cancellationToken);
         public Task<Guid?> FindStagedReceiptIdForReceiptAsync(Guid intakeReceiptId, CancellationToken cancellationToken) => inner.FindStagedReceiptIdForReceiptAsync(intakeReceiptId, cancellationToken);
     }
@@ -1941,7 +1940,8 @@ public sealed class IntakeAllocationConsumerTests
         string accessToken,
         string payload)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp");
+        // The intake server: this file's token and tools are intake's.
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp/intake");
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Accept.ParseAdd("text/event-stream");

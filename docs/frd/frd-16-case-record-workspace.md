@@ -147,13 +147,14 @@ is on its way to Box. Once the report is stored, the Next action is
 **Create audit** on an Inspection + Audit Case that has no Audit yet, whether
 or not the report is sent, with the Actions menu's own control (greyed with
 its reason where Core refuses it). On any other Case delivery is the Next
-action once the report is stored (operator, 27 September 2026), and it is
-**None** once a send of the report is accepted: the step follows Pegasus's
-own send record, not the Sent poll, while the Case state still moves to
-Report sent when the Sent item is observed (operator, 11 and 12 October
-2026). Once Report sent is recorded and the Case has an open task, the
-Case's open tasks are the step in place of None ([Tasks](#tasks); operator,
-6 October 2026).
+action once the report is stored (operator, 27 September 2026). Once a send
+of the report is accepted there is no step: that follows Pegasus's own send
+record, not the Sent poll, while the Case state still moves to Report sent
+when the Sent item is observed (operator, 11 and 12 October 2026). Once
+Report sent is recorded and the Case has an open task, the Case's open tasks
+are the step ([Tasks](#tasks); operator, 6 October 2026). When no step
+remains, as on a closed or archived Case, the Next action is not drawn
+(operator, 19 October 2026).
 On an open Case with an open query the step is **Resolve query**,
 before any report step: when the oldest open query came by e-mail and staff
 mail is available, its control is **Reply**, which opens that message's
@@ -276,13 +277,13 @@ Audit and a Triage Case, has one view and no Views card; a `view` value in
 its address is ignored.
 
 **The Views card** heads the aside, above Figures, and exists only once the
-Audit exists. It holds two rows: "Inspection · {Case/PO}" with a "Sent"
-chip when the Inspection report was sent (none when the Audit was created
-first), and "Audit · a.{Case/PO}" with the Case's state chip. The current view
-reads plain and the other is a link. `?view=audit` and `?view=inspection`
-address the two views; the Audit view
-is the default, and a write returns to it. The ribbon is unchanged: its
-heading stays the Case/PO.
+Audit exists. It holds two rows: "Inspection · {Case/PO}" with a
+"Report sent" chip, dot included, when the Inspection report was sent (none
+when the Audit was created first; operator, 22 October 2026), and "Audit ·
+a.{Case/PO}" with the Case's state chip. The current view reads plain
+and the other is a link. `?view=audit` and `?view=inspection` address the
+two views; the Audit view is the default, and a write returns to it. The
+ribbon is unchanged: its heading stays the Case/PO.
 
 **The Audit view** is the Case as it is worked: every section reads and
 edits the Audit's values, and the Actions menu, Next action and the report
@@ -302,9 +303,9 @@ report may be generated and sent again when needed (operator, 2 October
 2026). The Next action is the viewed work's (operator, 2 October 2026): in
 the Inspection view it states the Inspection report's own step, lists that
 report's blockers while it is not ready, and its links stay in the
-Inspection view; once a send of the Inspection report is accepted it states
-nothing (operator, 12 October 2026), unless a later change made that report
-stale.
+Inspection view; once a send of the Inspection report is accepted it is not
+drawn (operator, 12 and 19 October 2026), unless a later change made that
+report stale.
 
 ### Actions menu
 
@@ -364,6 +365,7 @@ Return to Engineer needs no session. The rules behind each action are in
   Its dialog takes the Case stage to return to and a reason, and the Case
   returns through the destination gates
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-transitions)).
+  A request with no destination is refused (operator, 22 October 2026).
 - **Archive**, on a closed Case
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)). While the Case
   has an open task it is greyed with the reason "Complete or cancel every
@@ -422,7 +424,9 @@ absent word (Not recorded, Unassigned), so the control reads as the box does. Th
 Claim Source contacts. A Notes band shows the Principal's and the Claim
 source's Notes on every Case, read-only and absent when the record has none
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
-beside this Case's own Principal and Claim source notes. Then Accident
+beside this Case's own Principal and Claim source notes. A Triage Case shows
+the Principal's notes too, read-only and absent when the Principal has none
+(operator ruling, 22 October 2026). Then Accident
 circumstances beside Notes from client.
 
 ### Claim
@@ -561,7 +565,8 @@ chosen they are blank and stay report blockers. The section head reads the
 Engineer's Value the Case holds and follows each save without a reload.
 
 Valuation lists each entry with its source, date, time, retail and trade
-values, and guide month (`EXT-10`). A calculated Engineer's Value entry
+values, and guide month (`EXT-10`); the AI market research card has no Trade
+(operator, 21 October 2026). A calculated Engineer's Value entry
 carries a mileage when the Case has one. Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
 (automation only). Read and edit show the same cards, three to a row (two at

@@ -102,6 +102,8 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0079](0079-cazana-companion-account-and-companion-report.md) | Cazana Companion account and Companion Report | accepted | — | EXT-07, EXT-13 |
 | [ADR-0080](0080-automation-mcp-one-server-per-scope.md) | One Automation MCP server per scope | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06 |
 | [ADR-0081](0081-render-a-refused-full-page-raster-with-pdfium.md) | Render a refused full-page raster's page with PDFtoImage over PDFium | accepted | — | INT-16, AI-04 |
+| [ADR-0082](0082-the-deployment-plan-check-does-not-read-the-app-service-quota.md) | The deployment plan check does not read the App Service quota | accepted | — | OPS-13 |
+| [ADR-0083](0083-stage-large-automation-documents-in-parts.md) | Stage large Automation documents in parts | accepted | — | MCP-04 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

@@ -233,7 +233,8 @@ spec drifts from the sum again the bar's mismatch chip rescales it on press
 (v38 P4). Every import, scale, removal, restore and sent report freezes a
 numbered version with how it came about, and an import onto a spec freezes
 the grid it replaces first; Restore makes a frozen version the spec's content
-after freezing the outgoing one; the version a sent report used is marked.
+after freezing the outgoing one, and a version frozen as Unknown restores as
+Registered (operator, 22 October 2026); the version a sent report used is marked.
 Compare reads any two of a Case's specifications, or any of a spec's frozen
 versions, line by line and side by side, every line listed with its value at
 each side's rate; opened from More it starts at the version the last sent
@@ -247,7 +248,10 @@ when the Engineer says so (v38 P3). Send to AI proposes only.
 or not; an imported line keeps the values its source printed beside the
 amendment, and the numbered versions keep what a scale, restore or sent
 report replaced. There is no separate supersede step (operator,
-25 September 2026). A Case with no Current spec cannot generate a report. The
+25 September 2026). The editor reads and shows hours to two decimals with the
+stored hours untouched; the rollup, gross, slider and Versions draft read the
+stored figure, and the statement and Compare sheet read two decimals like the
+report (operator, 22 October 2026). A Case with no Current spec cannot generate a report. The
 specification uses one line vocabulary and one calculation basis. The three assessment-report lists (new parts, repairs
 and additional operations) are one deterministic names-only projection of
 those ordered lines, not a second renderer-owned specification. Repairs lists
@@ -513,8 +517,7 @@ repair totals are never invented to get around the estimate contract. The
 repairer's VAT status is recorded on each repair specification, the one
 owner of that fact. The default is Registered and does not block **Use
 repair spec**; Not registered remains a choice. A hand-picked set of VAT
-categories the report has no wording for still blocks. Unknown still blocks
-the report only if a spec is still stored as Unknown
+categories the report has no wording for still blocks
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report)).
 Report readiness reads the status from the Current repair specification; the
 Case records it nowhere else. Supplied, observed, derived and professionally

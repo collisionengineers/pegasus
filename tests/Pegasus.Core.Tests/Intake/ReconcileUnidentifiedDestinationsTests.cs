@@ -773,6 +773,9 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     {
         public Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken) =>
             Task.FromResult(principalId);
+
+        public Task<bool> ThreadHoldsCaseOrTriageAsync(Guid receiptId, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 
     private sealed class UnusedVrmSuggestions : IVrmSuggestionStore

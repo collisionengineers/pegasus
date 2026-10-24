@@ -9,10 +9,15 @@
 @{
     var workflow = Model.Case!.Workflow;
     var staleGeneration = Model.CurrentReportGeneration is { State: CaseReportGenerationState.Stale };
-    var next = Model.NextAction;
     var reportBlockers = Model.ReportNotReadyBlockers;
     var requirements = Model.ReportNotReadyRequirements;
+    var next = Model.NextAction(requirements);
     var openTasks = Model.OpenTasks;
+    var drawsNextAction = next is not null
+        || Model.AiDrafts.Count > 0
+        || Model.Case!.CancellationMessageId is not null
+        || staleGeneration
+        || openTasks.Count > 0;
     var engineerValue = Model.EngineerValue;
     var repairCost = Model.RepairCostIncVat;
     const string ReportNotReadyFold = "case.aside.report";
@@ -53,7 +58,8 @@
     @* Views (v29 option 4): once the Case has its Audit, its two views,
        each named by the reference its report carries; the current one
        plain, the other a link. The Audit row reads the Case's state
-       chip exactly as the ribbon does. *@
+       chip exactly as the ribbon does; the Inspection row's chip is the
+       same chip in the Report sent stage (operator, 22 October 2026). *@
     @if (Model.Works is { HasAudit: true })
     {
         var inspectionName = $"{Frame.InspectionView} · {workflow.Identity.Reference}";
@@ -74,7 +80,7 @@
                     {
                         @* No chip when the Audit was created before the Inspection
                            report was sent (operator, 1 October 2026). *@
-                        <span class="status status--plain status--green">@Frame.Sent</span>
+                        <partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(Pegasus.Core.Workflow.CaseLifecycleState.ReportSent)" />
                     }
                 </div>
                 <div class="next-row" data-case-view-row="audit">
@@ -129,209 +135,215 @@
             </dl>
         </div>
     </section>
-    <section class="panel context-card" data-next-action>
-        <div class="panel-head"><h2>@Frame.NextAction</h2></div>
-        <div class="panel-body">
-            @foreach (var draft in Model.AiDrafts)
-            {
-                var (label, action) = draft.Action switch
+    @* The card is drawn only when it holds something: a step, an AI
+       draft, the cancellation notice, the stale notice or an open task.
+       With nothing left to do it is absent (operator, 19 October 2026). *@
+    @if (drawsNextAction)
+    {
+        <section class="panel context-card" data-next-action>
+            <div class="panel-head"><h2>@Frame.NextAction</h2></div>
+            <div class="panel-body">
+                @foreach (var draft in Model.AiDrafts)
                 {
-                    AiDraftAction.ReviewEstimate => (OperatorLabels.AiJobs.AiProposalReady, Frame.ReviewEstimate),
-                    AiDraftAction.OpenQuery => ("Query response draft ready", OperatorLabels.QueryResponseJobs.ReplyWithDraft),
-                    _ => ("Unidentified resolution draft ready", Frame.Review)
-                };
-                <div class="next-row ai-next" data-ai-draft="@draft.Job.JobId">
-                    <span><span class="src-tag src-tag--ai">AI</span> @label</span>
-                    @if (!string.IsNullOrWhiteSpace(draft.Route))
+                    var (label, action) = draft.Action switch
                     {
-                        <a class="btn btn--small btn--primary" href="@draft.Route">@action</a>
+                        AiDraftAction.ReviewEstimate => (OperatorLabels.AiJobs.AiProposalReady, Frame.ReviewEstimate),
+                        AiDraftAction.OpenQuery => ("Query response draft ready", OperatorLabels.QueryResponseJobs.ReplyWithDraft),
+                        _ => ("Unidentified resolution draft ready", Frame.Review)
+                    };
+                    <div class="next-row ai-next" data-ai-draft="@draft.Job.JobId">
+                        <span><span class="src-tag src-tag--ai">AI</span> @label</span>
+                        @if (!string.IsNullOrWhiteSpace(draft.Route))
+                        {
+                            <a class="btn btn--small btn--primary" href="@draft.Route">@action</a>
+                        }
+                    </div>
+                }
+                @* FRD-13 "Cancellation messages": while a linked message is currently
+                   classified a cancellation and the Case is open, the Next action
+                   names it and opens the message. Hold and Principal cancelled stay
+                   in the Actions menu; nothing changes by itself. *@
+                @if (Model.Case!.CancellationMessageId is { } cancellationMessageId)
+                {
+                    <div class="next-row" data-cancellation-received="@cancellationMessageId">
+                        <span>@Frame.CancellationReceived</span>
+                        <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@cancellationMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a>
+                    </div>
+                }
+                @if (staleGeneration)
+                {
+                    <div class="notice notice--warning" role="status" data-dismissable data-report-stale>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+                        <span>@CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice</span>
+                        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
+                    </div>
+                }
+                @* The one step (v35 design 8, operator, 8 October 2026). A Case
+                   requirement or a report blocker is drawn in full: what is
+                   missing, its source and reason, what clears it, and one
+                   full-width control to where it is cleared. A step whose control
+                   says what the step says is that control alone; any other names
+                   itself above its section's control. The step is the viewed
+                   work's and its link stays in that view (operator, 2 October
+                   2026). Assign Engineer and Create audit open the Actions menu's
+                   own dialogs, Create audit greyed with its reason as the menu
+                   item is; Resolve query is the menu's own post, or the mail
+                   query's Reply (operator, 11 October 2026); where the menu does
+                   not offer the act the step is its words alone (issue 1025). *@
+                @if (next is { } nextRow)
+                {
+                    if (nextRow.Blocker is { } first)
+                    {
+                        var firstSection = Model.BlockerSectionKey(first);
+                        var firstFocus = Model.BlockerEditFocus(first);
+                        <div class="next-step next-step--item" data-next-step data-report-blocker="@firstSection">
+                            <strong data-next-label>@first.Requirement</strong>
+                            <small>@first.Source · @first.WhyOutstanding</small>
+                            @* No sentence on how to resolve it: the control below is the how (v36 item AB, 9 October 2026). *@
+                            @if (firstFocus is not null)
+                            {
+                                <partial name="Cases/Shared/_CaseBlockerEdit" model="new CaseBlockerEditView(Model, firstFocus, repairSpecLabel, StepButton)" />
+                            }
+                            else if (firstSection is not null)
+                            {
+                                <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                                   asp-route-section="@firstSection" asp-route-view="@Model.ViewRoute" asp-fragment="section-@firstSection"
+                                   data-section-jump="@firstSection"
+                                   data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(first)"
+                                   data-section-field="@CaseWorkspaceLabels.Report.BlockerField(first)">@SectionLabel(firstSection)</a>
+                            }
+                            else if (Model.BlockerOpensAccounts(first))
+                            {
+                                <a class="@StepButton" asp-page="/Administration/Accounts/Index" data-blocker-accounts>@OperatorLabels.Admin.Accounts</a>
+                            }
+                        </div>
                     }
-                </div>
-            }
-            @* FRD-13 "Cancellation messages": while a linked message is currently
-               classified a cancellation and the Case is open, the Next action
-               names it and opens the message. Hold and Principal cancelled stay
-               in the Actions menu; nothing changes by itself. *@
-            @if (Model.Case!.CancellationMessageId is { } cancellationMessageId)
-            {
-                <div class="next-row" data-cancellation-received="@cancellationMessageId">
-                    <span>@Frame.CancellationReceived</span>
-                    <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@cancellationMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a>
-                </div>
-            }
-            @if (staleGeneration)
-            {
-                <div class="notice notice--warning" role="status" data-dismissable data-report-stale>
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
-                    <span>@CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice</span>
-                    <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
-                </div>
-            }
-            @* The one step (v35 design 8, operator, 8 October 2026). A Case
-               requirement or a report blocker is drawn in full: what is
-               missing, its source and reason, what clears it, and one
-               full-width control to where it is cleared. A step whose control
-               says what the step says is that control alone; any other names
-               itself above its section's control. The step is the viewed
-               work's and its link stays in that view (operator, 2 October
-               2026). Assign Engineer and Create audit open the Actions menu's
-               own dialogs, Create audit greyed with its reason as the menu
-               item is; Resolve query is the menu's own post, or the mail
-               query's Reply (operator, 11 October 2026); where the menu does
-               not offer the act the step is its words alone (issue 1025). *@
-            @if (next is { } nextRow)
-            {
-                if (nextRow.Blocker is { } first)
-                {
-                    var firstSection = Model.BlockerSectionKey(first);
-                    var firstFocus = Model.BlockerEditFocus(first);
-                    <div class="next-step next-step--item" data-next-step data-report-blocker="@firstSection">
-                        <strong data-next-label>@first.Requirement</strong>
-                        <small>@first.Source · @first.WhyOutstanding</small>
-                        @* No sentence on how to resolve it: the control below is the how (v36 item AB, 9 October 2026). *@
-                        @if (firstFocus is not null)
-                        {
-                            <partial name="Cases/Shared/_CaseBlockerEdit" model="new CaseBlockerEditView(Model, firstFocus, repairSpecLabel, StepButton)" />
-                        }
-                        else if (firstSection is not null)
-                        {
-                            <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
-                               asp-route-section="@firstSection" asp-route-view="@Model.ViewRoute" asp-fragment="section-@firstSection"
-                               data-section-jump="@firstSection"
-                               data-section-tab="@CaseWorkspaceLabels.Report.BlockerTab(first)"
-                               data-section-field="@CaseWorkspaceLabels.Report.BlockerField(first)">@SectionLabel(firstSection)</a>
-                        }
-                        else if (Model.BlockerOpensAccounts(first))
-                        {
-                            <a class="@StepButton" asp-page="/Administration/Accounts/Index" data-blocker-accounts>@OperatorLabels.Admin.Accounts</a>
-                        }
-                    </div>
-                }
-                else if (Model.NextActionRequirement is { } requirement)
-                {
-                    <div class="next-step next-step--item" data-next-step data-case-requirement>
-                        <strong data-next-label>@requirement.Title</strong>
-                        <small>@RequirementSource(requirement)</small>
-                        <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@requirement.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@requirement.SectionKey" data-section-jump="@requirement.SectionKey">@SectionLabel(requirement.SectionKey)</a>
-                    </div>
-                }
-                else if (nextRow.OpensAssignEngineer)
-                {
-                    <div class="next-step" data-next-step>
-                        @if (Model.TakeEngineerId is { } takeEngineerId)
-                        {
-                            @* An Unassigned Case: Take beside Assign Engineer assigns
-                               it to the signed-in person in one step (#1213, v41 K9). *@
-                            <div class="next-row" data-next-assign>
+                    else if (Model.NextActionRequirement(nextRow, requirements) is { } requirement)
+                    {
+                        <div class="next-step next-step--item" data-next-step data-case-requirement>
+                            <strong data-next-label>@requirement.Title</strong>
+                            <small>@RequirementSource(requirement)</small>
+                            <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@requirement.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@requirement.SectionKey" data-section-jump="@requirement.SectionKey">@SectionLabel(requirement.SectionKey)</a>
+                        </div>
+                    }
+                    else if (nextRow.OpensAssignEngineer)
+                    {
+                        <div class="next-step" data-next-step>
+                            @if (Model.TakeEngineerId is { } takeEngineerId)
+                            {
+                                @* An Unassigned Case: Take beside Assign Engineer assigns
+                                   it to the signed-in person in one step (#1213, v41 K9). *@
+                                <div class="next-row" data-next-assign>
+                                    <button type="button" class="@StepButton" data-dialog-open="case-handoff-dialog" data-next-assign-engineer>@CaseWorkspaceLabels.AssignEngineer</button>
+                                    <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="AssignEngineer" data-case-take>
+                                        <input type="hidden" name="id" value="@workflow.CaseId" />
+                                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                                        @if (!string.IsNullOrWhiteSpace(Model.LeaseToken)) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                                        <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                        <input type="hidden" name="section" value="@Model.Section" />
+                                        <input type="hidden" name="engineerId" value="@takeEngineerId" />
+                                        <button type="submit" class="btn btn--primary btn--small" data-busy-label="@OperatorLabels.Busy.Assigning">@OperatorLabels.WorkCentre.Take</button>
+                                    </form>
+                                </div>
+                            }
+                            else if (Model.CanAssignEngineer)
+                            {
                                 <button type="button" class="@StepButton" data-dialog-open="case-handoff-dialog" data-next-assign-engineer>@CaseWorkspaceLabels.AssignEngineer</button>
-                                <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="AssignEngineer" data-case-take>
-                                    <input type="hidden" name="id" value="@workflow.CaseId" />
-                                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                                    @if (!string.IsNullOrWhiteSpace(Model.LeaseToken)) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
-                                    <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                    <input type="hidden" name="section" value="@Model.Section" />
-                                    <input type="hidden" name="engineerId" value="@takeEngineerId" />
-                                    <button type="submit" class="btn btn--primary btn--small" data-busy-label="@OperatorLabels.Busy.Assigning">@OperatorLabels.WorkCentre.Take</button>
-                                </form>
-                            </div>
-                        }
-                        else if (Model.CanAssignEngineer)
-                        {
-                            <button type="button" class="@StepButton" data-dialog-open="case-handoff-dialog" data-next-assign-engineer>@CaseWorkspaceLabels.AssignEngineer</button>
-                        }
-                        else
-                        {
+                            }
+                            else
+                            {
+                                <strong data-next-label>@nextRow.Label</strong>
+                            }
+                        </div>
+                    }
+                    else if (nextRow.ListsOpenTasks)
+                    {
+                        @* The Case's open tasks are the step once the report is sent
+                           (operator, 6 October 2026): the list below draws them. *@
+                    }
+                    else if (nextRow.ResolvesQuery)
+                    {
+                        @* Resolve query (operator, 11 October 2026): a query that came
+                           by e-mail leads to that message's reply, where the composer's
+                           tick resolves it on observed Sent; a staff-logged query is the
+                           Actions menu's own Resolve query. *@
+                        <div class="next-step" data-next-step data-next-resolve-query>
+                            @if (Model.OldestOpenQuery is { Source: Pegasus.Core.Workflow.CaseQuerySource.Mail, RetainedMessageId: { } queryMessageId } && Model.StaffMailAvailable)
+                            {
+                                <strong data-next-label>@nextRow.Label</strong>
+                                <a class="@StepButton" asp-page="/Mail/Message" asp-route-id="@queryMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@workflow.Identity.Reference" asp-route-resolveQuery="true" data-next-reply-query>@OperatorLabels.StaffMail.Reply</a>
+                            }
+                            else if (Model.CanResolveQuery)
+                            {
+                                <partial name="Cases/Shared/_ResolveQueryForm" model="Model" view-data="@(new ViewDataDictionary(ViewData) { ["ResolveQueryButtonClass"] = StepButton })" />
+                            }
+                            else
+                            {
+                                <strong data-next-label>@nextRow.Label</strong>
+                            }
+                        </div>
+                    }
+                    else if (nextRow.OpensCreateAudit)
+                    {
+                        <div class="next-step" data-next-step>
+                            @if (Model.CreateAuditCondition is { } createAuditCondition)
+                            {
+                                <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
+                                    <button type="button" class="@StepButton" disabled aria-disabled="true" data-next-create-audit>@Frame.CreateAudit</button>
+                                </span>
+                            }
+                            else
+                            {
+                                <button type="button" class="@StepButton" data-dialog-open="case-create-audit-dialog" data-next-create-audit>@Frame.CreateAudit</button>
+                            }
+                        </div>
+                    }
+                    else if (workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.Held)
+                    {
+                        @* A Held Case's step names the hold with its review date, as
+                           the ribbon's chip does, and its control is Release Hold, the
+                           Actions menu's own dialog (v36 item D, 9 October 2026). *@
+                        <div class="next-step" data-next-step data-next-held>
+                            <strong data-next-label>@Model.StateChipText</strong>
+                            @if (!Model.ColleagueIsEditing)
+                            {
+                                <button type="button" class="@StepButton" data-dialog-open="case-release-hold-dialog" data-next-release-hold>@Frame.ReleaseHold</button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="next-step" data-next-step>
                             <strong data-next-label>@nextRow.Label</strong>
-                        }
+                            <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@nextRow.SectionKey">@SectionLabel(nextRow.SectionKey)</a>
+                        </div>
+                    }
+                }
+                @if (openTasks.Count > 0)
+                {
+                    @* Once Report sent is recorded the Case's open tasks follow
+                       the step (operator, 6 October 2026), and while any is open
+                       Archive is greyed: one row per open task, oldest first, each
+                       row the link that opens the Tasks dialog, which owns them
+                       (v41 K3). *@
+                    <div class="sub-panel blockers" data-open-tasks>
+                        <h3>@CaseWorkspaceLabels.Tasks.Title</h3>
+                        <ul class="blocker-list">
+                            @foreach (var task in openTasks)
+                            {
+                                <li class="blocker" data-open-task="@task.Id">
+                                    <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                                       asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
+                                       data-dialog-open="case-tasks-dialog"><strong>@task.Description</strong></a>
+                                </li>
+                            }
+                        </ul>
                     </div>
                 }
-                else if (nextRow.ListsOpenTasks)
-                {
-                    @* The Case's open tasks are the step once the report is sent
-                       (operator, 6 October 2026): the list below draws them. *@
-                }
-                else if (nextRow.ResolvesQuery)
-                {
-                    @* Resolve query (operator, 11 October 2026): a query that came
-                       by e-mail leads to that message's reply, where the composer's
-                       tick resolves it on observed Sent; a staff-logged query is the
-                       Actions menu's own Resolve query. *@
-                    <div class="next-step" data-next-step data-next-resolve-query>
-                        @if (Model.OldestOpenQuery is { Source: Pegasus.Core.Workflow.CaseQuerySource.Mail, RetainedMessageId: { } queryMessageId } && Model.StaffMailAvailable)
-                        {
-                            <strong data-next-label>@nextRow.Label</strong>
-                            <a class="@StepButton" asp-page="/Mail/Message" asp-route-id="@queryMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@workflow.Identity.Reference" asp-route-resolveQuery="true" data-next-reply-query>@OperatorLabels.StaffMail.Reply</a>
-                        }
-                        else if (Model.CanResolveQuery)
-                        {
-                            <partial name="Cases/Shared/_ResolveQueryForm" model="Model" view-data="@(new ViewDataDictionary(ViewData) { ["ResolveQueryButtonClass"] = StepButton })" />
-                        }
-                        else
-                        {
-                            <strong data-next-label>@nextRow.Label</strong>
-                        }
-                    </div>
-                }
-                else if (nextRow.OpensCreateAudit)
-                {
-                    <div class="next-step" data-next-step>
-                        @if (Model.CreateAuditCondition is { } createAuditCondition)
-                        {
-                            <span class="menu-gated" title="@createAuditCondition" data-create-audit-condition="@createAuditCondition">
-                                <button type="button" class="@StepButton" disabled aria-disabled="true" data-next-create-audit>@Frame.CreateAudit</button>
-                            </span>
-                        }
-                        else
-                        {
-                            <button type="button" class="@StepButton" data-dialog-open="case-create-audit-dialog" data-next-create-audit>@Frame.CreateAudit</button>
-                        }
-                    </div>
-                }
-                else if (workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.Held)
-                {
-                    @* A Held Case's step names the hold with its review date, as
-                       the ribbon's chip does, and its control is Release Hold, the
-                       Actions menu's own dialog (v36 item D, 9 October 2026). *@
-                    <div class="next-step" data-next-step data-next-held>
-                        <strong data-next-label>@Model.StateChipText</strong>
-                        @if (!Model.ColleagueIsEditing)
-                        {
-                            <button type="button" class="@StepButton" data-dialog-open="case-release-hold-dialog" data-next-release-hold>@Frame.ReleaseHold</button>
-                        }
-                    </div>
-                }
-                else
-                {
-                    <div class="next-step" data-next-step>
-                        <strong data-next-label>@nextRow.Label</strong>
-                        <a class="@StepButton" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-route-view="@Model.ViewRoute" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@nextRow.SectionKey">@SectionLabel(nextRow.SectionKey)</a>
-                    </div>
-                }
-            }
-            @if (openTasks.Count > 0)
-            {
-                @* Once Report sent is recorded the Case's open tasks follow
-                   the step (operator, 6 October 2026), and while any is open
-                   Archive is greyed: one row per open task, oldest first, each
-                   row the link that opens the Tasks dialog, which owns them
-                   (v41 K3). *@
-                <div class="sub-panel blockers" data-open-tasks>
-                    <h3>@CaseWorkspaceLabels.Tasks.Title</h3>
-                    <ul class="blocker-list">
-                        @foreach (var task in openTasks)
-                        {
-                            <li class="blocker" data-open-task="@task.Id">
-                                <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
-                                   asp-route-section="@Model.Section" asp-route-view="@Model.ViewRoute" asp-route-dialog="tasks"
-                                   data-dialog-open="case-tasks-dialog"><strong>@task.Description</strong></a>
-                            </li>
-                        }
-                    </ul>
-                </div>
-            }
-        </div>
-    </section>
+            </div>
+        </section>
+    }
     @* Report not ready (v35 design 8, operator, 8 October 2026): everything
        outstanding, the step's own item included, in a card of its own,
        folded until this browser opens it. The Case requirements come first,

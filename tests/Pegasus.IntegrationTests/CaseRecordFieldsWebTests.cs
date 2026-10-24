@@ -91,6 +91,58 @@ public sealed class CaseRecordFieldsWebTests
         Assert.Equal(2, store.Saves.Count);
     }
 
+    /// <summary>
+    /// The Due cell carries Overdue by the Work Centre's one rule (CASE-17,
+    /// R307, R308): the persisted due instant at or before now, on an open
+    /// Case only. The host clock is fixed at the instant the rows are
+    /// measured from, so "at" is exact.
+    /// </summary>
+    [Theory]
+    [InlineData("before", CaseLifecycleState.NotReady, -60, true)]
+    [InlineData("at", CaseLifecycleState.NotReady, 0, true)]
+    [InlineData("after", CaseLifecycleState.NotReady, 60, false)]
+    [InlineData("none", CaseLifecycleState.NotReady, null, false)]
+    [InlineData("held", CaseLifecycleState.Held, -60, true)]
+    [InlineData("review", CaseLifecycleState.Review, -60, true)]
+    [InlineData("engineer", CaseLifecycleState.ReportPreparation, -60, true)]
+    [InlineData("sent", CaseLifecycleState.ReportSent, -60, false)]
+    [InlineData("closed", CaseLifecycleState.PrincipalCancelled, -60, false)]
+    public async Task TheDueCellCarriesOverdueByTheWorkCentresRule(
+        string row, CaseLifecycleState state, int? minutesFromNow, bool overdue)
+    {
+        Assert.NotEmpty(row);
+        var store = new RecordingCaseDetailsStore
+        {
+            State = state,
+            SummaryDueAtUtc = minutesFromNow is { } minutes ? DueClock.AddMinutes(minutes) : null
+        };
+
+        var cell = DueCell(OverviewPanel(await ReadCaseAsync(
+            store, services => Substitute<TimeProvider>(services, new FixedClock(DueClock)))));
+
+        Assert.Contains("10 May 2031", cell, StringComparison.Ordinal);
+        Assert.Equal(overdue, cell.Contains(OverdueChip, StringComparison.Ordinal));
+        Assert.Equal(overdue, cell.Contains("fc--flag", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TheDueCellKeepsOverdueBesideItsControlWhileEditing()
+    {
+        var store = new RecordingCaseDetailsStore { SummaryDueAtUtc = DueClock.AddMinutes(-60) };
+        var ports = new RecordGapPorts(store);
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            ports.Register(services);
+            Substitute<TimeProvider>(services, new FixedClock(DueClock));
+        });
+
+        var cell = DueCell(OverviewPanel(await workspace.GetWorkspaceAsync()));
+
+        var control = cell.IndexOf("id=\"f-due-by\"", StringComparison.Ordinal);
+        Assert.True(control >= 0, "The Due control must render while editing.");
+        Assert.True(cell.IndexOf(OverdueChip, StringComparison.Ordinal) > control);
+    }
+
     [Fact]
     public async Task TheReportSectionEditsTheValuationCommentaryTextBesideItsSwitch()
     {
@@ -458,6 +510,27 @@ public sealed class CaseRecordFieldsWebTests
         var reading = SectionHtml(await ReadCaseAsync(store, Register), "settlement");
         Assert.Contains("data-salvage-matrix=\"\"", reading, StringComparison.Ordinal);
         Assert.DoesNotContain("data-salvage-matrix=\"[", reading, StringComparison.Ordinal);
+    }
+
+    private static readonly DateTimeOffset DueClock = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+
+    private static readonly string OverdueChip =
+        $"<span class=\"status status--red\">{OperatorLabels.NeedsAttentionPriority(Pegasus.Core.Operations.NeedsAttentionPriority.Overdue)}</span>";
+
+    /// <summary>The Overview's Due cell: from its opening tag to the next cell's.</summary>
+    private static string DueCell(string overview)
+    {
+        var label = overview.IndexOf($">{CaseWorkspaceLabels.Frame.Due}<", StringComparison.Ordinal);
+        Assert.True(label >= 0, "The Due cell must render.");
+        var start = overview.LastIndexOf("<div class=\"fc", label, StringComparison.Ordinal);
+        var next = overview.IndexOf("<div class=\"fc", label, StringComparison.Ordinal);
+        Assert.True(start >= 0 && next > start, "The Due cell must sit between two cells.");
+        return overview[start..next];
+    }
+
+    private sealed class FixedClock(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
     private sealed class FixedSalvageMatrix(SalvageMatrix? matrix) : IPrincipalSalvageMatrixQueries

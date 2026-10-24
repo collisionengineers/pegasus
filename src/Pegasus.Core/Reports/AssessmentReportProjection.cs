@@ -182,7 +182,7 @@ public static class AssessmentReportProjection
             LocationAddress: owned.InspectionAddress,
             EngineerValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueEngineer)) ?? 0m,
             RetailValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueRetail)) ?? 0m,
-            TradeValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueTrade)) ?? 0m,
+            TradeValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueTrade)),
             SalvageCategory: reportOutcome == AssessmentReportOutcome.TotalLoss
                 ? Field(fields, AssessmentVocabulary.SalvageCategory) : null,
             SalvageValue: reportOutcome == AssessmentReportOutcome.TotalLoss

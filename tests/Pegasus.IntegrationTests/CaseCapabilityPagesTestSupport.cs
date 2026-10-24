@@ -871,6 +871,9 @@ internal static partial class CaseWebTestSupport
         /// </summary>
         public CaseLifecycleState CaseState { get; init; } = CaseLifecycleState.NotReady;
 
+        /// <summary>The due instant the page frame's summary carries (the Work Centre's, from the due work row).</summary>
+        public DateTimeOffset? SummaryDueAtUtc { get; init; }
+
         /// <summary>The detected Sent evidence the projection offers for confirmation (D10).</summary>
         public IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence
         {
@@ -1067,7 +1070,8 @@ internal static partial class CaseWebTestSupport
             "Email",
             _now.AddDays(-2))
         {
-            HasOpenQuery = workflow.HasOpenQuery
+            HasOpenQuery = workflow.HasOpenQuery,
+            DueAtUtc = SummaryDueAtUtc
         };
 
         private CaseEditLeaseSnapshot? ActiveLease() => _leaseHolder is null

@@ -598,6 +598,42 @@ public sealed class EfTriageStore(
             ?? await ResolveEstablishedPrincipalAsync(context, receiptId, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> ThreadHoldsCaseOrTriageAsync(
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var thread = await (
+                from receipt in context.IntakeReceipts.AsNoTracking()
+                where receipt.Id == receiptId
+                    && receipt.SourceChannel == mailbox
+                    && !context.Triage.Any(item => item.OriginReceiptId == receiptId)
+                from message in context.RetainedMailboxMessages
+                    .Where(item => item.ExternalReceiptToken == receipt.ExternalReceiptToken)
+                select new { message.MailboxId, message.ConversationIdentity, receipt.ExternalReceiptToken })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (thread is null || string.IsNullOrWhiteSpace(thread.ConversationIdentity))
+        {
+            return false;
+        }
+
+        // One statement over the other receipts of the thread. A Triage's
+        // origin message is linked by the Triage itself, not by an
+        // association row, so both are asked.
+        var linked = CurrentIntakeAssociations.LinkedReceiptIds(context);
+        var ownToken = thread.ExternalReceiptToken;
+        return await CurrentIntakeAssociations
+            .ThreadReceipts(context, thread.MailboxId, thread.ConversationIdentity)
+            .AsNoTracking()
+            .AnyAsync(
+                receipt => receipt.ExternalReceiptToken != ownToken
+                    && (context.Triage.Any(item => item.OriginReceiptId == receipt.Id)
+                        || linked.Contains(receipt.Id)),
+                cancellationToken);
+    }
+
     /// <summary>
     /// The principal the receipt already established, taken from the
     /// originating instruction draft's suggested principal code and accepted
@@ -1251,6 +1287,21 @@ public sealed class EfTriageStore(
         return entity is null ? null : Map(entity);
     }
 
+    public async Task<TriageRecord?> GetRecordByOriginOperationAsync(
+        Guid originReceiptId,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Triage.AsNoTracking()
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(
+                item => item.OriginReceiptId == originReceiptId
+                    && item.History.Any(entry => entry.OperationKey == operationKey),
+                cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
     public async Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -1260,7 +1311,7 @@ public sealed class EfTriageStore(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.Triage.AsNoTracking()
-            .Include(item => item.Case).ThenInclude(item => item.Principal)
+            .Include(item => item.Case).ThenInclude(item => item.Principal).ThenInclude(item => item.Organization)
             .Include(item => item.Findings)
             .Include(item => item.ResponseEvidenceLinks)
             .Include(item => item.History)
@@ -1296,7 +1347,8 @@ public sealed class EfTriageStore(
             entity.ResponseEvidenceLinks.OrderBy(item => item.LinkedAtUtc).ThenBy(item => item.SentEvidenceId).Select(Map).ToArray(),
             entity.History.OrderBy(item => item.AfterVersion).ThenBy(item => item.Id).Select(Map).ToArray(),
             Array.Empty<TriageResponseEvidenceCandidate>(),
-            entity.Case.Principal.Code)
+            entity.Case.Principal.Code,
+            entity.Case.Principal.Organization.NotesOnEveryCase)
         {
             ClaimantName = claimantName,
             Documents = documents,

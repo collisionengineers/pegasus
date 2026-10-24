@@ -36,7 +36,7 @@ public sealed class AutomationIntakeParityIngressTests
         await HoldAsUnidentifiedAsync(mcpFactory.Services, upload);
 
         var token = await RequestTokenAsync(client, "automation.intake");
-        using var listResponse = await PostMcpAsync(client, token,
+        using var listResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(1, "pegasus_unidentified_list", new { }));
         var list = await ReadStructuredContentAsync(listResponse);
         Assert.Equal(50, list.GetProperty("limit").GetInt32());
@@ -46,7 +46,7 @@ public sealed class AutomationIntakeParityIngressTests
         var item = Assert.Single(list.GetProperty("items").EnumerateArray());
         var reference = item.GetProperty("reference").GetString();
 
-        using var getResponse = await PostMcpAsync(client, token,
+        using var getResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(2, "pegasus_unidentified_get", new { reference }));
         var detail = await ReadStructuredContentAsync(getResponse);
         var source = Assert.Single(detail.GetProperty("sources").EnumerateArray());
@@ -54,7 +54,7 @@ public sealed class AutomationIntakeParityIngressTests
 
         // A PDF comes back as its page text, the way Claude's hosted connector
         // can take it; the structured half keeps identity, hash and URL.
-        using var downloadResponse = await PostMcpAsync(client, token,
+        using var downloadResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(3, "pegasus_unidentified_source_download",
                 new { reference, memberReceiptId = receiptId }));
         var (blocks, download) = await ReadToolResultAsync(downloadResponse);
@@ -87,20 +87,20 @@ public sealed class AutomationIntakeParityIngressTests
         await HoldAsUnidentifiedAsync(mcpFactory.Services, upload);
 
         var token = await RequestTokenAsync(client, "automation.intake");
-        using var listResponse = await PostMcpAsync(client, token,
+        using var listResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(21, "pegasus_unidentified_list", new { }));
         var list = await ReadStructuredContentAsync(listResponse);
         var reference = Assert.Single(list.GetProperty("items").EnumerateArray())
             .GetProperty("reference")
             .GetString();
-        using var detailResponse = await PostMcpAsync(client, token,
+        using var detailResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(22, "pegasus_unidentified_get", new { reference }));
         var detail = await ReadStructuredContentAsync(detailResponse);
         var receiptId = Assert.Single(detail.GetProperty("sources").EnumerateArray())
             .GetProperty("receiptId")
             .GetGuid();
 
-        using var downloadResponse = await PostMcpAsync(client, token,
+        using var downloadResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(23, "pegasus_unidentified_source_download",
                 new { reference, memberReceiptId = receiptId, maxInlineBytes = 1024 }));
         var (blocks, download) = await ReadToolResultAsync(downloadResponse);
@@ -147,7 +147,7 @@ public sealed class AutomationIntakeParityIngressTests
         _ = await MailboxIntakeTestData.SubmitAndProcessAsync(mcpFactory.Services, email);
 
         var token = await RequestTokenAsync(client, AllScopes);
-        using (var toolsResponse = await PostMcpAsync(client, token, ToolsListPayload(9)))
+        using (var toolsResponse = await PostMcpAsync(client, IntakeServer, token, ToolsListPayload(9)))
         {
             using var toolsDocument = await ReadJsonRpcAsync(toolsResponse);
             var tools = toolsDocument.RootElement
@@ -169,7 +169,7 @@ public sealed class AutomationIntakeParityIngressTests
                 .GetProperty("properties").TryGetProperty("editLeaseToken", out _));
             Assert.False(string.IsNullOrWhiteSpace(tools["pegasus_triage_cancel"].GetProperty("description").GetString()));
         }
-        using var listResponse = await PostMcpAsync(client, token,
+        using var listResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(10, "pegasus_triage_list", new { limit = 10 }));
         var list = await ReadStructuredContentAsync(listResponse);
         Assert.Equal(10, list.GetProperty("limit").GetInt32());
@@ -180,7 +180,7 @@ public sealed class AutomationIntakeParityIngressTests
         var triageId = item.GetProperty("caseId").GetGuid();
         var version = item.GetProperty("version").GetInt64();
 
-        using (var sourceResponse = await PostMcpAsync(client, token,
+        using (var sourceResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(11, "pegasus_triage_source_download", new { caseId = triageId })))
         {
             // The origin is the email itself, which is neither image, PDF nor
@@ -196,7 +196,7 @@ public sealed class AutomationIntakeParityIngressTests
             Assert.Equal(HttpStatusCode.OK, streamed.StatusCode);
         }
 
-        using var beginResponse = await PostMcpAsync(client, token,
+        using var beginResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(13, "pegasus_edit_begin", new
             {
                 recordKind = "Triage",
@@ -210,7 +210,7 @@ public sealed class AutomationIntakeParityIngressTests
         Assert.Equal(version, lease.GetProperty("version").GetInt64());
         Assert.StartsWith("t.", lease.GetProperty("reference").GetString(), StringComparison.Ordinal);
 
-        using var renewResponse = await PostMcpAsync(client, token,
+        using var renewResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(14, "pegasus_edit_renew", new
             {
                 recordKind = "Triage",
@@ -224,7 +224,7 @@ public sealed class AutomationIntakeParityIngressTests
         Assert.True(renewedLease.GetProperty("expiresAtUtc").GetDateTimeOffset() > DateTimeOffset.UtcNow);
 
         var foreignToken = new string('f', 64);
-        using (var foreignLeaseResponse = await PostMcpAsync(client, token,
+        using (var foreignLeaseResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(15, "pegasus_triage_cancel", new
             {
                 caseId = triageId,
@@ -238,7 +238,7 @@ public sealed class AutomationIntakeParityIngressTests
             Assert.DoesNotContain(foreignToken, foreignLease, StringComparison.Ordinal);
         }
 
-        using var cancelResponse = await PostMcpAsync(client, token,
+        using var cancelResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(16, "pegasus_triage_cancel", new
             {
                 caseId = triageId,
@@ -255,7 +255,7 @@ public sealed class AutomationIntakeParityIngressTests
         version = cancelled.GetProperty("detail").GetProperty("record").GetProperty("version").GetInt64();
 
         // The cancel kept the Automation lease, so the token that made it ends it.
-        using var endResponse = await PostMcpAsync(client, token,
+        using var endResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(18, "pegasus_edit_end", new
             {
                 recordKind = "Triage",
@@ -317,7 +317,7 @@ public sealed class AutomationIntakeParityIngressTests
 
         // Response evidence: Link needs the poll outcome it answers; Unlink of
         // evidence never linked is the Core refusal, not a crash.
-        using (var linkWithoutOutcome = await PostMcpAsync(client, token,
+        using (var linkWithoutOutcome = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(23, "pegasus_triage_response_evidence", new
             {
                 caseId = triageId,
@@ -330,7 +330,7 @@ public sealed class AutomationIntakeParityIngressTests
         {
             Assert.Contains("pollOutcomeId", await ReadErrorTextAsync(linkWithoutOutcome), StringComparison.Ordinal);
         }
-        using (var badAction = await PostMcpAsync(client, token,
+        using (var badAction = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(24, "pegasus_triage_response_evidence", new
             {
                 caseId = triageId,
@@ -343,7 +343,7 @@ public sealed class AutomationIntakeParityIngressTests
         {
             Assert.Contains("Link or Unlink", await ReadErrorTextAsync(badAction), StringComparison.Ordinal);
         }
-        using (var unlinkUnknown = await PostMcpAsync(client, token,
+        using (var unlinkUnknown = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(25, "pegasus_triage_response_evidence", new
             {
                 caseId = triageId,
@@ -359,7 +359,7 @@ public sealed class AutomationIntakeParityIngressTests
 
         // Assignment and notes are the staff acts too (ADR-0064). The assignee
         // is chosen from the enabled staff, never the acting client.
-        using (var unassigned = await PostMcpAsync(client, token,
+        using (var unassigned = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(40, "pegasus_triage_assign", new
             {
                 caseId = triageId,
@@ -370,7 +370,7 @@ public sealed class AutomationIntakeParityIngressTests
         {
             Assert.Contains("not assigned", await ReadErrorTextAsync(unassigned), StringComparison.Ordinal);
         }
-        using (var stranger = await PostMcpAsync(client, token,
+        using (var stranger = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(41, "pegasus_triage_assign", new
             {
                 caseId = triageId,
@@ -425,7 +425,7 @@ public sealed class AutomationIntakeParityIngressTests
         // matches arriving instructions to open Triage), so the versions are
         // re-read as any caller would, and the walk flips whatever link exists.
         var instructionCaseId = await SeedAcceptedCaseAsync(mcpFactory);
-        using (var current = await PostMcpAsync(client, token,
+        using (var current = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(26, "pegasus_triage_get", new { caseId = triageId })))
         {
             detail = (await ReadStructuredContentAsync(current)).GetProperty("detail");
@@ -469,7 +469,7 @@ public sealed class AutomationIntakeParityIngressTests
         });
         Assert.Equal("Completed", State(detail));
 
-        using var getResponse = await PostMcpAsync(client, token,
+        using var getResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(30, "pegasus_triage_get", new { caseId = triageId }));
         var fetched = await ReadStructuredContentAsync(getResponse);
         Assert.Equal("Completed", State(fetched.GetProperty("detail")));
@@ -477,7 +477,7 @@ public sealed class AutomationIntakeParityIngressTests
             entry => entry.GetProperty("actor").GetString() == ClientId);
 
         // A stale version is refused before anything moves.
-        using (var stale = await PostMcpAsync(client, token,
+        using (var stale = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(31, "pegasus_triage_reopen", new
             {
                 caseId = triageId,
@@ -497,7 +497,7 @@ public sealed class AutomationIntakeParityIngressTests
         string tool,
         object arguments)
     {
-        using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId, tool, arguments));
+        using var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(rpcId, tool, arguments));
         return (await ReadStructuredContentAsync(response)).GetProperty("detail");
     }
 
