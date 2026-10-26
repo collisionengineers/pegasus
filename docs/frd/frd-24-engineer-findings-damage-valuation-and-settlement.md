@@ -11,8 +11,8 @@
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
-  Glass's and Cazana are connected: Get valuation fetches their figures, files
-  each provider's PDF report on the Case, and fills an empty Case VIN.
+  Glass's, Brego and Cazana are connected: Get valuation fetches their figures,
+  files each provider's PDF report on the Case, and fills an empty Case VIN.
   The Engineer's Value is a box on Valuation, typed or filled by the
   calculation. A click on a guide card is the Engineer's decision to use that
   card: the Save records the calculation against it and writes the report's
@@ -181,9 +181,10 @@ calculation starts from retail; there is no Basis control beside the figures
 ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI market research
 is automation-only.
 
-Glass's and Cazana are the connected guide sources
+Glass's, Brego and Cazana are the connected guide sources
 ([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md),
-[ADR-0079](../adr/0079-cazana-companion-account-and-companion-report.md)).
+[ADR-0079](../adr/0079-cazana-companion-account-and-companion-report.md),
+[ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)).
 Staff or the Automation Actor press Get valuation
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md); operator, 8 October
 2026). Its Get valuation signs in with the Glass's valuation account, values the
@@ -216,7 +217,25 @@ registration, its card shows an info notice instead,
 `Cazana cannot value this vehicle: it holds no data for its registration.`
 (operator, 9 October 2026); whatever else stops a Cazana valuation, the card
 shows its notice.
-Brego, Super CAP and CAP have no connected provider; connecting one needs its
+Brego's Get valuation signs in with the Brego valuation account, looks up the
+Case's accepted registration and queries a point-in-time valuation at its
+accepted mileage in whole miles, and fills the card with Brego's `retail.high`
+and `trade.high` ([ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)).
+Brego values on a day by the same month rule as Cazana: the current month is
+valued today, an earlier month on its last day, and a later month today,
+filling the card with the current month. Once the figures have answered, it
+loads the derivative's factory option configuration, requests Brego's Valuation
+Report PDF (`featuredMonthNav: "high"`, `showPdfReportImages: true`, repairing
+any 14×16 broken listing image placeholders on Pages 1 and 2 with Brego's
+studio stock images), files the PDF on the Case's Documents as
+`Brego valuation {registration} {yyyy-MM}.pdf`, a Valuation Evidence document
+([FRD-05](frd-05-documents-extraction-and-custody.md#document-types)), when the
+report's text names the Case registration, and fills the work's VIN when the
+work holds none. When Brego holds no data for the registration, its card shows
+an info notice instead,
+`Brego cannot value this vehicle: it holds no data for its registration.`;
+whatever else stops a Brego valuation, the card shows its notice.
+Super CAP and CAP have no connected provider; connecting one needs its
 own accepted decision.
 
 Every entry keeps its date and time, and the retail and trade values and
@@ -423,8 +442,8 @@ No circular readiness gate is acceptable (operator, 16 October 2026).
   shows the same notice and fills nothing.
 - A Glass's valuation whose report cannot be fetched or filed keeps the
   figures it answered; the Case simply has no report for it.
-- A Cazana valuation for a month after the current one is valued today and
-  fills the card with the current month; no future date is asked for.
+- A Brego or Cazana valuation for a month after the current one is valued today
+  and fills the card with the current month; no future date is asked for.
 - A calculation that cannot be worked out never shows as an empty state: it
   shows why, and the Engineer's draft is kept.
 - Research evidence and an AI valuation proposal never become the Engineer's
@@ -456,9 +475,15 @@ cover Cazana's Get valuation and Companion Report against a scripted Companion
 API — sign-in, the one metered lookup, its figures, VIN and Companion Report
 HTML and PDF, the date each month is valued on, the mileage in whole miles,
 credentials and JWT kept out of URLs and logs, every failure answering the
-notice and a registration with no data answering its own sentence. Live
-Glass's and Cazana evidence is a
-separate tier
+notice and a registration with no data answering its own sentence. Integration
+tests cover Brego's Get valuation and Valuation Report against a scripted Brego
+platform and Cognito API — Cognito `USER_SRP_AUTH` sign-in, session reuse and
+refresh on 401, VRM lookup, `retail.high` and `trade.high` figures, VIN fill,
+Valuation Report PDF generation and 14×16 broken-image stock replacement, the
+date each month is valued on, the mileage in whole miles, credentials and
+session tokens kept out of URLs and logs, every failure answering the notice
+and a registration with no data answering its own sentence. Live Glass's,
+Brego and Cazana evidence is a separate tier
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

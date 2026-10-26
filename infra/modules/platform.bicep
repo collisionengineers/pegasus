@@ -50,6 +50,10 @@ param glassValuationPasswordSecretUri string
 // identity reads each secret through its own secret-scoped grant.
 param cazanaCompanionEmailSecretUri string
 param cazanaCompanionPasswordSecretUri string
+// ADR-0084. The Brego valuation account Get valuation signs in with; the Web
+// identity reads each secret through its own secret-scoped grant.
+param bregoValuationEmailSecretUri string
+param bregoValuationPasswordSecretUri string
 
 var suffix =take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
 var prefix = 'pegasus-prod'
@@ -476,6 +480,9 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         // ADR-0079 Cazana Companion account, read on each Get valuation.
         { name: 'Cazana__CompanionAccount__Email', value: '@Microsoft.KeyVault(SecretUri=${cazanaCompanionEmailSecretUri})' }
         { name: 'Cazana__CompanionAccount__Password', value: '@Microsoft.KeyVault(SecretUri=${cazanaCompanionPasswordSecretUri})' }
+        // ADR-0084 Brego valuation account, read on each Get valuation.
+        { name: 'Brego__ValuationAccount__Email', value: '@Microsoft.KeyVault(SecretUri=${bregoValuationEmailSecretUri})' }
+        { name: 'Brego__ValuationAccount__Password', value: '@Microsoft.KeyVault(SecretUri=${bregoValuationPasswordSecretUri})' }
       ], automationMcpSigningCertificateEnvironment, automationMcpEncryptionCertificateEnvironment)
     }
   }

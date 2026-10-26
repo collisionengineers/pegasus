@@ -95,6 +95,12 @@
     "cazanaCompanionPasswordSecretUri": {
       "value": "${CAZANA_COMPANION_PASSWORD_SECRET_URI}"
     },
+    "bregoValuationEmailSecretUri": {
+      "value": "${BREGO_VALUATION_EMAIL_SECRET_URI}"
+    },
+    "bregoValuationPasswordSecretUri": {
+      "value": "${BREGO_VALUATION_PASSWORD_SECRET_URI}"
+    },
     "dvsaApiKeySecretUri": {
       "value": "${DVSA_API_KEY_SECRET_URI}"
     },

@@ -578,8 +578,8 @@ be blank and is saved as entered. While editing, the boxes belong to the Case
 form, and a connected source's card has **Get valuation**, a small button
 centred at the card's foot (operator, 9 October 2026), which asks the
 provider for the Case's accepted registration and mileage in that month and
-fills the boxes in place, without redrawing the page. Glass's and Cazana are
-the connected sources; each valuation's PDF report is filed on the Case's
+fills the boxes in place, without redrawing the page. Glass's, Brego and Cazana
+are the connected sources; each valuation's PDF report is filed on the Case's
 Documents after the figures have answered and appears there on the next load
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 A source with no connected provider shows "{Source} valuation is
