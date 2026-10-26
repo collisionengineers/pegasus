@@ -407,7 +407,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(TriageState.Cancelled, linked.Record.State);
         Assert.Equal(
             $"Cancelled: linked to {SeededCaseReference} before a finding was recorded.",
-            linked.History.Last().Reason);
+            linked.History[^1].Reason);
         var afterLink = await ReadCaseAssociationPersistenceAsync(factory.Database, caseId);
         Assert.Equal(SeededCaseEntityVersion, afterLink.CaseEntityVersion);
         Assert.Equal(1, afterLink.WorkflowVersion);
