@@ -3686,6 +3686,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<Guid?>("SourceCaseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -3699,6 +3702,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperationKey")
                         .IsUnique();
+
+                    b.HasIndex("SourceCaseId");
 
                     b.HasIndex("CompletedAtUtc", "Id")
                         .IsDescending(true, false);
@@ -8534,6 +8539,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.ImageIntakeEntity", "ImageIntake")
                         .WithMany()
                         .HasForeignKey("ImageIntakeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SourceCaseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Case");

@@ -520,6 +520,14 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                     "Image evidence could not be folded after queue delivery failed.");
                 break;
 
+            case ExternalWorkKinds.CopyTriageCaseFiles:
+                FailWork(
+                    work,
+                    failedAtUtc,
+                    "queue_poisoned",
+                    "Triage Case files could not be copied after queue delivery failed.");
+                break;
+
             case ExternalWorkKinds.VehicleLookup:
                 FailWork(
                     work,
@@ -679,6 +687,15 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                     // The image-case folder still holds the evidence, so the
                     // intake's custody state stays an honest "confirmed"; only
                     // the fold itself is recorded as failed.
+                    FailWork(work, failedAtUtc, failureCode, failureReason);
+                }
+                break;
+
+            case ExternalWorkKinds.CopyTriageCaseFiles:
+                // A storage outage retries on the image custody schedule; the
+                // Triage Case still holds every file, so nothing is lost.
+                if (!TryRearmImageCustody(work, failedAtUtc, failureCode, failureReason))
+                {
                     FailWork(work, failedAtUtc, failureCode, failureReason);
                 }
                 break;

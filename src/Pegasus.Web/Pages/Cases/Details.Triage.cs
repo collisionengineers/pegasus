@@ -143,9 +143,9 @@ public sealed class TriageCaseView(TriageDetail triage)
     }
 
     /// <summary>
-    /// The Documents tab: the Triage Case's current documents, less any
-    /// e-mail the Correspondence tab already lists over the same bytes, as
-    /// the Case Files section lists them.
+    /// The Documents tab: the Triage Case's current documents, less its
+    /// images (the Images tab's) and any e-mail the Correspondence tab already
+    /// lists over the same bytes, as the Case Files section lists them.
     /// </summary>
     public IReadOnlyList<Pegasus.Core.Documents.CaseFile> Files
     {
@@ -156,7 +156,26 @@ public sealed class TriageCaseView(TriageDetail triage)
                 .Where(hash => !string.IsNullOrWhiteSpace(hash))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             return [.. Pegasus.Core.Documents.CaseFiles.Current(Triage.Documents)
-                .Where(file => !correspondence.Contains(file.Version.Sha256))];
+                .Where(file => !CaseFileAddresses.IsCaseImage(file)
+                    && !correspondence.Contains(file.Version.Sha256))];
+        }
+    }
+
+    /// <summary>
+    /// The Images tab's Case images (FRD-19): the Triage Case's current image
+    /// documents, such as merged vehicle images, less a photograph its request
+    /// carried, which <see cref="EvidenceImages"/> already shows.
+    /// </summary>
+    public IReadOnlyList<Pegasus.Core.Documents.CaseFile> ImageFiles
+    {
+        get
+        {
+            var requestPhotographs = EvidenceImages
+                .Select(asset => asset.ContentHash)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return [.. Pegasus.Core.Documents.CaseFiles.Current(Triage.Documents)
+                .Where(file => CaseFileAddresses.IsCaseImage(file)
+                    && !requestPhotographs.Contains(file.Version.Sha256))];
         }
     }
 

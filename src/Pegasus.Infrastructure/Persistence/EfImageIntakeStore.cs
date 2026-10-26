@@ -9,6 +9,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -750,10 +751,7 @@ public sealed class EfImageIntakeStore(
             // A staff link reaches every Case in any lifecycle state and every
             // Triage Case (operator, 24 September 2026), and this merge
             // completes it there. Automatic pairing keeps its eligibility.
-            if (!staffDecision
-                && (caseAuthority.Workflow is not { } workflow
-                    || !ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(
-                        Enum.Parse<CaseLifecycleState>(workflow.State), workflow.ReportSentEvidenceId is not null)))
+            if (!staffDecision && !caseAuthority.IsEligibleForAutomaticAssociation())
             {
                 throw new ImageIntakeCaseNotEligibleException(targetCaseId);
             }
@@ -1960,8 +1958,14 @@ public sealed class EfImageIntakeCaseCandidates(
     IDbContextFactory<PegasusDbContext> contextFactory) : IImageIntakeCaseCandidates
 {
     internal static readonly string[] EligibleStates = Enum.GetValues<CaseLifecycleState>()
-        .Where(state => ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, false))
+        .Where(state => CaseAssociationEligibility.IsFormalCaseEligible(state, false))
         .Select(state => state.ToString())
+        .ToArray();
+
+    /// <summary>The Triage states that take vehicle images automatically, as stored.</summary>
+    private static readonly string[] EligibleTriageStates = Enum.GetValues<TriageState>()
+        .Where(state => CaseAssociationEligibility.IsTriageCaseEligible(state, linkedToInstructionCase: false))
+        .Select(state => EfTriageStore.ToCode(state))
         .ToArray();
 
     private const string LikeEscape = "\\";
@@ -2011,7 +2015,7 @@ public sealed class EfImageIntakeCaseCandidates(
     }
 
     private static IQueryable<EligibleCase> EligibleCases(PegasusDbContext context) =>
-        from workflow in context.CaseWorkflows.AsNoTracking()
+        (from workflow in context.CaseWorkflows.AsNoTracking()
         join caseEntity in context.Cases.AsNoTracking() on workflow.CaseId equals caseEntity.Id
         join principal in context.Principals.AsNoTracking() on caseEntity.PrincipalId equals principal.Id
         join index in context.CaseMatchIndex.AsNoTracking() on caseEntity.Id equals index.CaseId into indices
@@ -2027,14 +2031,35 @@ public sealed class EfImageIntakeCaseCandidates(
             Registration = index == null ? string.Empty : index.NormalizedVrm ?? string.Empty,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
             PrincipalId = caseEntity.PrincipalId,
-            PrincipalCode = principal.Code
-        };
+            PrincipalCode = principal.Code,
+            IsTriage = false
+        })
+        // An open Triage Case not yet linked to its instruction Case takes
+        // vehicle images too; it has no workflow or match index, so its own
+        // accepted registration and Triage version stand in.
+        .Concat(
+            from triage in context.Triage.AsNoTracking()
+            join caseEntity in context.Cases.AsNoTracking() on triage.CaseId equals caseEntity.Id
+            join principal in context.Principals.AsNoTracking() on caseEntity.PrincipalId equals principal.Id
+            where EligibleTriageStates.Contains(triage.State)
+                && triage.LinkedInstructionCaseId == null
+            select new EligibleCase
+            {
+                CaseId = caseEntity.Id,
+                Reference = caseEntity.Reference,
+                Version = triage.Version,
+                Registration = triage.NormalizedVehicleRegistration,
+                CreatedAtUtc = caseEntity.CreatedAtUtc,
+                PrincipalId = caseEntity.PrincipalId,
+                PrincipalCode = principal.Code,
+                IsTriage = true
+            });
 
     private static IQueryable<ImageIntakeCaseCandidate> Project(IQueryable<EligibleCase> cases) =>
         cases.OrderBy(item => item.Reference)
             .Select(item => new ImageIntakeCaseCandidate(
                 item.CaseId, item.Reference, item.Version, item.Registration, item.CreatedAtUtc,
-                item.PrincipalId, item.PrincipalCode));
+                item.PrincipalId, item.PrincipalCode, item.IsTriage));
 
     private sealed class EligibleCase
     {
@@ -2045,6 +2070,7 @@ public sealed class EfImageIntakeCaseCandidates(
         public DateTimeOffset CreatedAtUtc { get; init; }
         public Guid PrincipalId { get; init; }
         public required string PrincipalCode { get; init; }
+        public bool IsTriage { get; init; }
     }
 
     internal static async Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(

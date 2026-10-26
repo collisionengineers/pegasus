@@ -20,10 +20,10 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.ExternalWorkItemEntity",
                 typeof(ExternalWorkItemEntity),
                 baseEntityType,
-                propertyCount: 16,
+                propertyCount: 17,
                 navigationCount: 2,
-                foreignKeyCount: 2,
-                unnamedIndexCount: 7,
+                foreignKeyCount: 3,
+                unnamedIndexCount: 8,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -156,6 +156,14 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 maxLength: 100);
             operationKey.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
+            var sourceCaseId = runtimeEntityType.AddProperty(
+                "SourceCaseId",
+                typeof(Guid?),
+                propertyInfo: typeof(ExternalWorkItemEntity).GetProperty("SourceCaseId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(ExternalWorkItemEntity).GetField("<SourceCaseId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            sourceCaseId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
             var state = runtimeEntityType.AddProperty(
                 "State",
                 typeof(string),
@@ -179,15 +187,18 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 unique: true);
 
             var index2 = runtimeEntityType.AddIndex(
-                new[] { completedAtUtc, id });
+                new[] { sourceCaseId });
 
             var index3 = runtimeEntityType.AddIndex(
-                new[] { dueAtUtc, id });
+                new[] { completedAtUtc, id });
 
             var index4 = runtimeEntityType.AddIndex(
-                new[] { leaseExpiresAtUtc, id });
+                new[] { dueAtUtc, id });
 
             var index5 = runtimeEntityType.AddIndex(
+                new[] { leaseExpiresAtUtc, id });
+
+            var index6 = runtimeEntityType.AddIndex(
                 new[] { state, dueAtUtc });
 
             return runtimeEntityType;
@@ -230,6 +241,16 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 typeof(ImageIntakeEntity),
                 propertyInfo: typeof(ExternalWorkItemEntity).GetProperty("ImageIntake", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(ExternalWorkItemEntity).GetField("<ImageIntake>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly));
+
+            return runtimeForeignKey;
+        }
+
+        public static RuntimeForeignKey CreateForeignKey3(RuntimeEntityType declaringEntityType, RuntimeEntityType principalEntityType)
+        {
+            var runtimeForeignKey = declaringEntityType.AddForeignKey(new[] { declaringEntityType.FindProperty("SourceCaseId") },
+                principalEntityType.FindKey(new[] { principalEntityType.FindProperty("Id") }),
+                principalEntityType,
+                deleteBehavior: DeleteBehavior.Restrict);
 
             return runtimeForeignKey;
         }

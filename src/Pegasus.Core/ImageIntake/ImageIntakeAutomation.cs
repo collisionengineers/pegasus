@@ -328,9 +328,9 @@ public sealed class ImageIntakeAutomation(
 
         var registrationCandidates = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(recognitions);
         IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases = registrationCandidates.Length == 1
-            ? await caseCandidates.FindEligibleByRegistrationAsync(
+            ? CaseAssociationEligibility.FormalCases(await caseCandidates.FindEligibleByRegistrationAsync(
                 registrationCandidates[0],
-                cancellationToken)
+                cancellationToken))
             : [];
         var routing = ImageIntakeGroupRoutingPolicy.Evaluate(
             recognitions,
@@ -702,7 +702,8 @@ public sealed class ImageIntakeAutomation(
         // instruction-supplied registration is the registered identity,
         // never the incomplete read (operator-directed 2026-08-03).
         var candidates = receipt.CurrentCaseId is null
-            ? await caseCandidates.FindEligibleByRegistrationAsync(read, cancellationToken)
+            ? CaseAssociationEligibility.FormalCases(
+                await caseCandidates.FindEligibleByRegistrationAsync(read, cancellationToken))
             : [];
         activity?.SetTag("image_intake.case_candidates", candidates.Count);
         var isManual = receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload;

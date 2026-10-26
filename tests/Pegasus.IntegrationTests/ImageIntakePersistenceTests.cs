@@ -1510,6 +1510,143 @@ public sealed class ImageIntakePersistenceTests
         Assert.True(forTriage.PhotographsAreCaseImages);
     }
 
+    /// <summary>
+    /// DN63WGG-01, t.QDOS26118 and QDOS26119 (#1686, #1687): registered
+    /// vehicle images merge into the open Triage Case by themselves, and the
+    /// Triage Case's link to its instruction Case closes it and copies its
+    /// photographs, crop and tags included, onto that Case, completing its
+    /// images (operator, 26 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task VehicleImagesReachTheInstructionCaseThroughTheirTriageCase()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceiptId = await UploadImageAsync(factory, client);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceiptId, "AB12CDE", "chain-register");
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var registered = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        await ProcessCustodyWorkAsync(
+            services, ExternalWorkKinds.CreateImageCaseCustody, imageIntakeId: registered!.Record.Id);
+        var photographId = Assert.Single(await queries.ListImagesAsync(
+            registered.Record.Id, CancellationToken.None)).AssetId!.Value;
+        await services.GetRequiredService<ITagPreCaseImage>().ExecuteAsync(
+            new(photographId, ImageTagVocabulary.OverviewId, true, StaffActor(), $"chain-tag:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+
+        var triage = await services.GetRequiredService<ICreateManualCase>().ExecuteAsync(
+            new(StaffActor(), "chain-triage", "QDOS", CaseType.Triage, new(VehicleRegistration: "AB12CDE")),
+            CancellationToken.None);
+        await ProcessCustodyWorkAsync(services, ExternalWorkKinds.CreateCaseCustody, caseId: triage.CaseId);
+
+        // No member of staff links them: the open Triage Case is the one
+        // eligible Case for the registration.
+        var pairing = await services.GetRequiredService<IImageIntakeCasePairing>()
+            .PairAcceptedCaseAsync(triage.CaseId, CancellationToken.None);
+        Assert.Equal(new ImageIntakePairingResult(1, 1, 0), pairing);
+        var merged = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        Assert.Equal(ImageInitiatedCaseState.MergedIntoInstructionCase, merged!.State);
+        Assert.Equal(triage.CaseId, merged.MergedIntoCaseId);
+        await ProcessCustodyWorkAsync(
+            services, ExternalWorkKinds.MergeImageCaseCustody, imageIntakeId: merged.Record.Id);
+
+        // The Triage Case page shows the merged photograph in its Images tab,
+        // though the Triage request carried none.
+        using (var page = await client.GetAsync($"/Cases/{triage.CaseId}"))
+        {
+            page.EnsureSuccessStatusCode();
+            var html = await page.Content.ReadAsStringAsync();
+            Assert.Contains("data-file-tab-panel=\"images\"", html, StringComparison.Ordinal);
+            Assert.Contains("vehicle.png", html, StringComparison.Ordinal);
+        }
+
+        var instruction = await services.GetRequiredService<ICreateManualCase>().ExecuteAsync(
+            new(StaffActor(), "chain-instruction", "QDOS", CaseType.Inspection, new(VehicleRegistration: "AB12CDE")),
+            CancellationToken.None);
+        await ProcessCustodyWorkAsync(services, ExternalWorkKinds.CreateCaseCustody, caseId: instruction.CaseId);
+
+        var contexts = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        long triageVersion;
+        await using (var read = await contexts.CreateDbContextAsync())
+        {
+            triageVersion = await read.Triage.AsNoTracking()
+                .Where(item => item.CaseId == triage.CaseId)
+                .Select(item => item.Version)
+                .SingleAsync();
+        }
+        var caseLease = await ClaimLeaseAsync(services, instruction.CaseId, StaffActor(), "chain-link-case");
+        var triageScope = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.Triage, triage.CaseId, triageVersion, StaffActor(), "chain-link-triage"),
+            CancellationToken.None);
+        await services.GetRequiredService<Pegasus.Core.Triage.ILinkTriageCase>().ExecuteAsync(
+            new(triage.CaseId, instruction.CaseId, triageVersion, caseLease.Version, StaffActor(),
+                "chain-link", "The full instruction for the Triage's vehicle.", caseLease.Token)
+            {
+                EditLeaseToken = triageScope.Token
+            },
+            CancellationToken.None);
+
+        Guid copyWorkId;
+        await using (var read = await contexts.CreateDbContextAsync())
+        {
+            var closed = await read.Triage.AsNoTracking().SingleAsync(item => item.CaseId == triage.CaseId);
+            Assert.Equal("cancelled", closed.State);
+            Assert.Equal(instruction.CaseId, closed.LinkedInstructionCaseId);
+            Assert.Equal(
+                $"Cancelled: linked to {instruction.Reference} before a finding was recorded.",
+                await read.TriageHistory.AsNoTracking()
+                    .Where(item => item.TriageCaseId == triage.CaseId && item.EventType == "triage_state_cancelled")
+                    .Select(item => item.Reason)
+                    .SingleAsync());
+            copyWorkId = await read.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.Kind == ExternalWorkKinds.CopyTriageCaseFiles
+                    && item.CaseId == instruction.CaseId
+                    && item.SourceCaseId == triage.CaseId)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+
+        var copy = services.GetRequiredService<Pegasus.Core.Triage.IProcessQueuedTriageCaseFiles>();
+        await copy.ExecuteAsync(copyWorkId, CancellationToken.None);
+        // A replay of completed work copies nothing again.
+        await copy.ExecuteAsync(copyWorkId, CancellationToken.None);
+
+        await using var context = await contexts.CreateDbContextAsync();
+        var copied = Assert.Single(await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == instruction.CaseId
+                    && occurrence.SemanticRole == DocumentSemanticRole.Image
+                select new { Occurrence = occurrence, version.FileName, version.CustodyStatus })
+            .ToListAsync());
+        Assert.Equal("vehicle.png", copied.FileName);
+        Assert.Equal(DocumentCustodyStatus.Confirmed, copied.CustodyStatus);
+        Assert.Equal(ImageTagVocabulary.OverviewId, Assert.Single(await context.Set<DocumentOccurrenceTagEntity>()
+            .AsNoTracking()
+            .Where(item => item.OccurrenceId == copied.Occurrence.Id)
+            .ToListAsync()).TagId);
+        // The Triage Case keeps its own photograph and its own folder.
+        Assert.Equal(1, await context.Set<DocumentOccurrenceEntity>().CountAsync(item =>
+            item.CaseId == triage.CaseId && item.SemanticRole == DocumentSemanticRole.Image));
+        Assert.True(await context.Cases.AsNoTracking()
+            .Where(item => item.Id == instruction.CaseId)
+            .Select(item => item.ImagesComplete)
+            .SingleAsync());
+        Assert.Equal(1, await context.CaseHistory.CountAsync(item =>
+            item.CaseId == instruction.CaseId && item.EventType == "triage_case_files_copied"));
+        Assert.Equal("completed", await context.ExternalWorkItems.AsNoTracking()
+            .Where(item => item.Id == copyWorkId)
+            .Select(item => item.State)
+            .SingleAsync());
+    }
+
     [Fact]
     public async Task AutomaticAssociationWritesTheSameAssociationWithSystemAttribution()
     {

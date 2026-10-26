@@ -86,7 +86,13 @@ An Image-initiated Case stays Awaiting instruction until it is associated
 with a Case. Automatic association needs exactly one eligible, pre-report,
 instructed Case, an unambiguous normalised registration match and no
 contradictory identity evidence; a Case that has delivered its report is not
-eligible for it. Otherwise an authorised staff member makes the decision.
+eligible for it. An open Triage Case not yet linked to its instruction Case
+is eligible too, in either arrival order (operator, 26 October 2026): a
+formal Case for the same vehicle takes precedence over it, so the Triage
+Case counts only when no formal Case remains among the candidates. Images
+matched before they register are filed on a formal Case only; a Triage Case
+takes them through the merge below
+([FRD-22](frd-22-pre-case-gates-matching-and-association.md#one-combination-model)). Otherwise an authorised staff member makes the decision.
 Staff "Link to Case" reaches every Case in any state and every Triage Case,
 refusing only an archived Case (operator, 24 September 2026), and the merge
 completes there.
@@ -108,7 +114,10 @@ PDF the photographs came in, is filed as a Case document beside them
 (operator, 28 September 2026). Each takes the next Case document number. Each is in the report, as any new
 image is. The crop, rotation and tags staff gave a photograph on the record
 come with it, and one tagged Third party or Reflection arrives out of the
-report. A Triage Case takes them the same way. The record keeps its
+report. A Triage Case takes them the same way, and shows them in its Images
+tab ([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page));
+when it later links to its instruction Case they reach that Case with its
+other files ([FRD-03](frd-03-triage.md#triage-files-on-the-linked-case)). The record keeps its
 reference, its page and its photographs. The fold files them as the system
 worker and holds no staff lease
 ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). System work

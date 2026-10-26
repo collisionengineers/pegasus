@@ -1,4 +1,3 @@
-using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
@@ -39,7 +38,7 @@ public sealed record CaseFilingWorkflowFacts(
 /// state (FRD-22), including a Triage Case, which has no workflow. The
 /// pipeline's own association files only while the Case is in a state
 /// automatic association accepts and no report has been sent
-/// (<see cref="ImageIntakeLifecycleRules.IsCaseEligibleForAssociation"/>), and
+/// (<see cref="CaseAssociationEligibility.IsFormalCaseEligible"/>), and
 /// never on a Triage Case. An archived Case never files. A live Case edit
 /// lease defers filing rather than refusing it.
 /// </summary>
@@ -53,7 +52,7 @@ public static class CaseFilingTargetRule
     /// <summary>The Case states the pipeline's own association files into while no report has been sent.</summary>
     public static IReadOnlyList<CaseLifecycleState> AutomaticFilingStates { get; } =
         Enum.GetValues<CaseLifecycleState>()
-            .Where(state => ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, false))
+            .Where(state => CaseAssociationEligibility.IsFormalCaseEligible(state, false))
             .ToArray();
 
     public static CaseFilingTargetDisposition Decide(
@@ -71,7 +70,7 @@ public static class CaseFilingTargetRule
             if (workflow.IsArchived
                 || (!facts.IsStaffAssociation
                     && !(workflow.State is { } state
-                        && ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(
+                        && CaseAssociationEligibility.IsFormalCaseEligible(
                             state, workflow.HasReportSentEvidence))))
             {
                 return CaseFilingTargetDisposition.NotApplicable;

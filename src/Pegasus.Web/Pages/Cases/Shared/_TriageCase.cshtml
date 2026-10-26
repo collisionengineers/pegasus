@@ -66,7 +66,9 @@
     var correspondence = view.Triage.Correspondence;
     var showsResponse = view.Triage.ResponseEvidence.Count > 0 || (mutable && view.Triage.ResponseEvidenceCandidates.Count > 0);
     var history = view.Triage.History.OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
-    var hasImages = view.EvidenceImages.Count > 0 && record.Origin is not null;
+    IReadOnlyList<Pegasus.Core.Intake.IntakeAssetRecord> requestImages = record.Origin is null ? [] : view.EvidenceImages;
+    var imageFiles = view.ImageFiles;
+    var hasImages = requestImages.Count + imageFiles.Count > 0;
 }
 @functions {
     // One Actions control, drawn the same in the menu and as the lead.
@@ -265,7 +267,7 @@
                 <div class="tabs" role="tablist" aria-label="@reference" data-file-tabs hidden>
                     @if (hasImages)
                     {
-                        <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="triage-images" data-file-tab="images">@TagLabels.ImagesTab · @view.EvidenceImages.Count</button>
+                        <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="triage-images" data-file-tab="images">@TagLabels.ImagesTab · @(requestImages.Count + imageFiles.Count)</button>
                     }
                     <button type="button" class="tab" role="tab" aria-selected="@(hasImages ? "false" : "true")" aria-controls="triage-files" data-file-tab="files">@OperatorLabels.CaseWorkspace.FilesPanel · @(files.Count + correspondence.Count)</button>
                     <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="triage-notes" data-file-tab="notes">@Labels.Notes · @history.Length</button>
@@ -287,7 +289,6 @@
             }
             @if (hasImages)
             {
-                var origin = record.Origin!;
                 <section id="triage-images" role="tabpanel" data-file-tab-panel="images" aria-labelledby="triage-images-title" class="triage-images">
                     <h2 class="tab-panel-title" id="triage-images-title">@Labels.VehicleImages</h2>
                     @{
@@ -295,22 +296,30 @@
                         // retained receipt asset is already served inline, so
                         // preview and download are the same authorised URL; the
                         // tile is the asset route's tile rendering. Triage takes
-                        // no crop or tag.
-                        var triageGallery = view.EvidenceImages
+                        // no crop or tag. The Case's own image documents, such
+                        // as merged vehicle images, follow them.
+                        var originReceiptId = record.Origin?.ReceiptId ?? Guid.Empty;
+                        var triageGallery = requestImages
                             .Select(asset =>
                             {
                                 var href = Url.Page(
                                     "/Intake/Asset",
-                                    new { id = origin.ReceiptId, assetId = asset.Id, v = asset.ContentHash })!;
+                                    new { id = originReceiptId, assetId = asset.Id, v = asset.ContentHash })!;
                                 var tile = CaseDocumentThumbnails.IsThumbnailable(asset.MediaType)
                                     ? IntakeImageAddress.Tile(
-                                        origin.ReceiptId,
+                                        originReceiptId,
                                         asset.Id,
                                         asset.ContentHash,
                                         Pegasus.Core.ImageIntake.PreCaseImagePreparation.NoPreparationVersion)
                                     : null;
                                 return new GalleryImage(href, href, asset.FileName, asset.MediaType, ThumbnailHref: tile);
                             })
+                            .Concat(imageFiles.Select(file => new GalleryImage(
+                                view.PreviewUrl(file),
+                                view.DownloadUrl(file),
+                                file.Version.FileName,
+                                file.Version.MediaType,
+                                ThumbnailHref: CaseFileAddresses.Thumbnail(record.CaseId, file, null))))
                             .ToArray();
                     }
                     <partial name="Shared/_ImageGallery" model="triageGallery" />

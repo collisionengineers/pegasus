@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -108,6 +109,18 @@ internal sealed class CaseMutationAuthority
     /// </summary>
     public bool SystemWorkYields(DateTimeOffset nowUtc) =>
         Workflow is not null && CaseEditAuthority.IsHeld(Workflow.EditLeaseExpiresAtUtc, nowUtc);
+
+    /// <summary>
+    /// Whether the Case may combine with a pre-instruction record
+    /// automatically, under <see cref="CaseAssociationEligibility"/>: a Case
+    /// through its workflow, a Triage Case through its Triage state and link.
+    /// </summary>
+    public bool IsEligibleForAutomaticAssociation() =>
+        Workflow is { } workflow
+            ? CaseAssociationEligibility.IsFormalCaseEligible(
+                Enum.Parse<CaseLifecycleState>(workflow.State), workflow.ReportSentEvidenceId is not null)
+            : CaseAssociationEligibility.IsTriageCaseEligible(
+                EfTriageStore.ParseState(Triage!.State), Triage.LinkedInstructionCaseId is not null);
 
     /// <summary>
     /// A system completion (custody) advances the workflow version and leaves

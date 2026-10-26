@@ -113,7 +113,11 @@ they ship as one rework with one destructive migration.
    Triage Case has no Case workflow, initial Case state, data snapshot, match
    index entry, Case due work, vehicle lookup or Case intake link.
    `/Cases/{id}` is its only page. The global Triage sequence and the `T-`
-   reference are removed.
+   reference are removed. *Amended 26 October 2026:* a link to the
+   instruction Case closes the Triage Case (Completed with a finding,
+   Cancelled without) and copies its files onto that Case; the Triage Case
+   is still never converted or renumbered and keeps its own files and folder
+   ([FRD-03](../frd/frd-03-triage.md#triage-files-on-the-linked-case)).
 8. **The Principal gate.** A Triage Case needs an established Principal and a
    registration before its number is allocated. Automatic intake asks a Core
    port whether the receipt's Principal is established. Without one the

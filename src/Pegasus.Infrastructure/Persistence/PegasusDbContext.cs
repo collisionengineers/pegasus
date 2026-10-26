@@ -639,9 +639,14 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => new { item.LeaseExpiresAtUtc, item.Id }).IsDescending(true, false);
             entity.HasIndex(item => new { item.CompletedAtUtc, item.Id }).IsDescending(true, false);
             entity.HasIndex(item => item.ImageIntakeId);
+            entity.HasIndex(item => item.SourceCaseId);
             entity.HasOne(item => item.Case)
                 .WithMany(item => item.ExternalWork)
                 .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CaseEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.SourceCaseId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.ImageIntake)
                 .WithMany()
@@ -1345,6 +1350,12 @@ internal sealed class ExternalWorkItemEntity
     public CaseEntity? Case { get; set; }
     public Guid? ImageIntakeId { get; set; }
     public ImageIntakeEntity? ImageIntake { get; set; }
+
+    /// <summary>
+    /// The Case the work copies from: a linked Triage Case whose files are
+    /// copied onto the instruction Case in <see cref="CaseId"/>.
+    /// </summary>
+    public Guid? SourceCaseId { get; set; }
     public required string Kind { get; set; }
     public required string OperationKey { get; set; }
     public required string State { get; set; }

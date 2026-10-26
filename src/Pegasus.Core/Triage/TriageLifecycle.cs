@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
@@ -7,7 +8,10 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Triage;
 
-public sealed class CreateTriageFromIntake(ITriageStore store, ITriageCasePairing pairing) : ICreateTriageFromIntake
+public sealed class CreateTriageFromIntake(
+    ITriageStore store,
+    ITriageCasePairing pairing,
+    IImageIntakeCasePairing imageIntakePairing) : ICreateTriageFromIntake
 {
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
@@ -20,6 +24,19 @@ public sealed class CreateTriageFromIntake(ITriageStore store, ITriageCasePairin
         var result = await pairing.PairTriageAsync(created.CaseId, cancellationToken);
         Activity.Current?.SetTag("triage.pairing_failures", result.Failures);
         Activity.Current?.SetTag("triage.failure_type", result.FirstFailure);
+        // Registered vehicle images waiting for this vehicle merge into the
+        // Triage Case, unless a link to an instruction Case has just closed it
+        // (FRD-19); the reconciliation timer retries what this leaves.
+        try
+        {
+            var images = await imageIntakePairing.PairAcceptedCaseAsync(created.CaseId, cancellationToken);
+            Activity.Current?.SetTag("image_intake.pairing_failures", images.Failures);
+            Activity.Current?.SetTag("image_intake.failure_type", images.FirstFailure);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            Activity.Current?.SetTag("image_intake.failure_type", exception.GetType().Name);
+        }
         // Creation replay reports its original result, not a later link or state.
         return created;
     }
@@ -112,10 +129,15 @@ public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
         return result is { Outcome: CaseMatchOutcome.UniqueMatch } ? result.MatchedCaseId : null;
     }
 
+    /// <summary>
+    /// The automatic link uses the one pre-report rule
+    /// (<see cref="CaseAssociationEligibility.IsFormalCaseEligible"/>), never
+    /// an archived Case and never one a member of staff is editing.
+    /// </summary>
     public static bool CanLinkTarget(
-        CaseLifecycleState state, bool archived, ActorKind? leaseHolderKind,
+        CaseLifecycleState state, bool hasReportSentEvidence, bool archived, ActorKind? leaseHolderKind,
         DateTimeOffset? leaseExpiresAtUtc, DateTimeOffset nowUtc) =>
-        !archived && !CaseLifecycleRules.IsTerminal(state)
+        !archived && CaseAssociationEligibility.IsFormalCaseEligible(state, hasReportSentEvidence)
         && !(leaseHolderKind == ActorKind.Staff && leaseExpiresAtUtc > nowUtc);
 }
 
@@ -517,6 +539,28 @@ public static class TriageLifecycleRules
     /// </summary>
     public static IReadOnlyCollection<TriageState> ActiveStates { get; } =
         [TriageState.Open, TriageState.AwaitingInformation, TriageState.FindingRecorded];
+
+    /// <summary>
+    /// Linking a Triage to its instruction Case closes it (operator,
+    /// 26 October 2026): Completed when it has a finding, Cancelled when it
+    /// has none, with the approved history reason. A Triage already Completed
+    /// or Cancelled is left as it is, and an unlink never reopens it.
+    /// </summary>
+    public static (TriageState State, string Reason)? ClosureOnInstructionLink(
+        TriageState current,
+        bool hasFinding,
+        string instructionCaseReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instructionCaseReference);
+        if (!ActiveStates.Contains(current))
+        {
+            return null;
+        }
+
+        return hasFinding
+            ? (TriageState.Completed, $"Completed: linked to {instructionCaseReference}.")
+            : (TriageState.Cancelled, $"Cancelled: linked to {instructionCaseReference} before a finding was recorded.");
+    }
 
     /// <summary>
     /// The outcome reply for the Triage's current completion has been sent, so

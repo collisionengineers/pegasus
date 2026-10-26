@@ -480,12 +480,13 @@ public interface IImageIntakeOriginResolver
 }
 
 /// <summary>
-/// Eligible pre-report instructed Cases whose confirmed vehicle registration
-/// matches a normalised read under <see cref="VrmRegistrationMatching"/>
-/// (exact, or the read missing exactly one character of the confirmed value) —
-/// candidates for a reasoned staff pick and for the automatic unambiguous
-/// match. Eligibility (editable pre-report state, no report-sent evidence,
-/// not archived) is enforced by the query.
+/// Eligible pre-report instructed Cases, and open unlinked Triage Cases, whose
+/// confirmed vehicle registration matches a normalised read under
+/// <see cref="VrmRegistrationMatching"/> (exact, or the read missing exactly
+/// one character of the confirmed value) — candidates for a reasoned staff
+/// pick and for the automatic unambiguous match. Eligibility
+/// (<see cref="Intake.CaseAssociationEligibility"/>, not archived) is enforced
+/// by the query.
 /// </summary>
 public interface IImageIntakeCaseCandidates
 {
@@ -501,6 +502,9 @@ public interface IImageIntakeCaseCandidates
 /// <param name="PrincipalCode">
 /// The Case Principal's code, active or not, so the record page can name it.
 /// </param>
+/// <param name="IsTriage">
+/// Whether the candidate is a Triage Case; its version is then the Triage version.
+/// </param>
 public sealed record ImageIntakeCaseCandidate(
     Guid CaseId,
     string CaseReference,
@@ -508,4 +512,5 @@ public sealed record ImageIntakeCaseCandidate(
     string ConfirmedRegistration,
     DateTimeOffset CreatedAtUtc,
     Guid? PrincipalId = null,
-    string? PrincipalCode = null);
+    string? PrincipalCode = null,
+    bool IsTriage = false);

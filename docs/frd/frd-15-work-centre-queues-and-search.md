@@ -395,13 +395,16 @@ Unlink case once a Case is linked. There is no Open message: the request
 e-mail is the first row of the Correspondence tab.
 
 **Tab row.** Under the ribbon, and staying with it as the page scrolls, are
-the tabs **Images** (only when the request carried photographs), **Files** and
+the tabs **Images** (only when the Triage Case has photographs), **Files** and
 **Notes**, each with its count, and the finding read-only: Roadworthiness and
 Repair outcome, or Not recorded. Without script the three panels follow one
 another under their headings.
 
-**Images** is the request's photographs at contact-sheet size, each opening
-the image viewer. A Triage takes no crop and no tag.
+**Images** is the request's photographs and the Case's own image
+documents, such as merged vehicle images
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)), at
+contact-sheet size, each opening the image viewer; the Documents tab does
+not list them again. A Triage takes no crop and no tag.
 
 **Files** shows the Box case folder's state chip, **Add evidence** (which
 opens Upload for this Case,

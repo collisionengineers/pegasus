@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
     public partial class PegasusDbContextModel
     {
         private PegasusDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("384c9888-a65d-4142-8be8-59c20e110589"), entityTypeCount: 122)
+            : base(skipDetectChanges: false, modelId: new Guid("020565af-45b4-492b-84bb-913651eea080"), entityTypeCount: 122)
         {
         }
 
@@ -213,6 +213,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             EmailResponseEvidenceEntityEntityType.CreateForeignKey2(emailResponseEvidenceEntity, sentEmailEvidenceEntity);
             ExternalWorkItemEntityEntityType.CreateForeignKey1(externalWorkItemEntity, caseEntity);
             ExternalWorkItemEntityEntityType.CreateForeignKey2(externalWorkItemEntity, imageIntakeEntity);
+            ExternalWorkItemEntityEntityType.CreateForeignKey3(externalWorkItemEntity, caseEntity);
             GeneratedCaseArtifactEntityEntityType.CreateForeignKey1(generatedCaseArtifactEntity, caseReportGenerationEntity);
             GeneratedCaseArtifactEntityEntityType.CreateForeignKey2(generatedCaseArtifactEntity, documentVersionEntity);
             GlassRepairEstimateSessionEntityEntityType.CreateForeignKey1(glassRepairEstimateSessionEntity, caseEntity);
