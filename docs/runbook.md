@@ -777,6 +777,8 @@ The approved release operator supplies these deployment inputs:
 | `GLASS_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-password`, that account's password. No default. |
 | `CAZANA_COMPANION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-email`, the Cazana Companion account e-mail ([ADR-0079](adr/0079-cazana-companion-account-and-companion-report.md)). No default. |
 | `CAZANA_COMPANION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-password`, that account's password. No default. |
+| `BREGO_VALUATION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-email`, the Brego valuation account e-mail ([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md)). No default. |
+| `BREGO_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-password`, that account's password. No default. |
 | `ANTHROPIC_API_KEY_SECRET_URI` | Exact versioned Key Vault secret URI of the Anthropic API key the classifier agent uses. The classifier identity reads it, and the Automation MCP client secret, through grants at each secret's scope. No default. |
 | `PEGASUS_CLASSIFIER_ACTIVATION` | `approved` creates the classifier Function App (`infra/modules/classifier.bicep`); anything else leaves it absent. Defaults to `disabled`. |
 | `PEGASUS_CLASSIFIER_DRY_RUN` | `true` makes every classifier tick log its proposals and write nothing; `false` lets it write. Defaults to `false`. Set with `azd env set PEGASUS_CLASSIFIER_DRY_RUN true -e pegasus-prod`; it changes only by a provision (operator, 16 October 2026). |
@@ -785,7 +787,7 @@ Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
 hostname. These are references, never PFX bytes or passwords in the repository.
 The Web host lists the four `Glass:*` keys, the two
-`Glass:ValuationAccount:*` keys and the two `Cazana:CompanionAccount:*` keys among its Production
+`Glass:ValuationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys and the two `Brego:ValuationAccount:*` keys among its Production
 required settings, so a
 Web App deployed without them stops at startup naming the key; the migration
 host is built the same way and must be handed the same values.
@@ -794,9 +796,9 @@ secret is seeded. The Glass's valuation account is the one Glass's login held
 in deployment configuration: the release operator creates its two secrets in
 the deployment vault and grants the Web identity secret-read access at each
 secret's scope, and Bicep hands the Web App Key Vault references to them. The
-Cazana Companion account is held the same way: two secrets,
-`cazana-companion-email` and `cazana-companion-password`, with the Web
-identity granted secret-read access at each secret's scope. Each
+Cazana Companion account and the Brego valuation account are held the same way:
+`cazana-companion-email`, `cazana-companion-password`, `brego-valuation-email`
+and `brego-valuation-password`, with the Web identity granted secret-read access at each secret's scope. Each
 staff member's own Glass's account name and password, used for the repair
 estimate, are entered by an Administrator on that staff account's Glass's page
 and are held protected per staff account, never in deployment configuration.

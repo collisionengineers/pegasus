@@ -1247,6 +1247,34 @@ public sealed class CaseValuationSectionWebTests
         Assert.Empty(store.Saves);
     }
 
+    /// <summary>
+    /// A registration Brego holds no data for answers the card's own approved
+    /// sentence (ADR-0084), not "unavailable", and records nothing.
+    /// </summary>
+    [Fact]
+    public async Task ABregoRegistrationWithNoDataAnswersItsOwnSentence()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            services.AddSingleton<IGuideValuationProvider>(
+                new NotValuedGuideValuationProvider(ValuationSource.Brego, GuideValuationNotValuedReason.NoVehicleData));
+        });
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Brego, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("not_valued", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal(
+            "Brego cannot value this vehicle: it holds no data for its registration.",
+            answer.RootElement.GetProperty("message").GetString());
+        Assert.Empty(store.Saves);
+    }
+
     /// <summary>The scripted Glass's, answering the Case's own 42,000 miles.</summary>
     private static ScriptedGlass ScriptedGlassFor42000Miles()
     {

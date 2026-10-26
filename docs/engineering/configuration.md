@@ -125,3 +125,19 @@ answer unavailable rather than stopping the host. The Cazana API origin
 Rotating the password is a new secret version and a configuration read-back,
 not a release. `DevelopmentOffline` composes no Cazana valuation, so its
 Cazana card says the source is unavailable.
+
+## Brego valuation
+
+`Brego:ValuationAccount:Email` and `Brego:ValuationAccount:Password` are
+the Brego valuation account Get valuation signs in with
+([ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)).
+Both are Production required settings, held in Key Vault as
+`brego-valuation-email` and `brego-valuation-password` and delivered to Web
+as `Brego__ValuationAccount__Email` and `Brego__ValuationAccount__Password`
+through versioned secret URI references, each read through its own
+secret-scoped grant; the Worker does not receive them. They are read on each
+valuation, never at startup, so an unresolved reference makes the Brego card
+answer unavailable rather than stopping the host. Rotating the password is a
+new secret version and a configuration read-back, not a release.
+`DevelopmentOffline` composes no Brego valuation, so its Brego card says the
+source is unavailable.

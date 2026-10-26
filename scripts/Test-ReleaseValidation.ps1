@@ -92,6 +92,10 @@ function New-ValidPreProvisionEnvironment {
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/cazana-companion-email/version-one'
         CAZANA_COMPANION_PASSWORD_SECRET_URI =
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/cazana-companion-password/version-one'
+        BREGO_VALUATION_EMAIL_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/brego-valuation-email/version-one'
+        BREGO_VALUATION_PASSWORD_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/brego-valuation-password/version-one'
         ANTHROPIC_API_KEY_SECRET_URI =
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/anthropic-api-key/version-one'
         AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS =
@@ -323,7 +327,8 @@ try {
     foreach ($key in 'BOX_HOLDING_FOLDER_ID', 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
         'GITHUB_PROBLEM_REPORT_REPOSITORY', 'GLASS_VALUATION_USERNAME_SECRET_URI',
         'GLASS_VALUATION_PASSWORD_SECRET_URI', 'CAZANA_COMPANION_EMAIL_SECRET_URI',
-        'CAZANA_COMPANION_PASSWORD_SECRET_URI', 'ANTHROPIC_API_KEY_SECRET_URI',
+        'CAZANA_COMPANION_PASSWORD_SECRET_URI', 'BREGO_VALUATION_EMAIL_SECRET_URI',
+        'BREGO_VALUATION_PASSWORD_SECRET_URI', 'ANTHROPIC_API_KEY_SECRET_URI',
         'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
         'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS') {
         foreach ($value in @($null, '', '   ')) {
@@ -340,6 +345,7 @@ try {
     foreach ($key in 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
         'GLASS_VALUATION_USERNAME_SECRET_URI', 'GLASS_VALUATION_PASSWORD_SECRET_URI',
         'CAZANA_COMPANION_EMAIL_SECRET_URI', 'CAZANA_COMPANION_PASSWORD_SECRET_URI',
+        'BREGO_VALUATION_EMAIL_SECRET_URI', 'BREGO_VALUATION_PASSWORD_SECRET_URI',
         'ANTHROPIC_API_KEY_SECRET_URI') {
         foreach ($value in @(
             'http://pegasusprodkv252ow37g.vault.azure.net/secrets/a-secret/version-one',

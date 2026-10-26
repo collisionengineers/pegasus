@@ -430,6 +430,8 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Glass:ValuationAccount:Password"] = "synthetic-password",
             ["Cazana:CompanionAccount:Email"] = "companion@example.test",
             ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
+            ["Brego:ValuationAccount:Email"] = "brego@example.test",
+            ["Brego:ValuationAccount:Password"] = "synthetic-brego-password",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports",
             // The startup warm-up reads in the background; a test host skips
