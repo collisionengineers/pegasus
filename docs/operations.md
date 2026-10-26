@@ -4,6 +4,51 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Intake data wipe - 26 October 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped and read back `Stopped` at 08:46:42Z before execution; the Web
+  App stayed Running. The dry run after that read-back and the execute
+  inventory both found 304 blobs (223,769,642 bytes) in
+  `pegcustody252ow37gij/transient-intake` and 88 non-preserved tables /
+  3,028 rows in SQL `pegasus` on `pegasus-prod-sql-252ow37gij` (15 Cases,
+  81 documents, 49 retained mails, 34 intake receipts); the preserve list
+  was 34/34 found (35 effective with `ApprovedMailbox*`). The batch
+  reported 3,036 affected rows including the mail-boundary update. Blobs
+  remaining: 0. Wiped tables still holding rows: 0. Preserved rows after:
+  6,660. The committed mail cutoff is
+  `2026-10-26T08:47:10.4659095+00:00`; mailbox approval and activation
+  times were unchanged.
+  `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences` were
+  unchanged at 116/14/1. `ValuationPresets` 4/4, `EmailTemplates` 3/3 and
+  built-in image tags 4/4 before/after. `authentication-ring`,
+  `box-links`, `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. Post-run script verification reported zero
+  blobs remaining and zero wiped tables holding rows. The Worker was
+  resumed and read back `Running` at 08:48:08Z after verification. The
+  Web App read back `Running` at 08:48:11Z.
+- Approved ordinary intake wipe, the second on 26 October 2026: Worker
+  `pegasus-prod-worker-252ow37gij` stopped and read back `Stopped` at
+  09:25:21Z before execution; the Web App stayed Running. The dry run after
+  that read-back and the execute inventory both found 26 blobs
+  (6,797,499 bytes) in `pegcustody252ow37gij/transient-intake` and 88
+  non-preserved tables / 320 rows in SQL `pegasus` on
+  `pegasus-prod-sql-252ow37gij` (1 Case, 11 documents, 1 retained mail,
+  1 intake receipt); the preserve list was 34/34 found (35 effective
+  with `ApprovedMailbox*`). The batch reported 328 affected rows
+  including the mail-boundary update. Blobs remaining: 0. Wiped tables
+  still holding rows: 0. Preserved rows after: 6,663. The committed mail
+  cutoff is `2026-10-26T09:25:44.3222415+00:00`; mailbox approval and
+  activation times were unchanged.
+  `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences` were
+  unchanged at 117/14/1. `ValuationPresets` 4/4, `EmailTemplates` 3/3 and
+  built-in image tags 4/4 before/after. `authentication-ring`,
+  `box-links`, `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. Post-run script verification reported zero
+  blobs remaining and zero wiped tables holding rows. The Worker was
+  resumed and read back `Running` at 09:26:12Z after verification. The
+  Web App read back `Running` at 09:26:15Z.
+
 ## Operations record corrections - 22 October 2026 (addendum)
 
 This section adds dated observations to three statements below that lean on
