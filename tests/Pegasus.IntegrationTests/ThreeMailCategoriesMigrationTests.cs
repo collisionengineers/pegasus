@@ -59,42 +59,42 @@ public sealed class ThreeMailCategoriesMigrationTests
     }
 
     private static string SeedSql() =>
-        $"""
+        $$"""
         INSERT INTO IntakeReceipts
             (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken,
              ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision,
              DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson)
         VALUES
-            ('{KeptReceipt}', N'kept.eml', N'message/rfc822', 1, REPLICATE(N'1', 64), N'mailbox',
-             N'three-categories-kept', '{Recorded}', '{Recorded}', N'migration-test', N'1', 0,
-             N'needs_sorting', N'Kept.', N'{{"version":1,"data":[]}}', N'{{"version":1,"data":[]}}',
-             N'{{"version":1,"data":[]}}'),
-            ('{RemovedReceipt}', N'removed.eml', N'message/rfc822', 1, REPLICATE(N'2', 64), N'mailbox',
-             N'three-categories-removed', '{Recorded}', '{Recorded}', N'migration-test', N'1', 0,
-             N'needs_sorting', N'Removed.', N'{{"version":1,"data":[]}}', N'{{"version":1,"data":[]}}',
-             N'{{"version":1,"data":[]}}'),
-            ('{HistoryReceipt}', N'history.eml', N'message/rfc822', 1, REPLICATE(N'3', 64), N'mailbox',
-             N'three-categories-history', '{Recorded}', '{Recorded}', N'migration-test', N'1', 0,
-             N'needs_sorting', N'History.', N'{{"version":1,"data":[]}}', N'{{"version":1,"data":[]}}',
-             N'{{"version":1,"data":[]}}');
+            ('{{KeptReceipt}}', N'kept.eml', N'message/rfc822', 1, REPLICATE(N'1', 64), N'mailbox',
+             N'three-categories-kept', '{{Recorded}}', '{{Recorded}}', N'migration-test', N'1', 0,
+             N'needs_sorting', N'Kept.', N'{"version":1,"data":[]}', N'{"version":1,"data":[]}',
+             N'{"version":1,"data":[]}'),
+            ('{{RemovedReceipt}}', N'removed.eml', N'message/rfc822', 1, REPLICATE(N'2', 64), N'mailbox',
+             N'three-categories-removed', '{{Recorded}}', '{{Recorded}}', N'migration-test', N'1', 0,
+             N'needs_sorting', N'Removed.', N'{"version":1,"data":[]}', N'{"version":1,"data":[]}',
+             N'{"version":1,"data":[]}'),
+            ('{{HistoryReceipt}}', N'history.eml', N'message/rfc822', 1, REPLICATE(N'3', 64), N'mailbox',
+             N'three-categories-history', '{{Recorded}}', '{{Recorded}}', N'migration-test', N'1', 0,
+             N'needs_sorting', N'History.', N'{"version":1,"data":[]}', N'{"version":1,"data":[]}',
+             N'{"version":1,"data":[]}');
 
         INSERT INTO IntakeMailClassificationDecisions
             (IntakeReceiptId, Outcome, Category, CaseType, IsReplyContext, PredicatesJson, Reason,
              PolicyKey, PolicyVersion, DecidedByActor, DecidedAtUtc, Version, ConcurrencyToken)
         VALUES
-            ('{KeptReceipt}', N'classified', N'new-instruction', N'inspection', 0,
-             N'{{"version":1,"data":[]}}', N'Kept.', N'migration-test', 1, N'test', '{Recorded}', 1, NEWID()),
-            ('{RemovedReceipt}', N'classified', N'query', N'inspection', 0,
-             N'{{"version":1,"data":[]}}', N'Removed.', N'migration-test', 1, N'test', '{Recorded}', 1, NEWID()),
-            ('{HistoryReceipt}', N'classified', N'cancellation', NULL, 0,
-             N'{{"version":1,"data":[]}}', N'History.', N'migration-test', 1, N'test', '{Recorded}', 2, NEWID());
+            ('{{KeptReceipt}}', N'classified', N'new-instruction', N'inspection', 0,
+             N'{"version":1,"data":[]}', N'Kept.', N'migration-test', 1, N'test', '{{Recorded}}', 1, NEWID()),
+            ('{{RemovedReceipt}}', N'classified', N'query', N'inspection', 0,
+             N'{"version":1,"data":[]}', N'Removed.', N'migration-test', 1, N'test', '{{Recorded}}', 1, NEWID()),
+            ('{{HistoryReceipt}}', N'classified', N'cancellation', NULL, 0,
+             N'{"version":1,"data":[]}', N'History.', N'migration-test', 1, N'test', '{{Recorded}}', 2, NEWID());
 
         INSERT INTO IntakeMailClassificationHistory
             (Id, IntakeReceiptId, Version, BeforeJson, AfterJson, Actor, Reason, CorrectedAtUtc)
         VALUES
-            (NEWID(), '{HistoryReceipt}', 2,
-             N'{{"outcome":0,"category":"billing","isReplyContext":false,"predicates":[],"reason":"Before.","policyKey":"migration-test","policyVersion":1,"caseType":"Inspection"}}',
-             N'{{"outcome":0,"category":"cancellation","isReplyContext":false,"predicates":[],"reason":"After.","policyKey":"migration-test","policyVersion":1,"caseType":null}}',
-             N'staff:someone', N'Corrected.', '{Recorded}');
+            (NEWID(), '{{HistoryReceipt}}', 2,
+             N'{"outcome":0,"category":"billing","isReplyContext":false,"predicates":[],"reason":"Before.","policyKey":"migration-test","policyVersion":1,"caseType":"Inspection"}',
+             N'{"outcome":0,"category":"cancellation","isReplyContext":false,"predicates":[],"reason":"After.","policyKey":"migration-test","policyVersion":1,"caseType":null}',
+             N'staff:someone', N'Corrected.', '{{Recorded}}');
         """;
 }

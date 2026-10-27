@@ -19,7 +19,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.IntakeMailClassificationDecisionEntity",
                 typeof(IntakeMailClassificationDecisionEntity),
                 baseEntityType,
-                propertyCount: 15,
+                propertyCount: 16,
                 navigationCount: 2,
                 foreignKeyCount: 1,
                 keyCount: 1);
@@ -83,6 +83,14 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<IsReplyContext>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 sentinel: false);
             isReplyContext.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var opensQuery = runtimeEntityType.AddProperty(
+                "OpensQuery",
+                typeof(bool),
+                propertyInfo: typeof(IntakeMailClassificationDecisionEntity).GetProperty("OpensQuery", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(IntakeMailClassificationDecisionEntity).GetField("<OpensQuery>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                sentinel: false);
+            opensQuery.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var outcome = runtimeEntityType.AddProperty(
                 "Outcome",

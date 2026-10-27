@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Infrastructure.Email;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Mail;

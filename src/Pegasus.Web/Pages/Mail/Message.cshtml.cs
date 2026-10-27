@@ -1241,7 +1241,7 @@ public sealed class MessageModel(
     /// </summary>
     public bool OffersCloseCase =>
         CurrentCase is { } header
-        && ClosureIsAllowed(header.Workflow.State)
+        && ClosureIsAllowed(header.Workflow)
         && !ColleagueHoldsLease(header);
 
     private bool ColleagueHoldsLease(CaseHeader header) =>

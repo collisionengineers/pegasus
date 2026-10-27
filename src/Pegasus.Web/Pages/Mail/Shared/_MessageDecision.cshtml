@@ -92,7 +92,7 @@
                     </div>
                 }
             </div>
-            @if (dossier is { } current)
+            @if (dossier is { } classification)
             {
                 <form method="post" id="mailClassificationForm" class="mail-settings-section"
                       asp-page-handler="CorrectClassification" asp-route-id="@summary.Id"
@@ -102,7 +102,7 @@
                       asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                       asp-route-pageNumber="@Model.PageNumber"
                       asp-route-dialog="@(Model.InDialog ? "true" : null)">
-                    <input type="hidden" asp-for="ExpectedClassificationVersion" value="@current.Version" />
+                    <input type="hidden" asp-for="ExpectedClassificationVersion" value="@classification.Version" />
                     <input type="hidden" name="CorrectionReason" value="@MailClassificationSelection.CorrectedFromInboxReason" />
                     <label class="mail-decision-label" id="mailClassificationLabel" for="mailTypeSelect">@OperatorLabels.Inbox.Type</label>
                     <select id="mailTypeSelect" name="ClassificationKey" class="mail-type-select" data-mail-type-select

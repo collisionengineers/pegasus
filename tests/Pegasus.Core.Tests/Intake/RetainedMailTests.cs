@@ -242,9 +242,9 @@ public sealed class RetainedMailTests
             CancellationToken.None);
 
         Assert.Equal(2, queries.Scopes.Count);
-        Assert.Null(queries.Scopes[0].PrincipalCode);
-        Assert.True(queries.Scopes[1].NoCaseFound);
-        Assert.Equal("QDOS", queries.Scopes[1].PrincipalCode);
+        Assert.Null(queries.Scopes[0].Scope.PrincipalCode);
+        Assert.True(queries.Scopes[1].Scope.NoCaseFound);
+        Assert.Equal("QDOS", queries.Scopes[1].Scope.PrincipalCode);
     }
 
     [Theory]
