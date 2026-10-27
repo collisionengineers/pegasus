@@ -988,7 +988,8 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddBregoGuideValuation(
         this IServiceCollection services,
-        Func<IServiceProvider, BregoValuationAccount> accountFactory)
+        Func<IServiceProvider, BregoValuationAccount> accountFactory,
+        Func<IServiceProvider, IBregoSessionStore?>? sessionStoreFactory = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(accountFactory);
@@ -1008,7 +1009,8 @@ public static class DependencyInjection
             provider.GetRequiredService<IHttpClientFactory>(),
             () => accountFactory(provider),
             provider.GetRequiredService<TimeProvider>(),
-            provider.GetRequiredService<ILogger<BregoGuideValuationProvider>>()));
+            provider.GetRequiredService<ILogger<BregoGuideValuationProvider>>(),
+            sessionStoreFactory?.Invoke(provider)));
         return services;
     }
 

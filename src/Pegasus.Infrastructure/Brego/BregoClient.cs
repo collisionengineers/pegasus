@@ -66,13 +66,18 @@ internal sealed class BregoClient(HttpClient http)
     internal static readonly BigInteger K = HashBigInteger(PadBytes(N), PadBytes(G));
 
     /// <summary>
-    /// Full Cognito <c>USER_SRP_AUTH</c> + device approval + BFF session sign-in.
+    /// Authenticates against AWS Cognito via <c>USER_SRP_AUTH</c> and either pairs
+    /// the fresh 24-hour Cognito tokens with an existing 1-year <c>brego-session</c>
+    /// cookie or, when no <c>brego-session</c> cookie is supplied, completes browser
+    /// device-approval verification and exchanges the tokens at
+    /// <c>POST /login/api/brego/v1/sessions</c> for a new 1-year <c>brego-session</c> cookie.
     /// </summary>
     public async Task<BregoSession> SignInAsync(
         string email,
         string password,
         TimeProvider timeProvider,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? existingBregoSessionCookie = null)
     {
         string organizationId;
         string slug;
@@ -206,6 +211,27 @@ internal sealed class BregoClient(HttpClient http)
             }
         }
 
+        var expiresAt = timeProvider.GetUtcNow().AddSeconds(Math.Max(60, expiresIn - 300));
+        if (!string.IsNullOrWhiteSpace(existingBregoSessionCookie))
+        {
+            var reusedCookie = existingBregoSessionCookie.Trim();
+            var reusedCookieHeader =
+                $"CognitoIdentityServiceProvider.{clientId}.LastAuthUser={username}; " +
+                $"CognitoIdentityServiceProvider.{clientId}.{username}.accessToken={accessToken}; " +
+                $"CognitoIdentityServiceProvider.{clientId}.{username}.idToken={idToken}; " +
+                $"CognitoIdentityServiceProvider.{clientId}.{username}.refreshToken={refreshToken}; " +
+                $"brego-session={reusedCookie}";
+            return new BregoSession(
+                email,
+                password,
+                slug,
+                organizationId,
+                reusedCookie,
+                reusedCookieHeader,
+                expiresAt,
+                ReusedSessionCookie: true);
+        }
+
         using (var challenge = await ExchangeJsonAsync(
             "device_approval",
             BootstrapRequest(DeviceChallengeUri, accessToken, new { deviceId = DefaultDeviceId }),
@@ -249,8 +275,15 @@ internal sealed class BregoClient(HttpClient http)
                 $"CognitoIdentityServiceProvider.{clientId}.{username}.idToken={idToken}; " +
                 $"CognitoIdentityServiceProvider.{clientId}.{username}.refreshToken={refreshToken}; " +
                 $"brego-session={bregoSessionCookie}";
-            var expiresAt = timeProvider.GetUtcNow().AddSeconds(Math.Max(60, expiresIn - 300));
-            return new BregoSession(email, password, slug, resolvedOrgId, cookieHeader, expiresAt);
+            return new BregoSession(
+                email,
+                password,
+                slug,
+                resolvedOrgId,
+                bregoSessionCookie,
+                cookieHeader,
+                expiresAt,
+                ReusedSessionCookie: false);
         }
     }
 
@@ -920,8 +953,10 @@ internal sealed record BregoSession(
     string Password,
     string Slug,
     string OrganizationId,
+    string BregoSessionCookie,
     string CookieHeader,
-    DateTimeOffset ExpiresAtUtc)
+    DateTimeOffset ExpiresAtUtc,
+    bool ReusedSessionCookie = false)
 {
     public override string ToString() => nameof(BregoSession);
 }

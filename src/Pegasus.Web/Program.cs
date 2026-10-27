@@ -235,6 +235,11 @@ if (productionProfile)
         .PersistKeysToAzureBlobStorage(
             new Uri(custodyServiceUri, "authentication-ring/keys.xml"),
             credential);
+    builder.Services.AddSingleton<Pegasus.Infrastructure.Brego.IBregoSessionStore>(
+        new Pegasus.Infrastructure.Brego.AzureBlobBregoSessionStore(
+            new BlobClient(
+                new Uri(custodyServiceUri, "authentication-ring/brego-session.json"),
+                credential)));
     builder.Services.AddSingleton(
         new BlobServiceClient(custodyServiceUri, credential)
             .GetBlobContainerClient("transient-intake"));
@@ -743,7 +748,8 @@ if (productionProfile)
     builder.Services.AddCazanaGuideValuation(
         _ => Pegasus.Infrastructure.Cazana.CazanaCompanionAccount.Create(key => builder.Configuration[key]));
     builder.Services.AddBregoGuideValuation(
-        _ => Pegasus.Infrastructure.Brego.BregoValuationAccount.Create(key => builder.Configuration[key]));
+        _ => Pegasus.Infrastructure.Brego.BregoValuationAccount.Create(key => builder.Configuration[key]),
+        provider => provider.GetService<Pegasus.Infrastructure.Brego.IBregoSessionStore>());
 }
 
 builder.Services.AddPegasusReportRendering();

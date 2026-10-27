@@ -225,6 +225,81 @@ public sealed class BregoGuideValuationProviderTests
         Assert.Equal(17, harness.Requests.Count);
     }
 
+    [Fact]
+    public async Task NextDayCognitoTokenRefreshReusesTheOneYearSessionCookieWithoutDeviceApproval()
+    {
+        var currentUtc = Now;
+        var harness = Harness.Create(timeProvider: new DelegateClock(() => currentUtc));
+
+        // Day 1: full sign-in (7 calls including device-approval/challenge and v1/sessions).
+        await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+        Assert.Equal(7, harness.Requests.Count);
+
+        // Day 2 (25 hours later): 24h Cognito token expired, so getAuthorizer + Cognito SRP run,
+        // but the 1-year brego-session cookie is retained without calling device-approval/challenge or v1/sessions.
+        currentUtc = Now.AddHours(25);
+        var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+        Assert.Equal(14250m, quote.RetailValue);
+        Assert.Equal(12, harness.Requests.Count);
+        Assert.Equal(
+            [
+                "POST https://www.brego.ai/login/api/getAuthorizer",
+                "POST https://cognito-idp.eu-west-2.amazonaws.com/",
+                "POST https://cognito-idp.eu-west-2.amazonaws.com/",
+                "GET https://collision-engineers.brego.ai/platform/api/brego/vehicles/vrm/ab12cde?countryCode=gb&expand=sources&expand=metadata",
+                "GET https://collision-engineers.brego.ai/platform/api/brego/vehicles/vin/sb1zb3ae40e045642/valuations?countryCode=gb&dates=2031-04-16&period=month&futureMonthlyMileage=650&standardOptionsValue=0&fullOptionsValue=0&significantOptionsValue=0&excludeTax=false&excludeUserHistory=false&mileage=33000&color=Silver&year=2024&previousOwners=2&registrationDate=2024-01-04",
+            ],
+            harness.Requests.Skip(7).Select(request => $"{request.Method} {request.Uri}").ToArray());
+    }
+
+    [Fact]
+    public async Task HostRestartLoadsPersistedSessionCookieWithoutDeviceApprovalAndReplacesItOn401()
+    {
+        var store = new InMemoryBregoSessionStore(Email, "persisted-one-year-cookie");
+        var failPersistedCookieOnce = false;
+        var harness = Harness.Create(
+            request =>
+            {
+                if (failPersistedCookieOnce
+                    && request.RequestUri!.AbsolutePath.Contains("/vehicles/vrm/", StringComparison.Ordinal))
+                {
+                    failPersistedCookieOnce = false;
+                    return Json(HttpStatusCode.Unauthorized, """{"message":"Session expired"}""");
+                }
+
+                return null;
+            },
+            sessionStore: store);
+
+        // First call after host restart uses the persisted brego-session cookie without device-approval or v1/sessions (5 calls total).
+        var firstQuote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+        Assert.Equal(14250m, firstQuote.RetailValue);
+        Assert.Equal(5, harness.Requests.Count);
+        Assert.DoesNotContain(harness.Requests, request => request.Uri.AbsolutePath.Contains("device-approval", StringComparison.Ordinal));
+        Assert.Contains("brego-session=persisted-one-year-cookie", Assert.Single(harness.Requests[^1].Headers["Cookie"]), StringComparison.Ordinal);
+        Assert.Equal("persisted-one-year-cookie", store.Cookie);
+
+        // When Brego rejects the persisted cookie with 401 on a fresh host start, the provider falls back to full sign-in and updates the store.
+        var restartedHarness = Harness.Create(
+            request =>
+            {
+                if (failPersistedCookieOnce
+                    && request.RequestUri!.AbsolutePath.Contains("/vehicles/vrm/", StringComparison.Ordinal))
+                {
+                    failPersistedCookieOnce = false;
+                    return Json(HttpStatusCode.Unauthorized, """{"message":"Session expired"}""");
+                }
+
+                return null;
+            },
+            sessionStore: store);
+        failPersistedCookieOnce = true;
+        var secondQuote = await restartedHarness.Provider.GetAsync(Request("AB12CDE", April), default);
+        Assert.Equal(14250m, secondQuote.RetailValue);
+        Assert.Equal(BregoSessionCookie, store.Cookie);
+        Assert.Contains(restartedHarness.Requests, request => request.Uri.AbsolutePath == "/login/api/brego/v1/sessions");
+    }
+
     [Theory]
     [InlineData("2031-02", "2031-02-28", "2031-02")]
     [InlineData("2028-02", "2028-02-29", "2028-02")]
@@ -563,7 +638,9 @@ public sealed class BregoGuideValuationProviderTests
 
         public static Harness Create(
             Func<HttpRequestMessage, HttpResponseMessage?>? overrideRequest = null,
-            Func<BregoValuationAccount>? account = null)
+            Func<BregoValuationAccount>? account = null,
+            TimeProvider? timeProvider = null,
+            IBregoSessionStore? sessionStore = null)
         {
             var requests = new List<CazanaGuideValuationProviderTests.RecordedRequest>();
             var logger = new CapturingLogger();
@@ -587,8 +664,9 @@ public sealed class BregoGuideValuationProviderTests
                     })),
                     account ?? (() => BregoValuationAccount.Create(
                         key => key == "Brego:ValuationAccount:Email" ? Email : Password)),
-                    new CazanaGuideValuationProviderTests.FixedClock(Now),
-                    logger),
+                    timeProvider ?? new CazanaGuideValuationProviderTests.FixedClock(Now),
+                    logger,
+                    sessionStore),
                 logger,
                 requests);
         }
@@ -612,6 +690,28 @@ public sealed class BregoGuideValuationProviderTests
             {
                 Exceptions.Add(exception);
             }
+        }
+    }
+
+    private sealed class DelegateClock(Func<DateTimeOffset> now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now();
+    }
+
+    private sealed class InMemoryBregoSessionStore(string email, string? cookie) : IBregoSessionStore
+    {
+        public string Email { get; private set; } = email;
+
+        public string? Cookie { get; private set; } = cookie;
+
+        public Task<string?> TryLoadSessionCookieAsync(string email, CancellationToken cancellationToken) =>
+            Task.FromResult(string.Equals(Email, email, StringComparison.OrdinalIgnoreCase) ? Cookie : null);
+
+        public Task TrySaveSessionCookieAsync(string email, string bregoSessionCookie, CancellationToken cancellationToken)
+        {
+            Email = email;
+            Cookie = bregoSessionCookie;
+            return Task.CompletedTask;
         }
     }
 }
