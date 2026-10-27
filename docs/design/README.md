@@ -926,7 +926,7 @@ deleted in wave 5.
 
 | Class | Role |
 | --- | --- |
-| `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container |
+| `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container: the Case record, a message, and the initial Upload sheet, whose one action bar is the record bar |
 | `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar, measured at runtime into `--sticky-h` |
 | `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-registration`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace", Registration, Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
 | `section-row`, `section-nav`, `section-link`, `section-tools` | The 40px section row: section links (the one in view carries `aria-current`) and Refresh |
@@ -953,7 +953,8 @@ deleted in wave 5.
 | `dialog--mail`, `mail-split`, `mail-chips`, `mail-decision` | The Inbox message dialog: the message beside Decision, the Classification chips and the Case / PO picker (v41 I2, I9, I17) |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `admin-layout`, `admin-nav` | Administration |
-| `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |
+| `up-sheet`, `up-drop`, `up-evidence`, `up-declared`, `up-file-list` (`upload.css`) | Upload's initial sheet (v42 E): its head states the destination and the limits, its body is the drop target, and **Selected files** with the one action bar appear under it once files are chosen; the file rows are the same list on the review |
+| `up-surface`, `up-workspace`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case` (`upload.css`) | Upload's review: the inspector beside the one Case decision (v30 E) |
 | `report-preview` | Report draft preview dialog body |
 
 ### Dialogs and feedback

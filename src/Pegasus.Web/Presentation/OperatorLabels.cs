@@ -2662,7 +2662,6 @@ public static class OperatorLabels
     public static class Upload
     {
         public const string Title = "Upload";
-        public const string SelectEyebrow = "Add files to Pegasus";
         public const string ChooseHeading = "Choose the files for this upload";
         public const string DropHeading = "Drop files here";
         public const string AcceptedKinds = "Images, documents, emails and video";
@@ -2747,6 +2746,9 @@ public static class OperatorLabels
         public static string ConfirmAdd(string reference) => $"Confirm and add to {reference}";
 
         public static string OpenCase(string reference) => $"Open {reference}";
+
+        /// <summary>The way back from a declared upload to the Case it is for (v42 Upload E).</summary>
+        public static string BackToCase(string reference) => $"Back to {reference}";
 
         /// <summary>The declared-upload wording, reused wherever filing resumes after the request.</summary>
         public const string AppearUnderFiles = "They appear under Files once processed.";

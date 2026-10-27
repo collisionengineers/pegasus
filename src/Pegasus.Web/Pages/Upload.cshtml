@@ -8,46 +8,76 @@
         .Select(error => error.ErrorMessage)
         .Where(message => !string.IsNullOrWhiteSpace(message))
         .ToArray();
+    // Add evidence on a Case page declares the destination before the upload
+    // (FRD-18): the head then names that Case and offers the way back to it.
+    var declaredCase = Model.DeclaredCaseId is not null ? Model.Destination : null;
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/upload.css" asp-append-version="true" />
 }
 
-@* v30 Upload E: choose the files for one upload, then review them beside the
-   Case decision. The native file input is the control and keeps working on
-   its own; upload.js keeps the accumulated selection, validates it against
-   the limits declared here and lists it on the right. *@
-<header class="page-header up-head">
-    <div class="page-title">
-        <h1>@Labels.Title</h1>
-    </div>
-</header>
-
-<div class="up-surface">
-    <div class="up-workspace is-choosing"
-         data-upload-select
-         data-max-files="@UploadModel.MaximumFileCount"
-         data-max-bytes="@UploadModel.MaximumFileBytes"
-         data-max-total="@UploadModel.MaximumTotalBytes">
-        <form method="post" enctype="multipart/form-data" class="up-select" data-upload-form>
-            <input asp-for="ExternalReceiptToken" type="hidden" />
-            <div class="up-select-title">
-                <p class="up-eyebrow">@Labels.SelectEyebrow</p>
-                <h2 data-select-heading>@Labels.ChooseHeading</h2>
+@* v42 Upload E: the whole surface is one record sheet — the identity band
+   states where the files go and the limits, the body is the drop target, and
+   the selected files and their one action bar appear under it once files are
+   chosen. The native file input is the control and keeps working on its own;
+   upload.js keeps the accumulated selection, validates it against the limits
+   declared here and lists it. *@
+<div class="record up-sheet"
+     data-upload-select
+     data-max-files="@UploadModel.MaximumFileCount"
+     data-max-bytes="@UploadModel.MaximumFileBytes"
+     data-max-total="@UploadModel.MaximumTotalBytes">
+    <form method="post" enctype="multipart/form-data" data-upload-form>
+        <input asp-for="ExternalReceiptToken" type="hidden" />
+        @if (declaredCase is not null)
+        {
+            <input asp-for="DeclaredCaseId" type="hidden" />
+        }
+        <header class="record-head">
+            <span class="up-sheet-badge" aria-hidden="true">
+                <svg class="icon"><use href="@IconSprite.Href("icon-upload")" /></svg>
+            </span>
+            <div class="up-sheet-title">
+                @if (declaredCase is null)
+                {
+                    <h1>@Labels.Title</h1>
+                }
+                else
+                {
+                    <h1>@Labels.Title · @declaredCase.Reference</h1>
+                }
+                @* The limits are stated once, from their one owner, wherever Upload is opened. *@
+                <div class="record-identity">
+                    <span>@UploadModel.MaximumFileCount files maximum</span>
+                    <span>@OperatorLabels.FileSize(UploadModel.MaximumFileBytes) per file</span>
+                    <span>@OperatorLabels.FileSize(UploadModel.MaximumTotalBytes) per upload</span>
+                </div>
+                @* Opened from a Case page: the destination is already decided
+                   and travels with the files. The card alone says where the
+                   files go; it stays in view while files are chosen. *@
+                @if (declaredCase is not null)
+                {
+                    <div class="up-declared" data-upload-declared>
+                        <p class="up-eyebrow">@Labels.AddingTo</p>
+                        <partial name="Shared/_UploadDestinationCard" model="@declaredCase" />
+                    </div>
+                }
             </div>
-            @* Opened from a Case page: the destination is already decided
-               and travels with the files (FRD-18). The card alone says
-               where the files go; it stays in view while files are chosen. *@
-            @if (Model.DeclaredCaseId is not null && Model.Destination is { } destination)
+            @if (declaredCase is not null)
             {
-                <input asp-for="DeclaredCaseId" type="hidden" />
-                <div class="up-declared" data-upload-declared>
-                    <p class="up-eyebrow">@Labels.AddingTo</p>
-                    <partial name="Shared/_UploadDestinationCard" model="@destination" />
+                <div class="record-head-end">
+                    <a class="btn" href="@declaredCase.Url">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
+                        <span>@Labels.BackToCase(declaredCase.Reference)</span>
+                    </a>
                 </div>
             }
-            else if (Model.DestinationUnavailable)
+        </header>
+        <div class="record-accent"></div>
+        <div class="record-body">
+            <span class="sr-only" data-select-heading>@Labels.ChooseHeading</span>
+            @if (Model.DestinationUnavailable)
             {
                 <div class="up-alert" role="status" data-upload-declared-unavailable>
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
@@ -75,7 +105,9 @@
                 </div>
             </div>
             <div class="up-drop" data-drop>
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-upload")" /></svg>
+                <span class="up-drop-badge" aria-hidden="true">
+                    <svg class="icon"><use href="@IconSprite.Href("icon-upload")" /></svg>
+                </span>
                 <h2 data-drop-heading>@Labels.DropHeading</h2>
                 <p>@Labels.AcceptedKinds<br />@Labels.AcceptedExtensions</p>
                 <input asp-for="Upload" type="file" multiple class="up-file-input"
@@ -85,32 +117,27 @@
                     <span>@Labels.Choose</span>
                 </label>
             </div>
-            <div class="up-limits">
-                <span>@UploadModel.MaximumFileCount files maximum</span>
-                <span>@OperatorLabels.FileSize(UploadModel.MaximumFileBytes) per file</span>
-                <span>@OperatorLabels.FileSize(UploadModel.MaximumTotalBytes) per upload</span>
+            <section class="up-evidence" aria-labelledby="up-selected-title" hidden data-select-files>
+                <header class="up-section-head">
+                    <h2 id="up-selected-title">@Labels.SelectedFiles</h2>
+                    <span data-select-count></span>
+                </header>
+                <ul class="up-file-list" data-select-list role="status" aria-live="polite"></ul>
+            </section>
+        </div>
+        @* A native reset empties the file input with no script at all;
+           upload.js also empties its own roster on reset. *@
+        <footer class="record-bar" data-select-actions>
+            <p data-select-summary></p>
+            <div class="record-bar-end">
+                <button type="reset" class="btn">@Labels.Clear</button>
+                <button type="submit" class="btn btn--primary" data-select-submit data-busy-label="@OperatorLabels.Busy.Uploading">
+                    <span data-select-submit-label>@Labels.UploadFiles(1)</span>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
+                </button>
             </div>
-            <div class="up-select-actions" data-select-actions>
-                <p data-select-summary></p>
-                <div class="button-row">
-                    @* A native reset empties the file input with no script at
-                       all; upload.js also empties its own roster on reset. *@
-                    <button type="reset" class="btn">@Labels.Clear</button>
-                    <button type="submit" class="btn btn--primary" data-select-submit data-busy-label="@OperatorLabels.Busy.Uploading">
-                        <span data-select-submit-label>@Labels.UploadFiles(1)</span>
-                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
-                    </button>
-                </div>
-            </div>
-        </form>
-        <section class="up-evidence" aria-labelledby="up-selected-title" hidden data-select-files>
-            <header class="up-section-head">
-                <h2 id="up-selected-title">@Labels.SelectedFiles</h2>
-                <span data-select-count></span>
-            </header>
-            <ul class="up-file-list" data-select-list role="status" aria-live="polite"></ul>
-        </section>
-    </div>
+        </footer>
+    </form>
 </div>
 
 @section Scripts {
