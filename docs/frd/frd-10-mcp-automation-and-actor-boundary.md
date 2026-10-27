@@ -426,8 +426,10 @@ replays by its operation key.
   a resolution or closure with a reason.
 - The Automation Actor reads, reclassifies and links mail through the mail
   tools in scope `automation.mail` (operator ruling, 15 October 2026).
-- `pegasus_mail_correct_classification` takes a mail category or
-  Unclassified, with a reason, as the staff correction does
+- `pegasus_mail_list` folder is `inbox`, `sent` or `dismissed`.
+- `pegasus_mail_correct_classification` takes `correspondence`, one of the
+  three category codes, or `new-instruction:Inspection` (and Audit,
+  InspectionAndAudit), with a reason, as the staff Type select does
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
 - `pegasus_mail_link_destinations` lists the Cases and Triage Cases the
   staff **Case / PO** picker offers for **Link to Case**, and

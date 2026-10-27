@@ -43,10 +43,9 @@ instead of plate reads and matches a Case's registration exactly; the bar is own
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis).
 Image material without a usable registration enters Unidentified with a
 reason ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference)).
-Image-only material a member of staff has classified as Images received
-([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction))
-may be registered by staff from the message record or the Unidentified item
-while no Case holds it; automation never widens to it.
+Unlinked image-only material with no mail category may be registered by
+staff from the message record or the Unidentified item; automation never
+widens to it.
 An upload group's Unidentified item registers the whole group as one Image
 intake under the registration staff enter, while no member has reached a
 Case or an Image intake; the item resolves to that Image intake.
