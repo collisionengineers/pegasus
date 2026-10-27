@@ -38,6 +38,7 @@ public partial class IndexModel(
     IAcquireCaseEditLease acquireLease,
     IReleaseCaseEditLease releaseLease,
     IAssignCaseEngineer assignEngineer,
+    IAssignCaseQuery assignQuery,
     IConfirmAiJob confirmAiJob,
     IListWorkCentreAiJobs listAiJobs,
     IListSystemActions listSystemActions,
@@ -337,7 +338,7 @@ public partial class IndexModel(
         {
             var staffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(actor)
                 ?? throw new InvalidOperationException("Take is a staff act.");
-            await HttpContext.RequestServices.GetRequiredService<IAssignCaseQuery>().ExecuteAsync(
+            await assignQuery.ExecuteAsync(
                 new(queryId, actor, operationKey, staffId),
                 cancellationToken);
             StatusMessage = Labels.Assigned;

@@ -88,7 +88,9 @@ public sealed class RecentCasesTests
         Assert.Equal(Now, visits.LastSeen);
         Assert.NotEqual(later, visits.LastSeen);
         Assert.Equal(Now, second.LastSeenUtc);
-        Assert.Equal([(RecentCasesPolicy.WindowStart(Now), 1), (RecentCasesPolicy.WindowStart(Now), 2)], queries.Reads);
+        Assert.Equal(
+            [(RecentCasesPolicy.WindowStart(Now), 1), (RecentCasesPolicy.WindowStart(Now), 2)],
+            queries.Reads.Select(read => (read.Since, read.Page)));
         await Assert.ThrowsAsync<StaffAuthorizationException>(
             () => sut.ExecuteAsync(ActionActor.Automation("client"), 1, true, null, null, default));
     }

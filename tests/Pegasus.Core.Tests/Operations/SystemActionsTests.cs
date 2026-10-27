@@ -86,8 +86,10 @@ public sealed class SystemActionsTests
     public void AQueryRowCarriesItsQueryAndWhetherItIsUnassigned()
     {
         var queryId = Guid.NewGuid();
+        // A query row is keyed by the query itself: dismissing it hides only that query.
         var row = Row(SystemActionKind.QueryOpenedAutomatically, Now) with
         {
+            RecordId = queryId,
             QueryId = queryId,
             QueryUnassigned = true
         };
@@ -115,7 +117,7 @@ public sealed class SystemActionsTests
             false);
     }
 
-    private static IReadOnlyDictionary<SystemActionKind, int> Counts() =>
+    private static Dictionary<SystemActionKind, int> Counts() =>
         Enum.GetValues<SystemActionKind>().ToDictionary(kind => kind, _ => 0);
 
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider
@@ -123,7 +125,7 @@ public sealed class SystemActionsTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
-    private sealed class StubQueries(SystemActionPage page) : ISystemActionQueries
+    private sealed class StubQueries(SystemActionPage answer) : ISystemActionQueries
     {
         public DateTimeOffset? Since { get; private set; }
 
@@ -151,7 +153,7 @@ public sealed class SystemActionsTests
             Page = page;
             PageSize = pageSize;
             Reads++;
-            return Task.FromResult(page);
+            return Task.FromResult(answer);
         }
     }
 }
