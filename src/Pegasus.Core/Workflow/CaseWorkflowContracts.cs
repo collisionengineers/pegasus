@@ -521,30 +521,39 @@ public sealed record ReturnCaseToEngineerRequest(
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 /// <summary>
-/// Logs a query a staff member or Automation received outside Pegasus's mail
-/// (a phone call, a WhatsApp, an e-mail elsewhere). <paramref name="Details"/>
-/// is what the query is, as typed; the envelope's reason is optional here.
+/// Opens one query on a Report sent Case (operator, 27 October 2026). Exactly
+/// one of <paramref name="RetainedMessageId"/> and <paramref name="Channel"/>:
+/// a linked e-mail, or a query that reached the office outside Pegasus's mail.
+/// No edit lease, expected version or reason — a colleague editing the Case
+/// does not block it. A new query is Unassigned.
 /// </summary>
-public sealed record RaiseCaseQueryRequest(
+public sealed record OpenCaseQueryRequest(
     Guid CaseId,
-    long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    CaseQueryChannel Channel,
-    string? Details)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+    Guid? RetainedMessageId,
+    CaseQueryChannel? Channel,
+    string? Details);
 
-/// <summary>Resolves every open query on the Case at once (operator, 11 October 2026).</summary>
-public sealed record ResolveCaseQueriesRequest(
-    Guid CaseId,
-    long ExpectedVersion,
+/// <summary>
+/// Marks one query done, or reopens one Done query. No edit lease, expected
+/// version or reason (operator, 27 October 2026).
+/// </summary>
+public sealed record CaseQueryActRequest(
+    Guid QueryId,
+    ActionActor Actor,
+    string OperationKey);
+
+/// <summary>
+/// Assigns one open query, or sets it Unassigned when
+/// <paramref name="AssigneeStaffId"/> is null. Taking it posts the actor's own
+/// staff id. No edit lease, expected version or reason.
+/// </summary>
+public sealed record AssignCaseQueryRequest(
+    Guid QueryId,
     ActionActor Actor,
     string OperationKey,
-    string Reason,
-    string EditLeaseToken)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+    Guid? AssigneeStaffId);
 
 public interface ICaseWorkflowQueries
 {
@@ -657,14 +666,24 @@ public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
         ReturnCaseToEngineerRequest request,
         CancellationToken cancellationToken);
 
-    /// <summary>Logs a staff-sourced query and marks the Case as having an open query.</summary>
-    Task<CaseWorkflowRecord> RaiseQueryAsync(
-        RaiseCaseQueryRequest request,
+    /// <summary>Opens one query and returns its id. A replay of the same operation returns that id.</summary>
+    Task<Guid> OpenQueryAsync(
+        OpenCaseQueryRequest request,
         CancellationToken cancellationToken);
 
-    /// <summary>Resolves every open query on the Case and clears the open-query mark.</summary>
-    Task<CaseWorkflowRecord> ResolveQueriesAsync(
-        ResolveCaseQueriesRequest request,
+    /// <summary>Marks one open query done and recomputes the Case's open-query mark.</summary>
+    Task<CaseWorkflowRecord> MarkQueryDoneAsync(
+        CaseQueryActRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Reopens one Done query and sets the Case's open-query mark.</summary>
+    Task<CaseWorkflowRecord> ReopenQueryAsync(
+        CaseQueryActRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Assigns one open query, or sets it Unassigned.</summary>
+    Task<CaseWorkflowRecord> AssignQueryAsync(
+        AssignCaseQueryRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -751,16 +770,31 @@ public interface IReturnCaseToEngineer
         CancellationToken cancellationToken);
 }
 
-public interface IRaiseCaseQuery
+public interface IOpenCaseQuery
 {
-    Task<CaseWorkflowRecord> ExecuteAsync(
-        RaiseCaseQueryRequest request,
+    /// <summary>Opens the query and returns its id.</summary>
+    Task<Guid> ExecuteAsync(
+        OpenCaseQueryRequest request,
         CancellationToken cancellationToken);
 }
 
-public interface IResolveCaseQueries
+public interface IMarkCaseQueryDone
 {
     Task<CaseWorkflowRecord> ExecuteAsync(
-        ResolveCaseQueriesRequest request,
+        CaseQueryActRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IReopenCaseQuery
+{
+    Task<CaseWorkflowRecord> ExecuteAsync(
+        CaseQueryActRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IAssignCaseQuery
+{
+    Task<CaseWorkflowRecord> ExecuteAsync(
+        AssignCaseQueryRequest request,
         CancellationToken cancellationToken);
 }

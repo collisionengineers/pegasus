@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Pages.Mail;
 using Pegasus.Web.Presentation;
 
@@ -127,6 +128,13 @@ internal sealed record MailActionToolResult(
     string OperationKey,
     string CorrelationId);
 
+internal sealed record MailOpenQueryToolResult(
+    Guid QueryId,
+    Guid CaseId,
+    Guid MessageId,
+    string OperationKey,
+    string CorrelationId);
+
 internal enum MailAction
 {
     Dismiss,
@@ -152,6 +160,7 @@ internal sealed class MailMcpTools(
     IGetIntake getIntake,
     IIntakeAssociationDestinationQueries destinations,
     ILinkIntake linkIntake,
+    IOpenCaseQuery openCaseQuery,
     AutomationEditLease leases,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
@@ -250,6 +259,45 @@ internal sealed class MailMcpTools(
             messageId.ToString("D"),
             null,
             () => AutomationMcpErrors.ExecuteAsync(() => ReadDetailAsync(context, messageId, cancellationToken)),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_mail_open_query",
+        Title = "Open a query on a message",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Opens a query on a retained message linked to a Report sent Case, through the same Core command as the Case's Open query. The message must hold no non-withdrawn query. A new query is Unassigned. Needs a mcp:-prefixed operation key.")]
+    public async Task<MailOpenQueryToolResult> OpenQueryAsync(
+        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync("pegasus_mail_open_query", cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_mail_open_query",
+            messageId.ToString("D"),
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
+                var detail = await getRetainedMail.ExecuteAsync(context.Actor, id, cancellationToken)
+                    ?? throw new McpException("The retained message was not found.");
+                if (detail.Summary.CaseId is not { } caseId || detail.Summary.IsTriageCase)
+                {
+                    throw new McpException("The message is not linked to a Case.");
+                }
+
+                var queryId = await openCaseQuery.ExecuteAsync(
+                    new(caseId, context.Actor, key, id, null, null),
+                    cancellationToken);
+                return new MailOpenQueryToolResult(queryId, caseId, id, key, AutomationMcpAuditor.CorrelationId(context, key));
+            }),
             cancellationToken);
     }
 

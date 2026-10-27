@@ -6,7 +6,6 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Notifications;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
@@ -17,9 +16,9 @@ using QueryLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Queries;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Case's Queries section and the Correspondence tab's Tag as query
-/// (operator, 11 October 2026): every query raised on the Case, open ones
-/// first, a mail query through its message and a staff-logged query through
+/// The Case's Queries section and the Correspondence tab's Open query
+/// (operator, 27 October 2026): every query raised on the Case, open ones
+/// first, a mail query through its subject, a staff-logged query through
 /// its channel and details, and the one sentence when none is open.
 /// </summary>
 [Trait("Category", "SqlServer")]
@@ -64,15 +63,15 @@ public sealed class CaseQueriesSectionWebTests
         var row = Assert.Single(Rows(body));
         Assert.Equal(resolved.Id.ToString("D"), row.Id);
         Assert.False(row.Open);
-        Assert.Contains($">{QueryLabels.Resolved}</span>", row.Markup, StringComparison.Ordinal);
+        Assert.Contains($">{QueryLabels.Done}</span>", row.Markup, StringComparison.Ordinal);
         Assert.Contains("Pat Resolver", row.Markup, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// Open queries come first, then the resolved ones, whatever order the
-    /// store answers in. A mail query shows its sender and subject, Open
-    /// message and, while open and staff mail is available, Reply; a staff
-    /// query shows its channel and details.
+    /// store answers in. A mail query shows its sender and subject as the
+    /// message link and, while open and staff mail is available, Reply; a
+    /// staff query shows its channel and details.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -109,7 +108,7 @@ public sealed class CaseQueriesSectionWebTests
         Assert.Contains("When is the supplementary due?", mail.Markup, StringComparison.Ordinal);
         Assert.Contains($">{QueryLabels.Channel(CaseQueryChannel.Email)}<", mail.Markup, StringComparison.Ordinal);
         Assert.Contains($"data-dialog-open=\"case-message-{messageId:N}\"", mail.Markup, StringComparison.Ordinal);
-        Assert.Contains($">{OperatorLabels.CaseWorkspace.OpenMessage}</a>", mail.Markup, StringComparison.Ordinal);
+        Assert.Contains("query-subject-link", mail.Markup, StringComparison.Ordinal);
         var reply = Regex.Match(mail.Markup, "<a[^>]*data-query-reply=\"[^\"]+\"[^>]*>");
         Assert.True(reply.Success, "An open mail query offers no Reply.");
         Assert.Contains($"href=\"/Inbox/{messageId:D}?", reply.Value, StringComparison.OrdinalIgnoreCase);
@@ -123,16 +122,17 @@ public sealed class CaseQueriesSectionWebTests
         Assert.Contains("Repairer asked for the labour rate", staff.Markup, StringComparison.Ordinal);
         Assert.Contains("Sam Staff", staff.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-query-reply", staff.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-dialog-open", staff.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"case-message-", staff.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"case-assign-query-dialog\"", staff.Markup, StringComparison.Ordinal);
 
-        Assert.Contains($">{QueryLabels.Resolved}</span>", rows[2].Markup, StringComparison.Ordinal);
+        Assert.Contains($">{QueryLabels.Done}</span>", rows[2].Markup, StringComparison.Ordinal);
         Assert.Contains($">{QueryLabels.Channel(CaseQueryChannel.WhatsApp)}<", rows[2].Markup, StringComparison.Ordinal);
         Assert.Contains("Claimant asked for a copy", rows[2].Markup, StringComparison.Ordinal);
     }
 
-    /// <summary>Without staff mail an open mail query is opened, not replied to, from the section.</summary>
+    /// <summary>Without staff mail an open mail query's subject still opens the message, and the row offers no Reply.</summary>
     [Fact]
-    public async Task WithoutStaffMailAMailQueryOffersOpenMessageAlone()
+    public async Task WithoutStaffMailAMailQueryOpensItsMessageAndOffersNoReply()
     {
         var messageId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore
@@ -149,126 +149,50 @@ public sealed class CaseQueriesSectionWebTests
     }
 
     /// <summary>
-    /// An open mail query carries its AI draft (FRD-27): with no live job the
-    /// row offers Draft reply with AI beside Reply, posting the Case's own
-    /// handler for that message; while the job is Queued or Taken the row
-    /// reads the pending state instead; once Draft ready, Reply with AI draft
-    /// replaces Reply and opens the message's composer on the job.
+    /// Row actions are Reply and Mark done on an open mail query, Mark done
+    /// on an open logged query, and Reopen on a Done query (operator, 27
+    /// October 2026).
     /// </summary>
     [Theory]
-    [InlineData(null)]
-    [InlineData(AiJobState.Queued)]
-    [InlineData(AiJobState.Taken)]
-    [InlineData(AiJobState.DraftReady)]
-    public async Task AnOpenMailQueryOffersAnAiDraftAndReadsItsJobsState(AiJobState? jobState)
+    [InlineData("open-mail", true, false)]
+    [InlineData("open-logged", false, false)]
+    [InlineData("done", false, true)]
+    public async Task AQueryRowOffersReplyAndMarkDoneOrReopen(string name, bool mail, bool done)
     {
+        Assert.NotEmpty(name);
         var messageId = Guid.NewGuid();
+        var query = mail
+            ? MailQuery(messageId)
+            : StaffQuery(CaseQueryChannel.Phone, "Repairer asked for the labour rate", done);
         var store = new RecordingCaseDetailsStore
         {
             State = CaseLifecycleState.ReportSent,
-            HasOpenQuery = true,
-            Queries = [MailQuery(messageId)]
+            HasOpenQuery = !done,
+            Queries = [query]
         };
-        var job = jobState is { } state ? Job(store.CaseId, messageId, state) : null;
 
-        var html = await ReadQueriesAsync(store, fragment: false, staffMail: true, jobs: job is null ? [] : [job]);
-        var row = Assert.Single(Rows(QueriesBody(html)));
+        var row = Assert.Single(Rows(QueriesBody(await ReadQueriesAsync(store, fragment: false, staffMail: true))));
 
-        var replies = Regex.Matches(row.Markup, "<a[^>]*data-query-reply=\"[^\"]+\"[^>]*>");
-        var reply = Assert.Single(replies);
-        var startForm = Regex.Match(
-            row.Markup,
-            $"<form[^>]*data-query-ai-draft-start=\"{messageId:D}\"[^>]*>.*?</form>",
-            RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        if (job is null)
+        Assert.Equal(mail && !done, row.Markup.Contains("data-query-reply", StringComparison.Ordinal));
+        Assert.Equal(!done, row.Markup.Contains("data-mark-query-done", StringComparison.Ordinal));
+        Assert.Equal(done, row.Markup.Contains("data-reopen-query", StringComparison.Ordinal));
+        if (!done)
         {
-            Assert.DoesNotContain("aiJob=", reply.Value, StringComparison.Ordinal);
-            Assert.True(startForm.Success, "The row offers no Draft reply with AI.");
-            Assert.Contains($"action=\"/Cases/{store.CaseId:D}?handler=DraftQueryReply\"", startForm.Value, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains($"name=\"messageId\" value=\"{messageId:D}\"", startForm.Value, StringComparison.Ordinal);
-            Assert.Contains($">{OperatorLabels.QueryResponseJobs.Create}</span>", startForm.Value, StringComparison.Ordinal);
-            Assert.DoesNotContain("data-query-ai-pending", row.Markup, StringComparison.Ordinal);
-        }
-        else if (job.State == AiJobState.DraftReady)
-        {
-            Assert.Contains($"data-query-ai-draft=\"{job.JobId:D}\"", reply.Value, StringComparison.Ordinal);
-            Assert.Contains(
-                $"href=\"{StaffNotificationPolicy.MessageReplyRoute(messageId, Reference, job.JobId)}\"",
-                reply.Value,
-                StringComparison.Ordinal);
-            Assert.Contains($">{OperatorLabels.QueryResponseJobs.ReplyWithDraft}</span>", row.Markup, StringComparison.Ordinal);
-            Assert.False(startForm.Success);
-            Assert.DoesNotContain("data-query-ai-pending", row.Markup, StringComparison.Ordinal);
+            Assert.Contains($">{QueryLabels.MarkDone}</button>", row.Markup, StringComparison.Ordinal);
         }
         else
         {
-            Assert.DoesNotContain("aiJob=", reply.Value, StringComparison.Ordinal);
-            Assert.False(startForm.Success);
-            Assert.Contains(
-                $"data-query-ai-pending=\"{job.JobId:D}\">{OperatorLabels.QueryResponseJobs.Pending(job.State)}</span>",
-                row.Markup,
-                StringComparison.Ordinal);
+            Assert.Contains($">{QueryLabels.Reopen}</button>", row.Markup, StringComparison.Ordinal);
         }
     }
 
     /// <summary>
-    /// Draft reply with AI is withheld with its reason, never silently
-    /// disabled: while the Administrator has stopped AI work, and on a Case
-    /// whose query stayed open after it left post-report work.
-    /// </summary>
-    [Theory]
-    [InlineData(CaseLifecycleState.ReportSent, false, OperatorLabels.QueryResponseJobs.AutomationStopped)]
-    [InlineData(CaseLifecycleState.ReportPreparation, true, OperatorLabels.QueryResponseJobs.AvailableInPostReportWork)]
-    public async Task DraftReplyWithAiIsGatedWithItsReason(CaseLifecycleState state, bool sendToAi, string condition)
-    {
-        var messageId = Guid.NewGuid();
-        var store = new RecordingCaseDetailsStore
-        {
-            State = state,
-            HasOpenQuery = true,
-            Queries = [MailQuery(messageId)]
-        };
-
-        var row = Assert.Single(Rows(QueriesBody(await ReadQueriesAsync(store, fragment: true, sendToAi: sendToAi))));
-
-        Assert.DoesNotContain("data-query-ai-draft-start", row.Markup, StringComparison.Ordinal);
-        var gated = Regex.Match(row.Markup, "<span class=\"gated\" data-condition=\"(?<condition>[^\"]+)\">", RegexOptions.CultureInvariant);
-        Assert.True(gated.Success, "The withheld action carries no reason.");
-        Assert.Equal(condition, gated.Groups["condition"].Value);
-        Assert.Contains($">{OperatorLabels.QueryResponseJobs.Create}</span>", row.Markup, StringComparison.Ordinal);
-    }
-
-    private static AiJobRecord Job(Guid caseId, Guid messageId, AiJobState state)
-    {
-        // The page reads the job against the host's clock, which the test host fixes.
-        var now = IntakeWebApplicationFactory.FixedUtcNow;
-        var ready = state == AiJobState.DraftReady;
-        return new(
-            Guid.NewGuid(), AiJobKind.QueryResponse, AiJobSubjectKind.Case, caseId, Reference,
-            messageId.ToString("D"), null, null, state, ActorKind.Staff, Guid.NewGuid().ToString("D"),
-            now.AddMinutes(-10), now + AiJobPolicy.DefaultExpiry,
-            state == AiJobState.Queued ? null : "draft-client",
-            state == AiJobState.Queued ? null : now.AddMinutes(-5),
-            state == AiJobState.Queued ? null : now + AiJobPolicy.LeaseDuration,
-            null,
-            ready ? AiJobResultKind.DraftReply : null,
-            ready ? messageId.ToString("D") : null,
-            ready ? "Dear Ms Patel, thank you for your e-mail." : null,
-            null, null, 2)
-        {
-            DraftReadyAtUtc = ready ? now.AddMinutes(-1) : null
-        };
-    }
-
-    /// <summary>
-    /// Tag as query is offered on a received row that carries a
-    /// classification version and is not already post-report, never on a
-    /// post-report, Sent or undecided row. It posts the Inbox record's own
-    /// correction to the post-report query, with the version it read, the
-    /// recorded reason, and the Case to come back to.
+    /// Open query is offered on a received row that holds no query, once the
+    /// report is sent, and never on a Sent row. It posts the Case's own
+    /// Open query handler for that message.
     /// </summary>
     [Fact]
-    public async Task TheCorrespondenceTabTagsAReceivedNonPostReportMessageAsAQuery()
+    public async Task TheCorrespondenceTabOpensAQueryOnAReceivedMessageThatHoldsNone()
     {
         var receivedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 15, 0, TimeSpan.Zero);
         var generalId = Guid.NewGuid();
@@ -294,22 +218,17 @@ public sealed class CaseQueriesSectionWebTests
         var html = WebUtility.HtmlDecode(await ReadCaseAsync(store, section: "files"));
         var correspondence = Correspondence(html);
 
-        Assert.Equal(1, Regex.Count(correspondence, "data-tag-as-query="));
-        foreach (var untagged in new[] { postReportId, sentId, undecidedId })
-        {
-            Assert.DoesNotContain($"data-tag-as-query=\"{untagged:D}\"", correspondence, StringComparison.Ordinal);
-        }
+        Assert.Equal(3, Regex.Count(correspondence, "data-open-query="));
+        Assert.DoesNotContain($"data-open-query=\"{sentId:D}\"", correspondence, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-tag-as-query=", correspondence, StringComparison.Ordinal);
         var form = Regex.Match(
             correspondence,
-            $"<form[^>]*data-tag-as-query=\"{generalId:D}\"[^>]*>.*?</form>",
+            $"<form[^>]*data-open-query=\"{generalId:D}\"[^>]*>.*?</form>",
             RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        Assert.True(form.Success, "The received message offers no Tag as query.");
-        Assert.Contains($"action=\"/Inbox/{generalId:D}?handler=CorrectClassification\"", form.Value, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"name=\"ClassificationKey\" value=\"{MailClassificationSelection.QueryKey}\"", form.Value, StringComparison.Ordinal);
-        Assert.Contains("name=\"ExpectedClassificationVersion\" value=\"4\"", form.Value, StringComparison.Ordinal);
-        Assert.Contains($"name=\"CorrectionReason\" value=\"{MailClassificationSelection.TaggedAsQueryReason}\"", form.Value, StringComparison.Ordinal);
-        Assert.Contains($"name=\"ReturnCaseId\" value=\"{store.CaseId:D}\"", form.Value, StringComparison.Ordinal);
-        Assert.Contains($">{CaseWorkspaceLabels.Frame.TagAsQuery}</button>", form.Value, StringComparison.Ordinal);
+        Assert.True(form.Success, "The received message offers no Open query.");
+        Assert.Contains("handler=OpenQuery", form.Value, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"name=\"retainedMessageId\" value=\"{generalId:D}\"", form.Value, StringComparison.Ordinal);
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.OpenQuery}</button>", form.Value, StringComparison.Ordinal);
     }
 
     private static CaseQueryItem MailQuery(Guid messageId) => new(

@@ -286,25 +286,14 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
                 .ToListAsync(cancellationToken))
             .ToDictionary(item => (item.Figure, item.CaseId), item => item);
 
-        // MI-01's queries: mailbox mail classified as a query standing linked
-        // to the Case by the Inbox's own association rule.
-        var mailbox = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
-        var query = MailCategories.Code(MailCategory.Query);
-        var receipts = await db.IntakeReceipts.AsNoTracking()
-            .Where(item => item.SourceChannel == mailbox
-                && item.MailClassificationDecision != null
-                && item.MailClassificationDecision.Category == query
-                && (db.IntakeManualAssociations.Any(link => link.IntakeReceiptId == item.Id
-                        && EF.Parameter(caseIds).Contains(link.CaseId))
-                    || db.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id
-                        && EF.Parameter(caseIds).Contains(link.CaseId))))
-            .Select(item => item.Id)
-            .ToListAsync(cancellationToken);
-        var associations = await CurrentIntakeAssociations.ReadAsync(db, receipts, cancellationToken);
-        var queries = associations.Current
-            .Where(pair => caseIds.Contains(pair.Value.CaseId))
-            .GroupBy(pair => pair.Value.CaseId)
-            .ToDictionary(group => group.Key, group => group.Count());
+        // MI-01's queries: CaseQueries rows that are open or Done, not withdrawn
+        // (operator, 27 October 2026).
+        var withdrawn = nameof(CaseQueryClosure.Withdrawn);
+        var queries = await db.CaseQueries.AsNoTracking()
+            .Where(item => EF.Parameter(caseIds).Contains(item.CaseId) && item.ClosedAs != withdrawn)
+            .GroupBy(item => item.CaseId)
+            .Select(group => new { CaseId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.CaseId, item => item.Count, cancellationToken);
 
         return caseIds.ToDictionary(caseId => caseId, caseId =>
         {

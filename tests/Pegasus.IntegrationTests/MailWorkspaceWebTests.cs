@@ -920,53 +920,6 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
-    /// The Case's Queries row starts the same job through the Case's own
-    /// handler (FRD-27), then reads the job's state in place of the button:
-    /// Queued once started, Draft ready once the client has written the draft.
-    /// </summary>
-    [Fact]
-    public async Task TheCaseQueriesRowStartsAQueryResponseJobAndReadsItsState()
-    {
-        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var (messageId, caseId, _) = await SeedLinkedPostReportQueryAsync(factory, client);
-
-        var queries = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=queries");
-        var startForm = Regex.Match(
-            queries,
-            $"<form[^>]*data-query-ai-draft-start=\"{messageId:D}\"[^>]*>.*?</form>",
-            RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        Assert.True(startForm.Success, "The Queries row offers no Draft reply with AI.");
-        var action = WebUtility.HtmlDecode(Regex.Match(startForm.Value, "action=\"([^\"]+)\"", RegexOptions.IgnoreCase).Groups[1].Value);
-        using var start = await client.PostAsync(action, new FormUrlEncodedContent(HiddenFields(startForm.Value)));
-        Assert.Equal(HttpStatusCode.Redirect, start.StatusCode);
-
-        Guid jobId;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var job = Assert.Single(await scope.ServiceProvider
-                .GetRequiredService<IAiJobQueries>()
-                .ListOpenForSubjectAsync(caseId, CancellationToken.None));
-            Assert.Equal(AiJobKind.QueryResponse, job.Kind);
-            Assert.Equal(caseId, job.SubjectId);
-            Assert.Equal(messageId.ToString("D"), job.Instruction);
-            Assert.Equal(AiJobState.Queued, job.State);
-            jobId = job.JobId;
-        }
-
-        var pending = await GetHtmlAsync(client, start.Headers.Location!.ToString());
-        Assert.Contains("AI reply job created.", pending, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-query-ai-draft-start", pending, StringComparison.Ordinal);
-        Assert.Contains($"data-query-ai-pending=\"{jobId:D}\"", pending, StringComparison.Ordinal);
-        Assert.Contains("Queued</span>", Between(pending, $"data-query-ai-pending=\"{jobId:D}\"", "</span>") + "</span>", StringComparison.Ordinal);
-
-        await WriteDraftReplyAsync(factory, jobId, messageId, "Dear Ms Patel, thank you for your e-mail.");
-        var ready = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=queries");
-        Assert.Contains($"data-query-ai-pending=\"{jobId:D}\"", ready, StringComparison.Ordinal);
-        Assert.Contains("Draft ready</span>", Between(ready, $"data-query-ai-pending=\"{jobId:D}\"", "</span>") + "</span>", StringComparison.Ordinal);
-    }
-
-    /// <summary>
     /// One retained message classified Query, linked by staff to a Report sent
     /// Case: the Query response job's source. Returns the record as rendered
     /// after the link.

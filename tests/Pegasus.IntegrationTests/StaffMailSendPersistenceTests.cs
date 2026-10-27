@@ -866,14 +866,14 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     /// <summary>
-    /// FRD-13 "Report sent and queries" (operator, 11 October 2026): a reply
-    /// ticked "Also resolve query" resolves every open query on its Case once
-    /// its Sent item is observed, including one raised after the reply was
-    /// submitted. The resolution is the Case's own event, keyed to the send;
-    /// replaying the observation writes nothing more.
+    /// A reply ticked Mark query done marks only the replied message's open
+    /// query done when its Sent item is observed (operator, 27 October 2026).
+    /// A query opened on the Case after the reply was submitted stays open.
+    /// The resolution is the Case's own event, keyed to the send; replaying
+    /// the observation writes nothing more.
     /// </summary>
     [Fact]
-    public async Task AFlaggedReplyResolvesEveryOpenQueryWhenItsSentItemIsObserved()
+    public async Task AFlaggedReplyMarksOnlyTheRepliedMessagesQueryDone()
     {
         await using var database = await CreateDatabaseAsync();
         var mailboxId = Guid.NewGuid();
@@ -888,7 +888,7 @@ public sealed class StaffMailSendPersistenceTests
         {
             ContextId = fixture.CaseId,
             ExpectedContextVersion = fixture.WorkflowVersion,
-            ResolvesCaseQueries = true
+            MarksQueryDone = true
         };
         var operation = await MoveToSubmittedAsync(
             store, command, new DateTimeOffset(2026, 9, 10, 9, 0, 0, TimeSpan.Zero));
@@ -907,23 +907,22 @@ public sealed class StaffMailSendPersistenceTests
         await using var db = await factory.CreateDbContextAsync();
         var workflow = await db.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
         Assert.Equal(nameof(CaseLifecycleState.ReportSent), workflow.State);
-        Assert.False(workflow.HasOpenQuery);
+        Assert.True(workflow.HasOpenQuery);
         Assert.Null(workflow.ClosureOutcome);
         Assert.Equal(fixture.WorkflowVersion + 1, workflow.Version);
         var queries = await db.CaseQueries.Where(item => item.CaseId == fixture.CaseId).ToListAsync();
         Assert.Equal(
             [nameof(CaseQuerySource.Mail), nameof(CaseQuerySource.Staff)],
             queries.Select(item => item.Source).Order(StringComparer.Ordinal).ToArray());
-        Assert.All(queries, query =>
-        {
-            Assert.Equal(nameof(CaseQueryClosure.Resolved), query.ClosedAs);
-            Assert.Equal(observedAtUtc, query.ClosedAtUtc);
-            Assert.Equal(nameof(ActorKind.Staff), query.ClosedByKind);
-            Assert.Equal(command.Actor.SubjectId, query.ClosedBySubjectId);
-            Assert.Equal(operation.Id, query.ResolvedByMailOperationId);
-        });
+        var mail = queries.Single(item => item.Source == nameof(CaseQuerySource.Mail));
+        Assert.Equal(nameof(CaseQueryClosure.Resolved), mail.ClosedAs);
+        Assert.Equal(observedAtUtc, mail.ClosedAtUtc);
+        Assert.Equal(nameof(ActorKind.Staff), mail.ClosedByKind);
+        Assert.Equal(command.Actor.SubjectId, mail.ClosedBySubjectId);
+        Assert.Equal(operation.Id, mail.ResolvedByMailOperationId);
+        Assert.Null(queries.Single(item => item.Source == nameof(CaseQuerySource.Staff)).ClosedAtUtc);
         var resolution = Assert.Single(await db.CaseWorkflowEvents
-            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_queries_resolved")
+            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_resolved")
             .ToListAsync());
         Assert.Equal($"query-reply:{operation.Id:N}", resolution.OperationKey);
         Assert.Equal(command.Actor.SubjectId, resolution.ActorSubjectId);
@@ -932,7 +931,7 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Single(await db.ActionHistory
             .Where(item => item.AggregateType == "case"
                 && item.AggregateId == fixture.CaseId.ToString("D")
-                && item.EventKind == "case_queries_resolved")
+                && item.EventKind == "case_query_resolved")
             .ToListAsync());
         var sent = await db.Set<StaffMailSendOperationEntity>().SingleAsync(item => item.Id == operation.Id);
         Assert.True(sent.ResolvesCaseQueries);
@@ -975,7 +974,7 @@ public sealed class StaffMailSendPersistenceTests
         var query = Assert.Single(await db.CaseQueries.Where(item => item.CaseId == fixture.CaseId).ToListAsync());
         Assert.Null(query.ClosedAtUtc);
         Assert.Empty(await db.CaseWorkflowEvents
-            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_queries_resolved")
+            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_resolved")
             .ToListAsync());
         Assert.False((await db.Set<StaffMailSendOperationEntity>().SingleAsync(item => item.Id == operation.Id))
             .ResolvesCaseQueries);
@@ -998,7 +997,7 @@ public sealed class StaffMailSendPersistenceTests
         {
             ContextId = fixture.CaseId,
             ExpectedContextVersion = fixture.WorkflowVersion,
-            ResolvesCaseQueries = true
+            MarksQueryDone = true
         };
         var operation = await MoveToSubmittedAsync(
             store, command, new DateTimeOffset(2026, 9, 10, 9, 0, 0, TimeSpan.Zero));
@@ -1016,7 +1015,7 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Equal(fixture.WorkflowVersion, workflow.Version);
         Assert.Empty(await db.CaseQueries.Where(item => item.CaseId == fixture.CaseId).ToListAsync());
         Assert.Empty(await db.CaseWorkflowEvents
-            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_queries_resolved")
+            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_resolved")
             .ToListAsync());
         Assert.Equal(StaffMailState.Sent,
             (await db.Set<StaffMailSendOperationEntity>().SingleAsync(item => item.Id == operation.Id)).State);

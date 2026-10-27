@@ -171,6 +171,7 @@ public static class AutomationMcpExtensions
             .WithTools<CaseMcpTools>()
             .WithTools<CaseEditMcpTools>()
             .WithTools<CaseLifecycleMcpTools>()
+            .WithTools<CaseQueryMcpTools>()
             .WithTools<EditLeaseMcpTools>()
             .WithTools<IntakeMcpTools>()
             .WithTools<DocumentMcpTools>()

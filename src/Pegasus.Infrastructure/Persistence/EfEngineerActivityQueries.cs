@@ -3,6 +3,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -11,9 +12,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// hold each fact: observed staff-mail send operations for reports, credited
 /// to their recorded staff actor, or for any other kind of actor (Automation)
 /// to that kind's one row, and mailbox receipts whose classification
-/// decision is post-report. Case association for a receipt is the same rule the Inbox applies
-/// (<see cref="CurrentIntakeAssociations"/>), so a query an operator has
-/// unlinked from a case is not counted against that case's Engineer.
+/// decision is post-report. Queries are CaseQueries rows that are open or
+/// Done, not withdrawn, raised in the window and credited to the Case's
+/// assigned Engineer (operator, 27 October 2026).
 /// </summary>
 internal sealed class EfEngineerActivityQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : IEngineerActivityQueries
@@ -105,25 +106,15 @@ internal sealed class EfEngineerActivityQueries(
             })
             .ToList();
 
-        var mailboxChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
-        var query = MailCategories.Code(MailCategory.Query);
-        var queryReceiptIds = await context.IntakeReceipts
+        var withdrawn = nameof(CaseQueryClosure.Withdrawn);
+        var queryRows = await context.CaseQueries
             .AsNoTracking()
-            .Where(item => item.SourceChannel == mailboxChannel
-                && item.ReceivedAtUtc >= fromUtc
-                && item.ReceivedAtUtc < toUtc
-                && item.MailClassificationDecision != null
-                && item.MailClassificationDecision.Category == query)
-            .Select(item => item.Id)
+            .Where(item => item.RaisedAtUtc >= fromUtc
+                && item.RaisedAtUtc < toUtc
+                && item.ClosedAs != withdrawn)
+            .Select(item => item.CaseId)
             .ToListAsync(cancellationToken);
-        var associations = await CurrentIntakeAssociations.ReadAsync(
-            context,
-            queryReceiptIds,
-            cancellationToken);
-        var queryCaseIds = associations.Current.Values
-            .Select(association => association.CaseId)
-            .Distinct()
-            .ToArray();
+        var queryCaseIds = queryRows.Distinct().ToArray();
         var engineerByCase = queryCaseIds.Length == 0
             ? new Dictionary<Guid, Guid>()
             : await context.CaseWorkflows
@@ -135,10 +126,10 @@ internal sealed class EfEngineerActivityQueries(
                     workflow => workflow.CaseId,
                     workflow => workflow.AssignedEngineerId!.Value,
                     cancellationToken);
-        var queries = associations.Current
-            .Select(pair => engineerByCase.TryGetValue(pair.Value.CaseId, out var id) ? id : (Guid?)null)
-            .Where(engineerId => engineerId is not null)
-            .GroupBy(engineerId => engineerId!.Value)
+        var queries = queryRows
+            .Select(caseId => engineerByCase.TryGetValue(caseId, out var id) ? id : (Guid?)null)
+            .Where(id => id is not null)
+            .GroupBy(id => id!.Value)
             .ToDictionary(group => group.Key, group => group.Count());
 
         var reportsBySender = reports.ToDictionary(item => item.Sender);

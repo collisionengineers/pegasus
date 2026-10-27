@@ -431,7 +431,7 @@ public sealed class CaseCustodyWebTests
         var queries = Correspondence(html);
         var visible = WebUtility.HtmlDecode(VisibleText(queries));
 
-        foreach (var heading in new[] { "Received", "Sender", "Subject", "Classification" })
+        foreach (var heading in new[] { OperatorLabels.CaseWorkspace.Received, OperatorLabels.CaseWorkspace.Sender, OperatorLabels.CaseWorkspace.Subject, OperatorLabels.CaseWorkspace.Type })
         {
             Assert.Contains(heading, visible, StringComparison.Ordinal);
         }
@@ -440,7 +440,7 @@ public sealed class CaseCustodyWebTests
         Assert.DoesNotContain("Forwarding Desk", visible, StringComparison.Ordinal);
         Assert.DoesNotContain("desk@collisionengineers.co.uk", visible, StringComparison.Ordinal);
         Assert.Contains("Repair query", visible, StringComparison.Ordinal);
-        Assert.Contains("<td>Query</td>", queries, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.MailClassification(MailCategory.Query), visible, StringComparison.Ordinal);
         Assert.Contains("Sender unavailable", visible, StringComparison.Ordinal);
         Assert.DoesNotContain("Sender not recorded", visible, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Inbox/{forwardedId:D}\"", queries, StringComparison.OrdinalIgnoreCase);

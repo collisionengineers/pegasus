@@ -66,7 +66,7 @@ public sealed class CaseQueryRulesTests
     public void AQueryIsLoggedOnlyOnceTheReportIsSent(string name, CaseLifecycleState state, bool archived, bool expected)
     {
         Assert.NotEmpty(name);
-        Assert.Equal(expected, CaseQueryRules.CanLog(Workflow(state, hasOpenQuery: false, archived)));
+        Assert.Equal(expected, CaseQueryRules.CanOpen(Workflow(state, hasOpenQuery: false, archived)));
     }
 
     /// <summary>
@@ -93,7 +93,7 @@ public sealed class CaseQueryRulesTests
             ReportSentEvidence = SentEvidence()
         };
 
-        Assert.Equal(expected, CaseQueryRules.CanLog(workflow));
+        Assert.Equal(expected, CaseQueryRules.CanOpen(workflow));
     }
 
     private static ApprovedMailboxReportSentEvidence SentEvidence() => new(
@@ -117,10 +117,34 @@ public sealed class CaseQueryRulesTests
     [InlineData("open", true, false, true)]
     [InlineData("none", false, false, false)]
     [InlineData("open-archived", true, true, false)]
-    public void ResolveQueryIsLiveWhileAQueryIsOpen(string name, bool hasOpenQuery, bool archived, bool expected)
+    public void MarkDoneIsLiveOnAnOpenQueryThatIsNotArchived(string name, bool isOpen, bool archived, bool expected)
     {
         Assert.NotEmpty(name);
-        Assert.Equal(expected, CaseQueryRules.CanResolve(Workflow(CaseLifecycleState.ReportSent, hasOpenQuery, archived)));
+        Assert.Equal(expected, CaseQueryRules.CanMarkDone(isOpen, archived));
+    }
+
+    [Theory]
+    [InlineData("done", true, false, false, true)]
+    [InlineData("withdrawn", false, false, false, false)]
+    [InlineData("archived", true, true, false, false)]
+    [InlineData("closed", true, false, true, false)]
+    public void ReopenIsLiveOnADoneQueryThatIsNotArchivedOrClosed(
+        string name, bool resolved, bool archived, bool closed, bool expected)
+    {
+        Assert.NotEmpty(name);
+        Assert.Equal(expected, CaseQueryRules.CanReopen(resolved, archived, closed));
+    }
+
+    [Fact]
+    public void OpenNamesAMessageOrAChannelNotBoth()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        CaseQueryRules.ValidateOpen(new(CaseId, actor, "open-message", Guid.NewGuid(), null, null));
+        CaseQueryRules.ValidateOpen(new(CaseId, actor, "open-channel", null, CaseQueryChannel.Phone, "Called."));
+        Assert.Throws<ArgumentException>(() =>
+            CaseQueryRules.ValidateOpen(new(CaseId, actor, "both", Guid.NewGuid(), CaseQueryChannel.Phone, null)));
+        Assert.Throws<ArgumentException>(() =>
+            CaseQueryRules.ValidateOpen(new(CaseId, actor, "neither", null, null, null)));
     }
 
     internal static CaseWorkflowRecord Workflow(CaseLifecycleState state, bool hasOpenQuery, bool archived = false) => new(

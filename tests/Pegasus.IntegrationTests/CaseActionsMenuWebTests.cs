@@ -127,7 +127,9 @@ public sealed class CaseActionsMenuWebTests
     /// A Report sent Case, with or without an open query, is editable like a
     /// With Engineer Case (operator, 11 October 2026): it offers Edit Case,
     /// and a colleague's lease on it is offered Take over (operator, 29
-    /// September 2026) while the Actions menu keeps only Export case and Tasks.
+    /// September 2026) while the Actions menu keeps Export case, Tasks and Log
+    /// query: a colleague's lease does not block a query act (operator, 27
+    /// October 2026).
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -142,8 +144,9 @@ public sealed class CaseActionsMenuWebTests
 
         var held = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state, HasOpenQuery = hasOpenQuery, LeaseHolder = "colleague-staff-id" }));
         Assert.Contains("data-case-export", held, StringComparison.Ordinal);
-        Assert.Equal(1, Occurrences(held, "data-dialog-open"));
+        Assert.Equal(2, Occurrences(held, "data-dialog-open"));
         Assert.Contains("data-dialog-open=\"case-tasks-dialog\"", held, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"case-log-query-dialog\"", held, StringComparison.Ordinal);
         Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, held, StringComparison.Ordinal);
         Assert.Contains("handler=ClaimLease", held, StringComparison.Ordinal);
         Assert.Contains("name=\"takeOver\" value=\"true\"", held, StringComparison.Ordinal);

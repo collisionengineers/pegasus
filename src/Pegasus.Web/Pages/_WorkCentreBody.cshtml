@@ -327,7 +327,25 @@ else
                                        dialog in place when the row is open and the dialog is on the page;
                                        otherwise the address opens the row with the dialog. Take beside it
                                        assigns the Case to the signed-in person in one step (v41 W8). *@
-                                    @if (item.Kind == NeedsAttentionKind.UnassignedEngineer)
+                                    @if (item.Kind == NeedsAttentionKind.Query)
+                                    {
+                                        <div class="wc-row-actions">
+                                            <a class="btn btn--small" href="@item.Route">
+                                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
+                                                <span>@Labels.OpenQuery</span>
+                                            </a>
+                                            @if (item.OwnerStaffId is null && Model.ViewerStaffId is not null)
+                                            {
+                                                <form method="post" asp-page="/Index" asp-page-handler="TakeQuery" data-wc-take>
+                                                    <input type="hidden" name="queryId" value="@item.Id" />
+                                                    <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                                    <button type="submit" class="btn btn--primary btn--small" data-busy-label="@OperatorLabels.Busy.Assigning">@Labels.Take</button>
+                                                </form>
+                                            }
+                                        </div>
+                                    }
+                                    else if (item.Kind == NeedsAttentionKind.UnassignedEngineer)
                                     {
                                         <div class="wc-row-actions">
                                             <a class="btn btn--small" href="@Model.PageUrl(selected: item.Id, assign: true)" data-wc-dialog="wc-assign-dialog">
@@ -406,6 +424,15 @@ else
                                                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
                                                         <span>@NeedsAttentionPresentation.ActionLabel(item)</span>
                                                     </a>
+                                                }
+                                                @if (item.Kind == NeedsAttentionKind.Query && item.OwnerStaffId is null && Model.ViewerStaffId is not null)
+                                                {
+                                                    <form method="post" asp-page="/Index" asp-page-handler="TakeQuery" data-wc-take>
+                                                        <input type="hidden" name="queryId" value="@item.Id" />
+                                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                                        <button type="submit" class="btn btn--primary btn--small" data-busy-label="@OperatorLabels.Busy.Assigning">@Labels.Take</button>
+                                                    </form>
                                                 }
                                                 @if (item.Kind == NeedsAttentionKind.UnassignedEngineer && Model.ViewerStaffId is { } openViewer)
                                                 {

@@ -262,25 +262,21 @@
                         @* The Case's open tasks are the step once the report is sent
                            (operator, 6 October 2026): the list below draws them. *@
                     }
-                    else if (nextRow.ResolvesQuery)
+                    else if (nextRow.SectionKey == "queries" && nextRow.Label == Frame.AnswerQuery)
                     {
-                        @* Resolve query (operator, 11 October 2026): a query that came
-                           by e-mail leads to that message's reply, where the composer's
-                           tick resolves it on observed Sent; a staff-logged query is the
-                           Actions menu's own Resolve query. *@
-                        <div class="next-step" data-next-step data-next-resolve-query>
+                        <div class="next-step" data-next-step data-next-answer-query>
+                            <strong data-next-label>@nextRow.Label</strong>
                             @if (Model.OldestOpenQuery is { Source: Pegasus.Core.Workflow.CaseQuerySource.Mail, RetainedMessageId: { } queryMessageId } && Model.StaffMailAvailable)
                             {
-                                <strong data-next-label>@nextRow.Label</strong>
-                                <a class="@StepButton" asp-page="/Mail/Message" asp-route-id="@queryMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@workflow.Identity.Reference" asp-route-resolveQuery="true" data-next-reply-query>@OperatorLabels.StaffMail.Reply</a>
+                                <a class="@StepButton" asp-page="/Mail/Message" asp-route-id="@queryMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@workflow.Identity.Reference" asp-route-markQueryDone="true" data-next-reply-query>@OperatorLabels.StaffMail.Reply</a>
                             }
-                            else if (Model.CanResolveQuery)
+                            else if (Model.OldestOpenQuery is { } logged)
                             {
-                                <partial name="Cases/Shared/_ResolveQueryForm" model="Model" view-data="@(new ViewDataDictionary(ViewData) { ["ResolveQueryButtonClass"] = StepButton })" />
-                            }
-                            else
-                            {
-                                <strong data-next-label>@nextRow.Label</strong>
+                                <form method="post" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-page-handler="MarkQueryDone" class="inline-form" data-mark-query-done="@logged.QueryId">
+                                    <input type="hidden" name="queryId" value="@logged.QueryId" />
+                                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                    <button class="@StepButton" type="submit" data-busy-label="@OperatorLabels.Busy.Saving">@CaseWorkspaceLabels.Queries.MarkDone</button>
+                                </form>
                             }
                         </div>
                     }

@@ -7,9 +7,9 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// MI-01. The Engineer Report counts against a real database:
 /// reports are case-linked Sent evidence on the Engineer's cases, queries are
-/// post-report mailbox receipts associated with them (D12), both bounded by
-/// the half-open period, and an association the operator reversed no longer
-/// counts. Automation's report sends are a row of their own.
+/// CaseQueries rows that are open or Done, not withdrawn (operator, 27 October
+/// 2026), both bounded by the half-open period. A mailbox receipt classified
+/// Query does not count. Automation's report sends are a row of their own.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class EngineerActivityReportPersistenceTests
@@ -49,6 +49,13 @@ public sealed class EngineerActivityReportPersistenceTests
                 Query(To, "query", caseA, active: true),
                 Query(From.AddDays(4), "query", caseB, active: true),
                 Query(From.AddDays(4), "query", unassigned, active: true));
+            context.CaseQueries.AddRange(
+                LoggedQuery(caseA, From.AddDays(1)),
+                LoggedQuery(caseA, From.AddDays(2)),
+                LoggedQuery(caseA, From.AddDays(2), withdrawn: true),
+                LoggedQuery(caseA, To),
+                LoggedQuery(caseB, From.AddDays(4)),
+                LoggedQuery(unassigned, From.AddDays(4)));
             await context.SaveChangesAsync();
         }
 
@@ -109,6 +116,10 @@ public sealed class EngineerActivityReportPersistenceTests
                 Query(From.AddDays(1), "query", inspection, active: true),
                 Query(From.AddDays(2), "query", inspection, active: true),
                 Query(From.AddDays(3), "query", audit, active: true));
+            context.CaseQueries.AddRange(
+                LoggedQuery(inspection, From.AddDays(1)),
+                LoggedQuery(inspection, From.AddDays(2)),
+                LoggedQuery(audit, From.AddDays(3)));
             await context.SaveChangesAsync();
         }
 
@@ -229,6 +240,27 @@ public sealed class EngineerActivityReportPersistenceTests
             ObservedSentAtUtc = sentAtUtc,
             Version = 1,
             ConcurrencyToken = Guid.NewGuid()
+        };
+    }
+
+    private static CaseQueryEntity LoggedQuery(Guid caseId, DateTimeOffset raisedAtUtc, bool withdrawn = false)
+    {
+        var id = Guid.NewGuid();
+        return new()
+        {
+            Id = id,
+            CaseId = caseId,
+            Source = "Staff",
+            Channel = "Phone",
+            Details = "A query.",
+            RaisedAtUtc = raisedAtUtc,
+            RaisedByKind = "Staff",
+            RaisedBySubjectId = Guid.NewGuid().ToString("D"),
+            RaisedOperationKey = $"activity-query:{id:N}",
+            ClosedAs = withdrawn ? "Withdrawn" : null,
+            ClosedAtUtc = withdrawn ? raisedAtUtc.AddMinutes(1) : null,
+            ClosedByKind = withdrawn ? "Staff" : null,
+            ClosedBySubjectId = withdrawn ? Guid.NewGuid().ToString("D") : null
         };
     }
 
