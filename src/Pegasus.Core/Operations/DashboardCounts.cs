@@ -55,6 +55,21 @@ public sealed record PairedVehicleImagesCase(
 /// </summary>
 /// <param name="CreatedAtUtc">When the task was created: its creation event's instant.</param>
 /// <param name="CreatedByStaffId">The staff member the creation event records; null when its actor was not staff.</param>
+/// <summary>
+/// One open query for the Work Centre (operator, 27 October 2026).
+/// <paramref name="Title"/> is the query e-mail's subject, or the logged details.
+/// </summary>
+public sealed record OpenQueryAttentionRow(
+    Guid QueryId,
+    Guid CaseId,
+    string Reference,
+    string? Registration,
+    string? VehicleMake,
+    string? VehicleModel,
+    string Title,
+    Guid? AssigneeStaffId,
+    DateTimeOffset RaisedAtUtc);
+
 public sealed record OpenCaseTask(
     Guid CaseId,
     string Reference,
@@ -100,6 +115,12 @@ public interface IDashboardQueries
 
     /// <summary>Every open Case task with its creation, one row per task.</summary>
     Task<IReadOnlyList<OpenCaseTask>> ListOpenCaseTasksAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every open query on a non-archived Case, one row per query. Office lists
+    /// the unassigned ones and Mine the viewer's; the policy makes that cut.
+    /// </summary>
+    Task<IReadOnlyList<OpenQueryAttentionRow>> ListOpenQueriesForAttentionAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -153,7 +174,13 @@ public enum NeedsAttentionKind
     /// Engineer's Mine only, never in Office; due the Case's one due instant,
     /// undated (always Normal) when it has none.
     /// </summary>
-    WithEngineer
+    WithEngineer,
+
+    /// <summary>
+    /// One open query (operator, 27 October 2026): Unassigned on Office, with
+    /// Take; assigned to the viewer on Mine. No due instant, so always Normal.
+    /// </summary>
+    Query
 }
 
 /// <summary>

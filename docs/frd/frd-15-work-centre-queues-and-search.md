@@ -106,6 +106,7 @@ undated when its Case has none (#1213, v41 sign-off, 19 October 2026,
 | Unidentified | An open Unidentified item | Unidentified target after it was received |
 | Triage | A Triage Case without a finding | Triage target after it opened |
 | Open tasks | A Case with at least one open task, one row per Case: its oldest open task and how many more (6 October 2026) | None; always Later |
+| Query | One open query. Office lists each Unassigned one, with Take; Mine lists those assigned to the viewer (operator, 27 October 2026, [ADR-0085](../adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)) | None; always Later |
 | AI draft | An AI job in Draft ready, except Market research | AI draft target after the draft was written |
 
 The targets are workflow settings

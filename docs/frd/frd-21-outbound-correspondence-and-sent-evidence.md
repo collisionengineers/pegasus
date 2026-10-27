@@ -164,15 +164,16 @@ exist only when the outbound capability is composed into the application.
 Otherwise those surfaces show no send control and no composer. The technical
 decision is [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md).
 
-**Also resolve query.** A Reply or Reply all filed against a Case that holds
-an open query offers one tick, **Also resolve query** (operator, 11 October
-2026). It is ticked by default only when the composer was opened from the
-Case's Resolve query Next action or on an AI draft
+**Mark query done.** A Reply or Reply all to a message that holds an open
+query offers one tick, **Mark query done** (operator, 27 October 2026;
+[ADR-0085](../adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)).
+It is ticked by default when the composer was opened from Answer query or on
+an AI draft of that message
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
-The tick is kept on the send; when the
-Sent item is observed, every open query on the Case resolves
+The tick is kept on the send; when the Sent item is observed, only that
+message's query is marked done
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
-A reply without it resolves nothing. Forward and Send chaser take no tick.
+A reply without it marks nothing done. Forward and Send chaser take no tick.
 
 **Who may send.** A signed-in staff member with the casework right, or the
 Automation Actor through `pegasus_mail_send` and `pegasus_report_send` under

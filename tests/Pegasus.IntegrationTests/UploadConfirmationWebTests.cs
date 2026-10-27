@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -235,6 +236,107 @@ public sealed class UploadConfirmationWebTests
         Assert.Contains($"<p>{QdosPrincipal.Code}</p>", declared, StringComparison.Ordinal);
         Assert.Contains("class=\"status status--navy\">Review</span>", declared, StringComparison.Ordinal);
         Assert.DoesNotContain("go straight to this Case", declared, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The initial Upload surface is one record sheet (v42 Upload E, Design E):
+    /// its head states where the files go and the limits on both routes, a
+    /// declared Case also offers the way back to it, and every hook the
+    /// picker's script and the form own is still there.
+    /// </summary>
+    [Fact]
+    public async Task TheInitialUploadIsOneRecordSheet()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "RECORD-SHEET-01");
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+        var limits = string.Join(
+            "\\s*",
+            new[]
+            {
+                $"<span>{Pegasus.Web.Pages.UploadModel.MaximumFileCount} files maximum</span>",
+                $"<span>{OperatorLabels.FileSize(Pegasus.Web.Pages.UploadModel.MaximumFileBytes)} per file</span>",
+                $"<span>{OperatorLabels.FileSize(Pegasus.Web.Pages.UploadModel.MaximumTotalBytes)} per upload</span>"
+            }.Select(Regex.Escape));
+
+        var rail = await IntakeWebDriver.GetHtmlAsync(client, "/Upload");
+        var declared = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload?caseId={caseId:D}");
+
+        foreach (var sheet in new[] { rail, declared })
+        {
+            // The page is one record: the head, its stripe, the body and the
+            // one action bar are the shared record vocabulary.
+            Assert.Contains("<header class=\"record-head\">", sheet, StringComparison.Ordinal);
+            Assert.Contains("class=\"record-accent\"", sheet, StringComparison.Ordinal);
+            Assert.Contains("class=\"record-body\"", sheet, StringComparison.Ordinal);
+            Assert.Contains("class=\"record-bar\"", sheet, StringComparison.Ordinal);
+
+            // The limits sit in the head's identity row, in megabytes, on
+            // both routes and from their one owner.
+            Assert.Matches($"<div class=\"record-identity\">\\s*{limits}", sheet);
+            Assert.Contains(
+                $"data-max-files=\"{Pegasus.Web.Pages.UploadModel.MaximumFileCount}\"",
+                sheet,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                $"data-max-bytes=\"{Pegasus.Web.Pages.UploadModel.MaximumFileBytes}\"",
+                sheet,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                $"data-max-total=\"{Pegasus.Web.Pages.UploadModel.MaximumTotalBytes}\"",
+                sheet,
+                StringComparison.Ordinal);
+
+            // Every hook the picker's script and the form own is unchanged.
+            foreach (var hook in new[]
+                     {
+                         "data-upload-select", "data-upload-form", "data-drop",
+                         "data-select-heading", "data-select-errors", "data-select-error-list",
+                         "data-select-actions", "data-select-summary", "data-select-submit",
+                         "data-select-submit-label", "data-select-files", "data-select-list",
+                         "data-select-count"
+                     })
+            {
+                Assert.Contains(hook, sheet, StringComparison.Ordinal);
+            }
+
+            // The native file input and its label stay the control.
+            var fileInput = Regex.Match(sheet, "<input[^>]*\\bid=\"Upload\"[^>]*>");
+            Assert.True(fileInput.Success, "The page must render the native file input.");
+            Assert.Contains("type=\"file\"", fileInput.Value, StringComparison.Ordinal);
+            Assert.Contains("multiple", fileInput.Value, StringComparison.Ordinal);
+            var chooseLabel = Regex.Match(sheet, "<label[^>]*\\bfor=\"Upload\"[^>]*>");
+            Assert.True(chooseLabel.Success, "The page must render the file input's own label.");
+            Assert.Contains("data-select-choose", chooseLabel.Value, StringComparison.Ordinal);
+        }
+
+        // The rail's own route declares no Case: its head is the product's
+        // Upload and there is nothing to go back to.
+        Assert.Contains($"<h1>{OperatorLabels.Upload.Title}</h1>", rail, StringComparison.Ordinal);
+        Assert.DoesNotContain("record-head-end", rail, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-declared", rail, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Upload.BackToCase(caseReference), rail, StringComparison.Ordinal);
+
+        // Add evidence declares the Case: the head names it, carries the
+        // destination's own facts, and offers the way back to it.
+        Assert.Contains(
+            $"<h1>{OperatorLabels.Upload.Title} · {caseReference}</h1>",
+            declared,
+            StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.Upload.AddingTo, declared, StringComparison.Ordinal);
+        Assert.Contains("data-upload-declared", declared, StringComparison.Ordinal);
+        Assert.Contains("data-upload-destination", declared, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{caseId:D}\"", declared, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"href=\"/Cases/{caseId:D}\"",
+            declared,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            OperatorLabels.Upload.BackToCase(caseReference),
+            declared,
+            StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -75,7 +75,7 @@ exclusion.
 | CASE-13 | Instruction and image completeness as separate named blockers | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
 | CASE-14 | Mandatory instruction-completeness and image-completeness gate before Engineers-queue eligibility | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
 | CASE-15 | Not ready becomes Review automatically when requirements are met | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
-| CASE-16 | `Not ready`, `Review`, `With Engineer`, `Report sent` and `Held` workflow, with `Query` as the open-query mark | [States and labels](frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels) |
+| CASE-16 | `Not ready`, `Review`, `With Engineer`, `Report sent` and `Held` workflow, with `Query` as the open-query mark; each query is assignable and marked done on its own | [States and labels](frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels) |
 | CASE-17 | Due-by date extraction and overdue display | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |

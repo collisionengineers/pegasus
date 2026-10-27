@@ -1,13 +1,8 @@
 @*
-    Queries (operator, 11 October 2026): every query raised on the Case, open
-    ones first, then the resolved ones. A query that came by e-mail shows its
-    message, with Open message and Reply; a staff-logged query shows its
-    channel and details. When none is open the section says so in the
-    operator's one sentence. No edit session: Log query and Resolve query are
-    the Actions menu's and the Next action's. An open mail query also carries
-    its AI draft (FRD-27): Draft reply with AI starts one, the row reads
-    "AI draft · Queued" while it is worked, and Reply with AI draft opens the
-    composer on the draft once it is ready.
+    Queries: every query raised on the Case, open ones first, then the Done
+    ones. A mail query's Subject opens the message. Assigned to is the compact
+    assignee control; Take assigns the viewer. Row actions are Reply and Mark
+    done, Mark done, or Reopen. No edit lease.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Notifications
@@ -21,7 +16,9 @@
     var reference = workflow.Identity.Reference;
     var queries = section?.Queries ?? [];
     var open = queries.Where(query => query.IsOpen).ToArray();
-    var resolved = queries.Where(query => !query.IsOpen).ToArray();
+    var done = queries.Where(query => !query.IsOpen).ToArray();
+    var viewer = Model.AssignEngineerChoices?.ViewerStaffId;
+    var assignees = Model.AssignEngineerChoices;
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.queries")" id="section-queries" data-section="queries" data-collapse="case.queries" aria-labelledby="section-queries-title">
@@ -47,15 +44,17 @@
                             <th>@QueryLabels.RaisedBy</th>
                             <th>@CaseWorkspaceLabels.Frame.Channel</th>
                             <th>@QueryLabels.Message</th>
-                            <th>@QueryLabels.Resolved</th>
+                            <th>@QueryLabels.AssignedTo</th>
+                            <th>@QueryLabels.Done</th>
                             <th><span class="sr-only">Action</span></th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var query in open.Concat(resolved))
+                        @foreach (var query in open.Concat(done))
                         {
+                            var currentAssignee = query.AssigneeStaffId?.ToString("D") ?? "unassigned";
                             <tr data-case-query="@query.Id" data-case-query-open="@(query.IsOpen ? "true" : "false")">
-                                <td><partial name="Shared/_StatusChip" model="@(query.IsOpen ? QueryLabels.Open : QueryLabels.Resolved)" /></td>
+                                <td><partial name="Shared/_StatusChip" model="@(query.IsOpen ? QueryLabels.Open : QueryLabels.Done)" /></td>
                                 <td><time datetime="@query.RaisedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(query.RaisedAtUtc)</time></td>
                                 <td>@query.RaisedByDisplayName</td>
                                 <td>@(query.Source == CaseQuerySource.Mail
@@ -64,13 +63,37 @@
                                 <td class="wrap">
                                     @if (query.Message is { } message)
                                     {
-                                        <span>@(message.EffectiveSenderAddress ?? message.SenderDisplayName ?? message.SenderAddress)</span>
+                                        <a class="query-subject-link" asp-page="/Mail/Message" asp-route-id="@message.RetainedMessageId" data-dialog-open="case-message-@message.RetainedMessageId.ToString("N")">@(string.IsNullOrWhiteSpace(message.Subject) ? OperatorLabels.CaseWorkspace.AbsentValue : message.Subject)</a>
                                         <br />
-                                        <span>@message.Subject</span>
+                                        <span>@(message.EffectiveSenderAddress ?? message.SenderDisplayName ?? message.SenderAddress)</span>
                                     }
                                     else
                                     {
                                         @(string.IsNullOrWhiteSpace(query.Details) ? OperatorLabels.CaseWorkspace.AbsentValue : query.Details)
+                                    }
+                                </td>
+                                <td>
+                                    @if (query.IsOpen && assignees is not null)
+                                    {
+                                        <span class="query-assignee-control">
+                                            <button type="button" class="btn btn--small" data-dialog-open="case-assign-query-dialog" data-assign-query="@query.Id" data-assign-current="@currentAssignee">
+                                                <span>@(query.AssignedTo ?? QueryLabels.Unassigned)</span>
+                                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-down")" /></svg>
+                                            </button>
+                                            @if (viewer is { } takeId && query.AssigneeStaffId != takeId)
+                                            {
+                                                <form method="post" asp-page="/Cases/Details" asp-route-id="@caseId" asp-page-handler="AssignQuery" class="inline-form" data-take-query="@query.Id">
+                                                    <input type="hidden" name="queryId" value="@query.Id" />
+                                                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                    <input type="hidden" name="assignee" value="@takeId" />
+                                                    <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Assigning">@QueryLabels.Take</button>
+                                                </form>
+                                            }
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        @(query.AssignedTo ?? QueryLabels.Unassigned)
                                     }
                                 </td>
                                 <td>
@@ -85,51 +108,29 @@
                                         @OperatorLabels.CaseWorkspace.AbsentValue
                                     }
                                 </td>
-                                <td class="row-actions nowrap">
-                                    @if (query.Message is { } row)
-                                    {
-                                        var draft = query.IsOpen ? Model.QueryDraftFor(row.RetainedMessageId) : null;
-                                        <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-dialog-open="case-message-@row.RetainedMessageId.ToString("N")">@OperatorLabels.CaseWorkspace.OpenMessage</a>
-                                        @if (draft is { IsReady: true } ready && Model.StaffMailAvailable)
+                                <td class="row-actions">
+                                    <span class="cluster">
+                                        @if (query.IsOpen && query.Message is { } row && Model.StaffMailAvailable)
                                         {
-                                            <a class="btn btn--small btn--primary" href="@StaffNotificationPolicy.MessageReplyRoute(row.RetainedMessageId, reference, ready.Job.JobId)" data-query-reply="@row.RetainedMessageId" data-query-ai-draft="@ready.Job.JobId">
-                                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
-                                                <span>@OperatorLabels.QueryResponseJobs.ReplyWithDraft</span>
-                                            </a>
+                                            <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@reference" asp-route-markQueryDone="true" data-query-reply="@row.RetainedMessageId">@OperatorLabels.StaffMail.Reply</a>
                                         }
-                                        else if (query.IsOpen)
+                                        @if (query.IsOpen)
                                         {
-                                            if (Model.StaffMailAvailable)
-                                            {
-                                                <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@reference" data-query-reply="@row.RetainedMessageId">@OperatorLabels.StaffMail.Reply</a>
-                                            }
-                                            if (draft is { } pending)
-                                            {
-                                                <span class="muted" data-query-ai-pending="@pending.Job.JobId">@OperatorLabels.QueryResponseJobs.Pending(pending.State)</span>
-                                            }
-                                            else if (Model.QueryDraftCondition is null)
-                                            {
-                                                <form method="post" asp-page="/Cases/Details" asp-page-handler="DraftQueryReply" asp-route-id="@caseId" data-query-ai-draft-start="@row.RetainedMessageId">
-                                                    <input type="hidden" name="messageId" value="@row.RetainedMessageId" />
-                                                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
-                                                    <input type="hidden" name="view" value="@Model.ViewRoute" />
-                                                    <button class="btn btn--small" type="submit" data-busy-label="@OperatorLabels.Busy.Drafting">
-                                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
-                                                        <span>@OperatorLabels.QueryResponseJobs.Create</span>
-                                                    </button>
-                                                </form>
-                                            }
-                                            else
-                                            {
-                                                <span class="gated" data-condition="@Model.QueryDraftCondition">
-                                                    <button class="btn btn--small" type="button" disabled aria-disabled="true">
-                                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
-                                                        <span>@OperatorLabels.QueryResponseJobs.Create</span>
-                                                    </button>
-                                                </span>
-                                            }
+                                            <form method="post" asp-page="/Cases/Details" asp-route-id="@caseId" asp-page-handler="MarkQueryDone" class="inline-form" data-mark-query-done="@query.Id">
+                                                <input type="hidden" name="queryId" value="@query.Id" />
+                                                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                <button class="btn btn--small" type="submit" data-busy-label="@OperatorLabels.Busy.Saving">@QueryLabels.MarkDone</button>
+                                            </form>
                                         }
-                                    }
+                                        else if (query.ClosedAs == CaseQueryClosure.Resolved && workflow.Archive is null && !Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(workflow.State))
+                                        {
+                                            <form method="post" asp-page="/Cases/Details" asp-route-id="@caseId" asp-page-handler="ReopenQuery" class="inline-form" data-reopen-query="@query.Id">
+                                                <input type="hidden" name="queryId" value="@query.Id" />
+                                                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                                <button class="btn btn--small" type="submit" data-busy-label="@OperatorLabels.Busy.Saving">@QueryLabels.Reopen</button>
+                                            </form>
+                                        }
+                                    </span>
                                 </td>
                             </tr>
                         }

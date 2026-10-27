@@ -155,11 +155,12 @@ Report sent is recorded and the Case has an open task, the Case's open tasks
 are the step ([Tasks](#tasks); operator, 6 October 2026). When no step
 remains, as on a closed or archived Case, the Next action is not drawn
 (operator, 19 October 2026).
-On an open Case with an open query the step is **Resolve query**,
+On an open Case with an open query the step is **Answer query**,
 before any report step: when the oldest open query came by e-mail and staff
 mail is available, its control is **Reply**, which opens that message's
-reply composer with Also resolve query ticked; otherwise it is the Actions
-menu's own Resolve query (operator, 11 October 2026).
+reply composer with Mark query done ticked; otherwise it is **Mark done**
+on that query (operator, 27 October 2026,
+[ADR-0085](../adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)).
 Once Report sent is recorded, the Next action also lists the Case's open
 tasks after its step, oldest first, each opening the [Tasks](#tasks) dialog
 (operator, 6 and 13 October 2026); the row itself is the control, with no
@@ -354,8 +355,7 @@ Return to Engineer needs no session. The rules behind each action are in
   13 October 2026). Its compact dialog takes the channel
   (E-mail, Phone, WhatsApp, Other) and the details, and no reason
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
-- **Resolve query**, while the Case holds an open query. It posts at once,
-  with no dialog and no reason, and resolves every open query.
+  Mark done, Reopen and Assign are the query row's own posts, not menu items.
 - **Return to Review**, in With Engineer or Report sent, and **Return to
   Engineer**, in Report sent, when engineering changes are needed. Both
   record a reason.
@@ -845,14 +845,16 @@ classification: the email the Case was created from, received mail
 associated with it later, uploaded `.eml` files and the Sent items of mail
 Pegasus sent for the Case once the Sent-evidence poll has observed them,
 newest first ([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)).
-A Sent item's classification cell reads **Sent**. Each row's
-**Open message** shows that message in a dialog over the Case: sender,
-received time, recipients, its text and attachment names. The dialog changes
-nothing. A received row not yet classified Query also offers **Tag as
-query** (operator, 11 October 2026): one click corrects its classification
-to Query through the Inbox record's own correction, recorded with the
-reason "Tagged as query", and returns here; on a Report sent Case that
-raises the query ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)). Where the record offers **Reply**, **Reply all** and **Forward**, the
+The header reads **Type**. The subject opens that message in a dialog over
+the Case: sender, received time, recipients, its text and attachment names.
+The dialog changes nothing. The type column reads the classification, or
+**Sent** on a Sent item, and an inline **Query** or **Done** chip when the
+message holds a non-withdrawn query. A received row that holds no such
+query, once the report is sent,
+offers **Open query** (operator, 27 October 2026): one click opens a query
+on that message and returns here
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
+Where the record offers **Reply**, **Reply all** and **Forward**, the
 dialog does too; each opens the record's composer with this Case chosen. Its
 **Open full message** leads to the Inbox message record, which keeps
 classification and the Case link; without script the row opens that record.
@@ -917,24 +919,20 @@ chaser are on the Triage Case page
 
 ### Queries
 
-Queries is the last section (operator, 11 October 2026). It lists every
-query raised on the Case: the open ones first, then the resolved ones, each
-newest first. When none is open it reads the one sentence "No active queries
-on this case", above any resolved rows. A row carries the query's state chip
-(**Query** in purple while open, **Resolved** once closed), when and by whom
-it was raised, its channel, and either the e-mail it came by (sender and
-subject, with **Open message** as the Correspondence tab draws it and, while
-open, **Reply** into that message's composer) or the logged query's details,
-then when and by whom it was resolved. An open mail query's row also carries
-its AI draft ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)):
-**Draft reply with AI** beside Reply while no job is live, withheld with its
-reason (post-report work, the Send to AI switch) rather than hidden; "AI
-draft · Queued" or "AI draft · Taken" in its place while the job is worked;
-and **Reply with AI draft** in place of Reply once the draft is ready, which
-opens the message's composer on the draft (operator, 14 October 2026). A
-withdrawn query (its e-mail untagged or unlinked) is not listed. The section
-has no edit session: Log query and Resolve query are the Actions menu's and
-the Next action's
+Queries is the last section (operator, 11 October 2026; assignable, 27
+October 2026). It lists every query raised on the Case: the open ones
+first, then the Done ones. When none is open it reads the one sentence "No
+active queries on this case", above any Done rows. A row carries State
+(**Query** while open, **Done** in green once closed), Raised, Raised by,
+Channel, Message (the subject opens the message; a logged query shows its
+details), Assigned to and Done. Assigned to on an open query is **Unassigned**
+or the assignee's name, opening the assign dialog, with **Take** beside it
+when the viewer does not already hold it. The row's actions are **Reply**
+and **Mark done** on an open mail query while staff mail is available,
+**Mark done** on any other open query, and **Reopen** on a Done query while
+the Case is not archived or closed. A withdrawn query is not listed. The
+section has no edit session. Log query is the Actions menu's; Answer query
+is the Next action's
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 
 ### Assessment

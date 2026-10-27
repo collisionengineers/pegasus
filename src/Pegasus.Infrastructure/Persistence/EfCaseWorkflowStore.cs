@@ -1024,28 +1024,102 @@ public sealed class EfCaseWorkflowStore(
         // (operator, 15 October 2026, #1213 ruling 3).
         refuseAsync: RequireAssignedEngineerEligibleAsync);
 
-    public Task<CaseWorkflowRecord> RaiseQueryAsync(RaiseCaseQueryRequest request, CancellationToken cancellationToken) =>
-        MutateAsync(request, CaseQueryLedger.QueryLoggedEvent, (context, workflow, now) =>
+    public async Task<Guid> OpenQueryAsync(OpenCaseQueryRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
+        var operationKey = request.OperationKey.Trim();
+        var hash = Hash($"{request.GetType().FullName}|{JsonSerializer.Serialize(request)}");
+        var replayed = await ReplayQueryAsync(context, request.CaseId, operationKey, hash, cancellationToken);
+        if (replayed is { } replayId)
         {
-            CaseQueryLedger.RaiseForStaff(context, workflow, request, now);
-            return Task.CompletedTask;
-        },
-        cancellationToken,
-        // A query is logged only once the report is sent, on a Case that is not archived.
-        refuse: workflow => CaseQueryRules.RequireCanLog(ReportIsSent(workflow, workflow.Case), workflow.ArchivedAtUtc is not null));
+            return replayId;
+        }
 
-    public Task<CaseWorkflowRecord> ResolveQueriesAsync(ResolveCaseQueriesRequest request, CancellationToken cancellationToken) =>
-        MutateAsync(request, CaseQueryLedger.QueriesResolvedEvent, async (context, workflow, now) =>
+        var workflow = await WorkflowQuery(context, tracking: true)
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        CaseQueryRules.RequireCanOpen(
+            ReportIsSent(workflow, workflow.Case),
+            workflow.ArchivedAtUtc is not null);
+        var now = timeProvider.GetUtcNow();
+        var beforeVersion = workflow.Version;
+        var beforeJson = CaseQueryLedger.SnapshotState(workflow);
+        Guid queryId;
+        string eventType;
+        if (request.RetainedMessageId is { } messageId)
         {
-            var resolved = await CaseQueryLedger.ResolveAllAsync(
-                context, workflow, request.Actor.Kind, request.Actor.SubjectId, now, null, cancellationToken);
-            if (resolved == 0)
+            queryId = await CaseQueryLedger.OpenForMessageAsync(
+                context, workflow, messageId, request.Actor, operationKey, now, cancellationToken);
+            eventType = CaseQueryLedger.QueryReceivedEvent;
+            CaseQueryLedger.NotifyQueryReceived(context, workflow, request.Actor, now);
+        }
+        else
+        {
+            queryId = CaseQueryLedger.OpenLogged(context, workflow, request, now);
+            eventType = CaseQueryLedger.QueryLoggedEvent;
+        }
+
+        CaseMutationGuard.Advance(workflow);
+        CaseQueryLedger.AddQueryHistory(
+            context, workflow, beforeVersion, eventType, request.Actor, operationKey, hash, null, now, beforeJson);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return queryId;
+    }
+
+    public Task<CaseWorkflowRecord> MarkQueryDoneAsync(
+        CaseQueryActRequest request,
+        CancellationToken cancellationToken) =>
+        ActOnQueryAsync(
+            request,
+            CaseQueryLedger.QueryResolvedEvent,
+            async (context, workflow, query, now) =>
             {
-                throw new InvalidOperationException("The case has no open query to resolve.");
-            }
-        },
-        cancellationToken,
-        refuse: workflow => CaseQueryRules.RequireCanResolve(workflow.HasOpenQuery, workflow.ArchivedAtUtc is not null));
+                CaseQueryRules.RequireCanMarkDone(query.ClosedAtUtc is null, workflow.ArchivedAtUtc is not null);
+                await CaseQueryLedger.MarkDoneAsync(
+                    context, workflow, query, request.Actor.Kind, request.Actor.SubjectId, now, null, cancellationToken);
+                return null;
+            },
+            cancellationToken);
+
+    public Task<CaseWorkflowRecord> ReopenQueryAsync(
+        CaseQueryActRequest request,
+        CancellationToken cancellationToken) =>
+        ActOnQueryAsync(
+            request,
+            CaseQueryLedger.QueryReopenedEvent,
+            (context, workflow, query, now) =>
+            {
+                var closed = query.ClosedAs == nameof(CaseQueryClosure.Resolved);
+                CaseQueryRules.RequireCanReopen(
+                    closed,
+                    workflow.ArchivedAtUtc is not null,
+                    CaseLifecycleRules.IsTerminal(StateOf(workflow)));
+                CaseQueryLedger.Reopen(workflow, query);
+                return Task.FromResult<string?>(null);
+            },
+            cancellationToken);
+
+    public Task<CaseWorkflowRecord> AssignQueryAsync(
+        AssignCaseQueryRequest request,
+        CancellationToken cancellationToken) =>
+        ActOnQueryAsync(
+            request.QueryId,
+            request.Actor,
+            request.OperationKey,
+            request,
+            CaseQueryLedger.QueryAssignedEvent,
+            async (context, workflow, query, now) =>
+            {
+                CaseQueryRules.RequireCanMarkDone(query.ClosedAtUtc is null, workflow.ArchivedAtUtc is not null);
+                return await CaseQueryLedger.AssignAsync(
+                    context, workflow, query, request.Actor, request.AssigneeStaffId, now, cancellationToken);
+            },
+            cancellationToken);
 
     public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) =>
         MutateAsync(request, $"case_reopened_{request.Destination}", async (context, workflow, now) =>
@@ -1884,6 +1958,119 @@ public sealed class EfCaseWorkflowStore(
         return tracking ? query : query.AsNoTracking();
     }
 
+
+    /// <summary>
+    /// A query act names the query, not the Case. The workflow row is locked
+    /// before the act, and a replay of the same operation returns the Case as
+    /// it stands. The lease and the expected version are not asked: a colleague
+    /// editing the Case does not block the act, and the lease is left as it is.
+    /// </summary>
+    private async Task<CaseWorkflowRecord> ActOnQueryAsync(
+        CaseQueryActRequest request,
+        string eventType,
+        Func<PegasusDbContext, CaseWorkflowEntity, CaseQueryEntity, DateTimeOffset, Task<string?>> apply,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return await ActOnQueryAsync(
+            request.QueryId,
+            request.Actor,
+            request.OperationKey,
+            request,
+            eventType,
+            apply,
+            cancellationToken);
+    }
+
+    private async Task<CaseWorkflowRecord> ActOnQueryAsync(
+        Guid queryId,
+        ActionActor actor,
+        string operationKey,
+        object request,
+        string eventType,
+        Func<PegasusDbContext, CaseWorkflowEntity, CaseQueryEntity, DateTimeOffset, Task<string?>> apply,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var caseId = await context.CaseQueries.AsNoTracking()
+            .Where(item => item.Id == queryId)
+            .Select(item => (Guid?)item.CaseId)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new KeyNotFoundException($"Query '{queryId}' was not found.");
+        await AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken);
+        var key = operationKey.Trim();
+        var hash = Hash($"{request.GetType().FullName}|{JsonSerializer.Serialize(request, request.GetType())}");
+        if (await context.CaseWorkflowEvents.AsNoTracking().AnyAsync(
+                item => item.CaseId == caseId && item.OperationKey == key && item.RequestHash == hash,
+                cancellationToken))
+        {
+            var replayed = await WorkflowQuery(context, tracking: false)
+                .SingleAsync(item => item.CaseId == caseId, cancellationToken);
+            return Map(replayed);
+        }
+
+        if (await context.CaseWorkflowEvents.AsNoTracking().AnyAsync(
+                item => item.CaseId == caseId && item.OperationKey == key,
+                cancellationToken)
+            || await context.CaseEditLeaseOperations.AsNoTracking().AnyAsync(
+                item => item.CaseId == caseId && item.OperationKey == key,
+                cancellationToken))
+        {
+            throw new CaseOperationConflictException(caseId, key);
+        }
+
+        var workflow = await WorkflowQuery(context, tracking: true)
+            .SingleAsync(item => item.CaseId == caseId, cancellationToken);
+        var query = await context.CaseQueries
+            .SingleAsync(item => item.Id == queryId, cancellationToken);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        var now = timeProvider.GetUtcNow();
+        var beforeVersion = workflow.Version;
+        var beforeJson = CaseQueryLedger.SnapshotState(workflow);
+        var reason = await apply(context, workflow, query, now);
+        CaseMutationGuard.Advance(workflow);
+        CaseQueryLedger.AddQueryHistory(
+            context, workflow, beforeVersion, eventType, actor, key, hash, reason, now, beforeJson);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(workflow);
+    }
+
+    /// <summary>The query an earlier open with this operation key committed, or null when the key is new.</summary>
+    private static async Task<Guid?> ReplayQueryAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        string operationKey,
+        string hash,
+        CancellationToken cancellationToken)
+    {
+        var replay = await context.CaseWorkflowEvents.AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.CaseId == caseId && item.OperationKey == operationKey,
+                cancellationToken);
+        if (replay is null)
+        {
+            if (await context.CaseEditLeaseOperations.AsNoTracking().AnyAsync(
+                    item => item.CaseId == caseId && item.OperationKey == operationKey,
+                    cancellationToken))
+            {
+                throw new CaseOperationConflictException(caseId, operationKey);
+            }
+
+            return null;
+        }
+
+        if (!string.Equals(replay.RequestHash, hash, StringComparison.Ordinal))
+        {
+            throw new CaseOperationConflictException(caseId, operationKey);
+        }
+
+        return await context.CaseQueries.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.RaisedOperationKey == operationKey)
+            .Select(item => (Guid?)item.Id)
+            .SingleAsync(cancellationToken);
+    }
 
     private static async Task<CaseArchiveReadiness> LoadArchiveReadinessAsync(
         PegasusDbContext context,

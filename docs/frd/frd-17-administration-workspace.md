@@ -336,8 +336,9 @@ the list's own order.
   engineer** is the signatory of the latest confirmed report, or the
   signatory the Case would use now. **Report sent by** is who made the
   work's first report send.
-- Queries (a dispute or an amendment request is a query) are Query mail
-  linked to the Case, counted as MI-01 counts them.
+- Queries (a dispute or an amendment request is a query) are `CaseQueries`
+  rows that are open or Done, not withdrawn, counted as MI-01 counts them
+  (operator, 27 October 2026).
 
 **Presets** are named column sets every Administrator shares, such as
 "Invoicing". **Use preset** ticks a preset's columns; the ticks can still be

@@ -60,10 +60,11 @@ public static class StaffMailCorrelationHeaders
     }
 }
 /// <summary>
-/// One staff send. <paramref name="ResolvesCaseQueries"/> is the composer's
-/// "Also resolve query" tick on a reply (operator, 11 October 2026): the Case's
-/// open queries resolve when the Sent item is observed. It is left out of the
-/// payload hash while false so a plain send's replay key is unchanged.
+/// One staff send. <paramref name="MarksQueryDone"/> is the composer's
+/// "Mark query done" tick on a reply to a message that holds an open query
+/// (operator, 27 October 2026): that message's query is marked done when the
+/// Sent item is observed. It is left out of the payload hash while false so a
+/// plain send's replay key is unchanged.
 /// <paramref name="SecondReport"/> is the other work's report a Case report
 /// send also carries on an Inspection + Audit Case (operator, 12 October
 /// 2026); it is left out of the payload hash while absent, for the same
@@ -80,7 +81,7 @@ public sealed record StaffMailSendCommand(
     string Subject, string Body, IReadOnlyList<StaffMailAttachment> Attachments,
     string OperationKey,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    bool ResolvesCaseQueries = false,
+    bool MarksQueryDone = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     StaffMailSecondReport? SecondReport = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

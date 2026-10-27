@@ -202,6 +202,65 @@ public sealed class WorkCentreWebTests
     }
 
     /// <summary>
+    /// An Unassigned open query on a Report sent Case is a Query row on Office,
+    /// with Open query and Take. One assigned to the viewer is on Mine, without Take.
+    /// </summary>
+    [Fact]
+    public async Task AnUnassignedQueryIsTakenFromOfficeAndAViewersQueryIsOnMine()
+    {
+        var caseId = Guid.NewGuid();
+        var queryId = Guid.NewGuid();
+        var viewer = Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId;
+        var unassigned = QueryItem(queryId, caseId, owner: null);
+        var assigned = QueryItem(Guid.NewGuid(), Guid.NewGuid(), owner: viewer);
+
+        using (var office = Host(new FakeSnapshot { Items = [unassigned], LaterCount = 1 }))
+        using (var client = Client(office))
+        {
+            var html = await GetOkAsync(client, "/?scope=office");
+            var row = Regex.Match(html, $"<tr id=\"wc-row-{queryId:D}\".*?</tr>", RegexOptions.Singleline).Value;
+            Assert.Contains("data-wc-row-kind=\"query\"", row, StringComparison.Ordinal);
+            Assert.Contains($"href=\"/Cases/{caseId:D}?section=queries\"", row, StringComparison.Ordinal);
+            Assert.Contains($">{OperatorLabels.WorkCentre.OpenQuery}</span>", row, StringComparison.Ordinal);
+            var take = Regex.Match(row, "<form[^>]*data-wc-take[^>]*>.*?</form>", RegexOptions.Singleline).Value;
+            Assert.Contains("action=\"/?handler=TakeQuery\"", take, StringComparison.Ordinal);
+            Assert.Contains($"name=\"queryId\" value=\"{queryId}\"", take, StringComparison.Ordinal);
+        }
+
+        using (var mine = Host(new FakeSnapshot { Items = [assigned], LaterCount = 1 }))
+        using (var client = Client(mine))
+        {
+            var html = await GetOkAsync(client, "/?scope=mine");
+            var row = Regex.Match(html, $"<tr id=\"wc-row-{assigned.Id:D}\".*?</tr>", RegexOptions.Singleline).Value;
+            Assert.Contains("data-wc-row-kind=\"query\"", row, StringComparison.Ordinal);
+            Assert.Contains($">{OperatorLabels.WorkCentre.OpenQuery}</span>", row, StringComparison.Ordinal);
+            Assert.DoesNotContain("handler=TakeQuery", row, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-wc-take", row, StringComparison.Ordinal);
+        }
+    }
+
+    private static NeedsAttentionItem QueryItem(Guid queryId, Guid caseId, Guid? owner) =>
+        new(
+            NeedsAttentionKind.Query,
+            queryId,
+            "QDOS26010",
+            "When is the supplementary due?",
+            "QDOS",
+            nameof(NeedsAttentionKind.Query),
+            NeedsAttentionPriority.Normal,
+            Owner: owner is null ? NeedsAttentionPolicy.UnassignedOwner : "alex",
+            Due: null,
+            LastOutcome: null,
+            Source: null,
+            Attempts: null,
+            Received: Now.AddHours(-2))
+        {
+            OwnerStaffId = owner,
+            Route = $"/Cases/{caseId:D}?section=queries",
+            RecordRoute = $"/Cases/{caseId:D}"
+        };
+
+    /// <summary>
     /// #1213 (v41 W8, signed off 19 October 2026): an Unassigned row carries
     /// Take, a small primary button, beside Assign Engineer, and so does its
     /// open row. Take posts the existing Assign Engineer handler with the

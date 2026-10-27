@@ -330,7 +330,7 @@ public sealed class CreateAuditPersistenceTests
         Assert.Equal(CaseLifecycleState.ReportPreparation, linked.State);
         Assert.Equal(inspection.EvidenceId, linked.ReportSentEvidence?.EvidenceId);
         Assert.Equal(CaseType.InspectionAndAudit, linked.CaseType);
-        Assert.True(CaseQueryRules.CanLog(linked));
+        Assert.True(CaseQueryRules.CanOpen(linked));
 
         await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-after-inspection-send"), default);
         await using (var context = await harness.ContextAsync())

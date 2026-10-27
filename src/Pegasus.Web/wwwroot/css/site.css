@@ -988,9 +988,14 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
 .table th.sort a{color:inherit;display:inline-flex;align-items:center;gap:4px}
 .table td .btn{vertical-align:middle}
 .table .row-actions{display:flex;gap:6px;justify-content:flex-end}
+.table td.row-actions,
+.table--compact td.row-actions{display:table-cell;height:auto;vertical-align:middle}
+.table td.row-actions > .cluster,
+.table--compact td.row-actions > .cluster{display:flex;gap:6px;justify-content:flex-end;align-items:center}
 .table td.num,.table th.num{text-align:right;font-variant-numeric:tabular-nums}
 .table td.mono,.table td .mono{font-family:var(--mono);font-size:12.5px}
 .table--compact td{height:34px;padding:4px 10px}
+.table--compact td.row-actions{height:auto}
 .table caption{text-align:left;padding:8px 12px;font-weight:600}
 .table input,.table select{height:30px;min-height:30px;padding:0 8px;min-width:60px}
 .table input.num{text-align:right;font-variant-numeric:tabular-nums}

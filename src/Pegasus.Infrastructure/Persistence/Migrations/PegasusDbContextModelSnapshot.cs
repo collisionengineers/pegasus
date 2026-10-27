@@ -2127,6 +2127,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTimeOffset?>("AssignedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("AssigneeStaffId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("CaseId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2190,6 +2196,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasFilter("[ClosedAtUtc] IS NULL AND [IntakeReceiptId] IS NOT NULL");
 
                     b.HasIndex("CaseId", "RaisedAtUtc");
+
+                    b.HasIndex("AssigneeStaffId", "RaisedAtUtc")
+                        .HasFilter("[ClosedAtUtc] IS NULL");
 
                     b.ToTable("CaseQueries", null, t =>
                         {
@@ -6901,7 +6910,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("StaffNotifications", null, t =>
                         {
-                            t.HasCheckConstraint("CK_StaffNotifications_Cause", "[Cause] IN ('AiDraftReady', 'CaseAssigned', 'EditedByOther', 'EmailReceived', 'QueryReceived', 'CancellationReceived')");
+                            t.HasCheckConstraint("CK_StaffNotifications_Cause", "[Cause] IN ('AiDraftReady', 'CaseAssigned', 'EditedByOther', 'EmailReceived', 'QueryReceived', 'CancellationReceived', 'QueryAssigned')");
                         });
                 });
 

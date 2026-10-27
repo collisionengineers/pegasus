@@ -154,13 +154,16 @@ public sealed class MessageModel(
     public Guid? CorrespondenceOperationId { get; set; }
 
     /// <summary>
-    /// The reply composer's "Also resolve query" tick (operator, 11 October
-    /// 2026): the Case's open queries resolve when the Sent item is observed.
-    /// Pre-ticked only when the composer was reached from the Case's Resolve
-    /// query Next action or opened on an AI draft.
+    /// The reply composer's Mark query done tick: the replied message's own
+    /// open query is marked done when the Sent item is observed. Pre-ticked
+    /// when the composer was reached from Answer query or an AI draft on that
+    /// message.
     /// </summary>
-    [BindProperty(SupportsGet = true, Name = "resolveQuery")]
-    public bool ResolveQuery { get; set; }
+    [BindProperty(SupportsGet = true, Name = "markQueryDone")]
+    public bool MarkQueryDone { get; set; }
+
+    /// <summary>Whether this message holds an open query on its linked Case.</summary>
+    public bool MessageHoldsOpenQuery { get; private set; }
 
     /// <summary>
     /// The Draft ready Query response job the composer was opened on (FRD-27):
@@ -187,10 +190,9 @@ public sealed class MessageModel(
     [BindProperty]
     public Guid? ReturnCaseId { get; set; }
 
-    /// <summary>Whether the reply form offers the tick: a reply to a Case that holds an open query.</summary>
-    public bool OffersResolveQuery =>
-        CorrespondenceMode is "reply" or "reply-all"
-        && CorrespondenceCase is { Workflow.HasOpenQuery: true };
+    /// <summary>Whether the reply form offers the tick: a reply or reply-all to a message that holds an open query.</summary>
+    public bool OffersMarkQueryDone =>
+        CorrespondenceMode is "reply" or "reply-all" && MessageHoldsOpenQuery;
 
     /// <summary>
     /// The one Case / PO field of the Reply/Forward composer: it searches as
@@ -1400,7 +1402,7 @@ public sealed class MessageModel(
                     CorrespondenceBody!.Trim(),
                     attachments,
                     CorrespondenceOperationKey!.Trim(),
-                    ResolvesCaseQueries: ResolveQuery && OffersResolveQuery,
+                    MarksQueryDone: MarkQueryDone && OffersMarkQueryDone,
                     AiJobId: AiJobId is { } aiJobId && aiJobId != Guid.Empty ? aiJobId : null),
                 cancellationToken);
             CorrespondenceOperation = operation;
@@ -1504,6 +1506,7 @@ public sealed class MessageModel(
             CorrespondenceCase = await ResolveCaseAsync(
                 actor, CorrespondenceCaseReference, cancellationToken);
             correspondenceCaseResolved = true;
+            MessageHoldsOpenQuery = await MessageHoldsOpenQueryAsync(cancellationToken);
         }
         if (CorrespondenceCase is not null)
         {
@@ -1581,8 +1584,21 @@ public sealed class MessageModel(
         if (prefill)
         {
             CorrespondenceBody = job.ResultText;
-            ResolveQuery = OffersResolveQuery;
+            MarkQueryDone = OffersMarkQueryDone;
         }
+    }
+
+    private async Task<bool> MessageHoldsOpenQueryAsync(CancellationToken cancellationToken)
+    {
+        if (CorrespondenceCase is not { Workflow.HasOpenQuery: true }
+            || CorrespondenceMode is not ("reply" or "reply-all"))
+        {
+            return false;
+        }
+
+        var queries = HttpContext.RequestServices.GetRequiredService<ICaseQueryStore>();
+        var listed = await queries.ListCaseQueriesAsync(CorrespondenceCase.Summary.CaseId, cancellationToken);
+        return listed.Any(item => item.IsOpen && item.Message?.RetainedMessageId == Detail.Summary.Id);
     }
 
     private Task<CaseHeader?> ResolveCaseAsync(

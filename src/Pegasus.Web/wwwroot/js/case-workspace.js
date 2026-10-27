@@ -180,6 +180,19 @@
     // as it approaches (operator, 13 October 2026). A page that drew the
     // dialog open (?dialog=tasks) drew its body with it.
     document.addEventListener('click', function (event) {
+        var assign = event.target.closest && event.target.closest('[data-assign-query]');
+        var assignForm = assign ? document.querySelector('[data-assign-query-form]') : null;
+        if (assignForm) {
+            var queryId = assignForm.querySelector('[name="queryId"]');
+            if (queryId) {
+                queryId.value = assign.getAttribute('data-assign-query') || '';
+            }
+            var select = assignForm.querySelector('[name="assignee"]');
+            var current = assign.getAttribute('data-assign-current');
+            if (select && current) {
+                select.value = current;
+            }
+        }
         var opener = event.target.closest && event.target.closest('[data-dialog-open="case-tasks-dialog"]');
         var body = opener ? document.querySelector('[data-case-tasks-body][data-lazy-tasks]') : null;
         if (!body || body.dataset.lazyState === 'loading') {

@@ -124,6 +124,19 @@ public static class NeedsAttentionPolicy
             && kind is NeedsAttentionKind.UnassignedEngineer or NeedsAttentionKind.Triage;
     }
 
+    /// <summary>
+    /// Whether this row offers Take. A Query row does when it is Unassigned;
+    /// an assigned query is already someone's, so Mine shows it without Take.
+    /// </summary>
+    public static bool CanTake(NeedsAttentionItem item, ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(actor);
+        return item.Kind == NeedsAttentionKind.Query
+            ? actor.Kind == ActorKind.Staff && item.OwnerStaffId is null
+            : item.OwnerStaffId is null && CanTake(item.Kind, actor);
+    }
+
     /// <summary>The Owner column when a row's person slot is empty.</summary>
     public const string UnassignedOwner = "Unassigned";
 
@@ -149,7 +162,8 @@ public static class NeedsAttentionPolicy
             or NeedsAttentionKind.Triage
             or NeedsAttentionKind.VehicleImagesPaired
             or NeedsAttentionKind.OpenTasks
-            or NeedsAttentionKind.WithEngineer => true,
+            or NeedsAttentionKind.WithEngineer
+            or NeedsAttentionKind.Query => true,
         NeedsAttentionKind.CaseChase
             or NeedsAttentionKind.Unidentified
             or NeedsAttentionKind.AiDraft => false,
@@ -180,6 +194,13 @@ public static class NeedsAttentionPolicy
     {
         ArgumentNullException.ThrowIfNull(item);
         var me = StaffNotificationPolicy.StaffId(actor);
+        // A Query is mine only when it is assigned to the viewer. An
+        // Unassigned query stays on Office, where it can be taken.
+        if (item.Kind == NeedsAttentionKind.Query)
+        {
+            return item.OwnerStaffId == me;
+        }
+
         return item.OwnerStaffId is { } owner
             ? owner == me
             : CanTake(item.Kind, actor);
@@ -197,8 +218,20 @@ public static class NeedsAttentionPolicy
     public static bool InScope(NeedsAttentionItem item, NeedsAttentionScope scope, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(item);
-        return Holds(scope, item.Kind)
-            && (scope != NeedsAttentionScope.Mine || IsMine(item, actor));
+        if (!Holds(scope, item.Kind))
+        {
+            return false;
+        }
+
+        // Office lists each Unassigned open query; Mine lists those assigned to the viewer.
+        if (item.Kind == NeedsAttentionKind.Query)
+        {
+            return scope == NeedsAttentionScope.Mine
+                ? IsMine(item, actor)
+                : item.OwnerStaffId is null;
+        }
+
+        return scope != NeedsAttentionScope.Mine || IsMine(item, actor);
     }
 
     public static NeedsAttentionPriority Priority(
@@ -396,8 +429,9 @@ public sealed class GetOperationsSnapshot(
                 : aiJobs.ListOpenAsync(cancellationToken);
         var pairedRead = dashboardQueries.ListPairedVehicleImagesAwaitingStaffAsync(cancellationToken);
         var openTasksRead = dashboardQueries.ListOpenCaseTasksAsync(cancellationToken);
+        var openQueriesRead = dashboardQueries.ListOpenQueriesForAttentionAsync(cancellationToken);
         await Task.WhenAll(triageRead, dueRead, heldAndReviewRead, withEngineerRead,
-            configurationRead, unidentifiedRead, openJobsRead, pairedRead, openTasksRead);
+            configurationRead, unidentifiedRead, openJobsRead, pairedRead, openTasksRead, openQueriesRead);
         var triage = await triageRead;
         var openTriage = triage.Where(item => item.State == TriageState.Open).ToArray();
         var awaitingTriage = triage.Where(item => item.State == TriageState.AwaitingInformation).ToArray();
@@ -413,6 +447,7 @@ public sealed class GetOperationsSnapshot(
         var drafts = AiDraftPolicy.Drafts(await openJobsRead, configuration.AiDraftTargetDays);
         var paired = await pairedRead;
         var openTasks = await openTasksRead;
+        var openQueries = await openQueriesRead;
 
         var reviewPartitions = review
             .Select(item => new
@@ -440,7 +475,8 @@ public sealed class GetOperationsSnapshot(
             openTriage.Length + awaitingTriage.Length,
             drafts,
             paired,
-            openTasks);
+            openTasks,
+            openQueries);
     }
 
     private async Task<IReadOnlyList<CaseSearchItem>> ReadCasesAsync(
@@ -493,7 +529,8 @@ public sealed class GetOperationsSnapshot(
         int TriageTotalCount,
         IReadOnlyList<AiDraft> Drafts,
         IReadOnlyList<PairedVehicleImagesCase> PairedVehicleImages,
-        IReadOnlyList<OpenCaseTask> OpenTasks);
+        IReadOnlyList<OpenCaseTask> OpenTasks,
+        IReadOnlyList<OpenQueryAttentionRow> OpenQueries);
 
     /// <summary>
     /// Every needs-attention row, each read from the query that already backs
@@ -523,7 +560,8 @@ public sealed class GetOperationsSnapshot(
                 .Concat(inputs.Triage.Select(record => record.AssigneeId ?? Guid.Empty))
                 .Concat(draftOwners.Values.Select(id => id ?? Guid.Empty))
                 .Concat(inputs.PairedVehicleImages.Select(row => row.EngineerId ?? Guid.Empty))
-                .Concat(caseTasks.Select(tasks => TaskOwner(tasks[0]) ?? Guid.Empty)),
+                .Concat(caseTasks.Select(tasks => TaskOwner(tasks[0]) ?? Guid.Empty))
+                .Concat(inputs.OpenQueries.Select(query => query.AssigneeStaffId ?? Guid.Empty)),
             cancellationToken);
 
         var items = new List<NeedsAttentionItem>();
@@ -780,6 +818,30 @@ public sealed class GetOperationsSnapshot(
                 Route = StaffNotificationPolicy.CaseTasksRoute(first.CaseId),
                 RecordRoute = StaffNotificationPolicy.CaseRoute(first.CaseId),
                 QualifiedAtUtc = tasks[^1].CreatedAtUtc
+            });
+        }
+
+        foreach (var query in inputs.OpenQueries)
+        {
+            items.Add(new(
+                NeedsAttentionKind.Query,
+                query.QueryId,
+                query.Reference,
+                string.IsNullOrWhiteSpace(query.Title) ? query.Reference : query.Title,
+                VehicleLabel(query.VehicleMake, query.VehicleModel, query.Registration, claimant: null, query.Reference),
+                Reason: NeedsAttentionKind.Query.ToString(),
+                NeedsAttentionPriority.Normal,
+                NeedsAttentionPolicy.OwnerText(NeedsAttentionKind.Query, OwnerName(query.AssigneeStaffId, staffNames)),
+                Due: null,
+                LastOutcome: null,
+                Source: null,
+                Attempts: null,
+                Received: query.RaisedAtUtc)
+            {
+                OwnerStaffId = query.AssigneeStaffId,
+                Route = StaffNotificationPolicy.CaseRoute(query.CaseId, "queries"),
+                RecordRoute = StaffNotificationPolicy.CaseRoute(query.CaseId),
+                QualifiedAtUtc = query.RaisedAtUtc
             });
         }
 

@@ -43,8 +43,6 @@ internal sealed class CaseLifecycleMcpTools(
     ICloseCase closeCase,
     IReopenCase reopenCase,
     IReturnCaseToEngineer returnToEngineer,
-    IRaiseCaseQuery raiseQuery,
-    IResolveCaseQueries resolveQueries,
     IArchiveCase archiveCase,
     ICreateAudit createAudit,
     IRequestVehicleLookup requestVehicleLookup,
@@ -59,7 +57,7 @@ internal sealed class CaseLifecycleMcpTools(
     [
         "hold", "release_hold", "return_to_review", "assign_engineer", "return_to_engineer",
         "close", "reopen", "archive", "create_linked_replacement", "create_audit",
-        "vehicle_lookup", "manual_chase", "log_query", "resolve_query",
+        "vehicle_lookup", "manual_chase",
     ];
 
     [McpServerTool(
@@ -70,13 +68,13 @@ internal sealed class CaseLifecycleMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Takes one Case lifecycle act a member of staff takes from the Case's Actions menu, through the same Core command and guards: hold (reason, optional reviewOn), release_hold (reason), return_to_review (reason; from With Engineer or Report sent, when the Case's own completeness facts allow), assign_engineer (optional engineerId, omitted for Unassigned; from Review, moving the Case to With Engineer, or within With Engineer; no reason, Core records who it went to), return_to_engineer (reason; from Report sent), close (reason, outcome), reopen (reason, destination), archive (reason; a closed Case whose custody is confirmed), create_linked_replacement (reason, replacementPrincipalCode; for a Case created in error), create_audit (an Inspection + Audit Case gains its Audit work), vehicle_lookup (registration; queues one DVLA/DVSA lookup), manual_chase (chaseChannel, chaseRecipient, chaseOutcome, optional chaseNote; a Not ready Case's due work), log_query (queryChannel, optional reason as the query's details; a Report sent Case gains an open query, as staff log one from the Actions menu) or resolve_query (no reason; every open query on the Case resolves at once). A tagged e-mail is a query too: correct its classification to the post-report query with pegasus_mail_correct_classification. A Case is never deleted. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command); each act ends the lease it ran under. Returns the Case's new version and state and any identifier the act created.")]
+    [Description("Takes one Case lifecycle act a member of staff takes from the Case's Actions menu, through the same Core command and guards: hold (reason, optional reviewOn), release_hold (reason), return_to_review (reason; from With Engineer or Report sent, when the Case's own completeness facts allow), assign_engineer (optional engineerId, omitted for Unassigned; from Review, moving the Case to With Engineer, or within With Engineer; no reason, Core records who it went to), return_to_engineer (reason; from Report sent), close (reason, outcome), reopen (reason, destination), archive (reason; a closed Case whose custody is confirmed), create_linked_replacement (reason, replacementPrincipalCode; for a Case created in error), create_audit (an Inspection + Audit Case gains its Audit work), vehicle_lookup (registration; queues one DVLA/DVSA lookup) or manual_chase (chaseChannel, chaseRecipient, chaseOutcome, optional chaseNote; a Not ready Case's due work). Queries are pegasus_case_query. A Case is never deleted. Needs the expected case version (present an edit lease token for multi-step work, or omit it and the tool holds the lease for this one command); each act ends the lease it ran under. Returns the Case's new version and state and any identifier the act created.")]
     public async Task<CaseActionToolResult> ActAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key with the same inputs returns the same outcome.")] string operationKey,
-        [Description("The act: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, manual_chase, log_query or resolve_query.")] string action,
-        [Description("Why (case history reason, at most 500 characters). Required for every act except assign_engineer, create_audit, vehicle_lookup, manual_chase and resolve_query, which take none, and log_query, where it is the query's details.")] string? reason = null,
+        [Description("The act: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup or manual_chase.")] string action,
+        [Description("Why (case history reason, at most 500 characters). Required for every act except assign_engineer, create_audit, vehicle_lookup and manual_chase, which take none.")] string? reason = null,
         [Description("assign_engineer: the staff identifier of the Engineer to assign; the account must exist and be enabled. Omitted, the Case is Unassigned.")] Guid? engineerId = null,
         [Description("hold: the optional date, yyyy-MM-dd (Europe/London, today or later), to look at the Case again; it is the held Case's due date in the Work Centre. Nothing is sent on it.")] string? reviewOn = null,
         [Description("close: the terminal outcome, one of PrincipalCancelled, CollisionEngineersRejected, CreatedInError or SourceEmailUnlinked. Which outcomes the Case's state allows is Core's decision.")] string? outcome = null,
@@ -87,7 +85,6 @@ internal sealed class CaseLifecycleMcpTools(
         [Description("manual_chase: who or which address was chased (at most 500 characters).")] string? chaseRecipient = null,
         [Description("manual_chase: what the chase achieved (at most 500 characters).")] string? chaseOutcome = null,
         [Description("manual_chase: an optional note about the chase (at most 1000 characters).")] string? chaseNote = null,
-        [Description("log_query: how the query reached the office, one of Email, Phone, WhatsApp or Other.")] string? queryChannel = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one command.")] string? editLeaseToken = null,
         CancellationToken cancellationToken = default)
     {
@@ -112,14 +109,12 @@ internal sealed class CaseLifecycleMcpTools(
                 var reasonText = verb switch
                 {
                     // Core composes Assign Engineer's history reason.
-                    "create_audit" or "vehicle_lookup" or "manual_chase" or "resolve_query" or "assign_engineer" => string.Empty,
-                    "log_query" => reason ?? string.Empty,
+                    "create_audit" or "vehicle_lookup" or "manual_chase" or "assign_engineer" => string.Empty,
                     _ => string.IsNullOrWhiteSpace(reason)
                         ? throw new McpException($"The {verb} action needs a reason.")
                         : reason,
                 };
                 var holdReview = verb == "hold" ? ParseDate(reviewOn, nameof(reviewOn)) : null;
-                var channel = verb == "log_query" ? ParseQueryChannel(queryChannel) : default;
                 var closure = verb == "close" ? ParseClosureOutcome(outcome) : default;
                 var reopenTo = verb == "reopen" ? ParseReopenDestination(destination) : default;
                 // An omitted engineerId hands the Case to Unassigned (#1213).
@@ -184,17 +179,6 @@ internal sealed class CaseLifecycleMcpTools(
                             case "close":
                                 await closeCase.ExecuteAsync(
                                     new(caseId, expectedVersion, actor, key, reasonText, token, closure),
-                                    cancellationToken);
-                                return Created.None;
-                            case "log_query":
-                                await raiseQuery.ExecuteAsync(
-                                    new(caseId, expectedVersion, actor, key, reasonText, token, channel,
-                                        string.IsNullOrWhiteSpace(reason) ? null : reason),
-                                    cancellationToken);
-                                return Created.None;
-                            case "resolve_query":
-                                await resolveQueries.ExecuteAsync(
-                                    new(caseId, expectedVersion, actor, key, reasonText, token),
                                     cancellationToken);
                                 return Created.None;
                             case "reopen":
@@ -285,14 +269,6 @@ internal sealed class CaseLifecycleMcpTools(
             ? parsed
             : throw new McpException(
                 "The close action needs outcome, one of: " + string.Join(", ", Enum.GetNames<CaseClosureOutcome>()) + ".");
-
-    private static CaseQueryChannel ParseQueryChannel(string? value) =>
-        Enum.TryParse<CaseQueryChannel>(value?.Trim(), ignoreCase: true, out var parsed)
-            && Enum.IsDefined(parsed)
-            && !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
-            ? parsed
-            : throw new McpException(
-                "The log_query action needs queryChannel, one of: " + string.Join(", ", Enum.GetNames<CaseQueryChannel>()) + ".");
 
     private static CaseReopenDestination ParseReopenDestination(string? value) =>
         Enum.TryParse<CaseReopenDestination>(value?.Trim(), ignoreCase: true, out var parsed)

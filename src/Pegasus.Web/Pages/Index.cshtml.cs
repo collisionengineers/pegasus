@@ -262,6 +262,44 @@ public partial class IndexModel(
             Labels.Assigned,
             cancellationToken);
 
+    /// <summary>
+    /// Take on an Unassigned open query (operator, 27 October 2026). Posts the
+    /// viewer's staff id through the same assignment a Case row's Take uses,
+    /// and returns to the Work Centre. No Case lease: a query act takes none.
+    /// </summary>
+    public async Task<IActionResult> OnPostTakeQueryAsync(
+        Guid queryId,
+        string operationKey,
+        string? returnUrl,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var staffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(actor)
+                ?? throw new InvalidOperationException("Take is a staff act.");
+            await HttpContext.RequestServices.GetRequiredService<IAssignCaseQuery>().ExecuteAsync(
+                new(queryId, actor, operationKey, staffId),
+                cancellationToken);
+            StatusMessage = Labels.Assigned;
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCommandFailed(logger, "take_query", queryId, exception);
+            ErrorMessage = Labels.AssignRefused;
+        }
+
+        return LocalRedirect(SafeReturnUrl(returnUrl));
+    }
+
     /// <summary>Complete job on a Draft ready Query response or queue pass (D9).</summary>
     public async Task<IActionResult> OnPostCompleteAiJobAsync(
         Guid jobId,

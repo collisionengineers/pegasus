@@ -38,13 +38,16 @@ The authenticated `/Upload` route exists only where durable production
 intake and Case custody exist. A production-local-only store is not accepted
 custody. Without durable custody the route is absent, not offered.
 
-The page is one surface (v30 Upload E, 25 September 2026): the picker,
-centred until a file is chosen, then the picker on the left and beside it
-the selected files. The picker holds the drop target, **Choose files** and
-the three limits under it. The selected files are one row each with a
-thumbnail for an image, its name, size and kind, and a remove control. Files
-chosen or dropped in several steps accumulate into one upload; **Clear**
-empties it.
+The page is one record sheet (v42 Upload E, 27 October 2026). Its dark head
+names the route and states the limits the upload accepts — **20 files
+maximum**, **100.0 MB per file**, **200.0 MB per upload** — once, in
+megabytes, under the heading. Below the head's stripe the body is the drop
+target: **Drop files here**, the accepted kinds and extensions, and **Choose
+files**. The selected files appear under it once a file is chosen —
+**Selected files**, one row each with a thumbnail for an image, its name, size
+and kind, and a remove control — and the sheet's one action bar, under them,
+carries **Clear** and **Upload N files**. Files chosen or dropped in several
+steps accumulate into one upload; **Clear** empties it.
 Before posting, the selection is checked against the same limits the server
 enforces: file count, per-file size, total size, an empty file and an
 unsupported type are each named. **Upload N files** posts the whole
@@ -61,11 +64,13 @@ that Case (operator, 26 September 2026). The member of staff has already
 decided where the files go, so the destination is declared before the
 upload rather than chosen after it:
 
-- The picker shows the declared Case above the files (reference,
-  registration · claimant, Principal, stage). The same card states a
-  destination wherever one is stated. No Case is offered to pick. Any Case
-  or Triage Case in any state may be declared; an archived or unknown Case
-  is refused on the page and the picker falls back to an ordinary upload.
+- The head names the Case it is for (**Upload · {reference}**), states the
+  same limits, and carries the declared Case's facts (reference,
+  registration · claimant, Principal, stage) with **Back to {reference}** to
+  that Case. The same card states a destination wherever one is stated. No
+  Case is offered to pick. Any Case or Triage Case in any state may be
+  declared; an archived or unknown Case is refused on the page and the sheet
+  falls back to an ordinary upload.
 - The declaration travels with every file of the submission and is read
   again at post. The same upload receipt presented for a different Case is
   refused, like different bytes under one identity.

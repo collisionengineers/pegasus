@@ -26,7 +26,10 @@ public enum StaffNotificationCause
     QueryReceived,
 
     /// <summary>A cancellation arrived on, or was corrected onto, an open Case the engineer is assigned to.</summary>
-    CancellationReceived
+    CancellationReceived,
+
+    /// <summary>An open query was assigned to a staff member other than the actor.</summary>
+    QueryAssigned
 }
 
 /// <summary>
@@ -107,7 +110,8 @@ public static class StaffNotificationPolicy
         StaffNotificationCause cause,
         Guid? caseEngineerId,
         Guid? jobStarterStaffId,
-        Guid? actorStaffId)
+        Guid? actorStaffId,
+        Guid? assigneeStaffId = null)
     {
         var recipient = cause switch
         {
@@ -117,6 +121,8 @@ public static class StaffNotificationPolicy
                 or StaffNotificationCause.EmailReceived
                 or StaffNotificationCause.QueryReceived
                 or StaffNotificationCause.CancellationReceived => caseEngineerId,
+            // The assignee, and only when that is not the actor (a Take tells nobody).
+            StaffNotificationCause.QueryAssigned => assigneeStaffId,
             _ => throw new ArgumentOutOfRangeException(nameof(cause), cause, null)
         };
         return recipient is { } id && id != Guid.Empty && id != actorStaffId ? id : null;
@@ -139,14 +145,13 @@ public static class StaffNotificationPolicy
 
     /// <summary>
     /// The message's reply composer opened on an AI draft (FRD-27, FRD-21):
-    /// the reply is filed against the job's Case, Also resolve query starts
-    /// ticked as it does from the Case's Resolve query Next action, and the
-    /// composer reads the draft from the named job.
+    /// the reply is filed against the job's Case, Mark query done starts
+    /// ticked, and the composer reads the draft from the named job.
     /// </summary>
     public static string MessageReplyRoute(Guid retainedMessageId, string caseReference, Guid jobId) =>
         $"{MessageRoute(retainedMessageId)}?compose=reply"
         + $"&correspondenceCaseReference={Uri.EscapeDataString(caseReference)}"
-        + $"&resolveQuery=true&aiJob={jobId:D}";
+        + $"&markQueryDone=true&aiJob={jobId:D}";
 
     /// <summary>
     /// Where an AI draft opens, per kind: Estimate at the Case's Repair Spec section,
