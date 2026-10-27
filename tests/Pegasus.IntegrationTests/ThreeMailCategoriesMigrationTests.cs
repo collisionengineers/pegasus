@@ -35,9 +35,9 @@ public sealed class ThreeMailCategoriesMigrationTests
             WHERE object_id = OBJECT_ID(N'IntakeMailClassificationDecisions') AND name = N'OpensQuery'
             """));
         Assert.Equal(
-            "classified/new-instruction/0",
+            "classified/new-instruction/inspection/0",
             await database.ScalarAsync<string>(
-                $"SELECT CONCAT(Outcome, N'/', Category, N'/', OpensQuery) FROM IntakeMailClassificationDecisions WHERE IntakeReceiptId = '{KeptReceipt}'"));
+                $"SELECT CONCAT(Outcome, N'/', Category, N'/', CaseType, N'/', OpensQuery) FROM IntakeMailClassificationDecisions WHERE IntakeReceiptId = '{KeptReceipt}'"));
         Assert.Equal(
             "unclassified/-/0",
             await database.ScalarAsync<string>(
