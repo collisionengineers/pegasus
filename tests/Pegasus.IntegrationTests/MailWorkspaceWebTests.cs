@@ -522,6 +522,10 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Message linked to the confirmed case.", linked, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.Inbox.Unlink}</button>", linked, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.Inbox.ChangeLinkedCase}</button>", linked, StringComparison.Ordinal);
+        Assert.Contains("data-mail-change-case", linked, StringComparison.Ordinal);
+        Assert.Contains("dialog=case-hold-dialog", linked, StringComparison.Ordinal);
+        Assert.Contains("dialog=case-close-dialog", linked, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=OpenQuery", linked, StringComparison.Ordinal);
         await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
 
         // The same post again finds the receipt moved on and writes nothing.
@@ -861,6 +865,9 @@ public sealed class MailWorkspaceWebTests
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
         var (messageId, caseId, linked) = await SeedLinkedPostReportQueryAsync(factory, client);
+        Assert.Contains("handler=MarkQueryDone", linked, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.MarkQueryDone, linked, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-mail-change-case", linked, StringComparison.Ordinal);
         Assert.Contains("handler=CreateQueryResponse", linked, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.QueryResponseJobs.Create}</span>", linked, StringComparison.Ordinal);
         var createForm = AssociationForm(linked, "CreateQueryResponse");
