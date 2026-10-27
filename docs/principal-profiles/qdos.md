@@ -33,7 +33,7 @@ context, no desk noise) is owned by the Mail pages and
 
 Owner:
 `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`
-(`principal_mail_classification`, Version 3).
+(`principal_mail_classification`, Version 4).
 
 Built **only on operator-guaranteed generated tells**, matched
 case-sensitively (the casing is part of the tell — a human sentence mentioning

@@ -7,9 +7,9 @@
 - The Inbox shows retained mail from every approved mailbox, newest first,
   from each mailbox's retention start. Nothing older is shown or rebuilt.
 - Looking at a message never changes anything. The opened message record
-  offers classification and Case linking. Ticked rows can be classified,
+  offers Type, Case linking, Open query and Mark done. Ticked rows can be
   dismissed or restored together, each message on its own; there is no bulk
-  Case linking.
+  classification and no bulk Case linking.
 - The list says when it was last refreshed and goes stale after 15 minutes.
   It never refreshes under an operator's hands.
 - Dismiss hides a message in Pegasus only. Outlook is untouched. Restore
@@ -133,11 +133,7 @@ scope unless the operator widens it.
 Results are individual messages, not collapsed conversations, because every
 action applies to one exact message. Each result says whether the match was
 in the body, an attachment name or attachment content, and names the
-attachment where that applies.
-
-Read-only search of Deleted Items is available within each exact approved
-mailbox and folder scope. It does not scan a backlog, rebuild anything,
-replay in bulk, allocate a Case or change the mailbox.
+attachment where that applies. Search does not read Deleted Items.
 
 ### Refresh and staleness
 
@@ -147,7 +143,7 @@ current. The stale threshold is a fixed 15 minutes since the last successful
 update; it is not configurable and does not depend on load. The list does
 not refresh on its own while an operator is reading or acting.
 
-Refresh keeps the active mailbox, folder, category, search filters, page and
+Refresh keeps the active mailbox, folder, principal, search, page and
 open message when that message is still available. If the message has left
 the current scope, its detail stays open with a clear "no longer in this
 view" state and a way back to the list.
@@ -155,34 +151,23 @@ view" state and a way back to the list.
 ### Classification and linking actions
 
 Case linking is offered only from the opened message record, never from a
-row, and each link applies to one exact message; there
-is no bulk Case linking. Classification is offered from the opened message
-record and, for ticked rows in the incoming scopes, from the list, with one
-category and one reason for every ticked message. Each ticked message is
-corrected on its own, with its own history entry (operator, 15 and 16
-October 2026).
+row, and each link applies to one exact message; there is no bulk Case
+linking and no bulk classification.
 
-On the record, Decision shows the **Classification** as twelve chips, the
-eleven mail categories and Unclassified, one pressed. Pressing another
-applies the correction at once and records the fixed reason "Corrected from
-the Inbox", as Tag as query records its fixed reason; no reason is typed. A
-correction to New instruction asks for the Case type in the Case picker row
-(operator, 22 October 2026, R179,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-On the list, **Correct classification** opens a dialog once for every ticked
-row, with Classification, Case type and Reason for correction (v41 item I18,
-signed off 19 October 2026, with the shared reason of operator ruling R140 (c),
-16 October 2026,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-Once a classification
-is saved, the message record offers the one next action it calls for:
-**Create case** for a New instruction, **Open the Triage** for a Triage
-request, **Register images** for images received, each only while the
-receipt still qualifies and no Case holds it. Staff press it; nothing runs on
-its own, and a Case or Triage already opened from the message stays as it is
-when the message is corrected away (operator, 1 October 2026). A correction
-to or from Query on a linked Case follows
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries).
+The message dialog's context bar shows Case, Type and Query. The settings
+menu holds, in order, Case, Type, Query, Change case and Decided. Type is one
+select. It posts at once and records the fixed reason "Corrected from the
+Inbox"; no reason is typed. The select's New instruction values are combined
+(`new-instruction:Inspection` and the same shape for Audit and Inspection and
+Audit). A split New instruction plus work type is the same correction. Query
+is **Open query** or **Mark done**, the Case's own handlers. Change case
+links to Place on Hold or Close case only when that Case allows the act.
+Register images is offered on an unlinked, uncategorised image-only message.
+Once a type is saved, the record offers **Create case** for a New instruction
+or **Open the Triage** for a Triage request, each only while the receipt
+still qualifies and no Case holds it. A correction does not open or withdraw
+a query
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 
 Case linking starts with a deliberate choice in the **Case / PO** picker under
 the Case in Decision, which asks for a reason in one dialog; the choice and the
@@ -236,13 +221,10 @@ Dismiss moves on to the next message, else the one before it, else the list
 (v41 item I10,
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Ticked rows can be
-dismissed together in the incoming scopes and restored together in the
-Dismissed scope, each message on its own (operator, 15 and 16 October
-2026). One bulk form sits above the list: the ticked count as a bare number,
-and Dismiss and Correct classification, or Restore in Dismissed; its buttons
-are always enabled, because a post with nothing ticked writes nothing, and
-there is no select-all (v41 item I18, signed off 19 October 2026,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+dismissed together in All and No Case Found and restored together in
+Dismissed, each message on its own. The bulk bar is hidden until a row is
+ticked. It shows the ticked count and Dismiss, or Restore on Dismissed.
+There is a select-all tick. There is no Correct classification.
 A bulk post that could not change some messages says "N not changed" once
 above the list, and those rows stay ticked so they can be retried (operator,
 22 October 2026, R180,
@@ -282,7 +264,7 @@ workspace only shows them.
 - A refreshed message that left the scope stays readable with a way back.
 - A thread identity seen in another mailbox is never followed.
 - A count or list whose query has not run shows nothing, never `0`.
-- No bulk Case linking exists. A bulk classification, Dismiss or Restore
+- No bulk Case linking and no bulk classification exist. Dismiss or Restore
   applies to each ticked message on its own, so one that fails leaves the
   others applied.
 
@@ -293,14 +275,13 @@ workspace only shows them.
   detail, and the fresh-visit reset.
 - Tests that the message dialog and an opened record change no classification,
   association, read state or custody.
-- Tests that a Classification chip records its fixed reason, that a link, a
-  change and an unlink are each one post, and that a refused correction shows
-  its sentence on the record and on the list.
+- Tests that the Type select records its fixed reason, that a link, a
+  change and an unlink are each one post, and that a removed type is refused
+  on the record.
 - Dismiss and Restore tests showing no Graph call.
-- Bulk classification, Dismiss and Restore tests showing one history entry
-  per ticked message, a repeated post writing none, a stale message leaving
-  the others corrected, and every bulk post refused before a write outside
-  its scope or without casework.
+- Dismiss and Restore tests showing one history entry per ticked message, a
+  repeated post writing none, and every bulk post refused before a write
+  outside its scope or without casework.
 - A persistence test that a retried Dismiss replays without a second history
   entry and that concurrent acts do not deadlock, and a grant test that Web
   holds UPDATE and not DELETE on the retained message table.

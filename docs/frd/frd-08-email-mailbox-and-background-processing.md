@@ -87,13 +87,15 @@ they do not loosen this rule.
 
 ### Mail categories and correction
 
-Every retained received message has one mail category from the table below.
-A message no classification has decided is Unclassified; Unidentified is not
-a category. Sent items carry no category.
-This section is the only owner of the list (operator, 12 October 2026,
-[ADR-0069](../adr/0069-one-flat-mail-category.md)). The decision dossier in
-git history (`docs/history/plans/mailbox-categorisation-and-email-matching/`)
-keeps the research context and is not a competing owner.
+A received message has one of three categories, or none. None is
+correspondence: linked, it is Case correspondence; unlinked, it waits in
+No Case Found. A message nothing has decided yet is Unclassified, not a
+category. Unidentified is not a category. Sent items carry no category.
+This section is the only owner of the list (operator, 27 October 2026).
+[ADR-0069](../adr/0069-one-flat-mail-category.md) records the earlier flat
+list and is historical. The decision dossier in git history
+(`docs/history/plans/mailbox-categorisation-and-email-matching/`) keeps the
+research context and is not a competing owner.
 
 Classification may use mailbox and message identity, direction, headers,
 sender and domain, fresh body text, attachment and document evidence,
@@ -110,15 +112,8 @@ later corrections.
 | --- | --- | --- | --- |
 | New instruction | Accepted Principal Audit, diminution or Inspection instruction evidence; initial work from a client with no accepted route; website-origin evidence meeting the accepted independent fingerprints. A body keyword or quoted old instruction is not enough | route predicate or staff | Carries a work type: Inspection, Audit, or Inspection and Audit. Offers **Create case**; automatic case allocation goes by the work type |
 | Triage request | Accepted Triage request; with a missing VRM it waits in No Case Found under FRD-03 | route predicate or staff | No automatic case: opens the Triage workflow on its accepted Triage match evidence ([FRD-03](frd-03-triage.md)); it gets no Unidentified item |
-| Pre-instruction | Known pre-formal handling request, excluding Triage | staff | Label |
-| Images received | Images before a formal instruction, excluding an accepted instruction | attachment or route evidence or staff | Offers staff **Register images** for image-only material with no Case and no Triage ([FRD-19](frd-19-image-led-intake-and-pairing.md)) |
-| Case update | Update on ongoing work, excluding a new instruction or a post-report challenge; a client or Principal asking for progress on ongoing work; other ongoing correspondence once the more specific categories are excluded | route predicate, the state of the linked Case, or staff | Label |
 | Cancellation | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | The Case aside's Cancellation received row and the Cancellation received staff notice |
-| Query | Question about, or challenge to, a delivered report or finding, a dispute included; a request to amend a delivered report | route predicate, the state of the linked Case, thread evidence or staff | On a Case in Report sent it raises a Case query ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)), the Query received notice and the Query response AI job source; other rows offer **Tag as query** |
-| Billing | Payment notification or remittance advice or evidence; an invoice request or invoice action; a billing, invoice, payment or remittance question; other billing mail | predicate or staff | Label |
-| General | Generated automatic-reply evidence, never quoted new-work text; delivery-status or non-delivery evidence for the exact message; an acknowledgement of receipt without a request, new work, query or cancellation; a general chase, including one about several Cases; an informational summary with no new instruction or actionable request | route predicate, transport evidence or staff | Label |
-| Not client related | Internal, company, tool, service or software mail unrelated to client work | sender or route evidence or staff | Label |
-| Internal CC | Internal copied correspondence, not the primary actionable occurrence | header or recipient evidence or staff | Label |
+| Correspondence | Everything else. Not a category. Garage allocation, repairs authorised, report chase and automatic replies are correspondence | route predicate or staff | Linked, it is Case correspondence. Unlinked, it is No Case Found. Register images is offered only while the message is unlinked, image-only and has no category ([FRD-19](frd-19-image-led-intake-and-pairing.md)) |
 
 Unclassified is the explicit abstention when no accepted predicate matches
 or evidence is missing or conflicting. Several matching candidates are
@@ -136,28 +131,21 @@ classification policy, is recorded Unclassified under the
 `no_mail_classification_policy` rule with the route's reason, so staff can
 correct it and the workspace lists it; nothing is left without a decision.
 
-**Case-state classification** (`case_state_mail_classification` v1,
-operator 8 and 13 October 2026,
-[ADR-0070](../adr/0070-case-state-mail-classification.md),
-[ADR-0072](../adr/0072-only-images-become-unidentified-and-no-case-found-mail.md)).
-When a received mail message joins a Case, by automatic association, by
-image intake linking its photographs to a Case, or by a staff link, and its
-decision is still Unclassified, the Case's lifecycle state classifies it: a
-Case in Report sent makes it Query; a Case in any other state, a closed Case
-included, and a Triage Case make it Case update: a linked message without a
-category of its own is Case update. The Principal's own case-match keys
-found the Case, so this is per-Principal evidence without a per-Principal
-predicate. A classified decision, including a staff correction, is never
-overridden. The decision is written in the same transaction as the link,
-before the query rule in
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries) reads it.
+Linking a message does not classify it. A query is not a category.
+`OpensQuery` is a deterministic criterion on the classification decision.
+When a retained message whose decision has `OpensQuery` joins a Case whose
+report is sent, and that message does not already hold a query, the link
+opens one. The actor is `system-worker:query-criteria` and the reason is
+`Matched query criteria`. A missing retained message opens nothing. A
+classification correction does not open or withdraw a query. The query rule
+is [FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries).
 
 A body that merely says "audit", a forwarded old instruction, two accepted
 matches at once, or incomplete route evidence must never be promoted by
-guesswork. A general chase may mention several Cases but stays one unlinked
-General occurrence. Pegasus neither copies it nor links it to many Cases. An
-informational summary is retained as non-actionable General correspondence
-and creates no intake, Triage or Case work.
+guesswork. A chase may mention several Cases but stays one unlinked
+correspondence. Pegasus neither copies it nor links it to many Cases. An
+informational summary is retained as correspondence and creates no intake,
+Triage or Case work.
 
 Accepted predicates must not overlap. An unexpected overlap is a defect: the
 message is Unclassified with the candidates named, and no confidence score or
@@ -165,8 +153,9 @@ invented winner resolves it.
 [FRD-09](frd-09-principal-and-intermediary-routes.md) owns the route
 predicates.
 
-**Correction.** Staff, or the Automation actor, may correct a message to any
-category or to Unclassified, with a reason; the history is kept. A
+**Correction.** Staff, or the Automation actor, may correct a message to one
+of the three categories or to correspondence, with a reason; the history is
+kept. A removed code is refused. A
 correction to New instruction names the work type the instruction carries,
 Inspection, Audit or Inspection and Audit, which Create case preselects and
 allocation reads. A correction to or from Triage request writes or removes
@@ -240,7 +229,7 @@ received query and the actual reply are retained as Case correspondence.
 
 | Thing | States |
 | --- | --- |
-| A retained message | Processing (sender not yet established); classified into one mail category, or Unclassified; Case-associated or not |
+| A retained message | Processing (sender not yet established); one of three categories, correspondence, or Unclassified; Case-associated or not |
 
 Case states are owned by
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels). Approved
