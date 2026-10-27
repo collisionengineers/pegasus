@@ -148,8 +148,8 @@ public sealed class GetIntakeOfferedActions(
         return new(members, readingsByReceipt, origins.First);
     }
 
-    // Register images: the staff route for image-only material (the automatic
-    // route, or a message classified as images received).
+    // Register images: the staff route for unlinked image-only material with
+    // no mail category (FRD-19), still awaiting sorting.
     private static bool IsRegistrationOfferable(IntakeReceipt receipt) =>
         ImageIntakeLifecycleRules.IsImageRegistrationEligible(receipt)
         && receipt.Decision == IntakeDecision.NeedsSorting;

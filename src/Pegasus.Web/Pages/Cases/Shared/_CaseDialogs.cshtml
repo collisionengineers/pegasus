@@ -72,7 +72,7 @@
     {
         @* Place on Hold (13 September): the reason and an optional Review on
            date, today or later, that the ribbon then reads. *@
-        <div id="case-hold-dialog" class="dialog-backdrop" data-dialog="case-hold-dialog" hidden>
+        <div id="case-hold-dialog" class="dialog-backdrop" data-dialog="case-hold-dialog" data-dialog-open-on-load="@(Model.OpenDialog == "hold" ? "true" : null)" hidden>
             <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-hold-dialog-title">
                 <div class="dialog-head">
                     <h2 id="case-hold-dialog-title" tabindex="-1">@Frame.PlaceOnHold</h2>
@@ -294,7 +294,7 @@
     @* Review point 12: which outcome, and why. The chooser lists only the
        outcomes the page model derived from Core's closure rules for this
        state, so nothing offered here is refused for being the wrong outcome. *@
-    <div id="case-close-dialog" class="dialog-backdrop" data-dialog="case-close-dialog" hidden>
+    <div id="case-close-dialog" class="dialog-backdrop" data-dialog="case-close-dialog" data-dialog-open-on-load="@(Model.OpenDialog == "close" ? "true" : null)" hidden>
         <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
             <div class="dialog-head">
                 <h2 id="case-close-dialog-title" tabindex="-1">@OperatorLabels.CaseWorkspace.CloseCase</h2>

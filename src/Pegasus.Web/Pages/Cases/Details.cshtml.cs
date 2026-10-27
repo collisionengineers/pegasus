@@ -1151,7 +1151,12 @@ public sealed partial class DetailsModel(
             {
                 await LoadEngineerSectionsAsync(id, actor, workspace, work, estimate, dialog, cancellationToken);
             }
-            OpenDialog ??= tasksOpen ? "tasks" : null;
+            // The message record's Change case links land here with hold or
+            // close (operator, 27 October 2026): the page draws that dialog
+            // open the same way, only where the Case offers the act.
+            OpenDialog ??= tasksOpen
+                ? "tasks"
+                : dialog is "hold" or "close" ? dialog : null;
             using (DocumentReadTelemetry.Start("web.case.extras"))
             {
                 await LoadExtrasAsync(id, actor, cancellationToken);

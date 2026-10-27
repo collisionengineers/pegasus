@@ -523,8 +523,9 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains($">{OperatorLabels.Inbox.Unlink}</button>", linked, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.Inbox.ChangeLinkedCase}</button>", linked, StringComparison.Ordinal);
         Assert.Contains("data-mail-change-case", linked, StringComparison.Ordinal);
-        Assert.Contains("dialog=case-hold-dialog", linked, StringComparison.Ordinal);
-        Assert.Contains("dialog=case-close-dialog", linked, StringComparison.Ordinal);
+        // The links land on the Case page with its dialog drawn open, as Tasks does.
+        Assert.Contains("dialog=hold", linked, StringComparison.Ordinal);
+        Assert.Contains("dialog=close", linked, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=OpenQuery", linked, StringComparison.Ordinal);
         await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
 

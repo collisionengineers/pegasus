@@ -1673,7 +1673,10 @@
     });
 })();
 
-// --- Inbox ledger ticks, Type select, and Case dialog deep links -------------
+// --- Inbox ledger ticks and the message record's Type select -----------------
+// Select all ticks every row and reveals the bulk bar; the Type select posts
+// its correction as it changes (v42 H). Without script the noscript Save
+// button posts the same form.
 (function () {
     'use strict';
     function bulkBar() {
@@ -1714,14 +1717,6 @@
         if (typeof select.form.requestSubmit === 'function') { select.form.requestSubmit(); }
         else { select.form.submit(); }
     });
-    var dialogName = new URLSearchParams(window.location.search).get('dialog');
-    if (dialogName) {
-        var named = document.querySelector('[data-dialog="' + CSS.escape(dialogName) + '"]');
-        if (named && typeof named.pegasusOpen === 'function' && named.dataset.dialogQueryOpened !== 'true') {
-            named.dataset.dialogQueryOpened = 'true';
-            named.pegasusOpen();
-        }
-    }
 })();
 
 // --- The Inbox: one message in a dialog over the list, and the ticks ---------

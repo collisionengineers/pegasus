@@ -2965,6 +2965,10 @@ public static class OperatorLabels
         public const string NewInstructionAudit = "New instruction · Audit";
         public const string NewInstructionInspectionAndAudit = "New instruction · Inspection and Audit";
         public const string ChangeCase = "Change case";
+
+        /// <summary>The message record's cog menu (v42 G) and the foot line naming who decided its type and when.</summary>
+        public const string MessageSettings = "Message settings";
+        public const string Decided = "Decided";
         public const string DismissedScope = "Dismissed";
 
         /// <summary>Received mail with no linked Case: its scope and its outcome chip (operator, 13 October 2026).</summary>

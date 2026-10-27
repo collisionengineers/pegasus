@@ -169,6 +169,27 @@ public sealed class CaseActionsMenuWebTests
     }
 
     /// <summary>
+    /// The message record's Change case links land here with dialog=hold or
+    /// dialog=close (v42 G): the page draws that dialog open the way Tasks is,
+    /// and only where the Case offers the act, so a Report sent Case ignores
+    /// dialog=hold.
+    /// </summary>
+    [Fact]
+    public async Task AChangeCaseLinkDrawsItsDialogOpenWhereTheCaseOffersIt()
+    {
+        var hold = await ReadCaseAsync(new RecordingCaseDetailsStore(), dialog: "hold");
+        Assert.Contains("data-dialog=\"case-hold-dialog\" data-dialog-open-on-load=\"true\"", hold, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"case-close-dialog\" data-dialog-open-on-load=\"true\"", hold, StringComparison.Ordinal);
+
+        var close = await ReadCaseAsync(new RecordingCaseDetailsStore { State = CaseLifecycleState.Review }, dialog: "close");
+        Assert.Contains("data-dialog=\"case-close-dialog\" data-dialog-open-on-load=\"true\"", close, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"case-hold-dialog\" data-dialog-open-on-load=\"true\"", close, StringComparison.Ordinal);
+
+        var reportSent = await ReadCaseAsync(new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent }, dialog: "hold");
+        Assert.DoesNotContain("data-dialog-open-on-load=\"true\"", reportSent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Place on Hold carries a reason and an optional Review on date no
     /// earlier than today; the posted date reaches the hold command, and a
     /// held Case with a review date says so on the ribbon's state chip.

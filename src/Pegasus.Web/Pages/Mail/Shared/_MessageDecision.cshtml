@@ -47,7 +47,7 @@
 @if (part is not "bar")
 {
     <details class="menu mail-settings-menu" data-menu data-mail-settings>
-        <summary class="icon-button mail-settings-trigger" aria-label="@OperatorLabels.Inbox.Type" title="@OperatorLabels.Inbox.Type">
+        <summary class="icon-button mail-settings-trigger" aria-label="@OperatorLabels.Inbox.MessageSettings" title="@OperatorLabels.Inbox.MessageSettings">
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
         </summary>
         <div class="mail-settings-popover">
@@ -146,13 +146,13 @@
                     <span class="mail-decision-label">@OperatorLabels.Inbox.ChangeCase</span>
                     @if (Model.OffersPlaceOnHold)
                     {
-                        <a class="mail-settings-item" asp-page="/Cases/Details" asp-route-id="@changeCaseId" asp-route-dialog="case-hold-dialog">
+                        <a class="mail-settings-item" asp-page="/Cases/Details" asp-route-id="@changeCaseId" asp-route-dialog="hold">
                             <span>@CaseWorkspaceLabels.Frame.PlaceOnHold</span>
                         </a>
                     }
                     @if (Model.OffersCloseCase)
                     {
-                        <a class="mail-settings-item" asp-page="/Cases/Details" asp-route-id="@changeCaseId" asp-route-dialog="case-close-dialog">
+                        <a class="mail-settings-item" asp-page="/Cases/Details" asp-route-id="@changeCaseId" asp-route-dialog="close">
                             <span>@OperatorLabels.CaseWorkspace.CloseCase</span>
                         </a>
                     }
@@ -162,7 +162,7 @@
             {
                 var actorWord = decided.CurrentActorDisplayName == "System" ? "Automatic" : decided.CurrentActorDisplayName;
                 <div class="mail-settings-foot">
-                    <span>Decided</span>
+                    <span>@OperatorLabels.Inbox.Decided</span>
                     <span><time datetime="@decided.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(decided.CurrentDecidedAtUtc)</time> · @actorWord</span>
                 </div>
             }
