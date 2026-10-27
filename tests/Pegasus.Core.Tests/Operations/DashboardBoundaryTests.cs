@@ -1199,6 +1199,9 @@ public sealed class DashboardBoundaryTests
 
         public Task<IReadOnlyList<OpenCaseTask>> ListOpenCaseTasksAsync(CancellationToken cancellationToken) =>
             Task.FromResult(OpenTasks);
+
+        public Task<IReadOnlyList<OpenCaseQuery>> ListOpenQueriesForAttentionAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<OpenCaseQuery>>([]);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset nowUtc) : TimeProvider

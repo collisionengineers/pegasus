@@ -162,12 +162,12 @@ public sealed class CaseClosureWebTests
     /// under the session's lease; the details also stand as the history reason.
     /// </summary>
     [Fact]
-    public async Task LogQueryPostsTheChannelAndDetailsToRaiseCaseQuery()
+    public async Task LogQueryPostsTheChannelAndDetailsToOpenCaseQuery()
     {
         const string details = "Handler asked when the supplementary goes out";
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent };
         using var workspace = await EnterEditModeAsync(store, services =>
-            Substitute<IRaiseCaseQuery>(services, store));
+            Substitute<IOpenCaseQuery>(services, store));
 
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains(
@@ -175,7 +175,7 @@ public sealed class CaseClosureWebTests
             RecordBar(html),
             StringComparison.Ordinal);
         var dialog = Section(html, "case-log-query-dialog-title");
-        Assert.Contains($"/Cases/{store.CaseId:D}/Closure?handler=LogQuery", dialog, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"/Cases/{store.CaseId:D}?handler=LogQuery", dialog, StringComparison.OrdinalIgnoreCase);
         Assert.Matches("<select[^>]*name=\"channel\"", dialog);
         foreach (var channel in Enum.GetValues<CaseQueryChannel>())
         {
@@ -185,71 +185,41 @@ public sealed class CaseClosureWebTests
                 StringComparison.Ordinal);
         }
         Assert.Matches("<textarea[^>]*name=\"details\"", dialog);
-        Assert.Contains($"value=\"{store.LeaseToken}\"", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("editLeaseToken", dialog, StringComparison.Ordinal);
 
-        using var logged = await workspace.PostAsync(
-            "Closure?handler=LogQuery",
-            workspace.MutationForm("log-query", string.Empty, ("channel", "Phone"), ("details", details)));
+        var operationKey = Guid.NewGuid().ToString("N");
+        using var logged = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=LogQuery",
+            workspace.MutationForm(operationKey, string.Empty, ("channel", "Phone"), ("details", details)));
 
         AssertPrg(logged, store.CaseId);
-        var raised = Assert.Single(store.QueryRaises);
-        AssertLeasedMutation(workspace, raised, "log-query", details);
+        var raised = Assert.Single(store.QueryOpens);
+        Assert.Equal(store.CaseId, raised.CaseId);
+        Assert.Equal(operationKey, raised.OperationKey);
         Assert.Equal(CaseQueryChannel.Phone, raised.Channel);
         Assert.Equal(details, raised.Details);
-        Assert.Empty(store.QueryResolutions);
+        Assert.Null(raised.RetainedMessageId);
     }
 
     /// <summary>
-    /// Resolve query is one direct post, no dialog and no reason, that closes
-    /// every open query on the Case through the one Core command (operator,
-    /// 11 October 2026).
-    /// </summary>
-    [Fact]
-    public async Task ResolveQueryPostsToResolveCaseQueries()
-    {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent, HasOpenQuery = true };
-        using var workspace = await EnterEditModeAsync(store, services =>
-            Substitute<IResolveCaseQueries>(services, store));
-
-        var bar = RecordBar(await workspace.GetWorkspaceAsync());
-        Assert.Contains("data-resolve-query-form", bar, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/{store.CaseId:D}/Closure?handler=ResolveQuery", bar, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(CaseWorkspaceLabels.Frame.ResolveQuery, bar, StringComparison.Ordinal);
-        Assert.DoesNotContain("case-resolve-query-dialog", bar, StringComparison.Ordinal);
-
-        using var resolved = await workspace.PostAsync(
-            "Closure?handler=ResolveQuery",
-            workspace.MutationForm("resolve-query", string.Empty));
-
-        AssertPrg(resolved, store.CaseId);
-        var resolution = Assert.Single(store.QueryResolutions);
-        AssertLeasedMutation(workspace, resolution, "resolve-query", string.Empty);
-        Assert.Empty(store.QueryRaises);
-    }
-
-    /// <summary>
-    /// The Actions menu offers Log query on a Report sent Case and Resolve
-    /// query on any open Case that holds an open query (operator, 11 October
-    /// 2026); a closed Case offers neither.
+    /// The Actions menu offers Log query on a Report sent Case (operator, 27
+    /// October 2026). Mark done and Reopen live on the query's own row.
     /// </summary>
     [Theory]
-    [InlineData(CaseLifecycleState.ReportSent, false, true, false)]
-    [InlineData(CaseLifecycleState.ReportSent, true, true, true)]
-    [InlineData(CaseLifecycleState.ReportPreparation, true, false, true)]
-    [InlineData(CaseLifecycleState.ReportPreparation, false, false, false)]
-    [InlineData(CaseLifecycleState.PrincipalCancelled, true, false, false)]
-    public async Task TheActionsMenuOffersLogQueryOnceTheReportIsSentAndResolveQueryWhileOneIsOpen(
-        CaseLifecycleState state, bool hasOpenQuery, bool offersLog, bool offersResolve)
+    [InlineData("report-sent", CaseLifecycleState.ReportSent, true)]
+    [InlineData("before-report", CaseLifecycleState.ReportPreparation, false)]
+    [InlineData("closed", CaseLifecycleState.PrincipalCancelled, false)]
+    public async Task TheActionsMenuOffersLogQueryOnceTheReportIsSent(
+        string name, CaseLifecycleState state, bool offersLog)
     {
-        var store = new RecordingCaseDetailsStore { State = state, HasOpenQuery = hasOpenQuery };
+        Assert.NotEmpty(name);
+        var store = new RecordingCaseDetailsStore { State = state, HasOpenQuery = state == CaseLifecycleState.ReportSent };
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var bar = RecordBar(await workspace.GetWorkspaceAsync());
 
         Assert.Equal(offersLog, bar.Contains("data-log-query", StringComparison.Ordinal));
         Assert.Equal(offersLog, bar.Contains(CaseWorkspaceLabels.Frame.LogQuery, StringComparison.Ordinal));
-        Assert.Equal(offersResolve, bar.Contains("data-resolve-query-form", StringComparison.Ordinal));
-        Assert.Equal(offersResolve, bar.Contains(CaseWorkspaceLabels.Frame.ResolveQuery, StringComparison.Ordinal));
     }
 
 
@@ -299,7 +269,7 @@ public sealed class CaseClosureWebTests
         Assert.Contains("data-dialog-open=\"case-close-dialog\"", adverse, StringComparison.Ordinal);
         Assert.Contains("btn--danger", adverse, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.CloseCase, adverse, StringComparison.Ordinal);
-        foreach (var progression in new[] { "Assign Engineer", "Log query", "Resolve query", "Return to Engineer", "Place on Hold", "Correct principal" })
+        foreach (var progression in new[] { "Assign Engineer", "Log query", "Return to Engineer", "Place on Hold", "Correct principal" })
         {
             Assert.DoesNotContain(progression, adverse, StringComparison.Ordinal);
         }

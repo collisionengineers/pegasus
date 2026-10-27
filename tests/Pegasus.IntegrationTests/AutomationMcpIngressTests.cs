@@ -36,6 +36,7 @@ public sealed class AutomationMcpIngressTests
             "pegasus_vocabulary_get",
             "pegasus_directory_search",
             "pegasus_case_action",
+            "pegasus_case_query",
             "pegasus_work_centre_dismiss"
         ],
         [IntakeServer] =
@@ -100,6 +101,7 @@ public sealed class AutomationMcpIngressTests
             "pegasus_mail_get",
             "pegasus_mail_correct_classification",
             "pegasus_mail_action",
+            "pegasus_mail_open_query",
             "pegasus_mail_link_destinations",
             "pegasus_mail_link_case"
         ],
@@ -255,6 +257,7 @@ public sealed class AutomationMcpIngressTests
         string[] mailTools =
         [
             "pegasus_mail_action",
+            "pegasus_mail_open_query",
             "pegasus_mail_correct_classification",
             "pegasus_mail_get",
             "pegasus_mail_link_case",

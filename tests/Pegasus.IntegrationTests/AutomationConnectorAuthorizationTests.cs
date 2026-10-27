@@ -236,6 +236,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         string[] casesTools =
         [
             "pegasus_case_action",
+            "pegasus_case_query",
             "pegasus_case_get",
             "pegasus_case_note_add",
             "pegasus_case_search",

@@ -10,6 +10,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Presentation;
@@ -1236,54 +1237,76 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>
-    /// Also resolve query (operator, 11 October 2026): the composer offers the
-    /// tick only for a reply or reply all whose Case holds an open query, and
-    /// ticks it when reached from the Case's Resolve query step
-    /// (<c>resolveQuery=true</c>). A forward, or a Case without an open query,
-    /// offers none.
+    /// Mark query done (operator, 27 October 2026): the composer offers the
+    /// tick only for a reply or reply all to a message that holds an open
+    /// query, and ticks it when reached from Answer query
+    /// (<c>markQueryDone=true</c>). A forward, a message with no query, or a
+    /// Case whose open query is on another message, offers none.
     /// </summary>
     [Theory]
-    [InlineData("reply", true, false, true)]
-    [InlineData("reply-all", true, false, true)]
-    [InlineData("forward", true, false, false)]
-    [InlineData("reply", false, false, false)]
-    [InlineData("reply", true, true, true)]
-    public async Task TheReplyComposerOffersAlsoResolveQueryOnlyForAReplyToACaseWithAnOpenQuery(
-        string mode, bool hasOpenQuery, bool fromResolveQuery, bool offered)
+    [InlineData("reply", "reply", true, false, true)]
+    [InlineData("reply-all", "reply-all", true, false, true)]
+    [InlineData("forward", "forward", true, false, false)]
+    [InlineData("no-query", "reply", false, false, false)]
+    [InlineData("from-answer", "reply", true, true, true)]
+    public async Task TheReplyComposerOffersMarkQueryDoneOnlyForAReplyToTheMessagesOpenQuery(
+        string name, string mode, bool queryOnThisMessage, bool fromAnswerQuery, bool offered)
     {
+        Assert.NotEmpty(name);
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
         var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 QUERY", "SC08-MSG-QUERY");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
-        if (hasOpenQuery)
+        if (queryOnThisMessage)
         {
-            await MarkOpenQueryAsync(baseFactory, caseId);
+            await OpenQueryOnMessageAsync(baseFactory, caseId, seeded.ReceiptId);
         }
         using var factory = Configure(baseFactory, send);
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var get = await client.GetAsync(
-            $"/Inbox/{seeded.MessageId:D}?compose={mode}" + (fromResolveQuery ? "&resolveQuery=true" : string.Empty));
+            $"/Inbox/{seeded.MessageId:D}?compose={mode}" + (fromAnswerQuery ? "&markQueryDone=true" : string.Empty));
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
 
-        var tick = Regex.Match(html, "<input[^>]*data-resolve-query[^>]*>", RegexOptions.CultureInvariant);
+        var tick = Regex.Match(html, "<input[^>]*data-mark-query-done[^>]*>", RegexOptions.CultureInvariant);
         Assert.Equal(offered, tick.Success);
-        Assert.Equal(offered, html.Contains(OperatorLabels.StaffMail.AlsoResolveQuery, StringComparison.Ordinal));
+        Assert.Equal(offered, html.Contains(OperatorLabels.StaffMail.MarkQueryDone, StringComparison.Ordinal));
         if (offered)
         {
             Assert.Contains("type=\"checkbox\"", tick.Value, StringComparison.Ordinal);
-            Assert.Equal(fromResolveQuery, tick.Value.Contains("checked", StringComparison.Ordinal));
+            Assert.Equal(fromAnswerQuery, tick.Value.Contains("checked", StringComparison.Ordinal));
         }
         Assert.Equal(0, send.SendCalls);
     }
 
+    /// <summary>An open logged query on the Case does not offer the tick on a message that holds none.</summary>
+    [Fact]
+    public async Task AReplyDoesNotOfferMarkQueryDoneWhenOnlyALoggedQueryIsOpen()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 OTHER QUERY", "SC08-MSG-OTHER-QUERY");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        await OpenStaffQueryAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain("data-mark-query-done", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.StaffMail.MarkQueryDone, html, StringComparison.Ordinal);
+    }
+
     /// <summary>
-    /// The reply carries the tick to the send command, which resolves the
-    /// Case's open queries once the Sent item is observed; an unticked reply
-    /// resolves nothing.
+    /// The reply carries the tick to the send command, which marks that
+    /// message's query done once the Sent item is observed; an unticked reply
+    /// marks nothing done.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -1296,7 +1319,7 @@ public sealed class StaffCorrespondenceWebTests
         var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 QUERY SEND", "SC08-MSG-QUERY-SEND");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
-        await MarkOpenQueryAsync(baseFactory, caseId);
+        await OpenQueryOnMessageAsync(baseFactory, caseId, seeded.ReceiptId);
         using var factory = Configure(baseFactory, send);
         using var client = IntakeWebDriver.CreateClient(factory);
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
@@ -1304,7 +1327,7 @@ public sealed class StaffCorrespondenceWebTests
         var form = RetainedReplyForm(html, InputValue(html, "CorrespondenceOperationKey"), "Answered the query.");
         if (ticked)
         {
-            form["ResolveQuery"] = "true";
+            form["MarkQueryDone"] = "true";
         }
 
         using var response = await client.PostAsync(
@@ -1314,13 +1337,13 @@ public sealed class StaffCorrespondenceWebTests
         var command = Assert.Single(send.Commands);
         Assert.Equal(caseId, command.ContextId);
         Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
-        Assert.Equal(ticked, command.ResolvesCaseQueries);
+        Assert.Equal(ticked, command.MarksQueryDone);
     }
 
     /// <summary>
     /// A composer opened on an AI draft (FRD-27, FRD-21) holds the draft as
-    /// its Message, says so above it with the AI word, starts Also resolve
-    /// query ticked, and carries the job to the send command; a send that
+    /// its Message, says so above it with the AI word, starts Mark query done
+    /// ticked, and carries the job to the send command; a send that
     /// leaves the job as it was says why beside its send status (operator,
     /// 16 October 2026). A job that is not this message's Draft ready reply
     /// prefills nothing and is forgotten.
@@ -1336,7 +1359,7 @@ public sealed class StaffCorrespondenceWebTests
         var caseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 AI DRAFT", "SC08-MSG-AI-DRAFT");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
-        await MarkOpenQueryAsync(baseFactory, caseId);
+        await OpenQueryOnMessageAsync(baseFactory, caseId, seeded.ReceiptId);
         const string draftText = "Dear Ms Patel, thank you for your e-mail of 13 October.";
         var job = await SeedDraftReplyJobAsync(
             baseFactory, caseId, forThisMessage ? seeded.MessageId : Guid.NewGuid(), draftText);
@@ -1344,7 +1367,7 @@ public sealed class StaffCorrespondenceWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var get = await client.GetAsync(
-            $"/Inbox/{seeded.MessageId:D}?compose=reply&resolveQuery=true&aiJob={job.JobId:D}");
+            $"/Inbox/{seeded.MessageId:D}?compose=reply&markQueryDone=true&aiJob={job.JobId:D}");
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
 
@@ -1353,20 +1376,20 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(forThisMessage, html.Contains("Edit before sending.", StringComparison.Ordinal));
         var hiddenJob = InputValue(html, "aiJob");
         Assert.Equal(forThisMessage ? job.JobId.ToString("D") : string.Empty, hiddenJob);
-        var tick = Regex.Match(html, "<input[^>]*data-resolve-query[^>]*>", RegexOptions.CultureInvariant);
+        var tick = Regex.Match(html, "<input[^>]*data-mark-query-done[^>]*>", RegexOptions.CultureInvariant);
         Assert.True(tick.Success);
         Assert.Contains("checked", tick.Value, StringComparison.Ordinal);
 
         var form = RetainedReplyForm(html, InputValue(html, "CorrespondenceOperationKey"), "Edited reply.");
         form["aiJob"] = hiddenJob;
-        form["ResolveQuery"] = "true";
+        form["MarkQueryDone"] = "true";
         using var response = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply", new FormUrlEncodedContent(form));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var command = Assert.Single(send.Commands);
         Assert.Equal(caseId, command.ContextId);
-        Assert.True(command.ResolvesCaseQueries);
+        Assert.True(command.MarksQueryDone);
         Assert.Equal(forThisMessage ? job.JobId : (Guid?)null, command.AiJobId);
 
         using var status = await client.GetAsync(response.Headers.Location);
@@ -1403,15 +1426,52 @@ public sealed class StaffCorrespondenceWebTests
             CancellationToken.None);
     }
 
-    /// <summary>The Case holds an open query, as the query ledger marks it.</summary>
-    private static async Task MarkOpenQueryAsync(IntakeWebApplicationFactory factory, Guid caseId)
+    /// <summary>The Case holds an open logged query that no message owns.</summary>
+    private static async Task OpenStaffQueryAsync(IntakeWebApplicationFactory factory, Guid caseId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseWorkflows SET HasOpenQuery = 1 WHERE CaseId = {caseId}");
+        context.CaseQueries.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Source = nameof(CaseQuerySource.Staff),
+            Channel = nameof(CaseQueryChannel.Phone),
+            Details = "Rang about the report.",
+            RaisedAtUtc = NowUtc,
+            RaisedByKind = nameof(ActorKind.Staff),
+            RaisedBySubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+            RaisedOperationKey = $"fixture-staff-query:{Guid.NewGuid():N}"
+        });
+        var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+        workflow.HasOpenQuery = true;
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>The message holds an open query, as the query ledger would have opened it.</summary>
+    private static async Task OpenQueryOnMessageAsync(
+        IntakeWebApplicationFactory factory, Guid caseId, Guid receiptId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        context.CaseQueries.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Source = nameof(CaseQuerySource.Mail),
+            IntakeReceiptId = receiptId,
+            RaisedAtUtc = NowUtc,
+            RaisedByKind = nameof(ActorKind.Staff),
+            RaisedBySubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+            RaisedOperationKey = $"fixture-query:{Guid.NewGuid():N}"
+        });
+        var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+        workflow.HasOpenQuery = true;
+        await context.SaveChangesAsync();
     }
 
     private static Guid ExtractOperationId(Uri location)

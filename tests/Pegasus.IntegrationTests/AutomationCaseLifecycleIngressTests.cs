@@ -170,25 +170,23 @@ public sealed class AutomationCaseLifecycleIngressTests
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
         // A malformed log_query claims nothing.
-        using (var noChannel = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(31, "pegasus_case_action",
-            new { caseId, expectedVersion = version, operationKey = "mcp:log-no-channel", action = "log_query" })))
+        using (var noChannel = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(31, "pegasus_case_query",
+            new { caseId, operationKey = "mcp:log-no-channel", action = "open" })))
         {
-            Assert.Contains("needs queryChannel", await ReadErrorTextAsync(noChannel), StringComparison.Ordinal);
+            Assert.Contains("open needs channel", await ReadErrorTextAsync(noChannel), StringComparison.Ordinal);
         }
         Assert.Equal(version, await GetWorkflowVersionAsync(mcpFactory, caseId));
 
-        using var logged = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(32, "pegasus_case_action", new
+        using var logged = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(32, "pegasus_case_query", new
         {
             caseId,
-            expectedVersion = version,
             operationKey = "mcp:log-query",
-            action = "log_query",
-            queryChannel = "Phone",
-            reason = "The handler rang about the labour rate.",
+            action = "open",
+            channel = "Phone",
+            details = "The handler rang about the labour rate.",
         }));
         var loggedResult = await ReadStructuredContentAsync(logged);
-        Assert.Equal("log_query", loggedResult.GetProperty("action").GetString());
-        Assert.Equal(nameof(CaseLifecycleState.ReportSent), loggedResult.GetProperty("state").GetString());
+        Assert.Equal("open", loggedResult.GetProperty("action").GetString());
         Assert.True(loggedResult.GetProperty("hasOpenQuery").GetBoolean());
         var loggedVersion = loggedResult.GetProperty("caseVersion").GetInt64();
         Assert.True(loggedVersion > version);
@@ -207,16 +205,14 @@ public sealed class AutomationCaseLifecycleIngressTests
             Assert.True((await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).HasOpenQuery);
         }
 
-        using var resolved = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(33, "pegasus_case_action", new
+        using var resolved = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(33, "pegasus_case_query", new
         {
-            caseId,
-            expectedVersion = loggedVersion,
-            operationKey = "mcp:resolve-query",
-            action = "resolve_query",
+            queryId = loggedResult.GetProperty("queryId").GetGuid(),
+            operationKey = "mcp:mark-query-done",
+            action = "mark_done",
         }));
         var resolvedResult = await ReadStructuredContentAsync(resolved);
-        Assert.Equal("resolve_query", resolvedResult.GetProperty("action").GetString());
-        Assert.Equal(nameof(CaseLifecycleState.ReportSent), resolvedResult.GetProperty("state").GetString());
+        Assert.Equal("mark_done", resolvedResult.GetProperty("action").GetString());
         Assert.False(resolvedResult.GetProperty("hasOpenQuery").GetBoolean());
         Assert.True(resolvedResult.GetProperty("caseVersion").GetInt64() > loggedVersion);
 
@@ -233,7 +229,7 @@ public sealed class AutomationCaseLifecycleIngressTests
             Assert.Null(workflow.EditLeaseHolder);
             var events = await db.CaseWorkflowEvents.AsNoTracking()
                 .Where(row => row.CaseId == caseId
-                    && (row.EventType == "case_query_logged" || row.EventType == "case_queries_resolved"))
+                    && (row.EventType == "case_query_logged" || row.EventType == "case_query_resolved"))
                 .ToListAsync();
             Assert.Equal(2, events.Count);
             Assert.All(events, row => Assert.Equal(nameof(ActorKind.Automation), row.ActorKind));

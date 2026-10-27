@@ -205,7 +205,9 @@ public sealed class PutCaseOnHoldTests
         public Task<CaseWorkflowRecord> CloseAsync(CloseCaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReturnToEngineerAsync(ReturnCaseToEngineerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseWorkflowRecord> RaiseQueryAsync(RaiseCaseQueryRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseWorkflowRecord> ResolveQueriesAsync(ResolveCaseQueriesRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Guid> OpenQueryAsync(OpenCaseQueryRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseWorkflowRecord> MarkQueryDoneAsync(CaseQueryActRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseWorkflowRecord> ReopenQueryAsync(CaseQueryActRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseWorkflowRecord> AssignQueryAsync(AssignCaseQueryRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }
