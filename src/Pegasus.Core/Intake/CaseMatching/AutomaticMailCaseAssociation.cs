@@ -206,12 +206,12 @@ public sealed class AssociateRetainedMailWithCase(
     /// (D15). With no date to compare, or with dates still tied, the set stays
     /// as it is and the intersection decides.
     /// </summary>
-    private static IReadOnlySet<Guid> RegistrationCandidates(
+    private static HashSet<Guid> RegistrationCandidates(
         AutomaticMailCaseAssociationEvidence evidence)
     {
         if (evidence.NormalizedVehicleRegistration is null)
         {
-            return new HashSet<Guid>();
+            return [];
         }
 
         var candidates = evidence.RegistrationCandidates

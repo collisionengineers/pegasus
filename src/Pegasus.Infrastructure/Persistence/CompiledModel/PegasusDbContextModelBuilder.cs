@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
     public partial class PegasusDbContextModel
     {
         private PegasusDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("384c9888-a65d-4142-8be8-59c20e110589"), entityTypeCount: 122)
+            : base(skipDetectChanges: false, modelId: new Guid("bd19b859-4917-4e3b-80b0-0abf4adf1b7f"), entityTypeCount: 122)
         {
         }
 
