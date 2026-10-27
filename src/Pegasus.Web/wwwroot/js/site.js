@@ -2434,7 +2434,7 @@ window.pegasusPreferences = (function () {
 // --- Row lists: ArrowUp/Down roving focus -------------------------------------
 (function () {
     'use strict';
-    var ROW = '.row-button, .scope-button, tr[data-select-href], tr[data-cases-row]';
+    var ROW = '.row-button, .scope-button, .inbox-ledger-row, tr[data-select-href], tr[data-cases-row]';
     // By root, so the bell's list, fetched when the dialog opens, roves too.
     function bindRowLists(root) {
         root.querySelectorAll('[data-row-list]').forEach(function (list) {

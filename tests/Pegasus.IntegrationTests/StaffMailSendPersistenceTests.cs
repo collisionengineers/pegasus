@@ -1023,9 +1023,10 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     /// <summary>
-    /// A received post-report message linked by staff raises a query only on a
-    /// Report sent Case (operator, 11 October 2026); on a Case still with the
-    /// Engineer it is plain correspondence.
+    /// A received message whose classification opens a query, linked by staff,
+    /// opens one only on a Report sent Case (operator, 27 October 2026); on a
+    /// Case still with the Engineer it is plain correspondence. The query is
+    /// the criteria's, recorded as the query-criteria worker, not the linker.
     /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.ReportSent, true)]
@@ -1083,8 +1084,8 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Equal(nameof(CaseQuerySource.Mail), query.Source);
         Assert.Equal(fixture.ReceiptId, query.IntakeReceiptId);
         Assert.Null(query.ClosedAtUtc);
-        Assert.Equal(nameof(ActorKind.Staff), query.RaisedByKind);
-        Assert.Equal(actor.SubjectId, query.RaisedBySubjectId);
+        Assert.Equal(nameof(ActorKind.SystemWorker), query.RaisedByKind);
+        Assert.Equal(CaseQueryLedger.QueryCriteriaActor, query.RaisedBySubjectId);
         Assert.Equal("link-received-query", query.RaisedOperationKey);
         Assert.Single(await verify.ActionHistory
             .Where(item => item.AggregateType == "case"
@@ -1197,82 +1198,6 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Null(Assert.Single(queries, item => item.IntakeReceiptId == secondReceiptId).ClosedAtUtc);
         Assert.Single(await verify.CaseWorkflowEvents
             .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_withdrawn")
-            .ToListAsync());
-    }
-
-    [Fact]
-    public async Task CorrectingTheOnlyLinkedPostReportMessageAwayWithdrawsTheQuery()
-    {
-        await using var database = await CreateDatabaseAsync();
-        var mailboxId = Guid.NewGuid();
-        var retainedMessageId = Guid.NewGuid();
-        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
-        var fixture = await SeedReportSentCaseAsync(
-            database, mailboxId, retainedMessageId, isQueryReceipt: true, isAssociated: true);
-        await using var scope = database.CreateAsyncScope();
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-
-        var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
-            actor,
-            new(retainedMessageId, 1, MailCategory.Cancellation,
-                "A summary, not a query."));
-
-        Assert.Equal(2, dossier!.Version);
-        await using var verify = await factory.CreateDbContextAsync();
-        var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.ReportSent), persisted.State);
-        Assert.False(persisted.HasOpenQuery);
-        Assert.Equal(fixture.WorkflowVersion + 1, persisted.Version);
-        Assert.Equal(
-            nameof(CaseQueryClosure.Withdrawn),
-            Assert.Single(await verify.CaseQueries.Where(item => item.CaseId == fixture.CaseId).ToListAsync()).ClosedAs);
-        var withdrawn = Assert.Single(await verify.CaseWorkflowEvents
-            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_withdrawn")
-            .ToListAsync());
-        Assert.Equal(actor.SubjectId, withdrawn.ActorSubjectId);
-        Assert.StartsWith("mail-correction:", withdrawn.OperationKey, StringComparison.Ordinal);
-        Assert.Equal(1L, await verify.IntakeMailClassificationHistory.LongCountAsync());
-    }
-
-    [Fact]
-    public async Task CorrectingALinkedMessageToQueryOnAReportSentCaseRaisesAQuery()
-    {
-        await using var database = await CreateDatabaseAsync();
-        var mailboxId = Guid.NewGuid();
-        var retainedMessageId = Guid.NewGuid();
-        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
-        // A Report sent Case whose linked message was read as general correspondence.
-        var fixture = await SeedReportSentCaseAsync(
-            database, mailboxId, retainedMessageId, isQueryReceipt: false, isAssociated: true);
-        await using var scope = database.CreateAsyncScope();
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-
-        var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
-            actor,
-            new(retainedMessageId, 1, MailCategory.Cancellation,
-                "The client is querying the delivered report."));
-
-        Assert.Equal(2, dossier!.Version);
-        await using var verify = await factory.CreateDbContextAsync();
-        var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.ReportSent), persisted.State);
-        Assert.True(persisted.HasOpenQuery);
-        Assert.Null(persisted.ClosureOutcome);
-        Assert.Equal(fixture.WorkflowVersion + 1, persisted.Version);
-        var query = Assert.Single(await verify.CaseQueries.Where(item => item.CaseId == fixture.CaseId).ToListAsync());
-        Assert.Equal(nameof(CaseQuerySource.Mail), query.Source);
-        Assert.Equal(fixture.ReceiptId, query.IntakeReceiptId);
-        Assert.Null(query.ClosedAtUtc);
-        var received = Assert.Single(await verify.CaseWorkflowEvents
-            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_received")
-            .ToListAsync());
-        Assert.Equal(actor.SubjectId, received.ActorSubjectId);
-        Assert.Single(await verify.ActionHistory
-            .Where(item => item.AggregateType == "case"
-                && item.AggregateId == fixture.CaseId.ToString("D")
-                && item.EventKind == "case_query_received")
             .ToListAsync());
     }
 

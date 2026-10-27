@@ -112,7 +112,7 @@
                             <option value="@option.Value" selected="@(option.Value == currentValue)">@option.Label</option>
                         }
                     </select>
-                    <noscript><button class="btn btn--small" type="submit">@OperatorLabels.Inbox.SaveCorrection</button></noscript>
+                    <noscript><button class="btn btn--small" type="submit" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.Inbox.SaveCorrection</button></noscript>
                     <span asp-validation-for="ClassificationKey"></span>
                 </form>
             }
