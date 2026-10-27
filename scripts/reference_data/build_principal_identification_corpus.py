@@ -28,7 +28,7 @@ PACKAGE_RELATIVE_PATH = Path(
 PEGASUS_POLICY_SNAPSHOTS = (
     ("principal-mail-route-v1", "src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs"),
     (
-        "principal-mail-classification-v3",
+        "principal-mail-classification-v4",
         "src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs",
     ),
     ("principal-case-match-v1", "src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs"),
@@ -270,17 +270,16 @@ CODE_FOLDER = re.compile(r"^[A-Z][A-Z0-9]*$")
 EVIDENCE_SUFFIXES = frozenset({".eml", ".msg", ".pdf", ".doc", ".docx", ".rtf"})
 
 QDOS_ACCEPTED_CLASSIFICATION = (
-    ("subject.automatic-reply", "subject", "Automatic reply:", "general"),
+    # Version 4 (operator, 27 October 2026): an automatic reply is read but given
+    # no category, and the pre-accident-value dispute is a query criterion, not a
+    # category. The three Case update notices of version 3 are gone.
+    ("subject.automatic-reply", "subject", "Automatic reply:", "correspondence"),
     ("subject.reply-prefix", "subject", "RE: family", "reply-context-only"),
     ("body.triage-only-request", "sender-authored-body", "Triage Only Request", "triage-request"),
     ("subject.engineer-triage", "subject", "Engineer Triage", "triage-request"),
     ("attachment.audit-report-notification", "instruction-document", "AUDIT REPORT NOTIFICATION", "new-instruction/Audit"),
     ("attachment.engineer-notification", "instruction-document", "ENGINEER NOTIFICATION", "new-instruction/Inspection"),
-    # Version 3: the generated letter-in-body notices (QDOS template registry, 8 October 2026)
-    ("body.garage-allocation-notice", "sender-authored-body", "Please be advised that the garage allocated to this claim are shown below for your records:", "case-update"),
-    ("body.repairs-authorised-notice", "sender-authored-body", "We are now able to authorise repairs. Please can you arrange this with the garage below:", "case-update"),
-    ("body.report-chase-notice", "sender-authored-body", "we note that we have heard nothing further from you since then.", "case-update"),
-    ("body.pav-dispute-letter", "sender-authored-body", "The client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle.", "query"),
+    ("body.pav-dispute-letter", "sender-authored-body", "The client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle.", "opens-query"),
 )
 
 QDOS_ASSOCIATION_KEYS = (
@@ -711,7 +710,7 @@ def qdos_accepted_rules() -> list[dict[str, Any]]:
             "signal": signal,
             "taxonomyTarget": target,
             "criterionState": state(observed=True, accepted=True, active=True),
-            "evidenceRefs": ["principal-mail-classification-v3"],
+            "evidenceRefs": ["principal-mail-classification-v4"],
         }
         for rule_id, source_role, signal, target in QDOS_ACCEPTED_CLASSIFICATION
     ]
@@ -894,7 +893,7 @@ def dossier(
         evidence_refs.update(
             {
                 "principal-mail-route-v1",
-                "principal-mail-classification-v3",
+                "principal-mail-classification-v4",
                 "principal-case-match-v1",
                 "qdos-extraction-policy-v13",
                 "qdos-local-email-evidence",

@@ -622,34 +622,16 @@ public sealed class RetainedMailTests
         Assert.Equal(1, store.AppendCount);
     }
 
-    [Theory]
-    [InlineData(true, 1)]
-    [InlineData(false, 0)]
-    public async Task ACorrectionThatRaisesAQueryTellsTheCaseEngineer(bool queryRaised, int arrivals)
-    {
-        var caseId = Guid.NewGuid();
-        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
-        var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []))
-        {
-            LinkedCaseId = caseId,
-            QueryRaised = queryRaised
-        };
-        var notifier = new RecordingCaseNotifier();
-
-        await new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc), notifier).ExecuteAsync(
-            Caseworker(),
-            new(Guid.NewGuid(), 1, MailCategory.Cancellation, "A query."));
-
-        Assert.Equal(arrivals, notifier.Raised.Count);
-        Assert.All(notifier.Raised, raised => Assert.Equal((StaffNotificationCause.QueryReceived, caseId), raised));
-    }
-
+    /// <summary>
+    /// A correction never opens or withdraws a query (operator, 27 October
+    /// 2026): only the Case's Engineer is told, and only when the message
+    /// becomes a cancellation it was not before.
+    /// </summary>
     [Fact]
     public async Task ACorrectionToACancellationOnALinkedCaseTellsTheCaseEngineerOnce()
     {
         var caseId = Guid.NewGuid();
-        var original = MailClassificationResult.Classified(
-            MailCategory.Cancellation, [], "Read.", "policy", 1);
+        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
         var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []))
         {
             LinkedCaseId = caseId
@@ -869,8 +851,6 @@ public sealed class RetainedMailTests
 
         internal Guid? LinkedCaseId { get; init; }
 
-        internal bool QueryRaised { get; init; }
-
         public Task<MailClassificationDossier?> GetClassificationAsync(
             Guid messageId,
             CancellationToken cancellationToken) => Task.FromResult<MailClassificationDossier?>(dossier);
@@ -894,9 +874,7 @@ public sealed class RetainedMailTests
                     packed,
                     correctedAtUtc,
                     [.. dossier.History, new(expectedVersion + 1, before, after, packed, reason, correctedAtUtc)]),
-                LinkedCaseId,
-                QueryRaised,
-                false));
+                LinkedCaseId));
         }
     }
 

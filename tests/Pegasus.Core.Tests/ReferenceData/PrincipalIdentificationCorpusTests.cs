@@ -219,7 +219,8 @@ public sealed class PrincipalIdentificationCorpusTests
             .Single(item => item.GetProperty("code").GetString() == "QDOS");
 
         var accepted = qdos.GetProperty("sharedTaxonomyPredicates").EnumerateArray().ToArray();
-        Assert.Equal(10, accepted.Length);
+        // Classification v4 dropped the three Case update notices (operator, 27 October 2026).
+        Assert.Equal(7, accepted.Length);
         Assert.All(accepted, item =>
         {
             var criterionState = item.GetProperty("criterionState");

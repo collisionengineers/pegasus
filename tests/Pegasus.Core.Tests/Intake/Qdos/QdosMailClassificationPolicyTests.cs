@@ -784,7 +784,8 @@ public sealed class PrincipalMailClassificationPolicyTests
     {
         var result = Classify(body: "Anything at all.");
 
-        Assert.Equal(11, result.Predicates.Count);
+        // Version 4 dropped the three Case update notices (operator, 27 October 2026).
+        Assert.Equal(8, result.Predicates.Count);
         Assert.Equal(
             result.Predicates.Count,
             result.Predicates.Select(predicate => predicate.Key).Distinct(StringComparer.Ordinal).Count());

@@ -749,7 +749,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
 
         var dossier = (await LoadClassificationAsync(context, messageId, cancellationToken))!;
-        return new(dossier, linkedCase?.CaseId, false, false);
+        return new(dossier, linkedCase?.CaseId);
     }
 
     private static async Task<MailClassificationDossier?> LoadClassificationAsync(

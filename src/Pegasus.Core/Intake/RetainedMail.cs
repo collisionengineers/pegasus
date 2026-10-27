@@ -228,13 +228,11 @@ public sealed record CorrectMailClassificationRequest(
 /// <summary>
 /// What one correction did: the dossier it produced and the Case the message is
 /// currently linked to (null when none, or a Triage Case). A correction does
-/// not raise or withdraw a query; the two flags stay false.
+/// not open or withdraw a query.
 /// </summary>
 public sealed record MailClassificationCorrectionResult(
     MailClassificationDossier Dossier,
-    Guid? LinkedCaseId,
-    bool QueryRaised,
-    bool QueryWithdrawn);
+    Guid? LinkedCaseId);
 
 public interface IRetainedMailClassificationStore
 {
