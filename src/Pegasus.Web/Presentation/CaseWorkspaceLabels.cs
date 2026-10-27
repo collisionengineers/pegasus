@@ -1364,8 +1364,6 @@ public static class CaseWorkspaceLabels
         public const string Reopened = "The query was reopened.";
         public const string Assigned = "The query was assigned.";
         public const string AssigneeRequired = "Choose who the query is assigned to.";
-        /// <summary>The Case status line after a Queries row's Draft reply with AI.</summary>
-        public const string DraftStarted = "AI reply job created. Its draft opens from here, the Work Centre or your notifications when ready.";
 
         public static string Channel(CaseQueryChannel channel) => channel switch
         {

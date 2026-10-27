@@ -1706,7 +1706,6 @@ public sealed partial class DetailsModel(
                     {
                         return FragmentNotFound();
                     }
-                    await LoadQueryDraftsAsync(id, QueriesSection, cancellationToken);
                     break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
@@ -2031,11 +2030,6 @@ public sealed partial class DetailsModel(
         var jobs = await caseAiJobs;
         AiDrafts = AiDraftPolicy.Drafts(jobs, details.Data.RequiredAiDraftTargetDays);
         PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
-        CaseAiJobs = jobs;
-        if (QueriesSection is { } queriesSection)
-        {
-            QueryDraftCondition = await QueryDraftConditionAsync(queriesSection, cancellationToken);
-        }
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(

@@ -431,7 +431,7 @@ public sealed class CaseCustodyWebTests
         var queries = Correspondence(html);
         var visible = WebUtility.HtmlDecode(VisibleText(queries));
 
-        foreach (var heading in new[] { "Received", "Sender", "Subject", "Classification" })
+        foreach (var heading in new[] { OperatorLabels.CaseWorkspace.Received, OperatorLabels.CaseWorkspace.Sender, OperatorLabels.CaseWorkspace.Subject, OperatorLabels.CaseWorkspace.Type })
         {
             Assert.Contains(heading, visible, StringComparison.Ordinal);
         }

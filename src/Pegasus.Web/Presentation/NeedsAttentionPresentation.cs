@@ -19,11 +19,11 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.ReviewCase,
         NeedsAttentionKind.UnassignedEngineer,
         NeedsAttentionKind.WithEngineer,
+        NeedsAttentionKind.Query,
         NeedsAttentionKind.VehicleImagesPaired,
         NeedsAttentionKind.Unidentified,
         NeedsAttentionKind.Triage,
         NeedsAttentionKind.OpenTasks,
-        NeedsAttentionKind.Query,
         NeedsAttentionKind.AiDraft
     ];
 

@@ -26,17 +26,17 @@ public sealed class AutomationMcpIngressTests
     {
         [CasesServer] =
         [
-            "pegasus_case_search",
-            "pegasus_case_get",
-            "pegasus_edit_begin",
-            "pegasus_edit_renew",
-            "pegasus_edit_end",
-            "pegasus_case_update_details",
-            "pegasus_case_note_add",
-            "pegasus_vocabulary_get",
-            "pegasus_directory_search",
             "pegasus_case_action",
+            "pegasus_case_get",
+            "pegasus_case_note_add",
             "pegasus_case_query",
+            "pegasus_case_search",
+            "pegasus_case_update_details",
+            "pegasus_directory_search",
+            "pegasus_edit_begin",
+            "pegasus_edit_end",
+            "pegasus_edit_renew",
+            "pegasus_vocabulary_get",
             "pegasus_work_centre_dismiss"
         ],
         [IntakeServer] =
@@ -97,13 +97,13 @@ public sealed class AutomationMcpIngressTests
         ],
         [MailServer] =
         [
-            "pegasus_mail_list",
-            "pegasus_mail_get",
-            "pegasus_mail_correct_classification",
             "pegasus_mail_action",
-            "pegasus_mail_open_query",
+            "pegasus_mail_correct_classification",
+            "pegasus_mail_get",
+            "pegasus_mail_link_case",
             "pegasus_mail_link_destinations",
-            "pegasus_mail_link_case"
+            "pegasus_mail_list",
+            "pegasus_mail_open_query"
         ],
         [JobsServer] =
         [
@@ -257,12 +257,12 @@ public sealed class AutomationMcpIngressTests
         string[] mailTools =
         [
             "pegasus_mail_action",
-            "pegasus_mail_open_query",
             "pegasus_mail_correct_classification",
             "pegasus_mail_get",
             "pegasus_mail_link_case",
             "pegasus_mail_link_destinations",
-            "pegasus_mail_list"
+            "pegasus_mail_list",
+            "pegasus_mail_open_query"
         ];
 
         // The second list is served from the one built for the server and scope set.

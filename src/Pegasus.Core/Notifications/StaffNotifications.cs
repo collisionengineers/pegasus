@@ -145,9 +145,8 @@ public static class StaffNotificationPolicy
 
     /// <summary>
     /// The message's reply composer opened on an AI draft (FRD-27, FRD-21):
-    /// the reply is filed against the job's Case, Also resolve query starts
-    /// ticked as it does from the Case's Resolve query Next action, and the
-    /// composer reads the draft from the named job.
+    /// the reply is filed against the job's Case, Mark query done starts
+    /// ticked, and the composer reads the draft from the named job.
     /// </summary>
     public static string MessageReplyRoute(Guid retainedMessageId, string caseReference, Guid jobId) =>
         $"{MessageRoute(retainedMessageId)}?compose=reply"

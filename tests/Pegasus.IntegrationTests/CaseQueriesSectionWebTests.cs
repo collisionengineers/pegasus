@@ -122,7 +122,8 @@ public sealed class CaseQueriesSectionWebTests
         Assert.Contains("Repairer asked for the labour rate", staff.Markup, StringComparison.Ordinal);
         Assert.Contains("Sam Staff", staff.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-query-reply", staff.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-dialog-open", staff.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"case-message-", staff.Markup, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"case-assign-query-dialog\"", staff.Markup, StringComparison.Ordinal);
 
         Assert.Contains($">{QueryLabels.Done}</span>", rows[2].Markup, StringComparison.Ordinal);
         Assert.Contains($">{QueryLabels.Channel(CaseQueryChannel.WhatsApp)}<", rows[2].Markup, StringComparison.Ordinal);

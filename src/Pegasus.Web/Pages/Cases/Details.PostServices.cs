@@ -43,7 +43,6 @@ public sealed partial class DetailsModel
     private IReleaseCaseEditLease releaseLease => field ??= PostService<IReleaseCaseEditLease>();
     private ISaveCaseWorkspace saveCaseWorkspace => field ??= PostService<ISaveCaseWorkspace>();
     private ICreateAudit createAudit => field ??= PostService<ICreateAudit>();
-    private IStartQueryResponse startQueryResponse => field ??= PostService<IStartQueryResponse>();
     private IOpenCaseQuery openCaseQuery => field ??= PostService<IOpenCaseQuery>();
     private IMarkCaseQueryDone markCaseQueryDone => field ??= PostService<IMarkCaseQueryDone>();
     private IReopenCaseQuery reopenCaseQuery => field ??= PostService<IReopenCaseQuery>();

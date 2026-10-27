@@ -237,6 +237,176 @@ public sealed class AutomationCaseLifecycleIngressTests
     }
 
     /// <summary>
+    /// pegasus_case_query reopen: a Done query opens again. A withdrawn query is refused.
+    /// </summary>
+    [Fact]
+    public async Task ReopenThroughCaseQueryOpensADoneQueryAndRefusesAWithdrawnOne()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        await using (var seedScope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var seedDb = await seedScope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            await seedDb.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportSent)} WHERE CaseId = {caseId}");
+        }
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using var logged = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(51, "pegasus_case_query", new
+        {
+            caseId,
+            operationKey = "mcp:reopen-open",
+            action = "open",
+            channel = "Email",
+            details = "Asked for the labour rate."
+        }));
+        var queryId = (await ReadStructuredContentAsync(logged)).GetProperty("queryId").GetGuid();
+        using var done = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(52, "pegasus_case_query", new
+        {
+            queryId,
+            operationKey = "mcp:reopen-done",
+            action = "mark_done"
+        }));
+        Assert.False((await ReadStructuredContentAsync(done)).GetProperty("hasOpenQuery").GetBoolean());
+
+        using var reopened = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(53, "pegasus_case_query", new
+        {
+            queryId,
+            operationKey = "mcp:reopen",
+            action = "reopen"
+        }));
+        var reopenedResult = await ReadStructuredContentAsync(reopened);
+        Assert.Equal("reopen", reopenedResult.GetProperty("action").GetString());
+        Assert.True(reopenedResult.GetProperty("hasOpenQuery").GetBoolean());
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var query = await db.CaseQueries.AsNoTracking().SingleAsync(row => row.Id == queryId);
+            Assert.Null(query.ClosedAtUtc);
+            Assert.Null(query.ClosedAs);
+            Assert.Contains(
+                "case_query_reopened",
+                await db.CaseWorkflowEvents.AsNoTracking()
+                    .Where(row => row.CaseId == caseId)
+                    .Select(row => row.EventType)
+                    .ToListAsync());
+        }
+
+        var withdrawnId = Guid.NewGuid();
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            db.CaseQueries.Add(new()
+            {
+                Id = withdrawnId,
+                CaseId = caseId,
+                Source = nameof(CaseQuerySource.Staff),
+                Channel = nameof(CaseQueryChannel.Phone),
+                Details = "Withdrawn.",
+                RaisedAtUtc = DateTimeOffset.UtcNow,
+                RaisedByKind = nameof(ActorKind.Staff),
+                RaisedBySubjectId = Guid.NewGuid().ToString("D"),
+                RaisedOperationKey = $"withdrawn:{withdrawnId:N}",
+                ClosedAs = nameof(CaseQueryClosure.Withdrawn),
+                ClosedAtUtc = DateTimeOffset.UtcNow,
+                ClosedByKind = nameof(ActorKind.Staff),
+                ClosedBySubjectId = Guid.NewGuid().ToString("D")
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var refused = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(54, "pegasus_case_query", new
+        {
+            queryId = withdrawnId,
+            operationKey = "mcp:reopen-withdrawn",
+            action = "reopen"
+        }));
+        Assert.Contains("cannot be reopened", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// pegasus_case_query assign sets a staff member, then Unassigned when the assignee is omitted.
+    /// </summary>
+    [Fact]
+    public async Task AssignThroughCaseQuerySetsAStaffMemberOrUnassigned()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var engineerId = await SeedEngineerAsync(mcpFactory, "query-assignee");
+        await using (var seedScope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var seedDb = await seedScope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            await seedDb.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportSent)} WHERE CaseId = {caseId}");
+        }
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using var logged = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(61, "pegasus_case_query", new
+        {
+            caseId,
+            operationKey = "mcp:assign-open",
+            action = "open",
+            channel = "WhatsApp",
+            details = "Who holds this?"
+        }));
+        var queryId = (await ReadStructuredContentAsync(logged)).GetProperty("queryId").GetGuid();
+
+        using var assigned = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(62, "pegasus_case_query", new
+        {
+            queryId,
+            operationKey = "mcp:assign",
+            action = "assign",
+            assigneeStaffId = engineerId
+        }));
+        Assert.Equal("assign", (await ReadStructuredContentAsync(assigned)).GetProperty("action").GetString());
+
+        string? userName;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var query = await db.CaseQueries.AsNoTracking().SingleAsync(row => row.Id == queryId);
+            Assert.Equal(engineerId, query.AssigneeStaffId);
+            Assert.NotNull(query.AssignedAtUtc);
+            userName = await db.Users.AsNoTracking().Where(user => user.Id == engineerId).Select(user => user.UserName).SingleAsync();
+            Assert.Equal(
+                $"Assigned to {userName}",
+                (await db.CaseWorkflowEvents.AsNoTracking()
+                    .SingleAsync(row => row.CaseId == caseId && row.EventType == "case_query_assigned")).Reason);
+        }
+
+        using var cleared = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(63, "pegasus_case_query", new
+        {
+            queryId,
+            operationKey = "mcp:assign-unassigned",
+            action = "assign"
+        }));
+        Assert.Equal("assign", (await ReadStructuredContentAsync(cleared)).GetProperty("action").GetString());
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var query = await db.CaseQueries.AsNoTracking().SingleAsync(row => row.Id == queryId);
+            Assert.Null(query.AssigneeStaffId);
+            Assert.Null(query.AssignedAtUtc);
+            Assert.Equal(
+                "Set to Unassigned",
+                (await db.CaseWorkflowEvents.AsNoTracking()
+                    .SingleAsync(row => row.CaseId == caseId && row.OperationKey == "mcp:assign-unassigned")).Reason);
+        }
+    }
+
+    /// <summary>
     /// #1213 (operator, 15 October 2026): an omitted engineerId hands the Case
     /// to Unassigned, With Engineer, and a named one then assigns it there; no
     /// reason is asked, and Core records who it went to.
