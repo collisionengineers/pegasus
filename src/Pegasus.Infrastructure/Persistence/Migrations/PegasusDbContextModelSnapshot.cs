@@ -1092,6 +1092,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("InternetMessageIdentity");
+
                     b.HasIndex("OperationKey")
                         .IsUnique();
 
@@ -2668,6 +2670,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CaseId");
+
+                    b.HasIndex("InternetMessageIdentity");
 
                     b.HasIndex("RetentionOperationKey")
                         .IsUnique();
@@ -6448,6 +6452,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("InReplyToIdentitiesJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InternetMessageIdentity")
                         .HasMaxLength(500)

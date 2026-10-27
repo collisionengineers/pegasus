@@ -89,6 +89,31 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.Empty(display.ReplyToAddresses);
     }
 
+    /// <summary>
+    /// The exact messages a reply answers are read from its In-Reply-To and
+    /// References headers, In-Reply-To first, in the canonical comparison form,
+    /// de-duplicated, and an identity outside the storage bound is dropped
+    /// rather than kept (D13; the retained reply-identity column). The header
+    /// values arrive without angle brackets — MimeKit strips them — and that is
+    /// the form retained.
+    /// </summary>
+    [Fact]
+    public async Task LocalEmailDisplayKeepsTheCanonicalDistinctReplyChainIdentities()
+    {
+        var oversized = $"<{new string('x', MailboxMessageIdentity.MaximumCanonicalLength)}@example.invalid>";
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.Headers.Add(
+                HeaderId.References,
+                $"<first@example.invalid> <second@example.invalid> {oversized}");
+            message.Headers.Add(HeaderId.InReplyTo, "<Second@Example.Invalid>");
+        });
+
+        Assert.Equal(
+            ["SECOND@EXAMPLE.INVALID", "FIRST@EXAMPLE.INVALID"],
+            display.InReplyToIdentities ?? []);
+    }
+
     [Fact]
     public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
     {
@@ -2011,6 +2036,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             "inbox",
             "conversation-1",
             internetMessageIdentity ?? $"<{immutableMessageId}@example.invalid>",
+            [],
             senderAddress,
             senderDisplayName,
             ["intake@collisionengineers.co.uk"],
@@ -2230,6 +2256,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 "inbox",
                 "conversation-1",
                 internetMessageIdentity,
+                [],
                 "sender@example.invalid",
                 "Sender",
                 [MailboxAddress],

@@ -2338,6 +2338,7 @@ internal static class AllocationTestData
                         "inbox",
                         $"conversation-{receipt.Id:N}",
                         $"<{receipt.Id:N}@example.invalid>",
+                        [],
                         "sender@example.invalid",
                         "Retained sender",
                         ["intake@example.invalid"],

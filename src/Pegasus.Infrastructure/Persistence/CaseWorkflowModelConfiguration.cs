@@ -185,6 +185,10 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.LinkedBySubjectId).HasMaxLength(200);
             entity.Property(item => item.LinkedByRolesJson).HasMaxLength(500);
             entity.HasIndex(item => item.RetentionOperationKey).IsUnique();
+            // The mail-association evidence recheck runs inside a serializable
+            // transaction and reads this Message-ID, so it seeks rather than
+            // taking range locks over the whole table.
+            entity.HasIndex(item => item.InternetMessageIdentity);
             entity.HasIndex(item => new { item.MailboxIdentity, item.ImmutableItemIdentity }).IsUnique();
             entity.HasIndex(item => new { item.DiscoveredAtUtc, item.Id }).IsDescending(true, false);
             entity.HasOne<CaseEntity>().WithMany().HasForeignKey(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);

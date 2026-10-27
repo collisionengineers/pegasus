@@ -21,7 +21,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 baseEntityType,
                 propertyCount: 25,
                 foreignKeyCount: 1,
-                unnamedIndexCount: 5,
+                unnamedIndexCount: 6,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -245,19 +245,22 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
             runtimeEntityType.SetPrimaryKey(key);
 
             var index = runtimeEntityType.AddIndex(
+                new[] { internetMessageIdentity });
+
+            var index0 = runtimeEntityType.AddIndex(
                 new[] { operationKey },
                 unique: true);
 
-            var index0 = runtimeEntityType.AddIndex(
+            var index1 = runtimeEntityType.AddIndex(
                 new[] { relatedEvidenceId });
 
-            var index1 = runtimeEntityType.AddIndex(
+            var index2 = runtimeEntityType.AddIndex(
                 new[] { recordedAtUtc, id });
 
-            var index2 = runtimeEntityType.AddIndex(
+            var index3 = runtimeEntityType.AddIndex(
                 new[] { mailboxId, recordedAtUtc, id });
 
-            var index3 = runtimeEntityType.AddIndex(
+            var index4 = runtimeEntityType.AddIndex(
                 new[] { outcomeKind, recordedAtUtc, id });
 
             return runtimeEntityType;

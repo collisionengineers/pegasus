@@ -19,7 +19,7 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity",
                 typeof(RetainedMailboxMessageEntity),
                 baseEntityType,
-                propertyCount: 25,
+                propertyCount: 26,
                 navigationCount: 1,
                 foreignKeyCount: 1,
                 unnamedIndexCount: 6,
@@ -125,6 +125,15 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 fieldInfo: typeof(RetainedMailboxMessageEntity).GetField("<ImmutableMessageId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 maxLength: 500);
             immutableMessageId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var inReplyToIdentitiesJson = runtimeEntityType.AddProperty(
+                "InReplyToIdentitiesJson",
+                typeof(string),
+                propertyInfo: typeof(RetainedMailboxMessageEntity).GetProperty("InReplyToIdentitiesJson", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(RetainedMailboxMessageEntity).GetField("<InReplyToIdentitiesJson>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            inReplyToIdentitiesJson.AddAnnotation("Relational:ColumnType", "nvarchar(max)");
+            inReplyToIdentitiesJson.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var internetMessageIdentity = runtimeEntityType.AddProperty(
                 "InternetMessageIdentity",

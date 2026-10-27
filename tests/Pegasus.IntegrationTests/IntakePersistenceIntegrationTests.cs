@@ -266,6 +266,7 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261023120000_GlassRepairEstimateSessionCallbackDigestIndex",
                 "20261023150000_RepairerVatStatusUnknownRemoved",
                 "20261023160000_AppliedValuationCalculationRows",
+                "20261027120000_RetainedMailReplyIdentities",
                 "20261027140000_AssignableCaseQueries"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());

@@ -74,6 +74,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             ConversationIdentity = message.Metadata.ConversationIdentity,
             InternetMessageIdentity = message.Metadata.InternetMessageIdentity,
             CanonicalInternetMessageIdentity = CanonicalInternetMessageIdentity(message),
+            InReplyToIdentitiesJson = message.Metadata.InReplyToIdentities.Count == 0
+                ? null
+                : JsonSerializer.Serialize(message.Metadata.InReplyToIdentities, JsonOptions),
             ExternalReceiptToken = message.ExternalReceiptToken,
             SenderAddress = message.Metadata.SenderAddress,
             SenderDisplayName = message.Metadata.SenderDisplayName,

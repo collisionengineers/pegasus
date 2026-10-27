@@ -529,6 +529,10 @@ public sealed class PollSentEvidence(
                         provenance.SentFolderIdentity,
                         provenance.ConversationIdentity,
                         provenance.InternetMessageIdentity,
+                        provenance.InReplyToIdentities
+                            .Select(MailboxMessageIdentity.CanonicalizeInternetMessageIdentity)
+                            .Distinct(StringComparer.Ordinal)
+                            .ToArray(),
                         SenderAddress: lease.MailboxAddress,
                         SenderDisplayName: null,
                         ToAddresses: [],

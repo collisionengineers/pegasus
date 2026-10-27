@@ -263,6 +263,14 @@ key. Reads and Case-index writes share one normalisation.
    stamped, does nothing when any active association exists, and staff can
    reverse it through the ordinary unlink with full history.
 
+Automatic association after the match is a separate, wider policy
+(`mail_case_association` v2). It reads the message's exact conversation
+thread, its `In-Reply-To` and `References` headers, a bounded claim-reference
+token in its subject or current body, and its registration narrowed by
+incident date; the shared eliminator above still outranks all of them. The
+"never from free text" restriction above belongs to the instruction match
+keys (`principal_case_match`), not to this association read.
+
 The Core policies are versioned in code. The derived match index is kept in
 the same transaction by every existing Case-data writer through one shared
 projector. There is no new rule engine, rule table, admin editor or parallel
