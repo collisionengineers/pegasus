@@ -39,7 +39,8 @@ public sealed partial class BregoGuideValuationProvider(
     IHttpClientFactory httpClientFactory,
     Func<BregoValuationAccount> account,
     TimeProvider timeProvider,
-    ILogger<BregoGuideValuationProvider> logger) : IGuideValuationProvider, IDisposable
+    ILogger<BregoGuideValuationProvider> logger,
+    IBregoSessionStore? sessionStore = null) : IGuideValuationProvider, IDisposable
 {
     public const string HttpClientName = "Brego";
 
@@ -69,7 +70,7 @@ public sealed partial class BregoGuideValuationProvider(
             var signIn = account();
             var client = new BregoClient(httpClientFactory.CreateClient(HttpClientName));
             var vrm = Vrm(request.Registration);
-            var (session, reused) = await GetSessionAsync(client, signIn, forceRefresh: false, cancellationToken);
+            var (session, canRetry) = await GetSessionAsync(client, signIn, forceRefresh: false, cancellationToken);
             BregoVehicle vehicle;
             BregoFigures figures;
             try
@@ -77,7 +78,7 @@ public sealed partial class BregoGuideValuationProvider(
                 vehicle = await client.LookupAsync(session, vrm, cancellationToken);
                 figures = await client.ValueAsync(session, vehicle, valuationDate, miles, cancellationToken);
             }
-            catch (BregoFailure failure) when (reused && failure.Status == HttpStatusCode.Unauthorized)
+            catch (BregoFailure failure) when (canRetry && failure.Status == HttpStatusCode.Unauthorized)
             {
                 (session, _) = await GetSessionAsync(client, signIn, forceRefresh: true, cancellationToken, staleSession: session);
                 vehicle = await client.LookupAsync(session, vrm, cancellationToken);
@@ -116,7 +117,7 @@ public sealed partial class BregoGuideValuationProvider(
         }
     }
 
-    internal async Task<(BregoSession Session, bool Reused)> GetSessionAsync(
+    internal async Task<(BregoSession Session, bool CanRetryOnUnauthorized)> GetSessionAsync(
         BregoClient client,
         BregoValuationAccount signIn,
         bool forceRefresh,
@@ -139,9 +140,37 @@ public sealed partial class BregoGuideValuationProvider(
                 return (current!, true);
             }
 
-            var created = await client.SignInAsync(signIn.Email, signIn.Password, timeProvider, cancellationToken);
+            string? existingSessionCookie = null;
+            if (!forceRefresh)
+            {
+                if (current is not null
+                    && string.Equals(current.Email, signIn.Email, StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(current.BregoSessionCookie))
+                {
+                    existingSessionCookie = current.BregoSessionCookie;
+                }
+                else if (sessionStore is not null)
+                {
+                    existingSessionCookie = await sessionStore.TryLoadSessionCookieAsync(signIn.Email, cancellationToken);
+                }
+            }
+
+            var created = await client.SignInAsync(
+                signIn.Email,
+                signIn.Password,
+                timeProvider,
+                cancellationToken,
+                existingSessionCookie);
+            if (!created.ReusedSessionCookie && sessionStore is not null)
+            {
+                await sessionStore.TrySaveSessionCookieAsync(
+                    signIn.Email,
+                    created.BregoSessionCookie,
+                    cancellationToken);
+            }
+
             Volatile.Write(ref _session, created);
-            return (created, false);
+            return (created, created.ReusedSessionCookie);
         }
         finally
         {

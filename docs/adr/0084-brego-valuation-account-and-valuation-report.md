@@ -40,13 +40,17 @@ tenant platform web application (`https://{slug}.brego.ai/platform`, backed by
    and Cognito App Client ID (`authorizerId`).
 2. Authenticates against AWS Cognito (`https://cognito-idp.{region}.amazonaws.com/`)
    via `USER_SRP_AUTH` (`InitiateAuth` and `RespondToAuthChallenge` with
-   `PASSWORD_VERIFIER`), verifies browser device approval at
+   `PASSWORD_VERIFIER`). When an active 1-year `brego-session` cookie is already
+   held in memory or in `authentication-ring/brego-session.json`, the fresh
+   24-hour Cognito tokens are paired directly with that `brego-session` cookie
+   without calling `device-approval/challenge` or `POST /login/api/brego/v1/sessions`
+   (avoiding Brego's email OTP challenge on container recycles and daily token
+   refreshes). Only when no `brego-session` cookie is present or when Brego
+   answers `401 Unauthorized` does the client verify browser device approval at
    `POST /login/api/brego/users/me/device-approval/challenge` using a
-   pre-approved `deviceId`, and exchanges the Cognito tokens at
-   `POST /login/api/brego/v1/sessions` for a `brego-session` cookie. Because
-   Brego enforces `maxConcurrentWebSessionsPerUser: 1` per account, the
-   singleton provider reuses its active `BregoSession` across calls and
-   re-authenticates under a lock when the session expires or returns `401`.
+   pre-approved `deviceId`, exchange the Cognito tokens at
+   `POST /login/api/brego/v1/sessions` for a new 1-year `brego-session` cookie,
+   and persist that cookie to `authentication-ring/brego-session.json`.
 3. Looks up the vehicle by VRM at
    `GET /platform/api/brego/vehicles/vrm/{vrm}?countryCode=gb&expand=sources&expand=metadata`
    for `derivativeId`, `vin`, `manufacturerUrl`, `rangeUrl`, `year`, `color`,
