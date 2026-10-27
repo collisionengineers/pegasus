@@ -66,6 +66,7 @@ public sealed class ProductionCompositionTests
         "report.renderer.initialize",
         "web.workcentre.attention",
         "web.workcentre.newcases",
+        "web.workcentre.systemactions",
         "web.workcentre.aijobs",
         "web.workcentre.activity",
         "report.photos.prepare",

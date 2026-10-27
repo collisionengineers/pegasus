@@ -908,8 +908,8 @@ public sealed class StartupWarmupTests
         }
 
         public async Task<RecentCasesFeed> ExecuteAsync(
-            ActionActor actor, int page, bool markSeen, CancellationToken cancellationToken,
-            DateTimeOffset? asOfUtc = null)
+            ActionActor actor, int page, bool markSeen, CaseArrival? arrival, string? search,
+            CancellationToken cancellationToken, DateTimeOffset? asOfUtc = null)
         {
             Note("recent-cases");
             lock (gate)

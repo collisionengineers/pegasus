@@ -167,7 +167,7 @@ public sealed class TriageQueuesWebTests
         var dashboardHtml = await dashboard.Content.ReadAsStringAsync();
         var tileMatch = Regex.Match(
             dashboardHtml,
-            "data-value=\"not_ready\"[\\s\\S]*?metric-value\">(\\d+)</span>");
+            "data-value=\"not_ready\"[\\s\\S]*?wc-queue-val\">(\\d+)</strong>");
         Assert.True(tileMatch.Success, "Work Centre Not ready metric markup not found.");
         Assert.Equal(railCount, int.Parse(tileMatch.Groups[1].Value, CultureInfo.InvariantCulture));
     }

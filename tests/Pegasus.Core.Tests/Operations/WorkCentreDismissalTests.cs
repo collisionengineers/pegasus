@@ -91,7 +91,7 @@ public sealed class WorkCentreDismissalTests
         var other = NewJob(AiJobState.Queued, NowUtc.AddHours(-2));
         var store = new InMemoryWorkCentreDismissals();
         await store.DismissAsync(queued.JobId, NowUtc.AddHours(-1), Staff(), CancellationToken.None);
-        var list = new ListWorkCentreAiJobs(new StubAiJobs([]), store);
+        var list = new ListWorkCentreAiJobs(new StubAiJobs([]), new StubAdoptions(), store);
 
         var whileQueued = await list.ExecuteAsync(Staff(), [queued, other], 2, NowUtc, CancellationToken.None);
         Assert.Equal([other.JobId], whileQueued.Select(row => row.Job.JobId).ToArray());
@@ -111,18 +111,62 @@ public sealed class WorkCentreDismissalTests
         var research = NewJob(AiJobState.Queued, NowUtc) with { Kind = AiJobKind.MarketResearch };
         var failedRecently = NewJob(AiJobState.Failed, NowUtc.AddDays(-2)) with { ClosedAtUtc = NowUtc.AddDays(-1) };
         var failedLongAgo = NewJob(AiJobState.Failed, NowUtc.AddDays(-30)) with { ClosedAtUtc = NowUtc.AddDays(-20) };
+        var completedRecently = NewJob(AiJobState.Completed, NowUtc.AddDays(-2)) with { ClosedAtUtc = NowUtc.AddHours(-2) };
+        var completedLongAgo = NewJob(AiJobState.Completed, NowUtc.AddDays(-30)) with { ClosedAtUtc = NowUtc.AddDays(-20) };
         var list = new ListWorkCentreAiJobs(
-            new StubAiJobs([failedRecently, failedLongAgo]),
+            new StubAiJobs([failedRecently, failedLongAgo, completedRecently, completedLongAgo]),
+            new StubAdoptions(),
             new InMemoryWorkCentreDismissals());
 
         var rows = await list.ExecuteAsync(
             Staff(), [queued, taken, draft, research], 2, NowUtc, CancellationToken.None);
 
+        // A job that completed or failed inside the window shows below the
+        // live work; one closed before it does not show at all.
         Assert.Equal(
-            [draft.JobId, taken.JobId, queued.JobId, failedRecently.JobId],
+            [draft.JobId, taken.JobId, queued.JobId, completedRecently.JobId, failedRecently.JobId],
             rows.Select(row => row.Job.JobId).ToArray());
         Assert.NotNull(rows[0].Draft);
         Assert.All(rows.Skip(1), row => Assert.Null(row.Draft));
+    }
+
+    [Fact]
+    public async Task TheAdoptingEngineerIsCarriedOnTheEstimateRowOnly()
+    {
+        var estimate = NewJob(AiJobState.Completed, NowUtc.AddDays(-1)) with { ClosedAtUtc = NowUtc.AddHours(-2) };
+        var query = NewJob(AiJobState.Completed, NowUtc.AddDays(-1)) with
+        {
+            Kind = AiJobKind.QueryResponse,
+            ClosedAtUtc = NowUtc.AddHours(-2)
+        };
+        var engineer = Guid.NewGuid();
+        var adoptions = new StubAdoptions { [estimate.JobId] = engineer };
+        var list = new ListWorkCentreAiJobs(
+            new StubAiJobs([estimate, query]), adoptions, new InMemoryWorkCentreDismissals());
+
+        var rows = await list.ExecuteAsync(Staff(), [], 2, NowUtc, CancellationToken.None);
+
+        Assert.Equal(engineer, rows.Single(row => row.Job.JobId == estimate.JobId).AdoptedByStaffId);
+        Assert.Null(rows.Single(row => row.Job.JobId == query.JobId).AdoptedByStaffId);
+        // Only the estimate job is asked about: a query draft is never adopted
+        // into a Repair specification.
+        Assert.Equal([estimate.JobId], adoptions.Asked.ToArray());
+    }
+
+    [Theory]
+    [InlineData(WorkCentreAiActionFilter.Estimate, AiJobKind.Estimate, AiJobState.DraftReady, true)]
+    [InlineData(WorkCentreAiActionFilter.Estimate, AiJobKind.QueryResponse, AiJobState.DraftReady, false)]
+    [InlineData(WorkCentreAiActionFilter.QueryDraft, AiJobKind.QueryResponse, AiJobState.Queued, true)]
+    [InlineData(WorkCentreAiActionFilter.QueryDraft, AiJobKind.Estimate, AiJobState.Queued, false)]
+    [InlineData(WorkCentreAiActionFilter.Failed, AiJobKind.Estimate, AiJobState.Failed, true)]
+    [InlineData(WorkCentreAiActionFilter.Failed, AiJobKind.Estimate, AiJobState.Completed, false)]
+    [InlineData(WorkCentreAiActionFilter.All, AiJobKind.UnidentifiedResolution, AiJobState.Taken, true)]
+    public void TheSubFilterNamesTheJobKindOrItsFailure(
+        WorkCentreAiActionFilter filter, AiJobKind kind, AiJobState state, bool expected)
+    {
+        var job = NewJob(state, NowUtc) with { Kind = kind };
+
+        Assert.Equal(expected, WorkCentreAiActionPolicy.Matches(filter, job));
     }
 
     [Fact]
@@ -216,6 +260,28 @@ public sealed class WorkCentreDismissalTests
 
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class StubAdoptions : IAiDraftAdoptionQueries
+    {
+        private readonly Dictionary<Guid, Guid> adopted = [];
+
+        public List<Guid> Asked { get; } = [];
+
+        public Guid this[Guid jobId]
+        {
+            set => adopted[jobId] = value;
+        }
+
+        public Task<IReadOnlyDictionary<Guid, Guid>> ReadAsync(
+            IReadOnlyCollection<Guid> jobIds,
+            CancellationToken cancellationToken)
+        {
+            Asked.AddRange(jobIds);
+            return Task.FromResult<IReadOnlyDictionary<Guid, Guid>>(
+                adopted.Where(pair => jobIds.Contains(pair.Key))
+                    .ToDictionary(pair => pair.Key, pair => pair.Value));
+        }
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

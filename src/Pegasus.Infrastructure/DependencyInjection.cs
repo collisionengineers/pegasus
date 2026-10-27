@@ -365,6 +365,9 @@ public static class DependencyInjection
         services.AddScoped<IWorkCentreDismissalStore, EfWorkCentreDismissalStore>();
         services.AddScoped<IDismissWorkCentreItem, DismissWorkCentreItem>();
         services.AddScoped<IListWorkCentreAiJobs, ListWorkCentreAiJobs>();
+        services.AddScoped<IAiDraftAdoptionQueries, EfAiDraftAdoptionQueries>();
+        services.AddScoped<ISystemActionQueries, EfSystemActionQueries>();
+        services.AddScoped<IListSystemActions, ListSystemActions>();
         services.AddScoped<IWorkCentreActivityQueries, EfWorkCentreActivityQueries>();
         services.AddScoped<IGetWorkCentreActivity, GetWorkCentreActivity>();
         services.AddScoped<IIntakeLogQueries, EfIntakeLogQueries>();

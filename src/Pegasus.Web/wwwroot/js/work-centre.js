@@ -7,7 +7,7 @@
     var SCOPE_KEY = 'pegasus.workCentre.scope';
     var FIVE_MINUTES = 5 * 60 * 1000;
     var FOCUS_GAP = 2 * 60 * 1000;
-    var SECTION_NAMES = ['metrics', 'activity', 'attention', 'new-cases', 'ai-jobs'];
+    var SECTION_NAMES = ['metrics', 'activity', 'new-cases', 'system-actions', 'ai-actions', 'attention'];
 
     function root() {
         return document.querySelector('[data-work-centre]');
@@ -62,7 +62,7 @@
         });
         current.setAttribute('data-wc-tab', name);
         var url = new URL(window.location.href);
-        if (name === 'attention') {
+        if (name === 'new-cases') {
             url.searchParams.delete('tab');
         } else {
             url.searchParams.set('tab', name);

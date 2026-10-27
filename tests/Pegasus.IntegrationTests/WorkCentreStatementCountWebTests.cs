@@ -48,8 +48,10 @@ public sealed class WorkCentreStatementCountWebTests
             $"A full Work Centre load sent {counter.Count} SQL commands; at most {WorkCentreCommands} are allowed." + Environment.NewLine + counter.Describe());
     }
 
-    // The open-queries attention read is the 22nd statement.
-    private const int WorkCentreCommands = 22;
+    // 22 before Design A, plus the New cases filtered count and the System
+    // Actions reads (auto-matched mail, images paired, queries opened, and the
+    // two cancellation reads). An empty estate skips the vehicle follow-up.
+    private const int WorkCentreCommands = 28;
 
     /// <summary>
     /// A Draft ready job sits in both the attention list and the AI jobs

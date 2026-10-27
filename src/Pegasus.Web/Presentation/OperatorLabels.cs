@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Pegasus.Core;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -851,7 +852,11 @@ public static class OperatorLabels
     /// </summary>
     public static class WorkCentre
     {
-        /// <summary>The metric of the active Triage Cases, last in the strip.</summary>
+        /// <summary>The Office queues (FRD-15), each opening its Cases tab; Triages last.</summary>
+        public const string NotReadyQueue = "Not ready";
+        public const string ReviewQueue = "Review";
+        public const string HeldQueue = "Held";
+        public const string UnidentifiedQueue = "Unidentified";
         public const string Triages = "Triages";
         public const string Eyebrow = "Office-wide work";
         public const string Title = "Work Centre";
@@ -860,6 +865,8 @@ public static class OperatorLabels
         public const string Mine = "Mine";
         /// <summary>Find within Needs attention (v30 WB): the field's label and its placeholder.</summary>
         public const string FindInNeedsAttention = "Find in Needs attention";
+        public const string FindInWorkCentre = "Filter Work Centre items";
+        public const string FindWorkCentrePlaceholder = "Filter by Case, VRM, claimant or action…";
         public const string FindPlaceholder = "Find in this work";
         public const string ClearFilters = "Clear filters";
         public const string NothingNeedsAttention = "Nothing needs attention";
@@ -867,6 +874,8 @@ public static class OperatorLabels
         /// <summary>The one line an entirely empty Work Centre shows (v30 WG).</summary>
         public const string NoWorkToShow = "No work to show.";
         public const string OfficeQueueTotals = "Office queue totals";
+        public const string OfficeQueues = "Office queues";
+        public const string AllCases = "All Cases";
         public const string Sections = "Work Centre sections";
         public const string NextAction = "Next action";
         public const string RecordDetail = "Record / detail";
@@ -890,9 +899,12 @@ public static class OperatorLabels
         public const string SinceYouLastLooked = "Since you last looked";
         public const string NoNewCases = "No Case was created in the last 7 days";
         public const string NewCasesUnavailable = "New cases are unavailable.";
-        public const string AiJobsTitle = "AI jobs";
-        public const string NoAiJobs = "No AI job is waiting";
-        public const string AiJobsUnavailable = "AI jobs are unavailable.";
+        public const string SystemActions = "System Actions";
+        public const string NoSystemActions = "No system action in the last 7 days";
+        public const string SystemActionsUnavailable = "System actions are unavailable.";
+        public const string AiActions = "AI Actions";
+        public const string NoAiActions = "No AI action in the last 7 days";
+        public const string AiActionsUnavailable = "AI actions are unavailable.";
         public const string NoReasonRecorded = "No reason recorded";
         public const string OpenCase = "Open Case";
         public const string Previous = "Previous";
@@ -910,6 +922,12 @@ public static class OperatorLabels
         /// <summary>The ledgers' column heads (v32 A).</summary>
         public const string ActionColumn = "Action";
         public const string CaseColumn = "Case";
+        public const string SystemActionColumn = "System action";
+        public const string MatchedDetailColumn = "Matched detail & signal";
+        public const string WhenColumn = "When";
+        public const string AiActionColumn = "AI action";
+        public const string SummaryColumn = "Summary / output";
+        public const string SignalLabel = "Signal";
         public const string DetailColumn = "Detail";
         public const string ArrivalColumn = "Arrival";
         public const string JobColumn = "Job";
@@ -925,7 +943,12 @@ public static class OperatorLabels
 
         public static string Rows(int count) => count == 1 ? "1 row" : string.Create(CultureInfo.InvariantCulture, $"{count} rows");
 
+        public static string ThisWeekCount(int count) =>
+            string.Create(CultureInfo.InvariantCulture, $"This week: {count}");
+
         public static string NewCasesMeta(int count) => $"Last 7 days · {Rows(count)}";
+
+        public static string TakenBy(string name) => $"Taken by {name}";
 
         public static string AiJobsMeta(int draftReady, int failed) =>
             string.Create(CultureInfo.InvariantCulture, $"{draftReady} draft ready · {failed} failed");
@@ -967,6 +990,32 @@ public static class OperatorLabels
 
         /// <summary>A Query row's action (operator, 27 October 2026).</summary>
         public const string OpenQuery = "Open query";
+
+        public const string All = "All";
+        public const string AutoMatched = "Auto-matched";
+        public const string ImagesPaired = "Images paired";
+        public const string RulesAndQueries = "Rules & queries";
+        public const string EstimateDone = "Estimate done";
+        public const string DraftToQuery = "Draft to a query";
+        public const string Failed = "Failed";
+
+        public static string SystemActionKindLabel(SystemActionKind kind) => kind switch
+        {
+            SystemActionKind.AutoMatchedMail => "Auto-matched e-mail",
+            SystemActionKind.VehicleImagesPaired => VehicleImagesPaired,
+            SystemActionKind.QueryOpenedAutomatically => "Query opened automatically",
+            SystemActionKind.CancellationMatched => "Cancellation matched",
+            _ => Humanise(kind.ToString())
+        };
+
+        public static string AiActionLabel(AiJobKind kind, AiJobState state) => state == AiJobState.Failed
+            ? Failed
+            : kind switch
+            {
+                AiJobKind.Estimate => EstimateDone,
+                AiJobKind.QueryResponse => DraftToQuery,
+                _ => AiJobs.Kind(kind)
+            };
 
         /// <summary>
         /// A With Engineer Case its Engineer holds (#1213, v41 W8): the row's

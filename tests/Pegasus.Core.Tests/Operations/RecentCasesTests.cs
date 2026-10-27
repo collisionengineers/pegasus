@@ -21,6 +21,45 @@ public sealed class RecentCasesTests
         IntakeSourceChannel? channel, bool createdByAutomation, CaseArrival expected) =>
         Assert.Equal(expected, RecentCasesPolicy.Arrival(channel, createdByAutomation));
 
+    [Theory]
+    [InlineData("QDOS26190", true)]
+    [InlineData("qdos26190", true)]
+    [InlineData("AB12 CDE", true)]
+    [InlineData("AB12CDE", true)]
+    [InlineData("ab12-cde", true)]
+    [InlineData("H. Vance", true)]
+    [InlineData("26190", true)]
+    [InlineData("Nope", false)]
+    public void FindMatchesTheReferenceTheClaimantOrTheCompactRegistration(string search, bool expected)
+    {
+        var row = new RecentCaseRow(
+            Guid.NewGuid(),
+            "QDOS26190",
+            "AB12 CDE",
+            "H. Vance",
+            "QDOS",
+            Now,
+            CaseArrival.Email);
+
+        Assert.Equal(expected, RecentCasesPolicy.Matches(row, search));
+    }
+
+    [Fact]
+    public void FindWithNoTermMatchesEveryRow()
+    {
+        var row = new RecentCaseRow(
+            Guid.NewGuid(),
+            "QDOS26190",
+            null,
+            null,
+            "QDOS",
+            Now,
+            CaseArrival.Email);
+
+        Assert.True(RecentCasesPolicy.Matches(row, null));
+        Assert.True(RecentCasesPolicy.Matches(row, "  "));
+    }
+
     [Fact]
     public void TheWindowIsSevenCalendarDaysFromMidnightLondon()
     {
@@ -35,23 +74,39 @@ public sealed class RecentCasesTests
         var visits = new FakeVisits { LastSeen = Now.AddDays(-2) };
         var sut = new ListRecentCases(queries, visits, new FixedTime(Now));
 
-        var first = await sut.ExecuteAsync(Staff, 1, markSeen: true, default);
+        var first = await sut.ExecuteAsync(Staff, 1, markSeen: true, arrival: null, search: null, default);
 
         // The second read runs five minutes later on its own clock. With one
         // fixed clock for both, a markSeen:false read that stamped anyway wrote
         // the same instant and no assertion could tell.
         var later = Now.AddMinutes(5);
         var second = await new ListRecentCases(queries, visits, new FixedTime(later))
-            .ExecuteAsync(Staff, 2, markSeen: false, default);
+            .ExecuteAsync(Staff, 2, markSeen: false, arrival: null, search: null, default);
 
         Assert.Equal(Now.AddDays(-2), first.LastSeenUtc);
         Assert.Equal(RecentCasesPolicy.WindowStart(Now), first.WindowStartUtc);
         Assert.Equal(Now, visits.LastSeen);
         Assert.NotEqual(later, visits.LastSeen);
         Assert.Equal(Now, second.LastSeenUtc);
-        Assert.Equal([(RecentCasesPolicy.WindowStart(Now), 1), (RecentCasesPolicy.WindowStart(Now), 2)], queries.Reads);
+        Assert.Equal(
+            [(RecentCasesPolicy.WindowStart(Now), 1), (RecentCasesPolicy.WindowStart(Now), 2)],
+            queries.Reads.Select(read => (read.Since, read.Page)));
         await Assert.ThrowsAsync<StaffAuthorizationException>(
-            () => sut.ExecuteAsync(ActionActor.Automation("client"), 1, true, default));
+            () => sut.ExecuteAsync(ActionActor.Automation("client"), 1, true, null, null, default));
+    }
+
+    [Fact]
+    public async Task TheArrivalAndFindNarrowTheReadNotTheWindow()
+    {
+        var queries = new FakeQueries();
+        var sut = new ListRecentCases(queries, new FakeVisits(), new FixedTime(Now));
+
+        await sut.ExecuteAsync(Staff, 1, markSeen: false, arrival: CaseArrival.PrincipalApi, search: "AB12CDE", default);
+
+        var read = Assert.Single(queries.Reads);
+        Assert.Equal(RecentCasesPolicy.WindowStart(Now), read.Since);
+        Assert.Equal(CaseArrival.PrincipalApi, read.Arrival);
+        Assert.Equal("AB12CDE", read.Search);
     }
 
     [Fact]
@@ -62,11 +117,11 @@ public sealed class RecentCasesTests
         var visits = new FakeVisits();
         var sut = new ListRecentCases(queries, visits, new FixedTime(requestTime.AddSeconds(2)));
 
-        var result = await sut.ExecuteAsync(Staff, 1, markSeen: true, default, requestTime);
+        var result = await sut.ExecuteAsync(Staff, 1, markSeen: true, arrival: null, search: null, default, requestTime);
 
         var expectedStart = new DateTimeOffset(2026, 9, 5, 23, 0, 0, TimeSpan.Zero);
         Assert.Equal(expectedStart, result.WindowStartUtc);
-        Assert.Equal([(expectedStart, 1)], queries.Reads);
+        Assert.Equal([(expectedStart, 1)], queries.Reads.Select(read => (read.Since, read.Page)));
         Assert.Equal(requestTime, visits.LastSeen);
     }
 
@@ -77,11 +132,17 @@ public sealed class RecentCasesTests
 
     private sealed class FakeQueries : IRecentCaseQueries
     {
-        public List<(DateTimeOffset Since, int Page)> Reads { get; } = [];
+        public List<(DateTimeOffset Since, int Page, CaseArrival? Arrival, string? Search)> Reads { get; } = [];
 
-        public Task<RecentCasesPage> ListAsync(DateTimeOffset sinceUtc, int page, int pageSize, CancellationToken cancellationToken)
+        public Task<RecentCasesPage> ListAsync(
+            DateTimeOffset sinceUtc,
+            int page,
+            int pageSize,
+            CaseArrival? arrival,
+            string? search,
+            CancellationToken cancellationToken)
         {
-            Reads.Add((sinceUtc, page));
+            Reads.Add((sinceUtc, page, arrival, search));
             return Task.FromResult(new RecentCasesPage([], page, pageSize, 0));
         }
     }
