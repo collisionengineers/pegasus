@@ -6,34 +6,36 @@ using Pegasus.Core.Intake.ThirdPartyReports;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// The one owner of which of a receipt's retained assets count as the
-/// instruction's evidence photographs: every deliberately attached image
-/// file, a directly uploaded image source, plus the embedded PDF images
-/// retention kept: those large enough to be photographs rather than
-/// letterhead art, or a capture PDF's designated photographs
-/// (<see cref="VehicleCaptureImages"/>). Inline images
-/// (signature graphics) never qualify, and one
-/// photograph carried twice — attached and embedded, or repeated across
-/// pages — appears once, preferring the attached copy. Custody promotion and
-/// the case evidence gallery both resolve through this selection.
+/// The one owner of which images are the instruction's evidence photographs.
+/// Retention applies the photograph rule to every image a reading yields,
+/// attached, inline or embedded in a PDF or Word document alike, so only
+/// photographs are stored as images; a directly uploaded image source is
+/// always kept. One photograph carried twice (attached and embedded, or
+/// repeated across pages) appears once, preferring the attached copy.
+/// Custody promotion and the case evidence gallery both resolve through
+/// this selection.
 /// </summary>
 public static class InstructionEvidenceImages
 {
     /// <summary>
-    /// Corpus-measured floor for an embedded image to read as a photograph:
-    /// the letters' repeated letterhead art tops out under 29 KB while
-    /// genuine damage photographs start above 60 KB.
+    /// The shortest side, in pixels, below which an image is a logo, icon or
+    /// signature graphic rather than a photograph (operator, 26 October
+    /// 2026). It replaces a 40 KB byte floor, which measured compression
+    /// rather than content and dropped real photographs: a.QDOS26120's five
+    /// 576x768 damage photographs were 22–33 KB each. Across the corpus the
+    /// side floor keeps 249 images the byte floor dropped, most of them
+    /// photographs. Of the images the byte floor kept it drops 17: icons,
+    /// small logos, two adverts and one 250x146 number-plate crop. A capture
+    /// PDF's page icon measures 70x65.
     /// </summary>
-    public const long EmbeddedPhotographMinimumBytes = 40_000;
+    public const int MinimumPhotographSidePixels = 200;
 
     /// <summary>
-    /// Corpus-measured shape test, and the one that actually separates a
-    /// banner from a photograph. A byte floor alone does not: QDOS26008's
-    /// two false positives were a 110,783-byte PNG at 1990x437 and a
-    /// 77,972-byte JPEG at 2214x248 — both well over the floor, and one of
-    /// them a JPEG, so neither size nor format would have caught them. The
-    /// same 1990x437 letterhead appears in five unrelated reports across
-    /// the corpus.
+    /// Corpus-measured shape test, and the one that separates a banner from
+    /// a photograph. QDOS26008's two false positives were a 110,783-byte PNG
+    /// at 1990x437 and a 77,972-byte JPEG at 2214x248, both large files. The
+    /// same 1990x437 letterhead appears in five unrelated reports across the
+    /// corpus.
     ///
     /// Every genuine photograph on that receipt measured between 1.09 and
     /// 1.15, and the widest thing in the corpus sample that might be a
@@ -43,27 +45,17 @@ public static class InstructionEvidenceImages
     /// </summary>
     public const double MaximumPhotographSideRatio = 3.0;
 
+    /// <summary>
+    /// The retained images that are evidence photographs, in display order,
+    /// one per content. Retention already applied the photograph rule, so
+    /// every retained JPEG or PNG qualifies.
+    /// </summary>
     public static IReadOnlyList<IntakeAssetRecord> Select(
         IEnumerable<IntakeAssetRecord> assets)
     {
         ArgumentNullException.ThrowIfNull(assets);
         return assets
-            .Where(asset => asset.Kind switch
-            {
-                IntakeAssetKind.Source =>
-                    asset.Disposition == IntakeAssetDisposition.Source
-                    && IsImage(asset.MediaType),
-                IntakeAssetKind.Attachment =>
-                    asset.Disposition == IntakeAssetDisposition.Attachment
-                    && IsImage(asset.MediaType),
-                // Retention is the one byte floor: an embedded image retained
-                // at all passed it, or is a capture PDF's photograph.
-                IntakeAssetKind.EmbeddedImage =>
-                    asset.Disposition == IntakeAssetDisposition.Embedded
-                    && IsImage(asset.MediaType),
-                _ => false
-            })
-            .Where(IsPhotographShaped)
+            .Where(asset => IsImage(asset.MediaType))
             .OrderBy(asset => asset.Kind switch
             {
                 IntakeAssetKind.Attachment => 0,
@@ -77,13 +69,13 @@ public static class InstructionEvidenceImages
     }
 
     /// <summary>
-    /// The reader candidates that become separately retained receipt assets.
-    /// Inside a capture PDF the designated photographs replace the per-image
-    /// rule (FRD-02 EXT-17); everything else is judged by
-    /// <see cref="IsRetentionCandidate"/>, and an image placed on every page
-    /// of a PDF of two or more pages is letterhead art, never a photograph
-    /// (operator, 22 October 2026). The capture designation is the caller's,
-    /// computed once per reading and shared with the assessment.
+    /// The reader candidates that become separately retained receipt assets:
+    /// those <see cref="IsRetentionCandidate"/> keeps, less letterhead art,
+    /// meaning an image placed on every page of a PDF of two or more pages
+    /// (operator, 22 October 2026). Inside a capture PDF an image must also
+    /// be one of its designated photographs (FRD-02 EXT-17). The capture
+    /// designation is the caller's, computed once per reading and shared with
+    /// the assessment.
     /// </summary>
     internal static IEnumerable<IntakeAssetCandidate> RetentionCandidates(
         IntakeSourceReadResult readResult,
@@ -93,9 +85,11 @@ public static class InstructionEvidenceImages
         ArgumentNullException.ThrowIfNull(capture);
         var letterhead = LetterheadArt(readResult);
         return readResult.AssetCandidates.Where(candidate =>
-            candidate.Kind == IntakeAssetKind.EmbeddedImage && capture.Covers(candidate)
-                ? capture.IsPhotograph(candidate)
-                : IsRetentionCandidate(candidate) && !letterhead.Contains(candidate));
+            IsRetentionCandidate(candidate)
+            && !letterhead.Contains(candidate)
+            && (candidate.Kind != IntakeAssetKind.EmbeddedImage
+                || !capture.Covers(candidate)
+                || capture.IsPhotograph(candidate)));
     }
 
     /// <summary>
@@ -161,42 +155,21 @@ public static class InstructionEvidenceImages
 
     /// <summary>
     /// Decides whether a reader candidate becomes a separately retained
-    /// receipt asset. Sources and non-image document attachments remain part
-    /// of the receipt; this gate excludes only image material that cannot be
-    /// vehicle evidence (inline/signature graphics, small embedded document
-    /// art and banner-shaped images). It is intentionally applied before
-    /// storage so excluded document assets never enter custody.
+    /// receipt asset, before storage, so excluded material never enters
+    /// custody. A non-image attachment (a PDF, a Word document, a forwarded
+    /// e-mail) is kept as a document. A JPEG or PNG, whether attached, inline
+    /// or embedded, is kept only when it is a photograph: at least
+    /// <see cref="MinimumPhotographSidePixels"/> on its shortest side, sides
+    /// in a ratio under <see cref="MaximumPhotographSideRatio"/>, and not one
+    /// of the <see cref="KnownGraphics"/>.
     /// </summary>
     public static bool IsRetentionCandidate(IntakeAssetCandidate candidate)
     {
         ArgumentNullException.ThrowIfNull(candidate);
-        if (candidate.Kind == IntakeAssetKind.Source)
-        {
-            return true;
-        }
-
-        if (candidate.Kind == IntakeAssetKind.InlineImage
-            || candidate.Disposition == IntakeAssetDisposition.Inline)
-        {
-            return false;
-        }
-
-        if (!IsImage(candidate.MediaType))
-        {
-            return candidate.Kind != IntakeAssetKind.EmbeddedImage;
-        }
-
-        return candidate.Kind switch
-        {
-            IntakeAssetKind.Attachment =>
-                candidate.Disposition == IntakeAssetDisposition.Attachment
-                && IsPhotographShaped(candidate.WidthPixels, candidate.HeightPixels),
-            IntakeAssetKind.EmbeddedImage =>
-                candidate.Disposition == IntakeAssetDisposition.Embedded
-                && candidate.Content.Length >= EmbeddedPhotographMinimumBytes
-                && IsPhotographShaped(candidate.WidthPixels, candidate.HeightPixels),
-            _ => false
-        };
+        return IsImage(candidate.MediaType)
+            ? IsPhotographShaped(candidate.WidthPixels, candidate.HeightPixels)
+                && !KnownGraphics.Contains(candidate)
+            : candidate.Kind == IntakeAssetKind.Attachment;
     }
 
     /// <summary>
@@ -222,17 +195,13 @@ public static class InstructionEvidenceImages
         [.. Select(assets).Where(asset => asset.CustodyState == IncomingArtifactCustodyState.Confirmed)];
 
     /// <summary>
-    /// Whether an image is shaped like a photograph rather than a banner.
-    /// Fails open: an image whose dimensions were not recorded is judged on
-    /// the other rules alone, because refusing to show a genuine
+    /// Whether an image is sized and shaped like a photograph: its shortest
+    /// side at least <see cref="MinimumPhotographSidePixels"/> and its sides
+    /// in a ratio under <see cref="MaximumPhotographSideRatio"/>. Fails open:
+    /// the reader measures every image that decodes, and one whose size is
+    /// unknown is judged on the other rules alone, because losing a genuine
     /// photograph is the worse error of the two.
     /// </summary>
-    public static bool IsPhotographShaped(IntakeAssetRecord asset)
-    {
-        ArgumentNullException.ThrowIfNull(asset);
-        return IsPhotographShaped(asset.WidthPixels, asset.HeightPixels);
-    }
-
     private static bool IsPhotographShaped(int? widthPixels, int? heightPixels)
     {
         if (widthPixels is not { } width
@@ -245,7 +214,8 @@ public static class InstructionEvidenceImages
 
         var longest = Math.Max(width, height);
         var shortest = Math.Min(width, height);
-        return (double)longest / shortest < MaximumPhotographSideRatio;
+        return shortest >= MinimumPhotographSidePixels
+            && (double)longest / shortest < MaximumPhotographSideRatio;
     }
 
     /// <summary>

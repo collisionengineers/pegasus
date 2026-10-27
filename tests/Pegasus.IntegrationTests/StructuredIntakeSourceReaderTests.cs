@@ -155,6 +155,75 @@ public sealed class StructuredIntakeSourceReaderTests
         Assert.EndsWith("VD IMAGES.pdf", reading.SourceLabel, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// #1693: the photograph rule judges an attached and an inline image on
+    /// the same facts as an embedded one, so the reader measures every image
+    /// and fingerprints it. One picture sent twice in two encodings keeps
+    /// nearly the same fingerprint.
+    /// </summary>
+    [Fact]
+    public async Task EveryAttachedAndInlineImageIsMeasuredAndFingerprinted()
+    {
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Sender", "sender@example.test"));
+        message.To.Add(new MimeKit.MailboxAddress("Intake", "intake@example.test"));
+        message.Subject = "Vehicle images";
+        message.Body = new MimeKit.Multipart("mixed")
+        {
+            new MimeKit.TextPart("plain") { Text = "Images attached and below." },
+            new MimeKit.MimePart("image", "jpeg")
+            {
+                FileName = "damage.jpg",
+                ContentDisposition = new MimeKit.ContentDisposition(MimeKit.ContentDisposition.Attachment),
+                ContentTransferEncoding = MimeKit.ContentEncoding.Base64,
+                Content = new MimeKit.MimeContent(new MemoryStream(Picture(SKEncodedImageFormat.Jpeg)))
+            },
+            new MimeKit.MimePart("image", "png")
+            {
+                FileName = "image001.png",
+                ContentId = "image001@example.test",
+                ContentDisposition = new MimeKit.ContentDisposition(MimeKit.ContentDisposition.Inline),
+                ContentTransferEncoding = MimeKit.ContentEncoding.Base64,
+                Content = new MimeKit.MimeContent(new MemoryStream(Picture(SKEncodedImageFormat.Png)))
+            }
+        };
+        using var serialized = new MemoryStream();
+        message.WriteTo(serialized);
+
+        var result = await ReadAsync(new TestEmail("images.eml", "message/rfc822", serialized.ToArray()));
+
+        var attached = Assert.Single(result.AssetCandidates, asset => asset.Kind == IntakeAssetKind.Attachment);
+        var inline = Assert.Single(result.AssetCandidates, asset => asset.Kind == IntakeAssetKind.InlineImage);
+        foreach (var image in new[] { attached, inline })
+        {
+            Assert.Equal(640, image.WidthPixels);
+            Assert.Equal(480, image.HeightPixels);
+            Assert.NotNull(image.Fingerprint);
+        }
+
+        Assert.InRange(
+            System.Numerics.BitOperations.PopCount(attached.Fingerprint!.Value ^ inline.Fingerprint!.Value),
+            0,
+            4);
+    }
+
+    /// <summary>A 640x480 picture: a left-to-right gradient crossed by a dark band.</summary>
+    private static byte[] Picture(SKEncodedImageFormat format)
+    {
+        using var bitmap = new SKBitmap(640, 480, SKColorType.Rgba8888, SKAlphaType.Opaque);
+        for (var y = 0; y < 480; y++)
+        {
+            for (var x = 0; x < 640; x++)
+            {
+                var shade = (byte)(x * 255 / 639);
+                bitmap.SetPixel(x, y, Math.Abs(x - y) < 80 ? new SKColor(20, 20, 20) : new SKColor(shade, shade, shade));
+            }
+        }
+
+        using var encoded = bitmap.Encode(format, 90);
+        return encoded.ToArray();
+    }
+
     private static string ReadableReportPage(int page) =>
         $"Engineer report page {page} of ten, printed with enough words to be a readable text layer for intake review today";
 
@@ -184,7 +253,6 @@ public sealed class StructuredIntakeSourceReaderTests
         Assert.NotNull(decoded);
         Assert.Equal(PhotoWidth, decoded.Width);
         Assert.Equal(PhotoHeight, decoded.Height);
-        Assert.True(photograph.Content.Length >= InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
         Assert.Empty(result.ScannedPdfPages);
         Assert.False(result.RequiresOcr);
         Assert.Contains(result.Issues, issue => issue.Code == "scan-page-photograph");
@@ -283,7 +351,6 @@ public sealed class StructuredIntakeSourceReaderTests
         Assert.NotNull(decoded);
         Assert.Equal(Jpeg2000PhotoWidth, decoded.Width);
         Assert.Equal(Jpeg2000PhotoHeight, decoded.Height);
-        Assert.True(photograph.Content.Length >= InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
         Assert.Empty(result.ScannedPdfPages);
         Assert.False(result.RequiresOcr);
         Assert.Contains(result.Issues, issue => issue.Code == "scan-page-photograph");

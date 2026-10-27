@@ -1622,9 +1622,7 @@ public sealed class EfImageIntakeStore(
                         asset.Kind,
                         asset.Disposition,
                         asset.ContentLength,
-                        asset.ContentHash,
-                        asset.WidthPixels,
-                        asset.HeightPixels
+                        asset.ContentHash
                     })
                     .ToArrayAsync(cancellationToken))
                 .GroupBy(asset => asset.IntakeReceiptId)
@@ -1642,8 +1640,8 @@ public sealed class EfImageIntakeStore(
                         string.Empty,
                         null,
                         null,
-                        asset.WidthPixels,
-                        asset.HeightPixels))).Count);
+                        null,
+                        null))).Count);
         var imageCounts = receiptIdsByIntake.ToDictionary(
             pair => pair.Key,
             pair => pair.Value.Sum(receiptId => selectedByReceipt.GetValueOrDefault(receiptId)));

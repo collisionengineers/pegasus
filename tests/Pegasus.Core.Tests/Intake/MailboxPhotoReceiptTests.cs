@@ -6,15 +6,15 @@ namespace Pegasus.Core.Tests.Intake;
 public sealed class MailboxPhotoReceiptTests
 {
     [Fact]
-    public void MailboxPdfPhotosUseTheirParentReceiptAndExcludeSignatureAndBanner()
+    public void MailboxPdfPhotosUseTheirParentReceipt()
     {
+        // Retention never stores a signature or a banner
+        // (InstructionEvidenceImagesTests), so the receipt holds the PDF and
+        // the photograph read out of it.
         var pdf = Asset("photos.pdf", "application/pdf", IntakeAssetKind.Attachment);
         var photo = Asset("page-1-photo.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
             length: 121_652, width: 547, height: 650);
-        var banner = Asset("banner.png", "image/png", IntakeAssetKind.EmbeddedImage,
-            length: 110_783, width: 1990, height: 437);
-        var signature = Asset("signature.png", "image/png", IntakeAssetKind.InlineImage);
-        var receipt = Receipt([pdf, photo, banner, signature]);
+        var receipt = Receipt([pdf, photo]);
 
         Assert.True(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
         Assert.Equal(photo.Id, Assert.Single(InstructionEvidenceImages.Select(receipt.AssetRecords)).Id);
@@ -24,16 +24,13 @@ public sealed class MailboxPhotoReceiptTests
     }
 
     [Fact]
-    public void SignatureAndBannerWithoutPhotographsAreAnEMailThatNeverBecomesUnidentified()
+    public void AMessageWithoutPhotographsIsAnEMailThatNeverBecomesUnidentified()
     {
         // Only images become Unidentified (operator, 13 October 2026): a
         // message with no selected photograph is an e-mail, which waits in the
         // Inbox's No Case Found scope instead.
         var receipt = Receipt([
-            Asset("photos.pdf", "application/pdf", IntakeAssetKind.Attachment),
-            Asset("signature.png", "image/png", IntakeAssetKind.InlineImage),
-            Asset("banner.png", "image/png", IntakeAssetKind.EmbeddedImage,
-                length: 110_783, width: 1990, height: 437)]);
+            Asset("photos.pdf", "application/pdf", IntakeAssetKind.Attachment)]);
 
         Assert.False(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
         Assert.Empty(InstructionEvidenceImages.Select(receipt.AssetRecords));

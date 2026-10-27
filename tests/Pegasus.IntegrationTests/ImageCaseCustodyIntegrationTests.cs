@@ -98,20 +98,16 @@ public sealed class ImageCaseCustodyIntegrationTests
         var artifacts = services.GetRequiredService<IIntakeArtifactStore>();
         var photographOne = new byte[50_000];
         var photographTwo = new byte[51_000];
-        var banner = new byte[110_783];
         photographOne[0] = 1;
         photographTwo[0] = 2;
-        banner[0] = 3;
         var first = await StageAsync(photographOne);
         var second = await StageAsync(photographTwo);
         var duplicate = await StageAsync(photographOne);
-        var excludedBanner = await StageAsync(banner);
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         Guid sourceAssetId;
         Guid firstAssetId;
         Guid secondAssetId;
         Guid duplicateAssetId;
-        Guid bannerAssetId;
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
             var receipt = await context.IntakeReceipts
@@ -138,11 +134,6 @@ public sealed class ImageCaseCustodyIntegrationTests
             // hash, so this asset must not become another custody file.
             duplicateAssetId = AddEmbeddedImage(
                 context, receiptId, "page-1-image-4.jpg", duplicate, 547, 650);
-            // The U50-sized letterhead banner is deliberately retained in this
-            // fixture to prove downstream custody also excludes historic bad
-            // candidates when a receipt is replayed.
-            bannerAssetId = AddEmbeddedImage(
-                context, receiptId, "page-1-image-1.png", excludedBanner, 1990, 437);
             await context.SaveChangesAsync();
         }
 
@@ -187,7 +178,6 @@ public sealed class ImageCaseCustodyIntegrationTests
             ],
             retainedDirectories.Select(Path.GetFileName));
         Assert.DoesNotContain(retainedDirectories, path => path.Contains($"{duplicateAssetId:N}", StringComparison.Ordinal));
-        Assert.DoesNotContain(retainedDirectories, path => path.Contains($"{bannerAssetId:N}", StringComparison.Ordinal));
         Assert.Equal(sourceBytes, await File.ReadAllBytesAsync(Path.Combine(retainedDirectories[0], "content")));
         Assert.Equal(photographOne, await File.ReadAllBytesAsync(Path.Combine(retainedDirectories[1], "content")));
         Assert.Equal(photographTwo, await File.ReadAllBytesAsync(Path.Combine(retainedDirectories[2], "content")));

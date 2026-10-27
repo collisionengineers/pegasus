@@ -440,7 +440,6 @@ public sealed class ImageIntakeWebTests
 
         var small = CaptureImage(800, 600, seed: 1, noisy: false);
         var large = CaptureImage(400, 533, seed: 2, noisy: true);
-        Assert.True(small.Length < InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
         var email = IntakeTestEvidence.CreateEmail(
             "tractable.eml",
             "New completed lead",
@@ -923,6 +922,26 @@ internal static class MultiFormatFixture
 {
     public const string TinyPngBase64 =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+    /// <summary>
+    /// A 640x480 picture, large enough to pass the photograph rule when it
+    /// arrives attached to or inline in an e-mail; a different seed gives
+    /// different bytes and a different picture.
+    /// </summary>
+    public static byte[] Photograph(int seed, SKEncodedImageFormat format = SKEncodedImageFormat.Jpeg)
+    {
+        using var bitmap = new SKBitmap(640, 480, SKColorType.Rgba8888, SKAlphaType.Opaque);
+        for (var y = 0; y < 480; y++)
+        {
+            for (var x = 0; x < 640; x++)
+            {
+                bitmap.SetPixel(x, y, new SKColor((byte)(x * 255 / 639), (byte)(y * 255 / 479), (byte)(seed * 37)));
+            }
+        }
+
+        using var encoded = bitmap.Encode(format, 90);
+        return encoded.ToArray();
+    }
 }
 
 internal static class ImageIntakeTestData

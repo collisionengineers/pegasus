@@ -271,27 +271,36 @@ complete membership, and fail-closed source-identity rules apply to both.
   yields to a staff editor, and resumes through existing intake and custody
   work. Re-evaluating an existing association uses the same document
   operation identities.
-- **Photograph selection.** One Core policy selects direct image evidence
-  and embedded PDF photographs before separate asset retention. Inline and
-  signature graphics are excluded. A full-page raster on a page with almost
-  no text is read by its colour first
+- **Photograph selection.** One Core policy decides which images are
+  photographs before separate asset retention, and the same rule applies
+  to every image a message carries: attached, inline in the body, or
+  embedded in a PDF or Word document (operator, 26 October 2026). A
+  directly uploaded image is always kept. A full-page raster on a page with
+  almost no text is read by its colour first
   ([ADR-0061](../adr/0061-ocr-every-scanned-document-page.md)): mostly
   paper-white is a scanned document page and produces no embedded image at
   all; anything else is a photograph that fills the page and is an ordinary
   embedded image. Photos laid out with margins or several to a page are
-  selected as before. Embedded images need at least 40,000
-  encoded bytes and, when dimensions are known, a longest-to-shortest side
-  ratio below 3. Unknown dimensions keep the size-based selection. These are
-  image heuristics, not a logo classifier. An image object that appears on
-  every page of a multi-page PDF is letterhead art, never a photograph, never
-  an Image Intake candidate, never in the gallery; the 40 KB floor and the
-  3:1 side ratio stay as they are (operator, 22 October 2026). Inside a
-  capture document
-  ([FRD-02](frd-02-intake-and-source-identity.md) `EXT-17`) the photographs
-  are every JPEG on its "Submitted Vehicle Images" page whatever their size,
-  and no other image in that document is one. Repeated photograph content is
-  shown and recognised once while provenance is kept. Excluded document art
-  stays only inside its retained original.
+  selected as before. An image is a photograph when it is a JPEG or PNG,
+  its shortest side is at least 200 pixels, and its longest-to-shortest
+  side ratio is below 3. File size plays no part: the 40 KB floor this
+  replaces dropped real photographs saved small. An image whose size cannot
+  be read is kept. These are image heuristics, not a logo classifier. An
+  image object that appears on every page of a multi-page PDF is letterhead
+  art (operator, 22 October 2026). Graphics that recur across many senders'
+  documents but pass the size rule (logos, a seal, report charts, a
+  signature) are named in a fixed list and matched by their appearance, so
+  a re-encoded or resized copy is still caught; a new entry needs operator
+  approval. Letterhead art and listed graphics are never photographs, never
+  Image Intake candidates and never in the gallery. Inside a capture
+  document ([FRD-02](frd-02-intake-and-source-identity.md) `EXT-17`) a
+  photograph must also be a JPEG on its "Submitted Vehicle Images" page,
+  and no other image in that document is one. Repeated photograph content
+  is shown and recognised once while provenance is kept. Excluded document
+  art stays only inside its retained original. Because inline photographs
+  count, an e-mail whose only content is photographs in its body is image
+  material; so is one whose only image is a large one-off signature graphic,
+  which staff then sort by hand.
 - **Membership and completeness.** A group's member count is fixed at
   submission and never inferred from how many members happen to be stored.
   Routing runs only once every declared member is present and every present

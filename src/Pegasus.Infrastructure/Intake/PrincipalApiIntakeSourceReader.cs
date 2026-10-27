@@ -41,7 +41,7 @@ internal sealed class PrincipalApiIntakeSourceReader(IIntakeSourceReader inner) 
                 [],
                 [],
                 RequiresOcr: false,
-                Assets: files
+                Assets: ImageMeasurement.Complete(files
                     .Select(file => new IntakeAssetCandidate(
                         file.SourceLabel,
                         file.FileName,
@@ -49,7 +49,7 @@ internal sealed class PrincipalApiIntakeSourceReader(IIntakeSourceReader inner) 
                         file.Content,
                         IntakeAssetKind.Attachment,
                         IntakeAssetDisposition.Attachment))
-                    .ToArray(),
+                    .ToArray()),
                 ReaderKey: PrincipalInstructionPolicy.ReaderKey,
                 ReaderVersion: PrincipalInstructionPolicy.ReaderVersion,
                 Attachments: files

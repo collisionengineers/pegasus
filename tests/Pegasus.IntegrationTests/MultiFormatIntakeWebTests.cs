@@ -51,7 +51,6 @@ public sealed partial class MultiFormatIntakeWebTests
         {
             Assert.Equal(IntakeAssetKind.EmbeddedImage, photo.Kind);
             Assert.Equal(IncomingArtifactCustodyState.Confirmed, photo.CustodyState);
-            Assert.True(photo.ContentLength >= InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
             Assert.Equal(200, photo.WidthPixels);
             Assert.Equal(240, photo.HeightPixels);
         });
@@ -213,7 +212,7 @@ public sealed partial class MultiFormatIntakeWebTests
             "Registration: AB12 CDE",
             "Claim Number: SYN-EML-001");
         var pdf = CreatePdf("Synthetic PDF attachment");
-        var image = Convert.FromBase64String(TinyJpegBase64);
+        var image = MultiFormatFixture.Photograph(1);
         var nested = CreateMessage(
             "Nested evidence",
             "Nested message body",
@@ -242,7 +241,7 @@ public sealed partial class MultiFormatIntakeWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
-        var image = Convert.FromBase64String(TinyJpegBase64);
+        var image = MultiFormatFixture.Photograph(1);
         var message = CreateQdosMessage(
             "Synthetic duplicate evidence",
             "Please see the attached instruction and duplicate image evidence.",
@@ -398,7 +397,6 @@ public sealed partial class MultiFormatIntakeWebTests
         Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "insufficient-embedded-text");
         var photograph = Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
         Assert.Equal(1, photograph.PageNumber);
-        Assert.True(photograph.ContentLength >= InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
     }
 
     [Fact]
@@ -659,7 +657,7 @@ public sealed partial class MultiFormatIntakeWebTests
         using var client = CreateClient(factory);
         const int placementCount = 13;
         var jpeg = CreatePaddedJpeg((2 * 1024 * 1024) + 1);
-        var pdf = CreateRepeatedJpegImagePdf(jpeg, placementCount);
+        var pdf = CreateRepeatedJpegImagePdf(jpeg, placementCount, sampleWidth: 640, sampleHeight: 480);
         Assert.InRange(pdf.LongLength, jpeg.LongLength, 10L * 1024 * 1024);
 
         var result = await UploadAsync(factory, client, "reused-large-jpeg.pdf", "application/pdf", pdf);
@@ -734,7 +732,7 @@ public sealed partial class MultiFormatIntakeWebTests
         (string, string, byte[])[] attachments =
         [
             ("report.pdf", "application/pdf", report),
-            ("vehicle.jpg", "image/jpeg", Convert.FromBase64String(TinyJpegBase64))
+            ("vehicle.jpg", "image/jpeg", MultiFormatFixture.Photograph(1))
         ];
         // The Case is matched on the Principal's claim reference in the subject.
         var message = withCase

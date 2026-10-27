@@ -319,13 +319,10 @@ public sealed class AutomaticImageIntakeTests
     public async Task PdfScansOnlySelectedPhotographsAndRegistersWithoutACaseMatch()
     {
         var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
-        var banner = Asset(
-            "page-1-image-1.png", "image/png", IntakeAssetKind.EmbeddedImage,
-            IntakeAssetDisposition.Embedded, width: 1990, height: 437);
         var photograph = Asset(
             "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
             IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 547, height: 650);
-        var harness = new Harness(retainedAssets: [pdf, banner, photograph]);
+        var harness = new Harness(retainedAssets: [pdf, photograph]);
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
 
         await harness.ApplyAsync();

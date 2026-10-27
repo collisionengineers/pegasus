@@ -264,11 +264,14 @@ the custody processor
 (`src/Pegasus.Infrastructure/Persistence/EfQueuedCustodyProcessor.cs`,
 promotion beside the source in `Evidence/Original instruction`).
 
-Selection rule: attached images always; embedded (PDF-extracted) images only
-at or above the 40 KB photograph floor (`EmbeddedPhotographMinimumBytes` —
-letterhead logos repeat at 234 B–28 KB, damage photos run 60–320 KB); inline
-(cid) images never; hash-deduped preferring the attached copy. Selected images
-render on the case Evidence tab and are retained in Box.
+Selection rule: one photograph rule for attached, inline (cid) and embedded
+(PDF- or Word-extracted) images alike — JPEG or PNG, shortest side at least
+200 px (`MinimumPhotographSidePixels`), sides under 3:1, not placed on every
+page of the PDF, and not one of the recurring graphics in
+`src/Pegasus.Core/Intake/KnownGraphics.cs` (among them the MGAA logo every QDOS
+instruction letter carries). File size is not a test: QDOS images PDFs carry
+576x768 damage photographs at 22–33 KB. Hash-deduped preferring the attached
+copy. Selected images render on the case Evidence tab and are retained in Box.
 
 ## 8. Pointer summary
 

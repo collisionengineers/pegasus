@@ -288,13 +288,13 @@ internal sealed class EfQueuedCustodyProcessor(
             : caseCustody.GetExistingCaseRootAsync(caseId, caseReference, recordedRemoteId, cancellationToken);
 
     /// <summary>
-    /// Each attachment of the accepted instruction lands beside the
-    /// retained source as its own file. The assets were retained at intake
-    /// (attachment kind); ordinals follow the source at 002 onward, in stable
-    /// file-name order, and replay verifies rather than re-uploads. The
-    /// attachments go up to three at a time, then the photographs do, and the
-    /// list this returns keeps the ordinal order whichever upload finishes
-    /// first. The lease is checked after each batch.
+    /// Each attached document of the accepted instruction, then each of its
+    /// photographs, lands beside the retained source as its own file. The
+    /// assets were retained at intake; ordinals follow the source at 002
+    /// onward, documents in stable file-name order, and replay verifies rather
+    /// than re-uploads. The documents go up to three at a time, then the
+    /// photographs do, and the list this returns keeps the ordinal order
+    /// whichever upload finishes first. The lease is checked after each batch.
     ///
     /// A standalone Audit's original report was identified at intake, and the
     /// Case was created knowing it (its Original report cells filled at
@@ -315,10 +315,10 @@ internal sealed class EfQueuedCustodyProcessor(
         var candidates = await context.Set<IntakeAssetEntity>()
             .AsNoTracking()
             .Where(asset => asset.IntakeReceiptId == receiptId
-                && (asset.Kind == "attachment" || asset.Kind == "embedded_image"))
+                && asset.Kind != "source")
             .ToListAsync(cancellationToken);
         var attachments = candidates
-            .Where(asset => asset.Kind == "attachment")
+            .Where(asset => asset.Kind == "attachment" && !InstructionEvidenceImages.IsImage(asset.MediaType))
             .OrderBy(asset => asset.FileName)
             .ThenBy(asset => asset.Id)
             .ToList();
@@ -355,17 +355,10 @@ internal sealed class EfQueuedCustodyProcessor(
                     attachment.MediaType,
                     attachment.ContentLength,
                     attachment.ContentHash,
-                    // A photograph attached to the instruction is a
-                    // photograph. Filing every attachment as Instruction hid the
-                    // case's own damage images from the evidence gallery's image
-                    // test and from case export image selection, which both ask this
-                    // question by semantic role. The standalone Audit's
-                    // original report is the Audit report.
+                    // The standalone Audit's original report is the Audit report.
                     attachment.Id == originalReportAssetId
                         ? DocumentSemanticRole.AuditReport
-                        : InstructionEvidenceImages.IsImage(attachment.MediaType)
-                            ? DocumentSemanticRole.Image
-                            : DocumentSemanticRole.Instruction,
+                        : DocumentSemanticRole.Instruction,
                     $"{casePayload.OperationKey}:attachment:{attachment.Id:N}",
                     version.RemoteId,
                     version.BoxVersionId,
@@ -373,19 +366,19 @@ internal sealed class EfQueuedCustodyProcessor(
             },
             cancellationToken));
 
-        // Photographs embedded in the instruction's documents land
-        // as their own files after the attachments, resolved through the one
-        // evidence-image selection (which also drops letterhead art and any
-        // photo already retained as an attached file).
+        // The photographs, attached, inline or embedded in the instruction's
+        // documents, land as their own files after the documents, resolved
+        // through the one evidence-image selection, so one photograph carried
+        // twice is filed once.
         var photographs = InstructionEvidenceImages
             .Select(candidates.Select(EfIntakeReceiptStore.MapAsset))
-            .Where(record => record.Kind == IntakeAssetKind.EmbeddedImage)
             .ToArray();
         retained.AddRange(await RetainTogetherAsync(
             photographs,
             leaseGuard,
             async (photograph, index, token) =>
             {
+                var operationKey = $"{casePayload.OperationKey}:{PhotographOperation(photograph.Kind)}:{photograph.Id:N}";
                 var version = await caseCustody.RetainAcceptedIntakeAttachmentAsync(
                     root,
                     new(
@@ -396,7 +389,7 @@ internal sealed class EfQueuedCustodyProcessor(
                         photograph.StorageKey,
                         photograph.ContentLength),
                     attachments.Count + index + 2,
-                    $"{casePayload.OperationKey}:embedded:{photograph.Id:N}",
+                    operationKey,
                     leaseGuard,
                     token);
                 return new RetainedCaseFile(
@@ -406,7 +399,7 @@ internal sealed class EfQueuedCustodyProcessor(
                     photograph.ContentLength,
                     photograph.ContentHash,
                     DocumentSemanticRole.Image,
-                    $"{casePayload.OperationKey}:embedded:{photograph.Id:N}",
+                    operationKey,
                     version.RemoteId,
                     version.BoxVersionId,
                     photograph.Id);
@@ -415,6 +408,18 @@ internal sealed class EfQueuedCustodyProcessor(
 
         return retained;
     }
+
+    /// <summary>
+    /// The operation-key segment a filed photograph carries: ':attachment:'
+    /// for a file that arrived attached, ':embedded:' for one found inside a
+    /// document, ':inline:' for one in the message body.
+    /// </summary>
+    private static string PhotographOperation(IntakeAssetKind kind) => kind switch
+    {
+        IntakeAssetKind.Attachment => "attachment",
+        IntakeAssetKind.InlineImage => "inline",
+        _ => "embedded"
+    };
 
     /// <summary>
     /// Records the files intake put in the case folder as case documents, so

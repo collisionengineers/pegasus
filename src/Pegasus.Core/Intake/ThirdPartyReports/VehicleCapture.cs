@@ -4,20 +4,13 @@ using Pegasus.Core.Documents;
 namespace Pegasus.Core.Intake.ThirdPartyReports;
 
 /// <summary>
-/// The photographs a capture PDF carries (FRD-02 EXT-17): every JPEG printed
-/// on its "Submitted Vehicle Images" page, whatever its size, and nothing
-/// else in the document — not the letterhead logo and not the small icon
-/// every page repeats.
+/// Where a capture PDF's photographs may be (FRD-02 EXT-17): the JPEGs
+/// printed on its "Submitted Vehicle Images" page, and nothing else in the
+/// document. The photograph rule (<see cref="InstructionEvidenceImages"/>)
+/// still applies to them, which leaves out the small icon every page repeats.
 /// </summary>
 internal static class VehicleCaptureImages
 {
-    /// <summary>
-    /// Shortest side, in pixels, below which an image on the photograph page
-    /// is page furniture. The page icon measures 70x65; the submitted
-    /// photographs measure 800x600 and above.
-    /// </summary>
-    internal const int MinimumPhotographSidePixels = 200;
-
     private static readonly Regex ImagesHeading =
         ThirdPartyRegex.Create(ThirdPartyReportProfiles.CaptureImagesHeading);
 
@@ -51,18 +44,11 @@ internal static class VehicleCaptureImages
                 asset.Kind == IntakeAssetKind.EmbeddedImage
                 && asset.PageNumber is { } page
                 && photographPages.Contains(page)
-                && string.Equals(asset.MediaType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
-                && !IsPageFurniture(asset)));
+                && string.Equals(asset.MediaType, "image/jpeg", StringComparison.OrdinalIgnoreCase)));
         }
 
         return new(documents, photographs);
     }
-
-    // Unknown dimensions keep the image, as the photograph shape test does.
-    private static bool IsPageFurniture(IntakeAssetCandidate asset) =>
-        asset.WidthPixels is { } width
-        && asset.HeightPixels is { } height
-        && Math.Min(width, height) < MinimumPhotographSidePixels;
 }
 
 internal sealed record VehicleCaptureDesignation(
