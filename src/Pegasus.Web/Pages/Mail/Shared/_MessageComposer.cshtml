@@ -92,14 +92,12 @@
                 <textarea asp-for="CorrespondenceBody" rows="8"></textarea>
                 <span asp-validation-for="CorrespondenceBody"></span>
             </div>
-            @if (Model.OffersResolveQuery)
+            @if (Model.OffersMarkQueryDone)
             {
-                @* The Case holds an open query: this reply may resolve it,
-                   on observed Sent (operator, 11 October 2026). *@
                 <div class="field">
                     <label>
-                        <input type="checkbox" asp-for="ResolveQuery" data-resolve-query />
-                        @OperatorLabels.StaffMail.AlsoResolveQuery
+                        <input type="checkbox" asp-for="MarkQueryDone" data-mark-query-done />
+                        @OperatorLabels.StaffMail.MarkQueryDone
                     </label>
                 </div>
             }

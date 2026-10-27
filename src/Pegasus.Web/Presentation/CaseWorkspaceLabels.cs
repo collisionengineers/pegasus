@@ -73,8 +73,8 @@ public static class CaseWorkspaceLabels
         public const string MarkReportSent = "Mark report sent";
         public const string ExportCase = "Export case";
         public const string LogQuery = "Log query";
-        public const string ResolveQuery = "Resolve query";
-        public const string TagAsQuery = "Tag as query";
+        public const string AnswerQuery = "Answer query";
+        public const string OpenQuery = "Open query";
         public const string Channel = "Channel";
         public const string Details = "Details";
         public const string ReturnToReview = "Return to Review";
@@ -1348,10 +1348,22 @@ public static class CaseWorkspaceLabels
         public const string State = "State";
         public const string Raised = "Raised";
         public const string RaisedBy = "Raised by";
-        public const string Resolved = "Resolved";
-        public const string ResolvedBy = "Resolved by";
+        public const string Done = "Done";
+        public const string AssignedTo = "Assigned to";
+        public const string Unassigned = "Unassigned";
+        public const string Take = "Take";
+        public const string Assign = "Assign";
+        public const string AssignQuery = "Assign query";
+        public const string MarkDone = "Mark done";
+        public const string Reopen = "Reopen";
         public const string Open = "Query";
         public const string Message = "Message";
+        public const string Opened = "The query was opened.";
+        public const string Logged = "The query was logged.";
+        public const string MarkedDone = "The query was marked done.";
+        public const string Reopened = "The query was reopened.";
+        public const string Assigned = "The query was assigned.";
+        public const string AssigneeRequired = "Choose who the query is assigned to.";
         /// <summary>The Case status line after a Queries row's Draft reply with AI.</summary>
         public const string DraftStarted = "AI reply job created. Its draft opens from here, the Work Centre or your notifications when ready.";
 

@@ -649,6 +649,7 @@ public static class OperatorLabels
             Pegasus.Core.Notifications.StaffNotificationCause.EmailReceived => "E-mail received",
             Pegasus.Core.Notifications.StaffNotificationCause.QueryReceived => "Query received",
             Pegasus.Core.Notifications.StaffNotificationCause.CancellationReceived => "Cancellation received",
+            Pegasus.Core.Notifications.StaffNotificationCause.QueryAssigned => "Query assigned",
             _ => Humanise(notification.Cause.ToString())
         };
     }
@@ -964,6 +965,9 @@ public static class OperatorLabels
         /// </summary>
         public const string OpenTasks = "Open tasks";
 
+        /// <summary>A Query row's action (operator, 27 October 2026).</summary>
+        public const string OpenQuery = "Open query";
+
         /// <summary>
         /// A With Engineer Case its Engineer holds (#1213, v41 W8): the row's
         /// kind, its kind chip and its bold line, the stage's own word.
@@ -981,6 +985,7 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionKind.Unidentified => "Unidentified",
             Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
             Pegasus.Core.Operations.NeedsAttentionKind.OpenTasks => "Tasks",
+            Pegasus.Core.Operations.NeedsAttentionKind.Query => "Query",
             Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
             Pegasus.Core.Operations.NeedsAttentionKind.WithEngineer => WithEngineer,
             _ => Humanise(kind.ToString())
@@ -1391,7 +1396,9 @@ public static class OperatorLabels
         "case_query_logged" => "Query logged",
         "case_query_received" => "Query received",
         "case_query_withdrawn" => "Query withdrawn",
-        "case_queries_resolved" => "Queries resolved",
+        "case_query_resolved" => "Query marked done",
+        "case_query_reopened" => "Query reopened",
+        "case_query_assigned" => "Query assigned",
         _ => Humanise(eventType)
     };
 
@@ -1565,7 +1572,7 @@ public static class OperatorLabels
             "case created" or "ready for case allocation" or "linked" or "linked to case" or "email linked" or "reply linked"
                 or "vehicle images" or "triage"
                 or "vehicle images registered" or "sent" or "report sent" or "delivered" or "saved" or "stored" or "document stored"
-                or "approved" or "accepted" or "applied" or "resolved" or "registered" or "connected"
+                or "approved" or "accepted" or "applied" or "resolved" or "done" or "registered" or "connected"
                 or "configured" or "succeeded" or "passed" or "roadworthy" => "green",
             "could not be read" or "case not created" or "rejected" or "refused" or "overdue"
                 or "unroadworthy" or "failure" => "red",
@@ -1955,8 +1962,8 @@ public static class OperatorLabels
         public const string Reply = "Reply";
         public const string ReplyAll = "Reply all";
         public const string Forward = "Forward";
-        /// <summary>The reply composer's tick that resolves the Case's open queries on observed Sent (operator, 11 October 2026).</summary>
-        public const string AlsoResolveQuery = "Also resolve query";
+        /// <summary>The reply composer's tick that marks the replied message's open query done on observed Sent.</summary>
+        public const string MarkQueryDone = "Mark query done";
 
         public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
         {
@@ -2468,6 +2475,7 @@ public static class OperatorLabels
         public const string Sender = "Sender";
         public const string Subject = "Subject";
         public const string Classification = "Classification";
+        public const string Type = "Type";
         public const string OpenMessage = "Open message";
 
         public const string VehicleFactsPanel = "Vehicle";

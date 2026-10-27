@@ -5168,7 +5168,7 @@ public sealed partial class DetailsModel(
             : null;
         var rosterAndName = reads.Start(async token =>
         {
-            IReadOnlyList<CaseEngineerChoice> listed = CaseLifecycleRules.CanBeAssigned(workflow.State)
+            IReadOnlyList<CaseEngineerChoice> listed = CaseLifecycleRules.CanBeAssigned(workflow.State) || workflow.HasOpenQuery
                 ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, token))
                     .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
                 : [];
