@@ -393,7 +393,12 @@ public sealed class MailWorkspaceWebTests
     /// </summary>
     private const int InboxMessageCommands = 20;
 
-    private const int InboxListCommands = 10;
+    /// <summary>
+    /// The v42 ledger adds two batched reads over the page's rows — the linked
+    /// Cases' type, Principal and vehicle for the Case cell, and the rows' open
+    /// queries for the Query chip — and the Principal filter's one list.
+    /// </summary>
+    private const int InboxListCommands = 12;
 
     /// <summary>
     /// The Inbox list reads nothing once per row: the same request over six
@@ -2844,8 +2849,10 @@ public sealed class MailWorkspaceWebTests
         var marker = $"data-mail-row=\"{messageId:D}\"";
         var markerIndex = html.IndexOf(marker, StringComparison.Ordinal);
         Assert.True(markerIndex >= 0, $"The retained message row {messageId:D} was not rendered.");
-        var start = html.LastIndexOf("<div class=\"inbox-row", markerIndex, StringComparison.Ordinal);
-        var next = html.IndexOf("<div class=\"inbox-row", markerIndex + marker.Length, StringComparison.Ordinal);
+        // The row's own actions cell is "inbox-row-actions": the boundary names the row class in full.
+        const string rowStart = "<div class=\"inbox-row inbox-ledger-row";
+        var start = html.LastIndexOf(rowStart, markerIndex, StringComparison.Ordinal);
+        var next = html.IndexOf(rowStart, markerIndex + marker.Length, StringComparison.Ordinal);
         var end = next < 0 ? html.Length : next;
         Assert.True(start >= 0 && end > start, $"The retained message row {messageId:D} was incomplete.");
         return html[start..end];
@@ -3177,7 +3184,8 @@ public sealed class MailWorkspaceWebTests
                         "A Sender",
                         ["intake@collisionengineers.co.uk"],
                         [],
-                        [],
+                        // A reader stores the sender as the reply address when the message names no Reply-To.
+                        ["sender@example.invalid"],
                         $"Message {index} from {mailboxId}",
                         "Please inspect the vehicle at the address supplied.",
                         attachments ?? [new("estimate.pdf", "application/pdf", 2048)],
