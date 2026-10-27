@@ -608,7 +608,7 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-refresh-outcome=\"partial\" data-wc-tab=\"ai-actions\"", html, StringComparison.Ordinal);
         // AI actions could not be read: the tab stays with a dash and the section says so.
         Assert.Contains($"{OperatorLabels.WorkCentre.AiActions}<span class=\"tab-count\">&#x2014;</span>", html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.WorkCentre.AiJobsUnavailable, html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.WorkCentre.AiActionsUnavailable, html, StringComparison.Ordinal);
         Assert.DoesNotContain(OperatorLabels.WorkCentre.NoWorkToShow, html, StringComparison.Ordinal);
     }
 

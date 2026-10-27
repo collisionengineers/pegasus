@@ -852,7 +852,11 @@ public static class OperatorLabels
     /// </summary>
     public static class WorkCentre
     {
-        /// <summary>The metric of the active Triage Cases, last in the strip.</summary>
+        /// <summary>The Office queues (FRD-15), each opening its Cases tab; Triages last.</summary>
+        public const string NotReadyQueue = "Not ready";
+        public const string ReviewQueue = "Review";
+        public const string HeldQueue = "Held";
+        public const string UnidentifiedQueue = "Unidentified";
         public const string Triages = "Triages";
         public const string Eyebrow = "Office-wide work";
         public const string Title = "Work Centre";
@@ -901,10 +905,6 @@ public static class OperatorLabels
         public const string AiActions = "AI Actions";
         public const string NoAiActions = "No AI action in the last 7 days";
         public const string AiActionsUnavailable = "AI actions are unavailable.";
-        /// <summary>Kept for the unavailable notice the AI section still states when the read fails.</summary>
-        public const string AiJobsTitle = AiActions;
-        public const string NoAiJobs = NoAiActions;
-        public const string AiJobsUnavailable = AiActionsUnavailable;
         public const string NoReasonRecorded = "No reason recorded";
         public const string OpenCase = "Open Case";
         public const string Previous = "Previous";

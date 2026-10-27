@@ -164,13 +164,10 @@ internal sealed class EfRecentCaseQueries(
     }
 
     /// <summary>
-    /// The arrival sub-filter (v42 Design A): the channel the row derives, so a
-    /// Case with no receipt is Manual or Automation by the actor that created it.
-    /// </summary>
-    /// <summary>
-    /// The same arms as <see cref="RecentCasesPolicy.Arrival"/>: a named channel
-    /// wins, and a Case with no receipt — or a channel that is none of the four —
-    /// is Manual or Automation by the actor that created it.
+    /// The arrival sub-filter (v42 Design A), the same arms as
+    /// <see cref="RecentCasesPolicy.Arrival"/>: a named channel wins, and a Case
+    /// with no receipt — or a channel that is none of the four — is Manual or
+    /// Automation by the actor that created it.
     /// </summary>
     private static IQueryable<ArrivalRow> ArrivalFilter(IQueryable<ArrivalRow> rows, CaseArrival? arrival) => arrival switch
     {

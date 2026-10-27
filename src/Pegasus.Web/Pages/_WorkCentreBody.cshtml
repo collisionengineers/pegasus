@@ -123,19 +123,19 @@
             var metrics = Model.Metrics!;
             <nav class="wc-queues" aria-label="@Labels.OfficeQueueTotals">
                 <a class="wc-queue-cell wc-tone--amber" data-value="not_ready" asp-page="/Cases/Index" asp-route-tab="not_ready">
-                    <span class="wc-queue-label">Not ready</span>
+                    <span class="wc-queue-label">@Labels.NotReadyQueue</span>
                     <strong class="wc-queue-val">@metrics.NotReady</strong>
                 </a>
                 <a class="wc-queue-cell wc-tone--navy" data-value="review" asp-page="/Cases/Index" asp-route-tab="review">
-                    <span class="wc-queue-label">Review</span>
+                    <span class="wc-queue-label">@Labels.ReviewQueue</span>
                     <strong class="wc-queue-val">@metrics.Review</strong>
                 </a>
                 <a class="wc-queue-cell wc-tone--neutral" data-value="held" asp-page="/Cases/Index" asp-route-tab="held">
-                    <span class="wc-queue-label">Held</span>
+                    <span class="wc-queue-label">@Labels.HeldQueue</span>
                     <strong class="wc-queue-val">@metrics.Held</strong>
                 </a>
                 <a class="wc-queue-cell wc-tone--red" data-value="unidentified" asp-page="/Cases/Index" asp-route-tab="unassigned" asp-route-show="unidentified">
-                    <span class="wc-queue-label">Unidentified</span>
+                    <span class="wc-queue-label">@Labels.UnidentifiedQueue</span>
                     <strong class="wc-queue-val">@metrics.Unidentified</strong>
                 </a>
                 <a class="wc-queue-cell wc-tone--blue" data-value="triage" asp-page="/Cases/Index" asp-route-tab="triage">
@@ -567,13 +567,7 @@
                 <span class="meta">@Labels.NewCasesMeta(channelMeta.Page.TotalCount)</span>
             }
         </div>
-        <div class="wc-section-head">
-            <h2 id="wc-new-cases-title" tabindex="-1">@Labels.NewCases</h2>
-            @if (Model.NewCases is { } feedMeta)
-            {
-                <span class="meta">@Labels.NewCasesMeta(feedMeta.Page.TotalCount)</span>
-            }
-        </div>
+        <h2 id="wc-new-cases-title" class="sr-only" tabindex="-1">@Labels.NewCases</h2>
         @if (Model.NewCasesFailed)
         {
             <div class="notice notice--warning" role="status">
@@ -775,19 +769,17 @@
                 <a class="chip" href="@Model.PageUrl(tab: IndexModel.AiActionsTab, aiFilter: WorkCentreAiActionFilter.QueryDraft)" aria-current="@(Model.AiFilter == WorkCentreAiActionFilter.QueryDraft ? "true" : "false")" data-wc-ai-filter="query-draft">@Labels.DraftToQuery<span class="n">@Model.AiJobs.Count(row => WorkCentreAiActionPolicy.Matches(WorkCentreAiActionFilter.QueryDraft, row.Job))</span></a>
                 <a class="chip" href="@Model.PageUrl(tab: IndexModel.AiActionsTab, aiFilter: WorkCentreAiActionFilter.Failed)" aria-current="@(Model.AiFilter == WorkCentreAiActionFilter.Failed ? "true" : "false")" data-wc-ai-filter="failed">@Labels.Failed<span class="n">@Model.AiJobs.Count(row => WorkCentreAiActionPolicy.Matches(WorkCentreAiActionFilter.Failed, row.Job))</span></a>
             </div>
-        </div>
-        <div class="wc-section-head">
-            <h2 id="wc-ai-jobs-title" tabindex="-1">@Labels.AiActions</h2>
             @if (!Model.AiJobsUnavailable)
             {
                 <span class="meta">@Labels.AiJobsMeta(Model.AiJobs.Count(row => row.Job.State == AiJobState.DraftReady), Model.AiJobs.Count(row => row.Job.State == AiJobState.Failed))</span>
             }
         </div>
+        <h2 id="wc-ai-jobs-title" class="sr-only" tabindex="-1">@Labels.AiActions</h2>
         @if (Model.AiJobsUnavailable)
         {
             <div class="notice notice--warning" role="status">
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
-                <span>@Labels.AiJobsUnavailable</span>
+                <span>@Labels.AiActionsUnavailable</span>
             </div>
         }
         else if (Model.ShownAiJobs.Count == 0)

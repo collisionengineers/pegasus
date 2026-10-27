@@ -10,9 +10,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// Who took an AI estimate into a Case (v42 Design A). The signal is a
 /// <c>CaseRepairSpecifications</c> row with <c>SourceRoute = AiDraft</c> and
 /// the job's id, not <see cref="Pegasus.Core.AiWork.AiJobState.Taken"/>. The
-/// Engineer is the staff act that set that specification current, read from
-/// the history the act wrote; a staff save of the draft is the fallback when
-/// no such act is recorded.
+/// Engineer is the staff act that set that specification current (Use repair
+/// spec), read from the history the act wrote; a draft nobody has used is not
+/// adopted.
 /// </summary>
 internal sealed class EfAiDraftAdoptionQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : IAiDraftAdoptionQueries
@@ -39,9 +39,7 @@ internal sealed class EfAiDraftAdoptionQueries(
             .Select(item => new SpecificationRow(
                 item.AiJobId!.Value,
                 item.Id,
-                item.Work.CaseId,
-                item.CreatedBy,
-                item.CreatedAtUtc))
+                item.Work.CaseId))
             .ToArrayAsync(cancellationToken);
         if (specifications.Length == 0)
         {
@@ -74,26 +72,16 @@ internal sealed class EfAiDraftAdoptionQueries(
     /// The earliest staff act that made one of the job's drafted specifications
     /// current. The set-current payload names the specification as <c>id</c>
     /// (the store serialises with the web defaults). A later switch away does
-    /// not forget who took it. With no such act, the staff member who saved the
-    /// draft is the adopter.
+    /// not forget who took it.
     /// </summary>
     private static Guid? AdoptingStaff(IReadOnlyList<SpecificationRow> specifications, IReadOnlyList<HistoryRow> history)
     {
         var ids = specifications.Select(item => item.SpecificationId).ToHashSet();
         var caseKeys = specifications.Select(item => item.CaseId.ToString("D")).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var first = history
+        return history
             .Where(item => caseKeys.Contains(item.AggregateId) && NamesSpecification(item.AfterJson, ids))
             .OrderBy(item => item.OccurredAtUtc)
             .Select(item => Guid.TryParse(item.ActorSubjectId, out var staffId) ? staffId : (Guid?)null)
-            .FirstOrDefault(item => item is not null);
-        if (first is { } adoptedBy)
-        {
-            return adoptedBy;
-        }
-
-        return specifications
-            .OrderBy(item => item.CreatedAtUtc)
-            .Select(item => Guid.TryParse(item.CreatedBy, out var staffId) ? staffId : (Guid?)null)
             .FirstOrDefault(item => item is not null);
     }
 
@@ -118,9 +106,7 @@ internal sealed class EfAiDraftAdoptionQueries(
     private sealed record SpecificationRow(
         Guid JobId,
         Guid SpecificationId,
-        Guid CaseId,
-        string CreatedBy,
-        DateTimeOffset CreatedAtUtc);
+        Guid CaseId);
 
     private sealed record HistoryRow(
         string AggregateId,

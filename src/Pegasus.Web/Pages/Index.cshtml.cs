@@ -131,7 +131,7 @@ public partial class IndexModel(
     /// <summary>The window's Cases before the channel and search filters, so an empty filter keeps the tab.</summary>
     public int NewCasesWindowCount => NewCases?.Page.ArrivalCounts.Values.Sum() ?? 0;
 
-    public bool ShowNewCases => NewCasesFailed || NewCasesWindowCount > 0 || (NewCases?.Page.TotalCount ?? 0) > 0
+    public bool ShowNewCases => NewCasesFailed || NewCasesWindowCount > 0
         || Arrival is not null || (Tab == NewCasesTab && Search is not null);
 
     public bool SystemActionsFailed => SystemActionsUnavailable || SystemActions is null;
@@ -515,9 +515,7 @@ public partial class IndexModel(
     /// <summary>The tab's count: the section's whole total, or a dash when it could not be read.</summary>
     public string TabCount(string tab) => tab switch
     {
-        NewCasesTab => NewCasesFailed
-            ? "—"
-            : (NewCasesWindowCount > 0 ? NewCasesWindowCount : NewCases!.Page.TotalCount).ToString(CultureInfo.InvariantCulture),
+        NewCasesTab => NewCasesFailed ? "—" : NewCasesWindowCount.ToString(CultureInfo.InvariantCulture),
         SystemActionsTab => SystemActionsFailed ? "—" : SystemActionsWindowCount.ToString(CultureInfo.InvariantCulture),
         AiActionsTab => AiJobsUnavailable ? "—" : AiJobs.Count.ToString(CultureInfo.InvariantCulture),
         _ => AttentionFailed ? "—" : ScopeTotal.ToString(CultureInfo.InvariantCulture)
