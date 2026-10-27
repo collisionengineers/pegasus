@@ -1651,11 +1651,14 @@ internal sealed class EfIntakeMutationStore(
             caseIds.AddRange(current.Current.Values.Select(item => item.CaseId));
         }
 
+        // Sent outcomes and report-sent evidence retain the transport Message-ID
+        // verbatim; the reply identities are canonical (trimmed, upper-cased), so
+        // the stored side is folded the same way rather than relying on collation.
         var sentCaseIdentities = await context.ApprovedSentPollOutcomes
             .AsNoTracking()
             .Where(item => item.InternetMessageIdentity != null
                 && item.AuthoritativeCaseIdentitiesJson != null
-                && replyIdentities.Contains(item.InternetMessageIdentity))
+                && replyIdentities.Contains(item.InternetMessageIdentity.Trim().ToUpper()))
             .Select(item => item.AuthoritativeCaseIdentitiesJson!)
             .ToListAsync(cancellationToken);
         foreach (var identities in sentCaseIdentities)
@@ -1668,7 +1671,7 @@ internal sealed class EfIntakeMutationStore(
         var reportSentCaseIds = await context.CaseReportSentEvidence
             .AsNoTracking()
             .Where(item => item.CaseId != null
-                && replyIdentities.Contains(item.InternetMessageIdentity))
+                && replyIdentities.Contains(item.InternetMessageIdentity.Trim().ToUpper()))
             .Select(item => item.CaseId!.Value)
             .ToListAsync(cancellationToken);
         caseIds.AddRange(reportSentCaseIds);

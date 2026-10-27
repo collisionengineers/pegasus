@@ -91,9 +91,9 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
 
     /// <summary>
     /// The exact messages a reply answers are read from its In-Reply-To and
-    /// References headers in the canonical comparison form, de-duplicated, and
-    /// an identity outside the storage bound is dropped rather than kept
-    /// (D13; the retained reply-identity column).
+    /// References headers, In-Reply-To first, in the canonical comparison form,
+    /// de-duplicated, and an identity outside the storage bound is dropped
+    /// rather than kept (D13; the retained reply-identity column).
     /// </summary>
     [Fact]
     public async Task LocalEmailDisplayKeepsTheCanonicalDistinctReplyChainIdentities()
@@ -108,7 +108,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         });
 
         Assert.Equal(
-            ["<FIRST@EXAMPLE.INVALID>", "<SECOND@EXAMPLE.INVALID>"],
+            ["<SECOND@EXAMPLE.INVALID>", "<FIRST@EXAMPLE.INVALID>"],
             display.InReplyToIdentities ?? []);
     }
 

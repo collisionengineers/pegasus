@@ -113,7 +113,7 @@ public static partial class LocalEmailDisplayReader
     private static string[] ReplyIdentities(MimeMessage message)
     {
         var identities = new List<string>();
-        foreach (var value in message.References.Append(message.InReplyTo))
+        foreach (var value in message.References.Prepend(message.InReplyTo))
         {
             if (string.IsNullOrWhiteSpace(value))
             {
