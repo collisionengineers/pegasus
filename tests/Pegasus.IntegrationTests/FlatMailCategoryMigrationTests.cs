@@ -17,6 +17,12 @@ namespace Pegasus.IntegrationTests;
 public sealed class FlatMailCategoryMigrationTests
 {
     private const string PreviousMigration = "20261012120000_MailboxIncomingOutgoing";
+
+    /// <summary>
+    /// The last migration before 20261027160000_ThreeMailCategories folds these
+    /// categories again; that migration has its own test, so this one stops here.
+    /// </summary>
+    private const string LastFlatCategoryMigration = "20261027140000_AssignableCaseQueries";
     private const string Recorded = "2031-05-06T10:30:00+00:00";
     private const string HistoryReceipt = "a9000000-0000-0000-0000-000000000001";
     private const string UnidentifiedId = "a9000000-0000-0000-0000-0000000000a1";
@@ -54,9 +60,8 @@ public sealed class FlatMailCategoryMigrationTests
         await context.Database.MigrateAsync(PreviousMigration);
         await database.ExecuteAsync(SeedSql());
 
-        await context.Database.MigrateAsync();
+        await context.Database.MigrateAsync(LastFlatCategoryMigration);
 
-        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
         foreach (var decision in Decisions)
         {
             var actual = await database.ScalarAsync<string>(
