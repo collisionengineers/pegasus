@@ -702,6 +702,7 @@ public sealed class AutomationMailIngressTests
                         "inbox",
                         $"conversation-{MailboxId}",
                         $"<{identity}@example.invalid>",
+                        [],
                         "sender@example.invalid",
                         "A Sender",
                         ["intake@collisionengineers.co.uk"],

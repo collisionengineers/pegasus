@@ -25,7 +25,8 @@ public sealed record LocalEmailDisplay(
     IReadOnlyList<string>? CcAddresses = null,
     IReadOnlyList<RetainedMailboxAttachment>? Attachments = null,
     string? MessageIdentity = null,
-    string? ThreadIdentity = null);
+    string? ThreadIdentity = null,
+    IReadOnlyList<string>? InReplyToIdentities = null);
 
 /// <summary>
 /// Reads only decoded message display data. It never renders HTML or resolves resources.
@@ -99,7 +100,47 @@ public static partial class LocalEmailDisplayReader
             NullIfBlank(message.MessageId),
             // The conversation this message belongs to, as the MIME can express it:
             // the root of its References chain, or itself where it starts one.
-            NullIfBlank(message.References.FirstOrDefault()) ?? NullIfBlank(message.MessageId));
+            NullIfBlank(message.References.FirstOrDefault()) ?? NullIfBlank(message.MessageId),
+            ReplyIdentities(message));
+    }
+
+    /// <summary>
+    /// The exact messages this one answers, from its In-Reply-To and References
+    /// headers, in the one comparison representation storage uses. A header
+    /// value outside the identity bound is dropped rather than poisoning the
+    /// whole message, and the list is capped because it becomes a query bound.
+    /// </summary>
+    private static string[] ReplyIdentities(MimeMessage message)
+    {
+        var identities = new List<string>();
+        foreach (var value in message.References.Append(message.InReplyTo))
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            string canonical;
+            try
+            {
+                canonical = MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(value);
+            }
+            catch (ArgumentException)
+            {
+                continue;
+            }
+
+            if (!identities.Contains(canonical, StringComparer.Ordinal))
+            {
+                identities.Add(canonical);
+                if (identities.Count == MailboxMessageIdentity.MaximumReplyIdentities)
+                {
+                    break;
+                }
+            }
+        }
+
+        return identities.ToArray();
     }
 
     private static string[] Addresses(InternetAddressList list) =>

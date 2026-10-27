@@ -6440,6 +6440,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("InReplyToIdentitiesJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("InternetMessageIdentity")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
