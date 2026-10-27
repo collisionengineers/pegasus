@@ -182,7 +182,7 @@ never changes the Case state and records no handoff.
   1 October 2026).
 - **Log query** records a query that reached the office outside Pegasus's
   mail: its channel (E-mail, Phone, WhatsApp, Other) and its details. It is
-  offered only on a Report sent Case. **Resolve query** closes every open
+  offered only on a Report sent Case. **Mark done** closes one open
   query on the Case at once; neither asks for a reason
   ([Report sent and queries](#report-sent-and-queries)).
 - **Create audit** adds the Audit to an Inspection + Audit Case
@@ -230,46 +230,50 @@ association never links new material to an archived Case.
 ### Report sent and queries
 
 The Engineer answers queries from the Principal, a third-party insurer or
-the claimant; a dispute is a query. A query is a record on the Case
-(operator, 11 October 2026). It is raised in three ways:
+the claimant; a dispute is a query. A query is a record on the Case, never
+a state (operator, 11 October 2026; assignable, 27 October 2026,
+[ADR-0085](../adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)).
+It is opened in two ways, and only once the report is sent, on a Case that
+is not archived:
 
-- a received e-mail classified as Query that joins a Report sent Case,
-  by automatic association, a staff link or a classification correction
-  (the Correspondence tab's **Tag as query** is that correction in one
-  click, recorded with the reason "Tagged as query"); staff and the
-  Automation Actor both tag this way;
-- **Log query**, from the Actions menu or `pegasus_case_action`, on a Report
-  sent Case: the channel it came by and its details;
-- a received e-mail with no classification of its own that joins a Report
-  sent Case: [case-state classification](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)
-  makes it Query in the same transaction, so an automatic association or a
-  staff link raises the query without a separate correction (operator,
-  8 October 2026).
+- a received e-mail classified as Query that joins a Report sent Case, by
+  automatic association, a staff link or a classification correction, when
+  that message does not already hold an open query; or **Open query** on
+  Correspondence, which opens one on a received e-mail that holds no
+  non-withdrawn query;
+- **Log query**, from the Actions menu or `pegasus_case_query`, on a Report
+  sent Case: the channel it came by and its details.
 
-A Query e-mail joining a Case in any other state raises nothing. The
-Case's Engineer is told of a query raised from mail
-([FRD-12](frd-12-operator-experience.md#shell-and-routes)).
+A new query is Unassigned until a staff member takes it or assigns it.
+Assign and Take need no Case edit lease, no expected version and no reason.
+Assigning a query to someone other than the actor raises Query assigned
+([FRD-12](frd-12-operator-experience.md#shell-and-routes)). The Case's
+Engineer is told when a query is opened from an e-mail, unless they opened
+it. A Query e-mail joining a Case whose report is not sent raises nothing.
 
 While any query is open the Case reads **Query** on every screen, queue and
 filter, in purple, whatever its state; the Queries section lists the open
-queries first and the resolved ones after them; and on a Report sent Case
-the Next action is **Resolve query**
+queries first and the Done ones after them; and the Next action is
+**Answer query**
 ([FRD-16](frd-16-case-record-workspace.md#queries)). A query stays open
 when the Case leaves Report sent (Return to Engineer, Create audit, Unlink
-report evidence) and is resolved from wherever the Case then is.
+report evidence).
 
-A query is resolved in one of three ways, each closing every open query on
-the Case at once: **Resolve query** from the Actions menu or the Next
-action; the reply composer's **Also resolve query** tick, applied when the
-reply's Sent item is observed ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence));
-or `pegasus_case_action` resolve_query and `pegasus_mail_send` resolveQuery.
-A reply without the tick resolves nothing; a draft or an acknowledgement is
-not a reply. Unlinking a tagged e-mail, or correcting its classification
-away from Query, withdraws the open query it raised and no other;
-a withdrawn query is not listed. Every raise, withdrawal and resolution is
-Case history, and none erases earlier history. Pegasus keeps the received
-query and the actual reply as Case correspondence. Further engineering
-edits go through Return to Engineer.
+Each open query is marked done on its own: **Mark done** on its row, or
+**Reply** with the composer's **Mark query done** tick, applied to that
+message's query alone when the reply's Sent item is observed
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+`pegasus_case_query` mark_done and `pegasus_mail_send` markQueryDone are
+the same acts. A reply without the tick marks nothing done; a draft or an
+acknowledgement is not a reply. Any staff role and Automation may reopen a
+Done query (resolved, not withdrawn) with no reason while the Case is not
+archived or closed. Unlinking a tagged e-mail, or correcting its
+classification away from Query, withdraws the open query it raised and no
+other; a withdrawn query is not listed. There is no separate withdraw
+button. Every open, mark done, reopen, assign and withdrawal is Case
+history, and none erases earlier history. Pegasus keeps the received query
+and the actual reply as Case correspondence. Further engineering edits go
+through Return to Engineer.
 
 ### Create audit
 
@@ -454,8 +458,10 @@ Automation Actor action.
 | Report sent | With Engineer | Return to Engineer (reason), or Unlink report evidence |
 | With Engineer, Report sent | Review | Return to Review (reason) |
 | Not ready, Review, With Engineer, Report sent | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
-| any open state | same state, query open | A Query e-mail joining a Report sent Case; Log query on a Report sent Case |
-| any open state, query open | same state, no query open | Resolve query; a reply with Also resolve query reaching Sent; the last tagged e-mail unlinked or corrected away |
+| any open state | same state, query open | A Query e-mail joining a Report sent Case; Open query; Log query on a Report sent Case |
+| any open state, query open | same state, that query Done | Mark done; a reply with Mark query done reaching Sent, for that message's query |
+| any open state, query Done | same state, that query open | Reopen, while the Case is not archived or closed |
+| any open state, query open | same state, that query withdrawn | The tagged e-mail unlinked or corrected away |
 | pre-report states | Principal cancelled, Collision Engineers rejected | Close case (reason) |
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |

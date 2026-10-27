@@ -150,7 +150,9 @@ notification is raised for exactly these causes:
 - a Case is assigned to an Engineer: to that Engineer;
 - a Case an Engineer is assigned to is edited by someone else, receives an
   e-mail, receives a query, or, while it is open, receives a cancellation or
-  has a linked message corrected to one: to that Engineer.
+  has a linked message corrected to one: to that Engineer;
+- a query is assigned to a staff member other than the actor: to that
+  assignee, opening the Case's Queries section.
 
 Nobody is notified of their own act. There is no e-mail notification. The
 dialog lists notifications newest first with the Case reference,

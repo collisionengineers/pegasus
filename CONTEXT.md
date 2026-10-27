@@ -209,10 +209,13 @@ completed (operator, 11 October 2026;
 _Avoid_: Completed, Complete, Post-report, Closed
 
 **Query**:
-A record on a Case: a received e-mail classified Query, or a query
-staff logged with its channel and details. While any is open the Case reads
-Query, in purple, whatever its state; Resolve query closes every open one.
-A dispute, a challenge to a delivered report or finding, is a query: there is
-no separate dispute type, count or column (operator, 9 October 2026). An
-amendment request is a query too (operator, 12 October 2026).
+A record on a Case, opened once the report is sent: a linked e-mail, or a
+query staff logged with its channel and details. A new query is Unassigned
+until taken or assigned. Each open query is marked done on its own, and a
+Done query can be reopened. While any is open the Case reads Query, in
+purple, whatever its stored state. A dispute, a challenge to a delivered
+report or finding, is a query: there is no separate dispute type, count or
+column (operator, 9 October 2026). An amendment request is a query too
+(operator, 12 October 2026;
+[ADR-0085](docs/adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)).
 _Avoid_: Query state, Dispute as its own category

@@ -3,7 +3,7 @@ id: ADR-0067
 status: accepted
 date: 2026-10-11
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0085]
 related_capabilities: [CASE-16, CASE-23]
 related_frd: [FRD-13, FRD-15, FRD-16, FRD-21, FRD-10]
 tags: [case-lifecycle, queries, persistence, migration]

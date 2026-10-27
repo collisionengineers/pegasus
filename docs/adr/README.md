@@ -87,12 +87,12 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | ADR-0068 (`pegasus_mail_send` new mode), ADR-0069 (mail folder move), ADR-0075 (decision 7: staff Take over of an Automation lease) | MCP-01, MCP-02, MCP-06 |
 | [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03, EXT-04, UI-04 |
 | [ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md) | Cazana valuation through a Key Vault-held API key | superseded | ADR-0079 | EXT-07, EXT-13 |
-| [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | — | CASE-16, CASE-23 |
+| [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | ADR-0085 (per-query Mark done, Reopen and Assign) | CASE-16, CASE-23 |
 | [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md) | Incoming and Outgoing mailboxes, and Case mail replies to its instruction | accepted | — | MAIL-12, MAIL-14, MAIL-18, INT-05, INT-06, INT-07 |
 | [ADR-0069](0069-one-flat-mail-category.md) | One flat mail category | accepted | ADR-0072 (Inbox scope rail; Unidentified as undecided mail) | MAIL-02, MAIL-21, MAIL-22, UI-14 |
 | [ADR-0070](0070-case-state-mail-classification.md) | Case-state mail classification | accepted | ADR-0072 (closed and Triage Case arms; link reach; Inbox scope consequence) | MAIL-02, MAIL-03, MAIL-04, MAIL-09, MAIL-21 |
 | [ADR-0071](0071-move-answered-instruction-to-deleted-items.md) | Move the answered instruction to Deleted Items after a confirmed report send | accepted | — | MAIL-25 |
-| [ADR-0072](0072-only-images-become-unidentified-and-no-case-found-mail.md) | Only images become Unidentified, and mail with no Case is No Case Found | accepted | — | INT-23, MAIL-02, UI-14, UI-18 |
+| [ADR-0072](0072-only-images-become-unidentified-and-no-case-found-mail.md) | Only images become Unidentified, and mail with no Case is No Case Found | accepted | ADR-0085 (case-state classification arms) | INT-23, MAIL-02, UI-14, UI-18 |
 | [ADR-0073](0073-send-to-ai-hand-off-record-retired.md) | The Send to AI hand-off record is retired | accepted | — | AI-10, AI-09 |
 | [ADR-0074](0074-read-committed-default-transaction-isolation.md) | Read committed is the default transaction isolation | accepted | — | — |
 | [ADR-0075](0075-staff-take-over-of-an-automation-lease.md) | Staff may take over an Automation lease | accepted | — | CASE-27, MCP-01 |
@@ -105,6 +105,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0082](0082-the-deployment-plan-check-does-not-read-the-app-service-quota.md) | The deployment plan check does not read the App Service quota | accepted | — | OPS-13 |
 | [ADR-0083](0083-stage-large-automation-documents-in-parts.md) | Stage large Automation documents in parts | accepted | — | MCP-04 |
 | [ADR-0084](0084-brego-valuation-account-and-valuation-report.md) | Brego valuation account and Valuation Report | accepted | — | EXT-07, EXT-13 |
+| [ADR-0085](0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md) | Mail is instructions or Case correspondence, and queries are assignable records | accepted | — | CASE-16, CASE-23, MAIL-02 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
