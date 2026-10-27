@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -18,7 +17,7 @@ internal sealed class EfSystemActionQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : ISystemActionQueries
 {
     private const string AutoLinkEvent = "intake_case_linked_automatic";
-    private const string MergeEvent = "image_initiated_case_merged";
+    private const string MergeEvent = "merged_into_instruction_case";
     private const string QueryReceivedEvent = "case_query_received";
     private const string QueryLoggedEvent = "case_query_logged";
     private static readonly string SystemWorkerActorKind = nameof(ActorKind.SystemWorker);
@@ -116,65 +115,34 @@ internal sealed class EfSystemActionQueries(
     }
 
     /// <summary>
-    /// An image-initiated Case merged into the instruction Case. The event is
-    /// <c>image_initiated_case_merged</c> on the Case workflow. The store writes
-    /// the image intake id into the after payload (<see cref="EfImageIntakeStore"/>);
-    /// that payload is kept on the action history, not on the workflow event's
-    /// <c>ResultJson</c>, which this writer leaves empty.
+    /// An image-initiated Case merged into the instruction Case: the image
+    /// intake's own <c>merged_into_instruction_case</c> lifecycle event, which
+    /// names the intake, the Case and the instant (<see cref="EfImageIntakeStore"/>).
     /// </summary>
     private async Task<Raw[]> ReadImagesAsync(DateTimeOffset sinceUtc, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var events = await (
-            from merged in context.CaseWorkflowEvents.AsNoTracking()
-            where merged.EventType == MergeEvent && merged.OccurredAtUtc >= sinceUtc
-            join caseEntity in context.Cases.AsNoTracking() on merged.CaseId equals caseEntity.Id
-            join history in context.ActionHistory.AsNoTracking()
-                on merged.OperationKey equals history.CorrelationId
-            where history.EventKind == MergeEvent && history.AggregateType == "case"
-            select new ImageEvent(
+        var dismissals = context.Set<WorkCentreDismissalEntity>();
+        return await (
+            from merged in context.ImageIntakeLifecycleEvents.AsNoTracking()
+            where merged.EventType == MergeEvent
+                && merged.OccurredAtUtc >= sinceUtc
+                && merged.CaseId != null
+            join intake in context.ImageIntakes.AsNoTracking() on merged.ImageIntakeId equals intake.Id
+            join caseEntity in context.Cases.AsNoTracking() on merged.CaseId equals (Guid?)caseEntity.Id
+            where !dismissals.Any(dismissal => dismissal.RecordId == intake.Id
+                && dismissal.DismissedAtUtc >= merged.OccurredAtUtc)
+            select new Raw(
+                SystemActionKind.VehicleImagesPaired,
+                intake.Id,
                 caseEntity.Id,
                 caseEntity.Reference,
                 merged.OccurredAtUtc,
-                merged.Reason,
-                history.AggregateId,
-                history.AfterJson))
-            .ToArrayAsync(cancellationToken);
-        // The payload is stored against the Case id in "D" form. The comparison
-        // stays here: a Guid's string form does not translate.
-        var matched = events
-            .Where(item => string.Equals(item.AggregateId, item.CaseId.ToString("D"), StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        if (matched.Length == 0)
-        {
-            return [];
-        }
-
-        var parsed = matched
-            .Select(item => (item, intake: ReadImageIntake(item.AfterJson)))
-            .Where(item => item.intake is not null)
-            .Select(item => item.item with { IntakeId = item.intake!.Value.Id, IntakeReference = item.intake.Value.Reference })
-            .ToArray();
-        var recordIds = parsed.Select(item => item.IntakeId).Distinct().ToArray();
-        await using var dismissalContext = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var dismissed = await dismissalContext.Set<WorkCentreDismissalEntity>().AsNoTracking()
-            .Where(item => recordIds.Contains(item.RecordId))
-            .Select(item => new { item.RecordId, item.DismissedAtUtc })
-            .ToArrayAsync(cancellationToken);
-        return parsed
-            .Where(item => !dismissed.Any(dismissal => dismissal.RecordId == item.IntakeId
-                && dismissal.DismissedAtUtc >= item.OccurredAtUtc))
-            .Select(item => new Raw(
-                SystemActionKind.VehicleImagesPaired,
-                item.IntakeId,
-                item.CaseId,
-                item.Reference,
-                item.OccurredAtUtc,
-                item.IntakeReference ?? item.Reason ?? string.Empty,
-                item.Reason ?? string.Empty,
+                intake.ImageIntakeReference,
+                merged.Reason ?? string.Empty,
                 null,
                 false))
-            .ToArray();
+            .ToArrayAsync(cancellationToken);
     }
 
     /// <summary>A query opened by the Worker or the Automation actor. Take is offered only while it is unassigned.</summary>
@@ -360,34 +328,6 @@ internal sealed class EfSystemActionQueries(
             row.QueryUnassigned);
     }
 
-    /// <summary>The after payload <see cref="EfImageIntakeStore"/> writes: image intake id and reference.</summary>
-    private static (Guid Id, string? Reference)? ReadImageIntake(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(json);
-            if (!document.RootElement.TryGetProperty("ImageIntakeId", out var id)
-                || !Guid.TryParse(id.GetString(), out var parsed))
-            {
-                return null;
-            }
-
-            var reference = document.RootElement.TryGetProperty("ImageIntakeReference", out var named)
-                ? named.GetString()
-                : null;
-            return (parsed, reference);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
     private sealed record Raw(
         SystemActionKind Kind,
         Guid RecordId,
@@ -398,19 +338,6 @@ internal sealed class EfSystemActionQueries(
         string Signal,
         Guid? QueryId,
         bool QueryUnassigned);
-
-    private sealed record ImageEvent(
-        Guid CaseId,
-        string Reference,
-        DateTimeOffset OccurredAtUtc,
-        string? Reason,
-        string AggregateId,
-        string? AfterJson)
-    {
-        public Guid IntakeId { get; init; }
-
-        public string? IntakeReference { get; init; }
-    }
 
     private sealed record CancellationCandidate(
         Guid ReceiptId,

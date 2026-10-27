@@ -67,9 +67,9 @@ public sealed class SystemActionsPersistenceTests
         var cancelCase = Guid.NewGuid();
         var mailReceipt = Guid.NewGuid();
         var cancelReceipt = Guid.NewGuid();
+        var imageReceipt = Guid.NewGuid();
         var imageIntake = Guid.NewGuid();
         var queryId = Guid.NewGuid();
-        var mergeKey = $"image-merge:{imageCase:N}";
 
         context.AddRange(
             Case(mailCase, principal, 1),
@@ -81,7 +81,8 @@ public sealed class SystemActionsPersistenceTests
             Workflow(queryCase),
             Workflow(cancelCase),
             Receipt(mailReceipt, "mail"),
-            Receipt(cancelReceipt, "cancel"));
+            Receipt(cancelReceipt, "cancel"),
+            Receipt(imageReceipt, "image"));
         context.AddRange(
             Association(mailReceipt, mailCase, "Automatic association from conversation thread."),
             Association(cancelReceipt, cancelCase, "Cancellation linked."),
@@ -89,34 +90,43 @@ public sealed class SystemActionsPersistenceTests
             Message(mailReceipt, "mail", "Revised figures"),
             Message(cancelReceipt, "cancel", "Instruction cancellation"),
             Classification(cancelReceipt),
-            new CaseWorkflowEventEntity
+            new ImageIntakeEntity
+            {
+                Id = imageIntake,
+                OriginReceiptId = imageReceipt,
+                SourceChannel = "mailbox",
+                ExternalReceiptToken = $"sys:image:{imageReceipt:N}",
+                SourceHash = new string('i', 64),
+                EvaluationRevisionId = Guid.NewGuid(),
+                NormalizedVehicleRegistration = "GJ13EVC",
+                ImageIntakeReference = "GJ13EVC-01",
+                CreatedAtUtc = At.AddHours(-1),
+                CreatedByActorKind = "SystemWorker",
+                CreatedByActorSubjectId = "system-worker:image-intake",
+                Reason = "Registered.",
+                CreationOperationKey = $"image:{imageReceipt:N}",
+                RequestFingerprint = new string('a', 64),
+                LifecycleState = "merged_into_instruction_case",
+                LifecycleVersion = 2,
+                MergedIntoCaseId = imageCase,
+                MergedIntoCaseReference = "QDOS3100002"
+            },
+            new ImageIntakeLifecycleEventEntity
             {
                 Id = Guid.NewGuid(),
-                CaseId = imageCase,
-                EventType = "image_initiated_case_merged",
-                OperationKey = mergeKey,
-                RequestHash = new string('b', 64),
+                ImageIntakeId = imageIntake,
+                EventType = "merged_into_instruction_case",
                 ActorKind = "SystemWorker",
                 ActorSubjectId = "system-worker:image-intake",
                 ActorRolesJson = "[]",
                 Reason = "Image-initiated case GJ13EVC-01 merged into QDOS3100002: paired.",
+                OperationKey = $"image-merge:{imageIntake:N}",
+                RequestFingerprint = new string('b', 64),
                 OccurredAtUtc = At,
-                BeforeVersion = 0,
-                AfterVersion = 1
-            },
-            new ActionHistoryEntity
-            {
-                Id = Guid.NewGuid(),
-                AggregateType = "case",
-                AggregateId = imageCase.ToString("D"),
-                EventKind = "image_initiated_case_merged",
-                ActorKind = "SystemWorker",
-                ActorSubjectId = "system-worker:image-intake",
-                ActorRolesJson = "[]",
-                OccurredAtUtc = At,
-                Outcome = "Succeeded",
-                CorrelationId = mergeKey,
-                AfterJson = $"{{\"ImageIntakeId\":\"{imageIntake:D}\",\"ImageIntakeReference\":\"GJ13EVC-01\",\"State\":\"merged\"}}"
+                BeforeVersion = 1,
+                AfterVersion = 2,
+                CaseId = imageCase,
+                CaseReference = "QDOS3100002"
             },
             new CaseQueryEntity
             {
