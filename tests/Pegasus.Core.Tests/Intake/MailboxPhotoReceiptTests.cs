@@ -43,42 +43,38 @@ public sealed class MailboxPhotoReceiptTests
     }
 
     [Fact]
-    public void AMessageStaffClassifiedAsImagesReceivedIsRegisteredByStaffNotByAutomation()
+    public void UncategorisedImageOnlyMailIsEligibleAndACategoryIsNot()
     {
         var photos = Receipt([Asset("vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment)]);
-        var imagesReceived = photos with
+        var unclassified = photos with
         {
-            MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.Cancellation,
-                [], "Corrected by staff.", "shared-mail-policy", 1)
+            MailClassificationDecision = MailClassificationResult.Unclassified(
+                [], "No category.", "shared-mail-policy", 1)
         };
-        var caseUpdate = photos with
+        var classified = photos with
         {
             MailClassificationDecision = MailClassificationResult.Classified(
                 MailCategory.Cancellation,
                 [], "Corrected by staff.", "shared-mail-policy", 1)
         };
 
-        // Unclassified image material: both routes, as before.
         Assert.True(ImageIntakeLifecycleRules.IsImageAutomationEligible(photos));
         Assert.True(ImageIntakeLifecycleRules.IsImageRegistrationEligible(photos));
-        // Images received: staff may register; automation stays out (decision 1).
-        Assert.False(ImageIntakeLifecycleRules.IsImageAutomationEligible(imagesReceived));
-        Assert.True(ImageIntakeLifecycleRules.IsImageRegistrationEligible(imagesReceived));
-        // Any other detailed classification: neither.
-        Assert.False(ImageIntakeLifecycleRules.IsImageRegistrationEligible(caseUpdate));
-        // A Case already holding the material ends the offer.
-        Assert.False(ImageIntakeLifecycleRules.IsImageRegistrationEligible(imagesReceived with { AcceptedCaseId = Guid.NewGuid() }));
+        Assert.True(ImageIntakeLifecycleRules.IsImageAutomationEligible(unclassified));
+        Assert.True(ImageIntakeLifecycleRules.IsImageRegistrationEligible(unclassified));
+        Assert.False(ImageIntakeLifecycleRules.IsImageAutomationEligible(classified));
+        Assert.False(ImageIntakeLifecycleRules.IsImageRegistrationEligible(classified));
+        Assert.False(ImageIntakeLifecycleRules.IsImageRegistrationEligible(photos with { AcceptedCaseId = Guid.NewGuid() }));
     }
 
     /// <summary>
     /// R186 and R298 (operator, 22 October 2026): a mailbox receipt carrying a
     /// recognised report or a PDF is a document carrier. Its photographs stay
     /// selected, but it is neither Image Intake nor Unidentified material, and
-    /// staff classifying it Images received offers no registration either.
+    /// a category does not make it eligible to register as images.
     /// </summary>
     [Fact]
-    public void AMailboxDocumentCarrierIsNeverImageMaterialEvenClassifiedImagesReceived()
+    public void AMailboxDocumentCarrierIsNeverImageMaterial()
     {
         var photo = Asset("vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment);
         var carrier = Receipt([Asset("report.pdf", "application/pdf", IntakeAssetKind.Attachment), photo]) with

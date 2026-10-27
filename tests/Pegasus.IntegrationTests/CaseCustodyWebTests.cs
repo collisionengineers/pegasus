@@ -395,7 +395,10 @@ public sealed class CaseCustodyWebTests
                     "Forwarding Desk",
                     "desk@collisionengineers.co.uk",
                     "Repair query",
-                    MailCategory.Cancellation),
+                    null)
+                {
+                    Query = new(Guid.NewGuid(), true, null)
+                },
                 new(
                     senderlessId,
                     receivedAtUtc.AddMinutes(-1),
@@ -440,6 +443,8 @@ public sealed class CaseCustodyWebTests
         Assert.DoesNotContain("Forwarding Desk", visible, StringComparison.Ordinal);
         Assert.DoesNotContain("desk@collisionengineers.co.uk", visible, StringComparison.Ordinal);
         Assert.Contains("Repair query", visible, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.Inbox.Correspondence, visible, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Queries.Open, visible, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.MailClassification(MailCategory.Cancellation), visible, StringComparison.Ordinal);
         Assert.Contains("Sender unavailable", visible, StringComparison.Ordinal);
         Assert.DoesNotContain("Sender not recorded", visible, StringComparison.Ordinal);

@@ -5,22 +5,9 @@ namespace Pegasus.Core.Tests.Intake.Classification;
 public sealed class MailCategoryTests
 {
     [Fact]
-    public void ExactlyTheElevenCategoriesExist()
+    public void ExactlyTheThreeCategoriesExist()
     {
-        string[] expected =
-        [
-            "new-instruction",
-            "triage-request",
-            "pre-instruction",
-            "images-received",
-            "case-update",
-            "cancellation",
-            "query",
-            "billing",
-            "general",
-            "not-client-related",
-            "internal-cc"
-        ];
+        string[] expected = ["new-instruction", "triage-request", "cancellation"];
         Assert.Equal(expected, MailCategories.All.Select(MailCategories.Code).ToArray());
     }
 
@@ -39,6 +26,14 @@ public sealed class MailCategoryTests
     [Theory]
     [InlineData("unknown")]
     [InlineData("post-report-emails")]
+    [InlineData("query")]
+    [InlineData("case-update")]
+    [InlineData("pre-instruction")]
+    [InlineData("images-received")]
+    [InlineData("billing")]
+    [InlineData("general")]
+    [InlineData("not-client-related")]
+    [InlineData("internal-cc")]
     [InlineData("Query")]
     [InlineData("")]
     [InlineData(null)]

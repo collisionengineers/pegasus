@@ -60,13 +60,9 @@ public sealed class DesktopEvaluatorTests
 
         var snapshot = await CreateWorkflow().SelectFolderAsync(folder.Path);
 
-        // "general" is the Core mail category the QDOS policy's
-        // subject.automatic-reply predicate resolves to.
-        Assert.Equal(
-            $"Suggested: Received / general (policy {QdosMailClassificationPolicy.Key} v{QdosMailClassificationPolicy.Version})"
-                + $"{Environment.NewLine}Evidence:"
-                + $"{Environment.NewLine}  - subject.automatic-reply: The subject carries the generated 'Automatic reply:' prefix.",
-            snapshot.Suggestion);
+        // An automatic reply is plain correspondence: the policy leaves it
+        // unclassified, so the review shows no suggested category.
+        Assert.Equal("Suggested: No category", snapshot.Suggestion);
 
         var filed = await CreateWorkflow().SelectFolderAsync(folder.Path);
         Assert.Equal(snapshot.Suggestion, filed.Suggestion);

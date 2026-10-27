@@ -466,12 +466,11 @@ public sealed partial class TriageCaseWebTests
     }
 
     /// <summary>
-    /// A received message staff link to a Case without a category of its own
-    /// is Case update unless the report is sent — a Triage Case, which has no
-    /// lifecycle state, and a closed Case alike (operator, 13 October 2026).
+    /// A staff link does not classify the message. A Triage Case and a closed
+    /// Case stay as they are, and no query is opened.
     /// </summary>
     [Fact]
-    public async Task AStaffLinkedUnclassifiedMessageIsACaseUpdateOnATriageCaseAndAClosedCase()
+    public async Task AStaffLinkDoesNotClassifyTheMessageOrOpenAQuery()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -530,12 +529,14 @@ public sealed partial class TriageCaseWebTests
 
         foreach (var receiptId in new[] { triageReceiptId, caseReceiptId })
         {
-            var decision = Assert.IsType<MailClassificationResult>(
-                (await GetReceiptAsync(services, receiptId)).MailClassificationDecision);
-            Assert.Equal(MailClassificationOutcome.Classified, decision.Outcome);
-            Assert.Equal(MailCategory.Cancellation, decision.Category);
-            Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
+            Assert.Null((await GetReceiptAsync(services, receiptId)).MailClassificationDecision);
         }
+
+        await using var verify = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        Assert.Empty(await verify.CaseQueries
+            .Where(item => item.IntakeReceiptId == triageReceiptId || item.IntakeReceiptId == caseReceiptId)
+            .ToListAsync());
     }
 
     /// <summary>

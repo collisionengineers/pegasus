@@ -1663,8 +1663,9 @@ public sealed class StaffMailSendPersistenceTests
             MailClassificationDecision = new()
             {
                 IntakeReceiptId = receiptId,
-                Outcome = "classified",
-                Category = isQueryReceipt ? "query" : "general",
+                Outcome = isQueryReceipt ? "unclassified" : "classified",
+                Category = isQueryReceipt ? null : "cancellation",
+                OpensQuery = isQueryReceipt,
                 IsReplyContext = false,
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",
@@ -1955,8 +1956,9 @@ public sealed class StaffMailSendPersistenceTests
             MailClassificationDecision = new()
             {
                 IntakeReceiptId = receiptId,
-                Outcome = "classified",
-                Category = "query",
+                Outcome = "unclassified",
+                Category = null,
+                OpensQuery = true,
                 IsReplyContext = false,
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",
