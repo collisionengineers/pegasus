@@ -589,8 +589,10 @@ public static class DependencyInjection
         services.AddScoped<ICloseCase, CloseCase>();
         services.AddScoped<IReopenCase, ReopenCase>();
         services.AddScoped<IReturnCaseToEngineer, ReturnCaseToEngineer>();
-        services.AddScoped<IRaiseCaseQuery, RaiseCaseQuery>();
-        services.AddScoped<IResolveCaseQueries, ResolveCaseQueries>();
+        services.AddScoped<IOpenCaseQuery, OpenCaseQuery>();
+        services.AddScoped<IMarkCaseQueryDone, MarkCaseQueryDone>();
+        services.AddScoped<IReopenCaseQuery, ReopenCaseQuery>();
+        services.AddScoped<IAssignCaseQuery, AssignCaseQuery>();
         services.AddScoped<IArchiveCase, ArchiveCase>();
         services.AddScoped<IRecordManualCaseChase, RecordManualCaseChase>();
 

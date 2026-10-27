@@ -89,6 +89,9 @@ internal static class CaseWorkflowModelConfiguration
             entity.HasIndex(item => new { item.CaseId, item.IntakeReceiptId })
                 .IsUnique()
                 .HasFilter("[ClosedAtUtc] IS NULL AND [IntakeReceiptId] IS NOT NULL");
+            // Open queries are the Work Centre's Query rows and the Case's open-query mark.
+            entity.HasIndex(item => new { item.AssigneeStaffId, item.RaisedAtUtc })
+                .HasFilter("[ClosedAtUtc] IS NULL");
             entity.HasOne(item => item.Workflow).WithMany().HasForeignKey(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<IntakeReceiptEntity>().WithMany().HasForeignKey(item => item.IntakeReceiptId).OnDelete(DeleteBehavior.Restrict);
         });

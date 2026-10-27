@@ -259,4 +259,78 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
                 row.CreatedByStaffId))
             .ToArray();
     }
+
+    public async Task<IReadOnlyList<OpenCaseQuery>> ListOpenQueriesForAttentionAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await (
+            from query in context.CaseQueries.AsNoTracking()
+            where query.ClosedAtUtc == null
+            join workflow in context.CaseWorkflows.AsNoTracking() on query.CaseId equals workflow.CaseId
+            where workflow.ArchivedAtUtc == null
+            join caseEntity in context.Cases.AsNoTracking() on query.CaseId equals caseEntity.Id
+            join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
+                on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
+            from receipt in receipts.DefaultIfEmpty()
+            join draftCandidate in context.Set<InstructionDraftEntity>().AsNoTracking()
+                on receipt.Id equals draftCandidate.IntakeReceiptId into drafts
+            from draft in drafts.DefaultIfEmpty()
+            join confirmedRegistrationCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                        && item.ValueKind == CaseDataCodes.Confirmed)
+                on caseEntity.Id equals confirmedRegistrationCandidate.WorkId into confirmedRegistrations
+            from confirmedRegistration in confirmedRegistrations.DefaultIfEmpty()
+            join confirmedMakeCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
+                        && item.ValueKind == CaseDataCodes.Confirmed)
+                on caseEntity.Id equals confirmedMakeCandidate.WorkId into confirmedMakes
+            from confirmedMake in confirmedMakes.DefaultIfEmpty()
+            join confirmedModelCandidate in context.CaseDataFields.AsNoTracking()
+                    .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
+                        && item.ValueKind == CaseDataCodes.Confirmed)
+                on caseEntity.Id equals confirmedModelCandidate.WorkId into confirmedModels
+            from confirmedModel in confirmedModels.DefaultIfEmpty()
+            select new
+            {
+                query.Id,
+                query.CaseId,
+                caseEntity.Reference,
+                Registration = draft == null ? confirmedRegistration!.Value : draft.VehicleRegistration,
+                VehicleMake = draft == null ? confirmedMake!.Value : draft.VehicleMake,
+                VehicleModel = draft == null ? confirmedModel!.Value : draft.VehicleModel,
+                query.Details,
+                query.IntakeReceiptId,
+                query.AssigneeStaffId,
+                query.RaisedAtUtc
+            }).ToArrayAsync(cancellationToken);
+        var receiptIds = rows
+            .Where(row => row.IntakeReceiptId is not null)
+            .Select(row => row.IntakeReceiptId!.Value)
+            .Distinct()
+            .ToArray();
+        var subjects = receiptIds.Length == 0
+            ? new Dictionary<Guid, string?>()
+            : await (
+                from receipt in context.IntakeReceipts.AsNoTracking()
+                where receiptIds.Contains(receipt.Id)
+                join message in context.RetainedMailboxMessages.AsNoTracking()
+                    on receipt.ExternalReceiptToken equals message.ExternalReceiptToken
+                select new { receipt.Id, message.Subject })
+                .ToDictionaryAsync(item => item.Id, item => item.Subject, cancellationToken);
+        return rows
+            .Select(row => new OpenCaseQuery(
+                row.Id,
+                row.CaseId,
+                row.Reference,
+                row.Registration,
+                row.VehicleMake,
+                row.VehicleModel,
+                Title: row.IntakeReceiptId is { } receiptId && subjects.TryGetValue(receiptId, out var subject) && !string.IsNullOrWhiteSpace(subject)
+                    ? subject
+                    : row.Details ?? row.Reference,
+                row.AssigneeStaffId,
+                row.RaisedAtUtc))
+            .ToArray();
+    }
 }
