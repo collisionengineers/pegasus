@@ -56,6 +56,9 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.CanonicalInternetMessageIdentity)
                 .HasMaxLength(500)
                 .UseCollation("Latin1_General_100_BIN2");
+            entity.Property(item => item.InReplyToIdentitiesJson)
+                .HasColumnType("nvarchar(max)")
+                .IsRequired(false);
             entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200).IsRequired();
             entity.Property(item => item.SenderAddress).HasMaxLength(320);
             entity.Property(item => item.SenderDisplayName).HasMaxLength(320);
@@ -142,6 +145,10 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.FailureCode).HasMaxLength(100);
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
             entity.HasIndex(item => item.OperationKey).IsUnique();
+            // The mail-association evidence recheck runs inside a serializable
+            // transaction and reads this Message-ID, so it seeks rather than
+            // taking range locks over the whole table.
+            entity.HasIndex(item => item.InternetMessageIdentity);
             entity.HasIndex(item => new { item.MailboxId, item.RecordedAtUtc, item.Id }).IsDescending(false, true, false);
             entity.HasIndex(item => new { item.OutcomeKind, item.RecordedAtUtc, item.Id }).IsDescending(false, true, false);
             entity.HasIndex(item => new { item.RecordedAtUtc, item.Id }).IsDescending(true, false);

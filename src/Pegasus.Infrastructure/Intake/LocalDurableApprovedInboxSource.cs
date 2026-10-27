@@ -390,6 +390,7 @@ internal sealed class LocalDurableApprovedInboxSource(
                 folderIdentity,
                 display.ThreadIdentity,
                 display.MessageIdentity,
+                display.InReplyToIdentities ?? [],
                 display.SenderAddress,
                 display.SenderDisplayName,
                 display.ToAddresses ?? [],

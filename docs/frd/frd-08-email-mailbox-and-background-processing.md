@@ -188,27 +188,38 @@ telemetry.
 
 ### Automatic Case association of retained mail
 
-Automatic association of inbound mail is deliberately cautious. A message
-may be linked automatically only when:
+Automatic association of inbound mail is deliberately cautious. Every linking
+signal that has any candidate contributes its whole candidate set, and the
+message is linked only when their intersection is exactly one Case that can
+take an association — current, not archived, and never a Triage:
 
-- its normalised vehicle registration identifies exactly one current,
-  non-archived Case across the whole system; or
-- its exact mailbox-and-conversation thread identifies exactly one current
-  Case.
+- the Cases the other messages of its exact mailbox-and-conversation thread
+  stand linked to; a message is never thread evidence for itself, so the link
+  an earlier attempt wrote cannot become evidence for its own redelivery;
+- the Cases of the retained received messages and Pegasus Sent items, in any
+  approved mailbox, that its `In-Reply-To` and `References` headers point at;
+- the Cases whose indexed durable claim token its subject or current body
+  names, across every Principal; or
+- the Cases carrying its normalised vehicle registration, narrowed by the
+  message's incident date first: candidates with a different date are dropped,
+  and an equal date wins when exactly one remains. A date that leaves no
+  candidate removes the registration from the decision; it never vetoes
+  another agreeing signal.
 
-If both kinds of evidence point at a Case, they must agree. Pegasus abstains
-when a registration has zero or several candidates, when the thread has
-several candidates, when the candidates disagree, or when the evidence
-changes before the serializable write. Mail association never re-decides a
-Case the message's case match eliminated, or an `Ambiguous` match
+Pegasus abstains when no signal has a candidate, when the intersection is not
+exactly one Case — signals that disagree, or a set that stays several — or when
+the evidence changes before the serializable write. Mail
+association never re-decides a Case the message's case match eliminated, or an
+`Ambiguous` match
 ([FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association)).
-The Case/PO text inside an inbound
-message is never a matching key. So a first message may qualify by its
-unique registration before its thread is linked, and a later message with no
-registration may qualify from the exact thread. The system-worker
-association is append-only and idempotent, follows the ordinary
-current-association and staff-reversal precedence, and never changes the
-mailbox.
+A claim reference is read only as a bounded token compared with the indexed
+durable claim token; the message's free text is never matched as an unbounded
+subject or body. So a first message may qualify by its unique registration
+before its thread is linked, and a later message with no registration may
+qualify from the exact thread, from the message it answers, or from the claim
+reference it names. The system-worker association is append-only and
+idempotent, follows the ordinary current-association and staff-reversal
+precedence, and never changes the mailbox.
 
 ### Mail identity and repeated receipts
 

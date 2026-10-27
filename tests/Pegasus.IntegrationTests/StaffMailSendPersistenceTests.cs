@@ -752,6 +752,7 @@ public sealed class StaffMailSendPersistenceTests
                     "sent-items",
                     "conversation",
                     $"<{StaffMailCorrelationHeaders.MessageId(operation.Id)}>",
+                    [],
                     "mailbox@example.invalid",
                     null,
                     ["recipient@example.invalid"],

@@ -5,25 +5,53 @@ using Pegasus.Core.Notifications;
 
 namespace Pegasus.Core.Intake;
 
+/// <summary>
+/// One Case that carries the message's vehicle registration, with the Case's
+/// own incident date where the case-match index has one. The date narrows a
+/// registration that several Cases share (D15); it never selects a Case on its
+/// own.
+/// </summary>
+public sealed record MailAssociationRegistrationCandidate(Guid CaseId, DateOnly? IncidentDate);
+
+/// <summary>
+/// The evidence one retained inbound message offers the automatic association
+/// policy.
+/// </summary>
+/// <remarks>
+/// Every candidate set holds only Cases that can take an association: the store
+/// drops a Case that has no workflow row, so a Triage — which is not an
+/// association target — never reaches the policy, and it drops an archived Case
+/// before the intersection (D16).
+/// </remarks>
 public sealed record AutomaticMailCaseAssociationEvidence(
     Guid IntakeReceiptId,
     long IntakeVersion,
-    string? NormalizedVehicleRegistration,
-    IReadOnlyList<Guid> RegistrationCaseIds,
     string MailboxId,
     string? ConversationIdentity,
-    IReadOnlyList<Guid> ThreadCaseIds)
+    string? NormalizedVehicleRegistration,
+    DateOnly? IncidentDate,
+    IReadOnlyList<Guid> ThreadCaseIds,
+    IReadOnlyList<Guid> ReplyCaseIds,
+    IReadOnlyList<Guid> ClaimReferenceCaseIds,
+    IReadOnlyList<MailAssociationRegistrationCandidate> RegistrationCandidates)
 {
     public string Fingerprint => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
         JsonSerializer.Serialize(new
         {
             IntakeReceiptId,
             IntakeVersion,
-            NormalizedVehicleRegistration,
-            RegistrationCaseIds = RegistrationCaseIds.Distinct().Order().ToArray(),
             MailboxId,
             ConversationIdentity,
-            ThreadCaseIds = ThreadCaseIds.Distinct().Order().ToArray()
+            NormalizedVehicleRegistration,
+            IncidentDate,
+            ThreadCaseIds = ThreadCaseIds.Distinct().Order().ToArray(),
+            ReplyCaseIds = ReplyCaseIds.Distinct().Order().ToArray(),
+            ClaimReferenceCaseIds = ClaimReferenceCaseIds.Distinct().Order().ToArray(),
+            RegistrationCandidates = RegistrationCandidates
+                .Distinct()
+                .OrderBy(candidate => candidate.CaseId)
+                .ThenBy(candidate => candidate.IncidentDate)
+                .ToArray()
         }))));
 }
 
@@ -35,12 +63,16 @@ public interface IAutomaticMailCaseAssociationEvidenceQueries
 }
 
 /// <summary>
-/// Conservatively associates one retained inbound message using only a unique
-/// system-wide registration or an already-associated exact mailbox thread.
-/// Case and PO references are deliberately absent from the contract. The
-/// receipt's recorded case-match decision outranks both: a Case it eliminated
-/// is never the target, and an Ambiguous decision links nothing (FRD-09
-/// shared eliminator; FRD-22; R35, operator, 15 October 2026).
+/// Associates one retained inbound message with the one Case every linking
+/// signal agrees on: the exact mailbox conversation, the In-Reply-To and
+/// References headers, a claim reference the subject or body names, and the
+/// vehicle registration narrowed by incident date (D5, D13–D16; items F,
+/// T–W, operator, 27 October 2026). Every signal that has any candidate
+/// contributes its whole candidate set and the sets are intersected, so a
+/// broader signal no longer vetoes a narrower one that agrees with it. The
+/// receipt's recorded case-match decision still outranks them: a Case it
+/// eliminated is never the target, and an Ambiguous decision links nothing
+/// (FRD-09 shared eliminator; FRD-22; R35, operator, 15 October 2026).
 /// </summary>
 public sealed class AssociateRetainedMailWithCase(
     IAutomaticMailCaseAssociationEvidenceQueries evidenceQueries,
@@ -49,8 +81,21 @@ public sealed class AssociateRetainedMailWithCase(
     ICaseStaffNotifier? caseNotifier = null)
 {
     public const string PolicyKey = "mail_case_association";
-    public const int PolicyVersion = 1;
+    public const int PolicyVersion = 2;
     private const string SystemActor = "system-worker:intake-processing";
+
+    /// <summary>The linking signals, in the order the reason names them.</summary>
+    internal enum MailAssociationSignal
+    {
+        ConversationThread,
+        ReplyHeaders,
+        ClaimReference,
+        VehicleRegistration
+    }
+
+    internal sealed record MailAssociationTarget(
+        Guid CaseId,
+        IReadOnlyList<MailAssociationSignal> Signals);
 
     public async Task<AutomaticCaseAssociationOutcome?> ExecuteAsync(
         Guid intakeReceiptId,
@@ -63,14 +108,14 @@ public sealed class AssociateRetainedMailWithCase(
         }
 
         // Decided before the evidence read, so an Ambiguous message pays no
-        // registration or thread query.
+        // registration, thread, reply or claim query.
         if (caseMatchDecision?.Outcome == CaseMatchOutcome.Ambiguous)
         {
             return null;
         }
 
         var evidence = await evidenceQueries.GetAsync(intakeReceiptId, cancellationToken);
-        if (evidence is null || SelectTarget(evidence, caseMatchDecision) is not { } caseId)
+        if (evidence is null || SelectTarget(evidence, caseMatchDecision) is not { } target)
         {
             return null;
         }
@@ -78,79 +123,135 @@ public sealed class AssociateRetainedMailWithCase(
         var outcome = await associationStore.AssociateFromMatchAsync(
             new(
                 intakeReceiptId,
-                caseId,
+                target.CaseId,
                 PolicyKey,
                 PolicyVersion,
                 SystemActor,
                 $"mail-case-association:{intakeReceiptId:N}",
-                "Automatic association from unique current VRM or exact mailbox-thread evidence.",
+                $"Automatic association from {DescribeSignals(target.Signals)}.",
                 evidence.Fingerprint),
             timeProvider.GetUtcNow(),
             cancellationToken);
         if (outcome == AutomaticCaseAssociationOutcome.Associated && caseNotifier is not null)
         {
             // Work Centre D10 cause 3: the Case's engineer learns an e-mail arrived.
-            await caseNotifier.NotifyMailArrivalAsync(caseId, intakeReceiptId, null, cancellationToken);
+            await caseNotifier.NotifyMailArrivalAsync(target.CaseId, intakeReceiptId, null, cancellationToken);
         }
 
         return outcome;
     }
 
-    internal static Guid? SelectTarget(
+    internal static MailAssociationTarget? SelectTarget(
         AutomaticMailCaseAssociationEvidence evidence,
         CaseMatchEvaluationResult? caseMatchDecision)
     {
         ArgumentNullException.ThrowIfNull(evidence);
-        Guid? registrationCaseId = null;
-        if (evidence.NormalizedVehicleRegistration is not null)
-        {
-            var registrationCandidates = evidence.RegistrationCaseIds.Distinct().Take(2).ToArray();
-            if (registrationCandidates.Length != 1)
-            {
-                return null;
-            }
-
-            registrationCaseId = registrationCandidates[0];
-        }
-
-        Guid? threadCaseId = null;
+        var signals = new List<(MailAssociationSignal Signal, IReadOnlySet<Guid> CaseIds)>();
         if (evidence.ThreadCaseIds.Count > 0)
         {
+            // The thread is read by mailbox and conversation identity; candidates
+            // without one cannot have come from a thread.
             if (string.IsNullOrWhiteSpace(evidence.ConversationIdentity))
             {
                 return null;
             }
 
-            var threadCandidates = evidence.ThreadCaseIds.Distinct().Take(2).ToArray();
-            if (threadCandidates.Length != 1)
-            {
-                return null;
-            }
-
-            threadCaseId = threadCandidates[0];
+            signals.Add((MailAssociationSignal.ConversationThread, evidence.ThreadCaseIds.ToHashSet()));
         }
 
-        if (registrationCaseId is not null
-            && threadCaseId is not null
-            && registrationCaseId != threadCaseId)
+        if (evidence.ReplyCaseIds.Count > 0)
+        {
+            signals.Add((MailAssociationSignal.ReplyHeaders, evidence.ReplyCaseIds.ToHashSet()));
+        }
+
+        if (evidence.ClaimReferenceCaseIds.Count > 0)
+        {
+            signals.Add((MailAssociationSignal.ClaimReference, evidence.ClaimReferenceCaseIds.ToHashSet()));
+        }
+
+        var registration = RegistrationCandidates(evidence);
+        if (registration.Count > 0)
+        {
+            signals.Add((MailAssociationSignal.VehicleRegistration, registration));
+        }
+
+        if (signals.Count == 0)
         {
             return null;
         }
 
-        // Refused after the uniqueness rule, never before it: removing an
-        // eliminated Case first would promote another Case holding the same
-        // registration. A Created in error candidate the decision redirected
-        // is listed only as its replacement's RedirectedFromCaseId.
-        var target = registrationCaseId ?? threadCaseId;
-        if (target is { } caseId
-            && caseMatchDecision is not null
+        // Every non-empty signal set must contain the target (D16), so a set
+        // that still holds several Cases after the intersection links nothing.
+        var agreed = signals[0].CaseIds.ToHashSet();
+        foreach (var signal in signals.Skip(1))
+        {
+            agreed.IntersectWith(signal.CaseIds);
+        }
+
+        if (agreed.Count != 1)
+        {
+            return null;
+        }
+
+        var target = agreed.Single();
+        // Refused after the intersection, never before it: removing an
+        // eliminated Case first would promote another Case the signals agree on.
+        // A Created in error candidate the decision redirected is listed only as
+        // its replacement's RedirectedFromCaseId.
+        if (caseMatchDecision is not null
             && caseMatchDecision.Candidates.Any(candidate =>
                 candidate.Eliminations.Count > 0
-                && (candidate.CaseId == caseId || candidate.RedirectedFromCaseId == caseId)))
+                && (candidate.CaseId == target || candidate.RedirectedFromCaseId == target)))
         {
             return null;
         }
 
-        return target;
+        return new(target, signals.Select(signal => signal.Signal).ToArray());
+    }
+
+    /// <summary>
+    /// The Cases carrying the message's registration. A registration several
+    /// Cases share is narrowed by the message's incident date: candidates with
+    /// a different date are dropped, and an equal date wins when one is left
+    /// (D15). With no date to compare, or with dates still tied, the set stays
+    /// as it is and the intersection decides.
+    /// </summary>
+    private static HashSet<Guid> RegistrationCandidates(
+        AutomaticMailCaseAssociationEvidence evidence)
+    {
+        if (evidence.NormalizedVehicleRegistration is null)
+        {
+            return [];
+        }
+
+        var candidates = evidence.RegistrationCandidates
+            .GroupBy(candidate => candidate.CaseId)
+            .Select(group => group.First())
+            .ToArray();
+        if (candidates.Length > 1 && evidence.IncidentDate is { } incidentDate)
+        {
+            candidates = candidates
+                .Where(candidate => candidate.IncidentDate == incidentDate)
+                .ToArray();
+        }
+
+        return candidates.Select(candidate => candidate.CaseId).ToHashSet();
+    }
+
+    private static string DescribeSignals(IReadOnlyList<MailAssociationSignal> signals)
+    {
+        var names = signals.Select(signal => signal switch
+        {
+            MailAssociationSignal.ConversationThread => "conversation thread",
+            MailAssociationSignal.ReplyHeaders => "reply headers",
+            MailAssociationSignal.ClaimReference => "claim reference",
+            _ => "vehicle registration"
+        }).ToArray();
+        return names.Length switch
+        {
+            1 => names[0],
+            2 => $"{names[0]} and {names[1]}",
+            _ => $"{string.Join(", ", names[..^1])} and {names[^1]}"
+        };
     }
 }

@@ -46,6 +46,7 @@ public static class UploadedCorrespondence
                 FolderIdentity,
                 email.ThreadIdentity,
                 InternetMessageIdentity: null,
+                InReplyToIdentities: [],
                 email.SenderAddress,
                 email.SenderDisplayName,
                 email.ToAddresses,

@@ -487,6 +487,7 @@ public sealed class AutomationSendIngressTests
                     "inbox",
                     "conversation-mcp-reply-query",
                     $"<{identity}@example.invalid>",
+                    [],
                     "handler@principal.example",
                     "A Handler",
                     [address],

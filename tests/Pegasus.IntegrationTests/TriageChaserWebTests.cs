@@ -1062,6 +1062,7 @@ public sealed partial class QdosTriageIntegrationTests
                     "inbox",
                     conversationId,
                     internetMessageId,
+                    [],
                     senderAddress,
                     "Sender Name",
                     [mailboxAddress],

@@ -1693,6 +1693,7 @@ public sealed class MailboxIntakeIntegrationTests
                     DefaultInboxFolderIdentity,
                     "conversation-1",
                     internetMessageIdentity,
+                    [],
                     "sender@example.invalid",
                     "Sender",
                     ["instructions@collisionengineers.co.uk"],

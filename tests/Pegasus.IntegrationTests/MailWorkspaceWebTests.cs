@@ -1731,6 +1731,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("No mail has been received.", html, StringComparison.Ordinal);
     }
 
+    [Fact]
     public async Task SearchFiltersRetainedRowsAndCarriesTheTermThroughPagingAndDetail()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -3227,6 +3228,7 @@ public sealed class MailWorkspaceWebTests
                         "inbox",
                         $"conversation-{mailboxId}",
                         $"<{identity}@example.invalid>",
+                        [],
                         "sender@example.invalid",
                         "A Sender",
                         ["intake@collisionengineers.co.uk"],
