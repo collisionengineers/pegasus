@@ -147,7 +147,10 @@ internal static partial class CaseWebTestSupport
         }
     }
 
-    /// <summary>A staff mail sender the Case page reads as available; the page never sends through it.</summary>
+    /// <summary>
+    /// A staff mail sender the Case and message pages read as available, with
+    /// no send in flight; the pages never send through it.
+    /// </summary>
     internal sealed class OfferedStaffMailSend : IStaffMailSend
     {
         public Task<StaffMailOperation> SendAsync(StaffMailSendCommand command, CancellationToken cancellationToken) =>
@@ -158,7 +161,7 @@ internal static partial class CaseWebTestSupport
 
         public Task<StaffMailOperation?> GetLatestForOriginalAsync(
             ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            Task.FromResult<StaffMailOperation?>(null);
 
         public Task<StaffMailOperation> CancelAsync(
             ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>

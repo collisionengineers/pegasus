@@ -1610,7 +1610,8 @@ public sealed class ProcessIntakeTests
         // recorded observation, not a general queue or destination change.
         //
         // Triage is pre-case work by definition and has its own test below.
-        // This one is driven by an automatic reply, which is classified and
+        // This one is driven by an automatic reply, which the policy reads
+        // (its predicate is recorded) without giving it a category, and which
         // changes nothing.
         IntakeSourceReadResult ReadResult() => Readable(
             transportEvidence:
@@ -1651,8 +1652,10 @@ public sealed class ProcessIntakeTests
             .ExecuteAsync(Source("classification-separation-off"));
 
         var recorded = Assert.IsType<MailClassificationResult>(classified.MailClassificationDecision);
-        Assert.Equal(MailClassificationOutcome.Classified, recorded.Outcome);
-        Assert.Equal(MailClassificationOutcome.Unclassified, unclassified.MailClassificationDecision?.Outcome);
+        Assert.Equal(PrincipalMailClassificationPolicy.Key, recorded.PolicyKey);
+        Assert.Contains(recorded.Predicates, predicate => predicate.Key == "subject.automatic-reply" && predicate.Matched);
+        Assert.Equal(MailClassificationOutcome.Unclassified, recorded.Outcome);
+        Assert.NotEqual(PrincipalMailClassificationPolicy.Key, unclassified.MailClassificationDecision?.PolicyKey);
         Assert.Equal(unclassified.Decision, classified.Decision);
         Assert.Equal(unclassified.DecisionReason, classified.DecisionReason);
     }

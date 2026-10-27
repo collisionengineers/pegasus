@@ -134,6 +134,10 @@ export class PegasusMail {
     return this.call("pegasus_mail_correct_classification", args);
   }
 
+  openQuery(args: { messageId: string; operationKey: string }): Promise<{ queryId: string }> {
+    return this.call("pegasus_mail_open_query", args);
+  }
+
   link(args: {
     messageId: string;
     caseId: string;

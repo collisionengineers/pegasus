@@ -254,7 +254,8 @@ internal static partial class CaseWebTestSupport
         RecordingCaseDetailsStore store,
         Action<IServiceCollection>? substitutePorts = null,
         string? section = null,
-        bool keepDatabase = false)
+        bool keepDatabase = false,
+        string? dialog = null)
     {
         using var baseFactory = keepDatabase
             ? new IntakeWebApplicationFactory()
@@ -279,9 +280,14 @@ internal static partial class CaseWebTestSupport
             BaseAddress = new Uri("https://localhost")
         });
 
+        var query = string.Join("&", new[]
+        {
+            section is null ? null : $"section={section}",
+            dialog is null ? null : $"dialog={dialog}"
+        }.Where(part => part is not null));
         return await GetHtmlAsync(
             client,
-            section is null ? $"/Cases/{store.CaseId:D}" : $"/Cases/{store.CaseId:D}?section={section}");
+            query.Length == 0 ? $"/Cases/{store.CaseId:D}" : $"/Cases/{store.CaseId:D}?{query}");
     }
 
     /// <summary>

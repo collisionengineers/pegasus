@@ -10,8 +10,9 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The one writer of a Case's queries and of the workflow's open-query mark,
-/// applying <see cref="CaseQueryRules"/> for every store: a Query receipt
-/// joining or leaving a Case, a query opened from a message or a channel,
+/// applying <see cref="CaseQueryRules"/> for every store: a message whose
+/// classification opens a query joining a Case, a query opened from a message
+/// or a channel,
 /// Mark done, Reopen, Assign, and a flagged reply's observed Sent item. Each
 /// caller owns its transaction and holds the Case's workflow row lock; the
 /// mail paths return whether anything changed so the caller advances the
@@ -26,67 +27,15 @@ internal static class CaseQueryLedger
     internal const string QueryReopenedEvent = "case_query_reopened";
     internal const string QueryAssignedEvent = "case_query_assigned";
 
-    private static readonly string QueryCategory = MailCategories.Code(MailCategory.Query);
+    /// <summary>The actor a matched query criterion records. Not a staff member.</summary>
+    internal const string QueryCriteriaActor = "system-worker:query-criteria";
 
-    /// <summary>A mailbox receipt whose current classification is Query.</summary>
-    internal static bool IsQuery(IntakeReceiptEntity receipt) =>
-        receipt.SourceChannel == "mailbox" && IsQuery(receipt.MailClassificationDecision);
-
-    internal static bool IsQuery(IntakeMailClassificationDecisionEntity? decision) =>
-        decision is { Outcome: "classified" } && decision.Category == QueryCategory;
+    /// <summary>The history reason a matched query criterion records.</summary>
+    internal const string QueryCriteriaReason = "Matched query criteria";
 
     /// <summary>
-    /// A received message has joined the Case (automatic match, staff link or
-    /// correction): raises a Mail query when the Core rule says so. True when
-    /// a row was added and the open-query mark set.
-    /// </summary>
-    internal static async Task<bool> RaiseForMailAsync(
-        PegasusDbContext context,
-        IntakeReceiptEntity receipt,
-        CaseWorkflowEntity workflow,
-        ActorKind actorKind,
-        string actorSubjectId,
-        string operationKey,
-        DateTimeOffset occurredAtUtc,
-        CancellationToken cancellationToken)
-    {
-        var isQuery = IsQuery(receipt);
-        if (!isQuery)
-        {
-            return false;
-        }
-        var reportIsSent = await EfCaseWorkflowStore.ReportIsSentAsync(context, workflow, cancellationToken);
-        if (!CaseQueryRules.RaisesOnMailJoined(reportIsSent, isQuery, alreadyOpenForMessage: false))
-        {
-            return false;
-        }
-        var alreadyOpen = await context.CaseQueries
-            .AnyAsync(item => item.CaseId == workflow.CaseId
-                && item.IntakeReceiptId == receipt.Id
-                && item.ClosedAtUtc == null, cancellationToken);
-        if (!CaseQueryRules.RaisesOnMailJoined(reportIsSent, isQuery, alreadyOpen))
-        {
-            return false;
-        }
-        context.CaseQueries.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Workflow = workflow,
-            Source = nameof(CaseQuerySource.Mail),
-            IntakeReceiptId = receipt.Id,
-            RaisedAtUtc = occurredAtUtc,
-            RaisedByKind = actorKind.ToString(),
-            RaisedBySubjectId = actorSubjectId,
-            RaisedOperationKey = operationKey
-        });
-        workflow.HasOpenQuery = true;
-        return true;
-    }
-
-    /// <summary>
-    /// A received message has left the Case (unlink) or stopped being
-    /// a query (correction): withdraws the open query it raised, if any.
+    /// A received message has left the Case (unlink): withdraws the open query
+    /// it raised, if any. A category correction does not.
     /// True when a row closed; the mark is recomputed from the remaining rows.
     /// </summary>
     internal static async Task<bool> WithdrawForMailAsync(
@@ -130,8 +79,7 @@ internal static class CaseQueryLedger
     {
         var receiptId = await ReceiptOfMessageAsync(context, retainedMessageId, cancellationToken)
             ?? throw new InvalidOperationException("The message is not a retained receipt.");
-        var associations = await CurrentIntakeAssociations.ReadAsync(context, [receiptId], cancellationToken);
-        if (!associations.Current.TryGetValue(receiptId, out var link) || link.CaseId != workflow.CaseId)
+        if (!await IsLinkedToCaseAsync(context, receiptId, workflow.CaseId, cancellationToken))
         {
             throw new InvalidOperationException("The message is not linked to this case.");
         }
@@ -320,6 +268,27 @@ internal static class CaseQueryLedger
             context, workflow, beforeVersion, QueryResolvedEvent,
             mail.ActorKind, mail.ActorSubjectId, "[]",
             $"query-reply:{mail.Id:N}", mail.PayloadHash, null, occurredAtUtc, beforeJson);
+    }
+
+    /// <summary>
+    /// The link the caller just wrote may still be only in the change tracker.
+    /// A saved link is read the same way every other association is.
+    /// </summary>
+    private static async Task<bool> IsLinkedToCaseAsync(
+        PegasusDbContext context,
+        Guid receiptId,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var tracked = context.IntakeManualAssociations.Local
+            .FirstOrDefault(item => item.IntakeReceiptId == receiptId && item.IsActive);
+        if (tracked is not null)
+        {
+            return tracked.CaseId == caseId;
+        }
+
+        var associations = await CurrentIntakeAssociations.ReadAsync(context, [receiptId], cancellationToken);
+        return associations.Current.TryGetValue(receiptId, out var link) && link.CaseId == caseId;
     }
 
     private static async Task<Guid?> ReceiptOfMessageAsync(

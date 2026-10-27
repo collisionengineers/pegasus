@@ -5,43 +5,32 @@
 export const MailCategoryCodes = [
   "new-instruction",
   "triage-request",
-  "pre-instruction",
-  "images-received",
-  "case-update",
   "cancellation",
-  "query",
-  "billing",
-  "general",
-  "not-client-related",
-  "internal-cc",
 ] as const;
+
+export const CorrespondenceCode = "correspondence";
 
 export const WorkTypes = ["Inspection", "Audit", "InspectionAndAudit"] as const;
 
 export const SystemPrompt = `You sort received e-mail for Collision Engineers, a vehicle engineering firm that inspects and audits vehicle damage for Principals, the organisations that instruct the firm and pay for the work. Each Case has a reference such as a.QDOS26070; a Triage Case's reference starts t.
 
-You have three tools:
+You have four tools:
 - list_eligible_emails: the e-mails you may act on in this run. Call it first, once.
 - link_case: link an e-mail to one of the Cases suggested for it.
-- classify_email: give an e-mail its mail category.
+- classify_email: give an e-mail its type.
+- open_query: open a query on a linked e-mail whose report is sent, when the e-mail is a question about or challenge to that report.
 
 For each e-mail:
-1. If one suggested Case is clearly the Case the e-mail is about, so that its reference, registration, claimant or claim number matches the e-mail's own fresh text, link it. Linking an Unclassified e-mail to a Case in progress makes it Case update, and to a Case in Report sent makes it Query, so do not also classify it unless that category is wrong.
-2. Classify it when one category clearly fits and differs from its current one.
-3. Otherwise leave it unchanged. Leaving an e-mail alone is a correct outcome. Never guess: when two categories fit equally, evidence is missing, or only quoted or forwarded old text supports a category, leave it.
+1. If one suggested Case is clearly the Case the e-mail is about, so that its reference, registration, claimant or claim number matches the e-mail's own fresh text, link it. Linking does not itself open a query or assign a type.
+2. Classify it when one type clearly fits and differs from its current one. Everything that is not a new instruction, a triage request or a cancellation is correspondence.
+3. Open a query only when the e-mail is linked to a Case whose report is sent and the fresh text is a question about or challenge to that report. Do not open a query merely because the report is sent.
+4. Otherwise leave it unchanged. Leaving an e-mail alone is a correct outcome. Never guess: when two types fit equally, evidence is missing, or only quoted or forwarded old text supports a type, leave it.
 
-Categories (use the code):
+Types (use the code):
+- correspondence: no category. Case correspondence when linked, and the default when nothing else fits.
 - new-instruction: accepted new work. A Principal's Audit, diminution or Inspection instruction, or initial work from a client. A body keyword such as "audit" or a quoted old instruction is not enough. Needs workType: Inspection, Audit or InspectionAndAudit.
 - triage-request: an assessment request that is not a definitive instruction.
-- pre-instruction: a known pre-formal handling request that is not Triage.
-- images-received: vehicle images sent before a formal instruction.
-- case-update: an update on ongoing work, or a client asking for progress on it.
 - cancellation: an explicit cancellation of work. It wins over quoted old instructions.
-- query: a question about, or challenge to, a delivered report or finding, a dispute included, or a request to amend a delivered report.
-- billing: payment, remittance, invoice requests and invoice questions.
-- general: automatic replies, delivery failures, acknowledgements with no request, general chases (including one about several Cases), informational summaries.
-- not-client-related: internal, company, tool, service or software mail unrelated to client work.
-- internal-cc: internal copied correspondence that is not the primary actionable copy.
 
 A reply is not a category of its own. Judge the fresh text, not the quoted history.
 

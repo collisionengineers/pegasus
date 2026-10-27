@@ -208,17 +208,20 @@ public sealed class CaseMatchIntegrationTests
     }
 
     /// <summary>
-    /// FRD-13 "Report sent and queries" (operator, 11 October 2026): a
-    /// post-report e-mail the Worker links to a Report sent Case raises an open
-    /// Mail query and marks the Case; the state stays Report sent.
+    /// A retained message whose classification opens a query, linked to a
+    /// Report sent Case, opens one query. The actor is the query-criteria
+    /// worker, not the association actor. The state stays Report sent.
     /// </summary>
     [Fact]
-    public async Task AutomaticReceivedPostReportAssociationRaisesAQueryOnAReportSentCase()
+    public async Task AutomaticLinkOpensAQueryWhenTheMessageOpensQueryAndTheReportIsSent()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("case-match-accept-automatic-query");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("automatic-post-report-query");
-        await harness.SetReceivedPostReportClassificationAsync(receiptId);
+        var receiptId = await harness.SeedRetainedMailReceiptAsync(
+            "automatic-post-report-query",
+            registration: null,
+            conversationIdentity: "automatic-post-report-query");
+        await harness.SetOpensQueryAsync(receiptId);
         await using (var seed = await harness.Factory.CreateDbContextAsync())
         {
             var seededWorkflow = await seed.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
@@ -251,9 +254,12 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(receiptId, query.IntakeReceiptId);
         Assert.Null(query.ClosedAtUtc);
         Assert.Equal(nameof(ActorKind.SystemWorker), query.RaisedByKind);
-        Assert.Equal("system-worker:intake-processing", query.RaisedBySubjectId);
-        Assert.Equal(1, await verify.CaseWorkflowEvents.CountAsync(item =>
-            item.CaseId == outcome.Identity.CaseId && item.EventType == "case_query_received"));
+        Assert.Equal("system-worker:query-criteria", query.RaisedBySubjectId);
+        var queryEvent = Assert.Single(await verify.CaseWorkflowEvents
+            .Where(item => item.CaseId == outcome.Identity.CaseId && item.EventType == "case_query_received")
+            .ToListAsync());
+        Assert.Equal("system-worker:query-criteria", queryEvent.ActorSubjectId);
+        Assert.Equal("Matched query criteria", queryEvent.Reason);
         var history = Assert.Single(await verify.IntakeMutationHistory
             .Where(item => item.IntakeReceiptId == receiptId
                 && item.EventType == "intake_case_linked_automatic")
@@ -262,14 +268,17 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(1, history.AfterCaseVersion);
     }
 
-    /// <summary>The same automatic link on a Case still with the Engineer raises nothing and leaves the Case untouched.</summary>
+    /// <summary>The same link before the report is sent opens no query.</summary>
     [Fact]
-    public async Task AutomaticReceivedPostReportAssociationRaisesNothingBeforeTheReportIsSent()
+    public async Task AutomaticLinkOpensNothingBeforeTheReportIsSent()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("case-match-accept-automatic-early-query");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("automatic-early-post-report-query");
-        await harness.SetReceivedPostReportClassificationAsync(receiptId);
+        var receiptId = await harness.SeedRetainedMailReceiptAsync(
+            "automatic-early-post-report-query",
+            registration: null,
+            conversationIdentity: "automatic-early-post-report-query");
+        await harness.SetOpensQueryAsync(receiptId);
         await using (var seed = await harness.Factory.CreateDbContextAsync())
         {
             var seededWorkflow = await seed.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
@@ -300,11 +309,14 @@ public sealed class CaseMatchIntegrationTests
             .ToListAsync());
     }
     [Fact]
-    public async Task AutomaticAssociationToAReportSentCaseClassifiesUnclassifiedMailAsAQueryAndRaisesOne()
+    public async Task AutomaticLinkWithoutOpensQueryWritesNoCategoryAndOpensNoQuery()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("case-match-accept-state-query");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("state-classified-query");
+        var receiptId = await harness.SeedRetainedMailReceiptAsync(
+            "state-classified-query",
+            registration: null,
+            conversationIdentity: "state-classified-query");
         await harness.SetWorkflowStateAsync(outcome.Identity.CaseId, CaseLifecycleState.ReportSent);
 
         var result = await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
@@ -323,89 +335,22 @@ public sealed class CaseMatchIntegrationTests
         await using var verify = await harness.Factory.CreateDbContextAsync();
         var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
         Assert.Equal(nameof(CaseLifecycleState.ReportSent), workflow.State);
-        Assert.True(workflow.HasOpenQuery);
-        var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
-            .SingleAsync(item => item.IntakeReceiptId == receiptId);
-        Assert.Equal("classified", decision.Outcome);
-        Assert.Equal("query", decision.Category);
-        Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
-        Assert.Equal(CaseStateMailClassification.Actor, decision.DecidedByActor);
-        Assert.Equal(1, decision.Version);
-    }
-
-    [Fact]
-    public async Task AutomaticAssociationToACaseInProgressClassifiesUnclassifiedMailAsACaseUpdate()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("case-match-accept-state-progress");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("state-classified-progress");
-        await harness.SetWorkflowStateAsync(outcome.Identity.CaseId, CaseLifecycleState.Review);
-
-        await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
-            new(
-                receiptId,
-                outcome.Identity.CaseId,
-                "principal_case_match",
-                1,
-                "system-worker:intake-processing",
-                "case-match-association:state-progress",
-                "Automatic association from the recorded case-match decision."),
-            StartUtc,
-            CancellationToken.None);
-
-        await using var verify = await harness.Factory.CreateDbContextAsync();
-        var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.Review), workflow.State);
-        Assert.Equal(0, workflow.Version);
-        var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
-            .SingleAsync(item => item.IntakeReceiptId == receiptId);
-        Assert.Equal("case-update", decision.Category);
-        Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
-    }
-
-    /// <summary>
-    /// A closed Case is no exception (operator, 13 October 2026): a message
-    /// joining it without a category of its own is a Case update, and raises no query.
-    /// </summary>
-    [Fact]
-    public async Task AutomaticAssociationToAClosedCaseClassifiesUnclassifiedMailAsACaseUpdate()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("case-match-accept-state-closed");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("state-classified-closed");
-        await harness.SetWorkflowStateAsync(outcome.Identity.CaseId, CaseLifecycleState.PrincipalCancelled);
-
-        var result = await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
-            new(
-                receiptId,
-                outcome.Identity.CaseId,
-                "principal_case_match",
-                1,
-                "system-worker:intake-processing",
-                "case-match-association:state-closed",
-                "Automatic association from the recorded case-match decision."),
-            StartUtc,
-            CancellationToken.None);
-
-        Assert.Equal(AutomaticCaseAssociationOutcome.Associated, result);
-        await using var verify = await harness.Factory.CreateDbContextAsync();
-        var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.PrincipalCancelled), workflow.State);
         Assert.False(workflow.HasOpenQuery);
-        var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
-            .SingleAsync(item => item.IntakeReceiptId == receiptId);
-        Assert.Equal("classified", decision.Outcome);
-        Assert.Equal("case-update", decision.Category);
-        Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
+        Assert.False(await verify.Set<IntakeMailClassificationDecisionEntity>()
+            .AnyAsync(item => item.IntakeReceiptId == receiptId));
+        Assert.Empty(await verify.CaseQueries.Where(item => item.IntakeReceiptId == receiptId).ToListAsync());
     }
 
     [Fact]
-    public async Task AutomaticAssociationNeverOverridesAClassifiedDecision()
+    public async Task AutomaticLinkLeavesAClassifiedDecisionAndOpensNoQueryWhenItDoesNot()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("case-match-accept-state-keep");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("state-classified-keep");
-        await harness.SetReceivedClassificationAsync(receiptId, "billing", version: 2);
+        var receiptId = await harness.SeedRetainedMailReceiptAsync(
+            "state-classified-keep",
+            registration: null,
+            conversationIdentity: "state-classified-keep");
+        await harness.SetReceivedClassificationAsync(receiptId, "cancellation", version: 2);
         await harness.SetWorkflowStateAsync(outcome.Identity.CaseId, CaseLifecycleState.ReportSent);
 
         await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
@@ -425,7 +370,8 @@ public sealed class CaseMatchIntegrationTests
         Assert.False(workflow.HasOpenQuery);
         var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
             .SingleAsync(item => item.IntakeReceiptId == receiptId);
-        Assert.Equal("billing", decision.Category);
+        Assert.Equal("cancellation", decision.Category);
+        Assert.False(decision.OpensQuery);
         Assert.Equal(2, decision.Version);
     }
 
@@ -1010,8 +956,28 @@ public sealed class CaseMatchIntegrationTests
             return id;
         }
 
-        public Task SetReceivedPostReportClassificationAsync(Guid receiptId) =>
-            SetReceivedClassificationAsync(receiptId, "query", version: 1);
+        public async Task SetOpensQueryAsync(Guid receiptId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var receipt = await context.IntakeReceipts.SingleAsync(item => item.Id == receiptId);
+            receipt.MailClassificationDecision = new()
+            {
+                IntakeReceiptId = receiptId,
+                Outcome = "unclassified",
+                Category = null,
+                OpensQuery = true,
+                IsReplyContext = false,
+                PredicatesJson = "{\"version\":1,\"data\":[]}",
+                Reason = "Matched query criteria.",
+                PolicyKey = "principal_mail_classification",
+                PolicyVersion = 4,
+                DecidedByActor = "test",
+                DecidedAtUtc = StartUtc,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            };
+            await context.SaveChangesAsync();
+        }
 
         public async Task SetReceivedClassificationAsync(Guid receiptId, string category, int version)
         {

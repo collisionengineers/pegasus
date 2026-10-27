@@ -16,7 +16,7 @@ public sealed class MailTriageMatchTests
         2);
 
     private static readonly MailClassificationResult Autoreply = MailClassificationResult.Classified(
-        MailCategory.General, [], "Autoreply.", "principal_mail_classification", 2);
+        MailCategory.Cancellation, [], "Autoreply.", "principal_mail_classification", 2);
 
     [Fact]
     public void TheAutomaticMatchNamesThePolicyAndItsPredicates()

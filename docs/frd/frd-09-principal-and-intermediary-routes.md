@@ -294,6 +294,12 @@ candidate. A second candidate for one category would make the message
 Unclassified with the candidates named, so a message carrying both would
 classify worse than one carrying either.
 
+Garage allocation, repairs authorised, report chase and automatic replies are
+plain correspondence. They are not categories. The pre-accident-value dispute
+sentence is a query criterion: it sets `OpensQuery` and is not a category
+(`principal_mail_classification` v4;
+[QDOS profile](../principal-profiles/qdos.md)).
+
 The classification decision is itself the Triage-match evidence, stamped with
 that policy's key and version. There is no separate Triage matcher.
 Message-type classification has one route-owned owner

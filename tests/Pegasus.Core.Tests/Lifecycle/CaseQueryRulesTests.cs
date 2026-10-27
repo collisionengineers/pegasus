@@ -27,7 +27,7 @@ public sealed class CaseQueryRulesTests
         bool expected)
     {
         Assert.NotEmpty(name);
-        Assert.Equal(expected, CaseQueryRules.RaisesOnMailJoined(reportIsSent, isQuery, alreadyOpenForMessage));
+        Assert.Equal(expected, CaseQueryRules.OpensOnMailJoined(reportIsSent, isQuery, alreadyOpenForMessage));
     }
 
     [Theory]

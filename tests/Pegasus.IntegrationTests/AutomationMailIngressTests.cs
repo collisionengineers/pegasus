@@ -1,8 +1,10 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Presentation;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -115,7 +117,7 @@ public sealed class AutomationMailIngressTests
         {
             using var document = await ReadJsonRpcAsync(response);
             Assert.Contains(
-                "inbox, sent, or deleted",
+                "inbox, sent, or dismissed",
                 document.RootElement.ToString(),
                 StringComparison.Ordinal);
         }
@@ -147,7 +149,8 @@ public sealed class AutomationMailIngressTests
             Assert.Empty(classification.GetProperty("history").EnumerateArray());
             Assert.Contains(
                 classification.GetProperty("correctionOptions").EnumerateArray(),
-                option => option.GetProperty("value").GetString() == "new-instruction");
+                option => option.GetProperty("value").GetString()
+                    == MailClassificationSelection.Combined(MailCategory.NewInstruction, CaseType.Inspection));
         }
 
         // An unknown message is a content-safe not-found, recorded as failed.
@@ -198,7 +201,7 @@ public sealed class AutomationMailIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        // The offered options are every category and Unclassified.
+        // The offered options are Correspondence and the three categories.
         using (var read = await PostMcpAsync(
             client,
             MailServer,
@@ -211,7 +214,7 @@ public sealed class AutomationMailIngressTests
                 .Select(option => option.GetProperty("value").GetString())
                 .ToArray();
             Assert.Equal(
-                MailCategories.All.Select(MailCategories.Code).Append("unclassified").ToArray(),
+                MailClassificationSelection.TypeSelectOptions.Select(option => option.Value).ToArray(),
                 options);
         }
 
@@ -239,6 +242,28 @@ public sealed class AutomationMailIngressTests
             Assert.Equal("Audit", structured.GetProperty("current").GetProperty("caseType").GetString());
         }
 
+        using (var combined = await PostMcpAsync(
+            client,
+            MailServer,
+            token,
+            ToolCallPayload(
+                22,
+                "pegasus_mail_correct_classification",
+                new
+                {
+                    messageId = ids[0],
+                    expectedClassificationVersion = 2,
+                    classificationKey = MailClassificationSelection.Combined(
+                        MailCategory.NewInstruction, CaseType.Inspection),
+                    reason = "The attached instruction is an Inspection.",
+                    operationKey = "mcp:mail-correct-combined"
+                })))
+        {
+            var structured = await ReadStructuredContentAsync(combined);
+            Assert.Equal(3, structured.GetProperty("version").GetInt32());
+            Assert.Equal("Inspection", structured.GetProperty("current").GetProperty("caseType").GetString());
+        }
+
         // A New instruction without its case type is refused and writes nothing.
         using (var noWorkType = await PostMcpAsync(
             client,
@@ -250,14 +275,17 @@ public sealed class AutomationMailIngressTests
                 new
                 {
                     messageId = ids[0],
-                    expectedClassificationVersion = 2,
+                    expectedClassificationVersion = 3,
                     classificationKey = "new-instruction",
                     reason = "Missing case type.",
                     operationKey = "mcp:mail-correct-no-work-type"
                 })))
         {
             using var document = await ReadJsonRpcAsync(noWorkType);
-            Assert.Contains("requires a case type", document.RootElement.ToString(), StringComparison.Ordinal);
+            Assert.Contains(
+                MailClassificationSelection.UnknownSelectionMessage,
+                document.RootElement.ToString(),
+                StringComparison.Ordinal);
         }
 
         using (var final = await PostMcpAsync(
@@ -267,7 +295,7 @@ public sealed class AutomationMailIngressTests
             ToolCallPayload(24, "pegasus_mail_get", new { messageId = ids[0] })))
         {
             var structured = await ReadStructuredContentAsync(final);
-            Assert.Equal(2, structured.GetProperty("classification").GetProperty("version").GetInt32());
+            Assert.Equal(3, structured.GetProperty("classification").GetProperty("version").GetInt32());
         }
     }
 
@@ -295,8 +323,8 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[0],
                     expectedClassificationVersion = 1,
-                    classificationKey = "query",
-                    reason = "The message is a query, not a new instruction.",
+                    classificationKey = "cancellation",
+                    reason = "The message is a cancellation, not a new instruction.",
                     operationKey
                 })))
         {
@@ -306,7 +334,7 @@ public sealed class AutomationMailIngressTests
                 "automation:pegasus-automation",
                 structured.GetProperty("currentActor").GetString());
             Assert.Equal(
-                "query",
+                "cancellation",
                 structured.GetProperty("current").GetProperty("category").GetString());
             var history = structured.GetProperty("history").EnumerateArray().ToArray();
             Assert.Single(history);
@@ -328,7 +356,7 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[0],
                     expectedClassificationVersion = 1,
-                    classificationKey = "query",
+                    classificationKey = "cancellation",
                     reason = "Retry with a stale version.",
                     operationKey = "mcp:mail-correct-stale"
                 })))
@@ -352,14 +380,14 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[0],
                     expectedClassificationVersion = 2,
-                    classificationKey = "not-a-key",
-                    reason = "Invalid key.",
+                    classificationKey = "query",
+                    reason = "A removed code is refused.",
                     operationKey = "mcp:mail-correct-invalid"
                 })))
         {
             using var document = await ReadJsonRpcAsync(invalid);
             Assert.Contains(
-                "not a correction option",
+                MailClassificationSelection.UnknownSelectionMessage,
                 document.RootElement.ToString(),
                 StringComparison.Ordinal);
         }
@@ -376,7 +404,7 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[1],
                     expectedClassificationVersion = 1,
-                    classificationKey = "query",
+                    classificationKey = "cancellation",
                     reason = "No decision exists for this message.",
                     operationKey = "mcp:mail-correct-unclassified"
                 })))
@@ -400,7 +428,7 @@ public sealed class AutomationMailIngressTests
                 {
                     messageId = ids[0],
                     expectedClassificationVersion = 2,
-                    classificationKey = "query",
+                    classificationKey = "cancellation",
                     reason = "No operation key.",
                     operationKey = "not-prefixed"
                 })))
@@ -441,7 +469,7 @@ public sealed class AutomationMailIngressTests
             var classification = structured.GetProperty("classification");
             Assert.Equal(2, classification.GetProperty("version").GetInt32());
             Assert.Equal(
-                "query",
+                "cancellation",
                 classification.GetProperty("current").GetProperty("category").GetString());
             Assert.Single(classification.GetProperty("history").EnumerateArray());
         }

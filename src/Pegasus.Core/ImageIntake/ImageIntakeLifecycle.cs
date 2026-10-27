@@ -184,19 +184,17 @@ public static class ImageIntakeLifecycleRules
     }
 
     /// <summary>
-    /// The staff registration route: the automatic route, or image-only material a
-    /// member of staff has classified as images received (FRD-08) that no Case and
-    /// no Triage request holds. Automation never widens to it; staff offer and run it.
+    /// The staff registration route: unlinked image-only material with no mail
+    /// category (FRD-19, operator 27 October 2026). A New instruction, Triage
+    /// request or Cancellation is not registered as images. Automation never
+    /// widens to it; staff offer and run it.
     /// </summary>
     public static bool IsImageRegistrationEligible(IntakeReceipt receipt)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        return IsImageAutomationEligible(receipt)
-            || (IsImageOnlyMaterial(receipt)
-                && receipt.CurrentCaseId is null
-                && !ProcessIntake.IsTriageRequest(receipt)
-                && IsSupportedImageEvidenceSource(receipt.MediaType)
-                && receipt.MailClassificationDecision?.Is(MailCategory.ImagesReceived) == true);
+        return receipt.CurrentCaseId is null
+            && IsImageOnlyMaterial(receipt)
+            && receipt.MailClassificationDecision?.Category is null;
     }
 
     private static bool IsSupportedImageEvidenceSource(string mediaType) =>

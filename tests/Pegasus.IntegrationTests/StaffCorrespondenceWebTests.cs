@@ -1271,9 +1271,13 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
 
-        var tick = Regex.Match(html, "<input[^>]*data-mark-query-done[^>]*>", RegexOptions.CultureInvariant);
+        // The cog menu offers its own Mark query done on an open query, so the
+        // words are looked for in the composer alone.
+        var composer = html[html.IndexOf("id=\"mailComposerForm\"", StringComparison.Ordinal)..];
+        composer = composer[..composer.IndexOf("</form>", StringComparison.Ordinal)];
+        var tick = Regex.Match(composer, "<input[^>]*data-mark-query-done[^>]*>", RegexOptions.CultureInvariant);
         Assert.Equal(offered, tick.Success);
-        Assert.Equal(offered, html.Contains(OperatorLabels.StaffMail.MarkQueryDone, StringComparison.Ordinal));
+        Assert.Equal(offered, composer.Contains(OperatorLabels.StaffMail.MarkQueryDone, StringComparison.Ordinal));
         if (offered)
         {
             Assert.Contains("type=\"checkbox\"", tick.Value, StringComparison.Ordinal);

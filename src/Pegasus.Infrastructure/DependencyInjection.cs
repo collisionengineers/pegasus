@@ -128,9 +128,6 @@ public static class DependencyInjection
         services.AddScoped<IDismissRetainedMail, DismissRetainedMail>();
         services.AddScoped<IRestoreRetainedMail, RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
-        services.TryAddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
-        services.AddSingleton<DeletedMailSearchKeep>();
-        services.AddScoped<SearchDeletedMail>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
         services.AddScoped<EfIntakeMutationStore>();
@@ -1149,7 +1146,6 @@ public static class DependencyInjection
         // Web sends and reads; the Sent-evidence poll that settles Submitted
         // into Sent is the Worker's alone (AddProductionExternalAdapters).
         AddStaffMailSending(services);
-        services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;
     }
 

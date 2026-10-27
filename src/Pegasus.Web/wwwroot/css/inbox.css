@@ -1,5 +1,5 @@
 /* Inbox and message record (Phase 6 Lane B). Page-specific; shared tokens only. */
-.inbox-layout.pane-layout--2 { grid-template-columns: 220px minmax(0, 1fr); }
+.inbox-layout { grid-template-columns: minmax(0, 1fr); }
 .inbox-filter {
   display: grid;
   /* The Folder select is gone (v41 I1): its width goes to the filter's columns. */
@@ -52,7 +52,7 @@
 
 /* v41 I2, I17: the message dialog is wider than dialog--wide: it holds the body
    and Decision the full page holds. */
-.dialog.dialog--mail { width: min(100%, 1080px); max-height: calc(100vh - 40px); display: flex; flex-direction: column; }
+.dialog.dialog--mail { width: min(100%, 880px); max-height: calc(100vh - 40px); display: flex; flex-direction: column; }
 .dialog--mail .dialog-body { overflow: auto; min-height: 340px; }
 .dialog--mail .dialog-head { align-items: flex-start; gap: 16px; padding-bottom: 10px; }
 .dialog--mail .dialog-head h2 { min-width: 0; }
@@ -71,7 +71,33 @@
 
 /* The message on the left; Decision on the right, holding the Classification
    chips and the Case picker. */
-.mail-split { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
+.mail-read { min-width: 0; }
+.mail-context-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; font-size: 12px; color: var(--muted, #626b70); }
+.mail-context-sep { color: var(--line-strong, #b7c0c4); }
+.mail-settings-menu { position: relative; }
+.mail-settings-menu > summary { list-style: none; }
+.mail-settings-menu > summary::-webkit-details-marker { display: none; }
+.mail-settings-popover {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 30;
+  width: 364px; max-width: calc(100vw - 40px);
+  padding: 12px 14px; display: grid; gap: 10px;
+  border: 1px solid var(--line, #d2d8db); border-radius: var(--radius-lg, 4px);
+  background: var(--surface, #fff); box-shadow: var(--shadow, 0 8px 24px rgba(0, 0, 0, .12));
+}
+.mail-settings-list { display: grid; gap: 2px; }
+.mail-settings-item { display: flex; align-items: center; min-height: 32px; padding: 4px 8px; text-decoration: none; }
+.mail-type-select { width: 100%; height: 32px; }
+.mail-inline-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line, #d2d8db); }
+.inbox-ledger-head, .inbox-ledger-row {
+  display: grid;
+  grid-template-columns: 34px minmax(120px, 0.8fr) minmax(140px, 0.9fr) minmax(0, 2fr) minmax(140px, 1fr) 120px 40px;
+  gap: 8px; align-items: center; padding: 0 12px;
+}
+.inbox-ledger-head { height: 34px; font-size: 11px; text-transform: uppercase; color: var(--muted, #626b70); }
+.inbox-ledger-row { min-height: 40px; border-top: 1px solid var(--line, #d2d8db); }
+.inbox-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 14px; }
+.inbox-toolbar .inbox-search-box { flex: 1 1 220px; }
+.inbox-toolbar select, .inbox-toolbar input, .inbox-toolbar .btn { height: 32px; }
 .mail-read .mail-body p { margin: 0 0 12px; max-width: 72ch; }
 .mail-decision .decision-body { padding-bottom: 12px; }
 .mail-decision-block { display: grid; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line, #d2d8db); }

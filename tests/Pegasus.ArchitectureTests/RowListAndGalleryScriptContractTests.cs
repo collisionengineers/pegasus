@@ -17,7 +17,7 @@ public sealed class RowListAndGalleryScriptContractTests
         var selector = Regex.Match(site, @"var ROW = '([^']+)';");
 
         Assert.True(selector.Success, "site.js has no ROW selector.");
-        foreach (var token in new[] { ".row-button", ".scope-button", "tr[data-select-href]", "tr[data-cases-row]" })
+        foreach (var token in new[] { ".row-button", ".scope-button", ".inbox-ledger-row", "tr[data-select-href]", "tr[data-cases-row]" })
         {
             Assert.Contains(token, selector.Groups[1].Value, StringComparison.Ordinal);
         }
@@ -26,7 +26,7 @@ public sealed class RowListAndGalleryScriptContractTests
     [Theory]
     [InlineData("src/Pegasus.Web/Pages/Cases/Index.cshtml", "class=\"scope-list\" data-row-list")]
     [InlineData("src/Pegasus.Web/Pages/Cases/Index.cshtml", "<div class=\"cases-table\" data-row-list>")]
-    [InlineData("src/Pegasus.Web/Pages/Mail/Index.cshtml", "class=\"scope-list\" data-mail-scopes data-row-list")]
+    [InlineData("src/Pegasus.Web/Pages/Mail/Index.cshtml", "<div class=\"inbox-ledger\" data-row-list>")]
     public void EveryRovingListOptsIn(string page, string markup) =>
         Assert.Contains(markup, Read(page), StringComparison.Ordinal);
 

@@ -1046,6 +1046,12 @@ public sealed class StartupWarmupTests
             return [];
         }
 
+        public Task<IReadOnlyList<string>> ListPrincipalsAsync(CancellationToken cancellationToken)
+        {
+            Note("principals");
+            return Task.FromResult<IReadOnlyList<string>>([]);
+        }
+
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(CancellationToken cancellationToken)
         {
             Note("mail-freshness");

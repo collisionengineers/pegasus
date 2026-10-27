@@ -51,7 +51,7 @@
                                     ? OperatorLabels.MailClassification(classification)
                                     : row.IsSent
                                         ? Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(MailFolderScope.Sent)
-                                        : OperatorLabels.CaseWorkspace.AbsentValue)
+                                        : OperatorLabels.Inbox.Correspondence)
                                 @if (row.Query is { } query)
                                 {
                                     <partial name="Shared/_StatusChip" model="@(query.IsOpen ? CaseWorkspaceLabels.Queries.Open : CaseWorkspaceLabels.Queries.Done)" />

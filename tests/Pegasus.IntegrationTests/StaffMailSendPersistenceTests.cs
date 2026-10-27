@@ -1023,9 +1023,10 @@ public sealed class StaffMailSendPersistenceTests
     }
 
     /// <summary>
-    /// A received post-report message linked by staff raises a query only on a
-    /// Report sent Case (operator, 11 October 2026); on a Case still with the
-    /// Engineer it is plain correspondence.
+    /// A received message whose classification opens a query, linked by staff,
+    /// opens one only on a Report sent Case (operator, 27 October 2026); on a
+    /// Case still with the Engineer it is plain correspondence. The query is
+    /// the criteria's, recorded as the query-criteria worker, not the linker.
     /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.ReportSent, true)]
@@ -1083,8 +1084,8 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Equal(nameof(CaseQuerySource.Mail), query.Source);
         Assert.Equal(fixture.ReceiptId, query.IntakeReceiptId);
         Assert.Null(query.ClosedAtUtc);
-        Assert.Equal(nameof(ActorKind.Staff), query.RaisedByKind);
-        Assert.Equal(actor.SubjectId, query.RaisedBySubjectId);
+        Assert.Equal(nameof(ActorKind.SystemWorker), query.RaisedByKind);
+        Assert.Equal(CaseQueryLedger.QueryCriteriaActor, query.RaisedBySubjectId);
         Assert.Equal("link-received-query", query.RaisedOperationKey);
         Assert.Single(await verify.ActionHistory
             .Where(item => item.AggregateType == "case"
@@ -1200,114 +1201,31 @@ public sealed class StaffMailSendPersistenceTests
             .ToListAsync());
     }
 
-    [Fact]
-    public async Task CorrectingTheOnlyLinkedPostReportMessageAwayWithdrawsTheQuery()
-    {
-        await using var database = await CreateDatabaseAsync();
-        var mailboxId = Guid.NewGuid();
-        var retainedMessageId = Guid.NewGuid();
-        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
-        var fixture = await SeedReportSentCaseAsync(
-            database, mailboxId, retainedMessageId, isQueryReceipt: true, isAssociated: true);
-        await using var scope = database.CreateAsyncScope();
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-
-        var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
-            actor,
-            new(retainedMessageId, 1, MailCategory.General,
-                "A summary, not a query."));
-
-        Assert.Equal(2, dossier!.Version);
-        await using var verify = await factory.CreateDbContextAsync();
-        var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.ReportSent), persisted.State);
-        Assert.False(persisted.HasOpenQuery);
-        Assert.Equal(fixture.WorkflowVersion + 1, persisted.Version);
-        Assert.Equal(
-            nameof(CaseQueryClosure.Withdrawn),
-            Assert.Single(await verify.CaseQueries.Where(item => item.CaseId == fixture.CaseId).ToListAsync()).ClosedAs);
-        var withdrawn = Assert.Single(await verify.CaseWorkflowEvents
-            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_withdrawn")
-            .ToListAsync());
-        Assert.Equal(actor.SubjectId, withdrawn.ActorSubjectId);
-        Assert.StartsWith("mail-correction:", withdrawn.OperationKey, StringComparison.Ordinal);
-        Assert.Equal(1L, await verify.IntakeMailClassificationHistory.LongCountAsync());
-    }
-
-    [Fact]
-    public async Task CorrectingALinkedMessageToQueryOnAReportSentCaseRaisesAQuery()
-    {
-        await using var database = await CreateDatabaseAsync();
-        var mailboxId = Guid.NewGuid();
-        var retainedMessageId = Guid.NewGuid();
-        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
-        // A Report sent Case whose linked message was read as general correspondence.
-        var fixture = await SeedReportSentCaseAsync(
-            database, mailboxId, retainedMessageId, isQueryReceipt: false, isAssociated: true);
-        await using var scope = database.CreateAsyncScope();
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-
-        var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
-            actor,
-            new(retainedMessageId, 1, MailCategory.Query,
-                "The client is querying the delivered report."));
-
-        Assert.Equal(2, dossier!.Version);
-        await using var verify = await factory.CreateDbContextAsync();
-        var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.ReportSent), persisted.State);
-        Assert.True(persisted.HasOpenQuery);
-        Assert.Null(persisted.ClosureOutcome);
-        Assert.Equal(fixture.WorkflowVersion + 1, persisted.Version);
-        var query = Assert.Single(await verify.CaseQueries.Where(item => item.CaseId == fixture.CaseId).ToListAsync());
-        Assert.Equal(nameof(CaseQuerySource.Mail), query.Source);
-        Assert.Equal(fixture.ReceiptId, query.IntakeReceiptId);
-        Assert.Null(query.ClosedAtUtc);
-        var received = Assert.Single(await verify.CaseWorkflowEvents
-            .Where(item => item.CaseId == fixture.CaseId && item.EventType == "case_query_received")
-            .ToListAsync());
-        Assert.Equal(actor.SubjectId, received.ActorSubjectId);
-        Assert.Single(await verify.ActionHistory
-            .Where(item => item.AggregateType == "case"
-                && item.AggregateId == fixture.CaseId.ToString("D")
-                && item.EventKind == "case_query_received")
-            .ToListAsync());
-    }
-
     /// <summary>
-    /// What a correction tells its caller about the linked Case's queries:
-    /// raised when a message becomes a query on a Report sent Case,
-    /// withdrawn when it stops being one, and nothing for a correction that
-    /// keeps it a query or on a Case whose report is not yet sent.
+    /// A correction names the linked Case and leaves its queries alone
+    /// (operator, 27 October 2026): the workflow version does not move, and an
+    /// open query stays open whatever the message becomes.
     /// </summary>
     [Theory]
-    [InlineData("to-query", CaseLifecycleState.ReportSent, false, MailCategory.Query, true, false)]
-    [InlineData("away", CaseLifecycleState.ReportSent, true, MailCategory.General, false, true)]
-    [InlineData("stays-query", CaseLifecycleState.ReportSent, true, MailCategory.Query, false, false)]
-    [InlineData("before-report-sent", CaseLifecycleState.ReportPreparation, false, MailCategory.Query, false, false)]
-    public async Task ACorrectionReportsWhetherItRaisedOrWithdrewTheLinkedCasesQuery(
-        string row,
+    [InlineData(CaseLifecycleState.ReportSent, false)]
+    [InlineData(CaseLifecycleState.ReportSent, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, false)]
+    public async Task ACorrectionNeverOpensOrWithdrawsTheLinkedCasesQuery(
         CaseLifecycleState state,
-        bool startsPostReport,
-        MailCategory category,
-        bool raised,
-        bool withdrawn)
+        bool startsWithOpenQuery)
     {
-        _ = row;
         await using var database = await CreateDatabaseAsync();
         var mailboxId = Guid.NewGuid();
         var retainedMessageId = Guid.NewGuid();
         await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
         var fixture = await SeedReportSentCaseAsync(
-            database, mailboxId, retainedMessageId, isQueryReceipt: startsPostReport, isAssociated: true, state);
+            database, mailboxId, retainedMessageId, isQueryReceipt: startsWithOpenQuery, isAssociated: true, state);
         await using var scope = database.CreateAsyncScope();
         var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         var store = scope.ServiceProvider.GetRequiredService<IRetainedMailClassificationStore>();
         var current = (await store.GetClassificationAsync(retainedMessageId, CancellationToken.None))!;
         var after = MailClassificationResult.Classified(
-            category,
+            MailCategory.Cancellation,
             current.Current.Predicates,
             "Corrected by staff.",
             current.Current.PolicyKey,
@@ -1319,19 +1237,14 @@ public sealed class StaffMailSendPersistenceTests
             DateTimeOffset.UtcNow, CancellationToken.None);
 
         Assert.Equal(fixture.CaseId, result.LinkedCaseId);
-        Assert.Equal(raised, result.QueryRaised);
-        Assert.Equal(withdrawn, result.QueryWithdrawn);
         await using var verify = await factory.CreateDbContextAsync();
         var persisted = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == fixture.CaseId);
         Assert.Equal(state.ToString(), persisted.State);
-        Assert.Equal(
-            fixture.WorkflowVersion + (raised || withdrawn ? 1 : 0),
-            persisted.Version);
+        Assert.Equal(fixture.WorkflowVersion, persisted.Version);
         var openQuery = await verify.CaseQueries.AnyAsync(item =>
             item.CaseId == fixture.CaseId && item.ClosedAtUtc == null);
+        Assert.Equal(startsWithOpenQuery, openQuery);
         Assert.Equal(openQuery, persisted.HasOpenQuery);
-        // The open query stays open across a correction that keeps it a query.
-        Assert.Equal(raised || (startsPostReport && !withdrawn), openQuery);
     }
 
     [Fact]
@@ -1664,8 +1577,9 @@ public sealed class StaffMailSendPersistenceTests
             MailClassificationDecision = new()
             {
                 IntakeReceiptId = receiptId,
-                Outcome = "classified",
-                Category = isQueryReceipt ? "query" : "general",
+                Outcome = isQueryReceipt ? "unclassified" : "classified",
+                Category = isQueryReceipt ? null : "cancellation",
+                OpensQuery = isQueryReceipt,
                 IsReplyContext = false,
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",
@@ -1956,8 +1870,9 @@ public sealed class StaffMailSendPersistenceTests
             MailClassificationDecision = new()
             {
                 IntakeReceiptId = receiptId,
-                Outcome = "classified",
-                Category = "query",
+                Outcome = "unclassified",
+                Category = null,
+                OpensQuery = true,
                 IsReplyContext = false,
                 PredicatesJson = "{\"version\":1,\"data\":[]}",
                 Reason = "staff-mail test classification",

@@ -119,8 +119,7 @@
     else if (Model.ActiveSection == "message")
     {
         var routeParts = Pegasus.Web.Pages.Mail.MessageModel.RouteParts(Model.Detail);
-        <div class="mail-split">
-            <div class="mail-read">
+        <div class="mail-read">
                 @* The dialog's head carries From, To and received; the page's record head
                    carries From, the mailbox and received, so the route line follows here. *@
                 @if (!Model.InDialog && routeParts.Count > 0)
@@ -130,12 +129,18 @@
                     </div>
                 }
                 <partial name="Shared/_MessageBody" model="Model.Detail" />
+                @if (Model.Detail.Attachments.Count > 0)
+                {
+                    <div class="mail-inline-attachments">
+                        @foreach (var attachment in Model.Detail.Attachments)
+                        {
+                            <a class="mail-attachment-chip" asp-page="/Mail/Message" asp-route-id="@Model.Detail.Summary.Id" asp-route-section="attachments">
+                                <span>@attachment.FileName</span>
+                            </a>
+                        }
+                    </div>
+                }
             </div>
-
-            <aside class="stack">
-                <partial name="Shared/_MessageDecision" model="Model" />
-            </aside>
-        </div>
     }
     else if (Model.ActiveSection == "attachments")
     {

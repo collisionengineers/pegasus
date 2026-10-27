@@ -25,19 +25,14 @@ public sealed class MailClassificationLabelTests
     [Theory]
     [InlineData("new-instruction", "New instruction")]
     [InlineData("triage-request", "Triage request")]
-    [InlineData("pre-instruction", "Pre-instruction")]
-    [InlineData("images-received", "Images received")]
-    [InlineData("case-update", "Case update")]
     [InlineData("cancellation", "Cancellation")]
-    [InlineData("query", "Query")]
-    [InlineData("billing", "Billing")]
-    [InlineData("general", "General")]
-    [InlineData("not-client-related", "Not client related")]
-    [InlineData("internal-cc", "Internal CC")]
     public void LabelsUseTheRuledWording(string code, string label) =>
         Assert.Equal(label, OperatorLabels.MailClassification(MailCategories.Parse(code)));
 
     [Fact]
-    public void EveryCategoryHasARuledLabelRow() =>
-        Assert.Equal(11, MailCategories.All.Count);
+    public void CorrespondenceIsNotACategoryLabel()
+    {
+        Assert.Equal(OperatorLabels.Inbox.Correspondence, "Correspondence");
+        Assert.Equal(3, MailCategories.All.Count);
+    }
 }

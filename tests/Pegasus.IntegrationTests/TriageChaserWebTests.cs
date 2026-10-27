@@ -1295,6 +1295,9 @@ public sealed partial class QdosTriageIntegrationTests
             CancellationToken cancellationToken) =>
             inner.ListMailboxesAsync(cancellationToken);
 
+        public Task<IReadOnlyList<string>> ListPrincipalsAsync(CancellationToken cancellationToken) =>
+            inner.ListPrincipalsAsync(cancellationToken);
+
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>
             inner.ListPollHealthAsync(cancellationToken);
