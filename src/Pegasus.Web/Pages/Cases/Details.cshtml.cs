@@ -1706,6 +1706,17 @@ public sealed partial class DetailsModel(
                     {
                         return FragmentNotFound();
                     }
+                    // The mounted body draws the same assignee control and Take
+                    // as the full page, so it reads the same roster (the
+                    // signed-in person first) that ReadWorkspaceExtrasAsync does.
+                    if (QueriesSection.Queries.Any(query => query.IsOpen))
+                    {
+                        var viewerStaffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(actor);
+                        var roster = (await caseEngineerChoices.GetAsync(actor, cancellationToken))
+                            .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)
+                            .ToArray();
+                        AssignEngineerChoices = new(roster, viewerStaffId);
+                    }
                     break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
