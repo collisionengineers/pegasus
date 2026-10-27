@@ -12,7 +12,8 @@ namespace Pegasus.Core.Lifecycle;
 /// <see cref="CaseLifecycleRules.ReportIsSent(CaseWorkflowRecord)"/>: Report
 /// sent, or With Engineer holding the Inspection report's Sent item while the
 /// Audit is still to come. The stores apply these answers inside the
-/// transaction that links, corrects, unlinks or sends. Query acts take no edit
+/// transaction that links, unlinks or sends. A classification correction does
+/// not open or withdraw a query. Query acts take no edit
 /// lease, expected version or reason.
 /// </summary>
 public static class CaseQueryRules
@@ -65,15 +66,16 @@ public static class CaseQueryRules
     }
 
     /// <summary>
-    /// A received message has joined the Case, by automatic match, staff link
-    /// or correction: it opens a query when the Case's report is sent
+    /// A received message has joined the Case, by automatic match or staff
+    /// link: it opens a query when the Case's report is sent
     /// (<paramref name="reportIsSent"/>, the Case's
     /// <see cref="CaseLifecycleRules.ReportIsSent(CaseLifecycleState, bool, CaseType, bool)"/>),
-    /// the message is currently classified as a query, and that message does
-    /// not already hold an open query on the Case.
+    /// the classification decision says the message opens a query, and that
+    /// message does not already hold a query on the Case. A category correction
+    /// does not open or withdraw one.
     /// </summary>
-    public static bool RaisesOnMailJoined(bool reportIsSent, bool isQuery, bool alreadyOpenForMessage) =>
-        reportIsSent && isQuery && !alreadyOpenForMessage;
+    public static bool OpensOnMailJoined(bool reportIsSent, bool opensQuery, bool messageHasQuery) =>
+        reportIsSent && opensQuery && !messageHasQuery;
 
     /// <summary>
     /// A message has left the Case or stopped being a query: the open

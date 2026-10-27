@@ -8,15 +8,13 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// The folder a retained message was read from. Only <see cref="Inbox"/> is written
-/// today; the other two are declared because the workspace names them as scopes an
-/// operator can select, and a scope that cannot be expressed cannot be refused
-/// either.
+/// by polling; <see cref="Sent"/> is the sent-evidence poll and Case correspondence,
+/// and <see cref="Upload"/> is staff-uploaded mail. Deleted Items is not a scope.
 /// </summary>
 public enum MailFolderScope
 {
     Inbox,
     Sent,
-    DeletedItems,
 
     /// <summary>
     /// An email a member of staff uploaded rather than one a mailbox poll
@@ -32,14 +30,17 @@ public enum MailFolderScope
 /// <paramref name="UnreadOnly"/> is the Unread scope; <paramref name="OldestFirst"/>
 /// is the list's sort toggle (newest first by default). <paramref name="DismissedOnly"/>
 /// is the Dismissed scope: dismissed messages appear there and nowhere else.
-/// <paramref name="Category"/> narrows to one mail category; <paramref name="NoCaseFound"/>
-/// to the No Case Found scope, received mail with no linked Case. They are exclusive.
+/// <paramref name="NoCaseFound"/> is the No Case Found scope, received mail with
+/// no linked Case. <paramref name="PrincipalCode"/> narrows to one Principal,
+/// the route decision's or the linked Case's. On Inbox, the default scope is
+/// All: linked mail, a New instruction, a Triage request, or a receipt nothing
+/// has classified yet.
 /// </summary>
 public sealed record MailWorkspaceScope(
     Guid? MailboxId,
     MailFolderScope Folder,
     string? SearchTerm = null,
-    MailCategory? Category = null,
+    string? PrincipalCode = null,
     bool NoCaseFound = false,
     bool UnreadOnly = false,
     bool OldestFirst = false,
@@ -95,6 +96,24 @@ public sealed record RetainedMailSummary(
     /// offers Open Triage rather than Open Case.
     /// </summary>
     public bool IsTriageCase { get; init; }
+
+    /// <summary>
+    /// The Principal the row belongs to: the route decision's code, else the
+    /// linked Case's. Null when neither is known.
+    /// </summary>
+    public string? PrincipalCode { get; init; }
+
+    /// <summary>The linked Case's vehicle registration, when one is recorded.</summary>
+    public string? VehicleSummary { get; init; }
+
+    /// <summary>The linked Case's type, when the row is linked.</summary>
+    public CaseType? CaseType { get; init; }
+
+    /// <summary>
+    /// The message's non-withdrawn query, if it has one: open reads Query,
+    /// resolved reads Done.
+    /// </summary>
+    public CaseQuerySummary? Query { get; init; }
 }
 
 /// <summary>
@@ -207,10 +226,9 @@ public sealed record CorrectMailClassificationRequest(
     CaseType? CaseType = null);
 
 /// <summary>
-/// What one correction did: the dossier it produced, the Case the message is
-/// currently linked to (null when none, or a Triage Case), and whether the
-/// correction raised a query on that Case (a post-report classification) or
-/// withdrew the one it had raised (corrected away).
+/// What one correction did: the dossier it produced and the Case the message is
+/// currently linked to (null when none, or a Triage Case). A correction does
+/// not raise or withdraw a query; the two flags stay false.
 /// </summary>
 public sealed record MailClassificationCorrectionResult(
     MailClassificationDossier Dossier,
@@ -225,8 +243,9 @@ public interface IRetainedMailClassificationStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Appends the correction and, in the same transaction, applies the Query
-    /// rule to the linked Case when the correction enters or leaves Post-report.
+    /// Appends the correction. A category change does not open or withdraw a
+    /// query; that happens only when the message joins a Case and the
+    /// classification decision says it opens one.
     /// </summary>
     Task<MailClassificationCorrectionResult> AppendCorrectionAsync(
         Guid messageId,
@@ -400,11 +419,6 @@ public sealed class CorrectRetainedMailClassification(
         {
             return;
         }
-        if (result.QueryRaised)
-        {
-            await notifier.NotifyAsync(
-                StaffNotificationCause.QueryReceived, caseId, actor, "correspondence", null, cancellationToken);
-        }
         if (after.Is(MailCategory.Cancellation) && !before.Is(MailCategory.Cancellation))
         {
             await notifier.NotifyCancellationReceivedAsync(caseId, actor, cancellationToken);
@@ -531,6 +545,13 @@ public interface IRetainedMailQueries
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The Principal codes the Inbox filter offers, the active Principals in
+    /// code order. The same list the Case and image-intake filters read.
+    /// </summary>
+    Task<IReadOnlyList<string>> ListPrincipalsAsync(
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
         CancellationToken cancellationToken);
 }
@@ -606,13 +627,10 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope),
                 "The mail folder scope is not recognized.");
         }
-        if (scope.Category is { } category && (scope.NoCaseFound || !Enum.IsDefined(category)))
-        {
-            throw new ArgumentException(
-                "Choose either one mail category or the No Case Found scope.",
-                nameof(scope));
-        }
         var searchTerm = NormalizeSearchTerm(scope.SearchTerm, nameof(scope));
+        var principalCode = string.IsNullOrWhiteSpace(scope.PrincipalCode)
+            ? null
+            : scope.PrincipalCode.Trim();
         if (scope.MailboxId == Guid.Empty)
         {
             throw new ArgumentException("The mailbox identity is required.", nameof(scope));
@@ -620,7 +638,8 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
 
         return scope with
         {
-            SearchTerm = searchTerm
+            SearchTerm = searchTerm,
+            PrincipalCode = principalCode
         };
     }
 
@@ -646,6 +665,14 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         return queries.ListMailboxesAsync(cancellationToken);
+    }
+
+    public Task<IReadOnlyList<string>> ListPrincipalsAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return queries.ListPrincipalsAsync(cancellationToken);
     }
 }
 

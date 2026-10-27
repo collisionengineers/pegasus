@@ -701,6 +701,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             Category = decision.Category is { } category ? MailCategories.Code(category) : null,
             CaseType = decision.CaseType is null ? null : CaseTypeCodes.ToCode(decision.CaseType.Value),
             IsReplyContext = decision.IsReplyContext,
+            OpensQuery = decision.OpensQuery,
             PredicatesJson = SerializeEnvelope(decision.Predicates),
             Reason = decision.Reason,
             PolicyKey = decision.PolicyKey,
@@ -741,7 +742,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     entity.StandaloneAuditReportAssetSourceLabel!,
                     AuditAssessmentCode.Parse(entity.StandaloneAuditReportAssessment!))
                 : null,
-            entity.IsReplyContext);
+            entity.IsReplyContext,
+            entity.OpensQuery);
     }
 
     internal static void ApplyMailClassificationDecision(
@@ -783,6 +785,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.Category = replacement.Category;
         entity.CaseType = replacement.CaseType;
         entity.IsReplyContext = replacement.IsReplyContext;
+        entity.OpensQuery = replacement.OpensQuery;
         entity.PredicatesJson = replacement.PredicatesJson;
         entity.Reason = replacement.Reason;
         entity.PolicyKey = replacement.PolicyKey;

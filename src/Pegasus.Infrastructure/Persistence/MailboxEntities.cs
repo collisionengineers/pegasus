@@ -149,6 +149,7 @@ internal sealed class IntakeMailClassificationDecisionEntity : IApplicationManag
     public string? Category { get; set; }
     public string? CaseType { get; set; }
     public bool IsReplyContext { get; set; }
+    public bool OpensQuery { get; set; }
     public required string PredicatesJson { get; set; }
     public required string Reason { get; set; }
     public required string PolicyKey { get; set; }

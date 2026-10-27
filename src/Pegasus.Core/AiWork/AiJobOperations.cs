@@ -246,7 +246,7 @@ public static class AiJobPolicy
     {
         ArgumentNullException.ThrowIfNull(detail);
         return detail.Summary.CaseId is not null
-            && detail.Classification?.Current?.Is(Intake.MailCategory.Query) == true;
+            && detail.Summary.Query is { IsOpen: true };
     }
 
     /// <summary>
