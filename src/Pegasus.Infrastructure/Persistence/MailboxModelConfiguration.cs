@@ -145,6 +145,10 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.FailureCode).HasMaxLength(100);
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
             entity.HasIndex(item => item.OperationKey).IsUnique();
+            // The mail-association evidence recheck runs inside a serializable
+            // transaction and reads this Message-ID, so it seeks rather than
+            // taking range locks over the whole table.
+            entity.HasIndex(item => item.InternetMessageIdentity);
             entity.HasIndex(item => new { item.MailboxId, item.RecordedAtUtc, item.Id }).IsDescending(false, true, false);
             entity.HasIndex(item => new { item.OutcomeKind, item.RecordedAtUtc, item.Id }).IsDescending(false, true, false);
             entity.HasIndex(item => new { item.RecordedAtUtc, item.Id }).IsDescending(true, false);

@@ -11,7 +11,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// to the Case of the message it answers, across any approved mailbox (D13,
 /// item T; operator, 27 October 2026). Additive and nullable: rows retained
 /// before this migration have no reply identities and link only by the signals
-/// they already carried.
+/// they already carried. The two indexes let the in-transaction evidence
+/// recheck seek the Message-ID it looks for instead of taking serializable
+/// range locks across the whole table.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
 [Migration("20261027120000_RetainedMailReplyIdentities")]
@@ -24,10 +26,28 @@ public partial class RetainedMailReplyIdentities : Migration
             table: "RetainedMailboxMessages",
             type: "nvarchar(max)",
             nullable: true);
+
+        migrationBuilder.CreateIndex(
+            name: "IX_ApprovedSentPollOutcomes_InternetMessageIdentity",
+            table: "ApprovedSentPollOutcomes",
+            column: "InternetMessageIdentity");
+
+        migrationBuilder.CreateIndex(
+            name: "IX_CaseReportSentEvidence_InternetMessageIdentity",
+            table: "CaseReportSentEvidence",
+            column: "InternetMessageIdentity");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.DropIndex(
+            name: "IX_CaseReportSentEvidence_InternetMessageIdentity",
+            table: "CaseReportSentEvidence");
+
+        migrationBuilder.DropIndex(
+            name: "IX_ApprovedSentPollOutcomes_InternetMessageIdentity",
+            table: "ApprovedSentPollOutcomes");
+
         migrationBuilder.DropColumn(
             name: "InReplyToIdentitiesJson",
             table: "RetainedMailboxMessages");

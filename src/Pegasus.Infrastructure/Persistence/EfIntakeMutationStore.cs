@@ -1426,6 +1426,9 @@ internal sealed class EfIntakeMutationStore(
     private static string RolesJson(ActionActor actor) =>
         JsonSerializer.Serialize(actor.Roles.OrderBy(role => role));
 
+    // The reason is left out: it is derived from the matching evidence, not an
+    // operator input, so a redelivery whose fresh evidence names one more
+    // agreeing signal must still replay as AlreadyAssociated.
     private static string RequestHash(string eventType, AutomaticCaseAssociationRequest request)
         => Hash(JsonSerializer.Serialize(new
         {
@@ -1435,8 +1438,7 @@ internal sealed class EfIntakeMutationStore(
             request.MatchPolicyKey,
             request.MatchPolicyVersion,
             request.Actor,
-            request.OperationKey,
-            request.Reason
+            request.OperationKey
         }));
 
     private static async Task<AutomaticMailCaseAssociationEvidence?> LoadMailAssociationEvidenceAsync(
@@ -1492,9 +1494,13 @@ internal sealed class EfIntakeMutationStore(
         Guid[] threadCaseIds = [];
         if (!string.IsNullOrWhiteSpace(message.ConversationIdentity))
         {
+            // A message is never thread evidence for itself: the association an
+            // earlier attempt wrote must not join the intersection on a
+            // redelivery and make the evidence look different from the write.
             var threadReceiptIds = await CurrentIntakeAssociations
                 .ThreadReceipts(context, message.MailboxId, message.ConversationIdentity)
                 .AsNoTracking()
+                .Where(item => item.Id != receipt.Id)
                 .Select(item => item.Id)
                 .ToListAsync(cancellationToken);
             var current = await CurrentIntakeAssociations.ReadAsync(
@@ -1517,10 +1523,11 @@ internal sealed class EfIntakeMutationStore(
             claimTokens,
             cancellationToken);
 
-        // Archived Cases are excluded here, once, for every signal the Core
-        // policy intersects: it cannot see archived state, so an archived Case
-        // must never reach it as a candidate (D16). The registration read
-        // already filters its own rows.
+        // Every signal's candidate set is cut to the Cases that can take an
+        // association, once, because the Core policy cannot see the difference:
+        // an archived Case must never reach it (D16), and neither must a Triage,
+        // which has no workflow row and is not an association target. The
+        // registration read already filters its own rows.
         var candidates = threadCaseIds
             .Concat(replyCaseIds)
             .Concat(claimReferenceCaseIds)
@@ -1528,21 +1535,16 @@ internal sealed class EfIntakeMutationStore(
             .ToArray();
         if (candidates.Length > 0)
         {
-            var archived = await context.CaseWorkflows
+            var eligible = await context.CaseWorkflows
                 .AsNoTracking()
-                .Where(workflow => workflow.ArchivedAtUtc != null
+                .Where(workflow => workflow.ArchivedAtUtc == null
                     && candidates.Contains(workflow.CaseId))
                 .Select(workflow => workflow.CaseId)
                 .ToArrayAsync(cancellationToken);
-            if (archived.Length > 0)
-            {
-                var archivedIds = archived.ToHashSet();
-                threadCaseIds = threadCaseIds.Where(caseId => !archivedIds.Contains(caseId)).ToArray();
-                replyCaseIds = replyCaseIds.Where(caseId => !archivedIds.Contains(caseId)).ToArray();
-                claimReferenceCaseIds = claimReferenceCaseIds
-                    .Where(caseId => !archivedIds.Contains(caseId))
-                    .ToArray();
-            }
+            var eligibleIds = eligible.ToHashSet();
+            threadCaseIds = threadCaseIds.Where(eligibleIds.Contains).ToArray();
+            replyCaseIds = replyCaseIds.Where(eligibleIds.Contains).ToArray();
+            claimReferenceCaseIds = claimReferenceCaseIds.Where(eligibleIds.Contains).ToArray();
         }
 
         return new(
@@ -1625,6 +1627,21 @@ internal sealed class EfIntakeMutationStore(
             return [];
         }
 
+        // A reply header carries the Message-ID without its angle brackets
+        // (MimeKit strips them), while a Graph item, a Sent poll outcome and
+        // report-sent evidence retain the transport value with them. Each
+        // identity is offered in both forms and compared by plain equality: the
+        // identity columns' case-insensitive collation is what every other
+        // identity comparison in this store already relies on.
+        var lookup = replyIdentities
+            .SelectMany(identity => identity.Length > 1
+                && identity[0] == '<'
+                && identity[^1] == '>'
+                    ? new[] { identity, identity[1..^1] }
+                    : new[] { identity, $"<{identity}>" })
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
         var caseIds = new List<Guid>();
 
         var inbox = EfRetainedMailboxMessageStore.ToCode(MailFolderScope.Inbox);
@@ -1632,7 +1649,7 @@ internal sealed class EfIntakeMutationStore(
             .AsNoTracking()
             .Where(item => item.FolderScope == inbox
                 && item.CanonicalInternetMessageIdentity != null
-                && replyIdentities.Contains(item.CanonicalInternetMessageIdentity))
+                && lookup.Contains(item.CanonicalInternetMessageIdentity))
             .Select(item => item.ExternalReceiptToken)
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -1651,16 +1668,11 @@ internal sealed class EfIntakeMutationStore(
             caseIds.AddRange(current.Current.Values.Select(item => item.CaseId));
         }
 
-        // Sent outcomes and report-sent evidence retain the transport Message-ID
-        // verbatim; the reply identities are canonical (trimmed, upper-cased), so
-        // the stored side is folded the same way rather than relying on collation.
-        // ToUpper() here is translated to SQL UPPER(), never run under a culture.
-#pragma warning disable CA1304, CA1311
         var sentCaseIdentities = await context.ApprovedSentPollOutcomes
             .AsNoTracking()
             .Where(item => item.InternetMessageIdentity != null
                 && item.AuthoritativeCaseIdentitiesJson != null
-                && replyIdentities.Contains(item.InternetMessageIdentity.Trim().ToUpper()))
+                && lookup.Contains(item.InternetMessageIdentity))
             .Select(item => item.AuthoritativeCaseIdentitiesJson!)
             .ToListAsync(cancellationToken);
         foreach (var identities in sentCaseIdentities)
@@ -1673,10 +1685,9 @@ internal sealed class EfIntakeMutationStore(
         var reportSentCaseIds = await context.CaseReportSentEvidence
             .AsNoTracking()
             .Where(item => item.CaseId != null
-                && replyIdentities.Contains(item.InternetMessageIdentity.Trim().ToUpper()))
+                && lookup.Contains(item.InternetMessageIdentity))
             .Select(item => item.CaseId!.Value)
             .ToListAsync(cancellationToken);
-#pragma warning restore CA1304, CA1311
         caseIds.AddRange(reportSentCaseIds);
 
         return caseIds.Distinct().Order().ToArray();

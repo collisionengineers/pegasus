@@ -1092,6 +1092,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("InternetMessageIdentity");
+
                     b.HasIndex("OperationKey")
                         .IsUnique();
 
@@ -2659,6 +2661,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CaseId");
+
+                    b.HasIndex("InternetMessageIdentity");
 
                     b.HasIndex("RetentionOperationKey")
                         .IsUnique();

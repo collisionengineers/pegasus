@@ -13,6 +13,16 @@ namespace Pegasus.Core.Intake;
 /// </summary>
 public sealed record MailAssociationRegistrationCandidate(Guid CaseId, DateOnly? IncidentDate);
 
+/// <summary>
+/// The evidence one retained inbound message offers the automatic association
+/// policy.
+/// </summary>
+/// <remarks>
+/// Every candidate set holds only Cases that can take an association: the store
+/// drops a Case that has no workflow row, so a Triage — which is not an
+/// association target — never reaches the policy, and it drops an archived Case
+/// before the intersection (D16).
+/// </remarks>
 public sealed record AutomaticMailCaseAssociationEvidence(
     Guid IntakeReceiptId,
     long IntakeVersion,

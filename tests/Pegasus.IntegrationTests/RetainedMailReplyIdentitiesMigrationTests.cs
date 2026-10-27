@@ -45,7 +45,9 @@ public sealed class RetainedMailReplyIdentitiesMigrationTests
             "retained-before",
             await database.ScalarAsync<string>(
                 $"SELECT ExternalReceiptToken FROM RetainedMailboxMessages WHERE Id = '{MessageId}'"));
-        Assert.Null(await database.ScalarAsync<string>(
-            $"SELECT InReplyToIdentitiesJson FROM RetainedMailboxMessages WHERE Id = '{MessageId}'"));
+        // A scalar read cannot tell SQL NULL from an empty string, so the null is
+        // asserted by counting the row that still holds none.
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM RetainedMailboxMessages WHERE Id = '{MessageId}' AND InReplyToIdentitiesJson IS NULL"));
     }
 }

@@ -93,7 +93,9 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
     /// The exact messages a reply answers are read from its In-Reply-To and
     /// References headers, In-Reply-To first, in the canonical comparison form,
     /// de-duplicated, and an identity outside the storage bound is dropped
-    /// rather than kept (D13; the retained reply-identity column).
+    /// rather than kept (D13; the retained reply-identity column). The header
+    /// values arrive without angle brackets — MimeKit strips them — and that is
+    /// the form retained.
     /// </summary>
     [Fact]
     public async Task LocalEmailDisplayKeepsTheCanonicalDistinctReplyChainIdentities()
@@ -108,7 +110,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         });
 
         Assert.Equal(
-            ["<SECOND@EXAMPLE.INVALID>", "<FIRST@EXAMPLE.INVALID>"],
+            ["SECOND@EXAMPLE.INVALID", "FIRST@EXAMPLE.INVALID"],
             display.InReplyToIdentities ?? []);
     }
 

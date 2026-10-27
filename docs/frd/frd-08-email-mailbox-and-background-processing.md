@@ -199,10 +199,12 @@ telemetry.
 
 Automatic association of inbound mail is deliberately cautious. Every linking
 signal that has any candidate contributes its whole candidate set, and the
-message is linked only when their intersection is exactly one current,
-non-archived Case:
+message is linked only when their intersection is exactly one Case that can
+take an association — current, not archived, and never a Triage:
 
-- the Cases of its exact mailbox-and-conversation thread;
+- the Cases the other messages of its exact mailbox-and-conversation thread
+  stand linked to; a message is never thread evidence for itself, so the link
+  an earlier attempt wrote cannot become evidence for its own redelivery;
 - the Cases of the retained received messages and Pegasus Sent items, in any
   approved mailbox, that its `In-Reply-To` and `References` headers point at;
 - the Cases whose indexed durable claim token its subject or current body

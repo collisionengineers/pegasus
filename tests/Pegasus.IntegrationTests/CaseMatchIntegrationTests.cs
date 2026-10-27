@@ -592,7 +592,9 @@ public sealed class CaseMatchIntegrationTests
 
     /// <summary>
     /// A reply answers the message it quotes: its In-Reply-To and References
-    /// headers reach the Case of the retained message they point at (D13).
+    /// headers reach the Case of the retained message they point at (D13). The
+    /// header value carries no angle brackets, while the retained identity was
+    /// stored from the transport value with them.
     /// </summary>
     [Fact]
     public async Task ReplyHeadersLinkToTheCaseOfTheRetainedMessageTheyAnswer()
@@ -612,7 +614,7 @@ public sealed class CaseMatchIntegrationTests
             null,
             null,
             messageIdentity: "<reply@example.test>",
-            replyIdentities: ["<original@example.test>"]);
+            replyIdentities: ["original@example.test"]);
 
         var evidence = await store.GetAsync(reply, CancellationToken.None);
         Assert.Equal([caseId], evidence!.ReplyCaseIds);
@@ -624,7 +626,8 @@ public sealed class CaseMatchIntegrationTests
     /// <summary>
     /// The message a reply answers may be a Pegasus Sent item from another
     /// approved mailbox; its authoritative Case identities answer the reply
-    /// headers (D13).
+    /// headers (D13). The Sent item keeps the transport Message-ID with its
+    /// angle brackets, the reply header does not, and both forms are looked for.
     /// </summary>
     [Fact]
     public async Task ReplyHeadersLinkToASentItemInAnotherApprovedMailbox()
@@ -640,7 +643,7 @@ public sealed class CaseMatchIntegrationTests
             null,
             "mailbox-1",
             messageIdentity: "<sent-reply@example.test>",
-            replyIdentities: ["<sent-item@example.test>"]);
+            replyIdentities: ["sent-item@example.test"]);
 
         var evidence = await store.GetAsync(reply, CancellationToken.None);
         Assert.Equal([caseId], evidence!.ReplyCaseIds);
@@ -651,7 +654,9 @@ public sealed class CaseMatchIntegrationTests
 
     /// <summary>
     /// A reply to the Case's report answers the report's own Message-ID, which
-    /// the report-sent evidence records against the Case (D13).
+    /// the report-sent evidence records against the Case (D13). The evidence row
+    /// keeps the transport Message-ID with its angle brackets, the reply header
+    /// does not, and both forms are looked for.
     /// </summary>
     [Fact]
     public async Task ReplyHeadersLinkToTheCaseOfTheReportTheyAnswer()
@@ -666,7 +671,7 @@ public sealed class CaseMatchIntegrationTests
             null,
             null,
             messageIdentity: "<report-reply@example.test>",
-            replyIdentities: ["<report-sent@example.test>"]);
+            replyIdentities: ["report-sent@example.test"]);
 
         var evidence = await store.GetAsync(reply, CancellationToken.None);
         Assert.Equal([caseId], evidence!.ReplyCaseIds);
@@ -707,7 +712,9 @@ public sealed class CaseMatchIntegrationTests
 
     /// <summary>
     /// A registration several Cases share is narrowed by the message's incident
-    /// date; only the Case carrying that date remains a candidate (D15).
+    /// date, and the narrowing belongs to the policy: the evidence carries both
+    /// candidates with their own dates, and <c>SelectTarget</c> keeps the Case
+    /// carrying the message's date (D15).
     /// </summary>
     [Fact]
     public async Task VehicleRegistrationIsNarrowedByTheMessageIncidentDate()
@@ -726,10 +733,17 @@ public sealed class CaseMatchIntegrationTests
             incidentDate: new DateOnly(2031, 5, 1));
 
         var evidence = await store.GetAsync(receipt, CancellationToken.None);
-        var candidate = Assert.Single(evidence!.RegistrationCandidates);
-        Assert.Equal(laterCaseId, candidate.CaseId);
-        Assert.Equal(new DateOnly(2031, 5, 1), candidate.IncidentDate);
-        Assert.NotEqual(earlierCaseId, candidate.CaseId);
+        Assert.Equal(2, evidence!.RegistrationCandidates.Count);
+        Assert.Equal(
+            new DateOnly(2031, 4, 1),
+            Assert.Single(evidence.RegistrationCandidates, item => item.CaseId == earlierCaseId).IncidentDate);
+        Assert.Equal(
+            new DateOnly(2031, 5, 1),
+            Assert.Single(evidence.RegistrationCandidates, item => item.CaseId == laterCaseId).IncidentDate);
+
+        var target = Assert.IsType<AssociateRetainedMailWithCase.MailAssociationTarget>(
+            AssociateRetainedMailWithCase.SelectTarget(evidence, null));
+        Assert.Equal(laterCaseId, target.CaseId);
         Assert.Equal(
             AutomaticCaseAssociationOutcome.Associated,
             await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(receipt));
@@ -759,11 +773,38 @@ public sealed class CaseMatchIntegrationTests
             null,
             null,
             messageIdentity: "<archived-reply@example.test>",
-            replyIdentities: ["<archived-original@example.test>"]);
+            replyIdentities: ["archived-original@example.test"]);
 
         var evidence = await store.GetAsync(reply, CancellationToken.None);
         Assert.Empty(evidence!.ReplyCaseIds);
         Assert.Null(await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(reply));
+    }
+
+    /// <summary>
+    /// A Triage is not an association target. A thread whose only linked message
+    /// stands linked to a Triage therefore offers no thread candidate at all,
+    /// rather than a candidate the write would fail on (R195; FRD-08).
+    /// </summary>
+    [Fact]
+    public async Task AThreadHoldingOnlyATriageIsNoAssociationCandidate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var triageCaseId = await harness.SeedTriageCaseAsync("t.QDOS31901");
+        var earlier = await harness.SeedRetainedMailReceiptAsync(
+            "triage-thread-earlier",
+            null,
+            "triage-thread");
+        await harness.LinkReceiptToCaseAsync(earlier, triageCaseId);
+
+        var later = await harness.SeedRetainedMailReceiptAsync(
+            "triage-thread-later",
+            null,
+            "triage-thread");
+
+        var evidence = await store.GetAsync(later, CancellationToken.None);
+        Assert.Empty(evidence!.ThreadCaseIds);
+        Assert.Null(await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(later));
     }
 
     [Fact]
@@ -1098,6 +1139,59 @@ public sealed class CaseMatchIntegrationTests
             await using var context = await Factory.CreateDbContextAsync();
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"UPDATE CaseWorkflows SET ArchivedAtUtc = {StartUtc}, ArchivedByKind = {"Staff"}, ArchivedBySubjectId = {"test-staff"}, ArchivedByRolesJson = {"[]"}, ArchiveReason = {"Test archive."} WHERE CaseId = {caseId}");
+        }
+
+        /// <summary>
+        /// A Triage Case as intake writes it: a Case row of the seeded QDOS
+        /// Principal with a <c>t.</c> reference and no CaseWorkflows row, because
+        /// a Triage is not a Case that mail association may link to.
+        /// </summary>
+        public async Task<Guid> SeedTriageCaseAsync(string reference)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var caseId = Guid.NewGuid();
+            context.Cases.Add(new CaseEntity
+            {
+                Id = caseId,
+                PrincipalId = principal.Id,
+                SequenceLineageId = principal.SequenceLineageId,
+                Year = StartUtc.Year,
+                Sequence = 1 + (await context.Cases
+                    .Where(item => item.SequenceLineageId == principal.SequenceLineageId
+                        && item.Year == StartUtc.Year)
+                    .MaxAsync(item => (int?)item.Sequence) ?? 0),
+                Reference = reference,
+                Type = CaseTypeCodes.Triage,
+                InitialState = null,
+                CustodyState = "pending",
+                OriginIntakeReceiptId = null,
+                CreatedAtUtc = StartUtc,
+                Version = 0,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            await context.SaveChangesAsync();
+            return caseId;
+        }
+
+        /// <summary>A staff link from a receipt to a Case, as the Link to Case confirmation writes it.</summary>
+        public async Task LinkReceiptToCaseAsync(Guid receiptId, Guid caseId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            context.IntakeManualAssociations.Add(new()
+            {
+                IntakeReceiptId = receiptId,
+                CaseId = caseId,
+                IsActive = true,
+                Version = 1,
+                LinkedAtUtc = StartUtc,
+                ActorKind = nameof(ActorKind.Staff),
+                ActorSubjectId = StaffActor.SubjectId,
+                ActorRolesJson = "[\"User\"]",
+                Reason = "Fixture thread association.",
+                LastOperationKey = $"fixture-link:{Guid.NewGuid():N}"
+            });
+            await context.SaveChangesAsync();
         }
 
         public async Task SetReceiptRegistrationAsync(Guid receiptId, string registration)
