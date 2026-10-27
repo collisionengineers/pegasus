@@ -106,6 +106,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0083](0083-stage-large-automation-documents-in-parts.md) | Stage large Automation documents in parts | accepted | — | MCP-04 |
 | [ADR-0084](0084-brego-valuation-account-and-valuation-report.md) | Brego valuation account and Valuation Report | accepted | — | EXT-07, EXT-13 |
 | [ADR-0085](0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md) | Mail is instructions or Case correspondence, and queries are assignable records | accepted | — | CASE-16, CASE-23, MAIL-02 |
+| [ADR-0086](0086-work-centre-views-are-computed-on-read.md) | Work Centre views are computed on read | accepted | — | UI-04, UI-05 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

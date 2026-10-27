@@ -135,11 +135,14 @@ transitions to the staff username. A cancel or confirm made by the Automation
 Actor is attributed to it in the same way. The Administrator kill switch refuses
 claims and progress; queued jobs wait and taken jobs expire back to `Queued`.
 
-**Work Centre AI jobs.** The Work Centre's AI jobs tab is the live queue
-([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Each row
-shows the kind and state, the instruction (a Query response reads "Draft a
-reply to the query": its stored instruction is the message it answers), the
-record, who started it and when. The action is one of `Review estimate`
+**Work Centre AI Actions.** The Work Centre's AI Actions tab is the live queue
+plus the jobs that completed or failed in the same seven days
+([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Market research
+is still excluded. Each row shows the action (Estimate done, Draft to a query,
+or the kind), the Case, the state, the summary, and when. A repair
+specification with source route AiDraft and the job's id is Engineer adoption:
+the row reads "Taken by {engineer}", which is not the job state Taken. The
+action is one of `Review estimate`
 (opens the Case's Repair Spec section), `Reply with AI draft` (opens the
 reply composer of the message it answers on the draft, or the Case's
 correspondence when the job names no message) or `Review` (opens the
