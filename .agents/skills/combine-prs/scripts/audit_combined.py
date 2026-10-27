@@ -22,7 +22,8 @@ Usage:
 
 FAIL items must be fixed or explained in the PR body; REVIEW items need a look.
 Exit codes: 0 = pass, 1 = at least one FAIL, 3 = REVIEW items only.
-Read-only.
+Needs git >= 2.38. Changes no ref, index or worktree; redoing each merge
+writes only unreferenced objects (garbage-collected later).
 """
 from __future__ import annotations
 
@@ -34,9 +35,9 @@ from collections import Counter, defaultdict
 GIT = ["git", "-c", "core.quotePath=false"]
 
 
-def git(*args: str, check: bool = True) -> str:
+def git(*args: str, ok: tuple[int, ...] = (0,)) -> str:
     result = subprocess.run([*GIT, *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
-    if check and result.returncode != 0:
+    if result.returncode not in ok:
         raise SystemExit(f"error: git {' '.join(args)}: {result.stderr.strip()}")
     return result.stdout
 
@@ -154,7 +155,15 @@ def main() -> int:
     fix_paths = set().union(*(d.paths for _, d in fix_deltas)) if fix_deltas else set()
     resolved_paths: dict[str, list[str]] = defaultdict(list)
     for m in merge_commits:
-        for path in git("diff-tree", "--cc", "--name-only", "--no-commit-id", "-r", m).split("\n"):
+        parents = git("rev-list", "--parents", "-n", "1", m).split()[1:]
+        if len(parents) == 2:
+            # Redo git's automatic merge of the parents in memory (exit 1 = it conflicted): a path
+            # the merge commit holds differently was resolved or edited by hand.
+            auto_tree = git("merge-tree", "--write-tree", *parents, ok=(0, 1)).split("\n", 1)[0]
+            changed = git("diff-tree", "-r", "--name-only", auto_tree, m)
+        else:
+            changed = git("diff-tree", "--cc", "--name-only", "--no-commit-id", "-r", m)
+        for path in changed.split("\n"):
             if path.strip():
                 resolved_paths[path.strip()].append(m)
 

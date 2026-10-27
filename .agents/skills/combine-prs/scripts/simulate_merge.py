@@ -11,7 +11,8 @@ Usage:
     python simulate_merge.py --target origin/dev --pairwise 41=<sha> 42=<sha>
 
 Needs git >= 2.38. Writes only unreferenced objects (garbage-collected later).
-Exit codes: 0 = clean train, 1 = at least one conflict, 3 = usage/git error.
+Exit codes: 0 = clean train, 1 = at least one conflict, 2 = bad arguments
+(argparse), 3 = a revision that does not resolve or a failing git command.
 """
 from __future__ import annotations
 
@@ -31,10 +32,16 @@ def git(*args: str) -> subprocess.CompletedProcess:
                           errors="replace", env=ENV)
 
 
+def fail(message: str) -> None:
+    """Stop with exit 3, so an error is never mistaken for a conflict (exit 1)."""
+    print(f"error: {message}", file=sys.stderr)
+    raise SystemExit(3)
+
+
 def resolve(rev: str) -> str:
     result = git("rev-parse", "--verify", f"{rev}^{{commit}}")
     if result.returncode != 0:
-        raise SystemExit(f"error: cannot resolve {rev}: {result.stderr.strip()}")
+        fail(f"cannot resolve {rev}: {result.stderr.strip()}")
     return result.stdout.strip()
 
 
@@ -42,7 +49,7 @@ def merge(ours: str, theirs: str) -> tuple[str, list[str], list[str]]:
     """Return (tree, conflicted files, conflict messages)."""
     result = git("merge-tree", "--write-tree", "--name-only", ours, theirs)
     if result.returncode not in (0, 1):
-        raise SystemExit(f"error: git merge-tree failed (git >= 2.38 needed): {result.stderr.strip()}")
+        fail(f"git merge-tree failed (git >= 2.38 needed): {result.stderr.strip()}")
     head, _, messages = result.stdout.partition("\n\n")
     lines = head.splitlines()
     tree, files = lines[0], list(dict.fromkeys(lines[1:]))
@@ -81,7 +88,7 @@ def main() -> int:
         print(f"| {step} | #{label} `{sha[:12]}` | {result} | {', '.join(f'`{f}`' for f in files) or '-'} |")
         commit = git("commit-tree", tree, "-p", current, "-p", sha, "-m", f"simulate {label}")
         if commit.returncode != 0:
-            raise SystemExit(f"error: git commit-tree failed: {commit.stderr.strip()}")
+            fail(f"git commit-tree failed: {commit.stderr.strip()}")
         current = commit.stdout.strip()
 
     for step, label, notes in details:

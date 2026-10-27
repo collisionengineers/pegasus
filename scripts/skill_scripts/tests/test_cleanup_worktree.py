@@ -31,15 +31,18 @@ class CleanupHelpers:
         value = {"state": "OPEN", "headRefOid": self.head, "headRefName": BRANCH,
                  "url": "https://github.com/acme/widgets/pull/7"}
         value.update(overrides)
-        return (0, json.dumps(value))
+        return (0, json.dumps(value), "")
 
-    def clean(self, *extra, worktree=None, gh=None, cwd=None):
+    def clean(self, *extra, worktree=None, gh=None, ignored_status=None, cwd=None):
+        """ignored_status, when given, answers the `git status --ignored` call instead of git."""
         answer = gh if gh is not None else self.pr()
 
         def run(args, cwd=None):
             if args[0] == "gh":
                 self.gh_calls.append(args)
                 return answer
+            if ignored_status is not None and "--ignored" in args:
+                return ignored_status
             return real_run(args, cwd=cwd)
 
         with mock.patch.object(cleanup, "run", run):
@@ -130,10 +133,35 @@ class CleanupWorktreeRefusals(SharedRepository):
         self.assertTrue(self.worktree.is_dir())
 
     def test_failing_gh_exits_2(self):
-        code, out, _ = self.clean(gh=(1, "gh: authentication required\n"))
+        code, out, _ = self.clean(gh=(1, "", "gh: authentication required\n"))
         self.assertEqual(2, code)
         self.assertIn("authentication required", out)
         self.assertTrue(self.worktree.is_dir())
+
+    def test_a_gh_warning_on_stderr_beside_valid_json_does_not_change_the_result(self):
+        code, out, _ = self.clean("--dry-run", gh=(0, self.pr()[1], "A new release of gh is available\n"))
+        self.assertEqual(0, code)
+        self.assertIn(f"PR #7 OPEN at {self.head[:12]} == worktree {BRANCH}; worktree clean.", out)
+
+    def test_an_ignored_file_is_named_before_removal(self):
+        # Linked worktrees read the main repository's info/exclude, so the commit stays unchanged.
+        exclude = self.repo.root / ".git" / "info" / "exclude"
+        exclude.parent.mkdir(exist_ok=True)
+        before = exclude.read_bytes() if exclude.exists() else b""
+        exclude.write_bytes(before + b"\n*.log\n")
+        self.addCleanup(exclude.write_bytes, before)
+        log = self.worktree / "x.log"
+        log.write_bytes(b"x\n")
+        self.addCleanup(log.unlink)
+        code, out, _ = self.clean("--dry-run")
+        self.assertEqual(0, code)
+        self.assertIn("note: 1 ignored path(s) under the worktree will be deleted with it, e.g. x.log", out)
+
+    def test_a_failing_ignored_status_exits_2(self):
+        code, out, _ = self.clean("--dry-run", ignored_status=(128, "", "fatal: status refused\n"))
+        self.assertEqual(2, code)
+        self.assertIn("fatal: status refused", out)
+        self.assertNotIn("dry run:", out)
 
     def test_failing_git_exits_2(self):
         outside = self.tmp / "outside"

@@ -101,6 +101,18 @@ class WatchChecksExitCodes(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertIn("also failed: later", out)
 
+    def test_each_failure_is_named_once_when_the_later_listed_one_completed_first(self):
+        gh = Gh(polls=[checks_answer([
+            check("later", "fail", "FAILURE", "2026-10-22T08:09:00Z", job="222"),
+            check("earliest", "fail", "FAILURE", "2026-10-22T08:01:00Z", job="111"),
+        ])])
+        code, out, _ = watch_pr(gh)
+        self.assertEqual(1, code)
+        self.assertIn("FIRST FAILURE: earliest (FAILURE)", out)
+        self.assertIn("also failed: later", out)
+        self.assertEqual(1, out.count("earliest"))
+        self.assertEqual(1, out.count("later"))
+
     def test_a_failed_state_without_a_fail_bucket_counts_as_failed(self):
         gh = Gh(polls=[checks_answer([check("deploy", "pending", "ERROR", "2026-10-22T08:01:00Z", job="5")])])
         code, out, _ = watch_pr(gh)
