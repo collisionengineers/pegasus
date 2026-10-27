@@ -156,19 +156,22 @@
                 <div class="inbox-ledger" data-row-list>
                     @foreach (var item in Model.Results.Items)
                     {
-                        var typeLabel = item.Classification is { } classification
-                            ? Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(classification)
-                            : OperatorLabels.Inbox.Correspondence;
+                        var subject = Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item);
+                        var classification = item.Classification is { IsClassified: true, Category: { } } current ? current : null;
                         <div class="inbox-row inbox-ledger-row @(item.IsRead ? null : "unread")" data-mail-row="@item.Id" aria-current="@(Model.SelectedMessageId == item.Id ? "true" : null)">
                             <label class="inbox-row-tick">
                                 <input type="checkbox" form="mail-bulk" name="ids" value="@item.Id" data-mail-tick
-                                       aria-label="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)"
+                                       aria-label="@subject"
                                        checked="@Model.TickedIds.Contains(item.Id)" />
+                                @if (!item.IsRead)
+                                {
+                                    <span class="unread-indicator" aria-hidden="true"></span><span class="sr-only">@OperatorLabels.Shell.Unread</span>
+                                }
                             </label>
                             <div class="inbox-cell-case">
                                 @if (item.CaseId is { } caseId && item.CaseReference is { Length: > 0 } reference)
                                 {
-                                    <a asp-page="/Cases/Details" asp-route-id="@caseId">@reference</a>
+                                    <a class="mail-row-case" asp-page="/Cases/Details" asp-route-id="@caseId">@reference</a>
                                 }
                                 else
                                 {
@@ -179,36 +182,78 @@
                                     <small class="inbox-cell-sub">@item.VehicleSummary</small>
                                 }
                             </div>
+                            @* Type (v42 H): the category as its status chip with the work type
+                               beneath, the message's open query as the purple Query chip with
+                               its assignee, and Correspondence as plain words. *@
                             <div class="inbox-cell-type">
-                                <span>@typeLabel</span>
-                                @if (item.Query is { IsOpen: true })
+                                @if (item.Query is { IsOpen: true } query)
                                 {
-                                    <span class="status status--purple">@OperatorLabels.QueryStage</span>
+                                    <span class="status status--purple" data-row-query>@OperatorLabels.QueryStage</span>
+                                    <small class="inbox-cell-sub">@(query.AssignedTo ?? OperatorLabels.CaseWorkspace.Unassigned)</small>
+                                }
+                                else if (classification?.Category is { } category)
+                                {
+                                    <span class="status status--@OperatorLabels.Inbox.CategoryTone(category)">@OperatorLabels.MailClassification(category)</span>
+                                    @if (category == MailCategory.NewInstruction && classification.CaseType is { } caseType)
+                                    {
+                                        <small class="inbox-cell-sub">@OperatorLabels.CaseTypeName(caseType)</small>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="inbox-type-correspondence">@OperatorLabels.Inbox.Correspondence</span>
                                 }
                             </div>
                             <div class="inbox-cell-message">
-                                <a class="row-title" data-mail-open
-                                   asp-page="/Mail/Message" asp-route-id="@item.Id"
-                                   asp-route-mailbox="@Model.MailboxFilter"
-                                   asp-route-folder="@Model.FolderRouteValue"
-                                   asp-route-principal="@Model.PrincipalFilter"
-                                   asp-route-search="@Model.SearchTerm"
-                                   asp-route-queue="@Model.QueueFilter"
-                                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-                                   asp-route-pageNumber="@(currentPage > 1 ? currentPage : (int?)null)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
+                                <div class="inbox-subject-line">
+                                    <a class="row-title" data-mail-open
+                                       asp-page="/Mail/Message" asp-route-id="@item.Id"
+                                       asp-route-mailbox="@Model.MailboxFilter"
+                                       asp-route-folder="@Model.FolderRouteValue"
+                                       asp-route-principal="@Model.PrincipalFilter"
+                                       asp-route-search="@Model.SearchTerm"
+                                       asp-route-queue="@Model.QueueFilter"
+                                       asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                                       asp-route-pageNumber="@(currentPage > 1 ? currentPage : (int?)null)">@subject</a>
+                                    @if (item.AttachmentCount > 0)
+                                    {
+                                        <span class="mail-att-pill" title="@OperatorLabels.Inbox.AttachmentCount(item.AttachmentCount)">
+                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file")" /></svg>
+                                            <span>@item.AttachmentCount</span><span class="sr-only"> @OperatorLabels.Inbox.AttachmentCount(item.AttachmentCount)</span>
+                                        </span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(item.BodyExcerpt))
+                                {
+                                    <span class="row-excerpt">@item.BodyExcerpt</span>
+                                }
                             </div>
                             <div class="inbox-cell-sender">
-                                <span>@Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item)</span>
+                                <span class="inbox-sender-addr">@Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item)</span>
                                 @if (item.PrincipalCode is { Length: > 0 } principal)
                                 {
-                                    <small class="inbox-cell-sub">@principal</small>
+                                    <span class="inbox-principal-text" data-principal-badge>@principal</span>
                                 }
                             </div>
                             <div class="inbox-cell-time">
                                 <time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time>
+                                <small class="tabular">@OperatorLabels.OfficeClock(item.ReceivedAtUtc)</small>
                             </div>
                             <div class="inbox-row-actions">
-                                <form method="post" asp-page-handler="@rowHandler"
+                                @if (Model.OffersReply(item))
+                                {
+                                    <a class="icon-button" data-mail-row-reply data-mail-open
+                                       asp-page="/Mail/Message" asp-route-id="@item.Id" asp-route-compose="reply"
+                                       asp-route-mailbox="@Model.MailboxFilter"
+                                       asp-route-folder="@Model.FolderRouteValue"
+                                       asp-route-principal="@Model.PrincipalFilter"
+                                       asp-route-search="@Model.SearchTerm"
+                                       asp-route-queue="@Model.QueueFilter"
+                                       title="@OperatorLabels.StaffMail.Reply" aria-label="@OperatorLabels.StaffMail.Reply @subject">
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-reply")" /></svg>
+                                    </a>
+                                }
+                                <form method="post" asp-page-handler="@rowHandler" class="inbox-row-action"
                                       asp-route-mailbox="@Model.MailboxFilter"
                                       asp-route-folder="@Model.FolderRouteValue"
                                       asp-route-principal="@Model.PrincipalFilter"

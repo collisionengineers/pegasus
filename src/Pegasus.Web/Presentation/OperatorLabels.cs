@@ -3074,6 +3074,17 @@ public static class OperatorLabels
         /// <summary>"1 attachment", "3 attachments": a list row's count.</summary>
         public static string AttachmentCount(int count) => Counted(count, "attachment");
 
+        /// <summary>
+        /// The ledger row's Type chip tone (v42 H): navy for a New instruction,
+        /// amber for a Triage request, neutral for a Cancellation.
+        /// </summary>
+        public static string CategoryTone(Pegasus.Core.Intake.MailCategory category) => category switch
+        {
+            Pegasus.Core.Intake.MailCategory.NewInstruction => "navy",
+            Pegasus.Core.Intake.MailCategory.TriageRequest => "amber",
+            _ => "neutral"
+        };
+
         private static string Counted(int count, string noun) =>
             $"{count} {noun}{(count == 1 ? string.Empty : "s")}";
     }
