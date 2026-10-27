@@ -140,6 +140,17 @@ incident date is an excluding rule, not a matching rule. A vehicle could have
 two accidents on the same date, so a matching incident date is not a reliable
 matcher; two different incident dates mean it is not the same Case.
 
+For automatic mail association the incident date has one narrower job: when a
+message's registration matches several Cases, candidates with a different
+extracted incident date are dropped and an equal date wins if exactly one
+remains
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail)).
+The message may also name a claim reference as a bounded token in its subject
+or current body, matched against the Case's indexed durable claim token across
+every Principal. Neither signal stands alone: every non-empty linking signal's
+candidate set is intersected, and only one surviving current, non-archived Case
+is linked.
+
 The immutable source occurrence and its evidence stay separate from the
 editable Case projection. Linking creates a versioned source-to-Case
 relationship. It never turns the source into the Case, rewrites source facts,
