@@ -6514,6 +6514,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ExternalReceiptToken");
 
+                    b.HasIndex("FolderScope", "CanonicalInternetMessageIdentity")
+                        .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
+
                     b.HasIndex("MailboxId", "ImmutableMessageId")
                         .IsUnique()
                         .HasFilter("[MailboxId] IS NOT NULL");

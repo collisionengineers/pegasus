@@ -79,6 +79,10 @@ internal static class MailboxModelConfiguration
             entity.HasIndex(item => new { item.MailboxId, item.FolderScope, item.CanonicalInternetMessageIdentity })
                 .IsUnique()
                 .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
+            // Reply-header association looks a Message-ID up across every
+            // mailbox (FRD-22 v2), which the per-mailbox index above cannot seek.
+            entity.HasIndex(item => new { item.FolderScope, item.CanonicalInternetMessageIdentity })
+                .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
             entity.HasIndex(item => new { item.ReceivedAtUtc, item.Id }).IsDescending(true, false);
             entity.HasIndex(item => new
             {

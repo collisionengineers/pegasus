@@ -896,7 +896,7 @@ public sealed class GetCaseQueriesSection(
             .SelectMany(item => new[] { (item.RaisedByKind, item.RaisedBy), (item.ClosedByKind, item.ClosedBy) })
             .Where(pair => pair.Item1 == nameof(ActorKind.Staff) && Guid.TryParse(pair.Item2, out _))
             .Select(pair => Guid.Parse(pair.Item2!))
-            .Concat(queries.Select(item => item.AssigneeStaffId ?? Guid.Empty));
+            .Concat(queries.Select(item => item.AssigneeStaffId).OfType<Guid>());
         var names = await ActorDisplayNames.ResolveStaffNamesAsync(staffAccounts, staffIds, cancellationToken);
         return new(frame, queries
             .OrderBy(item => item.IsOpen ? 0 : 1)

@@ -268,7 +268,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261023160000_AppliedValuationCalculationRows",
                 "20261027120000_RetainedMailReplyIdentities",
                 "20261027140000_AssignableCaseQueries",
-                "20261027160000_ThreeMailCategories"
+                "20261027160000_ThreeMailCategories",
+                "20261027200000_RetainedMailReplyIdentityIndex"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -283,6 +284,9 @@ public sealed class IntakePersistenceIntegrationTests
         // The Glass callback finds its session by this index (R328); it is not unique.
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(N'GlassRepairEstimateSessions') AND name = N'IX_GlassRepairEstimateSessions_CallbackDigest' AND is_unique = 0"));
+        // Reply-header association seeks a Message-ID across every mailbox by this index (FRD-22 v2).
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(N'RetainedMailboxMessages') AND name = N'IX_RetainedMailboxMessages_FolderScope_CanonicalInternetMessageIdentity' AND is_unique = 0 AND has_filter = 1"));
         // The accept-recovery joins compare SQL Server's uniqueidentifier
         // conversion, which is UPPERCASE, against tokens .NET wrote lowercase
         // (Guid.ToString("N") for ExternalReceiptToken, "D" for AggregateId).
