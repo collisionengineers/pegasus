@@ -59,7 +59,7 @@ public sealed record PairedVehicleImagesCase(
 /// One open query for the Work Centre (operator, 27 October 2026).
 /// <paramref name="Title"/> is the query e-mail's subject, or the logged details.
 /// </summary>
-public sealed record OpenCaseQuery(
+public sealed record OpenQueryAttentionRow(
     Guid QueryId,
     Guid CaseId,
     string Reference,
@@ -120,7 +120,7 @@ public interface IDashboardQueries
     /// Every open query on a non-archived Case, one row per query. Office lists
     /// the unassigned ones and Mine the viewer's; the policy makes that cut.
     /// </summary>
-    Task<IReadOnlyList<OpenCaseQuery>> ListOpenQueriesForAttentionAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<OpenQueryAttentionRow>> ListOpenQueriesForAttentionAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>

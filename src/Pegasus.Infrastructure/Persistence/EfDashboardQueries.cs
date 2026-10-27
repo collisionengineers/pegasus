@@ -260,7 +260,7 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<OpenCaseQuery>> ListOpenQueriesForAttentionAsync(
+    public async Task<IReadOnlyList<OpenQueryAttentionRow>> ListOpenQueriesForAttentionAsync(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -309,8 +309,8 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
             .Select(row => row.IntakeReceiptId!.Value)
             .Distinct()
             .ToArray();
-        var subjects = receiptIds.Length == 0
-            ? new Dictionary<Guid, string?>()
+        Dictionary<Guid, string> subjects = receiptIds.Length == 0
+            ? []
             : await (
                 from receipt in context.IntakeReceipts.AsNoTracking()
                 where receiptIds.Contains(receipt.Id)
@@ -319,7 +319,7 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
                 select new { receipt.Id, message.Subject })
                 .ToDictionaryAsync(item => item.Id, item => item.Subject, cancellationToken);
         return rows
-            .Select(row => new OpenCaseQuery(
+            .Select(row => new OpenQueryAttentionRow(
                 row.Id,
                 row.CaseId,
                 row.Reference,

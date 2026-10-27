@@ -19,10 +19,10 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 "Pegasus.Infrastructure.Persistence.CaseQueryEntity",
                 typeof(CaseQueryEntity),
                 baseEntityType,
-                propertyCount: 15,
+                propertyCount: 17,
                 navigationCount: 1,
                 foreignKeyCount: 2,
-                unnamedIndexCount: 3,
+                unnamedIndexCount: 4,
                 keyCount: 1);
 
             var id = runtimeEntityType.AddProperty(
@@ -34,6 +34,22 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 afterSaveBehavior: PropertySaveBehavior.Throw,
                 sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
             id.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var assignedAtUtc = runtimeEntityType.AddProperty(
+                "AssignedAtUtc",
+                typeof(DateTimeOffset?),
+                propertyInfo: typeof(CaseQueryEntity).GetProperty("AssignedAtUtc", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(CaseQueryEntity).GetField("<AssignedAtUtc>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            assignedAtUtc.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
+
+            var assigneeStaffId = runtimeEntityType.AddProperty(
+                "AssigneeStaffId",
+                typeof(Guid?),
+                propertyInfo: typeof(CaseQueryEntity).GetProperty("AssigneeStaffId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                fieldInfo: typeof(CaseQueryEntity).GetField("<AssigneeStaffId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
+                nullable: true);
+            assigneeStaffId.AddAnnotation("SqlServer:ValueGenerationStrategy", SqlServerValueGenerationStrategy.None);
 
             var caseId = runtimeEntityType.AddProperty(
                 "CaseId",
@@ -159,11 +175,15 @@ namespace Pegasus.Infrastructure.Persistence.CompiledModel
                 new[] { intakeReceiptId });
 
             var index0 = runtimeEntityType.AddIndex(
-                new[] { caseId, intakeReceiptId },
-                unique: true);
-            index0.AddAnnotation("Relational:Filter", "[ClosedAtUtc] IS NULL AND [IntakeReceiptId] IS NOT NULL");
+                new[] { assigneeStaffId, raisedAtUtc });
+            index0.AddAnnotation("Relational:Filter", "[ClosedAtUtc] IS NULL");
 
             var index1 = runtimeEntityType.AddIndex(
+                new[] { caseId, intakeReceiptId },
+                unique: true);
+            index1.AddAnnotation("Relational:Filter", "[ClosedAtUtc] IS NULL AND [IntakeReceiptId] IS NOT NULL");
+
+            var index2 = runtimeEntityType.AddIndex(
                 new[] { caseId, raisedAtUtc });
 
             return runtimeEntityType;

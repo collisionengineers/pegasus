@@ -530,7 +530,7 @@ public sealed class GetOperationsSnapshot(
         IReadOnlyList<AiDraft> Drafts,
         IReadOnlyList<PairedVehicleImagesCase> PairedVehicleImages,
         IReadOnlyList<OpenCaseTask> OpenTasks,
-        IReadOnlyList<OpenCaseQuery> OpenQueries);
+        IReadOnlyList<OpenQueryAttentionRow> OpenQueries);
 
     /// <summary>
     /// Every needs-attention row, each read from the query that already backs
