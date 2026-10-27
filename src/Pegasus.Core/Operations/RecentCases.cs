@@ -37,15 +37,30 @@ public sealed record RecentCasesPage(
     int TotalCount)
 {
     public int TotalPages => TotalCount == 0 ? 1 : (int)Math.Ceiling((double)TotalCount / PageSize);
+
+    /// <summary>
+    /// The window's whole list per arrival channel, before the arrival and
+    /// search filters: what every channel chip would show.
+    /// </summary>
+    public IReadOnlyDictionary<CaseArrival, int> ArrivalCounts { get; init; } =
+        new Dictionary<CaseArrival, int>();
 }
 
 public interface IRecentCaseQueries
 {
-    /// <summary>Cases created at or after <paramref name="sinceUtc"/>, newest first, less those dismissed (<see cref="WorkCentreDismissalPolicy"/>).</summary>
+    /// <summary>
+    /// Cases created at or after <paramref name="sinceUtc"/>, newest first,
+    /// less those dismissed (<see cref="WorkCentreDismissalPolicy"/>), narrowed
+    /// to <paramref name="arrival"/> and to <paramref name="search"/> when
+    /// given (<see cref="RecentCasesPolicy.Matches"/>). The page's counts are
+    /// of the window before either narrowing.
+    /// </summary>
     Task<RecentCasesPage> ListAsync(
         DateTimeOffset sinceUtc,
         int page,
         int pageSize,
+        CaseArrival? arrival,
+        string? search,
         CancellationToken cancellationToken);
 }
 
@@ -79,6 +94,32 @@ public static class RecentCasesPolicy
         IntakeSourceChannel.ManualUpload => CaseArrival.Manual,
         _ => createdByAutomation ? CaseArrival.Automation : CaseArrival.Manual
     };
+
+    /// <summary>
+    /// Find within New cases (v42 Design A): a case-insensitive match on the
+    /// reference, the claimant, or the registration with its spaces and dashes
+    /// ignored, so "AB12 CDE" finds "AB12CDE". The read applies this rule in
+    /// SQL; this is the same rule stated once.
+    /// </summary>
+    public static bool Matches(RecentCaseRow row, string? search)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        var term = search?.Trim();
+        if (string.IsNullOrEmpty(term))
+        {
+            return true;
+        }
+
+        return Contains(row.Reference, term)
+            || Contains(row.Claimant, term)
+            || (row.Registration is { } registration && Contains(Compact(registration), Compact(term)));
+
+        static bool Contains(string? value, string term) =>
+            value is not null && value.Contains(term, StringComparison.OrdinalIgnoreCase);
+
+        static string Compact(string value) => value.Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal);
+    }
 }
 
 /// <summary>The New cases section as the person sees it: the page and where their "since you last looked" line falls.</summary>
@@ -92,10 +133,13 @@ public interface IListRecentCases
     /// <summary>
     /// Reads the feed and, when <paramref name="markSeen"/> (the first page of an
     /// open), records this open as the person's last look so the divider on the
-    /// next open moves to now. The divider returned is the previous look.
+    /// next open moves to now. The divider returned is the previous look. The
+    /// feed is narrowed to <paramref name="arrival"/> and to <paramref name="search"/>
+    /// when given.
     /// </summary>
     Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen,
-        CancellationToken cancellationToken, DateTimeOffset? asOfUtc = null);
+        CaseArrival? arrival, string? search, CancellationToken cancellationToken,
+        DateTimeOffset? asOfUtc = null);
 }
 
 public sealed class ListRecentCases(
@@ -108,7 +152,8 @@ public sealed class ListRecentCases(
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     public async Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen,
-        CancellationToken cancellationToken, DateTimeOffset? asOfUtc = null)
+        CaseArrival? arrival, string? search, CancellationToken cancellationToken,
+        DateTimeOffset? asOfUtc = null)
     {
         ArgumentNullException.ThrowIfNull(actor);
         // The Work Centre is a staff page; the Automation actor has no last look.
@@ -122,7 +167,8 @@ public sealed class ListRecentCases(
         var since = RecentCasesPolicy.WindowStart(now);
         // The feed and the previous look share nothing, so they read together;
         // this open is stamped only after the previous look is in hand.
-        var resultTask = _queries.ListAsync(since, page, RecentCasesPolicy.PageSize, cancellationToken);
+        var resultTask = _queries.ListAsync(
+            since, page, RecentCasesPolicy.PageSize, arrival, search, cancellationToken);
         var staffId = Notifications.StaffNotificationPolicy.StaffId(actor);
         var lastSeenTask = staffId is { } id
             ? _visits.GetLastSeenAsync(id, cancellationToken)

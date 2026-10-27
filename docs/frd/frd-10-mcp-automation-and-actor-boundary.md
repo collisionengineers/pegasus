@@ -436,9 +436,12 @@ replays by its operation key.
 - `pegasus_mail_action` with `dismiss` or `restore` changes the message's
   Pegasus scope only
   ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
-- `pegasus_work_centre_dismiss` dismisses a Case, Unidentified item or AI
-  job from the Work Centre for everyone, as a row's **Dismiss** does
-  ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)).
+- `pegasus_work_centre_dismiss` dismisses a record from the Work Centre for
+  everyone, as a row's **Dismiss** does. The record id is the Case, the
+  Unidentified item, the AI job, or — for a System Action — the underlying
+  receipt, image intake or query
+  ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre),
+  [ADR-0086](../adr/0086-work-centre-views-are-computed-on-read.md)).
 
 ### AI job and estimate tools
 
@@ -559,7 +562,7 @@ its one command when none is given.
 | `automation.cases` | `pegasus_case_query` | One query act with an `action`: open, mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to | none |
 | `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags | none |
-| `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item or AI job from the Work Centre | key only |
+| `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | key only |
 | `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` takes a lease a staff member holds | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
 | `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |

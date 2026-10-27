@@ -51,6 +51,7 @@ public sealed class DocumentReadTelemetryTests
     [InlineData("db.connection.open")]
     [InlineData("web.workcentre.attention")]
     [InlineData("web.workcentre.newcases")]
+    [InlineData("web.workcentre.systemactions")]
     [InlineData("web.workcentre.aijobs")]
     [InlineData("report.photos.prepare")]
     [InlineData("report.pdf.generate")]
