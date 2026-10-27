@@ -1023,12 +1023,20 @@ public sealed class EfCaseQueryStore(
             : await context.Users.AsNoTracking()
                 .Where(user => assigneeIds.Contains(user.Id) && user.UserName != null)
                 .ToDictionaryAsync(user => user.Id, user => user.UserName!, cancellationToken);
-        var queryByReceipt = queryRows.ToDictionary(
-            item => item.IntakeReceiptId!.Value,
-            item => new CaseQuerySummary(
-                item.Id,
-                item.ClosedAtUtc is null,
-                item.AssigneeStaffId is { } assignee && assigneeNames.TryGetValue(assignee, out var name) ? name : null));
+        // One non-withdrawn query per message is the rule; should a second ever
+        // stand, the open one (else the latest) is shown rather than the page failing.
+        var queryByReceipt = queryRows
+            .GroupBy(item => item.IntakeReceiptId!.Value)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var item = group.OrderBy(row => row.ClosedAtUtc is null ? 0 : 1).ThenByDescending(row => row.ClosedAtUtc).First();
+                    return new CaseQuerySummary(
+                        item.Id,
+                        item.ClosedAtUtc is null,
+                        item.AssigneeStaffId is { } assignee && assigneeNames.TryGetValue(assignee, out var name) ? name : null);
+                });
         return messages.Select(item =>
             {
                 var receipt = receiptByToken[item.ExternalReceiptToken];
