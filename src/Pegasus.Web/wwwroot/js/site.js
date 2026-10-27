@@ -1716,8 +1716,11 @@
     });
     var dialogName = new URLSearchParams(window.location.search).get('dialog');
     if (dialogName) {
-        var dialog = document.querySelector('[data-dialog="' + CSS.escape(dialogName) + '"]');
-        if (dialog instanceof HTMLElement) { dialog.hidden = false; }
+        var named = document.querySelector('[data-dialog="' + CSS.escape(dialogName) + '"]');
+        if (named && typeof named.pegasusOpen === 'function' && named.dataset.dialogQueryOpened !== 'true') {
+            named.dataset.dialogQueryOpened = 'true';
+            named.pegasusOpen();
+        }
     }
 })();
 
