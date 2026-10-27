@@ -12,6 +12,22 @@ namespace Pegasus.IntegrationTests;
 public sealed class WorkCentreLabelTests
 {
     [Fact]
+    public void DesignALabelsAreTheOperatorWords()
+    {
+        Assert.Equal("System Actions", OperatorLabels.WorkCentre.SystemActions);
+        Assert.Equal("AI Actions", OperatorLabels.WorkCentre.AiActions);
+        Assert.Equal("Auto-matched", OperatorLabels.WorkCentre.AutoMatched);
+        Assert.Equal("Images paired", OperatorLabels.WorkCentre.ImagesPaired);
+        Assert.Equal("Rules & queries", OperatorLabels.WorkCentre.RulesAndQueries);
+        Assert.Equal("Estimate done", OperatorLabels.WorkCentre.EstimateDone);
+        Assert.Equal("Draft to a query", OperatorLabels.WorkCentre.DraftToQuery);
+        Assert.Equal("Taken by Alex", OperatorLabels.WorkCentre.TakenBy("Alex"));
+        Assert.Equal("This week: 4", OperatorLabels.WorkCentre.ThisWeekCount(4));
+        Assert.Equal("Auto-matched e-mail", OperatorLabels.WorkCentre.SystemActionKindLabel(SystemActionKind.AutoMatchedMail));
+        Assert.Equal("Open query", OperatorLabels.WorkCentre.OpenQuery);
+    }
+
+    [Fact]
     public void AiDraftTitleRendersThroughTheOperatorLabelMap()
     {
         var item = NewItem(

@@ -98,7 +98,7 @@ public sealed class WorkCentreWebTests
         var html = await GetOkAsync(client, "/");
 
         Assert.Contains("QDOS26004", html, StringComparison.Ordinal);
-        foreach (var phase in new[] { "web.workcentre.attention", "web.workcentre.newcases", "web.workcentre.aijobs", "web.workcentre.activity" })
+        foreach (var phase in new[] { "web.workcentre.attention", "web.workcentre.newcases", "web.workcentre.systemactions", "web.workcentre.aijobs", "web.workcentre.activity" })
         {
             Assert.True(Pegasus.Core.Documents.DocumentReadTelemetry.IsAllowedPhase(phase), phase);
             Assert.Contains(phase, phases);
@@ -605,9 +605,9 @@ public sealed class WorkCentreWebTests
 
         // No New cases: no tab, and the named tab falls back to the first shown.
         Assert.DoesNotContain("data-wc-tab-link=\"new-cases\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-wc-refresh-outcome=\"partial\" data-wc-tab=\"attention\"", html, StringComparison.Ordinal);
-        // AI jobs could not be read: the tab stays with a dash and the section says so.
-        Assert.Contains("AI jobs<span class=\"tab-count\">&#x2014;</span>", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-outcome=\"partial\" data-wc-tab=\"ai-actions\"", html, StringComparison.Ordinal);
+        // AI actions could not be read: the tab stays with a dash and the section says so.
+        Assert.Contains($"{OperatorLabels.WorkCentre.AiActions}<span class=\"tab-count\">&#x2014;</span>", html, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.WorkCentre.AiJobsUnavailable, html, StringComparison.Ordinal);
         Assert.DoesNotContain(OperatorLabels.WorkCentre.NoWorkToShow, html, StringComparison.Ordinal);
     }
@@ -657,7 +657,7 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-refresh-section=\"metrics\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"attention\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"new-cases\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-wc-refresh-section=\"ai-jobs\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"ai-actions\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -667,7 +667,8 @@ public sealed class WorkCentreWebTests
             new FakeSnapshot { Throw = true },
             new FakeRecentCases { Throw = true },
             new FakeAiJobs { Throw = true },
-            activity: new FakeActivity { Throw = true });
+            activity: new FakeActivity { Throw = true },
+            systemActions: new FakeSystemActions { Throw = true });
         using var client = Client(host);
 
         var html = await GetOkAsync(client, "/?handler=Refresh&refresh=true");
@@ -678,9 +679,9 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-refresh-section=\"activity\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"attention\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"new-cases\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-wc-refresh-section=\"ai-jobs\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"ai-actions\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         // Every failed section keeps its tab, with a dash.
-        Assert.Equal(3, Regex.Count(html, "<span class=\"tab-count\">&#x2014;</span>"));
+        Assert.Equal(4, Regex.Count(html, "<span class=\"tab-count\">&#x2014;</span>"));
     }
 
     [Fact]
@@ -705,15 +706,15 @@ public sealed class WorkCentreWebTests
         failed = failed with { ClosedAtUtc = hostNow.AddHours(-3) };
         jobs.Recent.Add(failed);
 
-        var html = await GetOkAsync(client, "/?tab=ai-jobs");
+        var html = await GetOkAsync(client, "/?tab=ai-actions");
 
-        Assert.Contains("AI jobs<span class=\"tab-count\">4</span>", html, StringComparison.Ordinal);
+        Assert.Contains($"{OperatorLabels.WorkCentre.AiActions}<span class=\"tab-count\">4</span>", html, StringComparison.Ordinal);
         Assert.Contains("2 draft ready &#xB7; 1 failed", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{caseId:D}?section=estimate\">Review AI Proposal</a>", html, StringComparison.Ordinal);
         Assert.Contains(">Reply with AI draft</a>", html, StringComparison.Ordinal);
         // Complete job belongs to a Query response, not an Estimate; it returns to this tab.
         Assert.Equal(1, Regex.Count(html, "handler=CompleteAiJob"));
-        Assert.Contains("name=\"returnUrl\" value=\"/?scope=office&amp;tab=ai-jobs\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"returnUrl\" value=\"/?scope=office&amp;tab=ai-actions\"", html, StringComparison.Ordinal);
         Assert.Contains("wc-col-started", html, StringComparison.Ordinal);
         Assert.Matches("Taken until \\d\\d:\\d\\d", html);
         Assert.Contains("The client refused the job: the estimate lines could not be read", html, StringComparison.Ordinal);
@@ -735,7 +736,7 @@ public sealed class WorkCentreWebTests
         using var host = Host(new FakeSnapshot(), jobs: jobs);
         using var client = Client(host);
 
-        var html = await GetOkAsync(client, "/?tab=ai-jobs");
+        var html = await GetOkAsync(client, "/?tab=ai-actions");
 
         Assert.Equal(1, Regex.Count(html, "handler=CompleteAiJob"));
         var actions = Regex.Match(html, "<div class=\"wc-row-actions wc-job-actions\">(.*?)</div>", RegexOptions.Singleline);
@@ -783,13 +784,13 @@ public sealed class WorkCentreWebTests
         using var dismissed = await client.PostAsync("/?handler=Dismiss", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["recordId"] = queued.JobId.ToString("D"),
-            ["returnUrl"] = "/?scope=office&tab=ai-jobs",
+            ["returnUrl"] = "/?scope=office&tab=ai-actions",
             ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client)
         }));
         Assert.Equal(HttpStatusCode.Redirect, dismissed.StatusCode);
-        Assert.Equal("/?scope=office&tab=ai-jobs", dismissed.Headers.Location?.OriginalString);
+        Assert.Equal("/?scope=office&tab=ai-actions", dismissed.Headers.Location?.OriginalString);
 
-        var jobs = await GetOkAsync(client, "/?tab=ai-jobs");
+        var jobs = await GetOkAsync(client, "/?tab=ai-actions");
         Assert.DoesNotContain($"data-wc-job=\"{queued.JobId}\"", jobs, StringComparison.Ordinal);
         Assert.Contains($"data-wc-job=\"{kept.JobId}\"", jobs, StringComparison.Ordinal);
         Assert.DoesNotContain("Dismissed", jobs, StringComparison.Ordinal);
@@ -810,9 +811,13 @@ public sealed class WorkCentreWebTests
         var html = await GetOkAsync(client, "/");
 
         Assert.Contains("data-wc-refresh-section=\"activity\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
-        foreach (var (figure, value) in new[] { ("new-cases-today", "3"), ("new-cases-week", "5"), ("sent-today", "6"), ("sent-week", "17"), ("reports-today", "3"), ("reports-week", "11"), ("emails-today", "18"), ("emails-week", "64") })
+        foreach (var (figure, value) in new[] { ("new-cases-today", "3"), ("sent-today", "6"), ("reports-today", "3"), ("emails-today", "18") })
         {
-            Assert.Contains($"data-figure=\"{figure}\">{value}</td>", html, StringComparison.Ordinal);
+            Assert.Contains($"data-figure=\"{figure}\">{value}</strong>", html, StringComparison.Ordinal);
+        }
+        foreach (var (figure, value) in new[] { ("new-cases-week", 5), ("sent-week", 17), ("reports-week", 11), ("emails-week", 64) })
+        {
+            Assert.Contains($"data-figure=\"{figure}\">{OperatorLabels.WorkCentre.ThisWeekCount(value)}</small>", html, StringComparison.Ordinal);
         }
 
         // Nothing else was read, so the page says so and still draws the figures (item O).
@@ -838,7 +843,7 @@ public sealed class WorkCentreWebTests
         using var host = Host(new FakeSnapshot(), jobs: new FakeAiJobs { Open = [taken] });
         using var client = Client(host);
 
-        var html = await GetOkAsync(client, "/?tab=ai-jobs");
+        var html = await GetOkAsync(client, "/?tab=ai-actions");
 
         Assert.Contains("wc-jobs-table", html, StringComparison.Ordinal);
         Assert.Matches("Taken until \\d\\d:\\d\\d", html);
@@ -944,6 +949,7 @@ public sealed class WorkCentreWebTests
         FakeAiJobs? jobs = null,
         IGetCaseHeader? caseHeader = null,
         FakeActivity? activity = null,
+        FakeSystemActions? systemActions = null,
         Action<IServiceCollection>? configure = null) =>
         new IntakeWebApplicationFactory().WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -952,6 +958,8 @@ public sealed class WorkCentreWebTests
                 services.AddSingleton<IGetOperationsSnapshot>(snapshot);
                 services.RemoveAll<IListRecentCases>();
                 services.AddSingleton<IListRecentCases>(feed ?? new FakeRecentCases());
+                services.RemoveAll<IListSystemActions>();
+                services.AddSingleton<IListSystemActions>(systemActions ?? new FakeSystemActions());
                 services.RemoveAll<IAiJobQueries>();
                 services.AddSingleton<IAiJobQueries>(jobs ?? new FakeAiJobs());
                 services.RemoveAll<IGetWorkCentreActivity>();
@@ -1067,6 +1075,32 @@ public sealed class WorkCentreWebTests
         }
     }
 
+    private sealed class FakeSystemActions : IListSystemActions
+    {
+        public bool Throw { get; init; }
+
+        public Task<SystemActionPage> ExecuteAsync(
+            ActionActor actor,
+            SystemActionFilter filter,
+            string? search,
+            int page,
+            CancellationToken cancellationToken,
+            DateTimeOffset? asOfUtc = null)
+        {
+            if (Throw)
+            {
+                throw new InvalidOperationException("system actions failed");
+            }
+
+            return Task.FromResult(new SystemActionPage(
+                [],
+                page,
+                SystemActionsPolicy.PageSize,
+                0,
+                Enum.GetValues<SystemActionKind>().ToDictionary(kind => kind, _ => 0)));
+        }
+    }
+
     private sealed class FakeRecentCases : IListRecentCases
     {
         public List<(int Page, bool MarkSeen)> Calls { get; } = [];
@@ -1077,7 +1111,8 @@ public sealed class WorkCentreWebTests
 
         public bool Throw { get; init; }
 
-        public Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen,
+        public Task<RecentCasesFeed> ExecuteAsync(
+            ActionActor actor, int page, bool markSeen, CaseArrival? arrival, string? search,
             CancellationToken cancellationToken, DateTimeOffset? asOfUtc = null)
         {
             Calls.Add((page, markSeen));

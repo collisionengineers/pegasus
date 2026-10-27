@@ -24,9 +24,18 @@
     {
         refreshFields.Add(new("q", refreshSearch));
     }
-    if (Model.Tab != IndexModel.AttentionTab)
+    refreshFields.Add(new("tab", Model.Tab));
+    if (IndexModel.ArrivalSlug(Model.Arrival) is { } refreshArrival)
     {
-        refreshFields.Add(new("tab", Model.Tab));
+        refreshFields.Add(new("arrival", refreshArrival));
+    }
+    if (IndexModel.SystemFilterSlug(Model.SystemFilter) is { } refreshSys)
+    {
+        refreshFields.Add(new("sys", refreshSys));
+    }
+    if (IndexModel.AiFilterSlug(Model.AiFilter) is { } refreshAi)
+    {
+        refreshFields.Add(new("ai", refreshAi));
     }
     if (Model.CurrentPage > 1)
     {
@@ -40,6 +49,10 @@
     {
         refreshFields.Add(new("newPage", Model.NewCasesPage.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
+    if (Model.SystemActionsPage > 1)
+    {
+        refreshFields.Add(new("sysPage", Model.SystemActionsPage.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
     if (Model.DividerUtc is { } refreshSince)
     {
         refreshFields.Add(new("since", refreshSince.ToString("O", System.Globalization.CultureInfo.InvariantCulture)));
@@ -47,6 +60,7 @@
     ViewData["RefreshFields"] = refreshFields;
     var attentionState = Model.AttentionFailed ? "unavailable" : "current";
     var newCasesState = Model.NewCasesFailed ? "unavailable" : "current";
+    var systemActionsState = Model.SystemActionsFailed ? "unavailable" : "current";
     var aiJobsState = Model.AiJobsUnavailable ? "unavailable" : "current";
     var activityState = Model.ActivityFailed ? "unavailable" : "current";
     var visibleTabs = Model.VisibleTabs;
@@ -88,92 +102,98 @@
     </div>
 }
 
-@* The five office queue totals (D7, v30 WF): label and figure on one line.
-   Every metric opens the exact Cases tab behind it; 0 renders as 0. A failed
-   read renders no figure at all, never a zero. *@
-<div class="wc-metrics-section" data-wc-refresh-section="metrics" data-wc-refresh-state="@attentionState">
-@if (!Model.AttentionFailed)
-{
-    var metrics = Model.Metrics!;
-    <nav class="wc-metrics" aria-label="@Labels.OfficeQueueTotals">
-        <a class="metric" data-value="not_ready" asp-page="/Cases/Index" asp-route-tab="not_ready">
-            <span class="metric-label"><span>Not ready</span></span>
-            <span class="metric-value">@metrics.NotReady</span>
-        </a>
-        <a class="metric" data-value="review" asp-page="/Cases/Index" asp-route-tab="review">
-            <span class="metric-label"><span>Review</span></span>
-            <span class="metric-value">@metrics.Review</span>
-        </a>
-        <a class="metric" data-value="held" asp-page="/Cases/Index" asp-route-tab="held">
-            <span class="metric-label"><span>Held</span></span>
-            <span class="metric-value">@metrics.Held</span>
-        </a>
-        <a class="metric" data-value="unidentified" asp-page="/Cases/Index" asp-route-tab="unassigned" asp-route-show="unidentified">
-            <span class="metric-label"><span>Unidentified</span></span>
-            <span class="metric-value">@metrics.Unidentified</span>
-        </a>
-        <a class="metric" data-value="triage" asp-page="/Cases/Index" asp-route-tab="triage">
-            <span class="metric-label"><span>@Labels.Triages</span></span>
-            <span class="metric-value">@metrics.Triages</span>
-        </a>
-    </nav>
-}
+@* Office queues beside Activity (v42 Design A). Each queue still opens its
+   Cases tab. A failed read renders no figure, never a zero. The two cards
+   stay separate refresh sections so one failure does not blank the other. *@
+<div class="wc-stats-grid" aria-label="@Labels.OfficeQueueTotals">
+    <section class="panel wc-stat-card" aria-label="@Labels.OfficeQueues" data-wc-refresh-section="metrics" data-wc-refresh-state="@attentionState">
+        <div class="wc-stat-head">
+            <h2>@Labels.OfficeQueues</h2>
+            <a class="wc-stat-link" asp-page="/Cases/Index">@Labels.AllCases</a>
+        </div>
+        @if (Model.AttentionFailed)
+        {
+            <div class="notice notice--warning" role="status">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+                <span>@Labels.Unavailable</span>
+            </div>
+        }
+        else
+        {
+            var metrics = Model.Metrics!;
+            <nav class="wc-queues" aria-label="@Labels.OfficeQueueTotals">
+                <a class="wc-queue-cell wc-tone--amber" data-value="not_ready" asp-page="/Cases/Index" asp-route-tab="not_ready">
+                    <span class="wc-queue-label">Not ready</span>
+                    <strong class="wc-queue-val">@metrics.NotReady</strong>
+                </a>
+                <a class="wc-queue-cell wc-tone--navy" data-value="review" asp-page="/Cases/Index" asp-route-tab="review">
+                    <span class="wc-queue-label">Review</span>
+                    <strong class="wc-queue-val">@metrics.Review</strong>
+                </a>
+                <a class="wc-queue-cell wc-tone--neutral" data-value="held" asp-page="/Cases/Index" asp-route-tab="held">
+                    <span class="wc-queue-label">Held</span>
+                    <strong class="wc-queue-val">@metrics.Held</strong>
+                </a>
+                <a class="wc-queue-cell wc-tone--red" data-value="unidentified" asp-page="/Cases/Index" asp-route-tab="unassigned" asp-route-show="unidentified">
+                    <span class="wc-queue-label">Unidentified</span>
+                    <strong class="wc-queue-val">@metrics.Unidentified</strong>
+                </a>
+                <a class="wc-queue-cell wc-tone--blue" data-value="triage" asp-page="/Cases/Index" asp-route-tab="triage">
+                    <span class="wc-queue-label">@Labels.Triages</span>
+                    <strong class="wc-queue-val">@metrics.Triages</strong>
+                </a>
+            </nav>
+        }
+    </section>
+    <section class="panel wc-stat-card" aria-label="@Labels.Activity" data-wc-activity data-wc-refresh-section="activity" data-wc-refresh-state="@activityState">
+        <div class="wc-stat-head">
+            <h2 id="wc-activity-title">@Labels.Activity</h2>
+            <span class="meta">@Labels.Today / @Labels.ThisWeek</span>
+        </div>
+        @if (Model.ActivityFailed)
+        {
+            <div class="notice notice--warning" role="status">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+                <span>@Labels.ActivityUnavailable</span>
+            </div>
+        }
+        else
+        {
+            var counts = Model.Activity!;
+            <div class="wc-activity-grid">
+                <div class="wc-act-cell" data-figure="new-cases">
+                    <span class="wc-act-label">
+                        @if (Model.ShowNewCases)
+                        {
+                            <a href="@Model.PageUrl(tab: IndexModel.NewCasesTab)" data-wc-goto-tab="@IndexModel.NewCasesTab">@Labels.NewCases</a>
+                        }
+                        else
+                        {
+                            @Labels.NewCases
+                        }
+                    </span>
+                    <strong class="wc-act-today" data-figure="new-cases-today">@counts.NewCases.Today</strong>
+                    <small class="wc-act-week" data-figure="new-cases-week">@Labels.ThisWeekCount(counts.NewCases.ThisWeek)</small>
+                </div>
+                <div class="wc-act-cell" data-figure="sent">
+                    <span class="wc-act-label">@Labels.SentToEngineer</span>
+                    <strong class="wc-act-today" data-figure="sent-today">@counts.SentToEngineer.Today</strong>
+                    <small class="wc-act-week" data-figure="sent-week">@Labels.ThisWeekCount(counts.SentToEngineer.ThisWeek)</small>
+                </div>
+                <div class="wc-act-cell" data-figure="reports">
+                    <span class="wc-act-label">@Labels.ReportsSent</span>
+                    <strong class="wc-act-today" data-figure="reports-today">@counts.ReportsSent.Today</strong>
+                    <small class="wc-act-week" data-figure="reports-week">@Labels.ThisWeekCount(counts.ReportsSent.ThisWeek)</small>
+                </div>
+                <div class="wc-act-cell" data-figure="emails">
+                    <span class="wc-act-label">@Labels.EmailsReceived</span>
+                    <strong class="wc-act-today" data-figure="emails-today">@counts.EmailsReceived.Today</strong>
+                    <small class="wc-act-week" data-figure="emails-week">@Labels.ThisWeekCount(counts.EmailsReceived.ThisWeek)</small>
+                </div>
+            </div>
+        }
+    </section>
 </div>
-
-@* The Activity panel (v32 A, items C–I): the figures head the columns, Today
-   and This week the rows, every figure in both. A failed read shows the
-   notice and no figure. It is drawn even when there is no work to show
-   (item O). *@
-<section class="panel wc-activity" aria-labelledby="wc-activity-title" data-wc-activity data-wc-refresh-section="activity" data-wc-refresh-state="@activityState">
-    <div class="panel-head"><h2 id="wc-activity-title">@Labels.Activity</h2></div>
-@if (Model.ActivityFailed)
-{
-    <div class="notice notice--warning" role="status">
-        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
-        <span>@Labels.ActivityUnavailable</span>
-    </div>
-}
-else
-{
-    var counts = Model.Activity!;
-    <table class="wc-activity-table">
-        <thead>
-            <tr>
-                <th scope="col"><span class="sr-only">@Labels.Activity</span></th>
-                <th scope="col" data-figure="new-cases">
-                    @if (Model.ShowNewCases)
-                    {
-                        <a href="@Model.PageUrl(tab: IndexModel.NewCasesTab)" data-wc-goto-tab="@IndexModel.NewCasesTab">@Labels.NewCases</a>
-                    }
-                    else
-                    {
-                        @Labels.NewCases
-                    }
-                </th>
-                <th scope="col" data-figure="sent">@Labels.SentToEngineer</th>
-                <th scope="col" data-figure="reports">@Labels.ReportsSent</th>
-                <th scope="col" data-figure="emails">@Labels.EmailsReceived</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <th scope="row">@Labels.Today</th>
-                <td data-figure="new-cases-today">@counts.NewCases.Today</td>
-                <td data-figure="sent-today">@counts.SentToEngineer.Today</td>
-                <td data-figure="reports-today">@counts.ReportsSent.Today</td>
-                <td data-figure="emails-today">@counts.EmailsReceived.Today</td>
-            </tr>
-            <tr>
-                <th scope="row">@Labels.ThisWeek</th>
-                <td data-figure="new-cases-week">@counts.NewCases.ThisWeek</td>
-                <td data-figure="sent-week">@counts.SentToEngineer.ThisWeek</td>
-                <td data-figure="reports-week">@counts.ReportsSent.ThisWeek</td>
-                <td data-figure="emails-week">@counts.EmailsReceived.ThisWeek</td>
-            </tr>
-        </tbody>
-    </table>
-}
-</section>
 
 @if (Model.NothingToShow)
 {
@@ -187,13 +207,40 @@ else
    is a table whose rows end the same way (v32 A, item B): the next action,
    then one icon-only Dismiss named for the row's record. *@
 <section class="panel wc-ledger" hidden="@Model.NothingToShow">
-    <div class="tabs wc-tabs" role="tablist" aria-label="@Labels.Sections">
-        @foreach (var tab in visibleTabs)
-        {
-            var current = tab == Model.Tab;
-            <a class="tab" role="tab" id="wc-tab-@tab" href="@Model.PageUrl(tab: tab)" data-wc-tab-link="@tab"
-               aria-selected="@(current ? "true" : "false")" aria-controls="wc-panel-@tab" tabindex="@(current ? "0" : "-1")">@IndexModel.TabLabel(tab)<span class="tab-count">@Model.TabCount(tab)</span></a>
-        }
+    <div class="wc-panel-head">
+        <div class="tabs wc-tabs" role="tablist" aria-label="@Labels.Sections">
+            @foreach (var tab in visibleTabs)
+            {
+                var current = tab == Model.Tab;
+                <a class="tab" role="tab" id="wc-tab-@tab" href="@Model.PageUrl(tab: tab)" data-wc-tab-link="@tab"
+                   aria-selected="@(current ? "true" : "false")" aria-controls="wc-panel-@tab" tabindex="@(current ? "0" : "-1")">@IndexModel.TabLabel(tab)<span class="tab-count">@Model.TabCount(tab)</span></a>
+            }
+        </div>
+        <form method="get" action="/" class="wc-search" role="search">
+            <input type="hidden" name="scope" value="@IndexModel.ScopeSlug(Model.Scope)" />
+            @foreach (var kind in Model.Kinds)
+            {
+                <input type="hidden" name="kind" value="@NeedsAttentionPresentation.KindSlug(kind)" />
+            }
+            @if (Model.Tab != IndexModel.NewCasesTab)
+            {
+                <input type="hidden" name="tab" value="@Model.Tab" />
+            }
+            @if (IndexModel.ArrivalSlug(Model.Arrival) is { } searchArrival)
+            {
+                <input type="hidden" name="arrival" value="@searchArrival" />
+            }
+            @if (IndexModel.SystemFilterSlug(Model.SystemFilter) is { } searchSys)
+            {
+                <input type="hidden" name="sys" value="@searchSys" />
+            }
+            @if (IndexModel.AiFilterSlug(Model.AiFilter) is { } searchAi)
+            {
+                <input type="hidden" name="ai" value="@searchAi" />
+            }
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-search")" /></svg>
+            <input id="wc-search" type="search" name="q" value="@Model.Search" placeholder="@Labels.FindWorkCentrePlaceholder" aria-label="@Labels.FindInWorkCentre" autocomplete="off" data-wc-search />
+        </form>
     </div>
 
     <div role="tabpanel" id="wc-panel-attention" aria-labelledby="wc-tab-attention" data-wc-attention
@@ -221,18 +268,6 @@ else
                     }
                 </div>
             </div>
-            @* Find within Needs attention (WB): a GET that keeps the scope and
-               kinds and lands on page one; Enter submits, script or not. *@
-            <form class="wc-search" method="get" role="search">
-                <input type="hidden" name="scope" value="@IndexModel.ScopeSlug(Model.Scope)" />
-                @foreach (var kind in Model.Kinds)
-                {
-                    <input type="hidden" name="kind" value="@NeedsAttentionPresentation.KindSlug(kind)" />
-                }
-                <label class="sr-only" for="wc-search">@Labels.FindInNeedsAttention</label>
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-search")" /></svg>
-                <input id="wc-search" type="search" name="q" value="@Model.Search" placeholder="@Labels.FindPlaceholder" autocomplete="off" data-wc-search />
-            </form>
         </div>
         <nav class="chips wc-filters" aria-label="Kinds">
             @foreach (var kind in NeedsAttentionPresentation.ChipsFor(Model.Scope))
@@ -518,6 +553,20 @@ else
     <div role="tabpanel" id="wc-panel-new-cases" aria-labelledby="wc-tab-new-cases" data-wc-new-cases
          data-wc-refresh-section="new-cases" data-wc-refresh-state="@newCasesState"
          hidden="@(Model.Tab != IndexModel.NewCasesTab || !Model.ShowNewCases)">
+        <div class="wc-subbar" role="toolbar" aria-label="@Labels.ArrivalColumn">
+            <div class="chips" role="group" aria-label="@Labels.ArrivalColumn">
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.NewCasesTab, clearArrival: true, newPage: 1)" aria-current="@(Model.Arrival is null ? "true" : "false")" data-wc-arrival-filter="all">@Labels.All<span class="n">@Model.NewCasesWindowCount</span></a>
+                @foreach (var channel in new[] { CaseArrival.PrincipalApi, CaseArrival.Email, CaseArrival.Manual, CaseArrival.Automation })
+                {
+                    var count = Model.NewCases?.Page.ArrivalCounts.GetValueOrDefault(channel) ?? 0;
+                    <a class="chip" href="@Model.PageUrl(tab: IndexModel.NewCasesTab, arrival: channel, newPage: 1)" aria-current="@(Model.Arrival == channel ? "true" : "false")" data-wc-arrival-filter="@IndexModel.ArrivalSlug(channel)">@Labels.Arrival(channel)<span class="n">@count</span></a>
+                }
+            </div>
+            @if (Model.NewCases is { } channelMeta)
+            {
+                <span class="meta">@Labels.NewCasesMeta(channelMeta.Page.TotalCount)</span>
+            }
+        </div>
         <div class="wc-section-head">
             <h2 id="wc-new-cases-title" tabindex="-1">@Labels.NewCases</h2>
             @if (Model.NewCases is { } feedMeta)
@@ -606,11 +655,129 @@ else
         }
     </div>
 
-    <div role="tabpanel" id="wc-panel-ai-jobs" aria-labelledby="wc-tab-ai-jobs" data-wc-ai-jobs
-         data-wc-refresh-section="ai-jobs" data-wc-refresh-state="@aiJobsState"
-         hidden="@(Model.Tab != IndexModel.AiJobsTab || !Model.ShowAiJobs)">
+    <div role="tabpanel" id="wc-panel-system-actions" aria-labelledby="wc-tab-system-actions" data-wc-system-actions
+         data-wc-refresh-section="system-actions" data-wc-refresh-state="@systemActionsState"
+         hidden="@(Model.Tab != IndexModel.SystemActionsTab || !Model.ShowSystemActions)">
+        <div class="wc-subbar" role="toolbar" aria-label="@Labels.SystemActions">
+            <div class="chips" role="group" aria-label="@Labels.SystemActionColumn">
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.All, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.All ? "true" : "false")" data-wc-sys-filter="all">@Labels.All<span class="n">@Model.SystemActionsWindowCount</span></a>
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.AutoMatched, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.AutoMatched ? "true" : "false")" data-wc-sys-filter="auto-match">@Labels.AutoMatched<span class="n">@(Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.AutoMatchedMail) ?? 0)</span></a>
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.ImagesPaired, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.ImagesPaired ? "true" : "false")" data-wc-sys-filter="images">@Labels.ImagesPaired<span class="n">@(Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.VehicleImagesPaired) ?? 0)</span></a>
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, systemFilter: SystemActionFilter.RulesAndQueries, sysPage: 1)" aria-current="@(Model.SystemFilter == SystemActionFilter.RulesAndQueries ? "true" : "false")" data-wc-sys-filter="rules">@Labels.RulesAndQueries<span class="n">@((Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.QueryOpenedAutomatically) ?? 0) + (Model.SystemActions?.KindCounts.GetValueOrDefault(SystemActionKind.CancellationMatched) ?? 0))</span></a>
+            </div>
+        </div>
+        <h2 id="wc-system-actions-title" class="sr-only" tabindex="-1">@Labels.SystemActions</h2>
+        @if (Model.SystemActionsFailed)
+        {
+            <div class="notice notice--warning" role="status">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
+                <span>@Labels.SystemActionsUnavailable</span>
+            </div>
+        }
+        else if (Model.SystemActions!.Items.Count == 0)
+        {
+            <div class="wc-none" data-wc-empty>@(Model.SystemFilter != SystemActionFilter.All || Model.Search is not null ? Labels.NoMatches : Labels.NoSystemActions)</div>
+        }
+        else
+        {
+            var actions = Model.SystemActions!;
+            <div class="wc-table">
+                <table class="table wc-ledger-table" aria-label="@Labels.SystemActions">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Labels.SystemActionColumn</th>
+                            <th scope="col">@Labels.CaseColumn</th>
+                            <th scope="col">@Labels.MatchedDetailColumn</th>
+                            <th scope="col">@Labels.WhenColumn</th>
+                            <th scope="col"><span class="sr-only">@Labels.ActionColumn</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @for (var index = 0; index < actions.Items.Count; index++)
+                    {
+                        var row = actions.Items[index];
+                        var after = index + 1 < actions.Items.Count ? $"wc-sys-{index + 1}" : "wc-system-actions-title";
+                        var vehicle = string.Join(" · ", new[] { row.Registration, row.VehicleMake, row.VehicleModel }.Where(part => !string.IsNullOrWhiteSpace(part)));
+                        var openQuery = row.Kind == SystemActionKind.QueryOpenedAutomatically;
+                        <tr id="wc-sys-@index" data-wc-system-action="@row.Kind" data-wc-record="@row.RecordId">
+                            <td><span class="status">@Labels.SystemActionKindLabel(row.Kind)</span></td>
+                            <td>
+                                <a class="mono wc-task-link" asp-page="/Cases/Details" asp-route-id="@row.CaseId">@row.Reference</a>
+                                @if (vehicle.Length > 0)
+                                {
+                                    <small>@vehicle</small>
+                                }
+                            </td>
+                            <td>
+                                <span>@row.Summary</span>
+                                @if (!string.IsNullOrWhiteSpace(row.Signal))
+                                {
+                                    <small>@Labels.SignalLabel: <strong>@row.Signal</strong></small>
+                                }
+                            </td>
+                            <td><time datetime="@row.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.OccurredAtUtc)</time></td>
+                            <td class="wc-col-action">
+                                <div class="wc-row-actions">
+                                    @if (openQuery)
+                                    {
+                                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@row.CaseId" asp-route-section="queries">@Labels.OpenQuery</a>
+                                        @if (row.QueryUnassigned && row.QueryId is { } queryId && Model.ViewerStaffId is not null)
+                                        {
+                                            <form method="post" asp-page="/Index" asp-page-handler="TakeQuery" data-wc-take>
+                                                <input type="hidden" name="queryId" value="@queryId" />
+                                                <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                                <input type="hidden" name="returnUrl" value="@Model.PageUrl(tab: IndexModel.SystemActionsTab)" />
+                                                <button type="submit" class="btn btn--primary btn--small" data-busy-label="@OperatorLabels.Busy.Assigning">@Labels.Take</button>
+                                            </form>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@row.CaseId">@Labels.OpenCase</a>
+                                    }
+                                    <form method="post" asp-page="/Index" asp-page-handler="Dismiss" class="wc-dismiss" data-wc-dismiss>
+                                        <input type="hidden" name="recordId" value="@row.RecordId" />
+                                        <input type="hidden" name="returnUrl" value="@Model.PageUrl(tab: IndexModel.SystemActionsTab, fragment: after)" />
+                                        <button type="submit" class="btn btn--small btn--icon" aria-label="@Labels.DismissRow(row.Reference)" title="@Labels.DismissRow(row.Reference)" data-busy-label="@OperatorLabels.Busy.Dismissing">
+                                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <span>@Labels.NewCasesPaging(actions.Page, actions.TotalPages)</span>
+                <div class="button-row">
+                    @if (actions.Page > 1)
+                    {
+                        <a class="btn btn--small" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, sysPage: actions.Page - 1)">@Labels.Previous</a>
+                    }
+                    @if (actions.Page < actions.TotalPages)
+                    {
+                        <a class="btn btn--small" href="@Model.PageUrl(tab: IndexModel.SystemActionsTab, sysPage: actions.Page + 1)">@Labels.Next</a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div role="tabpanel" id="wc-panel-ai-actions" aria-labelledby="wc-tab-ai-actions" data-wc-ai-jobs
+         data-wc-refresh-section="ai-actions" data-wc-refresh-state="@aiJobsState"
+         hidden="@(Model.Tab != IndexModel.AiActionsTab || !Model.ShowAiJobs)">
+        <div class="wc-subbar" role="toolbar" aria-label="@Labels.AiActions">
+            <div class="chips" role="group" aria-label="@Labels.AiActionColumn">
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.AiActionsTab, aiFilter: WorkCentreAiActionFilter.All)" aria-current="@(Model.AiFilter == WorkCentreAiActionFilter.All ? "true" : "false")" data-wc-ai-filter="all">@Labels.All<span class="n">@Model.AiJobs.Count</span></a>
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.AiActionsTab, aiFilter: WorkCentreAiActionFilter.Estimate)" aria-current="@(Model.AiFilter == WorkCentreAiActionFilter.Estimate ? "true" : "false")" data-wc-ai-filter="estimate">@Labels.EstimateDone<span class="n">@Model.AiJobs.Count(row => WorkCentreAiActionPolicy.Matches(WorkCentreAiActionFilter.Estimate, row.Job))</span></a>
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.AiActionsTab, aiFilter: WorkCentreAiActionFilter.QueryDraft)" aria-current="@(Model.AiFilter == WorkCentreAiActionFilter.QueryDraft ? "true" : "false")" data-wc-ai-filter="query-draft">@Labels.DraftToQuery<span class="n">@Model.AiJobs.Count(row => WorkCentreAiActionPolicy.Matches(WorkCentreAiActionFilter.QueryDraft, row.Job))</span></a>
+                <a class="chip" href="@Model.PageUrl(tab: IndexModel.AiActionsTab, aiFilter: WorkCentreAiActionFilter.Failed)" aria-current="@(Model.AiFilter == WorkCentreAiActionFilter.Failed ? "true" : "false")" data-wc-ai-filter="failed">@Labels.Failed<span class="n">@Model.AiJobs.Count(row => WorkCentreAiActionPolicy.Matches(WorkCentreAiActionFilter.Failed, row.Job))</span></a>
+            </div>
+        </div>
         <div class="wc-section-head">
-            <h2 id="wc-ai-jobs-title" tabindex="-1">@Labels.AiJobsTitle</h2>
+            <h2 id="wc-ai-jobs-title" tabindex="-1">@Labels.AiActions</h2>
             @if (!Model.AiJobsUnavailable)
             {
                 <span class="meta">@Labels.AiJobsMeta(Model.AiJobs.Count(row => row.Job.State == AiJobState.DraftReady), Model.AiJobs.Count(row => row.Job.State == AiJobState.Failed))</span>
@@ -623,9 +790,9 @@ else
                 <span>@Labels.AiJobsUnavailable</span>
             </div>
         }
-        else if (Model.AiJobs.Count == 0)
+        else if (Model.ShownAiJobs.Count == 0)
         {
-            <div class="wc-none" data-wc-empty>@Labels.NoAiJobs</div>
+            <div class="wc-none" data-wc-empty>@(Model.AiFilter != WorkCentreAiActionFilter.All || Model.Search is not null ? Labels.NoMatches : Labels.NoAiActions)</div>
         }
         else
         {
@@ -636,31 +803,25 @@ else
                 <table class="table wc-ledger-table wc-jobs-table">
                     <thead>
                         <tr>
-                            <th scope="col" class="wc-col-job">@Labels.JobColumn</th>
+                            <th scope="col" class="wc-col-job">@Labels.AiActionColumn</th>
+                            <th scope="col" class="wc-col-record">@Labels.CaseColumn</th>
                             <th scope="col" class="wc-col-state">@Labels.StateColumn</th>
-                            <th scope="col" class="wc-col-instruction">@Labels.InstructionColumn</th>
-                            <th scope="col" class="wc-col-record">@Labels.RecordColumn</th>
-                            <th scope="col" class="wc-col-started">@Labels.StartedColumn</th>
-                            <th scope="col" class="wc-col-note">@Labels.NoteColumn</th>
+                            <th scope="col" class="wc-col-instruction">@Labels.SummaryColumn</th>
+                            <th scope="col" class="wc-col-started">@Labels.WhenColumn</th>
                             <th scope="col" class="wc-col-action"><span class="sr-only">@Labels.ActionColumn</span></th>
                             <th scope="col" class="wc-col-dismiss"><span class="sr-only">@Labels.Dismiss</span></th>
                         </tr>
                     </thead>
                     <tbody>
-                    @for (var index = 0; index < Model.AiJobs.Count; index++)
+                    @for (var index = 0; index < Model.ShownAiJobs.Count; index++)
                     {
-                        var row = Model.AiJobs[index];
+                        var row = Model.ShownAiJobs[index];
                         var job = row.Job;
                         var recordPage = AiJobActions.RecordPage(job.SubjectKind);
-                        var after = index + 1 < Model.AiJobs.Count ? $"wc-job-{Model.AiJobs[index + 1].Job.JobId:D}" : "wc-ai-jobs-title";
+                        var after = index + 1 < Model.ShownAiJobs.Count ? $"wc-job-{Model.ShownAiJobs[index + 1].Job.JobId:D}" : "wc-ai-jobs-title";
                         var reference = NeedsAttentionPresentation.ReferenceLabel(job.SubjectReference);
                         <tr id="wc-job-@job.JobId" data-wc-job="@job.JobId" data-wc-job-state="@job.State" data-wc-record="@job.JobId">
-                            <td class="wc-col-job"><strong>@OperatorLabels.AiJobs.Kind(job.Kind)</strong></td>
-                            <td class="wc-col-state">
-                                <partial name="Shared/_StatusChip" model="@OperatorLabels.AiJobs.State(job.State)"
-                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' />
-                            </td>
-                            <td class="wc-col-instruction">@OperatorLabels.AiJobs.Instruction(job)</td>
+                            <td class="wc-col-job"><strong>@Labels.AiActionLabel(job.Kind, job.State)</strong></td>
                             <td class="wc-col-record">
                                 <span class="mono">
                                     @if (recordPage is not null && job.SubjectId is { } subjectId)
@@ -673,17 +834,26 @@ else
                                     }
                                 </span>
                             </td>
-                            <td class="wc-col-started">@row.StartedBy<small><time datetime="@job.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(job.CreatedAtUtc)</time></small></td>
-                            <td class="wc-col-note@(job.State == AiJobState.Failed ? " wc-failed" : null)">
-                                @if (job.State == AiJobState.Taken && job.LeaseExpiresAtUtc is { } takenUntil)
+                            <td class="wc-col-state">
+                                <partial name="Shared/_StatusChip" model="@OperatorLabels.AiJobs.State(job.State)"
+                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' />
+                            </td>
+                            <td class="wc-col-instruction@(job.State == AiJobState.Failed ? " wc-failed" : null)">
+                                <span>@OperatorLabels.AiJobs.Instruction(job)</span>
+                                @if (row.AdoptedBy is { } adoptedBy)
                                 {
-                                    @Labels.TakenUntil(takenUntil)
+                                    <small>@Labels.TakenBy(adoptedBy)</small>
+                                }
+                                else if (job.State == AiJobState.Taken && job.LeaseExpiresAtUtc is { } takenUntil)
+                                {
+                                    <small>@Labels.TakenUntil(takenUntil)</small>
                                 }
                                 else if (job.State == AiJobState.Failed)
                                 {
-                                    @(string.IsNullOrWhiteSpace(job.ClosureReason) ? Labels.NoReasonRecorded : job.ClosureReason)
+                                    <small>@(string.IsNullOrWhiteSpace(job.ClosureReason) ? Labels.NoReasonRecorded : job.ClosureReason)</small>
                                 }
                             </td>
+                            <td class="wc-col-started"><time datetime="@job.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(job.CreatedAtUtc)</time></td>
                             <td class="wc-col-action">
                                 <div class="wc-row-actions wc-job-actions">
                                     @if (row.Draft is { Route: { Length: > 0 } draftRoute } draft)
@@ -696,7 +866,7 @@ else
                                             <input type="hidden" name="jobId" value="@job.JobId" />
                                             <input type="hidden" name="expectedVersion" value="@job.Version" />
                                             <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                            <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, tab: IndexModel.AiJobsTab)" />
+                                            <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, tab: IndexModel.AiActionsTab)" />
                                             <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Completing">@OperatorLabels.AiJobs.CompleteJob</button>
                                         </form>
                                     }
@@ -709,7 +879,7 @@ else
                             <td class="wc-col-dismiss">
                                 <form method="post" asp-page="/Index" asp-page-handler="Dismiss" class="wc-dismiss" data-wc-dismiss>
                                     <input type="hidden" name="recordId" value="@job.JobId" />
-                                    <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, tab: IndexModel.AiJobsTab, fragment: after)" />
+                                    <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, tab: IndexModel.AiActionsTab, fragment: after)" />
                                     <button type="submit" class="btn btn--small btn--icon" aria-label="@Labels.DismissRow(reference)" title="@Labels.DismissRow(reference)" data-busy-label="@OperatorLabels.Busy.Dismissing">
                                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                                     </button>

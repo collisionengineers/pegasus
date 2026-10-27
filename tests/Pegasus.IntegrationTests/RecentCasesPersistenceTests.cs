@@ -24,8 +24,8 @@ public sealed class RecentCasesPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>();
-        var first = await queries.ListAsync(Since, 1, 2, CancellationToken.None);
-        var second = await queries.ListAsync(Since, 2, 2, CancellationToken.None);
+        var first = await queries.ListAsync(Since, 1, 2, null, null, CancellationToken.None);
+        var second = await queries.ListAsync(Since, 2, 2, null, null, CancellationToken.None);
 
         Assert.Equal(3, first.TotalCount);
         Assert.Equal(2, first.TotalPages);
@@ -47,7 +47,7 @@ public sealed class RecentCasesPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>();
-        var whole = await queries.ListAsync(Since, 1, 100, CancellationToken.None);
+        var whole = await queries.ListAsync(Since, 1, 100, null, null, CancellationToken.None);
 
         // Six Cases created at one moment and one after it. The Triage Case
         // and the Automation's changes to two older Cases at the same moments
@@ -68,7 +68,7 @@ public sealed class RecentCasesPersistenceTests
             var walked = new List<RecentCaseRow>();
             for (var page = 1; ; page++)
             {
-                var result = await queries.ListAsync(Since, page, pageSize, CancellationToken.None);
+                var result = await queries.ListAsync(Since, page, pageSize, null, null, CancellationToken.None);
                 Assert.Equal(whole.TotalCount, result.TotalCount);
                 walked.AddRange(result.Items);
                 if (page >= result.TotalPages)
@@ -82,7 +82,7 @@ public sealed class RecentCasesPersistenceTests
             Assert.Equal(whole.Items, walked);
         }
 
-        var again = await queries.ListAsync(Since, 1, 100, CancellationToken.None);
+        var again = await queries.ListAsync(Since, 1, 100, null, null, CancellationToken.None);
         Assert.Equal(whole.Items, again.Items);
     }
 
@@ -94,7 +94,7 @@ public sealed class RecentCasesPersistenceTests
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>();
-        var page = await queries.ListAsync(Since, int.MaxValue, 50, CancellationToken.None);
+        var page = await queries.ListAsync(Since, int.MaxValue, 50, null, null, CancellationToken.None);
 
         Assert.Empty(page.Items);
         Assert.Equal(7, page.TotalCount);
@@ -117,7 +117,7 @@ public sealed class RecentCasesPersistenceTests
         await dismissals.DismissAsync(ids.Mail, Since.AddMinutes(50), staff, CancellationToken.None);
         await dismissals.DismissAsync(ids.Guidance, Since.AddMinutes(56), staff, CancellationToken.None);
         var page = await scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>()
-            .ListAsync(Since, 1, 50, CancellationToken.None);
+            .ListAsync(Since, 1, 50, null, null, CancellationToken.None);
 
         Assert.Equal(1, page.TotalCount);
         Assert.Equal([ids.Replacement], page.Items.Select(item => item.CaseId));
