@@ -263,7 +263,7 @@
                 <div class="wc-switch" role="group" aria-label="Scope">
                     @foreach (var option in new[] { NeedsAttentionScope.Office, NeedsAttentionScope.Mine })
                     {
-                        <a href="@Model.PageUrl(scope: option, page: 1)" data-wc-scope-link="@IndexModel.ScopeSlug(option)"
+                        <a href="@Model.PageUrl(scope: option, page: 1, tab: IndexModel.AttentionTab)" data-wc-scope-link="@IndexModel.ScopeSlug(option)"
                            aria-current="@(option == Model.Scope ? "true" : "false")">@(option == NeedsAttentionScope.Mine ? Labels.Mine : Labels.Office)</a>
                     }
                 </div>
@@ -273,12 +273,12 @@
             @foreach (var kind in NeedsAttentionPresentation.ChipsFor(Model.Scope))
             {
                 var on = Model.Kinds.Contains(kind);
-                <a class="chip @(on ? "on" : null)" href="@Model.PageUrl(kinds: Model.ToggledKinds(kind), page: 1)"
+                <a class="chip @(on ? "on" : null)" href="@Model.PageUrl(kinds: Model.ToggledKinds(kind), page: 1, tab: IndexModel.AttentionTab)"
                    aria-current="@(on ? "true" : "false")" data-wc-kind="@NeedsAttentionPresentation.KindSlug(kind)">@Labels.KindChip(kind)<span class="n">@Model.KindCounts.GetValueOrDefault(kind)</span></a>
             }
             @if (Model.AttentionFiltered)
             {
-                <a class="chip chip--clear" href="@Model.PageUrl(kinds: Array.Empty<NeedsAttentionKind>(), page: 1, clearSearch: true)" data-wc-clear>@Labels.ClearFilters</a>
+                <a class="chip chip--clear" href="@Model.PageUrl(kinds: Array.Empty<NeedsAttentionKind>(), page: 1, clearSearch: true, tab: IndexModel.AttentionTab)" data-wc-clear>@Labels.ClearFilters</a>
             }
         </nav>
         @if (attention.Items.Count == 0)
@@ -333,7 +333,7 @@
                             <tr id="wc-row-@item.Id" data-wc-row="@item.Id" data-wc-row-kind="@NeedsAttentionPresentation.KindSlug(item.Kind)" data-wc-record="@item.Id" aria-selected="@(open ? "true" : "false")">
                                 <td class="wc-col-task">
                                     @* The task opens its facts in place; a second click on the open row closes it. *@
-                                    <a class="wc-task-link" href="@(open ? Model.PageUrl() : Model.PageUrl(selected: item.Id))"
+                                    <a class="wc-task-link" href="@(open ? Model.PageUrl(tab: IndexModel.AttentionTab) : Model.PageUrl(selected: item.Id, tab: IndexModel.AttentionTab))"
                                        aria-expanded="@(open ? "true" : "false")" aria-controls="@(open ? $"wc-detail-{item.Id:D}" : null)">@NeedsAttentionPresentation.RowTitle(item)</a>
                                     <small>@Labels.KindChip(item.Kind)</small>
                                     <span class="wc-fold">@NeedsAttentionPresentation.OwnerLabel(item) · @received</span>
@@ -383,7 +383,7 @@
                                     else if (item.Kind == NeedsAttentionKind.UnassignedEngineer)
                                     {
                                         <div class="wc-row-actions">
-                                            <a class="btn btn--small" href="@Model.PageUrl(selected: item.Id, assign: true)" data-wc-dialog="wc-assign-dialog">
+                                            <a class="btn btn--small" href="@Model.PageUrl(selected: item.Id, assign: true, tab: IndexModel.AttentionTab)" data-wc-dialog="wc-assign-dialog">
                                                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
                                                 <span>@Labels.AssignEngineer</span>
                                             </a>
@@ -448,7 +448,7 @@
                                             <div class="wc-context-actions" data-wc-actions>
                                                 @if (item.Kind == NeedsAttentionKind.UnassignedEngineer && Model.Assignment is not null)
                                                 {
-                                                    <a class="btn btn--dark" href="@Model.PageUrl(selected: item.Id, assign: true)" data-wc-dialog="wc-assign-dialog">
+                                                    <a class="btn btn--dark" href="@Model.PageUrl(selected: item.Id, assign: true, tab: IndexModel.AttentionTab)" data-wc-dialog="wc-assign-dialog">
                                                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
                                                         <span>@Labels.AssignEngineer</span>
                                                     </a>
@@ -495,11 +495,11 @@
             <div class="button-row">
                 @if (attention.Page > 1)
                 {
-                    <a class="btn btn--small" href="@Model.PageUrl(page: attention.Page - 1)">@Labels.Previous</a>
+                    <a class="btn btn--small" href="@Model.PageUrl(page: attention.Page - 1, tab: IndexModel.AttentionTab)">@Labels.Previous</a>
                 }
                 @if (attention.Page < attention.TotalPages)
                 {
-                    <a class="btn btn--small" href="@Model.PageUrl(page: attention.Page + 1)">@Labels.Next</a>
+                    <a class="btn btn--small" href="@Model.PageUrl(page: attention.Page + 1, tab: IndexModel.AttentionTab)">@Labels.Next</a>
                 }
             </div>
         </div>

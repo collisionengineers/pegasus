@@ -31,7 +31,7 @@ public sealed class DashboardCountersWebTests
             html,
             StringComparison.Ordinal);
 
-        Assert.Equal(5, Regex.Count(html, "class=\"metric\" data-value="));
+        Assert.Equal(5, Regex.Count(html, "class=\"wc-queue-cell [^\"]*\" data-value="));
     }
 
     /// <summary>

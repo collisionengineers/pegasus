@@ -104,16 +104,18 @@ internal sealed class EfRecentCaseQueries(
             join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
                 on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
             from receipt in receipts.DefaultIfEmpty()
-            select new ArrivalRow(
-                caseEntity.Id,
-                caseEntity.Reference,
-                caseEntity.PrincipalId,
-                caseEntity.OriginIntakeReceiptId,
-                caseEntity.CreatedAtUtc,
-                receipt == null ? null : receipt.SourceChannel,
-                creationEvents.Any(item =>
+            select new ArrivalRow
+            {
+                CaseId = caseEntity.Id,
+                Reference = caseEntity.Reference,
+                PrincipalId = caseEntity.PrincipalId,
+                OriginIntakeReceiptId = caseEntity.OriginIntakeReceiptId,
+                CreatedAtUtc = caseEntity.CreatedAtUtc,
+                SourceChannel = receipt == null ? null : receipt.SourceChannel,
+                CreatedByAutomation = creationEvents.Any(item =>
                     item.CaseId == caseEntity.Id
-                    && item.ActorKind == AutomationActorKind));
+                    && item.ActorKind == AutomationActorKind)
+            };
     }
 
     /// <summary>One statement: the window's Cases with the arrival each derives, tallied per channel.</summary>
@@ -263,15 +265,22 @@ internal sealed class EfRecentCaseQueries(
 
     private sealed record DraftRow(Guid CaseId, string? VehicleRegistration, string? ClaimantName);
 
-    /// <summary>A Case created in the window with the arrival it derives, before the Principal is joined.</summary>
-    private sealed record ArrivalRow(
-        Guid CaseId,
-        string Reference,
-        Guid PrincipalId,
-        Guid? OriginIntakeReceiptId,
-        DateTimeOffset CreatedAtUtc,
-        string? SourceChannel,
-        bool CreatedByAutomation);
+    /// <summary>
+    /// A Case created in the window with the arrival it derives, before the
+    /// Principal is joined. Member-initialised, not constructed: the later
+    /// filters, search and join read its members inside the same query, which
+    /// the provider can only follow back through member bindings.
+    /// </summary>
+    private sealed class ArrivalRow
+    {
+        public required Guid CaseId { get; init; }
+        public required string Reference { get; init; }
+        public required Guid PrincipalId { get; init; }
+        public required Guid? OriginIntakeReceiptId { get; init; }
+        public required DateTimeOffset CreatedAtUtc { get; init; }
+        public required string? SourceChannel { get; init; }
+        public required bool CreatedByAutomation { get; init; }
+    }
 
     private sealed record Row(
         Guid CaseId,

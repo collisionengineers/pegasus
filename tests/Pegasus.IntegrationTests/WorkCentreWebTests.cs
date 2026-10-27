@@ -55,12 +55,12 @@ public sealed class WorkCentreWebTests
         Assert.DoesNotContain("Nothing due today", html, StringComparison.Ordinal);
         Assert.Contains("days overdue", html, StringComparison.Ordinal);
         Assert.Contains("wc-due--overdue", html, StringComparison.Ordinal);
-        // Five metrics in their own refresh section, no Blocked (D7); the fifth
-        // counts the active Triage Cases and opens the Cases Triage tab.
+        // Five Office queues in their own refresh section, no Blocked (D7); the
+        // fifth counts the active Triage Cases and opens the Cases Triage tab.
         Assert.Contains("data-wc-refresh-section=\"metrics\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
-        Assert.Equal(5, Regex.Count(html, "class=\"metric\" data-value="));
+        Assert.Equal(5, Regex.Count(html, "class=\"wc-queue-cell [^\"]*\" data-value="));
         Assert.Matches(
-            "data-value=\"triage\" href=\"/Cases\\?tab=triage\">\\s*<span class=\"metric-label\"><span>Triages</span></span>\\s*<span class=\"metric-value\">5</span>",
+            "data-value=\"triage\" href=\"/Cases\\?tab=triage\">\\s*<span class=\"wc-queue-label\">Triages</span>\\s*<strong class=\"wc-queue-val\">5</strong>",
             html);
         // The head reads Updated HH:MM; nothing opens by itself.
         Assert.Contains("data-wc-refresh-outcome-label>Updated ", html, StringComparison.Ordinal);
@@ -174,8 +174,8 @@ public sealed class WorkCentreWebTests
         Assert.Contains("class=\"chip on\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"q\" value=\"QDOS26\"", html, StringComparison.Ordinal);
         // Clear filters drops both the kinds and the term; the chip links keep the term.
-        Assert.Contains($"href=\"/?scope=office\" data-wc-clear>{OperatorLabels.WorkCentre.ClearFilters}</a>", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/?scope=office&amp;kind=triage&amp;q=QDOS26\"", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/?scope=office&amp;tab=attention\" data-wc-clear>{OperatorLabels.WorkCentre.ClearFilters}</a>", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/?scope=office&amp;kind=triage&amp;q=QDOS26&amp;tab=attention\"", html, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.WorkCentre.NoMatches, html, StringComparison.Ordinal);
     }
 
@@ -193,12 +193,12 @@ public sealed class WorkCentreWebTests
         using var host = Host(snapshot);
         using var client = Client(host);
 
-        var html = await GetOkAsync(client, "/?page=2");
+        var html = await GetOkAsync(client, "/?page=2&tab=attention");
 
         Assert.Equal(2, snapshot.Queries[0].Page);
         Assert.Contains("Page 2 of 3 &#xB7; earliest due first", html, StringComparison.Ordinal);
-        Assert.Contains($"href=\"/?scope=office\">{OperatorLabels.WorkCentre.Previous}</a>", html, StringComparison.Ordinal);
-        Assert.Contains($"href=\"/?scope=office&amp;page=3\">{OperatorLabels.WorkCentre.Next}</a>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/?scope=office&amp;tab=attention\">{OperatorLabels.WorkCentre.Previous}</a>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/?scope=office&amp;page=3&amp;tab=attention\">{OperatorLabels.WorkCentre.Next}</a>", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -278,7 +278,7 @@ public sealed class WorkCentreWebTests
         using var client = Client(host);
 
         var closed = await GetOkAsync(client, "/");
-        Assert.Contains($"href=\"/?scope=office&amp;selected={unassigned.Id:D}\"", closed, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/?scope=office&amp;selected={unassigned.Id:D}&amp;tab=attention\"", closed, StringComparison.Ordinal);
         // The reference opens the Case.
         Assert.Contains("<a href=\"/Cases/00000000-0000-0000-0000-000000000005\">QDOS26005</a>", closed, StringComparison.Ordinal);
         Assert.DoesNotContain("wc-inline-detail", closed, StringComparison.Ordinal);
@@ -299,7 +299,7 @@ public sealed class WorkCentreWebTests
 
         // The open row: its chip reads amber Due today, a second click closes it.
         Assert.Contains($"data-wc-row=\"{unassigned.Id}\" data-wc-row-kind=\"unassigned\" data-wc-record=\"{unassigned.Id}\" aria-selected=\"true\"", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/?scope=office\"\n", html.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.Contains("href=\"/?scope=office&amp;tab=attention\"\n", html.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains($"aria-expanded=\"true\" aria-controls=\"wc-detail-{unassigned.Id:D}\"", html, StringComparison.Ordinal);
         Assert.Contains($"id=\"wc-detail-{unassigned.Id}\"", html, StringComparison.Ordinal);
         // The chip's tone follows the fixture's due group; its words follow the host clock.
@@ -569,7 +569,7 @@ public sealed class WorkCentreWebTests
 
         Assert.True(feed.Calls.Single().MarkSeen, "The first page of an open marks the look.");
         // The section has its tab, with its count, and is the one shown.
-        Assert.Contains("data-wc-tab-link=\"new-cases\"\n               aria-selected=\"true\"", html.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.Matches("data-wc-tab-link=\"new-cases\"\\s+aria-selected=\"true\"", html);
         Assert.Contains("New cases<span class=\"tab-count\">3</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-outcome=\"current\" data-wc-tab=\"new-cases\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>Principal API</span>", html, StringComparison.Ordinal);
@@ -861,7 +861,7 @@ public sealed class WorkCentreWebTests
         var html = await GetOkAsync(client, "/");
 
         Assert.Contains(OperatorLabels.WorkCentre.Unavailable, html, StringComparison.Ordinal);
-        Assert.DoesNotContain("class=\"metric\" data-value=", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"wc-queue-cell", html, StringComparison.Ordinal);
         Assert.Contains("Needs attention<span class=\"tab-count\">&#x2014;</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(InvalidOperationException), html, StringComparison.Ordinal);
     }
@@ -1120,8 +1120,13 @@ public sealed class WorkCentreWebTests
             {
                 throw new InvalidOperationException("recent cases failed");
             }
+            // The store tallies the window per channel before any filter; so does the fake.
             return Task.FromResult(new RecentCasesFeed(
-                new RecentCasesPage(Rows, page, RecentCasesPolicy.PageSize, Rows.Count),
+                new RecentCasesPage(Rows, page, RecentCasesPolicy.PageSize, Rows.Count)
+                {
+                    ArrivalCounts = Enum.GetValues<CaseArrival>()
+                        .ToDictionary(channel => channel, channel => Rows.Count(row => row.Arrival == channel))
+                },
                 RecentCasesPolicy.WindowStart(Now),
                 LastSeen));
         }
