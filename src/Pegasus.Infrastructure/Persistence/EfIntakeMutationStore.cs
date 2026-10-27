@@ -1654,6 +1654,8 @@ internal sealed class EfIntakeMutationStore(
         // Sent outcomes and report-sent evidence retain the transport Message-ID
         // verbatim; the reply identities are canonical (trimmed, upper-cased), so
         // the stored side is folded the same way rather than relying on collation.
+        // ToUpper() here is translated to SQL UPPER(), never run under a culture.
+#pragma warning disable CA1304, CA1311
         var sentCaseIdentities = await context.ApprovedSentPollOutcomes
             .AsNoTracking()
             .Where(item => item.InternetMessageIdentity != null
@@ -1674,6 +1676,7 @@ internal sealed class EfIntakeMutationStore(
                 && replyIdentities.Contains(item.InternetMessageIdentity.Trim().ToUpper()))
             .Select(item => item.CaseId!.Value)
             .ToListAsync(cancellationToken);
+#pragma warning restore CA1304, CA1311
         caseIds.AddRange(reportSentCaseIds);
 
         return caseIds.Distinct().Order().ToArray();
