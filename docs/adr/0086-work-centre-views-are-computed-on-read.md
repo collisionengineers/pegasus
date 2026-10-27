@@ -44,8 +44,9 @@ writes, and a dismissal would then have two homes.
    is the Case. `pegasus_work_centre_dismiss` covers the new record ids because
    it already dismisses by record id.
 4. AI Actions reads the job ledger, including jobs that completed inside the
-   same window. "Taken by" an Engineer is a repair specification with source
-   route `AiDraft` and that job's id, not the job state Taken.
+   same window. "Taken by" an Engineer is the staff Use repair spec act on a
+   repair specification with source route `AiDraft` and that job's id, not
+   the job state Taken.
 
 ## Consequences
 
