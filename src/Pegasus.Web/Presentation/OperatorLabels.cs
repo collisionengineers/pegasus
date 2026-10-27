@@ -2662,7 +2662,6 @@ public static class OperatorLabels
     public static class Upload
     {
         public const string Title = "Upload";
-        public const string SelectEyebrow = "Add files to Pegasus";
         public const string ChooseHeading = "Choose the files for this upload";
         public const string DropHeading = "Drop files here";
         public const string AcceptedKinds = "Images, documents, emails and video";

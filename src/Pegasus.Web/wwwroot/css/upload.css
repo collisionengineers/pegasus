@@ -94,14 +94,14 @@
 .up-sheet .record-bar p { margin: 0; font-size: 11.5px; color: var(--muted); }
 
 /* The drop target: the whole body, so a real drag is easy to hit. */
-.up-drop { flex: 1; min-height: 420px; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-2); text-align: center; padding: 56px 32px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
-.up-drop.is-over { background: var(--navy-bg); border-color: var(--navy); }
-.up-drop-badge { width: 60px; height: 60px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 2px 6px rgba(20, 30, 35, .06); display: grid; place-items: center; color: var(--navy); }
-.up-drop-badge .icon { width: 26px; height: 26px; }
-.up-drop h2 { font-size: 20px; }
-.up-drop p { margin: 0; font-size: 12px; color: var(--muted); max-width: 400px; line-height: 1.7; }
-.up-drop label { cursor: pointer; margin: 3px 0; }
-.up-drop input[type="file"] { max-width: 100%; }
+.up-sheet .up-drop { flex: 1; min-height: 420px; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-2); text-align: center; padding: 56px 32px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+.up-sheet .up-drop.is-over { background: var(--navy-bg); border-color: var(--navy); }
+.up-sheet .up-drop-badge { width: 60px; height: 60px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 2px 6px rgba(20, 30, 35, .06); display: grid; place-items: center; color: var(--navy); }
+.up-sheet .up-drop-badge .icon { width: 26px; height: 26px; }
+.up-sheet .up-drop h2 { font-size: 20px; }
+.up-sheet .up-drop p { margin: 0; font-size: 12px; color: var(--muted); max-width: 400px; line-height: 1.7; }
+.up-sheet .up-drop label { cursor: pointer; margin: 3px 0; }
+.up-sheet .up-drop input[type="file"] { max-width: 100%; }
 /* Choosing files keeps the sheet in place: the drop target gives up the
    height the selected files take. */
 .up-sheet.has-files .up-drop { min-height: 220px; padding: 32px 24px; }
@@ -217,8 +217,8 @@
     .up-file-state { font-size: 9.5px; white-space: normal; }
     .up-case { padding-left: 38px; }
     .up-radio { left: 13px; }
-    .up-drop { padding: 28px 14px; }
-    .up-drop h2 { font-size: 16px; }
+    .up-sheet .up-drop { padding: 28px 14px; }
+    .up-sheet .up-drop h2 { font-size: 16px; }
     .up-filmstrip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .up-inspect-media { padding: 12px; }
     .up-confirm-case dl { grid-template-columns: 75px 1fr; }
@@ -226,12 +226,12 @@
 
 /* The record sheet's head stacks the badge beside the title and the way back
    under it, so the reference and the limits stay readable at 760px; the sheet
-   then takes its own height and the page scrolls as usual. */
+   keeps its height and its body keeps scrolling, so choosing files still
+   moves nothing on the page. */
 @media (max-width: 760px) {
-    .up-sheet { height: auto; min-height: 0; }
     .up-sheet .record-head { grid-template-columns: auto minmax(0, 1fr); }
     .up-sheet .record-head-end { grid-column: 1 / -1; }
-    .up-sheet .record-body { padding: 12px; overflow: visible; }
+    .up-sheet .record-body { padding: 12px; }
     .up-sheet .record-bar { padding: 10px 12px; }
 }
 
