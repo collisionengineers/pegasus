@@ -146,11 +146,11 @@ public sealed class AutomationCaseLifecycleIngressTests
     }
 
     /// <summary>
-    /// log_query and resolve_query (operator, 11 October 2026): Automation logs
-    /// a query on a Report sent Case with the channel it came by and its
-    /// details, and resolves every open query at once, each through the same
-    /// Core command as staff and attributed to the Automation actor. The
-    /// result carries whether a query is still open.
+    /// pegasus_case_query (operator, 27 October 2026): Automation opens a query
+    /// on a Report sent Case with the channel it came by and its details, and
+    /// marks that query done, each through the same Core command as staff and
+    /// attributed to the Automation actor. The result carries whether a query
+    /// is still open.
     /// </summary>
     [Fact]
     public async Task LogAndResolveQueryThroughCaseActionAreAttributedToTheAutomationActor()
