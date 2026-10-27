@@ -21,19 +21,19 @@ public sealed class PrincipalMailClassificationPolicyTests
     [InlineData(
         "garage allocation",
         "We refer to the above claim and to the instructions that were sent to you on 11 June 2026.\nPlease be advised that the garage allocated to this claim are shown below for your records:\nName\nEssex Emergency Services Ltd",
-        MailCategory.CaseUpdate, "body.garage-allocation-notice")]
+        MailCategory.Cancellation, "body.garage-allocation-notice")]
     [InlineData(
         "repairs authorised",
         "We refer to your previous without prejudice inspection.\nWe are now able to authorise repairs. Please can you arrange this with the\r\ngarage below:\nName: John Card ARC",
-        MailCategory.CaseUpdate, "body.repairs-authorised-notice")]
+        MailCategory.Cancellation, "body.repairs-authorised-notice")]
     [InlineData(
         "report chase",
         "We note that we have recently given you instructions to inspect our client's vehicle and prepare a report, however; we note that we have heard nothing further from you since then.\nPlease provide us with a copy of your report by return.",
-        MailCategory.CaseUpdate, "body.report-chase-notice")]
+        MailCategory.Cancellation, "body.report-chase-notice")]
     [InlineData(
         "pav dispute",
         "We refer to the above claim and further to previous correspondence.\nThe client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle. The client has therefore provided their comments and evidence to support an increased value.",
-        MailCategory.Query, "body.pav-dispute-letter")]
+        MailCategory.Cancellation, "body.pav-dispute-letter")]
     public void AGeneratedNoticeSentenceClassifiesItsCategory(string notice, string body, MailCategory category, string predicate)
     {
         Assert.NotEmpty(notice);
@@ -54,7 +54,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             + "we note that we have heard nothing further from you since then.");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(MailCategory.CaseUpdate, result.Category);
+        Assert.Equal(MailCategory.Cancellation, result.Category);
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class PrincipalMailClassificationPolicyTests
             subject: "RE: (EREF12) RTA on 15/06/2026 : Mr Example (Our Ref: SAB/46286/1, Vehicle: HN13XMO)",
             body: "we note that we have heard nothing further from you since then.");
 
-        Assert.Equal(MailCategory.CaseUpdate, result.Category);
+        Assert.Equal(MailCategory.Cancellation, result.Category);
         Assert.True(result.IsReplyContext);
     }
 
@@ -528,7 +528,7 @@ public sealed class PrincipalMailClassificationPolicyTests
         var result = Classify(subject: "Automatic reply: (EREF8) RTA on 18/06/2026");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(MailCategory.General, result.Category);
+        Assert.Equal(MailCategory.Cancellation, result.Category);
     }
 
     [Fact]

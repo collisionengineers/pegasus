@@ -1214,7 +1214,7 @@ public sealed class StaffMailSendPersistenceTests
 
         var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
             actor,
-            new(retainedMessageId, 1, MailCategory.General,
+            new(retainedMessageId, 1, MailCategory.Cancellation,
                 "A summary, not a query."));
 
         Assert.Equal(2, dossier!.Version);
@@ -1250,7 +1250,7 @@ public sealed class StaffMailSendPersistenceTests
 
         var dossier = await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
             actor,
-            new(retainedMessageId, 1, MailCategory.Query,
+            new(retainedMessageId, 1, MailCategory.Cancellation,
                 "The client is querying the delivered report."));
 
         Assert.Equal(2, dossier!.Version);
@@ -1282,10 +1282,10 @@ public sealed class StaffMailSendPersistenceTests
     /// keeps it a query or on a Case whose report is not yet sent.
     /// </summary>
     [Theory]
-    [InlineData("to-query", CaseLifecycleState.ReportSent, false, MailCategory.Query, true, false)]
-    [InlineData("away", CaseLifecycleState.ReportSent, true, MailCategory.General, false, true)]
-    [InlineData("stays-query", CaseLifecycleState.ReportSent, true, MailCategory.Query, false, false)]
-    [InlineData("before-report-sent", CaseLifecycleState.ReportPreparation, false, MailCategory.Query, false, false)]
+    [InlineData("to-query", CaseLifecycleState.ReportSent, false, MailCategory.Cancellation, true, false)]
+    [InlineData("away", CaseLifecycleState.ReportSent, true, MailCategory.Cancellation, false, true)]
+    [InlineData("stays-query", CaseLifecycleState.ReportSent, true, MailCategory.Cancellation, false, false)]
+    [InlineData("before-report-sent", CaseLifecycleState.ReportPreparation, false, MailCategory.Cancellation, false, false)]
     public async Task ACorrectionReportsWhetherItRaisedOrWithdrewTheLinkedCasesQuery(
         string row,
         CaseLifecycleState state,

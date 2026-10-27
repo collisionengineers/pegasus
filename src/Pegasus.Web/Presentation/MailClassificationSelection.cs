@@ -4,59 +4,111 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Web.Presentation;
 
 /// <summary>
-/// The one presentation-side vocabulary for choosing a corrected mail
-/// classification: every mail category by its code, and Unclassified. The
-/// mail message page and the Automation MCP mail tools both consume this
-/// single list, so a category appears — or disappears — for both callers at
-/// once.
+/// The one presentation-side vocabulary for choosing a mail type: Correspondence
+/// (no category) and the three categories, with a New instruction naming its
+/// Case type in the same option. The message record and the Automation MCP
+/// mail tools both consume this list.
 /// </summary>
 public static class MailClassificationSelection
 {
     public sealed record SelectionOption(string Value, string Label);
 
     /// <summary>The choice that corrects a message to no category.</summary>
-    public const string UnclassifiedKey = "unclassified";
+    public const string CorrespondenceKey = "correspondence";
 
-    public const string UnclassifiedLabel = "Unclassified";
-
-    /// <summary>The one-click Tag as query correction (operator, 11 October 2026).</summary>
-    public static readonly string QueryKey = MailCategories.Code(MailCategory.Query);
-
-    /// <summary>The reason Tag as query records in the message's classification history.</summary>
-    public const string TaggedAsQueryReason = "Tagged as query";
+    public const string CorrespondenceLabel = OperatorLabels.Inbox.Correspondence;
 
     /// <summary>
-    /// The reason a Classification chip on the message record records: a chip
-    /// applies at once, as Tag as query does, so no reason is typed (operator,
-    /// 22 October 2026, R179).
+    /// The reason a Type select on the message record records: it applies at
+    /// once, so no reason is typed (operator, 22 October 2026, R179).
     /// </summary>
     public const string CorrectedFromInboxReason = "Corrected from the Inbox";
 
-    // Labels resolve through the one operator label map, so the picker and
-    // every read-only rendering of a classification use the same words.
-    public static IReadOnlyList<SelectionOption> Options { get; } =
-        [
-            .. MailCategories.All.Select(category =>
-                new SelectionOption(MailCategories.Code(category), OperatorLabels.MailClassification(category))),
-            new(UnclassifiedKey, UnclassifiedLabel)
-        ];
+    public const string UnknownSelectionMessage = "Choose a valid type.";
 
-    /// <summary>
-    /// The case types a New instruction correction may name. Only the three work
-    /// types are offered or accepted; a Triage is a Case type, not instructed work.
-    /// </summary>
     private static readonly CaseType[] WorkTypes =
         [CaseType.Inspection, CaseType.Audit, CaseType.InspectionAndAudit];
 
     /// <summary>
-    /// The work types for the Case type select, worded as the base message page
-    /// and the Create case form word them: "Inspection and Audit", where the
-    /// Case type's own name reads "Inspection and audit".
+    /// The six Type options, in order. A New instruction's value is
+    /// <c>new-instruction:Inspection</c> and the same shape for the other work types.
     /// </summary>
+    public static IReadOnlyList<SelectionOption> TypeSelectOptions { get; } =
+    [
+        new(CorrespondenceKey, OperatorLabels.Inbox.Correspondence),
+        new(Combined(MailCategory.NewInstruction, CaseType.Inspection), OperatorLabels.Inbox.NewInstructionInspection),
+        new(Combined(MailCategory.NewInstruction, CaseType.Audit), OperatorLabels.Inbox.NewInstructionAudit),
+        new(Combined(MailCategory.NewInstruction, CaseType.InspectionAndAudit), OperatorLabels.Inbox.NewInstructionInspectionAndAudit),
+        new(MailCategories.Code(MailCategory.TriageRequest), OperatorLabels.MailClassification(MailCategory.TriageRequest)),
+        new(MailCategories.Code(MailCategory.Cancellation), OperatorLabels.MailClassification(MailCategory.Cancellation))
+    ];
+
+    /// <summary>The three work types a New instruction may name, for a split input.</summary>
     public static IReadOnlyList<SelectionOption> WorkTypeOptions { get; } =
         [.. WorkTypes.Select(type => new SelectionOption(
             type.ToString(),
             type == CaseType.InspectionAndAudit ? "Inspection and Audit" : OperatorLabels.CaseTypeName(type)))];
+
+    public static string Combined(MailCategory category, CaseType caseType) =>
+        $"{MailCategories.Code(category)}:{caseType}";
+
+    /// <summary>The option value the current decision selects.</summary>
+    public static string ValueFor(MailClassificationResult? decision) =>
+        decision is { IsClassified: true, Category: MailCategory.NewInstruction, CaseType: { } caseType }
+            ? Combined(MailCategory.NewInstruction, caseType)
+            : decision is { IsClassified: true, Category: { } category }
+                ? MailCategories.Code(category)
+                : CorrespondenceKey;
+
+    /// <summary>
+    /// Parses a Type selection. Accepts the combined <c>new-instruction:Inspection</c>
+    /// value, a category code with a separate work type, and <c>correspondence</c>.
+    /// An unknown code is rejected.
+    /// </summary>
+    public static bool TryParseSelection(
+        string? classificationKey,
+        string? workType,
+        out MailCategory? category,
+        out CaseType? caseType)
+    {
+        category = null;
+        caseType = null;
+        if (string.IsNullOrWhiteSpace(classificationKey))
+        {
+            return false;
+        }
+
+        var key = classificationKey.Trim();
+        if (string.Equals(key, CorrespondenceKey, StringComparison.Ordinal))
+        {
+            return string.IsNullOrWhiteSpace(workType);
+        }
+
+        var separator = key.IndexOf(':');
+        if (separator >= 0)
+        {
+            if (!string.IsNullOrWhiteSpace(workType))
+            {
+                return false;
+            }
+
+            workType = key[(separator + 1)..];
+            key = key[..separator];
+        }
+
+        if (!MailCategories.TryParse(key, out var parsed))
+        {
+            return false;
+        }
+
+        category = parsed;
+        if (parsed != MailCategory.NewInstruction)
+        {
+            return string.IsNullOrWhiteSpace(workType);
+        }
+
+        return TryParseWorkType(workType, out caseType);
+    }
 
     /// <summary>Parses the case type a New instruction correction names.</summary>
     public static bool TryParseWorkType(string? value, out CaseType? caseType)
@@ -65,25 +117,5 @@ public static class MailClassificationSelection
             ? parsed
             : null;
         return caseType is not null;
-    }
-
-    /// <summary>
-    /// Parses a selected key: a category code, or <see cref="UnclassifiedKey"/>
-    /// for no category. Returns false — never a guessed category — for any
-    /// other key.
-    /// </summary>
-    public static bool TryParse(string? key, out MailCategory? category)
-    {
-        category = null;
-        if (string.Equals(key, UnclassifiedKey, StringComparison.Ordinal))
-        {
-            return true;
-        }
-        if (!MailCategories.TryParse(key, out var parsed))
-        {
-            return false;
-        }
-        category = parsed;
-        return true;
     }
 }

@@ -1673,35 +1673,52 @@
     });
 })();
 
-// --- Message record: Classification chips ------------------------------------
-// A chip applies a correction at once (v41 I9). Pressing New instruction first
-// asks for the Case type, which sits in the Case picker row: the press waits
-// until one is chosen, and choosing it completes the press (R179). Without
-// script the chip posts as it is, and the server refuses a New instruction that
-// has no Case type.
+// --- Inbox ledger ticks, Type select, and Case dialog deep links -------------
 (function () {
     'use strict';
-    document.addEventListener('click', function (event) {
-        var chip = event.target instanceof Element
-            ? event.target.closest('button[name="ClassificationKey"][value="new-instruction"]')
-            : null;
-        var form = chip ? chip.form : null;
-        var select = form ? form.elements.namedItem('WorkType') : null;
-        if (!(select instanceof HTMLSelectElement) || select.value) { return; }
-        event.preventDefault();
-        var field = select.closest('[data-work-type-field]');
-        if (field) { field.hidden = false; }
-        select.setAttribute('data-asked-by-chip', '');
-        select.focus();
+    function bulkBar() {
+        var bar = document.getElementById('mail-bulk');
+        if (!bar) { return; }
+        var ticked = document.querySelectorAll('[data-mail-tick]:checked').length;
+        bar.hidden = ticked === 0;
+        var count = bar.querySelector('[data-bulk-count]');
+        if (count) { count.textContent = String(ticked); }
+    }
+    document.addEventListener('change', function (event) {
+        var target = event.target;
+        if (!(target instanceof HTMLInputElement)) { return; }
+        if (target.matches('[data-mail-tick-all]')) {
+            document.querySelectorAll('[data-mail-tick]').forEach(function (box) {
+                if (box instanceof HTMLInputElement) { box.checked = target.checked; }
+            });
+            target.indeterminate = false;
+            bulkBar();
+            return;
+        }
+        if (target.matches('[data-mail-tick]')) {
+            var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-mail-tick]'));
+            var all = document.querySelector('[data-mail-tick-all]');
+            if (all instanceof HTMLInputElement) {
+                var checked = boxes.filter(function (box) { return box instanceof HTMLInputElement && box.checked; }).length;
+                all.checked = boxes.length > 0 && checked === boxes.length;
+                all.indeterminate = checked > 0 && checked < boxes.length;
+            }
+            bulkBar();
+        }
     });
     document.addEventListener('change', function (event) {
         var select = event.target;
-        if (!(select instanceof HTMLSelectElement) || !select.hasAttribute('data-asked-by-chip')
-            || !select.value || !select.form) { return; }
-        select.removeAttribute('data-asked-by-chip');
-        var chip = select.form.querySelector('button[name="ClassificationKey"][value="new-instruction"]');
-        if (chip && typeof select.form.requestSubmit === 'function') { select.form.requestSubmit(chip); }
+        if (!(select instanceof HTMLSelectElement) || !select.matches('[data-mail-type-select]') || !select.form) {
+            return;
+        }
+        if (typeof select.form.requestSubmit === 'function') { select.form.requestSubmit(); }
+        else { select.form.submit(); }
     });
+    var dialogName = new URLSearchParams(window.location.search).get('dialog');
+    if (dialogName) {
+        var dialog = document.querySelector('[data-dialog="' + CSS.escape(dialogName) + '"]');
+        if (dialog instanceof HTMLElement) { dialog.hidden = false; }
+    }
 })();
 
 // --- The Inbox: one message in a dialog over the list, and the ticks ---------

@@ -74,21 +74,14 @@ public static class JevQuestions
     public const string FamilyInstruction =
         "Classify this exact received email into one Pegasus Received family. Use current message evidence and attachment evidence. Quoted or attached old content is not fresh work. If evidence is missing, contradictory, or several families genuinely compete, choose unclassified-or-ambiguous.";
     public const string FlatInstruction =
-        "Classify this exact received email into one detailed Pegasus category. Use current message evidence and attachment evidence. Quoted or attached old content is not fresh work. If evidence does not support exactly one category, choose unclassified-or-ambiguous.";
+        "Classify this exact received email as new-instruction, triage-request, cancellation, or correspondence. Use current message evidence. Quoted or attached old content is not fresh work. If evidence does not support exactly one of those, choose unclassified-or-ambiguous. A question about a delivered report is correspondence that opens a query, not a category.";
 
     public static readonly IReadOnlyDictionary<string, string> Families = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["new-instruction"] = "Initial accepted work instruction: audit, diminution, inspection, new client, or website enquiry.",
         ["triage-request"] = "Initial assessment before a formal instruction.",
-        ["pre-instruction"] = "Pre-formal handling request other than triage.",
-        ["images-received"] = "Images sent before a formal instruction.",
-        ["case-update"] = "Progress update, chase, or other correspondence about ongoing work.",
         ["cancellation"] = "Explicit cancellation of ongoing work.",
-        ["query"] = "Query (a dispute included) or amendment request about a delivered report.",
-        ["billing"] = "Payments, remittances, invoices, or billing questions.",
-        ["general"] = "Automatic replies, delivery failures, acknowledgements, general chases, or informational case summaries.",
-        ["not-client-related"] = "Internal, company, tool, service, or software mail unrelated to client work.",
-        ["internal-cc"] = "Internal copied correspondence that is not the primary actionable occurrence.",
+        ["correspondence"] = "Every other e-mail: linked it is Case correspondence; a question about a delivered report opens a query and is not a category.",
         [EvaluationTaxonomy.Abstain] = "Evidence is missing, unsupported, contradictory, or several categories genuinely compete."
     };
 

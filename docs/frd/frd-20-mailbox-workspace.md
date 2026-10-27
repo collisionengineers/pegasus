@@ -28,22 +28,30 @@ owned by [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 
 ### Inbox scopes and filters
 
-`/Inbox` lists retained mail by scope: All incoming, No Case Found, Sent
-Items, Dismissed and Deleted Items, all five on the rail. There is no Unread
-scope; an unread row stays bold. The filters are mailbox and **Category**,
-one flat list: All categories and the eleven mail categories
-([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)),
-with no groups. The Folder select is gone and No Case Found is a scope, not a
-category (v41 item I1, signed off 19 October 2026,
-[v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+`/Inbox` lists retained mail in three tabs: **All**, **No Case Found** and
+**Dismissed**. Sent Items and Deleted Items are not Inbox scopes. There is no
+Unread tab; an unread row stays bold. The toolbar is Search (`Subject, sender,
+reference`), All principals, All Mailboxes, the count and Received order.
+There is no Category filter and no bulk Correct classification. The bulk bar
+(Dismiss, or Restore on Dismissed) is hidden until a row is ticked.
 
-The default view is the incoming Inbox across all approved mailboxes, newest
-received first. Mailbox, category and search views are explicit
-refinements of that view. Sent mail and read-only Deleted Items search are
-separate scopes. Sent Items lists every Sent item the Sent-evidence
-poll ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md)) has read
-from an Outgoing approved mailbox, newest sent first, whether Pegasus or Outlook
-sent it; a row opens the message record the same way a received one does.
+**All** lists linked mail, a New instruction, a Triage request, or a receipt
+nothing has classified yet. **No Case Found** lists received mail linked to no
+Case. The ledger is full width: a select-all tick, then Case (None, in quiet
+type, when unlinked), Type, Subject, Sender (with the Principal under it) and
+Received. A row click opens `#mailMessageDialog`.
+
+The message dialog is full width. A context bar under the route line shows
+Case, Type and Query. The settings menu (cog, `#icon-settings`) holds, in
+order, Case (the Case / PO picker and Link, Change linked Case or Unlink),
+Type (one select), Query (Open query or Mark done), Change case (Place on Hold
+and Close case, only when the linked Case allows that act) and Decided.
+Register images is offered on an unlinked, uncategorised image-only message.
+
+Sent mail remains a retained folder for Case correspondence and the
+Sent-evidence poll
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md)). It is not an
+Inbox tab. `pegasus_mail_list` still accepts `sent`.
 
 There is no historical backfill. The workspace shows retained mail from each
 approved mailbox's genuine retention start, names that boundary, and says

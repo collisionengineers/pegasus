@@ -7,8 +7,10 @@
 - Every retained message keeps its mailbox, folder, item, Message-ID,
   conversation and content hash as separate facts. Mailbox plus Message-ID
   is what makes a message unique.
-- Every received message gets one of eleven mail categories, or is left
-  Unclassified. Sent items carry no category.
+- Every received message gets one of three mail categories — New instruction,
+  Triage request or Cancellation — or no category. No category is Case
+  correspondence when the message is linked, and No Case Found when it is not.
+  A decision may also set Opens query. Sent items carry no category.
 - A received message linked to no Case waits in the Inbox's No Case Found
   scope ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)).
   An e-mail becomes an Unidentified item only when it is image-only material

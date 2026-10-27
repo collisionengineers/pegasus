@@ -1822,15 +1822,7 @@ public static class OperatorLabels
     {
         Pegasus.Core.Intake.MailCategory.NewInstruction => "New instruction",
         Pegasus.Core.Intake.MailCategory.TriageRequest => "Triage request",
-        Pegasus.Core.Intake.MailCategory.PreInstruction => "Pre-instruction",
-        Pegasus.Core.Intake.MailCategory.ImagesReceived => "Images received",
-        Pegasus.Core.Intake.MailCategory.CaseUpdate => "Case update",
         Pegasus.Core.Intake.MailCategory.Cancellation => "Cancellation",
-        Pegasus.Core.Intake.MailCategory.Query => "Query",
-        Pegasus.Core.Intake.MailCategory.Billing => "Billing",
-        Pegasus.Core.Intake.MailCategory.General => "General",
-        Pegasus.Core.Intake.MailCategory.NotClientRelated => "Not client related",
-        Pegasus.Core.Intake.MailCategory.InternalCc => "Internal CC",
         _ => throw new ArgumentOutOfRangeException(nameof(category))
     };
 
@@ -2962,15 +2954,18 @@ public static class OperatorLabels
         public const string TagRemoved = "The tag was removed.";
     }
 
-    /// <summary>Inbox and the message record (Inbox, 13 September): Category, no Unread scope, Dismiss and Restore.</summary>
+    /// <summary>Inbox and the message record: three scopes, a Type select, Dismiss and Restore.</summary>
     public static class Inbox
     {
-        public const string Category = "Category";
-        public const string AllCategories = "All categories";
+        public const string All = "All";
+        public const string AllPrincipals = "All principals";
+        public const string Type = "Type";
+        public const string Correspondence = "Correspondence";
+        public const string NewInstructionInspection = "New instruction · Inspection";
+        public const string NewInstructionAudit = "New instruction · Audit";
+        public const string NewInstructionInspectionAndAudit = "New instruction · Inspection and Audit";
+        public const string ChangeCase = "Change case";
         public const string DismissedScope = "Dismissed";
-
-        /// <summary>The fifth scope on the rail (v41 I1); its messages are the read-only Deleted Items search.</summary>
-        public const string DeletedItemsScope = "Deleted Items";
 
         /// <summary>Received mail with no linked Case: its scope and its outcome chip (operator, 13 October 2026).</summary>
         public const string NoCaseFound = "No Case Found";
@@ -2997,8 +2992,7 @@ public static class OperatorLabels
 
         // The correction's words: the bulk dialog's fields and the record's
         // Classification chips, which apply a correction at once.
-        public const string CorrectClassification = "Correct classification";
-        public const string Classification = "Classification";
+        public const string Classification = "Type";
         public const string ChooseClassificationOption = "Choose classification";
         public const string ChooseCaseTypeOption = "Choose case type";
         public const string CorrectionReason = "Reason for correction";

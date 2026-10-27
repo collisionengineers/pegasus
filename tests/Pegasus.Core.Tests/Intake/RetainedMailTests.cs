@@ -230,7 +230,7 @@ public sealed class RetainedMailTests
 
         await list.ExecuteAsync(
             Caseworker(),
-            new(null, MailFolderScope.Inbox, Category: MailCategory.General),
+            new(null, MailFolderScope.Inbox),
             1,
             25,
             CancellationToken.None);
@@ -244,13 +244,13 @@ public sealed class RetainedMailTests
         Assert.Equal(2, queries.Scopes.Count);
         await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
             Caseworker(),
-            new(null, MailFolderScope.Inbox, Category: MailCategory.Query, NoCaseFound: true),
+            new(null, MailFolderScope.Inbox, NoCaseFound: true),
             1,
             25,
             CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
             Caseworker(),
-            new(null, MailFolderScope.Inbox, Category: (MailCategory)99),
+            new(null, MailFolderScope.Inbox)99),
             1,
             25,
             CancellationToken.None));
@@ -468,7 +468,7 @@ public sealed class RetainedMailTests
     [Fact]
     public async Task PreviewPassesTheListRowThroughUntouchedAndReadsNothingElse()
     {
-        var detail = ClassifiedDetail("mailbox-a", MailCategory.General);
+        var detail = ClassifiedDetail("mailbox-a", MailCategory.Cancellation);
         var queries = new Queries { DetailToReturn = detail };
 
         var preview = await new GetRetainedMailPreview(queries).ExecuteAsync(
@@ -486,7 +486,7 @@ public sealed class RetainedMailTests
     [Fact]
     public async Task PreviewWithoutARowAsksTheStoreToReadTheSummaryItself()
     {
-        var detail = ClassifiedDetail("mailbox-a", MailCategory.General);
+        var detail = ClassifiedDetail("mailbox-a", MailCategory.Cancellation);
         var queries = new Queries { DetailToReturn = detail };
 
         await new GetRetainedMailPreview(queries).ExecuteAsync(Caseworker(), detail.Summary.Id);
@@ -653,7 +653,7 @@ public sealed class RetainedMailTests
 
         var result = await sut.ExecuteAsync(
             ActionActor.Staff(staffId, [StaffRole.User]),
-            new(Guid.NewGuid(), 1, MailCategory.General,
+            new(Guid.NewGuid(), 1, MailCategory.Cancellation,
                 "Confirmed from the retained message."));
 
         Assert.Equal(2, result!.Version);
@@ -676,7 +676,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<MailClassificationConcurrencyException>(() => sut.ExecuteAsync(
             Caseworker(),
-            new(Guid.NewGuid(), 1, MailCategory.InternalCc, "Reviewed.")));
+            new(Guid.NewGuid(), 1, MailCategory.Cancellation, "Reviewed.")));
 
         Assert.Equal(0, store.AppendCount);
     }
@@ -692,7 +692,7 @@ public sealed class RetainedMailTests
         await Assert.ThrowsAsync<ArgumentException>(() =>
             new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc)).ExecuteAsync(
                 Caseworker(),
-                new(Guid.NewGuid(), 1, MailCategory.InternalCc, reason)));
+                new(Guid.NewGuid(), 1, MailCategory.Cancellation, reason)));
 
         Assert.Equal(0, store.AppendCount);
     }
@@ -739,7 +739,7 @@ public sealed class RetainedMailTests
         await Assert.ThrowsAsync<ArgumentException>(() =>
             new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc)).ExecuteAsync(
                 Caseworker(),
-                new(Guid.NewGuid(), 1, MailCategory.General,
+                new(Guid.NewGuid(), 1, MailCategory.Cancellation,
                     "Reviewed.", CaseType.Inspection)));
 
         Assert.Equal(0, store.AppendCount);
@@ -749,7 +749,7 @@ public sealed class RetainedMailTests
     public async Task CorrectionToUnclassifiedRecordsAnUnclassifiedResultAndCarriesNoCaseType()
     {
         var original = MailClassificationResult.Classified(
-            MailCategory.General,
+            MailCategory.Cancellation,
             [new("subject.automatic-reply", true, "The subject carries the generated prefix.")],
             "Read.",
             "policy",
@@ -791,7 +791,7 @@ public sealed class RetainedMailTests
 
         await new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc), notifier).ExecuteAsync(
             Caseworker(),
-            new(Guid.NewGuid(), 1, MailCategory.Query, "A query."));
+            new(Guid.NewGuid(), 1, MailCategory.Cancellation, "A query."));
 
         Assert.Equal(arrivals, notifier.Raised.Count);
         Assert.All(notifier.Raised, raised => Assert.Equal((StaffNotificationCause.QueryReceived, caseId), raised));
@@ -802,7 +802,7 @@ public sealed class RetainedMailTests
     {
         var caseId = Guid.NewGuid();
         var original = MailClassificationResult.Classified(
-            MailCategory.CaseUpdate, [], "Read.", "policy", 1);
+            MailCategory.Cancellation, [], "Read.", "policy", 1);
         var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []))
         {
             LinkedCaseId = caseId
@@ -1005,6 +1005,9 @@ public sealed class RetainedMailTests
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
+
+        public Task<IReadOnlyList<string>> ListPrincipalsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
 
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>

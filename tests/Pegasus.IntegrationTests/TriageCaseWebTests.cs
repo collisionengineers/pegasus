@@ -533,7 +533,7 @@ public sealed partial class TriageCaseWebTests
             var decision = Assert.IsType<MailClassificationResult>(
                 (await GetReceiptAsync(services, receiptId)).MailClassificationDecision);
             Assert.Equal(MailClassificationOutcome.Classified, decision.Outcome);
-            Assert.Equal(MailCategory.CaseUpdate, decision.Category);
+            Assert.Equal(MailCategory.Cancellation, decision.Category);
             Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
         }
     }

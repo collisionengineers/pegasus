@@ -49,13 +49,13 @@ public sealed class MailboxPhotoReceiptTests
         var imagesReceived = photos with
         {
             MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.ImagesReceived,
+                MailCategory.Cancellation,
                 [], "Corrected by staff.", "shared-mail-policy", 1)
         };
         var caseUpdate = photos with
         {
             MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.CaseUpdate,
+                MailCategory.Cancellation,
                 [], "Corrected by staff.", "shared-mail-policy", 1)
         };
 
@@ -93,7 +93,7 @@ public sealed class MailboxPhotoReceiptTests
                     "A known document role or instruction selection requires the original intake route.")
             ],
             MailClassificationDecision = MailClassificationResult.Classified(
-                MailCategory.ImagesReceived,
+                MailCategory.Cancellation,
                 [], "Corrected by staff.", "shared-mail-policy", 1)
         };
 

@@ -53,6 +53,8 @@ public sealed class MessageModel(
     IEditScopeLeases editScopes,
     ILinkIntake linkIntake,
     IReverseIntakeLink reverseIntakeLink,
+    IOpenCaseQuery openCaseQuery,
+    IMarkCaseQueryDone markCaseQueryDone,
     IDismissRetainedMail dismissRetainedMail,
     IRestoreRetainedMail restoreRetainedMail,
     IGetRetainedMailAttachmentOutcomes attachmentOutcomes,
@@ -101,7 +103,7 @@ public sealed class MessageModel(
     public string? RetainedOperationKey { get; private set; }
 
     public IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
-        MailClassificationSelection.Options;
+        MailClassificationSelection.TypeSelectOptions;
 
     /// <summary>
     /// The list scope this message was opened from, carried through untouched so
@@ -127,8 +129,6 @@ public sealed class MessageModel(
     public string? SortOrder { get; set; }
 
     public bool OldestFirst { get; private set; }
-
-    private MailCategory? CategoryFilter { get; set; }
 
     private bool NoCaseFoundFilter { get; set; }
 
@@ -275,16 +275,16 @@ public sealed class MessageModel(
     /// Case already holds the message.
     /// </summary>
     public MessageOffer? Offer =>
-        AssociationReceipt is { CurrentCaseId: null }
-        && Detail.Classification?.Current is { IsClassified: true, Category: { } category }
-            ? category switch
-            {
-                MailCategory.NewInstruction when Offers.CanCreateCase => MessageOffer.CreateCase,
-                MailCategory.TriageRequest when Offers.CanOpenTriage => MessageOffer.OpenTriage,
-                MailCategory.ImagesReceived when Offers.CanRegisterImages => MessageOffer.RegisterImages,
-                _ => null
-            }
-            : null;
+        AssociationReceipt is not { CurrentCaseId: null }
+            ? null
+            : Detail.Classification?.Current is { IsClassified: true, Category: { } category }
+                ? category switch
+                {
+                    MailCategory.NewInstruction when Offers.CanCreateCase => MessageOffer.CreateCase,
+                    MailCategory.TriageRequest when Offers.CanOpenTriage => MessageOffer.OpenTriage,
+                    _ => null
+                }
+                : Offers.CanRegisterImages ? MessageOffer.RegisterImages : null;
 
     public CaseHeader? CurrentCase { get; private set; }
 
@@ -1143,7 +1143,7 @@ public sealed class MessageModel(
             return await ReloadAsync(actor, id, cancellationToken);
         }
 
-        ClassificationNotice = "Classification corrected. The previous decision and evidence remain in permanent history.";
+        ClassificationNotice = "Type corrected. The previous decision and evidence remain in permanent history.";
         if (ReturnCaseId is { } returnCaseId && returnCaseId != Guid.Empty)
         {
             // Tag as query from the Case's Correspondence tab lands back on
@@ -1151,6 +1151,117 @@ public sealed class MessageModel(
             return RedirectToPage("/Cases/Details", new { id = returnCaseId, section = "files" });
         }
         return LandOn(id);
+    }
+
+    public async Task<IActionResult> OnPostOpenQueryAsync(
+        Guid id,
+        string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken);
+            if (detail?.Summary.CaseId is not { } caseId || detail.Summary.IsTriageCase)
+            {
+                return NotFound();
+            }
+
+            await openCaseQuery.ExecuteAsync(
+                new(caseId, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey, id, null, null),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+
+        return LandOn(id);
+    }
+
+    public async Task<IActionResult> OnPostMarkQueryDoneAsync(
+        Guid id,
+        Guid queryId,
+        string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext(out _) || queryId == Guid.Empty)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            await markCaseQueryDone.ExecuteAsync(
+                new(queryId, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+
+        return LandOn(id);
+    }
+
+    /// <summary>
+    /// Place on Hold, as the Case page offers it: Core allows the hold and no
+    /// colleague holds the edit lease.
+    /// </summary>
+    public bool OffersPlaceOnHold =>
+        CurrentCase is { } header
+        && CaseLifecycleRules.CanBeHeld(header.Workflow.State)
+        && !ColleagueHoldsLease(header);
+
+    /// <summary>
+    /// Close case, as the Case page offers an adverse close: Core allows closure
+    /// and no colleague holds the edit lease.
+    /// </summary>
+    public bool OffersCloseCase =>
+        CurrentCase is { } header
+        && ClosureIsAllowed(header.Workflow.State)
+        && !ColleagueHoldsLease(header);
+
+    private bool ColleagueHoldsLease(CaseHeader header) =>
+        header.ActiveEditLease is { Holder: { } holder }
+        && !string.Equals(holder, ActorSubjectId, StringComparison.OrdinalIgnoreCase);
+
+    private string? ActorSubjectId =>
+        TryGetActor(out var actor) ? actor.SubjectId : null;
+
+    private static bool ClosureIsAllowed(CaseWorkflowRecord workflow)
+    {
+        try
+        {
+            CaseLifecycleRules.RequireClosureIsAllowed(workflow.State);
+            return workflow.Archive is null;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     public Task<IActionResult> OnPostOpenTriageAsync(
@@ -2146,12 +2257,12 @@ public sealed class MessageModel(
             || (MailboxFilter is { } mailbox
                 && !string.Equals(mailbox, detail.Summary.MailboxId.ToString("D"), StringComparison.OrdinalIgnoreCase))
             || (SearchTerm is not null && detail.Summary.Matches.Count == 0)
-            || !MatchesQueue(detail.Classification, detail.Summary);
+            || !MatchesQueue(detail.Summary);
 
     private bool TryParseListContext(out MailFolderScope listFolder)
     {
         if (!IndexModel.TryParseFolder(FolderFilter, out listFolder, out var dismissed)
-            || !ParseQueueFilter(listFolder)
+            || !ParseQueueFilter()
             || !IndexModel.TryParseSort(SortOrder, out var oldestFirst))
         {
             return false;
@@ -2162,36 +2273,24 @@ public sealed class MessageModel(
         return true;
     }
 
-    private bool ParseQueueFilter(MailFolderScope listFolder)
+    private bool ParseQueueFilter()
     {
-        if (!IndexModel.TryParseQueue(
-                QueueFilter,
-                out var normalized,
-                out var category,
-                out var noCaseFound))
-        {
-            return false;
-        }
-        if (listFolder == MailFolderScope.DeletedItems && normalized is not null)
+        if (!IndexModel.TryParseQueue(QueueFilter, out var normalized, out var noCaseFound))
         {
             return false;
         }
         QueueFilter = normalized;
-        CategoryFilter = category;
         NoCaseFoundFilter = noCaseFound;
         return true;
     }
 
-    private bool MatchesQueue(
-        MailClassificationDossier? dossier,
-        RetainedMailSummary summary)
+    private bool MatchesQueue(RetainedMailSummary summary)
     {
         if (NoCaseFoundFilter)
         {
             return summary.IntakeReceiptId is not null && summary.CaseId is null;
         }
-        return CategoryFilter is not { } category
-            || dossier?.Current.Is(category) == true;
+        return true;
     }
 
     /// <summary>
@@ -2208,15 +2307,10 @@ public sealed class MessageModel(
         out MailCategory? category,
         out CaseType? workType)
     {
-        if (!MailClassificationSelection.TryParse(classificationKey, out category))
+        if (!MailClassificationSelection.TryParseSelection(
+                classificationKey, workTypeValue, out category, out workType))
         {
-            modelState.AddModelError(nameof(ClassificationKey), OperatorLabels.Inbox.ChooseClassification);
-        }
-        workType = null;
-        if (category == MailCategory.NewInstruction
-            && !MailClassificationSelection.TryParseWorkType(workTypeValue, out workType))
-        {
-            modelState.AddModelError(nameof(WorkType), OperatorLabels.Inbox.ChooseCaseType);
+            modelState.AddModelError(nameof(ClassificationKey), MailClassificationSelection.UnknownSelectionMessage);
         }
         if (string.IsNullOrWhiteSpace(correctionReason))
         {
@@ -2239,13 +2333,17 @@ public sealed class MessageModel(
     public static string ClassificationLabel(MailClassificationOutcome? outcome) => outcome switch
     {
         MailClassificationOutcome.Classified => "Classified",
-        MailClassificationOutcome.Unclassified => MailClassificationSelection.UnclassifiedLabel,
+        MailClassificationOutcome.Unclassified => OperatorLabels.Inbox.Correspondence,
         _ => "Not yet processed"
     };
 
-    public static string DecisionLabel(MailClassificationResult result) => result.Category is { } category
-        ? DecisionLabel(category)
-        : ClassificationLabel(result.Outcome);
+    public static string DecisionLabel(MailClassificationResult result) =>
+        result is { IsClassified: true, Category: { } category }
+            ? category == MailCategory.NewInstruction && result.CaseType is { } caseType
+                ? MailClassificationSelection.TypeSelectOptions
+                    .First(option => option.Value == MailClassificationSelection.Combined(category, caseType)).Label
+                : DecisionLabel(category)
+            : OperatorLabels.Inbox.Correspondence;
 
     public static string DecisionLabel(MailCategory category) =>
         OperatorLabels.MailClassification(category);

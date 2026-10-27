@@ -70,7 +70,7 @@ public sealed class MailCategoryTests
 
         Assert.False(result.IsClassified);
         Assert.Null(result.Category);
-        Assert.False(result.Is(MailCategory.General));
+        Assert.False(result.Is(MailCategory.Cancellation));
     }
 
     [Fact]

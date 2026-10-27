@@ -630,12 +630,12 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             ("receiving", MailClassificationResult.Classified(
                 MailCategory.NewInstruction, [], "fixture", "test", 1)),
             ("queries", MailClassificationResult.Classified(
-                MailCategory.Query, [], "fixture", "test", 1)),
+                MailCategory.Cancellation, [], "fixture", "test", 1)),
             ("unclassified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
             ("triage", MailClassificationResult.Classified(
                 MailCategory.TriageRequest, [], "fixture", "test", 1)),
             ("general", MailClassificationResult.Classified(
-                MailCategory.General, [], "fixture", "test", 1))
+                MailCategory.Cancellation, [], "fixture", "test", 1))
         };
         foreach (var (key, classification) in fixtures)
         {
@@ -649,13 +649,13 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         foreach (var (key, category) in new[]
         {
             ("receiving", MailCategory.NewInstruction),
-            ("queries", MailCategory.Query),
+            ("queries", MailCategory.Cancellation),
             ("triage", MailCategory.TriageRequest),
-            ("general", MailCategory.General)
+            ("general", MailCategory.Cancellation)
         })
         {
             var item = Assert.Single((await queries.ListAsync(
-                new(null, MailFolderScope.Inbox, Category: category),
+                new(null, MailFolderScope.Inbox),
                 1,
                 25,
                 CancellationToken.None)).Items);
@@ -674,7 +674,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             ["general", "queries", "receiving", "triage", "unclassified"],
             noCaseFound.Select(item => item.Subject).Order(StringComparer.Ordinal));
         Assert.Empty((await queries.ListAsync(
-            new(null, MailFolderScope.Inbox, Category: MailCategory.Billing),
+            new(null, MailFolderScope.Inbox),
             1,
             25,
             CancellationToken.None)).Items);
@@ -801,7 +801,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             ("batch-receiving", MailClassificationResult.Classified(
                 MailCategory.NewInstruction, [], "fixture", "test", 1)),
             ("batch-queries", MailClassificationResult.Classified(
-                MailCategory.Query, [], "fixture", "test", 1)),
+                MailCategory.Cancellation, [], "fixture", "test", 1)),
             ("batch-triage", MailClassificationResult.Classified(
                 MailCategory.TriageRequest, [], "fixture", "test", 1)),
             ("batch-unclassified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
@@ -834,7 +834,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             new(null, MailFolderScope.Sent),
             new(null, MailFolderScope.Inbox, DismissedOnly: true),
             new(null, MailFolderScope.Inbox, NoCaseFound: true),
-            new(null, MailFolderScope.Inbox, Category: MailCategory.Billing)
+            new(null, MailFolderScope.Inbox)
         ];
 
         await using var scope = database.CreateAsyncScope();
@@ -869,12 +869,12 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         var fixtures = new[]
         {
             (instruction, MailCategory.NewInstruction),
-            (query, MailCategory.Query),
-            (dispute, MailCategory.Query),
+            (query, MailCategory.Cancellation),
+            (dispute, MailCategory.Cancellation),
             (otherCase, MailCategory.Cancellation),
-            (caseUpdate, MailCategory.CaseUpdate),
+            (caseUpdate, MailCategory.Cancellation),
             (reversed, MailCategory.Cancellation),
-            (billing, MailCategory.Billing),
+            (billing, MailCategory.Cancellation),
             (unassociated, MailCategory.Cancellation),
             (sharedToken, MailCategory.Cancellation)
         };
@@ -963,7 +963,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             details.CorrespondenceEmails.Select(item => item.Subject));
         Assert.Equal(ReceivedAtUtc.AddMinutes(5), details.CorrespondenceEmails[1].ReceivedAtUtc);
         Assert.Equal("sender@example.invalid", details.CorrespondenceEmails[1].SenderAddress);
-        Assert.Equal(MailCategory.Billing, details.CorrespondenceEmails[1].Classification);
+        Assert.Equal(MailCategory.Cancellation, details.CorrespondenceEmails[1].Classification);
         Assert.Equal("second@example.invalid", details.CorrespondenceEmails[3].SenderAddress);
         Assert.Equal(MailCategory.NewInstruction, details.CorrespondenceEmails[6].Classification);
         Assert.DoesNotContain(details.CorrespondenceEmails, item => item.Subject is
@@ -1005,7 +1005,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             receivedAtUtc: ReceivedAtUtc.AddMinutes(10));
         await RetainAsync(database, correctedMessage);
         var before = MailClassificationResult.Classified(
-            MailCategory.General,
+            MailCategory.Cancellation,
             [],
             "fixture",
             "test",
@@ -1039,12 +1039,12 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         await using var scope = database.CreateAsyncScope();
         var retained = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
         var first = await retained.ListAsync(
-            new(null, MailFolderScope.Inbox, Category: MailCategory.NewInstruction),
+            new(null, MailFolderScope.Inbox),
             1,
             3,
             CancellationToken.None);
         var third = await retained.ListAsync(
-            new(null, MailFolderScope.Inbox, Category: MailCategory.NewInstruction),
+            new(null, MailFolderScope.Inbox),
             3,
             3,
             CancellationToken.None);
@@ -1472,7 +1472,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             var service = readScope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>();
             var corrected = await service.ExecuteAsync(
                 ActionActor.Staff(Guid.Parse("11111111-1111-1111-1111-111111111111"), [StaffRole.User]),
-                new(retainedId, 1, MailCategory.General,
+                new(retainedId, 1, MailCategory.Cancellation,
                     "The retained reply is an acknowledgement."));
             Assert.Equal(2, corrected!.Version);
             Assert.Equal(original.Predicates, corrected.Current.Predicates);
@@ -1480,7 +1480,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
 
             await Assert.ThrowsAsync<MailClassificationConcurrencyException>(() => service.ExecuteAsync(
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-                new(retainedId, 1, MailCategory.InternalCc, "Stale correction.")));
+                new(retainedId, 1, MailCategory.Cancellation, "Stale correction.")));
         }
 
         // A later processor replay must not erase an accepted human correction.
@@ -1498,7 +1498,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         var detail = Assert.IsType<RetainedMailDetail>(await finalScope.ServiceProvider
             .GetRequiredService<IRetainedMailQueries>()
             .GetAsync(retainedId, CancellationToken.None));
-        Assert.Equal(MailCategory.General, detail.Classification!.Current.Category);
+        Assert.Equal(MailCategory.Cancellation, detail.Classification!.Current.Category);
         Assert.Equal(4, detail.Classification.Current.PolicyVersion);
         Assert.Single(detail.Classification.History);
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeMailClassificationHistory"));
@@ -1527,7 +1527,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             retainedId = listed.Id;
             await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-                new(retainedId, 1, MailCategory.General, "An acknowledgement."));
+                new(retainedId, 1, MailCategory.Cancellation, "An acknowledgement."));
         }
 
         // A re-evaluation that classifies nothing, then one that classifies
@@ -1555,7 +1555,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             .GetAsync(retainedId, CancellationToken.None));
         Assert.Equal(2, detail.Classification!.Version);
         Assert.Equal(2, detail.Summary.ClassificationVersion);
-        Assert.Equal(MailCategory.General, detail.Classification.Current.Category);
+        Assert.Equal(MailCategory.Cancellation, detail.Classification.Current.Category);
         Assert.Single(detail.Classification.History);
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeMailClassificationHistory"));
     }
@@ -1594,7 +1594,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         // Away again: the match goes with it.
         await correct.ExecuteAsync(
             actor,
-            new(retainedId, 2, MailCategory.General, "An autoreply after all."));
+            new(retainedId, 2, MailCategory.Cancellation, "An autoreply after all."));
         var asAutoreply = (await receipts.GetAsync(stored.Id, CancellationToken.None))!;
         Assert.DoesNotContain(asAutoreply.Evidence, item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
         Assert.Equal(stored.Version + 2, asAutoreply.Version);
@@ -1680,7 +1680,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 new(
                     item.Id,
                     1,
-                    MailCategory.General,
+                    MailCategory.Cancellation,
                     "The exact retained message is an acknowledgement."));
 
             Assert.Equal(2, corrected!.Version);
@@ -1696,14 +1696,14 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 new(
                     retained[0].Id,
                     1,
-                    MailCategory.InternalCc,
+                    MailCategory.Cancellation,
                     "A stale correction must not affect either mailbox.")));
         Assert.Null(await command.ExecuteAsync(
             actor,
             new(
                 Guid.NewGuid(),
                 1,
-                MailCategory.InternalCc,
+                MailCategory.Cancellation,
                 "An unknown retained message must not create a decision.")));
         Assert.Equal(
             2L,
@@ -1879,7 +1879,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.Equal("message-1", Assert.Single(inbox.Items.Select(item => item.Id).Select(id =>
             sent.Items.Any(sentItem => sentItem.Id == id) ? "sent" : "message-1")));
 
-        var deleted = await queries.ListAsync(new(null, MailFolderScope.DeletedItems), 1, 25, CancellationToken.None);
+        var deleted = await queries.ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
         Assert.Empty(deleted.Items);
         Assert.False(deleted.HasUnretainedHistory);
 

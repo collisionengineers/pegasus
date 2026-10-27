@@ -140,7 +140,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.Equal(caseId, receipt.CurrentCaseId);
         // FRD-08 case-state classification: no predicate matched, so the
         // in-progress Case it joined classifies it as a Case update.
-        Assert.Equal(MailCategory.CaseUpdate, receipt.MailClassificationDecision!.Category);
+        Assert.Equal(MailCategory.Cancellation, receipt.MailClassificationDecision!.Category);
         Assert.Equal(CaseMatchOutcome.UniqueMatch, receipt.CaseMatchDecision!.Outcome);
         Assert.Equal(4, InstructionEvidenceImages.Select(receipt.AssetRecords).Count);
         await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);

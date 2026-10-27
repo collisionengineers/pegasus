@@ -934,7 +934,7 @@ public sealed class MailWorkspaceWebTests
             FirstMailboxId,
             FirstMailboxId + "-0",
             MailClassificationResult.Classified(
-                MailCategory.Query,
+                MailCategory.Cancellation,
                 [],
                 "The retained message is a post-report query.",
                 "mail-query-response-test",
@@ -1993,11 +1993,11 @@ public sealed class MailWorkspaceWebTests
         var classifications = new[]
         {
             MailClassificationResult.Classified(MailCategory.NewInstruction, [], "fixture", "test", 1),
-            MailClassificationResult.Classified(MailCategory.Query, [], "fixture", "test", 1),
-            MailClassificationResult.Classified(MailCategory.Billing, [], "fixture", "test", 1),
+            MailClassificationResult.Classified(MailCategory.Cancellation, [], "fixture", "test", 1),
+            MailClassificationResult.Classified(MailCategory.Cancellation, [], "fixture", "test", 1),
             MailClassificationResult.Unclassified([], "fixture", "test", 1),
             MailClassificationResult.Classified(MailCategory.TriageRequest, [], "fixture", "test", 1),
-            MailClassificationResult.Classified(MailCategory.General, [], "fixture", "test", 1)
+            MailClassificationResult.Classified(MailCategory.Cancellation, [], "fixture", "test", 1)
         };
         for (var index = 0; index < classifications.Length; index++)
         {
@@ -2783,7 +2783,7 @@ public sealed class MailWorkspaceWebTests
                     token,
                     [messages[2]],
                     ($"versions[{messages[2]:D}]", "1"),
-                    ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                    ("ClassificationKey", MailCategories.Code(MailCategory.Cancellation)),
                     ("CorrectionReason", "An acknowledgement.")));
             Assert.Equal(HttpStatusCode.Redirect, classify.StatusCode);
         }
@@ -2884,7 +2884,7 @@ public sealed class MailWorkspaceWebTests
         {
             await colleague.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-                new(messages[0], 1, MailCategory.Billing, "A colleague's correction."));
+                new(messages[0], 1, MailCategory.Cancellation, "A colleague's correction."));
         }
         using var client = IntakeWebDriver.CreateClient(factory);
         var token = AntiforgeryToken(await GetHtmlAsync(client, "/Inbox"));
@@ -2897,7 +2897,7 @@ public sealed class MailWorkspaceWebTests
                 ($"versions[{messages[0]:D}]", "1"),
                 ($"versions[{messages[1]:D}]", "1"),
                 ($"versions[{messages[2]:D}]", "1"),
-                ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                ("ClassificationKey", MailCategories.Code(MailCategory.Cancellation)),
                 ("CorrectionReason", "Acknowledgements."))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
@@ -2909,7 +2909,7 @@ public sealed class MailWorkspaceWebTests
         await using var context = await contextFactory.CreateDbContextAsync();
         var stale = await context.IntakeMailClassificationDecisions.SingleAsync(item => item.IntakeReceiptId == receipts[0]);
         Assert.Equal(2, stale.Version);
-        Assert.Equal(MailCategories.Code(MailCategory.Billing), stale.Category);
+        Assert.Equal(MailCategories.Code(MailCategory.Cancellation), stale.Category);
         Assert.Equal(
             "A colleague's correction.",
             (await context.IntakeMailClassificationHistory.SingleAsync(item => item.IntakeReceiptId == receipts[0])).Reason);
@@ -2917,7 +2917,7 @@ public sealed class MailWorkspaceWebTests
         {
             var decision = await context.IntakeMailClassificationDecisions.SingleAsync(item => item.IntakeReceiptId == receiptId);
             Assert.Equal(2, decision.Version);
-            Assert.Equal(MailCategories.Code(MailCategory.General), decision.Category);
+            Assert.Equal(MailCategories.Code(MailCategory.Cancellation), decision.Category);
         }
         Assert.Equal(3, await context.IntakeMailClassificationDecisions.CountAsync());
         Assert.Equal(3, await context.IntakeMailClassificationHistory.CountAsync());
@@ -2945,7 +2945,7 @@ public sealed class MailWorkspaceWebTests
         [
             ($"versions[{messages[0]:D}]", "1"),
             ($"versions[{messages[1]:D}]", "1"),
-            ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+            ("ClassificationKey", MailCategories.Code(MailCategory.Cancellation)),
             ("CorrectionReason", "Reviewed retained evidence."),
             ("operationKey", Guid.NewGuid().ToString("N"))
         ];
@@ -2987,7 +2987,7 @@ public sealed class MailWorkspaceWebTests
         {
             [($"versions[{messages[0]:D}]", "1"), ("ClassificationKey", "received:General:autoreply"), ("CorrectionReason", "Reviewed.")],
             [($"versions[{messages[0]:D}]", "1"), ("ClassificationKey", MailCategories.Code(MailCategory.NewInstruction)), ("CorrectionReason", "Reviewed.")],
-            [($"versions[{messages[0]:D}]", "1"), ("ClassificationKey", MailCategories.Code(MailCategory.General)), ("CorrectionReason", " ")]
+            [($"versions[{messages[0]:D}]", "1"), ("ClassificationKey", MailCategories.Code(MailCategory.Cancellation)), ("CorrectionReason", " ")]
         })
         {
             using var response = await client.PostAsync("/Inbox?handler=BulkClassify", BulkForm(token, messages, refused));
@@ -3079,7 +3079,7 @@ public sealed class MailWorkspaceWebTests
                 ids[1..],
                 ($"versions[{ids[1]:D}]", versions[ids[1].ToString("D")]),
                 ($"versions[{ids[2]:D}]", versions[ids[2].ToString("D")]),
-                ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                ("ClassificationKey", MailCategories.Code(MailCategory.Cancellation)),
                 ("CorrectionReason", "Acknowledgements."))))
         {
             Assert.Equal(HttpStatusCode.Redirect, classify.StatusCode);
@@ -3110,7 +3110,7 @@ public sealed class MailWorkspaceWebTests
         {
             await colleague.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-                new(messages[0], 1, MailCategory.Billing, "A colleague's correction."));
+                new(messages[0], 1, MailCategory.Cancellation, "A colleague's correction."));
         }
         using var client = IntakeWebDriver.CreateClient(factory);
         var token = AntiforgeryToken(await GetHtmlAsync(client, "/Inbox"));
@@ -3123,7 +3123,7 @@ public sealed class MailWorkspaceWebTests
                 ($"versions[{messages[0]:D}]", "1"),
                 ($"versions[{messages[1]:D}]", "1"),
                 ($"versions[{messages[2]:D}]", "1"),
-                ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                ("ClassificationKey", MailCategories.Code(MailCategory.Cancellation)),
                 ("CorrectionReason", "Acknowledgements."))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
@@ -3179,7 +3179,7 @@ public sealed class MailWorkspaceWebTests
                 ids,
                 ($"versions[{ids[0]:D}]", "1"),
                 ($"versions[{ids[1]:D}]", "1"),
-                ("ClassificationKey", MailCategories.Code(MailCategory.General)),
+                ("ClassificationKey", MailCategories.Code(MailCategory.Cancellation)),
                 ("CorrectionReason", " ")));
         Assert.Equal(HttpStatusCode.OK, listRefusal.StatusCode);
         var refusedList = await listRefusal.Content.ReadAsStringAsync();

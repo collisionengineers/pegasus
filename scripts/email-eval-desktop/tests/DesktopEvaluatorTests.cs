@@ -8,17 +8,13 @@ namespace Pegasus.EmailEvaluation.Desktop.Tests;
 public sealed class DesktopEvaluatorTests
 {
     [Fact]
-    public void CatalogParsesAllElevenCategoriesWithoutReplyFolder()
+    public void CatalogParsesTheThreeCategoriesWithoutReplyFolder()
     {
         var catalog = CategoryCatalog.Load();
 
-        Assert.Equal(11, catalog.Categories.Count);
+        Assert.Equal(3, catalog.Categories.Count);
         Assert.Equal(
-            [
-                "new-instruction", "triage-request", "pre-instruction", "images-received",
-                "case-update", "cancellation", "query", "billing", "general",
-                "not-client-related", "internal-cc"
-            ],
+            ["new-instruction", "triage-request", "cancellation"],
             catalog.Categories.Select(category => category.Name));
         Assert.DoesNotContain(catalog.Categories, category => category.Name.Contains("reply", StringComparison.OrdinalIgnoreCase));
         using var folder = TemporaryFolder();

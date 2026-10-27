@@ -78,8 +78,8 @@ Safely retained image material or an inseparable image submission group that has
 _Avoid_: Triage, Blocked, Blocked intake
 
 **Mail category**:
-The one category a retained received message has, from eleven: New instruction, Triage request, Pre-instruction, Images received, Case update, Cancellation, Query, Billing, General, Not client related and Internal CC ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). A message no classification has decided is Unclassified. Sent items carry no category.
-_Avoid_: family, subtype, destination, Other, Ambiguous
+The one category a retained received message has, from three: New instruction (with Case type Inspection, Audit, or Inspection and Audit), Triage request, and Cancellation ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). Every other message has no category: linked, it is Case correspondence; unlinked, it waits in No Case Found. A classification may also set Opens query, which is not a category. Sent items carry no category.
+_Avoid_: family, subtype, destination, Other, Ambiguous, Unclassified as a category, Query as a mail category
 
 **Held**:
 A Case state that pauses progression and recurring chasers until staff decide. A hold records a reason and may carry a Review on date, which is when it is next due for a decision. A cancellation message never changes a Case by itself; staff may place the Case on Hold with the cancellation as the reason ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)).
