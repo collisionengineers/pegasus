@@ -111,6 +111,33 @@ does.
    `GLASS_ESTIMATOR_BASE_URI` fall back to the `main.parameters.json` defaults
    when unset in azd, so set them explicitly with `azd env set` before this
    step or the required-value check above refuses.
+   **One-time step for the Baseline release (Phase 2, R481, R484).** Before the
+   bundle first runs with the `Baseline` migration, production adopts it by one
+   history row and keeps its 244 legacy rows, so earlier artifacts stay
+   deployable. Run this once, under the same Azure CLI identity; it is
+   re-runnable and refuses any other history state. If a release lands another
+   migration first, update the count and the head it expects:
+
+   ```powershell
+   $accessToken = (& az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv).Trim()
+   Invoke-Sqlcmd -ServerInstance "tcp:$($values['AZURE_SQL_SERVER_FQDN']),1433" -Database $values['AZURE_SQL_DATABASE_NAME'] -AccessToken $accessToken -AbortOnError -Query @"
+   SET XACT_ABORT ON; BEGIN TRAN;
+   IF NOT EXISTS (SELECT 1 FROM dbo.__EFMigrationsHistory WITH (UPDLOCK, HOLDLOCK) WHERE MigrationId = N'20261028171919_Baseline')
+   BEGIN
+     IF (SELECT COUNT(*) FROM dbo.__EFMigrationsHistory) <> 244
+        OR (SELECT MAX(MigrationId) FROM dbo.__EFMigrationsHistory) <> N'20261028160000_DenyApprovedMailboxSubscriptionsWrites'
+       THROW 51100, 'History is not at the Release 129 head; baseline adoption refused.', 1;
+     INSERT dbo.__EFMigrationsHistory (MigrationId, ProductVersion) VALUES (N'20261028171919_Baseline', N'10.0.10');
+   END
+   COMMIT;
+   "@
+   ```
+
+   The bundle then prints `No migrations were applied. The database is already
+   up to date.` A local database the chain built is adopted the same way or
+   dropped (`Invoke-LocalDevelopment.ps1 -Action Reset`). This step leaves the
+   recipe with the release's record (the plan's PR 2c).
+
    Run the resolved bundle with only `--connection`; its native exit code must
    succeed before bootstrap:
 

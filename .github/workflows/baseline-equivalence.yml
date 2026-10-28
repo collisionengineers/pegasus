@@ -1,0 +1,130 @@
+name: baseline-equivalence
+
+# One-off tooling for the schema baseline (Phase 2, R481): proves that a
+# database built from this ref's migrations equals one built from the chain
+# it replaces. The `chain` job builds from the pull request's base (the chain
+# as `dev` holds it), the `baseline` job from the head, and `compare` diffs
+# the two catalogs that scripts/Export-DatabaseCatalog.ps1 writes, failing on
+# any difference. Column order and the migration history are not compared:
+# the export keeps column order in its own file and leaves the history rows
+# out. Removed with the baseline release (the plan's PR 2c).
+on:
+  pull_request:
+    paths:
+      - 'src/Pegasus.Infrastructure/Persistence/**'
+      - 'scripts/Export-DatabaseCatalog.ps1'
+      - '.github/workflows/baseline-equivalence.yml'
+  workflow_dispatch:
+    inputs:
+      chain_ref:
+        description: The ref whose migrations build the chain database
+        default: dev
+
+permissions:
+  contents: read
+
+env:
+  CATALOG_CONNECTION: 'Server=(localdb)\MSSQLLocalDB;Database=PegasusCatalog;Integrated Security=true;TrustServerCertificate=true'
+
+jobs:
+  chain:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha || inputs.chain_ref }}
+      # The export script is taken from the head, so both catalogs are written
+      # by the same version of it.
+      - uses: actions/checkout@v7
+        with:
+          path: head-tools
+          sparse-checkout: scripts/Export-DatabaseCatalog.ps1
+          sparse-checkout-cone-mode: false
+      - uses: ./.github/actions/dotnet-build
+      - name: Build the database from the chain
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/catalog-chain | Out-Null
+          Get-ChildItem ./src/Pegasus.Infrastructure/Persistence/Migrations -Filter '*.cs' |
+            Where-Object { $_.Name -notmatch '\.Designer\.cs$|ModelSnapshot\.cs$' } |
+            Sort-Object Name | Select-Object -ExpandProperty BaseName |
+            Set-Content artifacts/catalog-chain/migrations.txt
+          Write-Host "Chain: $((Get-Content artifacts/catalog-chain/migrations.txt).Count) migrations, newest $(Get-Content artifacts/catalog-chain/migrations.txt | Select-Object -Last 1)"
+          dotnet tool restore
+          dotnet ef database update --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release --no-build --connection $env:CATALOG_CONNECTION
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet ef database update failed.' }
+      - name: Export the catalog
+        shell: pwsh
+        run: ./head-tools/scripts/Export-DatabaseCatalog.ps1 -ConnectionString $env:CATALOG_CONNECTION -OutputDirectory artifacts/catalog-chain
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: catalog-chain
+          path: artifacts/catalog-chain/
+          if-no-files-found: error
+
+  baseline:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/dotnet-build
+      - name: Build the database from this ref's migrations
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/catalog-baseline | Out-Null
+          Get-ChildItem ./src/Pegasus.Infrastructure/Persistence/Migrations -Filter '*.cs' |
+            Where-Object { $_.Name -notmatch '\.Designer\.cs$|ModelSnapshot\.cs$' } |
+            Sort-Object Name | Select-Object -ExpandProperty BaseName |
+            Set-Content artifacts/catalog-baseline/migrations.txt
+          Write-Host "Head: $((Get-Content artifacts/catalog-baseline/migrations.txt).Count) migrations, newest $(Get-Content artifacts/catalog-baseline/migrations.txt | Select-Object -Last 1)"
+          dotnet tool restore
+          dotnet ef database update --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release --no-build --connection $env:CATALOG_CONNECTION
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet ef database update failed.' }
+      - name: Export the catalog
+        shell: pwsh
+        run: ./scripts/Export-DatabaseCatalog.ps1 -ConnectionString $env:CATALOG_CONNECTION -OutputDirectory artifacts/catalog-baseline
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: catalog-baseline
+          path: artifacts/catalog-baseline/
+          if-no-files-found: error
+
+  compare:
+    needs: [chain, baseline]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: catalog-chain
+          path: catalog-chain
+      - uses: actions/download-artifact@v6
+        with:
+          name: catalog-baseline
+          path: catalog-baseline
+      - name: The two catalogs must be identical
+        shell: bash
+        run: |
+          echo "Chain: $(wc -l < catalog-chain/migrations.txt) migrations, newest $(tail -n 1 catalog-chain/migrations.txt)"
+          echo "Head:  $(wc -l < catalog-baseline/migrations.txt) migrations, newest $(tail -n 1 catalog-baseline/migrations.txt)"
+          echo "::group::Columns left out of the row comparison (head)"
+          cat catalog-baseline/data-ignored-columns.txt
+          echo "::endgroup::"
+          if diff -r --exclude=column-order.txt --exclude=migrations.txt catalog-chain catalog-baseline > catalog.diff; then
+            echo "The chain and this ref build the same database."
+          else
+            echo "::group::Differences (chain is -, this ref is +)"
+            cat catalog.diff
+            echo "::endgroup::"
+            echo "::error::The catalogs differ: $(grep -c '^[<>]' catalog.diff) lines."
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: catalog-diff
+          path: catalog.diff
+          if-no-files-found: ignore

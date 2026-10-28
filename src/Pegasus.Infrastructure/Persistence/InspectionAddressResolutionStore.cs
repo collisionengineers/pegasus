@@ -16,9 +16,9 @@ public sealed class InspectionAddressResolutionStore(
 
     /// <summary>
     /// v2 records the settler as its actor kind and subject (ADR-0064): a
-    /// member of staff or the Automation actor. Migration
-    /// 20261007181000_InspectionAddressSettlerKind rewrote every v1 resolution,
-    /// which named a staff identifier only, so no v1 signal remains to read.
+    /// member of staff or the Automation actor. The migration of 7 October 2026
+    /// rewrote every v1 resolution, which named a staff identifier only, so no
+    /// v1 signal remains to read.
     /// </summary>
     private const string ResolutionSignalPrefix = ResolutionSignalFamily + "v2/";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);

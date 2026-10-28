@@ -69,9 +69,9 @@ zero, so the next allocation is `QDOSyy001`.
   and the reference-sequence tables `CaseSequences`, `ImageIntakeSequences`
   and `UnidentifiedSequences`, plus `TriageSequences` only while the schema
   still has it (so no case/image/Triage/unidentified reference is ever
-  reused). Migration `20260924180000_CaseWorksAndTriageCases` drops
-  `TriageSequences`: a Triage Case's `t.` reference comes from
-  `CaseSequences`. The script preserves whichever of the two schemas it finds.
+  reused). `TriageSequences` was dropped on 24 September 2026: a Triage Case's
+  `t.` reference comes from `CaseSequences`. The script preserves whichever of
+  the two schemas it finds.
 - **Outlook and Box themselves** — the script only touches Azure Blob and
   Azure SQL; no Graph or Box API call exists in it.
 

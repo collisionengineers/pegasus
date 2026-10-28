@@ -9,9 +9,8 @@ using RuleMatch = Pegasus.Core.Reports.ReportSendingRuleMatch;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// Migrations 20261012190000_PrincipalReportSendingRules and
-/// 20261017120000_ReportSendingSopV8: the SOP Principals Pegasus did not
-/// have, the claim sources rule conditions point at, every SOP Principal's
+/// The Report Sending SOP seed (12 and 17 October 2026): the SOP Principals
+/// Pegasus did not have, the claim sources rule conditions point at, every SOP Principal's
 /// rules and the TL thresholds appended to Notes on every Case (Report
 /// Sending SOP v8, 15 October 2026; operator, 6 October 2026 and 15 and 16
 /// October 2026). Every Principal has rules.
@@ -28,7 +27,7 @@ public sealed class PrincipalReportSendingSeedTests
     /// <c>send_from</c> names the mailbox. A <c>source</c> condition is that
     /// Claim Source by name, except ACSP and CS: they are Principals only, so the
     /// instruction is matched on their <c>match</c> text
-    /// (20261013090000_ContactSingleType). <c>bodyshop_mentions</c> and
+    /// (a contact has one type since 13 October 2026). <c>bodyshop_mentions</c> and
     /// <c>images_from</c> take the source's <c>match</c> text,
     /// <c>report_status</c> is the Outcome, a nested <c>any</c> of one kind is
     /// one condition with alternatives (AX) and <c>rate_card</c> is Rate card.
@@ -322,7 +321,7 @@ public sealed class PrincipalReportSendingSeedTests
             organizations[principals["AMS"].Principal.OrganizationId].Address);
         Assert.Equal("PR2 9LF", organizations[principals["AMS"].Principal.OrganizationId].Postcode);
         Assert.Equal("Swade Solutions Ltd", organizations[principals["SWADE"].Principal.OrganizationId].Name);
-        // 20261013090000_ContactSingleType: a contact has one type, so ACSP and CS are Principals only.
+        // A contact has one type (13 October 2026), so ACSP and CS are Principals only.
         foreach (var code in new[] { "ACSP", "CS" })
         {
             Assert.Equal("principal", organizations[principals[code].Principal.OrganizationId].Role);
@@ -418,7 +417,7 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.StartsWith("TL threshold: 66% (always)", Notes("PCH"), StringComparison.Ordinal);
         Assert.Contains("Contract repair at 73%.", Notes("QCL"), StringComparison.Ordinal);
         // Release 103 kept only the TL thresholds and QCL's contract repair line;
-        // 20261013091000_ContactSopSeed adds the job sheet, not these v5 notes.
+        // the contact SOP seed of 13 October 2026 adds the job sheet, not these v5 notes.
         Assert.DoesNotContain("Engineers (Ben)", Notes("HTU"), StringComparison.Ordinal);
         Assert.DoesNotContain("three PDFs", Notes("MP"), StringComparison.Ordinal);
         Assert.DoesNotContain("Open question", Notes("SWADE"), StringComparison.Ordinal);

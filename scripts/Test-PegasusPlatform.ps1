@@ -21,6 +21,30 @@ if ($actualWorkerDisabledSettings.Count -ne $expectedWorkerDisabledSettings.Coun
     @($actualWorkerDisabledSettings | Select-Object -Unique).Count -ne $actualWorkerDisabledSettings.Count) {
     throw 'Worker Disabled setting producer must return the exact distinct five-name census.'
 }
+# The release identity is the newest migration source and nothing else that
+# shares the folder: not a Designer file, the snapshot, or an .editorconfig.
+$identityProbe = Join-Path ([IO.Path]::GetTempPath()) ("pegasus-identity-" + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $identityProbe | Out-Null
+try {
+    foreach ($name in @(
+        '20261028171919_Baseline.cs', '20261028171919_Baseline.Designer.cs',
+        '20261101090000_LaterChange.cs', '20261101090000_LaterChange.Designer.cs',
+        'PegasusDbContextModelSnapshot.cs', '.editorconfig', 'ZzzHelper.cs')) {
+        Set-Content -LiteralPath (Join-Path $identityProbe $name) -Value '// probe'
+    }
+    if ((Get-PegasusMigrationIdentity -MigrationsDirectory $identityProbe) -cne '20261101090000_LaterChange') {
+        throw 'The migration identity must be the newest timestamped migration source.'
+    }
+    Remove-Item -LiteralPath (Join-Path $identityProbe '20261101090000_LaterChange.cs')
+    Remove-Item -LiteralPath (Join-Path $identityProbe '20261101090000_LaterChange.Designer.cs')
+    if ((Get-PegasusMigrationIdentity -MigrationsDirectory $identityProbe) -cne '20261028171919_Baseline') {
+        throw 'The migration identity must ignore the snapshot, Designer files and other sources.'
+    }
+}
+finally {
+    Remove-Item -LiteralPath $identityProbe -Recurse -Force
+}
+
 $platformResolver = ${function:Get-PegasusPlatform}
 try {
     foreach ($hostKind in @('Windows', 'Linux')) {

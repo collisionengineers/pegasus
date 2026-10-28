@@ -30,14 +30,12 @@ $preserve = @(
     'ValuationPresets', 'EmailTemplates', 'CaseListPresets',
     'InspectionLocations', 'InspectionLocationPrincipalLinks'
 )
-# Preserved only where the schema has it: 20260924180000_CaseWorksAndTriageCases
-# drops TriageSequences (a Triage Case takes its reference from CaseSequences);
-# 20260927002303_EmailTemplates adds EmailTemplates; 20261013090000_ContactSingleType
-# drops ContactRoles and OrganizationRoles; 20261013100000_DropPrincipalDomainReference
-# drops the three PrincipalDomain reference tables;
-# 20261014220000_DropApprovedOutlookCategories drops ApprovedOutlookCategories;
-# 20261017110000_InspectionLocations adds InspectionLocations and
-# InspectionLocationPrincipalLinks.
+# Preserved only where the schema has it. TriageSequences went on 24 September
+# 2026 (a Triage Case takes its reference from CaseSequences); EmailTemplates
+# arrived on 27 September; ContactRoles, OrganizationRoles and the three
+# PrincipalDomain reference tables went on 13 October; ApprovedOutlookCategories
+# went on 14 October; InspectionLocations and InspectionLocationPrincipalLinks
+# arrived on 17 October.
 $optionalPreserve = @(
     'TriageSequences', 'EmailTemplates', 'ContactRoles', 'OrganizationRoles',
     'PrincipalDomainEvidence', 'PrincipalDomainPackages', 'PrincipalReferences',

@@ -2191,14 +2191,14 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IntakeReceiptId");
 
+                    b.HasIndex("AssigneeStaffId", "RaisedAtUtc")
+                        .HasFilter("[ClosedAtUtc] IS NULL");
+
                     b.HasIndex("CaseId", "IntakeReceiptId")
                         .IsUnique()
                         .HasFilter("[ClosedAtUtc] IS NULL AND [IntakeReceiptId] IS NOT NULL");
 
                     b.HasIndex("CaseId", "RaisedAtUtc");
-
-                    b.HasIndex("AssigneeStaffId", "RaisedAtUtc")
-                        .HasFilter("[ClosedAtUtc] IS NULL");
 
                     b.ToTable("CaseQueries", null, t =>
                         {
@@ -4785,13 +4785,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsReplyContext")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("OpensQuery")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Outcome")
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
-
-                    b.Property<bool>("OpensQuery")
-                        .HasColumnType("bit");
 
                     b.Property<string>("PolicyKey")
                         .IsRequired()
