@@ -108,24 +108,6 @@ public static class ImageIntakeLifecycleRules
         }
     }
     /// <summary>
-    /// A Case is eligible for automatic Image-intake association only before
-    /// report delivery: an editable pre-report workflow state and no retained
-    /// report-sent evidence. Terminal and post-report states are never
-    /// eligible. A staff link, and the merge that completes it, reaches every
-    /// Case in any lifecycle state and every Triage Case (operator,
-    /// 24 September 2026); reasoned reversal of an association remains
-    /// available.
-    /// </summary>
-    public static bool IsCaseEligibleForAssociation(
-        CaseLifecycleState state,
-        bool hasReportSentEvidence) =>
-        !hasReportSentEvidence
-        && state is CaseLifecycleState.NotReady
-            or CaseLifecycleState.Held
-            or CaseLifecycleState.Review
-            or CaseLifecycleState.ReportPreparation;
-
-    /// <summary>
     /// Image evidence material: at least one selected photograph, no
     /// extracted instruction evidence and no recognised non-image document.
     /// The retained source can be an image, a PDF of photographs, or an email

@@ -169,6 +169,22 @@ candidate uniqueness, versions, and staff edit authority. A deliberate manual
 unlink or reassignment stays authoritative. Triage keeps its own identity and
 workflow and creates no further Case/PO.
 
+#### One combination model
+
+A pre-instruction record combines with a Case under one model (operator,
+26 October 2026), owned in Core by one eligibility rule. Automatic
+combination, an Image-initiated Case merging into a Case or a Triage Case
+linking to a formal Case, needs a Case that has not sent its report: `Not
+ready`, `Held`, `Review` or `Report preparation`, with no report-sent
+evidence, and not archived. Vehicle images may also merge into an open Triage
+Case not yet linked, and a formal Case for the same vehicle takes precedence
+over it ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
+When a Triage Case links to its instruction Case, the link fills the Case's
+findings, copies the Triage Case's files onto it and closes the Triage Case
+([FRD-03](frd-03-triage.md#triage-files-on-the-linked-case)), so images that
+reached the Triage Case reach the Case too. Every record keeps its own
+reference and history. Staff linking still reaches any Case.
+
 **One Case per instruction.** Definitive authorised intake creates exactly
 one instructed Case, and a replay creates no second one. A definitive match
 to an existing instructed Case allocates no duplicate. A new instructed Case

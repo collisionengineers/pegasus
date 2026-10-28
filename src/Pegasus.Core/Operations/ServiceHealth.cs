@@ -208,7 +208,8 @@ public static class ServiceHealthPolicy
             ExternalWorkKinds.CreateCaseCustody
                 or ExternalWorkKinds.CreateAuditReferenceCustody
                 or ExternalWorkKinds.CreateImageCaseCustody
-                or ExternalWorkKinds.MergeImageCaseCustody => ServiceHealthDependency.Box,
+                or ExternalWorkKinds.MergeImageCaseCustody
+                or ExternalWorkKinds.CopyTriageCaseFiles => ServiceHealthDependency.Box,
             _ => ServiceHealthDependency.Worker
         };
 

@@ -132,6 +132,25 @@ public sealed class ImageIntakeCasePairingTests
     }
 
     [Fact]
+    public void AnOpenTriageCaseIsTheTargetUntilAFormalCaseForTheVehicleExists()
+    {
+        var principalId = Guid.NewGuid();
+        var triageId = Guid.NewGuid();
+        ImageIntakeCaseCandidate triage = new(
+            triageId, "t.QDOS26118", 3, "DN63WGG", DateTimeOffset.UnixEpoch, principalId, "QDOS", IsTriage: true);
+        ImageIntakeCaseCandidate formal = new(
+            CaseId, "QDOS26119", 0, "DN63WGG", DateTimeOffset.UnixEpoch, principalId, "QDOS");
+
+        Assert.Equal(triageId, ImageIntakeCasePairing.SelectRegisteredTarget(
+            [triage], "DN63WGG", principalId, 7, IntakeSourceChannel.Mailbox, Registered)?.CaseId);
+        // The formal Case wins rather than tying with the Triage Case, for a
+        // single image and a group alike.
+        Assert.Equal(CaseId, ImageIntakeCasePairing.SelectRegisteredTarget(
+            [triage, formal], "DN63WGG", principalId, 7, IntakeSourceChannel.Mailbox, Registered)?.CaseId);
+        Assert.Null(ImageIntakeCasePairing.ExplainWithheld([triage, formal], "DN63WGG", principalId, 7));
+    }
+
+    [Fact]
     public void AKnownPrincipalWithNoCaseOfItsOwnSelectsNothing()
     {
         ImageIntakeCaseCandidate[] candidates =

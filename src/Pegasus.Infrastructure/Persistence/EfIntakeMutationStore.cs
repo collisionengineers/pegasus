@@ -817,13 +817,12 @@ internal sealed class EfIntakeMutationStore(
         }
 
         // A Case answers through its workflow; a Triage Case through its
-        // Triage. Only automatic association needs an open, pre-report workflow.
+        // Triage. Only automatic association needs an eligible target: a
+        // pre-report Case, or an open Triage Case not yet linked.
         var caseAuthority = await CaseMutationAuthority.LoadAsync(context, request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException("The case does not exist.");
-        var automaticWorkflow = staffGroupOrigin is null
-            ? caseAuthority.Workflow ?? throw new KeyNotFoundException("The case does not exist.")
-            : null;
-        caseAuthority.RequireMutable(anyLifecycleState: automaticWorkflow is null);
+        var automatic = staffGroupOrigin is null;
+        caseAuthority.RequireMutable(anyLifecycleState: !automatic);
 
         if (caseAuthority.Version != request.ExpectedCaseVersion)
         {
@@ -839,10 +838,7 @@ internal sealed class EfIntakeMutationStore(
                 "The case is being edited by a staff member; the automatic association yields.");
         }
 
-        if (automaticWorkflow is not null
-            && !ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(
-                Enum.Parse<CaseLifecycleState>(automaticWorkflow.State),
-                automaticWorkflow.ReportSentEvidenceId is not null))
+        if (automatic && !caseAuthority.IsEligibleForAutomaticAssociation())
         {
             throw new ImageIntakeCaseNotEligibleException(request.CaseId);
         }

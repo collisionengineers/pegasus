@@ -165,32 +165,6 @@ public sealed class ImageIntakeLifecycleTests
                 request with { ExpectedVersion = -1 }));
     }
 
-    public static TheoryData<CaseLifecycleState, bool, bool> EligibilityCases()
-    {
-        var data = new TheoryData<CaseLifecycleState, bool, bool>();
-        foreach (var state in Enum.GetValues<CaseLifecycleState>())
-        {
-            var eligibleState = state is CaseLifecycleState.NotReady
-                or CaseLifecycleState.Held
-                or CaseLifecycleState.Review
-                or CaseLifecycleState.ReportPreparation;
-            data.Add(state, false, eligibleState);
-            data.Add(state, true, false);
-        }
-
-        return data;
-    }
-
-    [Theory]
-    [MemberData(nameof(EligibilityCases))]
-    public void EligibilityCoversEveryStateAndReportEvidence(
-        CaseLifecycleState state,
-        bool hasReportSentEvidence,
-        bool expected) =>
-        Assert.Equal(
-            expected,
-            ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, hasReportSentEvidence));
-
     [Fact]
     public void AnIncompleteReadNeverEntersImageAutomation()
     {

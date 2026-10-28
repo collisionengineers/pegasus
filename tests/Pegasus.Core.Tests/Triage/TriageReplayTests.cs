@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
@@ -9,17 +10,45 @@ namespace Pegasus.Core.Tests.Triage;
 public sealed class TriageReplayTests
 {
     [Theory]
-    [InlineData(CaseLifecycleState.ReportSent, false, false, true)]
-    [InlineData(CaseLifecycleState.Review, true, false, false)]
-    [InlineData(CaseLifecycleState.Review, false, true, false)]
-    [InlineData(CaseLifecycleState.PrincipalCancelled, false, false, false)]
-    public void AutomaticTriageLinkKeepsTheExistingTargetBoundary(
-        CaseLifecycleState state, bool archived, bool leased, bool expected)
+    [InlineData(CaseLifecycleState.Review, false, false, false, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, false, false, false, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, false, false, false)]
+    [InlineData(CaseLifecycleState.ReportSent, false, false, false, false)]
+    [InlineData(CaseLifecycleState.Held, false, true, false, false)]
+    [InlineData(CaseLifecycleState.NotReady, false, false, true, false)]
+    [InlineData(CaseLifecycleState.PrincipalCancelled, false, false, false, false)]
+    public void AutomaticTriageLinkUsesThePreReportRule(
+        CaseLifecycleState state, bool reportSent, bool archived, bool leased, bool expected)
     {
-        Assert.Equal(expected, TriageCasePairing.CanLinkTarget(state, archived,
+        Assert.Equal(expected, TriageCasePairing.CanLinkTarget(state, reportSent, archived,
             leased ? ActorKind.Staff : null, leased ? DateTimeOffset.UnixEpoch.AddMinutes(1) : null,
             DateTimeOffset.UnixEpoch));
     }
+
+    [Theory]
+    [InlineData(TriageState.Open, true, TriageState.Completed)]
+    [InlineData(TriageState.AwaitingInformation, true, TriageState.Completed)]
+    [InlineData(TriageState.FindingRecorded, true, TriageState.Completed)]
+    [InlineData(TriageState.Open, false, TriageState.Cancelled)]
+    [InlineData(TriageState.AwaitingInformation, false, TriageState.Cancelled)]
+    public void LinkingToTheInstructionCaseClosesAnOpenTriage(
+        TriageState current, bool hasFinding, TriageState expected)
+    {
+        var closure = TriageLifecycleRules.ClosureOnInstructionLink(current, hasFinding, "QDOS26119");
+
+        Assert.Equal(expected, closure?.State);
+        Assert.Equal(
+            hasFinding
+                ? "Completed: linked to QDOS26119."
+                : "Cancelled: linked to QDOS26119 before a finding was recorded.",
+            closure?.Reason);
+    }
+
+    [Theory]
+    [InlineData(TriageState.Completed)]
+    [InlineData(TriageState.Cancelled)]
+    public void LinkingLeavesAClosedTriageAsItIs(TriageState current) =>
+        Assert.Null(TriageLifecycleRules.ClosureOnInstructionLink(current, hasFinding: true, "QDOS26119"));
 
     [Fact]
     public async Task CreationReplayAttemptsPairingAndStillReturnsItsHistoricalCreationResult()
@@ -27,7 +56,8 @@ public sealed class TriageReplayTests
         var created = CreateRecord(TriageState.Open, 0);
         var candidate = new TriageCaseLinkCandidate(created.CaseId, 0, Guid.NewGuid(), 0, "fixture-match", 1);
         var store = new ReplayStore { CreationResult = created, PairingCandidates = [candidate], FailFirstPairingWrite = true };
-        var command = new CreateTriageFromIntake(store, new TriageCasePairing(store));
+        var images = new RecordingImagePairing();
+        var command = new CreateTriageFromIntake(store, new TriageCasePairing(store), images);
         var evidence = new IntakeEvidence(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Strong,
             IntakeEvidenceFinding.AcceptedTriageMatch, created.NormalizedVehicleRegistration,
             "Accepted creation replay fixture.", "fixture-match", 1);
@@ -38,6 +68,26 @@ public sealed class TriageReplayTests
         Assert.Equal(created, await command.ExecuteAsync(request, CancellationToken.None));
         Assert.Empty(store.PairingCandidates);
         Assert.Equal(2, store.PairingActors.Count);
+        // Each creation, replay included, asks for the vehicle images waiting for the Triage Case.
+        Assert.Equal([created.CaseId, created.CaseId], images.CaseIds);
+    }
+
+    private sealed class RecordingImagePairing : IImageIntakeCasePairing
+    {
+        public List<Guid> CaseIds { get; } = [];
+
+        public Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            CaseIds.Add(caseId);
+            return Task.FromResult(new ImageIntakePairingResult(0, 0, 0));
+        }
+
+        public Task<ImageIntakePairingResult> PairRegisteredReceiptAsync(
+            Guid receiptId, CancellationToken cancellationToken, ImageIntakeDetail? registered = null) =>
+            throw new NotSupportedException();
+
+        public Task<ImageIntakePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     [Fact]

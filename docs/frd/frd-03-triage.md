@@ -192,12 +192,20 @@ Sent evidence is recorded under the normal rules
 
 **Case link.** A Triage may link to at most one current instruction Case; a
 Case may have many Triages. A later instruction allocates its own next
-number and Case/PO. Linking records the link in both histories but does not
-complete, cancel, convert or renumber the Triage Case. Every staff role in
-the
+number and Case/PO. Linking records the link in both histories and closes
+the Triage Case (operator, 26 October 2026): an open Triage with a finding
+becomes `Completed` with the reason `Completed: linked to {Case/PO}.`, and
+one without becomes `Cancelled` with the reason `Cancelled: linked to
+{Case/PO} before a finding was recorded.` A Triage already Completed or
+Cancelled stays as it is. Linking never converts or renumbers the Triage
+Case, and it carries the Triage Case's files and finding onto the Case
+([Triage files on the linked Case](#triage-files-on-the-linked-case)).
+Every staff role in the
 [staff role access matrix](frd-04-parties-accounts-and-access.md#staff-role-access-matrix)
-may unlink or relink with a reason. The prior and current Case, actor, time,
-reason and evidence stay in history permanently.
+may unlink or relink with a reason. An unlink undoes nothing: the Triage
+stays closed and the copied files stay on the Case; Reopen is the reasoned
+way back. The prior and current Case, actor, time, reason and evidence stay
+in history permanently.
 
 **Cancel and reopen** both need a reason. Reopen always returns to `Open`
 and never erases the earlier finding, reply, actor or chronology.
@@ -206,8 +214,11 @@ and never erases the earlier finding, reply, actor or chronology.
 
 When the Triage registration is accepted and the retained typed source
 identity agrees, Pegasus may find exactly one instruction Case of the same
-Principal through the same principal-scoped matcher intake uses. It
-withholds the link when any of these apply: a contradictory registration, a
+Principal through the same principal-scoped matcher intake uses. The Case
+must not have sent its report: `Not ready`, `Held`, `Review` or `Report
+preparation`, the one pre-report rule automatic association uses
+([FRD-22](frd-22-pre-case-gates-matching-and-association.md#one-combination-model)).
+It withholds the link when any of these apply: a contradictory registration, a
 competing identity, a cancelled Triage, an incompatible target identity, or
 a live staff Case edit lease. A Created-in-error replacement Case must match
 on its own and keep the Triage's Principal. A Completed Triage may be linked
@@ -222,7 +233,8 @@ Recoverable failures are visible and do not block unrelated links.
 The automatic write rechecks the origin, evaluation, Principal, candidate
 uniqueness, target identity and versions inside its transaction. It records
 one SystemWorker link in both Triage and Case history. It keeps the Triage
-Case/PO, findings and state, and allocates nothing. Recovery never reverses a
+Case/PO and findings, closes the Triage as a staff link does, and allocates
+nothing. Recovery never reverses a
 deliberate staff unlink or reassignment. Manual linking keeps its staff
 authority, reason and current Case edit lease.
 
@@ -237,6 +249,22 @@ in, and never one on a closed or archived Case. It reads the source tag
 the Case. The fill is system work: an editor keeps their session and a Save
 prepared before it keeps the filled values.
 
+#### Triage files on the linked Case
+
+A link, automatic or by staff, copies the Triage Case's current files onto
+the linked Case (operator, 26 October 2026): its photographs, its documents
+and its correspondence, in document order, each as a document of the Case
+under the Case's next number. A photograph keeps its crop, rotation, tags and
+report choice. A file whose content the Case already holds is not copied
+again. The Triage Case keeps its own files and its own Box folder. The copied
+photographs complete the Case's images, and a Not ready Case with nothing
+else missing then moves to Review
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)). The
+copy is system work queued by the link: it waits for the Triage Case's own
+filing and any vehicle images merging into it, and a replay or a relink to
+the same Case copies nothing twice. Triages linked before 26 October 2026
+were not copied retroactively.
+
 The Case page's aside lists every linked Triage Case in a **Linked cases**
 card: its `t.` Case/PO as a link, its state and its current finding
 ([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
@@ -249,7 +277,8 @@ card: its `t.` Case/PO as a link, its state and its current finding
 | `Open`, `Finding recorded` | `Awaiting information` | Automation marks it waiting, with no reason; the Triage Case page does not offer it |
 | `Open`, `Awaiting information` | `Finding recorded` | A finding with at least one dimension is recorded |
 | `Finding recorded` | `Completed` | The authorised actor records the outcome, with no reason |
-| any open state | `Cancelled` | Cancel with a reason |
+| any open state | `Completed` | A link to the instruction Case, when the Triage has a finding |
+| any open state | `Cancelled` | Cancel with a reason, or a link to the instruction Case when the Triage has no finding |
 | `Completed`, `Cancelled` | `Open` | Reopen with a reason |
 
 ## Edge cases and fail-closed behaviour
@@ -260,8 +289,8 @@ card: its `t.` Case/PO as a link, its state and its current finding
   Found.
 - Several matching categories: Unclassified, no Triage opens; staff decide.
 - A finding with neither dimension is refused.
-- Automatic linking stops when more than one Case matches, or a Case edit
-  lease is live; it retries later.
+- Automatic linking stops when more than one Case matches, the Case has
+  sent its report, or a Case edit lease is live; it retries later.
 - A chaser is not offered for a Triage that did not come by e-mail, or whose
   mailbox may not send.
 - A stale scope, token or version changes nothing.

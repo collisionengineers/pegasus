@@ -86,7 +86,8 @@ public sealed partial class QdosTriageIntegrationTests
 
         var linked = await GetTriageAsync(factory.Services, triage.CaseId);
         Assert.Equal(triage.Reference, linked.Record.Reference);
-        Assert.Equal(triage.State, linked.Record.State);
+        // The link closed the Triage, which had no finding (FRD-03).
+        Assert.Equal(TriageState.Cancelled, linked.Record.State);
         Assert.Equal(caseId, linked.Record.LinkedInstructionCaseId);
         var unlinkLease = await ClaimCaseLeaseAsync(factory.Services, caseId, 2, staff, "automatic-link-manual-unlink");
         var unlinkTriageLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
@@ -106,7 +107,8 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Single(unlinked.History, item => item.EventType == "triage_case_unlinked");
         // The two seeded instructed Cases; the Triage Case is a Case too.
         Assert.Equal(2, await context.Cases.CountAsync(item => item.Type != CaseTypeCodes.Triage));
-        Assert.Equal(initialExternalWorkCount, await context.ExternalWorkItems.CountAsync());
+        // The one link queued the copy of the Triage Case's files; the unlink queued nothing.
+        Assert.Equal(initialExternalWorkCount + 1, await context.ExternalWorkItems.CountAsync());
         Assert.False(string.IsNullOrWhiteSpace(lease.Token));
     }
 
@@ -400,7 +402,12 @@ public sealed partial class QdosTriageIntegrationTests
 
         var linked = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(caseId, linked.Record.LinkedInstructionCaseId);
-        Assert.Equal(1, linked.Record.Version);
+        // Linking closed the Triage, which had no finding (operator, 26 October 2026).
+        Assert.Equal(2, linked.Record.Version);
+        Assert.Equal(TriageState.Cancelled, linked.Record.State);
+        Assert.Equal(
+            $"Cancelled: linked to {SeededCaseReference} before a finding was recorded.",
+            linked.History[^1].Reason);
         var afterLink = await ReadCaseAssociationPersistenceAsync(factory.Database, caseId);
         Assert.Equal(SeededCaseEntityVersion, afterLink.CaseEntityVersion);
         Assert.Equal(1, afterLink.WorkflowVersion);
@@ -416,12 +423,12 @@ public sealed partial class QdosTriageIntegrationTests
             });
 
         var consumedLeaseTriageLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.Triage, triageId, 1, actor, "claim-consumed-case-lease-triage-edit"),
+            new(EditScopeKind.Triage, triageId, 2, actor, "claim-consumed-case-lease-triage-edit"),
             CancellationToken.None);
         var consumedLeaseRequest = new TriageCaseLinkRequest(
             triageId,
             caseId,
-            1,
+            2,
             1,
             actor,
             "unlink-case-with-consumed-lease",
@@ -478,11 +485,14 @@ public sealed partial class QdosTriageIntegrationTests
 
         var final = await GetTriageAsync(factory.Services, triageId);
         Assert.Null(final.Record.LinkedInstructionCaseId);
-        Assert.Equal(2, final.Record.Version);
+        Assert.Equal(3, final.Record.Version);
+        // An unlink undoes nothing: the Triage stays closed.
+        Assert.Equal(TriageState.Cancelled, final.Record.State);
         Assert.Collection(
             final.History,
             item => Assert.Equal("triage_created", item.EventType),
             item => Assert.Equal("triage_case_linked", item.EventType),
+            item => Assert.Equal("triage_state_cancelled", item.EventType),
             item => Assert.Equal("triage_case_unlinked", item.EventType));
 
         var persistence = await ReadCaseAssociationPersistenceAsync(factory.Database, caseId);
@@ -625,7 +635,9 @@ public sealed partial class QdosTriageIntegrationTests
 
         var initialTriage = await GetTriageAsync(factory.Services, triageId);
 
-        Assert.Equal(TriageState.Open, initialTriage.Record.State);
+        // A Triage that arrives after its instruction Case is linked, and so
+        // closed, as it opens.
+        Assert.Equal(caseFirst ? TriageState.Cancelled : TriageState.Open, initialTriage.Record.State);
         Assert.Equal(caseFirst, initialTriage.Record.LinkedInstructionCaseId is not null);
         Assert.Equal(normalizedVrm, initialTriage.Record.NormalizedVehicleRegistration);
 
@@ -646,9 +658,10 @@ public sealed partial class QdosTriageIntegrationTests
         }
 
         var remainingTriage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Equal(TriageState.Open, remainingTriage.Record.State);
+        // Linking closed the Triage, which had no finding, in either order.
+        Assert.Equal(TriageState.Cancelled, remainingTriage.Record.State);
         Assert.Equal(formalCaseId, remainingTriage.Record.LinkedInstructionCaseId);
-        Assert.Equal(initialVersion + 1, remainingTriage.Record.Version);
+        Assert.Equal(initialVersion + 2, remainingTriage.Record.Version);
         Assert.Equal(initialTriage.Record.Reference, remainingTriage.Record.Reference);
         Assert.Equal(initialTriage.Findings, remainingTriage.Findings);
         Assert.Single(remainingTriage.History, entry => entry.EventType == "triage_case_linked" && entry.ActorKind == nameof(ActorKind.SystemWorker));

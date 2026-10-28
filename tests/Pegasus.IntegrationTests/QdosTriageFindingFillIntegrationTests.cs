@@ -54,6 +54,16 @@ public sealed partial class QdosTriageIntegrationTests
                 new(EditScopeKind.Triage, triage.CaseId, expectedVersion, staff, operationKey),
                 CancellationToken.None)).Token;
 
+        // The link closed the Triage, which had no finding; staff reopen it,
+        // still linked, to record one (FRD-03).
+        var closed = (await GetTriageAsync(factory.Services, triage.CaseId)).Record;
+        Assert.Equal(TriageState.Cancelled, closed.State);
+        await services.GetRequiredService<IReopenTriage>().ExecuteAsync(
+            new TriageMutationRequest(triage.CaseId, closed.Version, staff, "fill-reopen", "Assess the images")
+            {
+                EditLeaseToken = await ClaimEditAsync(closed.Version, "fill-reopen-edit")
+            },
+            CancellationToken.None);
         var linkedVersion = (await GetTriageAsync(factory.Services, triage.CaseId)).Record.Version;
         await services.GetRequiredService<IRecordTriageFinding>().ExecuteAsync(
             new RecordTriageFindingRequest(

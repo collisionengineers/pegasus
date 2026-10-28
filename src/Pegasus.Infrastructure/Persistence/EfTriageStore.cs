@@ -9,6 +9,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
@@ -183,6 +184,7 @@ public sealed class EfTriageStore(
                 .Where(workflow => targetIds.Contains(workflow.CaseId))
                 .Select(workflow => new LinkTarget(
                     workflow.CaseId, workflow.Case.PrincipalId, workflow.Version, workflow.State,
+                    workflow.ReportSentEvidenceId != null,
                     workflow.ArchivedAtUtc, workflow.EditLeaseHolderKind, workflow.EditLeaseExpiresAtUtc))
                 .ToListAsync(cancellationToken))
             .ToDictionary(target => target.CaseId);
@@ -242,9 +244,51 @@ public sealed class EfTriageStore(
         AppendHistory(context, triage, AutomaticLinkEvent, actor, operationKey, reason, requestHash);
         await FillFromCurrentFindingAsync(
             context, workflow, triage.CaseId, operationKey, UtcNow(), cancellationToken);
+        await CombineWithInstructionCaseAsync(context, triage, workflow.CaseId, actor, requestHash, cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    /// <summary>
+    /// A link combines the Triage Case with its instruction Case (FRD-03), in
+    /// the link's own transaction: it closes the Triage
+    /// (<see cref="TriageLifecycleRules.ClosureOnInstructionLink"/>) and queues
+    /// the copy of its files onto the Case (<see cref="TriageCaseFilesPolicy"/>).
+    /// The finding fills the Case through <see cref="FillFromCurrentFindingAsync"/>.
+    /// </summary>
+    private async Task CombineWithInstructionCaseAsync(
+        PegasusDbContext context,
+        TriageEntity triage,
+        Guid instructionCaseId,
+        ActionActor actor,
+        string requestHash,
+        CancellationToken cancellationToken)
+    {
+        var reference = await context.Cases.AsNoTracking()
+            .Where(item => item.Id == instructionCaseId)
+            .Select(item => item.Reference)
+            .SingleAsync(cancellationToken);
+        var hasFinding = await context.TriageFindings.AsNoTracking()
+            .AnyAsync(item => item.TriageCaseId == triage.CaseId, cancellationToken);
+        if (TriageLifecycleRules.ClosureOnInstructionLink(ParseState(triage.State), hasFinding, reference)
+            is { } closure)
+        {
+            triage.State = ToCode(closure.State);
+            AppendHistory(context, triage, StateEventType(closure.State), actor,
+                $"triage-link-close:{triage.CaseId:N}:{triage.Version}", closure.Reason, requestHash);
+        }
+
+        context.ExternalWorkItems.Add(new ExternalWorkItemEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = instructionCaseId,
+            SourceCaseId = triage.CaseId,
+            Kind = ExternalWorkKinds.CopyTriageCaseFiles,
+            OperationKey = $"triage-case-files:{triage.CaseId:N}:{triage.Version}",
+            State = ExternalWorkStatePersistence.Pending,
+            DueAtUtc = UtcNow()
+        });
     }
 
     /// <summary>
@@ -336,6 +380,7 @@ public sealed class EfTriageStore(
             ? null
             : new LinkTarget(
                 target.Id, target.PrincipalId, workflow.Version, workflow.State,
+                workflow.ReportSentEvidenceId != null,
                 workflow.ArchivedAtUtc, workflow.EditLeaseHolderKind, workflow.EditLeaseExpiresAtUtc));
     }
 
@@ -360,7 +405,7 @@ public sealed class EfTriageStore(
     private sealed record PairingPageRow(TriageEntity Triage, OriginEvidence Origin);
 
     private sealed record LinkTarget(
-        Guid CaseId, Guid PrincipalId, long WorkflowVersion, string State,
+        Guid CaseId, Guid PrincipalId, long WorkflowVersion, string State, bool HasReportSentEvidence,
         DateTimeOffset? ArchivedAtUtc, string? LeaseHolderKind, DateTimeOffset? LeaseExpiresAtUtc);
 
     /// <summary>
@@ -393,7 +438,8 @@ public sealed class EfTriageStore(
         TriageEntity triage, OriginEvidence origin, IPrincipalCaseMatchPolicy policy, LinkTarget? target) =>
         target is not null && target.PrincipalId == origin.PrincipalId
             && TriageCasePairing.CanLinkTarget(Enum.Parse<CaseLifecycleState>(target.State),
-                target.ArchivedAtUtc is not null, CaseMutationGuard.RetainedHolderKind(target.LeaseHolderKind),
+                target.HasReportSentEvidence, target.ArchivedAtUtc is not null,
+                CaseMutationGuard.RetainedHolderKind(target.LeaseHolderKind),
                 target.LeaseExpiresAtUtc, UtcNow())
             ? new(triage.CaseId, triage.Version, target.CaseId, target.WorkflowVersion, policy.PolicyKey, policy.PolicyVersion)
             : null;
@@ -1661,6 +1707,8 @@ public sealed class EfTriageStore(
         {
             await FillFromCurrentFindingAsync(
                 context, workflow, triage.CaseId, operationKey, now, cancellationToken);
+            await CombineWithInstructionCaseAsync(
+                context, triage, workflow.CaseId, request.Actor, requestHash, cancellationToken);
         }
         EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId, triage.Version);
         await context.SaveChangesAsync(cancellationToken);

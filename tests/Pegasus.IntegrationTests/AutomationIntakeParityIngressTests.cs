@@ -419,6 +419,18 @@ public sealed class AutomationIntakeParityIngressTests
                 && entry.GetProperty("actor").GetString() == ClientId);
         version = Version(detail);
 
+        detail = await MutateAsync(client, token, 29, "pegasus_triage_complete", new
+        {
+            caseId = triageId,
+            expectedVersion = version,
+            operationKey = "mcp:triage-complete"
+        });
+        Assert.Equal("Completed", State(detail));
+        var staleVersion = version;
+        version = Version(detail);
+
+        // A link closes an open Triage (FRD-03); this one is already
+        // Completed, so linking and unlinking leave it as it is.
         // Linking the Triage to an instruction Case changes both records, so
         // both leases are held for the one command and both versions checked.
         // Accepting the instruction may itself touch the Triage (the system
@@ -461,14 +473,6 @@ public sealed class AutomationIntakeParityIngressTests
         Assert.Equal(alreadyLinked ? instructionCaseId : null, LinkedCase(detail));
         version = Version(detail);
 
-        detail = await MutateAsync(client, token, 29, "pegasus_triage_complete", new
-        {
-            caseId = triageId,
-            expectedVersion = version,
-            operationKey = "mcp:triage-complete"
-        });
-        Assert.Equal("Completed", State(detail));
-
         using var getResponse = await PostMcpAsync(client, IntakeServer, token,
             ToolCallPayload(30, "pegasus_triage_get", new { caseId = triageId }));
         var fetched = await ReadStructuredContentAsync(getResponse);
@@ -481,7 +485,7 @@ public sealed class AutomationIntakeParityIngressTests
             ToolCallPayload(31, "pegasus_triage_reopen", new
             {
                 caseId = triageId,
-                expectedVersion = version,
+                expectedVersion = staleVersion,
                 reason = "Stale.",
                 operationKey = "mcp:triage-reopen-stale"
             })))

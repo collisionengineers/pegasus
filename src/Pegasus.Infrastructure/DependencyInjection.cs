@@ -646,6 +646,7 @@ public static class DependencyInjection
 
         if (composesDocumentSurface)
         {
+            services.AddScoped<IProcessQueuedTriageCaseFiles, EfTriageCaseFilesCopy>();
             services.AddScoped<IIncomingArtifactRetentionStore, EfIncomingArtifactRetentionStore>();
             services.AddScoped<RetainIncomingArtifact>();
             // The Principal API reader decorates the ordinary one: it answers for

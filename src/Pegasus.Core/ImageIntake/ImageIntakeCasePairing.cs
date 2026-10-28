@@ -61,15 +61,17 @@ public sealed class ImageIntakeCasePairing(
     /// ([FRD-09](../../../docs/frd/frd-09-principal-and-intermediary-routes.md)):
     /// only that Principal's Cases are candidates, and they are restricted
     /// BEFORE any uniqueness count. An unknown Principal leaves the full set.
+    /// Within that scope a formal Case takes precedence over a Triage Case
+    /// (<see cref="CaseAssociationEligibility.PreferFormalCases"/>).
     /// </summary>
     public static IReadOnlyList<ImageIntakeCaseCandidate> ScopeToPrincipal(
         IReadOnlyList<ImageIntakeCaseCandidate> candidates,
         Guid? principalId)
     {
         ArgumentNullException.ThrowIfNull(candidates);
-        return principalId is null
+        return CaseAssociationEligibility.PreferFormalCases(principalId is null
             ? candidates
-            : candidates.Where(candidate => candidate.PrincipalId == principalId).ToArray();
+            : candidates.Where(candidate => candidate.PrincipalId == principalId).ToArray());
     }
 
     public static ImageIntakeCaseCandidate? SelectRegisteredTarget(
