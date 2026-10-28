@@ -6,11 +6,34 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
 
 ## Project principles
 
-- Treat the project as unreleased development. Replace obsolete
-  behaviour and update affected consumers; do not implement compatibility for features being removed, or legacy fallbacks.
-- Implement the requested scope with the simplest correct design. Reuse the existing owner rather than creating another policy, vocabulary or workflow implementation.
+- Treat the project as unreleased development. Replace obsolete behaviour and
+  update affected consumers; do not implement compatibility for features being
+  removed, or legacy fallbacks.
 - Core owns business policy and ports. Infrastructure implements those ports;
-  Web and Worker compose both. Imported source, skills and models own no policy.
+  Web and Worker compose both. Imported source, skills and models own no
+  policy.
+- Subtract before you add. Implement the requested scope with the simplest
+  correct design and reuse the existing owner. A new FRD, glossary term,
+  feature flag, skill, cache, edit-authority concept or plan names the
+  existing one it replaces, or shows that none exists.
+- Release as often as verifying a change needs, and keep each release cheap:
+  the record in `docs/operations.md` is at most 15 lines, and anything still
+  owed after a release becomes a GitHub issue.
+- Decide once, in the repository. The operator's rulings are the decision
+  record and live in [docs/rulings.md](docs/rulings.md); a behaviour rule goes
+  into the FRD clause it changes, dated and citing its ruling. An ADR is
+  written only for a choice that is expensive to reverse. Nothing cites a file
+  the repository does not hold.
+- Efficiency needs a number. Every page has a budget; a change is built only
+  when it brings a page under budget or saves at least 100 ms at p95, shown
+  before and after in the PR. Query-count tests assert a ceiling or a
+  no-growth pair, never an exact total.
+  [Engineering](docs/engineering.md#simplicity) holds the budgets.
+- A Core use case is a class. It gets an interface only when a test fakes it
+  or a second implementation exists; store and adapter ports keep theirs.
+- A plan is one page, written against the head it is built on, when it is
+  built. A plan older than a week is re-derived, not re-verified.
+
 ## Verification
 
 If you are running subagents, do not have all the subagents running builds and tests simultaneously. Have them pass back to the lead, combine the work back together if needed, and run ONE single build process. We don't want to run 4 builds for 4 worktrees when we could just run one.

@@ -16,6 +16,7 @@ the affected owner; record only the genuinely undecided portion.
 | Stable capability identities and requirement links | [Capabilities](capabilities.md) |
 | Current work, ordering, grants and delivery evidence | Current operator task and its linked PR/CI records |
 | Unresolved product or technical choices | [Open decisions](open-decisions.md) |
+| Operator rulings, the decision record every `Rnnn` citation names | [Rulings](rulings.md) |
 | Source structure and policy/caller locations | [Architecture](current-architecture.md) |
 | Last observed deployed estate and operational support | [Operations](operations.md) |
 | Engineering and verification policy | [Engineering](engineering.md) |
