@@ -11,7 +11,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -2667,9 +2666,6 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             {
                 services.RemoveAll<TimeProvider>();
                 services.AddSingleton<TimeProvider>(clock);
-                // Box's live-folder memory expires on the estate's clock too.
-                services.RemoveAll<IMemoryCache>();
-                services.AddSingleton<IMemoryCache>(TimeProviderMemoryCache.Create(clock));
                 services.AddProductionDocumentStorage(_ => container, _ => false, _ => options);
                 services.RemoveAll<IBoxAuthorizationHeaderProvider>();
                 services.AddSingleton<IBoxAuthorizationHeaderProvider>(new Header());
