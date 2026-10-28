@@ -33,7 +33,7 @@ internal static class IntakeSourceMcpContent
     public static string ContentUrl(Guid receiptId) => $"/automation/intake-sources/{receiptId:D}";
 
     public static async Task<CallToolResult> DownloadAsync(
-        IGetIntakeSourceMetadata getSourceMetadata,
+        GetIntakeSourceMetadata getSourceMetadata,
         IDownloadIntakeSource downloadSource,
         IRenderImageForDelivery images,
         IExtractPdfPageText pdfText,

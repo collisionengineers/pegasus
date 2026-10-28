@@ -41,7 +41,7 @@ internal sealed record IntakeSubmitToolResult(
 /// </summary>
 [McpServerToolType]
 internal sealed class IntakeMcpTools(
-    IListIntakeByCursor listIntake,
+    ListIntakeByCursor listIntake,
     IIntakeSubmission intakeSubmission,
     TimeProvider timeProvider,
     AutomationActorResolver resolver,

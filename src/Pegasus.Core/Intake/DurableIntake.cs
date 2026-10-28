@@ -1739,7 +1739,7 @@ public sealed class ReconcileStagedArtifacts(
 
 public sealed class ResolveIntake(
     IIntakeMutationStore store,
-    TimeProvider timeProvider) : IResolveIntake
+    TimeProvider timeProvider)
 {
     public Task<IntakeReceipt> ExecuteAsync(
         ResolveIntakeRequest request,
