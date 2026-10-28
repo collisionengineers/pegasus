@@ -224,6 +224,8 @@ release and the full production smoke passed.
 | PR states | PR 1680 and PR 1688 read Merged with their heads in `main` and `dev`. |
 | Evidence | Exact artifacts retained at ignored `artifacts/releases/release-124-373dcc81`; the driver scripts at `artifacts/releases/release-124-driver` (`setup-keyvault-and-azd.ps1`, `stage-normal.ps1`, `finish-stage-normal.ps1`). |
 
+<a id="approved-box-integration-test-target"></a>
+
 ## Approved Box custody root
 
 Box folder `405543781910` ("pegasus") is the production custody root: all case
