@@ -1,3 +1,4 @@
+using System.Numerics;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -47,15 +48,30 @@ public sealed class KnownGraphicsTests
     }
 
     /// <summary>
-    /// The entries are distinct graphics: no two sized entries share a size,
-    /// and the one entry that matches any size is not within reach of a
-    /// sized entry's reference, so an image is never two graphics at once.
+    /// The entries are distinct graphics: two sized entries of one size sit
+    /// farther apart than their limits added together, and the one entry that
+    /// matches any size is not within reach of a sized entry's reference, so
+    /// an image is never two graphics at once.
     /// </summary>
     [Fact]
     public void TheEntriesAreDistinct()
     {
         var sized = KnownGraphics.Entries.Where(entry => entry.WidthPixels is not null).ToArray();
-        Assert.Equal(sized.Length, sized.Select(entry => (entry.WidthPixels, entry.HeightPixels)).Distinct().Count());
+        foreach (var size in sized.GroupBy(entry => (entry.WidthPixels, entry.HeightPixels)))
+        {
+            var entries = size.ToArray();
+            for (var first = 0; first < entries.Length; first++)
+            {
+                for (var second = first + 1; second < entries.Length; second++)
+                {
+                    Assert.True(
+                        BitOperations.PopCount(entries[first].Fingerprint ^ entries[second].Fingerprint)
+                            > entries[first].MaximumDistance + entries[second].MaximumDistance,
+                        $"{entries[first].Name} and {entries[second].Name} can match one image.");
+                }
+            }
+        }
+
         Assert.Equal(KnownGraphics.Entries.Count, KnownGraphics.Entries.Select(entry => entry.Name).Distinct().Count());
         foreach (var any in KnownGraphics.Entries.Where(entry => entry.WidthPixels is null))
         {
