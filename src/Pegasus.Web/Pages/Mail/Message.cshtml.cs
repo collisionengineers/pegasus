@@ -34,7 +34,7 @@ public enum MessageOffer
 
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
-    IStartQueryResponse startQueryResponse,
+    StartQueryResponse startQueryResponse,
     IAiJobQueries aiJobQueries,
     IAiJobStore aiJobStore,
     ISendToAiControl sendToAiControl,

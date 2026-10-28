@@ -50,28 +50,10 @@ public interface IAiDraftAdoptionQueries
         CancellationToken cancellationToken);
 }
 
-public interface IListWorkCentreAiJobs
-{
-    /// <summary>
-    /// The office's unfinished AI work (D9) from the open jobs the caller has
-    /// read: Queued, Taken and Draft ready, and the jobs that completed or
-    /// failed within the New cases window, less those dismissed.
-    /// <paramref name="dismissals"/> is the section's handle on a dismissal
-    /// lookup shared with the attention list; absent, the section reads its own.
-    /// </summary>
-    Task<IReadOnlyList<WorkCentreAiJob>> ExecuteAsync(
-        ActionActor actor,
-        IReadOnlyList<AiJobRecord> openJobs,
-        int aiDraftTargetDays,
-        DateTimeOffset asOfUtc,
-        CancellationToken cancellationToken,
-        IWorkCentreDismissalLookup? dismissals = null);
-}
-
 public sealed class ListWorkCentreAiJobs(
     IAiJobQueries aiJobs,
     IAiDraftAdoptionQueries adoptions,
-    IWorkCentreDismissalStore dismissals) : IListWorkCentreAiJobs
+    IWorkCentreDismissalStore dismissals)
 {
     /// <summary>How far back the section reads for Completed and Failed jobs; the window is the New cases window.</summary>
     public const int RecentJobWindow = 200;
@@ -82,6 +64,13 @@ public sealed class ListWorkCentreAiJobs(
     private readonly IWorkCentreDismissalStore _dismissals =
         dismissals ?? throw new ArgumentNullException(nameof(dismissals));
 
+    /// <summary>
+    /// The office's unfinished AI work (D9) from the open jobs the caller has
+    /// read: Queued, Taken and Draft ready, and the jobs that completed or
+    /// failed within the New cases window, less those dismissed.
+    /// <paramref name="dismissals"/> is the section's handle on a dismissal
+    /// lookup shared with the attention list; absent, the section reads its own.
+    /// </summary>
     public async Task<IReadOnlyList<WorkCentreAiJob>> ExecuteAsync(
         ActionActor actor,
         IReadOnlyList<AiJobRecord> openJobs,

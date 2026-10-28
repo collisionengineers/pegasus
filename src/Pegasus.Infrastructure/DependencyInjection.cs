@@ -305,7 +305,7 @@ public static class DependencyInjection
         services.AddScoped<EfStaffAccountQueries>();
         services.AddScoped<IStaffAccountQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICaseEngineerChoices>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
-        services.AddScoped<IListStaffAccounts, ListStaffAccounts>();
+        services.AddScoped<ListStaffAccounts>();
         services.AddScoped<IGetStaffAccount, GetStaffAccount>();
         services.AddScoped<IDescribeCaseEditAuthorityHolder, DescribeCaseEditAuthorityHolder>();
         services.AddScoped<EfOrganizationAdministration>();
@@ -379,8 +379,8 @@ public static class DependencyInjection
         services.AddScoped<IWorkCentreVisitStore, EfWorkCentreVisitStore>();
         services.AddScoped<IListRecentCases, ListRecentCases>();
         services.AddScoped<IWorkCentreDismissalStore, EfWorkCentreDismissalStore>();
-        services.AddScoped<IDismissWorkCentreItem, DismissWorkCentreItem>();
-        services.AddScoped<IListWorkCentreAiJobs, ListWorkCentreAiJobs>();
+        services.AddScoped<DismissWorkCentreItem>();
+        services.AddScoped<ListWorkCentreAiJobs>();
         services.AddScoped<IAiDraftAdoptionQueries, EfAiDraftAdoptionQueries>();
         services.AddScoped<ISystemActionQueries, EfSystemActionQueries>();
         services.AddScoped<IListSystemActions, ListSystemActions>();
@@ -549,7 +549,7 @@ public static class DependencyInjection
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<ICreateAiJob, CreateAiJob>();
-        services.AddScoped<IStartQueryResponse, StartQueryResponse>();
+        services.AddScoped<StartQueryResponse>();
         services.AddScoped<IMarketResearchQueries, MarketResearchQueries>();
         services.AddScoped<IStartMarketResearch, StartMarketResearch>();
         // Guide providers register beside their adapter (Glass's through
@@ -561,7 +561,7 @@ public static class DependencyInjection
         services.AddScoped<IFillGlassVin, EfGlassVinFill>();
         services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
-        services.AddScoped<ICancelAiJob, CancelAiJob>();
+        services.AddScoped<CancelAiJob>();
         services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();
         services.AddScoped<ICaseTaskStore>(
@@ -778,12 +778,12 @@ public static class DependencyInjection
         services.AddScoped<ICreateStaffAccount, CreateStaffAccount>();
         services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
         services.AddScoped<IUpdateStaffAccountSettings, UpdateStaffAccountSettings>();
-        services.AddScoped<IEnableStaffAccount, EnableStaffAccount>();
+        services.AddScoped<EnableStaffAccount>();
         services.AddScoped<IForceStaffLogout, ForceStaffLogout>();
         services.AddScoped<IResetStaffPassword, ResetStaffPassword>();
         services.AddScoped<IDeleteStaffAccount, DeleteStaffAccount>();
         services.AddScoped<IStaffPasswordChangeStore, EfStaffPasswordChange>();
-        services.AddScoped<IChangeStaffPassword, ChangeStaffPassword>();
+        services.AddScoped<ChangeStaffPassword>();
         services.AddScoped<EfPerUserExternalCredentialStore>();
         services.AddScoped<IPerUserExternalCredentialReader>(provider =>
             provider.GetRequiredService<EfPerUserExternalCredentialStore>());
