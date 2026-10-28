@@ -72,9 +72,7 @@ only when the stamp changes.
      AZURE_TOKEN_CREDENTIALS = 'AzureCliCredential'
      ConnectionStrings__Pegasus = "Server=tcp:$($values['AZURE_SQL_SERVER_FQDN']),1433;Database=$($values['AZURE_SQL_DATABASE_NAME']);Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
      AzureIdentity__WebClientId = $values['WEB_IDENTITY_CLIENT_ID']
-     TransportStorage__AccountName = $values['TRANSPORT_STORAGE_ACCOUNT_NAME']
      IntakeQueue__ServiceUri = "https://$($values['TRANSPORT_STORAGE_ACCOUNT_NAME']).queue.core.windows.net/"
-     CustodyStorage__AccountName = $values['CUSTODY_STORAGE_ACCOUNT_NAME']
      CustodyStorage__ServiceUri = "https://$($values['CUSTODY_STORAGE_ACCOUNT_NAME']).blob.core.windows.net/"
      Graph__BaseUri = 'https://graph.microsoft.com/v1.0/'
      Graph__TenantId = $values['AZURE_TENANT_ID']

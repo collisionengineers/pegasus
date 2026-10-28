@@ -169,9 +169,7 @@ if (productionProfile)
     {
         "ConnectionStrings:Pegasus",
         "AzureIdentity:WebClientId",
-        "TransportStorage:AccountName",
         "IntakeQueue:ServiceUri",
-        "CustodyStorage:AccountName",
         "CustodyStorage:ServiceUri",
         "Graph:BaseUri",
         "Graph:TenantId",
@@ -804,17 +802,11 @@ else
     // and executes it from the recorded work item.
     builder.Services.AddSingleton(VehicleLookupAvailability.ProductionLive);
 }
-builder.Services.AddScoped<EfIdentityAuditStore>();
+// The audit store, the intake work store, the dispatchers and the intake
+// submissions are registered by AddPegasusInfrastructure for both hosts.
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
-builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
-    serviceProvider.GetRequiredService<EfIdentityAuditStore>());
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
-builder.Services.AddScoped<EfIntakeWorkStore>();
-builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
-    serviceProvider.GetRequiredService<EfIntakeWorkStore>());
-builder.Services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
-    serviceProvider.GetRequiredService<EfIntakeWorkStore>());
 builder.Services.AddSingleton<IIntakeWorkEnqueuer>(
     new AzureQueueIntakeWorkEnqueuer(
         intakeWorkQueue ?? throw new InvalidOperationException("The intake queue is not configured."),
@@ -827,10 +819,6 @@ builder.Services.AddSingleton<IMailboxWakeEnqueuer>(
     new AzureQueueMailboxWakeEnqueuer(
         intakeWorkQueue ?? throw new InvalidOperationException("The unified work queue is not configured."),
         allowLocalQueueCreation));
-builder.Services.AddScoped<DispatchPendingIntakeWork>();
-builder.Services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
-    serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
-builder.Services.AddScoped<DispatchPendingExternalWork>();
 // Web publishes committed external work after the response (R315); the Worker
 // composes the immediate publisher, and the recovery sweep is the fallback.
 builder.Services.AddScoped<ICommittedExternalWorkPublisher, DeferredExternalWorkPublisher>();
@@ -849,16 +837,10 @@ builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadCaseDecision,
 // answering for it.
 builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCasePorts>();
 builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCaseRouteFilter>();
-builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<DiscardIntakeSubmissionGroup>();
 builder.Services.AddScoped<IDiscardIntakeSubmissionGroup>(serviceProvider =>
     serviceProvider.GetRequiredService<DiscardIntakeSubmissionGroup>());
 builder.Services.AddScoped<IDeclineImageMatch, DeclineImageMatch>();
-builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
-    serviceProvider.GetRequiredService<ReceiveIntake>());
-builder.Services.AddScoped<SubmitGroupedIntake>();
-builder.Services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
-    serviceProvider.GetRequiredService<SubmitGroupedIntake>());
 // No Administration view reads the Automation activity use case: automation
 // activity is read in Action logs (FRD-04). GetServiceHealth reads the newest
 // activity through this port in every profile; the ingress itself stays

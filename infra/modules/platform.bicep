@@ -438,8 +438,6 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         { name: 'Runtime__Profile', value: 'Production' }
         { name: 'ConnectionStrings__Pegasus', value: webSqlConnectionString }
         { name: 'KEY_VAULT_URI', value: keyVault.properties.vaultUri }
-        { name: 'TransportStorage__AccountName', value: transportStorage.name }
-        { name: 'CustodyStorage__AccountName', value: custodyStorage.name }
         { name: 'CustodyStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
         { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
         { name: 'AZURE_CLIENT_ID', value: webIdentity.properties.clientId }
@@ -588,8 +586,6 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING', value: 'true' }
         { name: 'ConnectionStrings__Pegasus', value: workerSqlConnectionString }
         { name: 'KEY_VAULT_URI', value: keyVault.properties.vaultUri }
-        { name: 'TransportStorage__AccountName', value: transportStorage.name }
-        { name: 'CustodyStorage__AccountName', value: custodyStorage.name }
         { name: 'Graph__BaseUri', value: 'https://graph.microsoft.com/v1.0/' }
         { name: 'Graph__TenantId', value: tenant().tenantId }
         { name: 'Graph__ChangeNotificationUrl', value: '${webPublicOrigin}hooks/microsoft-graph/mail' }

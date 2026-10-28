@@ -101,6 +101,22 @@ public static class DependencyInjection
         services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        // Composed once for both hosts: the audit writer, the intake work store
+        // and its staged-artifact authority, the two committed-work dispatchers
+        // and the intake submissions. Each host adds its own enqueuers and the
+        // Web its deferred external-work publisher.
+        services.AddScoped<EfIdentityAuditStore>();
+        services.AddScoped<IActionHistoryWriter>(provider => provider.GetRequiredService<EfIdentityAuditStore>());
+        services.AddScoped<EfIntakeWorkStore>();
+        services.AddScoped<IIntakeWorkStore>(provider => provider.GetRequiredService<EfIntakeWorkStore>());
+        services.AddScoped<IStagedArtifactAuthority>(provider => provider.GetRequiredService<EfIntakeWorkStore>());
+        services.AddScoped<DispatchPendingIntakeWork>();
+        services.AddScoped<ICommittedIntakeWorkPublisher>(provider => provider.GetRequiredService<DispatchPendingIntakeWork>());
+        services.AddScoped<DispatchPendingExternalWork>();
+        services.AddScoped<ReceiveIntake>();
+        services.AddScoped<IIntakeSubmission>(provider => provider.GetRequiredService<ReceiveIntake>());
+        services.AddScoped<SubmitGroupedIntake>();
+        services.AddScoped<IGroupedIntakeSubmission>(provider => provider.GetRequiredService<SubmitGroupedIntake>());
         services.AddScoped<IIntakeAssociationDestinationQueries, EfIntakeAssociationDestinations>();
         services.AddScoped<EfIntakeAllocationStore>();
         services.AddScoped<IIntakeAllocationStore>(
