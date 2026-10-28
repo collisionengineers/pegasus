@@ -124,8 +124,6 @@ public sealed class LocalIntakeAccessTests
                 $"Server=(localdb)\\MSSQLLocalDB;Database=Pegasus_MissingBox_{Guid.NewGuid():N};" +
                 "Integrated Security=true;Encrypt=false",
             ["AzureIdentity:WebClientId"] = Guid.NewGuid().ToString("D"),
-            ["TransportStorage:AccountName"] = "pegasustransport",
-            ["CustodyStorage:AccountName"] = "pegasuscustody",
             ["CustodyStorage:ServiceUri"] = "https://pegasuscustody.blob.core.windows.net/",
             ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
             ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",

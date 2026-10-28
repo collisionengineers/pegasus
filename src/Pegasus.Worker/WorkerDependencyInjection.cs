@@ -105,9 +105,6 @@ public static class WorkerDependencyInjection
                     // the whole worker process whenever the platform handed over an
                     // unresolved Key Vault reference.
                     _ => CreateBoxCustodyOptions(configuration, approvedBoxRoot)));
-        services.AddScoped<EfIdentityAuditStore>();
-        services.AddScoped<IActionHistoryWriter>(serviceProvider =>
-            serviceProvider.GetRequiredService<EfIdentityAuditStore>());
         // The shared use cases include the paged queries the Web serves; this
         // host serves none, and says so if one is ever asked for.
         services.AddSingleton<Pegasus.Core.ICursorProtector, Pegasus.Infrastructure.Support.UnavailableCursorProtector>();
@@ -158,11 +155,6 @@ public static class WorkerDependencyInjection
         services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         services.AddScoped<VehicleRegistrationCandidateLookup>();
 
-        services.AddScoped<EfIntakeWorkStore>();
-        services.AddScoped<IIntakeWorkStore>(serviceProvider =>
-            serviceProvider.GetRequiredService<EfIntakeWorkStore>());
-        services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
-            serviceProvider.GetRequiredService<EfIntakeWorkStore>());
         services.AddSingleton<IIntakeWorkEnqueuer>(serviceProvider =>
         {
             var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();
@@ -171,15 +163,6 @@ public static class WorkerDependencyInjection
                 queues.WorkQueue,
                 provisioning.AllowLocalCreateIfNotExists);
         });
-        services.AddScoped<ReceiveIntake>();
-        services.AddScoped<IIntakeSubmission>(serviceProvider =>
-            serviceProvider.GetRequiredService<ReceiveIntake>());
-        services.AddScoped<SubmitGroupedIntake>();
-        services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
-            serviceProvider.GetRequiredService<SubmitGroupedIntake>());
-        services.AddScoped<DispatchPendingIntakeWork>();
-        services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
-            serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
         services.AddScoped<ProcessQueuedIntake>();
         services.AddScoped<IProcessQueuedIntake>(serviceProvider =>
             serviceProvider.GetRequiredService<ProcessQueuedIntake>());
@@ -196,7 +179,6 @@ public static class WorkerDependencyInjection
                 queues.WorkQueue,
                 provisioning.AllowLocalCreateIfNotExists);
         });
-        services.AddScoped<DispatchPendingExternalWork>();
         services.AddScoped<ICommittedExternalWorkPublisher>(serviceProvider =>
             serviceProvider.GetRequiredService<DispatchPendingExternalWork>());
         services.AddScoped<ReconcilePoisonedExternalWork>();
