@@ -1960,11 +1960,15 @@ public sealed class MailboxIntakeIntegrationTests
         message.WriteTo(stream);
         return stream.ToArray();
 
+        // Base64, as mail carries images: written as 7-bit text, a PNG's
+        // signature bytes (CR LF among them) are mangled, the reader cannot
+        // decode it, and an image of unknown size is kept.
         static MimePart ImagePart(string fileName, string disposition, byte[] bytes) =>
             new("image", fileName.EndsWith(".png", StringComparison.Ordinal) ? "png" : "jpeg")
             {
                 FileName = fileName,
                 ContentDisposition = new ContentDisposition(disposition),
+                ContentTransferEncoding = ContentEncoding.Base64,
                 Content = new MimeContent(new MemoryStream(bytes))
             };
     }
