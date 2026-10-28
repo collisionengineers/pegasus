@@ -986,7 +986,7 @@ second caller and a recorded reason.
 | `_ShellDialogs` | Account, Notifications, command palette, What's new, Report a problem; the Account, command palette and Report a problem content is `_ShellAccountDialog`, `_ShellCommandDialog` and `_ShellProblemDialog`, fetched when each first opens |
 | `_AdminNav` | Administration panel nav |
 | `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadReview` | Retained, restyled to the vocabulary |
-| `Presentation/OperatorLabels.cs` | The one label map |
+| `Presentation/OperatorLabels*.cs` | The one label map, as the `OperatorLabels` partial class files |
 | `Presentation/ShellPageFilter.cs` | Bell and release note |
 
 
