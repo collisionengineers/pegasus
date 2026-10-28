@@ -1,4 +1,6 @@
-"""audit_combined.py on a temporary repository: exit codes, the PASS, FAIL and REVIEW goldens, spaced paths, normal()."""
+"""audit_combined.py on a temporary repository: exit codes, the PASS, FAIL and REVIEW goldens, spaced paths,
+hand-resolved merges, normal()."""
+import subprocess
 import unittest
 
 from skill_scripts_support import Repository, SharedGitCase, build_pull_requests, lines, load_script, run_main, short
@@ -20,16 +22,14 @@ class AuditCombinedTests(SharedGitCase):
         cls.c = c = build_pull_requests(repo)
 
         def integrate(name, *branches):
-            """Merge the branches in order onto main; return the tip and each merge commit."""
+            """Merge the branches in order onto main; return the tip."""
             repo.git("checkout", "-q", "-b", name, "main")
-            merges = []
             for branch in branches:
                 repo.git("merge", "-q", "--no-ff", "-m", f"merge {branch}", branch)
-                merges.append(repo.git("rev-parse", "HEAD"))
-            return merges[-1], merges
+            return repo.git("rev-parse", "HEAD")
 
-        c["ok"], cls.ok_merges = integrate("ok", "pr1", "pr2", "pr3")
-        c["stacked"], cls.stacked_merges = integrate("stacked", "pr1", "pr6")
+        c["ok"] = integrate("ok", "pr1", "pr2", "pr3")
+        c["stacked"] = integrate("stacked", "pr1", "pr6")
         # A fix commit on top of the clean tip drops the line pr2 added to shared.txt.
         repo.git("checkout", "-q", "-b", "dropped", "ok")
         c["dropped"] = repo.commit("drop pr2 shared line", {
@@ -38,14 +38,16 @@ class AuditCombinedTests(SharedGitCase):
         repo.git("checkout", "-q", "-b", "dropped-spaced", "ok")
         c["dropped-spaced"] = repo.commit("drop pr2 line from the spaced file", {
             "my file.txt": lines("m1", "m2", "m3", "m4", "m5 (pr3)")})
-
-    def hand_resolved(self):
-        """The list git diff-tree --cc gives for the merges of the clean tip: files both sides changed."""
-        first, _, third = self.ok_merges
-        return ("\nFiles hand-resolved in merge commits:\n"
-                f"- `a.txt` in {short(first)}\n"
-                f"- `my file.txt` in {short(third)}\n"
-                f"- `shared.txt` in {short(third)}\n")
+        # pr4 conflicts with pr2 in shared.txt; the merge is finished by hand, keeping both lines.
+        integrate("resolved", "pr2")
+        merge = subprocess.run(["git", "merge", "-q", "--no-ff", "-m", "merge pr4", "pr4"],
+                               cwd=repo.root, capture_output=True, text=True)
+        assert merge.returncode == 1, merge.stdout + merge.stderr
+        repo.write("shared.txt", lines("shared 1 (pr2)", "shared 1 (pr4)", "shared 2", "shared 3", "shared 4",
+                                       "shared 5"))
+        repo.git("add", "shared.txt")
+        repo.git("commit", "-q", "--no-edit")
+        c["resolved"] = repo.git("rev-parse", "HEAD")
 
     def run_audit(self, tip, *numbers, target="target"):
         heads = [f"{n}={self.c[f'pr{n}']}" for n in numbers]
@@ -66,7 +68,7 @@ class AuditCombinedTests(SharedGitCase):
             f"| #3 | `{short(c['pr3'])}` | yes | 3 | 1 | 2 | 0 | 0 |\n"
             "\n"
             "Integration-only commits: 3 merge(s), 0 fix commit(s).\n"
-            + self.hand_resolved() + FOOTER, out)
+            + FOOTER, out)
 
     def test_an_added_line_deleted_from_the_tip_fails_with_exit_1_and_the_line_named(self):
         code, out, _ = self.run_audit("dropped", 1, 2, 3)
@@ -84,7 +86,6 @@ class AuditCombinedTests(SharedGitCase):
             "\n"
             "Integration-only commits: 3 merge(s), 1 fix commit(s).\n"
             f"- fix `{short(c['dropped'])}` drop pr2 shared line\n"
-            + self.hand_resolved() +
             "\n"
             "### FAIL (fix, or explain in the PR body)\n"
             "\n"
@@ -106,13 +107,19 @@ class AuditCombinedTests(SharedGitCase):
             "\n"
             "Integration-only commits: 2 merge(s), 0 fix commit(s).\n"
             "\n"
-            "Files hand-resolved in merge commits:\n"
-            f"- `a.txt` in {short(self.stacked_merges[1])}, {short(self.stacked_merges[0])}\n"
-            "\n"
             "### REVIEW\n"
             "\n"
             "- #1: 1 line(s) in `a.txt` removed by stacked #6: `alpha 4 (pr1)`\n"
             + FOOTER, out)
+
+    def test_only_a_file_resolved_by_hand_is_listed_as_hand_resolved(self):
+        # The goldens above print no such section: git merged those files itself. Here the pr2 merge
+        # changed b.txt and 'my file.txt' cleanly too; only the pr4 merge's shared.txt was resolved.
+        _, out, _ = self.run_audit("resolved", 2, 4)
+        heading = "\nFiles hand-resolved in merge commits:\n"
+        self.assertIn(heading, out)
+        listed = out.split(heading, 1)[1].split("\n\n", 1)[0]
+        self.assertEqual(f"- `shared.txt` in {short(self.c['resolved'])}", listed)
 
     def test_a_head_that_is_not_in_the_tip_fails(self):
         code, out, _ = self.run_audit("ok", 1, 2, 4)

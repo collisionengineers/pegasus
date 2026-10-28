@@ -54,6 +54,12 @@ class SimulateMergeTests(SharedGitCase):
         self.assertIn("Step 2 (#4):\n- CONFLICT (content): Merge conflict in shared.txt\n", out)
         self.assertTrue(out.rstrip().endswith("(contains conflict markers)"))
 
+    def test_a_revision_that_does_not_resolve_exits_3_not_the_conflict_code(self):
+        code, out, err = self.simulate("--target", "no-such-ref", *self.heads(1))
+        self.assertEqual(3, code)
+        self.assertIn("error: cannot resolve no-such-ref", err)
+        self.assertEqual("", out)
+
     def test_steps_after_a_conflict_are_marked(self):
         code, out, _ = self.simulate("--target", self.commits["target"], *self.heads(2, 4, 1))
         self.assertEqual(1, code)
