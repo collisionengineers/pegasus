@@ -527,10 +527,3 @@ public interface IGetCaseAssessment
 {
     Task<CaseAssessmentProjection?> ExecuteAsync(Guid caseId, CancellationToken cancellationToken);
 }
-
-public interface ISaveAssessment
-{
-    Task<CaseAssessmentProjection> ExecuteAsync(
-        SaveAssessmentRequest request,
-        CancellationToken cancellationToken);
-}

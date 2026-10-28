@@ -345,16 +345,6 @@ public interface IScaleRepairSpecification
         CancellationToken cancellationToken);
 }
 
-public interface IRemoveRepairSpecificationScaling
-{
-    Task<RepairSpecificationVersion> ExecuteAsync(RemoveRepairSpecificationScalingRequest request, CancellationToken cancellationToken);
-}
-
-public interface IRestoreRepairSpecificationSnapshot
-{
-    Task<RepairSpecificationVersion> ExecuteAsync(RestoreRepairSpecificationSnapshotRequest request, CancellationToken cancellationToken);
-}
-
 /// <summary>
 /// Apply (v28 P34): the target is derived from the Engineer's Value
 /// in the existing assessment projection. Persistence owns the single
@@ -384,7 +374,7 @@ public sealed class ScaleRepairSpecification(
 
 /// <summary>Remove scaling (v28 P34): the specification returns exactly to the version frozen before the last scaling.</summary>
 public sealed class RemoveRepairSpecificationScaling(
-    IRepairSpecificationStore store) : IRemoveRepairSpecificationScaling
+    IRepairSpecificationStore store)
 {
     public async Task<RepairSpecificationVersion> ExecuteAsync(
         RemoveRepairSpecificationScalingRequest request, CancellationToken cancellationToken)
@@ -397,7 +387,7 @@ public sealed class RemoveRepairSpecificationScaling(
 
 /// <summary>Restore (v28 P43): the store freezes and replaces the draft atomically.</summary>
 public sealed class RestoreRepairSpecificationSnapshot(
-    IRepairSpecificationStore store) : IRestoreRepairSpecificationSnapshot
+    IRepairSpecificationStore store)
 {
     public async Task<RepairSpecificationVersion> ExecuteAsync(
         RestoreRepairSpecificationSnapshotRequest request, CancellationToken cancellationToken)

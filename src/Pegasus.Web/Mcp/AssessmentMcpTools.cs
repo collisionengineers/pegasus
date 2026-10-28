@@ -193,15 +193,15 @@ internal sealed record AssessmentUpdateToolResult(
 [McpServerToolType]
 internal sealed class AssessmentMcpTools(
     IGetCaseAssessment getAssessment,
-    ISaveAssessment saveAssessment,
+    SaveAssessment saveAssessment,
     ISaveEstimate saveEstimate,
     IListCaseEstimates caseEstimates,
     IListCaseEstimatesByCursor listEstimates,
     IDuplicateEstimate duplicateEstimate,
     IDiscardEstimate discardEstimate,
     IScaleRepairSpecification scaleEstimate,
-    IRemoveRepairSpecificationScaling removeEstimateScaling,
-    IRestoreRepairSpecificationSnapshot restoreEstimateSnapshot,
+    RemoveRepairSpecificationScaling removeEstimateScaling,
+    RestoreRepairSpecificationSnapshot restoreEstimateSnapshot,
     IRepairSpecificationSnapshotStore estimateSnapshots,
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,

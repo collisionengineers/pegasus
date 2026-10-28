@@ -35,8 +35,8 @@ public sealed partial class DetailsModel
     private IImportRawEstimate importRawEstimate => field ??= PostService<IImportRawEstimate>();
     private ISaveUnroadworthyReason saveUnroadworthyReasonAction => field ??= PostService<ISaveUnroadworthyReason>();
     private IScaleRepairSpecification scaleRepairSpecification => field ??= PostService<IScaleRepairSpecification>();
-    private IRemoveRepairSpecificationScaling removeRepairSpecificationScaling => field ??= PostService<IRemoveRepairSpecificationScaling>();
-    private IRestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot => field ??= PostService<IRestoreRepairSpecificationSnapshot>();
+    private RemoveRepairSpecificationScaling removeRepairSpecificationScaling => field ??= PostService<RemoveRepairSpecificationScaling>();
+    private RestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot => field ??= PostService<RestoreRepairSpecificationSnapshot>();
     private IAddCaseDocument addCaseDocument => field ??= PostService<IAddCaseDocument>();
     private IAcquireCaseEditLease acquireLease => field ??= PostService<IAcquireCaseEditLease>();
     private IHeartbeatCaseEditLease heartbeatLease => field ??= PostService<IHeartbeatCaseEditLease>();
@@ -49,5 +49,5 @@ public sealed partial class DetailsModel
     private IAssignCaseQuery assignCaseQuery => field ??= PostService<IAssignCaseQuery>();
     private IStartMarketResearch startMarketResearch => field ??= PostService<IStartMarketResearch>();
     private IPreviewValuationCalculation previewValuation => field ??= PostService<IPreviewValuationCalculation>();
-    private IGetCaseHasAuditWork getCaseHasAuditWork => field ??= PostService<IGetCaseHasAuditWork>();
+    private GetCaseHasAuditWork getCaseHasAuditWork => field ??= PostService<GetCaseHasAuditWork>();
 }
