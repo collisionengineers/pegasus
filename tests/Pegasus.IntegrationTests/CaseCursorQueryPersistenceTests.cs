@@ -571,7 +571,7 @@ public sealed class CaseCursorQueryPersistenceTests
     [Fact]
     public async Task TheCaseHeaderIsAtMostFourCommandsAndTheDocumentsOnlyReadIsFewerThanTheFilesSection()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         await using var database = await LocalDbTestDatabase.CreateAsync(
             configureDatabase: options => options.AddInterceptors(counter));
         var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "HCNT");

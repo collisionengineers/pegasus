@@ -5,23 +5,36 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// Counts every SQL statement a context sends, whatever its kind, and keeps
-/// the text so a test can count the statements that read one table, and the
-/// rows each query read (<see cref="Reads"/>). Reads run
-/// beside each other inside <c>Task.WhenAll</c>, so it is thread-safe. Hand it
-/// to <see cref="IntakeWebApplicationFactory"/> as <c>commandInterceptor:</c>,
-/// or to <see cref="LocalDbTestDatabase.CreateAsync"/> through
+/// The one statement counter the tests share. It counts every SQL statement a
+/// context sends, whatever its kind, keeps the text so a test can count the
+/// statements that read one table, keeps the reader statements apart
+/// (<see cref="ReaderCount"/>, <see cref="ReaderStatements"/>), and records
+/// the rows each query read (<see cref="Reads"/>). Reads run beside each other
+/// inside <c>Task.WhenAll</c>, so it is thread-safe. Hand it to
+/// <see cref="IntakeWebApplicationFactory"/> as <c>commandInterceptor:</c>, or
+/// to <see cref="LocalDbTestDatabase.CreateAsync"/> through
 /// <c>configureDatabase: options =&gt; options.AddInterceptors(counter)</c>.
+/// Reset it after seeding and before the request that is measured. A test
+/// asserts a ceiling or a no-growth pair on <see cref="Count"/>, never an
+/// exact total (engineering, Simplicity); a zero-or-one pin on one named
+/// statement stays exact.
 /// </summary>
 internal sealed class SqlStatementCounter : DbCommandInterceptor
 {
     private readonly ConcurrentQueue<string> statements = new();
+    private readonly ConcurrentQueue<string> readers = new();
     private readonly ConcurrentQueue<SqlRead> reads = new();
 
     public int Count => statements.Count;
 
+    /// <summary>How many of the statements were queries (reader commands).</summary>
+    public int ReaderCount => readers.Count;
+
     /// <summary>The statements sent since the last reset, in the order they started.</summary>
     public IReadOnlyList<string> Statements => [.. statements];
+
+    /// <summary>The query statements alone, in the order they started.</summary>
+    public IReadOnlyList<string> ReaderStatements => [.. readers];
 
     /// <summary>Each query's text and the rows it read, in the order the readers closed.</summary>
     public IReadOnlyList<SqlRead> Reads => [.. reads];
@@ -29,6 +42,7 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
     public void Reset()
     {
         statements.Clear();
+        readers.Clear();
         reads.Clear();
     }
 
@@ -36,6 +50,17 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
     public int CountContaining(params string[] fragments) =>
         statements.Count(text => fragments.All(fragment =>
             text.Contains(fragment, StringComparison.Ordinal)));
+
+    /// <summary>
+    /// How many statements mention <paramref name="fragment"/>, such as a bracketed table name, and
+    /// do not mention <paramref name="without"/>.
+    /// </summary>
+    public int CountMentioning(string fragment, string? without = null) =>
+        statements.Count(text => text.Contains(fragment, StringComparison.Ordinal)
+            && (without is null || !text.Contains(without, StringComparison.Ordinal)));
+
+    /// <summary>How many statements satisfy <paramref name="predicate"/>, for a pin on one statement's shape.</summary>
+    public int CountMatching(Func<string, bool> predicate) => statements.Count(predicate);
 
     /// <summary>
     /// How many whole-receipt reads were sent: a whole-receipt read is a
@@ -46,12 +71,21 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
         CountContaining("[IntakeReceipts]", "[InstructionDrafts]", "[IntakeMailRouteDecisions]")
         - CountContaining("[IntakeReceipts]", "[IntakeAssets]", "[InstructionDrafts]", "[IntakeMailRouteDecisions]");
 
+    /// <summary>Every statement's text, numbered and flattened, for a failure message.</summary>
+    public string Describe() => string.Join(
+        Environment.NewLine,
+        statements.Select((text, index) =>
+        {
+            var flat = text.ReplaceLineEndings(" ");
+            return $"{index + 1}. {flat[..Math.Min(flat.Length, 160)]}";
+        }));
+
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command,
         CommandEventData eventData,
         InterceptionResult<DbDataReader> result)
     {
-        statements.Enqueue(command.CommandText);
+        Record(command, reader: true);
         return result;
     }
 
@@ -61,7 +95,7 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default)
     {
-        statements.Enqueue(command.CommandText);
+        Record(command, reader: true);
         return ValueTask.FromResult(result);
     }
 
@@ -70,7 +104,7 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
         CommandEventData eventData,
         InterceptionResult<int> result)
     {
-        statements.Enqueue(command.CommandText);
+        Record(command, reader: false);
         return result;
     }
 
@@ -80,7 +114,7 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        statements.Enqueue(command.CommandText);
+        Record(command, reader: false);
         return ValueTask.FromResult(result);
     }
 
@@ -89,7 +123,7 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
         CommandEventData eventData,
         InterceptionResult<object> result)
     {
-        statements.Enqueue(command.CommandText);
+        Record(command, reader: false);
         return result;
     }
 
@@ -99,7 +133,7 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
         InterceptionResult<object> result,
         CancellationToken cancellationToken = default)
     {
-        statements.Enqueue(command.CommandText);
+        Record(command, reader: false);
         return ValueTask.FromResult(result);
     }
 
@@ -112,6 +146,15 @@ internal sealed class SqlStatementCounter : DbCommandInterceptor
         // row, so a query read to its end read one row fewer than it counts.
         reads.Enqueue(new(command.CommandText, Math.Max(0, eventData.ReadCount - 1)));
         return result;
+    }
+
+    private void Record(DbCommand command, bool reader)
+    {
+        statements.Enqueue(command.CommandText);
+        if (reader)
+        {
+            readers.Enqueue(command.CommandText);
+        }
     }
 }
 

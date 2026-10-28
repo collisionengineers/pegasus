@@ -65,7 +65,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
     [Fact]
     public async Task AssessmentWorkspaceLoadsInAtMostFiveReaderCommands()
     {
-        var counter = new ReaderCommandCounter();
+        var counter = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(shared, counter);
         var outcome = await harness.AcceptAsync("assessment-workspace-query-count");
         await SetReportPreparationAsync(harness.Factory, outcome.Identity.CaseId);
@@ -76,8 +76,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
 
         Assert.NotNull(workspace);
         Assert.True(
-            counter.ExecutedReaderCommands <= 5,
-            $"The assessment workspace load sent {counter.ExecutedReaderCommands} reader commands; at most 5 are allowed.");
+            counter.ReaderCount <= 5,
+            $"The assessment workspace load sent {counter.ReaderCount} reader commands; at most 5 are allowed.");
     }
 
     /// <summary>
@@ -140,7 +140,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
     [Fact]
     public async Task TheRecordedFieldValuesComeFromOneCommandAndMatchTheWorkspace()
     {
-        var counter = new ReaderCommandCounter();
+        var counter = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(counter);
         var outcome = await harness.AcceptAsync("assessment-field-values-query-count");
         var caseId = outcome.Identity.CaseId;
@@ -158,7 +158,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
 
         var values = await source.GetFieldValuesAsync(caseId, CaseWorkSelector.Current, paths);
 
-        Assert.Equal(1, counter.ExecutedReaderCommands);
+        Assert.Equal(1, counter.ReaderCount);
         Assert.NotNull(workspace);
         var held = workspace.Assessment.Fields.Where(field => paths.Contains(field.Path)).ToArray();
         Assert.Equal(held.Length, values.Count);
@@ -175,7 +175,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
     [Fact]
     public async Task TheAssessmentStoreReadsTheCurrentSpecificationsLinesInOneStatement()
     {
-        var counter = new ReaderCommandCounter();
+        var counter = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(counter);
         var withEstimate = (await harness.AcceptAsync("assessment-store-lines-with")).Identity.CaseId;
         await using var emptyHarness = await Harness.CreateAsync(counter);
@@ -203,9 +203,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         Assert.Equal(
             read.EstimateLines.OrderBy(line => line.Position).Select(line => line.Id),
             read.EstimateLines.Select(line => line.Id));
-        Assert.Single(counter.CommandTexts, text => text.Contains("CaseEstimateLines", StringComparison.Ordinal));
+        Assert.Single(counter.ReaderStatements, text => text.Contains("CaseEstimateLines", StringComparison.Ordinal));
         Assert.DoesNotContain(
-            counter.CommandTexts,
+            counter.ReaderStatements,
             text => text.Contains("CaseRepairSpecifications", StringComparison.Ordinal)
                 && !text.Contains("CaseEstimateLines", StringComparison.Ordinal));
 
@@ -215,7 +215,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
 
         Assert.NotNull(empty);
         Assert.Empty(empty.EstimateLines);
-        Assert.Single(counter.CommandTexts, text => text.Contains("CaseEstimateLines", StringComparison.Ordinal));
+        Assert.Single(counter.ReaderStatements, text => text.Contains("CaseEstimateLines", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2770,33 +2770,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         }
     }
 
-    private sealed class ReaderCommandCounter : DbCommandInterceptor
-    {
-        private readonly System.Collections.Concurrent.ConcurrentQueue<string> commandTexts = new();
-        private int executedReaderCommands;
-
-        public int ExecutedReaderCommands => Volatile.Read(ref executedReaderCommands);
-
-        /// <summary>The SQL of each reader command since the last <see cref="Reset"/>.</summary>
-        public IReadOnlyCollection<string> CommandTexts => commandTexts.ToArray();
-
-        public void Reset()
-        {
-            Interlocked.Exchange(ref executedReaderCommands, 0);
-            commandTexts.Clear();
-        }
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            Interlocked.Increment(ref executedReaderCommands);
-            commandTexts.Enqueue(command.CommandText);
-            return ValueTask.FromResult(result);
-        }
-    }
 }
 
 /// <summary>

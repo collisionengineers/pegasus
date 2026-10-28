@@ -276,7 +276,7 @@ public sealed class UnidentifiedRecordWebTests
     [Fact]
     public async Task ListingSeveralReceiptsReadsTheirSuggestionsInOneCommand()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: false, commandInterceptor: counter);
         var (_, firstReceiptId, secondReceiptId, _) = await SeedGroupedReadingsAsync(factory);

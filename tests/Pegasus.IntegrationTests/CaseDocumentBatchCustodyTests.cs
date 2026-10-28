@@ -76,7 +76,7 @@ public sealed class CaseDocumentBatchCustodyTests
     [Fact]
     public async Task BatchSqlCommandsDoNotGrowWithTheItemCount()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
         var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
         var added = await AddDocumentsAsync(factory, caseId, 6);
@@ -98,7 +98,7 @@ public sealed class CaseDocumentBatchCustodyTests
 
     private static async Task<int> OpenReadAndRecordAsync(
         IntakeWebApplicationFactory factory,
-        CommandCountingInterceptor counter,
+        SqlStatementCounter counter,
         Guid caseId,
         (CaseDocumentBatchItem Item, byte[] Content)[] documents)
     {

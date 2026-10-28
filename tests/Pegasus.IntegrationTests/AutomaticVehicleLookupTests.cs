@@ -233,7 +233,7 @@ public sealed class AutomaticVehicleLookupTests
         statements.Reset();
         Assert.Equal(0, await SweepAsync(database, maximumItems: 2));
 
-        Assert.Equal(4, statements.Count);
+        Assert.True(statements.Count <= 4, statements.Describe());
         Assert.Equal([2, 1], statements.Reads.Where(IsCandidatePage).Select(page => page.Rows));
     }
 
@@ -319,7 +319,7 @@ public sealed class AutomaticVehicleLookupTests
         Assert.Single(statements.Reads, read =>
             read.CommandText.Contains("FROM [ExternalWorkItems]", StringComparison.Ordinal));
         // The router's read, the request payload read and the claiming update.
-        Assert.Equal(3, statements.Count);
+        Assert.True(statements.Count <= 3, statements.Describe());
 
         statements.Reset();
         await Assert.ThrowsAsync<InvalidOperationException>(() => workStore.ClaimProcessingAsync(

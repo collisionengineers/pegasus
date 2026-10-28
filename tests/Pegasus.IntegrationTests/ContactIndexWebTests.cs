@@ -326,7 +326,7 @@ public sealed partial class ContactIndexWebTests
     [Fact]
     public async Task TheContactsListReadsTheSameForThreeRowsAndSixRows()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
         using var client = IntakeWebDriver.CreateClient(factory);
         const string path = "/Administration/Contacts?search=Paged%20Fixture";

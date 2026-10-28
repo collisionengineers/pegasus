@@ -22,7 +22,7 @@ public sealed class WorkCentreStatementCountWebTests
     [Fact]
     public async Task AFullWorkCentreLoadSendsItsPinnedStatements()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -62,7 +62,7 @@ public sealed class WorkCentreStatementCountWebTests
     [Fact]
     public async Task TheWorkCentreLooksUpDismissalsOnceForAJobBothSectionsShow()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -120,7 +120,7 @@ public sealed class WorkCentreStatementCountWebTests
     [Fact]
     public async Task TheWorkCentreSendsTheSameStatementsForSixNewCasesAsForThree()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         using var client = IntakeWebDriver.CreateClient(factory);

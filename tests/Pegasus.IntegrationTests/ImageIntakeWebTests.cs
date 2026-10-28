@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Data.Common;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -300,7 +298,7 @@ public sealed class ImageIntakeWebTests
     [Fact]
     public async Task AnAssetDownloadReadsTheOneAssetNotTheReceiptAggregate()
     {
-        var reads = new RecordingReadInterceptor();
+        var reads = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
@@ -332,7 +330,7 @@ public sealed class ImageIntakeWebTests
         Assert.Equal(
             Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
             await response.Content.ReadAsByteArrayAsync());
-        var statements = reads.Statements;
+        var statements = reads.ReaderStatements;
         // The reads that authenticate the request (the account, its roles and
         // claims) depend on the account setup, not on the download, so they are
         // set aside. Nothing else in this pipeline reads the database, and the
@@ -883,38 +881,6 @@ public sealed class ImageIntakeWebTests
 
         Assert.Fail("The Back to Cases link must be rendered.");
         return string.Empty;
-    }
-
-    /// <summary>
-    /// The text of every reader command a context sends. Contexts run inside
-    /// <c>Task.WhenAll</c>, so the record is thread-safe.
-    /// </summary>
-    private sealed class RecordingReadInterceptor : DbCommandInterceptor
-    {
-        private readonly ConcurrentQueue<string> statements = new();
-
-        public IReadOnlyCollection<string> Statements => [.. statements];
-
-        public void Reset() => statements.Clear();
-
-        public override InterceptionResult<DbDataReader> ReaderExecuting(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result)
-        {
-            statements.Enqueue(command.CommandText);
-            return result;
-        }
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            statements.Enqueue(command.CommandText);
-            return ValueTask.FromResult(result);
-        }
     }
 }
 

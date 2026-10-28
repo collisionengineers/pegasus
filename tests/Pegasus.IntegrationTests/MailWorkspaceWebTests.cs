@@ -335,7 +335,7 @@ public sealed class MailWorkspaceWebTests
     [Fact]
     public async Task TheInboxPagesSendTheirPinnedStatements()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var messageId = Assert.Single(await SeedAsync(
@@ -409,7 +409,7 @@ public sealed class MailWorkspaceWebTests
     [Fact]
     public async Task TheInboxListSendsTheSameStatementsForSixMessagesAsForThree()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var selectedId = (await SeedAcceptedMessagesAsync(
@@ -454,7 +454,7 @@ public sealed class MailWorkspaceWebTests
     [Fact]
     public async Task TheCaseOptionsSearchReadsNoWorkflowOrTriageRowOfItsOwn()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var messageId = Assert.Single(await SeedAsync(
