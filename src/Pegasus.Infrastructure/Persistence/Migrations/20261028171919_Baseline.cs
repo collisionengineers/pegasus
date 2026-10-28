@@ -7,7 +7,16 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
-    /// <inheritdoc />
+    /// <summary>
+    /// The schema as the 244-step chain left it, generated from the model on 28
+    /// October 2026 (R481, R484). Hand-kept, because production carries them and
+    /// the model does not say them: the two runtime roles, the grants and denials
+    /// of <c>RuntimePermissions.csv</c> as the record stood, 40 default constraints
+    /// the chain created when it added columns to populated tables, the
+    /// <c>IS NOT NULL</c> filter the chain left on 24 unique indexes, and the
+    /// reference rows the chain seeded. Production adopts this migration by one
+    /// history row; a fresh database runs it.
+    /// </summary>
     public partial class Baseline : Migration
     {
         /// <inheritdoc />
@@ -3790,13 +3799,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_ApprovedInboxPollStates_MailboxAddress",
                 table: "ApprovedInboxPollStates",
                 column: "MailboxAddress",
-                unique: true);
+                unique: true,
+                filter: "[MailboxAddress] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ApprovedMailboxes_Address",
                 table: "ApprovedMailboxes",
                 column: "Address",
-                unique: true);
+                unique: true,
+                filter: "[Address] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ApprovedMailboxes_MailboxIdentity",
@@ -3831,7 +3842,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_ApprovedSentPollOutcomes_OperationKey",
                 table: "ApprovedSentPollOutcomes",
                 column: "OperationKey",
-                unique: true);
+                unique: true,
+                filter: "[OperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ApprovedSentPollOutcomes_OutcomeKind_RecordedAtUtc_Id",
@@ -3860,7 +3872,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_ApprovedSentPollStates_MailboxAddress",
                 table: "ApprovedSentPollStates",
                 column: "MailboxAddress",
-                unique: true);
+                unique: true,
+                filter: "[MailboxAddress] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
@@ -3893,7 +3906,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_AspNetUserRoles_UserId",
                 table: "AspNetUserRoles",
                 column: "UserId",
-                unique: true);
+                unique: true,
+                filter: "[UserId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "EmailIndex",
@@ -3951,13 +3965,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_CaseDueChasers_CaseId_ScheduledAtUtc",
                 table: "CaseDueChasers",
                 columns: new[] { "CaseId", "ScheduledAtUtc" },
-                unique: true);
+                unique: true,
+                filter: "[CaseId] IS NOT NULL AND [ScheduledAtUtc] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CaseDueChasers_OperationKey",
                 table: "CaseDueChasers",
                 column: "OperationKey",
-                unique: true);
+                unique: true,
+                filter: "[OperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CaseDueWork_State_NextChaseAtUtcTicks",
@@ -4015,7 +4031,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_CaseManualChases_CaseId_OperationKey",
                 table: "CaseManualChases",
                 columns: new[] { "CaseId", "OperationKey" },
-                unique: true);
+                unique: true,
+                filter: "[CaseId] IS NOT NULL AND [OperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CaseMatchIndex_PrincipalCode_DurableClaimToken",
@@ -4094,7 +4111,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_CaseReportApprovals_CaseId_ArtifactIdentity_ArtifactSha256",
                 table: "CaseReportApprovals",
                 columns: new[] { "CaseId", "ArtifactIdentity", "ArtifactSha256" },
-                unique: true);
+                unique: true,
+                filter: "[CaseId] IS NOT NULL AND [ArtifactIdentity] IS NOT NULL AND [ArtifactSha256] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CaseReportGenerations_CaseId",
@@ -4128,13 +4146,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_CaseReportSentEvidence_MailboxIdentity_ImmutableItemIdentity",
                 table: "CaseReportSentEvidence",
                 columns: new[] { "MailboxIdentity", "ImmutableItemIdentity" },
-                unique: true);
+                unique: true,
+                filter: "[MailboxIdentity] IS NOT NULL AND [ImmutableItemIdentity] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CaseReportSentEvidence_RetentionOperationKey",
                 table: "CaseReportSentEvidence",
                 column: "RetentionOperationKey",
-                unique: true);
+                unique: true,
+                filter: "[RetentionOperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CaseReportWordings_WorkId_BlockKey",
@@ -4219,7 +4239,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_CaseWorkflowEvents_CaseId_OperationKey",
                 table: "CaseWorkflowEvents",
                 columns: new[] { "CaseId", "OperationKey" },
-                unique: true);
+                unique: true,
+                filter: "[CaseId] IS NOT NULL AND [OperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CaseWorkflowEvents_EventType_OccurredAtUtc",
@@ -4382,7 +4403,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_EmailResponseEvidence_PollOutcomeId",
                 table: "EmailResponseEvidence",
                 column: "PollOutcomeId",
-                unique: true);
+                unique: true,
+                filter: "[PollOutcomeId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_EmailResponseEvidence_SentEvidenceId",
@@ -4540,13 +4562,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_ImageTags_CreateOperationKey",
                 table: "ImageTags",
                 column: "CreateOperationKey",
-                unique: true);
+                unique: true,
+                filter: "[CreateOperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ImageTags_NormalizedName",
                 table: "ImageTags",
                 column: "NormalizedName",
-                unique: true);
+                unique: true,
+                filter: "[NormalizedName] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ImageVrmSuggestions_IntakeAssetId",
@@ -4573,7 +4597,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_InspectionLocations_Source_SourceRecordId",
                 table: "InspectionLocations",
                 columns: new[] { "Source", "SourceRecordId" },
-                unique: true);
+                unique: true,
+                filter: "[Source] IS NOT NULL AND [SourceRecordId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_IntakeAllocationAttempts_IntakeReceiptId_AttemptNumber",
@@ -4625,7 +4650,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_IntakeManualAssociations_LastOperationKey",
                 table: "IntakeManualAssociations",
                 column: "LastOperationKey",
-                unique: true);
+                unique: true,
+                filter: "[LastOperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_IntakeMutationHistory_CaseId_OccurredAtUtc",
@@ -4641,7 +4667,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_IntakeMutationHistory_OperationKey",
                 table: "IntakeMutationHistory",
                 column: "OperationKey",
-                unique: true);
+                unique: true,
+                filter: "[OperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_IntakeOcrOperations_IntakeAssetId",
@@ -4732,7 +4759,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_IntakeSubmissionGroupHistory_OperationKey",
                 table: "IntakeSubmissionGroupHistory",
                 column: "OperationKey",
-                unique: true);
+                unique: true,
+                filter: "[OperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_IntakeSubmissionGroupMembers_GroupId_Ordinal",
@@ -5038,19 +5066,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_StandaloneAuditEvidence_IntakeReceiptId",
                 table: "StandaloneAuditEvidence",
                 column: "IntakeReceiptId",
-                unique: true);
+                unique: true,
+                filter: "[IntakeReceiptId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StandaloneAuditEvidence_OperationKey",
                 table: "StandaloneAuditEvidence",
                 column: "OperationKey",
-                unique: true);
+                unique: true,
+                filter: "[OperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StandaloneAuditEvidence_OriginalReportAssetId",
                 table: "StandaloneAuditEvidence",
                 column: "OriginalReportAssetId",
-                unique: true);
+                unique: true,
+                filter: "[OriginalReportAssetId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Triage_CreationOperationKey",
@@ -5205,13 +5236,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_VehicleLookupObservations_WorkItemId_AttemptNumber",
                 table: "VehicleLookupObservations",
                 columns: new[] { "WorkItemId", "AttemptNumber" },
-                unique: true);
+                unique: true,
+                filter: "[WorkItemId] IS NOT NULL AND [AttemptNumber] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_VehicleLookupRequests_CaseId_OperationKey",
                 table: "VehicleLookupRequests",
                 columns: new[] { "CaseId", "OperationKey" },
-                unique: true);
+                unique: true,
+                filter: "[CaseId] IS NOT NULL AND [OperationKey] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_VehicleLookupRequests_CaseId_Registration",
@@ -5635,6 +5668,53 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     DENY DELETE ON OBJECT::[dbo].[WorkflowConfigurations] TO [pegasus_worker_runtime_role];
                     GRANT SELECT ON OBJECT::[dbo].[WorkflowConfigurations] TO [pegasus_worker_runtime_role];
                     GRANT SELECT ON OBJECT::[dbo].[__EFMigrationsHistory] TO [pegasus_web_runtime_role];
+                    """);
+
+                // The default constraints the chain created when it added these
+                // columns to tables that already held rows. The model does not
+                // declare them and the application sends every value, but production
+                // carries them, so a fresh database carries them too.
+                migrationBuilder.Sql("""
+                    ALTER TABLE [dbo].[ApprovedInboxPollStates] ADD DEFAULT ('0001-01-01T00:00:00.0000000+00:00') FOR [ActivatedAtUtc];
+                    ALTER TABLE [dbo].[ApprovedInboxPollStates] ADD DEFAULT (CONVERT([bigint],(0))) FOR [Generation];
+                    ALTER TABLE [dbo].[ApprovedInboxPollStates] ADD DEFAULT (N'') FOR [ScopeFingerprint];
+                    ALTER TABLE [dbo].[ApprovedInboxPollStates] ADD DEFAULT ('0001-01-01T00:00:00.0000000+00:00') FOR [StartBoundaryUtc];
+                    ALTER TABLE [dbo].[ApprovedMailboxes] ADD DEFAULT (CONVERT([bit],(0))) FOR [AllowOutgoing];
+                    ALTER TABLE [dbo].[ApprovedMailboxes] ADD DEFAULT (CONVERT([bigint],(0))) FOR [MailboxGeneration];
+                    ALTER TABLE [dbo].[ApprovedSentPollStates] ADD DEFAULT (CONVERT([bigint],(0))) FOR [Generation];
+                    ALTER TABLE [dbo].[ApprovedSentPollStates] ADD DEFAULT (N'') FOR [ScopeFingerprint];
+                    ALTER TABLE [dbo].[ApprovedSentPollStates] ADD DEFAULT ('0001-01-01T00:00:00.0000000+00:00') FOR [StartBoundaryUtc];
+                    ALTER TABLE [dbo].[CaseDocuments] ADD DEFAULT ((0)) FOR [Ordinal];
+                    ALTER TABLE [dbo].[CaseDueWork] ADD DEFAULT (CONVERT([bit],(0))) FOR [DueBySetByStaff];
+                    ALTER TABLE [dbo].[CaseRepairSpecificationSnapshots] ADD DEFAULT (N'null') FOR [SupplementaryJson];
+                    ALTER TABLE [dbo].[CaseRepairSpecifications] ADD DEFAULT (CONVERT([bit],(0))) FOR [IsCurrent];
+                    ALTER TABLE [dbo].[CaseRepairSpecifications] ADD DEFAULT (N'') FOR [Name];
+                    ALTER TABLE [dbo].[CaseRepairSpecifications] ADD DEFAULT (CONVERT([bit],(0))) FOR [RegionalUplift];
+                    ALTER TABLE [dbo].[CaseRepairSpecifications] ADD DEFAULT (N'') FOR [RepairerVatStatus];
+                    ALTER TABLE [dbo].[CaseRepairSpecifications] ADD DEFAULT (CONVERT([bit],(0))) FOR [SupplementaryExplainOnReport];
+                    ALTER TABLE [dbo].[CaseRepairSpecifications] ADD DEFAULT ((0.0)) FOR [VatPercent];
+                    ALTER TABLE [dbo].[DocumentOccurrences] ADD DEFAULT (CONVERT([bit],(1))) FOR [InReport];
+                    ALTER TABLE [dbo].[DocumentOccurrences] ADD DEFAULT ((0)) FOR [Ordinal];
+                    ALTER TABLE [dbo].[DocumentOccurrences] ADD DEFAULT (CONVERT([bit],(0))) FOR [PreparationFullPage];
+                    ALTER TABLE [dbo].[DocumentOccurrences] ADD DEFAULT (CONVERT([bigint],(0))) FOR [PreparationVersion];
+                    ALTER TABLE [dbo].[DocumentOccurrences] ADD DEFAULT (CONVERT([smallint],(0))) FOR [RotationDegrees];
+                    ALTER TABLE [dbo].[ImageIntakes] ADD DEFAULT (N'awaiting_instruction') FOR [LifecycleState];
+                    ALTER TABLE [dbo].[ImageIntakes] ADD DEFAULT (CONVERT([bigint],(0))) FOR [LifecycleVersion];
+                    ALTER TABLE [dbo].[IntakeMailClassificationDecisions] ADD DEFAULT ('00000000-0000-0000-0000-000000000000') FOR [ConcurrencyToken];
+                    ALTER TABLE [dbo].[IntakeMailClassificationDecisions] ADD DEFAULT ('0001-01-01T00:00:00.0000000+00:00') FOR [DecidedAtUtc];
+                    ALTER TABLE [dbo].[IntakeMailClassificationDecisions] ADD DEFAULT (N'') FOR [DecidedByActor];
+                    ALTER TABLE [dbo].[IntakeMailClassificationDecisions] ADD DEFAULT (CONVERT([bit],(0))) FOR [OpensQuery];
+                    ALTER TABLE [dbo].[IntakeMailClassificationDecisions] ADD DEFAULT ((1)) FOR [Version];
+                    ALTER TABLE [dbo].[IntakeReceipts] ADD DEFAULT (CONVERT([bigint],(0))) FOR [Version];
+                    ALTER TABLE [dbo].[IntakeSubmissionGroups] ADD DEFAULT ((1)) FOR [ExpectedMemberCount];
+                    ALTER TABLE [dbo].[IntakeSubmissionGroups] ADD DEFAULT (CONVERT([bigint],(0))) FOR [Version];
+                    ALTER TABLE [dbo].[PrincipalSubmissions] ADD DEFAULT (N'') FOR [DeclaredInstructionJson];
+                    ALTER TABLE [dbo].[ProblemReports] ADD DEFAULT (N'') FOR [OperationKey];
+                    ALTER TABLE [dbo].[ProblemReports] ADD DEFAULT (N'') FOR [RequestHash];
+                    ALTER TABLE [dbo].[ReleaseNotes] ADD DEFAULT (N'') FOR [OperationKey];
+                    ALTER TABLE [dbo].[ReleaseNotes] ADD DEFAULT (N'') FOR [RequestHash];
+                    ALTER TABLE [dbo].[StaffMailSendOperations] ADD DEFAULT (N'Staff') FOR [ActorKind];
+                    ALTER TABLE [dbo].[StaffMailSendOperations] ADD DEFAULT (CONVERT([bit],(0))) FOR [ResolvesCaseQueries];
                     """);
 
                 // The reference rows a database built by the replaced chain held

@@ -157,7 +157,7 @@ WHERE r.type = 'R' AND r.is_fixed_role = 0 AND r.name <> N'public'
 #    Columns whose values differ between two correct builds are left out of
 #    the row files and listed in data-ignored-columns.txt: rowversion, a
 #    default that generates its value (NEWID, NEWSEQUENTIALID, SYSUTCDATETIME,
-#    SYSDATETIMEOFFSET, GETUTCDATE, GETDATE), ConcurrencyStamp, and date-time
+#    SYSDATETIMEOFFSET, GETUTCDATE, GETDATE), ConcurrencyStamp and ConcurrencyToken, and date-time
 #    columns, which seeds stamp at seed time.
 $countedTables = Invoke-CatalogQuery @"
 SELECT CONCAT(t.name COLLATE DATABASE_DEFAULT, N'|', SUM(p.rows))
@@ -181,7 +181,7 @@ WHERE c.object_id = OBJECT_ID(N'[dbo].[$table]')
         $name, $type, $default = $column.Split('|', 3)
         $reason = if ($type -in @('timestamp', 'rowversion')) { 'rowversion' }
             elseif ($default -match 'NEWID|NEWSEQUENTIALID|SYSUTCDATETIME|SYSDATETIMEOFFSET|GETUTCDATE|GETDATE') { 'generated default' }
-            elseif ($name -eq 'ConcurrencyStamp') { 'concurrency stamp' }
+            elseif ($name -in @('ConcurrencyStamp', 'ConcurrencyToken')) { 'concurrency token' }
             elseif ($type -in @('datetime', 'datetime2', 'datetimeoffset', 'smalldatetime', 'date')) { 'date-time' }
         if ($reason) { $ignoredColumns.Add("$table|$name|$reason") } else { $name }
     }
