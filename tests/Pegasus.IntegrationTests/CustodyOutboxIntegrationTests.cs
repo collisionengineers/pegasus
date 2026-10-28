@@ -1783,13 +1783,15 @@ public sealed class CustodyOutboxIntegrationTests
             "custody-three-attachments-retry");
         Assert.Equal("pending", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
 
-        // The retry files all three at once, and each keeps its ordinal.
-        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3);
+        // The retry files both documents at once, then the photograph, and
+        // each keeps its ordinal: documents in file-name order from 002, the
+        // photograph after them.
+        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 2);
         var publisher = new RecordingCachePublisher();
         await ProcessorWith(probe, publisher).ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
 
         Assert.Equal("completed", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
-        Assert.Equal(3, probe.MaxInFlight);
+        Assert.Equal(2, probe.MaxInFlight);
         await using var context = await contextFactory.CreateDbContextAsync();
         var ordinals = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
@@ -1798,9 +1800,9 @@ public sealed class CustodyOutboxIntegrationTests
                 where occurrence.CaseId == outcome.Identity.CaseId
                 select new { version.FileName, occurrence.Ordinal })
             .ToDictionaryAsync(item => item.FileName, item => item.Ordinal);
-        Assert.Equal(2, ordinals["1_CLVoffside-V1.jpg"]);
-        Assert.Equal(3, ordinals["43127_1_LtrtoAuditEngin.pdf"]);
-        Assert.Equal(4, ordinals["Bodyshopreport236502-V1.pdf"]);
+        Assert.Equal(2, ordinals["43127_1_LtrtoAuditEngin.pdf"]);
+        Assert.Equal(3, ordinals["Bodyshopreport236502-V1.pdf"]);
+        Assert.Equal(4, ordinals["1_CLVoffside-V1.jpg"]);
 
         // Nobody held the bytes when the completion recorded these versions, so
         // once it committed each one was published to the read cache, once,

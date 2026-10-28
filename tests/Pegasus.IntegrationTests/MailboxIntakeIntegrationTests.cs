@@ -1936,7 +1936,10 @@ public sealed class MailboxIntakeIntegrationTests
         var body = new Multipart("mixed")
         {
             new TextPart("plain") { Text = "Vehicle photographs attached." },
-            ImagePart("logo.png", ContentDisposition.Inline, [9]),
+            // A decodable 1x1 logo: the photograph rule drops it by size. An
+            // undecodable image has no size and is kept, so the vehicle
+            // photographs below stay as they are.
+            ImagePart("logo.png", ContentDisposition.Inline, Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
             ImagePart("vehicle-1.jpg", ContentDisposition.Attachment, [1]),
             ImagePart("vehicle-2.jpg", ContentDisposition.Attachment, [2]),
             ImagePart("vehicle-3.jpg", ContentDisposition.Attachment, [3])

@@ -356,7 +356,10 @@ public sealed class ImageViewingWebTests
             useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var pngBytes = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+        // A photograph-sized PNG: retention keeps an attached image only when
+        // it passes the photograph rule, and this test is about serving a
+        // retained image, not about the rule.
+        var pngBytes = MultiFormatFixture.Photograph(1, SkiaSharp.SKEncodedImageFormat.Png);
         var message = new MimeKit.MimeMessage();
         message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
         message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
