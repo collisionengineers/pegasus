@@ -253,7 +253,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
-            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
+            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(new MemoryCache(new MemoryCacheOptions()))));
 
         async Task<CaseWorkflowRecord> HandAsync(Guid? to, string operationKey)
         {
@@ -1375,7 +1375,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
-            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
+            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(new MemoryCache(new MemoryCacheOptions()))));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(
@@ -1423,7 +1423,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         var sut = new AssignCaseEngineer(
             harness.Store,
             new CaseDataCompletenessPersistenceTests.FixedConfiguration(),
-            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)));
+            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(new MemoryCache(new MemoryCacheOptions()))));
 
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
             sut.ExecuteAsync(request with { ExpectedVersion = before.Version + 1 }, default));

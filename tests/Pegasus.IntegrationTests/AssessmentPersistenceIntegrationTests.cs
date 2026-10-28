@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
@@ -231,7 +232,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             harness.Factory,
             new GetAssessmentWorkspace(new EfAssessmentWorkspaceSource(harness.Factory)),
             contentStore,
-            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(TimeProvider.System)),
+            new EfStaffAccountQueries(harness.Factory, new StaffAccountReads(new MemoryCache(new MemoryCacheOptions()))),
             new EfCaseAssetPreparationStore(harness.Factory),
             new ListAppliedValuations(new EfValuationStore(harness.Factory)));
 

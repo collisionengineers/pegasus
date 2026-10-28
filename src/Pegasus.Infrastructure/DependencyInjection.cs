@@ -31,6 +31,7 @@ using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Infrastructure.Vision;
 using Pegasus.Infrastructure.Reports;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -799,6 +800,10 @@ public static class DependencyInjection
         // renderer registers its own embedded faces, so no host font is read.
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
         QuestPDF.Settings.UseEnvironmentFonts = false;
+        // The renderer keeps prepared signatures in the process's one
+        // IMemoryCache. AddMemoryCache adds it only once, so this profile
+        // stands up on its own without making a second.
+        services.AddMemoryCache();
         services.AddSingleton<ReportRenderGate>();
         services.AddSingleton<IAssessmentReportRenderer, QuestPdfAssessmentReportRenderer>();
         services.AddSingleton<IEstimateDocumentRenderer, QuestPdfEstimateDocumentRenderer>();
@@ -945,6 +950,7 @@ public static class DependencyInjection
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(BoxContentClient)),
             provider.GetRequiredService<IBoxAuthorizationHeaderProvider>(),
             provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<IMemoryCache>(),
             provider.GetService<ILogger<BoxContentClient>>()));
         services.AddSingleton<ICaseCustody>(provider => new BoxCaseCustody(
             provider.GetRequiredService<IIntakeArtifactStore>(),

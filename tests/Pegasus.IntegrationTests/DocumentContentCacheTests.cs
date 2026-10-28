@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -1048,7 +1049,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                         .AddInterceptors(commands)
                         .Options),
                 new CacheContainer(estate.Blob),
-                new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock),
+                new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock, TimeProviderMemoryCache.Create(estate.Clock)),
                 estate.Clock);
             estate.Box.Unavailable = true;
 
@@ -1410,7 +1411,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             var publisher = new CachedDocumentContentStore(
                 scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
                 container,
-                new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock),
+                new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock, TimeProviderMemoryCache.Create(estate.Clock)),
                 estate.Clock);
             var versions = new List<(Guid VersionId, byte[] Bytes)>();
             await using (var db = await estate.Database.CreateContextAsync())
@@ -1742,7 +1743,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             estate,
             Enumerable.Range(2, count - 1).Select(number => $"batch image {number}").ToArray());
         var container = new NamedCacheContainer();
-        var box = new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock);
+        var box = new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock, TimeProviderMemoryCache.Create(estate.Clock));
         await using (var scope = estate.Database.CreateAsyncScope())
         {
             var filing = new CachedDocumentContentStore(
@@ -1806,7 +1807,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             var images = await AddVersionsAsync(estate, "second pinned image", "third pinned image");
             var container = new NamedCacheContainer();
             await using var scope = estate.Database.CreateAsyncScope();
-            var box = new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock);
+            var box = new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock, TimeProviderMemoryCache.Create(estate.Clock));
             var filing = new CachedDocumentContentStore(
                 scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
                 container,
@@ -2666,6 +2667,9 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             {
                 services.RemoveAll<TimeProvider>();
                 services.AddSingleton<TimeProvider>(clock);
+                // Box's live-folder memory expires on the estate's clock too.
+                services.RemoveAll<IMemoryCache>();
+                services.AddSingleton<IMemoryCache>(TimeProviderMemoryCache.Create(clock));
                 services.AddProductionDocumentStorage(_ => container, _ => false, _ => options);
                 services.RemoveAll<IBoxAuthorizationHeaderProvider>();
                 services.AddSingleton<IBoxAuthorizationHeaderProvider>(new Header());
@@ -2788,7 +2792,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 "x", "holding");
             var clock = new MutableTimeProvider(new DateTimeOffset(2031, 1, 1, 0, 0, 0, TimeSpan.Zero));
             var reader = new CachedDocumentContentStore(
-                factory, new CacheContainer(blob), new BoxContentClient(options, new HttpClient(box), new Header(), clock), clock,
+                factory, new CacheContainer(blob), new BoxContentClient(options, new HttpClient(box), new Header(), clock, TimeProviderMemoryCache.Create(clock)), clock,
                 logger: logger);
             return new Estate(database, reader, blob, box, clock,
                 new(ActionActor.Staff(staffId, [StaffRole.Engineer]), documentId, versionId, null,
@@ -2807,7 +2811,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             return new CachedDocumentContentStore(
                 scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
                 new CacheContainer(Blob),
-                new BoxContentClient(BoxOptions(), new HttpClient(Box), new Header(), Clock),
+                new BoxContentClient(BoxOptions(), new HttpClient(Box), new Header(), Clock, TimeProviderMemoryCache.Create(Clock)),
                 Clock,
                 logger: logger,
                 filingPublishTimeout: filingPublishTimeout);
@@ -2824,7 +2828,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             return new CachedDocumentContentStore(
                 scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
                 new CacheContainer(Blob),
-                new BoxContentClient(BoxOptions(), new HttpClient(Box), new Header(), Clock),
+                new BoxContentClient(BoxOptions(), new HttpClient(Box), new Header(), Clock, TimeProviderMemoryCache.Create(Clock)),
                 Clock,
                 logger: logger,
                 intakeArtifacts: retained);
