@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Data.Common;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -1123,7 +1122,7 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(summaries, item => item.PrincipalCode == "ALPHA");
         Assert.Contains(summaries, item => item.Id != first.Id && item.PrincipalCode is null);
 
-        var counter = new AwaitingRequestCommandCounter();
+        var counter = new SqlStatementCounter();
         using var countingFactory = CreateCountingFactory(factory, counter);
         using var countingClient = countingFactory.CreateClient(
             new WebApplicationFactoryClientOptions
@@ -1152,7 +1151,7 @@ public sealed class TriageQueuesWebTests
 
     private static WebApplicationFactory<Program> CreateCountingFactory(
         IntakeWebApplicationFactory factory,
-        AwaitingRequestCommandCounter counter)
+        SqlStatementCounter counter)
     {
         var connectionString = factory.Database.ConnectionString;
         return factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
@@ -1173,37 +1172,13 @@ public sealed class TriageQueuesWebTests
 
     private static async Task<int> MeasureAwaitingReadsAsync(
         HttpClient client,
-        AwaitingRequestCommandCounter counter,
+        SqlStatementCounter counter,
         Guid selectedId)
     {
         counter.Reset();
         using var response = await client.GetAsync($"/Cases?tab=unassigned&selected={selectedId:D}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return counter.ExecutedReaderCommands;
-    }
-
-    /// <summary>
-    /// Counts the reader commands one request executes. Registered on the
-    /// host's own context factory, so it observes exactly what the request
-    /// pipeline runs.
-    /// </summary>
-    private sealed class AwaitingRequestCommandCounter : DbCommandInterceptor
-    {
-        private int executedReaderCommands;
-
-        public int ExecutedReaderCommands => Volatile.Read(ref executedReaderCommands);
-
-        public void Reset() => Interlocked.Exchange(ref executedReaderCommands, 0);
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            Interlocked.Increment(ref executedReaderCommands);
-            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
-        }
+        return counter.ReaderCount;
     }
 
     private static async Task<ImageIntakeRecord> RegisterImageIntakeAsync(

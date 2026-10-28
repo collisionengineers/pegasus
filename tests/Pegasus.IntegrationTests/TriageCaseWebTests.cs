@@ -155,7 +155,7 @@ public sealed partial class TriageCaseWebTests
     [Fact]
     public async Task TheTriageReadCarriesThePrincipalsLiveNoteInTheSameStatements()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
         var services = factory.Services;
         var first = await CreateManualTriageAsync(services, "principal-note-first");

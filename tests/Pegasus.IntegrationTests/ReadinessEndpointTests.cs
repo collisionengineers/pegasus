@@ -1,5 +1,4 @@
-﻿using System.Data.Common;
-using System.Net;
+﻿using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -247,23 +246,23 @@ public sealed class LocalDbReadinessEndpointTests
     [Fact]
     public async Task ASecondHealthyProbeDoesNotReadTheMigrationHistory()
     {
-        var commands = new RecordingCommandInterceptor();
+        var commands = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: commands);
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        commands.Clear();
+        commands.Reset();
         using var first = await client.GetAsync("/health/ready");
-        var firstCommands = commands.Texts();
-        commands.Clear();
+        var firstCommands = commands.Statements;
+        commands.Reset();
         using var second = await client.GetAsync("/health/ready");
-        var secondCommands = commands.Texts();
+        var secondCommands = commands.Statements;
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
         Assert.Contains(firstCommands, text => text.Contains("__EFMigrationsHistory", StringComparison.Ordinal));
         Assert.DoesNotContain(secondCommands, text => text.Contains("__EFMigrationsHistory", StringComparison.Ordinal));
         Assert.Single(secondCommands);
-        Assert.True(secondCommands.Length < firstCommands.Length);
+        Assert.True(secondCommands.Count < firstCommands.Count);
     }
 
     [Fact]
@@ -308,67 +307,6 @@ public sealed class LocalDbReadinessEndpointTests
         finally
         {
             Directory.Delete(workingDirectory, recursive: true);
-        }
-    }
-
-    /// <summary>The text of every SQL command a context sends, whatever kind.</summary>
-    private sealed class RecordingCommandInterceptor : DbCommandInterceptor
-    {
-        private readonly object gate = new();
-        private readonly List<string> texts = [];
-
-        public void Clear()
-        {
-            lock (gate)
-            {
-                texts.Clear();
-            }
-        }
-
-        public string[] Texts()
-        {
-            lock (gate)
-            {
-                return texts.ToArray();
-            }
-        }
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            Record(command);
-            return ValueTask.FromResult(result);
-        }
-
-        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<int> result,
-            CancellationToken cancellationToken = default)
-        {
-            Record(command);
-            return ValueTask.FromResult(result);
-        }
-
-        public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<object> result,
-            CancellationToken cancellationToken = default)
-        {
-            Record(command);
-            return ValueTask.FromResult(result);
-        }
-
-        private void Record(DbCommand command)
-        {
-            lock (gate)
-            {
-                texts.Add(command.CommandText);
-            }
         }
     }
 }

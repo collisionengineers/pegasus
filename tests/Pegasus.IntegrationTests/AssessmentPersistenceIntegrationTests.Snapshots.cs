@@ -92,7 +92,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task ListingSeveralSpecificationsReadsTheirVersionsInOneCommand()
     {
-        var counter = new ReaderCommandCounter();
+        var counter = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(shared, counter);
         var caseId = (await harness.AcceptAsync("spec-snapshot-batch-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
@@ -129,7 +129,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         counter.Reset();
         var listed = await snapshots.ListForSpecificationsAsync(caseId, [first, second], CancellationToken.None);
 
-        Assert.Equal(1, counter.ExecutedReaderCommands);
+        Assert.Equal(1, counter.ReaderCount);
         Assert.Equal([1, 2], listed.Where(item => item.SpecificationId == first).Select(item => item.Number));
         Assert.Equal([1], listed.Where(item => item.SpecificationId == second).Select(item => item.Number));
         Assert.Equal(3, listed.Count);
@@ -151,7 +151,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Empty(await snapshots.ListForSpecificationsAsync(caseId, [Guid.NewGuid()], CancellationToken.None));
         counter.Reset();
         Assert.Empty(await snapshots.ListForSpecificationsAsync(caseId, [], CancellationToken.None));
-        Assert.Equal(0, counter.ExecutedReaderCommands);
+        Assert.Equal(0, counter.ReaderCount);
     }
 
     /// <summary>
@@ -163,7 +163,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task OneVersionAndTheScalarSummaryAreEachOneCommandAndAgreeWithTheList()
     {
-        var counter = new ReaderCommandCounter();
+        var counter = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(counter);
         var caseId = (await harness.AcceptAsync("spec-snapshot-one-version")).Identity.CaseId;
         var engineer = harness.EngineerActor;
@@ -198,7 +198,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         counter.Reset();
         var summaries = await snapshots.ListSummariesAsync(caseId, first, CancellationToken.None);
 
-        Assert.Equal(1, counter.ExecutedReaderCommands);
+        Assert.Equal(1, counter.ReaderCount);
         Assert.Equal(
             listed.Select(item => (item.Id, item.Number, item.Kind, item.CreatedAtUtc, item.Gross)),
             summaries.Select(item => (item.Id, item.Number, item.Kind, item.CreatedAtUtc, item.Gross)));
@@ -207,7 +207,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         counter.Reset();
         var one = await snapshots.GetAsync(caseId, first, listed[1].Id, CancellationToken.None);
 
-        Assert.Equal(1, counter.ExecutedReaderCommands);
+        Assert.Equal(1, counter.ReaderCount);
         Assert.NotNull(one);
         Assert.Equal(
             (listed[1].Id, listed[1].Number, listed[1].Kind, listed[1].Origin, listed[1].Gross, listed[1].Details.Name, listed[1].Lines.Count),

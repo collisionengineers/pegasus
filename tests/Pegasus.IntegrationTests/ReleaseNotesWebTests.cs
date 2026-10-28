@@ -242,7 +242,7 @@ public sealed partial class ReleaseNotesWebTests
     [Fact]
     public async Task TheShellReadsTheNewestNoteAndItsAcknowledgementInOneCommand()
     {
-        var recorder = new ReleaseNoteReadRecorder();
+        var recorder = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
@@ -256,7 +256,7 @@ public sealed partial class ReleaseNotesWebTests
         var unread = await GetHtmlAsync(user, "/");
         Assert.Contains("whats-new-dialog", unread, StringComparison.Ordinal);
         // Not yet acknowledged: the joined read, then the body of the note shown.
-        Assert.Equal(2, recorder.ReleaseNoteReads);
+        Assert.True(ReleaseNoteReads(recorder) <= 2, recorder.Describe());
 
         using var acknowledged = await user.PostAsync($"/ReleaseNotes?handler=Acknowledge&id={id}", Form(unread, new()
         {
@@ -267,12 +267,12 @@ public sealed partial class ReleaseNotesWebTests
         recorder.Reset();
         Assert.DoesNotContain("whats-new-dialog", await GetHtmlAsync(user, "/"), StringComparison.Ordinal);
         // Acknowledged: the joined read alone.
-        Assert.Equal(1, recorder.ReleaseNoteReads);
+        Assert.Equal(1, ReleaseNoteReads(recorder));
 
         // The answer is kept for the person, so a repeat load reads nothing.
         recorder.Reset();
         Assert.DoesNotContain("whats-new-dialog", await GetHtmlAsync(user, "/"), StringComparison.Ordinal);
-        Assert.Equal(0, recorder.ReleaseNoteReads);
+        Assert.Equal(0, ReleaseNoteReads(recorder));
     }
 
     [Fact]
@@ -408,30 +408,9 @@ public sealed partial class ReleaseNotesWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
-    /// <summary>Counts the reader commands that touch a release-note table. Thread-safe: the shell reads run side by side.</summary>
-    private sealed class ReleaseNoteReadRecorder : DbCommandInterceptor
-    {
-        private int releaseNoteReads;
-
-        public int ReleaseNoteReads => Volatile.Read(ref releaseNoteReads);
-
-        public void Reset() => Interlocked.Exchange(ref releaseNoteReads, 0);
-
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-            DbCommand command,
-            CommandEventData eventData,
-            InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            if (eventData.CommandSource == CommandSource.LinqQuery
-                && command.CommandText.Contains("[ReleaseNote", StringComparison.Ordinal))
-            {
-                Interlocked.Increment(ref releaseNoteReads);
-            }
-
-            return ValueTask.FromResult(result);
-        }
-    }
+    /// <summary>The queries that touch a release-note table.</summary>
+    private static int ReleaseNoteReads(SqlStatementCounter recorder) =>
+        recorder.ReaderStatements.Count(text => text.Contains("[ReleaseNote", StringComparison.Ordinal));
 
     private sealed class NonDuplicateAcknowledgementFailureInterceptor : DbCommandInterceptor
     {

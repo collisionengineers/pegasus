@@ -33,7 +33,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task MarkingStaleSendsOneSetUpdate()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(counter);
         var caseId = (await harness.AcceptAsync("write-count-edit-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
@@ -82,7 +82,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task TwoStaleRulesInOneSaveEachRecordHistory()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(counter);
         var caseId = (await harness.AcceptAsync("write-count-two-rules-case")).Identity.CaseId;
         var (currentGenerationId, _) = await SeedGenerationsAsync(harness, caseId);
@@ -124,7 +124,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     [Fact]
     public async Task DiscardDeletesLinesAndVersionsWithoutReadingThem()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         await using var harness = await Harness.CreateAsync(counter);
         var caseId = (await harness.AcceptAsync("write-count-discard-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;

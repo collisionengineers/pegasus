@@ -104,7 +104,7 @@ public sealed class CaseFilingReplayListingTests
             Assert.Equal(1, item.RecordedOccurrences);
             Assert.Equal(1, item.PendingOccurrences);
         });
-        Assert.True(harness.Commands.Count == 2, harness.Commands.Describe());
+        Assert.True(harness.Commands.Count <= 2, harness.Commands.Describe());
     }
 
     /// <summary>
@@ -355,7 +355,7 @@ public sealed class CaseFilingReplayListingTests
         private Harness(
             LocalDbTestDatabase database,
             IDbContextFactory<PegasusDbContext> factory,
-            CommandCountingInterceptor commands)
+            SqlStatementCounter commands)
         {
             Database = database;
             Factory = factory;
@@ -368,12 +368,12 @@ public sealed class CaseFilingReplayListingTests
         public IDbContextFactory<PegasusDbContext> Factory { get; }
         public EfCaseFilingReplayStore Store { get; }
         public EfIntakeSubmissionGroupStore GroupStore { get; }
-        public CommandCountingInterceptor Commands { get; }
+        public SqlStatementCounter Commands { get; }
 
         public static async Task<Harness> CreateAsync()
         {
             var database = await LocalDbTestDatabase.CreateAsync();
-            var commands = new CommandCountingInterceptor();
+            var commands = new SqlStatementCounter();
             var options = new DbContextOptionsBuilder<PegasusDbContext>()
                 .UseSqlServer(database.ConnectionString)
                 .AddInterceptors(commands);

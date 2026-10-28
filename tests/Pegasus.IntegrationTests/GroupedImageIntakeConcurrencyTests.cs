@@ -123,7 +123,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
     [Fact]
     public async Task TheGroupReadCarriesTheSqlClockNotTheApplicationClock()
     {
-        var commands = new CommandCountingInterceptor();
+        var commands = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory("Development", true,
             recognitionEngine: new FakeVrmRecognitionEngine(), commandInterceptor: commands);
         using var client = IntakeWebDriver.CreateClient(factory);

@@ -604,7 +604,7 @@ public sealed partial class OrganizationAdministrationWebTests
     [Fact]
     public async Task OnlyThePrincipalApiTabReadsThePrincipalCredential()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
         using var client = IntakeWebDriver.CreateClient(factory);
         var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(

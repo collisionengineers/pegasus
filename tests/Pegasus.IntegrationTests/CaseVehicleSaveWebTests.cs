@@ -167,7 +167,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     [Fact]
     public async Task TheCasePageInAnEditSessionAndOneAcceptedSaveSendTheirPinnedStatements()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var caseId = await AcceptCaseAsync(
@@ -234,7 +234,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     [Fact]
     public async Task TheEstimateFragmentInAnEditSessionSendsFewerStatementsThanTheCasePage()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var caseId = await AcceptCaseAsync(
@@ -297,7 +297,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     [Fact]
     public async Task ACommitAnsweredInPlaceCarriesTheNextAuthorityAndCostsLessThanTheRedirectAndPage()
     {
-        var counter = new CommandCountingInterceptor();
+        var counter = new SqlStatementCounter();
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         var caseId = await AcceptCaseAsync(

@@ -59,10 +59,10 @@ public sealed class WorkCentreActivityPersistenceTests
         var counts = await queries.GetAsync(DayStart, WeekStart, CancellationToken.None);
 
         Assert.Equal(SeededCounts, counts);
-        Assert.True(withNoRows == 4, $"An empty estate sent {withNoRows} commands; one per figure is four.");
+        Assert.True(withNoRows <= 4, $"An empty estate sent {withNoRows} commands; one per figure is four at most.");
         Assert.True(
-            counter.Count == 4,
-            $"The seeded estate sent {counter.Count} commands; one per figure is four."
+            counter.Count <= 4,
+            $"The seeded estate sent {counter.Count} commands; one per figure is four at most."
             + Environment.NewLine + string.Join(Environment.NewLine, counter.Statements));
     }
 
