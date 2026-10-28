@@ -45,7 +45,7 @@ $optionalPreserve = @(
 )
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="
-$blobsJson = az storage blob list --account-name $storageAccount --container-name $container --auth-mode login --output json
+$blobsJson = az storage blob list --account-name $storageAccount --container-name $container --num-results '*' --auth-mode login --output json
 if ($LASTEXITCODE -ne 0) { throw 'Blob inventory failed; refusing.' }
 $blobs = $blobsJson | ConvertFrom-Json
 $blobCount = $blobs.Count
@@ -238,7 +238,7 @@ if ($blobCount -gt 0) {
     az storage blob delete-batch --account-name $storageAccount --source $container --auth-mode login | Out-Null
     if ($LASTEXITCODE -ne 0) { $connection.Close(); throw 'Blob deletion failed; SQL was not wiped.' }
 }
-$afterBlobsJson = az storage blob list --account-name $storageAccount --container-name $container --auth-mode login --output json
+$afterBlobsJson = az storage blob list --account-name $storageAccount --container-name $container --num-results '*' --auth-mode login --output json
 if ($LASTEXITCODE -ne 0) { $connection.Close(); throw 'Post-delete blob inventory failed; SQL was not wiped.' }
 $afterBlobCount = ($afterBlobsJson | ConvertFrom-Json).Count
 Write-Output ("Blobs remaining in {0}: {1}" -f $container, $afterBlobCount)
