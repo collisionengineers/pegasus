@@ -57,6 +57,6 @@ FRD-07.
 - [FRD-07](../frd/frd-07-case-export.md)
 - [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
 - [FRD-27](../frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md)
-- [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md)
+- [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md)
 - [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)
 - [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md)

@@ -72,8 +72,8 @@ could carry none of that.
 
 ## Links
 
-- [FRD-01 — Case identity and lifecycle](../frd/frd-01-case-identity-and-lifecycle.md)
-- [FRD-05 — Documents, extraction and custody](../frd/frd-05-documents-extraction-and-custody.md#custody-and-derived-reads)
-- [ADR-0002](0002-dotnet-modular-monolith-on-azure.md)
-- [ADR-0045](0045-document-custody-and-derived-caches.md)
+- [FRD-01 — Case identity and lifecycle](../../frd/frd-01-case-identity-and-lifecycle.md)
+- [FRD-05 — Documents, extraction and custody](../../frd/frd-05-documents-extraction-and-custody.md#custody-and-derived-reads)
+- [ADR-0002](../0002-dotnet-modular-monolith-on-azure.md)
+- [ADR-0045](../0045-document-custody-and-derived-caches.md)
 - Provenance: [v26 planning, Create audit](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v26_planning/pages/cases/case-record/dialogs/create-audit/how-it-should-work.md)

@@ -78,7 +78,7 @@ App, a Container Apps Job, a renderer Function App, or another queue consumer.
 
 - [ADR-0015](0015-host-web-on-container-apps-consumption.md) — existing Web
   hosting boundary.
-- [ADR-0025](0025-integrate-renderer-and-extractor-into-the-application.md) —
+- [ADR-0025](../0025-integrate-renderer-and-extractor-into-the-application.md) —
   renderer integration boundary.
-- [FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md) —
+- [FRD-11](../../frd/frd-11-reports-correspondence-and-reviewed-proposals.md) —
   report behaviour, finality, provenance, approval, and failure rules.

@@ -866,7 +866,7 @@ only their cards offer Get valuation; the other guide cards are filled in by han
 ([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
 temporary section-scoped drop overlay. Cazana (9 October 2026,
-[ADR-0066](../adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md))
+[ADR-0066](../adr/superseded/0066-cazana-valuation-through-a-key-vault-held-api-key.md))
 and Brego (26 October 2026,
 [ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)) are
 connected, so neither is a disabled seam.

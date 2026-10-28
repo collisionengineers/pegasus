@@ -47,7 +47,7 @@ introducing a microservice estate that is disproportionate to the workload.
 This decision selects the application stack, code boundaries, Azure runtime,
 data stores, integration patterns, deployment model, and initial cost envelope.
 PDF extraction remains governed by
-[ADR-0001](0001-hybrid-pdf-extraction.md).
+[ADR-0001](superseded/0001-hybrid-pdf-extraction.md).
 
 The runtime, project, data, and Azure decisions in this ADR remain accepted.
 [ADR-0004](0004-provider-api-and-staff-mcp-authentication.md) supersedes

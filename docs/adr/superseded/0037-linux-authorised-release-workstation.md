@@ -13,7 +13,7 @@ tags: [deployment, linux, release]
 
 ## Status
 
-Superseded 2026-09-07 by [ADR-0039](0039-windows-and-linux-release-workstations.md)
+Superseded 2026-09-07 by [ADR-0039](../0039-windows-and-linux-release-workstations.md)
 on the operator's explicit Windows and Linux requirement. The decision below
 records the historical Linux-only choice, accepted 2026-09-04.
 Production promotion and Azure or database writes remain separately approved
@@ -64,6 +64,6 @@ only; it does not grant promotion or Azure/database write authority.
 ## Links
 
 - Direct terminal and release order:
-  [ADR-0007](0007-direct-terminal-azure-deployment.md).
-- Environment boundary: [ADR-0014](0014-local-to-production-deployment.md).
-- Procedure: [Deployment and release](../../.agents/skills/pegasus-release/SKILL.md).
+  [ADR-0007](../0007-direct-terminal-azure-deployment.md).
+- Environment boundary: [ADR-0014](../0014-local-to-production-deployment.md).
+- Procedure: [Deployment and release](../../../.agents/skills/pegasus-release/SKILL.md).

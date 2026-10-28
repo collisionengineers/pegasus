@@ -406,7 +406,7 @@ Release 120 deployed [PR 1483](https://github.com/collisionengineers/pegasus/pul
 Get valuation signs in to Cazana Companion through the Companion account and files the Companion
 Report on the Case; closes #1478), which
 [ADR-0079](adr/0079-cazana-companion-account-and-companion-report.md) records and which supersedes
-[ADR-0066](adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md). The range from Release
+[ADR-0066](adr/superseded/0066-cazana-valuation-through-a-key-vault-held-api-key.md). The range from Release
 119's `main` `7ac5be926` is 13 commits and 49 files: the ten commits of PR 1483 and its merge, and
 the Release 119 record ([PR 1514](https://github.com/collisionengineers/pegasus/pull/1514)) with its
 merge. PR 1495 was already in Release 119.
@@ -1394,7 +1394,7 @@ The route was the normal App Service route with the migration identity unchanged
 ## Cazana API key — 9 October 2026 (not yet deployed)
 
 Prepared for connecting Cazana as a guide valuation source
-([ADR-0066](adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md)).
+([ADR-0066](adr/superseded/0066-cazana-valuation-through-a-key-vault-held-api-key.md)).
 No release carries it yet; the next release's Bicep hands the Web App the
 reference.
 
