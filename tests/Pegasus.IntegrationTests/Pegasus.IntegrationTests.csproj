@@ -32,6 +32,7 @@
          copy it is silently ignored and the suite runs at the default thread
          count instead of the cap it declares. -->
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Pegasus.Infrastructure\Persistence\RuntimePermissions.csv" Link="Support\RuntimePermissions.csv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

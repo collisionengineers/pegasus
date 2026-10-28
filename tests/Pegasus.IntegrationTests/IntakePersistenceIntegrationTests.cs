@@ -270,7 +270,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20261027140000_AssignableCaseQueries",
                 "20261027160000_ThreeMailCategories",
                 "20261027200000_RetainedMailReplyIdentityIndex",
-                "20261028090000_ExternalWorkSourceCase"
+                "20261028090000_ExternalWorkSourceCase",
+                "20261028160000_DenyApprovedMailboxSubscriptionsWrites"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

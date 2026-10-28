@@ -27,6 +27,14 @@ Any migration or SQL that changes a user's roles, claims or enabled state must
 also set a new `SecurityStamp` for that user. Signed-in sessions are refused
 only when the stamp changes.
 
+A migration that creates a table, or changes what a runtime role may do on one,
+also changes that table's rows in
+`src/Pegasus.Infrastructure/Persistence/RuntimePermissions.csv`, the runtime-role
+permission record (one row per grant or denial for each role; a `none` row for
+a table neither role touches). `RuntimePermissionRecordTests` proves a fresh
+database holds exactly the recorded rows, and step 3 below proves production
+does.
+
 1. Run the manifest- and environment-bound gate:
 
    ```powershell
