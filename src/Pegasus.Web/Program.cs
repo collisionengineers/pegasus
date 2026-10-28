@@ -39,7 +39,6 @@ using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Transport;
 using Microsoft.ApplicationInsights.Extensibility;
-using Microsoft.ApplicationInsights.Extensibility.EventCounterCollector;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
 const string DevelopmentOfflineProfile = "DevelopmentOffline";
@@ -272,10 +271,6 @@ if (productionProfile)
         // Probe, ping and static-file rows carry nothing and spend the daily
         // cap; the SDK runs this before adaptive sampling.
         builder.Services.AddApplicationInsightsTelemetryProcessor<QuietRequestTelemetryFilter>();
-        // The runtime and SqlClient counters, twelve and no others: metrics
-        // are never sampled, so this list is the whole added volume.
-        builder.Services.ConfigureTelemetryModule<EventCounterCollectionModule>(
-            (module, _) => RuntimeCounters.Apply(module));
         builder.Services.AddSingleton<ITelemetryInitializer, GlassCallbackTelemetryInitializer>();
         builder.Services.AddSingleton<DocumentReadTelemetryBridge>();
         builder.Services.Configure<TelemetryConfiguration>(
@@ -1075,10 +1070,6 @@ app.UseWhen(
 app.UseResponseCompression();
 
 app.UseRouting();
-if (applicationInsightsConfigured)
-{
-    app.Use(RequestRuntimeStamps.InvokeAsync);
-}
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method)

@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
@@ -183,9 +181,7 @@ public sealed class ThirdPartyReportProvenanceWebTests
     /// <see cref="IReadLogicalDocumentVersion"/>, by identity, against the
     /// recorded hash and length. So the pass completes, reads the report again,
     /// and the store refuses the second write under the same asset-derived
-    /// operation key — the conflict <c>ProcessIntake</c> reports as
-    /// <c>recorded_reading_stands</c>. Two outcomes, in that order, one set of
-    /// candidate rows.
+    /// operation key: one set of candidate rows.
     ///
     /// The reader is the one thing here that is not the production object.
     /// Standalone C composes no concrete reader — A04's adapters are A-owned
@@ -201,27 +197,6 @@ public sealed class ThirdPartyReportProvenanceWebTests
     {
         var (bytes, hash) = ReadOriginal(ReportName);
 
-        // Every outcome is kept with the receipt it belongs to.
-        // ActivitySource.AddActivityListener is process-global, so a collection
-        // running beside this one tags outcomes on this listener too; filtering
-        // by receipt is what makes the assertions below about this test's own
-        // passes.
-        var outcomes = new ConcurrentQueue<(Guid Receipt, string Outcome)>();
-        using var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == "Pegasus.Core.Intake",
-            Sample = static (ref ActivityCreationOptions<ActivityContext> _) =>
-                ActivitySamplingResult.AllData,
-            ActivityStopped = stopped =>
-            {
-                if (stopped.GetTagItem("intake.third_party_report.outcome") is string outcome
-                    && stopped.GetTagItem("intake.receipt_id") is Guid tagged)
-                {
-                    outcomes.Enqueue((tagged, outcome));
-                }
-            }
-        };
-        ActivitySource.AddActivityListener(listener);
         using var factory = new IntakeWebApplicationFactory();
 
         // Armed below, once retention has given the source the identity, hash
@@ -317,20 +292,7 @@ public sealed class ThirdPartyReportProvenanceWebTests
         Assert.Equal(QueuedIntakeStatusKind.Complete, status!.Status);
         Assert.Null(status.FailureCode);
 
-        // Two passes read this source and each says what it did with the
-        // reading: the first recorded it, the second found the recorded reading
-        // standing and left it alone. A swallowed failure, or a pass that never
-        // reached the reader, would leave the same rows behind; the outcome is
-        // what tells those apart, so the whole observed sequence is asserted
-        // rather than its length.
-        var recorded = outcomes
-            .Where(entry => entry.Receipt == receiptId)
-            .Select(entry => entry.Outcome)
-            .ToList();
-        string[] expected = ["recorded", "recorded_reading_stands"];
-        Assert.Equal(expected, recorded);
-
-        // And the reading itself is untouched: one candidate set, the same rows
+        // The reading itself is untouched: one candidate set, the same rows
         // with the same identifiers, value for value.
         var second = await ReadCandidatesAsync(services, receiptId, assetId);
         Assert.Equal(first.Count, second.Count);

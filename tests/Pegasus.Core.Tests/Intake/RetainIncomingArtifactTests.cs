@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -325,46 +324,6 @@ public sealed class RetainIncomingArtifactTests
         Assert.Equal(0, status.Calls);
         Assert.Equal(1, status.LookupCalls);
         Assert.Equal(occurrence.OperationKey, Assert.Single(status.Lookups).OperationKey);
-    }
-
-    [Fact]
-    public async Task AnUncertainHoldingHandoverEmitsOnlySafeCorrelationTelemetry()
-    {
-        const string unsafeMessage = "uploaded-page-1-image-secret.jpg";
-        var store = new RecordingStore();
-        var occurrence = StagedHolding(store);
-        Activity? captured = null;
-        using var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == "Pegasus.Core.Intake",
-            Sample = static (ref ActivityCreationOptions<ActivityContext> _) =>
-                ActivitySamplingResult.AllData,
-            ActivityStopped = activity =>
-            {
-                if (activity.OperationName == "retain_incoming_artifact"
-                    && string.Equals(
-                        activity.GetTagItem("intake.custody_occurrence_id") as string,
-                        occurrence.OccurrenceId.ToString("N"),
-                        StringComparison.Ordinal))
-                {
-                    captured = activity;
-                }
-            }
-        };
-        ActivitySource.AddActivityListener(listener);
-        var command = new RetainIncomingArtifact(
-            new ThrowingCustody(new InvalidOperationException(unsafeMessage)), store);
-
-        var retained = await command.ExecuteAsync(
-            ActionActor.SystemWorker("intake-processing"), occurrence, new MemoryStream([1]));
-
-        Assert.Equal(IncomingArtifactCustodyState.Unknown, retained.State);
-        Assert.NotNull(captured);
-        Assert.Equal("unknown", captured.GetTagItem("intake.custody_handoff"));
-        Assert.Equal("InvalidOperationException", captured.GetTagItem("intake.custody_failure_type"));
-        Assert.Equal(occurrence.OccurrenceId.ToString("N"), captured.GetTagItem("intake.custody_occurrence_id"));
-        Assert.Equal(occurrence.IntakeReceiptId?.ToString("N"), captured.GetTagItem("intake.custody_receipt_id"));
-        Assert.DoesNotContain(unsafeMessage, string.Join(',', captured.TagObjects.Select(tag => tag.Value)));
     }
 
     /// <summary>

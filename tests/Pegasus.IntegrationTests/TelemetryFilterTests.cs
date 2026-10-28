@@ -164,7 +164,7 @@ public sealed class TelemetryFilterTests
     }
 
     [Fact]
-    public void TheStampsMiddlewareSkipsTheSamePaths()
+    public void AQuietPathIsMatchedByWholeSegments()
     {
         foreach (var path in new[] { "/health/ready", "/css/x.css", "/js/x.js", "/fonts/x.woff2", "/images/x.png", "/diagnostics/version" })
         {
@@ -175,63 +175,6 @@ public sealed class TelemetryFilterTests
         {
             Assert.False(QuietRequestTelemetryFilter.IsQuietPath(path), path);
         }
-    }
-
-    [Fact]
-    public async Task ThePageStampsAreAddedToThePageRequestAndNotToAQuietOne()
-    {
-        var page = new DefaultHttpContext();
-        page.Request.Path = "/Index";
-        var pageTelemetry = new RequestTelemetry();
-        page.Features.Set(pageTelemetry);
-        var probe = new DefaultHttpContext();
-        probe.Request.Path = "/health/ready";
-        var probeTelemetry = new RequestTelemetry();
-        probe.Features.Set(probeTelemetry);
-
-        await RequestRuntimeStamps.InvokeAsync(page, _ => Task.CompletedTask);
-        await RequestRuntimeStamps.InvokeAsync(probe, _ => Task.CompletedTask);
-
-        foreach (var key in new[] { "tp.threads", "tp.pending", "gc.gen2.delta", "gc.pause.ms.delta" })
-        {
-            Assert.True(pageTelemetry.Properties.ContainsKey(key), key);
-            Assert.False(probeTelemetry.Properties.ContainsKey(key), key);
-        }
-
-        Assert.True(int.Parse(pageTelemetry.Properties["tp.threads"], CultureInfo.InvariantCulture) >= 1);
-        Assert.True(int.Parse(pageTelemetry.Properties["gc.gen2.delta"], CultureInfo.InvariantCulture) >= 0);
-        // Present where /proc is (Linux), absent elsewhere; never wrong.
-        Assert.Equal(
-            ProcFs.ReadMajorFaults() is not null,
-            pageTelemetry.Properties.ContainsKey("majflt.delta"));
-    }
-
-    [Fact]
-    public async Task APageRequestWithoutTelemetryConfiguredRunsUntouched()
-    {
-        var ran = false;
-
-        await RequestRuntimeStamps.InvokeAsync(new DefaultHttpContext(), _ =>
-        {
-            ran = true;
-            return Task.CompletedTask;
-        });
-
-        Assert.True(ran);
-    }
-
-    [Fact]
-    public async Task ThePageStampsAreStillAddedWhenTheRequestThrows()
-    {
-        var page = new DefaultHttpContext();
-        page.Request.Path = "/Cases/Details";
-        var telemetry = new RequestTelemetry();
-        page.Features.Set(telemetry);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            RequestRuntimeStamps.InvokeAsync(page, _ => throw new InvalidOperationException("page failed")));
-
-        Assert.True(telemetry.Properties.ContainsKey("tp.threads"));
     }
 
     private static List<ITelemetry> Run(params ITelemetry[] items)
