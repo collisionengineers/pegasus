@@ -193,7 +193,7 @@ public static class DependencyInjection
         // stay in custody behind the authenticated content URL.
         services.AddSingleton<IRenderImageForDelivery, ImageDeliveryRenderer>();
         services.AddSingleton<IExtractPdfPageText, PdfPigPageTextExtractor>();
-        services.AddScoped<IReadPreCaseImageThumbnail, ReadPreCaseImageThumbnail>();
+        services.AddScoped<ReadPreCaseImageThumbnail>();
         services.AddScoped<IGetUnidentifiedItemContext, GetUnidentifiedItemContext>();
         services.AddScoped<IGetIntakeOfferedActions, GetIntakeOfferedActions>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
@@ -335,8 +335,8 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfPrincipalSubmissionStore>());
         services.AddScoped<MimeKitPdfPigOpenXmlIntakeSourceReader>();
         services.AddScoped<IPrincipalAttachmentAdmission, PrincipalAttachmentAdmission>();
-        services.AddScoped<ISubmitPrincipalInstruction, SubmitPrincipalInstruction>();
-        services.AddScoped<IGetPrincipalSubmissionResult, GetPrincipalSubmissionResult>();
+        services.AddScoped<SubmitPrincipalInstruction>();
+        services.AddScoped<GetPrincipalSubmissionResult>();
         services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
@@ -424,7 +424,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IStaffNotificationStore, EfStaffNotificationStore>();
-        services.AddScoped<IRaiseStaffNotification, RaiseStaffNotification>();
+        services.AddScoped<RaiseStaffNotification>();
         services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();
         services.AddScoped<IMyStaffNotifications, MyStaffNotifications>();
         services.AddScoped<PurgeStaffNotifications>();
