@@ -1,6 +1,5 @@
 # Genuine local evaluation corpus. Kept out of Git to avoid large files slowing Git operations.
 /corpus/
-**/emailevallocal/
 /tests/Pegasus-Test-Logs/
 /t2fix.log
 # Mockup rounds live in pegasus-design-archive, not here.

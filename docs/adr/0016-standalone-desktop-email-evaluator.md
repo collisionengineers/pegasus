@@ -11,7 +11,7 @@ tags: [evaluator, tooling]
 # ADR-0016: Standalone local desktop email evaluator
 
 - Date: 2026-07-29
-- Status: superseded by the operator's 23 September 2026 decision that local evaluator tools have no Pegasus requirement, verification or delivery authority.
+- Status: superseded by the operator's 23 September 2026 decision that local evaluator tools have no Pegasus requirement, verification or delivery authority. The tool and `scripts/jev-mail-eval/` were removed from the repository on 28 October 2026 (R479); the paths below are history.
 
 ## Context
 
