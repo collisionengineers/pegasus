@@ -1482,8 +1482,8 @@ public sealed class ProcessQueuedIntake(
         // R195 (operator, 22 October 2026): a request in reply form opens the
         // Triage unless the thread already holds a Case or Triage; a reply
         // into such a thread is that thread's correspondence. One the
-        // association above already linked to a Case is that Case's, with no
-        // read.
+        // association above already linked to a Case, or to the thread's
+        // Triage (R469), is that Case's, with no read.
         var replyForm = receipt.MailClassificationDecision is { IsReplyContext: true };
         if (replyForm && receipt.CurrentCaseId is not null)
         {
