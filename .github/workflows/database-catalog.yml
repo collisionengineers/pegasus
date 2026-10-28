@@ -1,0 +1,45 @@
+name: database-catalog
+
+# One-off tooling for the schema baseline (Phase 2, R481): builds a LocalDB
+# database from this ref's migrations and uploads its catalog, exported by
+# scripts/Export-DatabaseCatalog.ps1, as the `database-catalog` artifact. The
+# permission record is also printed to the log. Removed with the baseline
+# release (the plan's PR 2c).
+on:
+  pull_request:
+    paths:
+      - 'src/Pegasus.Infrastructure/Persistence/**'
+      - 'scripts/Export-DatabaseCatalog.ps1'
+      - '.github/workflows/database-catalog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database-catalog:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CATALOG_CONNECTION: 'Server=(localdb)\MSSQLLocalDB;Database=PegasusCatalog;Integrated Security=true;TrustServerCertificate=true'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/dotnet-build
+      - name: Build the database from this ref's migrations
+        shell: pwsh
+        run: |
+          dotnet tool restore
+          dotnet ef database update --project ./src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj --startup-project ./src/Pegasus.Web/Pegasus.Web.csproj --configuration Release --no-build --connection $env:CATALOG_CONNECTION
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet ef database update failed.' }
+      - name: Export the catalog
+        shell: pwsh
+        run: |
+          ./scripts/Export-DatabaseCatalog.ps1 -ConnectionString $env:CATALOG_CONNECTION -OutputDirectory artifacts/database-catalog
+          Write-Host '::group::permissions.csv'
+          Get-Content artifacts/database-catalog/permissions.csv
+          Write-Host '::endgroup::'
+      - uses: actions/upload-artifact@v6
+        with:
+          name: database-catalog
+          path: artifacts/database-catalog/
+          if-no-files-found: error
