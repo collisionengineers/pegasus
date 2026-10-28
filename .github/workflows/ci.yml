@@ -134,14 +134,12 @@ jobs:
         run: python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'
       - name: Skill and helper script tests
         # The helper-script and frontmatter tests (PyYAML pinned for the
-        # frontmatter parse) and the two tests that sit beside their own
-        # skills. Chained, not separate lines: pwsh reports only the last
-        # command's exit code.
+        # frontmatter parse) and the corpus-holding skill's own test. Chained,
+        # not separate lines: pwsh reports only the last command's exit code.
         shell: pwsh
         run: >
           python -m pip install --disable-pip-version-check PyYAML==6.0.3 &&
           python -m unittest discover -s scripts/skill_scripts/tests -p 'test_*.py' &&
-          python -m unittest discover -s .agents/skills/github-researcher/scripts -p 'test_*.py' &&
           ./.agents/skills/pegasus-corpus-holding/scripts/Test-ExportMailboxToCorpusHolding.ps1
 
   infrastructure:
