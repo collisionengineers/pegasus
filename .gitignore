@@ -26,8 +26,7 @@ appsettings.*.local.json
 /.mcp.json
 /opencode.json
 /.vs/
-/.obsidian/workspace.json
-/.obsidian/workspace-mobile.json
+/.obsidian/
 /tmp/
 /temp/
 /.repoplugin/
@@ -56,11 +55,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 .claudian/claudian-settings.json
-.obsidian/graph.json
-.obsidian/plugins/realclaudian/data.json
-.obsidian/plugins/realclaudian/main.js
-.obsidian/plugins/realclaudian/manifest.json
-.obsidian/plugins/realclaudian/styles.css
 # Generated workspace outputs and imported review bundle
 /workspaces/ai-centre/services/collision-brain/bin/
 /workspaces/ai-centre/services/collision-brain/obj/
