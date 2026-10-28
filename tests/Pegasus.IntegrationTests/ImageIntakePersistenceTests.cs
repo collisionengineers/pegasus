@@ -1573,7 +1573,12 @@ public sealed class ImageIntakePersistenceTests
         }
 
         var instruction = await services.GetRequiredService<ICreateManualCase>().ExecuteAsync(
-            new(StaffActor(), "chain-instruction", "QDOS", CaseType.Inspection, new(VehicleRegistration: "AB12CDE")),
+            new(
+                StaffActor(),
+                "chain-instruction",
+                "QDOS",
+                CaseType.Inspection,
+                new(VehicleRegistration: "AB12CDE", ClaimantName: "Chain Claimant", ClaimNumber: "CHAIN-26119")),
             CancellationToken.None);
         await ProcessCustodyWorkAsync(services, ExternalWorkKinds.CreateCaseCustody, caseId: instruction.CaseId);
 
