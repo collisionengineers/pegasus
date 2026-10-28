@@ -1,7 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Primitives;
 using Pegasus.Core.Actors;
 using Pegasus.Core.ReleaseNotes;
 
@@ -18,12 +17,12 @@ internal sealed class EfReleaseNoteStore(
     // seen once the entry expires.
     private static readonly TimeSpan UnacknowledgedSlidingWindow = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan UnacknowledgedCeiling = StaffSessionPolicy.AccountReadLifetime;
-    private static readonly Lock PublishSignalGate = new();
 
-    // Private key types, so no other IMemoryCache user can collide with an entry.
+    // Every person's entry belongs to this family, which a publish expires at once.
+    private static readonly object UnacknowledgedFamily = new();
+
+    // A private key type, so no other IMemoryCache user can collide with an entry.
     private readonly record struct UnacknowledgedKey(Guid StaffId);
-
-    private readonly record struct PublishSignalKey;
 
     public async Task<ReleaseNote?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -144,28 +143,15 @@ internal sealed class EfReleaseNoteStore(
         return Map(entity);
     }
 
-    public async Task<ReleaseNote?> GetUnacknowledgedAsync(Guid staffId, CancellationToken cancellationToken)
-    {
-        var key = new UnacknowledgedKey(staffId);
-        if (cache.TryGetValue(key, out ReleaseNote? kept))
-        {
-            return kept;
-        }
-
-        // Taken before the read: a publish that lands during it cancels the
-        // token, and an entry stored with a cancelled token is already expired.
-        var publishes = TakePublishSignal();
-        var note = await ReadUnacknowledgedAsync(staffId, cancellationToken);
-        cache.Set(
-            key,
-            note,
-            new MemoryCacheEntryOptions
-            {
-                SlidingExpiration = UnacknowledgedSlidingWindow,
-                AbsoluteExpirationRelativeToNow = UnacknowledgedCeiling
-            }.AddExpirationToken(new CancellationChangeToken(publishes)));
-        return note;
-    }
+    public Task<ReleaseNote?> GetUnacknowledgedAsync(Guid staffId, CancellationToken cancellationToken) =>
+        EvictableCacheEntry.GetOrReadAsync(
+            cache,
+            new UnacknowledgedKey(staffId),
+            UnacknowledgedFamily,
+            UnacknowledgedCeiling,
+            UnacknowledgedSlidingWindow,
+            token => ReadUnacknowledgedAsync(staffId, token),
+            cancellationToken);
 
     private async Task<ReleaseNote?> ReadUnacknowledgedAsync(Guid staffId, CancellationToken cancellationToken)
     {
@@ -227,38 +213,11 @@ internal sealed class EfReleaseNoteStore(
         ForgetUnacknowledged(staffId);
     }
 
-    private void ForgetUnacknowledged(Guid staffId) => cache.Remove(new UnacknowledgedKey(staffId));
+    private void ForgetUnacknowledged(Guid staffId) =>
+        EvictableCacheEntry.Evict(cache, new UnacknowledgedKey(staffId));
 
-    // Entries cannot be listed, so each is stored with the token of the one
-    // signal a publish cancels.
-    private CancellationToken TakePublishSignal()
-    {
-        lock (PublishSignalGate)
-        {
-            if (cache.Get(default(PublishSignalKey)) is not CancellationTokenSource signal)
-            {
-                signal = new CancellationTokenSource();
-                cache.Set(
-                    default(PublishSignalKey),
-                    signal,
-                    new MemoryCacheEntryOptions { Priority = CacheItemPriority.NeverRemove });
-            }
-
-            return signal.Token;
-        }
-    }
-
-    private void ExpireEveryUnacknowledged()
-    {
-        lock (PublishSignalGate)
-        {
-            if (cache.Get(default(PublishSignalKey)) is CancellationTokenSource signal)
-            {
-                cache.Remove(default(PublishSignalKey));
-                signal.Cancel();
-            }
-        }
-    }
+    private void ExpireEveryUnacknowledged() =>
+        EvictableCacheEntry.EvictFamily(cache, UnacknowledgedFamily);
 
     private static bool IsDuplicateKey(DbUpdateException exception)
     {

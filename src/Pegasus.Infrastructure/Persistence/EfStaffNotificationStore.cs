@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Notifications;
@@ -18,25 +17,8 @@ internal sealed class EfStaffNotificationStore(
     // reader asked, which differs from a later reader's by seconds.
     private static readonly TimeSpan UnreadLifetime = TimeSpan.FromSeconds(30);
 
-    // Counts every eviction from one cache, so a count read before a write is
-    // never stored after that write's eviction (as StaffAccountReads.Generation
-    // does). It belongs to the cache rather than the process: another cache in
-    // the same process (a parallel test host) is a different bell.
-    private static readonly ConditionalWeakTable<IMemoryCache, EvictionCount> EvictionCounts = new();
-
     // A private key type, so no other IMemoryCache user can collide with an entry.
     private readonly record struct UnreadKey(Guid StaffId);
-
-    private sealed class EvictionCount
-    {
-        private long evictions;
-
-        public long Generation => Interlocked.Read(ref evictions);
-
-        public void Increment() => Interlocked.Increment(ref evictions);
-    }
-
-    private EvictionCount Evictions => EvictionCounts.GetValue(cache, static _ => new EvictionCount());
 
     public async Task<StaffNotification> AddAsync(
         NewStaffNotification notification,
@@ -77,33 +59,28 @@ internal sealed class EfStaffNotificationStore(
         return rows.Select(Map).ToArray();
     }
 
-    public async Task<int> CountUnreadAsync(
+    public Task<int> CountUnreadAsync(
+        Guid staffId,
+        DateTimeOffset sinceUtc,
+        CancellationToken cancellationToken) =>
+        EvictableCacheEntry.GetOrReadAsync(
+            cache,
+            new UnreadKey(staffId),
+            UnreadLifetime,
+            slidingWindow: null,
+            token => ReadUnreadCountAsync(staffId, sinceUtc, token),
+            cancellationToken);
+
+    private async Task<int> ReadUnreadCountAsync(
         Guid staffId,
         DateTimeOffset sinceUtc,
         CancellationToken cancellationToken)
     {
-        var key = new UnreadKey(staffId);
-        if (cache.TryGetValue(key, out int kept))
-        {
-            return kept;
-        }
-
-        // Taken before the read: a write that lands during it evicts, and the
-        // count is then not stored.
-        var counter = Evictions;
-        var generation = counter.Generation;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var unread = await context.Set<StaffNotificationEntity>().AsNoTracking()
+        return await context.Set<StaffNotificationEntity>().AsNoTracking()
             .CountAsync(
                 item => item.StaffId == staffId && item.RaisedAtUtc >= sinceUtc && item.ReadAtUtc == null,
                 cancellationToken);
-        cache.Set(key, unread, UnreadLifetime);
-        if (counter.Generation != generation)
-        {
-            cache.Remove(key);
-        }
-
-        return unread;
     }
 
     public async Task<StaffNotification?> MarkReadAsync(
@@ -148,11 +125,7 @@ internal sealed class EfStaffNotificationStore(
             .ExecuteDeleteAsync(cancellationToken);
     }
 
-    private void Forget(Guid staffId)
-    {
-        Evictions.Increment();
-        cache.Remove(new UnreadKey(staffId));
-    }
+    private void Forget(Guid staffId) => EvictableCacheEntry.Evict(cache, new UnreadKey(staffId));
 
     private static StaffNotification Map(StaffNotificationEntity entity) => new(
         entity.Id,

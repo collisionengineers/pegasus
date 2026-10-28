@@ -857,7 +857,6 @@ builder.Services.AddScoped<Pegasus.Core.Support.ReconcileProblemReport>();
 // Report a problem (ADR-0055): reports become issues on one repository when
 // the token and repository are configured; otherwise every report is kept
 // as Not sent with the reason, and an Administrator retries once connected.
-builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient(Pegasus.Infrastructure.Support.GitHubIssueProblemReportSink.HttpClientName, client =>
     client.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
