@@ -84,7 +84,6 @@
   "Pegasus.IntegrationTests.CaseWorksMigrationTests": 132.86,
   "Pegasus.IntegrationTests.CaseWorkspacePersistenceTests": 399.41,
   "Pegasus.IntegrationTests.CazanaGuideValuationProviderTests": 0.04,
-  "Pegasus.IntegrationTests.CompiledModelTests": 0.0,
   "Pegasus.IntegrationTests.ConcurrencyTokenPersistenceTests": 8.98,
   "Pegasus.IntegrationTests.ContactDirectoryPersistenceTests": 26.84,
   "Pegasus.IntegrationTests.ContactIndexWebTests": 80.32,
