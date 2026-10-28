@@ -47,6 +47,19 @@ function Get-PegasusPlatform {
     throw "Pegasus supports Windows and Linux with PowerShell 7. It does not support $described."
 }
 
+function Get-PegasusMigrationIdentity {
+    # The newest migration in the folder, by its timestamped file name: only a
+    # migration source (yyyyMMddHHmmss_Name.cs) can name the release identity,
+    # never its Designer file, the model snapshot or any other file beside them.
+    param([Parameter(Mandatory)][string] $MigrationsDirectory)
+    $migration = Get-ChildItem -LiteralPath $MigrationsDirectory -Filter '*.cs' -File |
+        Where-Object { $_.Name -match '^\d{14}_[A-Za-z0-9]+\.cs$' } |
+        Sort-Object Name |
+        Select-Object -Last 1
+    if (-not $migration) { throw "No migration source found under $MigrationsDirectory." }
+    return $migration.BaseName
+}
+
 function Get-PegasusMigrationBundle {
     # The migration runs on the release workstation; deployed hosts stay Linux.
     $platform = Get-PegasusPlatform

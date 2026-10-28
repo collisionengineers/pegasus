@@ -197,10 +197,7 @@ try {
         $false)
     New-PegasusClassifierArchive -Source $classifierPublish -Archive (Join-Path $releaseRoot 'classifier.zip')
 
-    $migrationIdentity = Get-ChildItem ./src/Pegasus.Infrastructure/Persistence/Migrations -Filter '*.cs' |
-        Where-Object { $_.Name -notmatch '\.Designer\.cs$|ModelSnapshot\.cs$' } |
-        Sort-Object Name |
-        Select-Object -Last 1 -ExpandProperty BaseName
+    $migrationIdentity = Get-PegasusMigrationIdentity -MigrationsDirectory ./src/Pegasus.Infrastructure/Persistence/Migrations
     $artifacts = @('web.zip', 'worker.zip', 'classifier.zip', $migrationBundleName) | ForEach-Object {
         $path = Join-Path $releaseRoot $_
         $file = Get-Item -LiteralPath $path
