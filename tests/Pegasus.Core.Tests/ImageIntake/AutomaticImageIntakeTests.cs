@@ -334,6 +334,91 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task AFiledPdfUploadReadsItsPhotographsForSuggestionsAndRegistersNothing()
+    {
+        // A PDF with a text layer is filed as a file; the photographs inside
+        // are still vehicle images, so they are read and the one registration
+        // they name offers the Case to staff (operator, 28 October 2026,
+        // R472, R473). The file itself never registers or becomes Unidentified.
+        var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var photograph = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768);
+        var harness = new Harness(retainedAssets: [pdf, photograph], evidence: [FiledDocument()], inGroup: true);
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+        harness.CaseCandidates.Candidates =
+        [
+            new(Guid.NewGuid(), "QDS26120", 3, "SH65HTL", DateTimeOffset.UnixEpoch)
+        ];
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Equal(1, harness.Engine.Calls);
+        var record = Assert.Single(harness.SuggestionStore.Records);
+        Assert.Equal(photograph.Id, record.IntakeAssetId);
+        Assert.Equal("SH65HTL", record.SuggestedRegistration);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+        Assert.False(outcome.AssociatedCase);
+        Assert.False(outcome.AwaitingStaffDecision);
+        Assert.Null(outcome.UnidentifiedGroup);
+    }
+
+    [Fact]
+    public async Task AFiledPdfInAMultiFileBatchIsLeftToTheGroupsRule()
+    {
+        // A batch decides by its image members; a non-image member is never
+        // scanned for a registration (FRD-19), text layer or not.
+        var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var photograph = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768);
+        var harness = new Harness(
+            retainedAssets: [pdf, photograph], evidence: [FiledDocument()], inGroup: true, expectedMemberCount: 2);
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+
+        await harness.ApplyAsync();
+
+        Assert.Equal(0, harness.Engine.Calls);
+        Assert.Empty(harness.SuggestionStore.Records);
+        Assert.Empty(harness.Register.Requests);
+    }
+
+    [Theory]
+    [InlineData(IntakeSourceChannel.Mailbox, false)]
+    [InlineData(IntakeSourceChannel.ManualUpload, true)]
+    public async Task AFiledPdfIsReadOnlyAsAnUndeclaredManualUpload(IntakeSourceChannel channel, bool declared)
+    {
+        // The mail route is a later change (R474, issue 1716), and a declared
+        // destination needs no identification (FRD-18).
+        var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var photograph = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768);
+        var harness = new Harness(
+            sourceChannel: channel,
+            retainedAssets: [pdf, photograph],
+            evidence: [FiledDocument()],
+            declaredCaseId: declared ? Guid.NewGuid() : null);
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+
+        await harness.ApplyAsync();
+
+        Assert.Equal(0, harness.Engine.Calls);
+        Assert.Empty(harness.SuggestionStore.Records);
+        Assert.Empty(harness.Register.Requests);
+    }
+
+    /// <summary>The whole-source signal a PDF with a readable text layer carries (R296).</summary>
+    private static IntakeEvidence FiledDocument() => new(
+        IntakeEvidenceSource.SystemDefault,
+        IntakeEvidenceStrength.Strong,
+        IntakeEvidenceFinding.Information,
+        IntakeEvidenceSignals.RecognizedNonImageDocument,
+        "The source carries a PDF with a readable text layer.");
+
+    [Fact]
     public async Task PdfWithAGoodReadAndRecognitionFailureRoutesTheWholeReceiptToTechnicalUnidentified()
     {
         var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
@@ -989,7 +1074,10 @@ public sealed class AutomaticImageIntakeTests
             bool inGroup = false,
             DateTimeOffset? groupReceivedAtUtc = null,
             ImageMatchDeclined? imageMatchDeclined = null,
-            string? printedRegistration = null)
+            string? printedRegistration = null,
+            IReadOnlyList<IntakeEvidence>? evidence = null,
+            Guid? declaredCaseId = null,
+            int expectedMemberCount = 1)
         {
             var assets = retainedAssets?.ToArray() ?? Enumerable.Range(0, assetCount)
                 .Select(index =>
@@ -1029,7 +1117,7 @@ public sealed class AutomaticImageIntakeTests
                 DateTimeOffset.UtcNow,
                 IntakeDecision.NeedsSorting,
                 "The readable content does not provide enough evidence to suggest a principal.",
-                [],
+                evidence ?? [],
                 [],
                 null,
                 [],
@@ -1042,7 +1130,8 @@ public sealed class AutomaticImageIntakeTests
                 null,
                 assets,
                 ManualLinkedCaseId: manualLinkedCaseId,
-                ManualAssociationVersion: manualLinkedCaseId is null ? null : 0);
+                ManualAssociationVersion: manualLinkedCaseId is null ? null : 0,
+                DeclaredCaseId: declaredCaseId);
             foreach (var asset in assets)
             {
                 ArtifactStore.Content[asset.StorageKey] = ContentFor(
@@ -1061,7 +1150,7 @@ public sealed class AutomaticImageIntakeTests
                     Guid.NewGuid(),
                     sourceChannel,
                     "receipt-token",
-                    1,
+                    expectedMemberCount,
                     "staff:test",
                     groupReceivedAtUtc ?? DateTimeOffset.UtcNow,
                     [],

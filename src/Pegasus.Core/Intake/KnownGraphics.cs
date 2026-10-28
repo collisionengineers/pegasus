@@ -61,6 +61,14 @@ public static class KnownGraphics
         // 14 Bodyshop reports, 13 encodings; spread 10. The reports' 300x300 bar
         // chart is the nearest image of that size, at 32.
         new("Bodyshop pie chart", 0x1f1b1d32f2870f0fUL, 14, 300, 300),
+        // The same reports' Repair Costs Analysis chart: two bars whose heights
+        // follow the report's figures (operator, 28 October 2026, R476, from
+        // a.QDOS26123's "Bodyshopreport316478-V1.pdf"). Measured on that one
+        // report with the reader's own fingerprint; the layout's bar-height
+        // variants with the left bar the taller sit within 12 of it and no
+        // nearer than 37 to the pie chart, so the two entries never share an
+        // image. The corpus check over the 14 reports is owed (issue 1718).
+        new("Bodyshop bar chart", 0xc0c6e6e6e6e6e6e6UL, 16, 300, 300),
         // 14 Bodyshop reports, 13 encodings; spread 16. No other corpus image
         // is 450x282.
         new("Bodyshop damage diagram", 0x00f0ccccccccf000UL, 20, 450, 282),

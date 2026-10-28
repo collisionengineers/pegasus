@@ -1094,9 +1094,12 @@ internal static class IntakeTestEvidence
     /// A PDF of vehicle photographs and nothing else — no text, no plate to
     /// read: the operator's own case (26 September 2026). Each photograph is
     /// a distinct 200×240 RGB image well above the retention threshold, so
-    /// the reader keeps every one as an embedded image asset.
+    /// the reader keeps every one as an embedded image asset. With a
+    /// <paramref name="letterhead"/>, the page also prints that text, so the
+    /// PDF has a readable text layer like an assessor's "Vehicle Images"
+    /// sheet (the operator's case of 28 October 2026).
     /// </summary>
-    public static byte[] CreatePhotographPdf(int photographCount, int seed = 1)
+    public static byte[] CreatePhotographPdf(int photographCount, int seed = 1, string? letterhead = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(photographCount);
         var objectBodies = new List<byte[]>
@@ -1106,12 +1109,14 @@ internal static class IntakeTestEvidence
         };
         const int firstImageObject = 4;
         var contentObject = firstImageObject + photographCount;
+        var fontObject = contentObject + 1;
         var resources = string.Join(
             " ",
             Enumerable.Range(0, photographCount).Select(index => $"/Im{index + 1} {firstImageObject + index} 0 R"));
+        var fontResource = letterhead is null ? string.Empty : $" /Font << /F1 {fontObject} 0 R >>";
         objectBodies.Add(Encoding.ASCII.GetBytes(
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-            + $"/Resources << /XObject << {resources} >> >> /Contents {contentObject} 0 R >>"));
+            + $"/Resources << /XObject << {resources} >>{fontResource} >> /Contents {contentObject} 0 R >>"));
         for (var index = 0; index < photographCount; index++)
         {
             var pixels = new byte[200 * 240 * 3];
@@ -1125,12 +1130,20 @@ internal static class IntakeTestEvidence
             objectBodies.Add(imageObject.ToArray());
         }
 
-        var operators = string.Concat(
+        var text = letterhead is null
+            ? string.Empty
+            : $"BT /F1 10 Tf 36 760 Td ({letterhead.Replace("\\", "\\\\").Replace("(", "\\(").Replace(")", "\\)")}) Tj ET\n";
+        var operators = text + string.Concat(
             Enumerable.Range(0, photographCount).Select(index =>
                 $"q\n250 0 0 300 {20 + index * 20} {400 - index * 20} cm\n/Im{index + 1} Do\nQ\n"));
         var operatorBytes = Encoding.ASCII.GetBytes(operators);
         objectBodies.Add(
             [.. Encoding.ASCII.GetBytes($"<< /Length {operatorBytes.Length} >>\nstream\n"), .. operatorBytes, .. Encoding.ASCII.GetBytes("endstream")]);
+        if (letterhead is not null)
+        {
+            objectBodies.Add(Encoding.ASCII.GetBytes(
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"));
+        }
 
         using var output = new MemoryStream();
         output.Write(Encoding.ASCII.GetBytes("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"));
