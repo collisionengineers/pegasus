@@ -221,6 +221,7 @@ public sealed class IndexModel(
     /// </summary>
     public bool OffersReply(RetainedMailSummary item) =>
         Folder != MailFolderScope.Sent
+        && !Dismissed
         && ReplyMailboxIds.Contains(item.MailboxId)
         && !string.IsNullOrWhiteSpace(item.SenderAddress);
 
