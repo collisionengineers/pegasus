@@ -185,8 +185,12 @@ WHERE c.object_id = OBJECT_ID(N'[dbo].[$table]')
             elseif ($type -in @('datetime', 'datetime2', 'datetimeoffset', 'smalldatetime', 'date')) { 'date-time' }
         if ($reason) { $ignoredColumns.Add("$table|$name|$reason") } else { $name }
     }
-    $projection = (@($kept) | ForEach-Object { "ISNULL(CONVERT(nvarchar(max), [$_], 1), N'<null>') COLLATE DATABASE_DEFAULT" }) -join ", N'|', "
-    Write-Lines "data/$table.txt" (Invoke-CatalogQuery "SELECT CONCAT($projection) FROM [dbo].[$table]")
+    # CONCAT needs two arguments, so a lone comparable column gets an empty
+    # partner; a table with none left prints one placeholder per row.
+    $projection = if (@($kept).Count -gt 0) {
+        "CONCAT(" + ((@($kept) | ForEach-Object { "ISNULL(CONVERT(nvarchar(max), [$_], 1), N'<null>') COLLATE DATABASE_DEFAULT" }) -join ", N'|', ") + ", N'')"
+    } else { "N'<row>'" }
+    Write-Lines "data/$table.txt" (Invoke-CatalogQuery "SELECT $projection FROM [dbo].[$table]")
 }
 Write-Lines 'data-ignored-columns.txt' $ignoredColumns
 Write-Host "Catalog written to $OutputDirectory"
