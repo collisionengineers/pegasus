@@ -153,19 +153,40 @@ WHERE r.type = 'R' AND r.is_fixed_role = 0 AND r.name <> N'public'
 "@)
 
 # 3. The rows of every table that holds any, so seeded reference data compares.
+#    The history table is left out: its rows are the chain, not the schema.
+#    Columns whose values differ between two correct builds are left out of
+#    the row files and listed in data-ignored-columns.txt: rowversion, a
+#    default that generates its value (NEWID, NEWSEQUENTIALID, SYSUTCDATETIME,
+#    SYSDATETIMEOFFSET, GETUTCDATE, GETDATE), ConcurrencyStamp, and date-time
+#    columns, which seeds stamp at seed time.
 $countedTables = Invoke-CatalogQuery @"
 SELECT CONCAT(t.name COLLATE DATABASE_DEFAULT, N'|', SUM(p.rows))
 FROM sys.tables AS t JOIN sys.partitions AS p ON p.object_id = t.object_id AND p.index_id IN (0, 1)
-WHERE t.is_ms_shipped = 0
+WHERE t.is_ms_shipped = 0 AND t.name <> N'__EFMigrationsHistory'
 GROUP BY t.name
 HAVING SUM(p.rows) > 0
 "@
 Write-Lines 'row-counts.txt' $countedTables
+$ignoredColumns = [Collections.Generic.List[string]]::new()
 foreach ($entry in $countedTables) {
     $table = $entry.Split('|')[0]
-    if ($table -eq '__EFMigrationsHistory') { continue }
-    $columns = Invoke-CatalogQuery "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[$table]')"
-    $projection = ($columns | ForEach-Object { "ISNULL(CONVERT(nvarchar(max), [$_], 1), N'<null>') COLLATE DATABASE_DEFAULT" }) -join ", N'|', "
+    $columns = Invoke-CatalogQuery @"
+SELECT CONCAT(c.name COLLATE DATABASE_DEFAULT, N'|', ty.name COLLATE DATABASE_DEFAULT, N'|', ISNULL(d.definition, N'') COLLATE DATABASE_DEFAULT)
+FROM sys.columns AS c
+JOIN sys.types AS ty ON ty.user_type_id = c.user_type_id
+LEFT JOIN sys.default_constraints AS d ON d.parent_object_id = c.object_id AND d.parent_column_id = c.column_id
+WHERE c.object_id = OBJECT_ID(N'[dbo].[$table]')
+"@
+    $kept = foreach ($column in $columns) {
+        $name, $type, $default = $column.Split('|', 3)
+        $reason = if ($type -in @('timestamp', 'rowversion')) { 'rowversion' }
+            elseif ($default -match 'NEWID|NEWSEQUENTIALID|SYSUTCDATETIME|SYSDATETIMEOFFSET|GETUTCDATE|GETDATE') { 'generated default' }
+            elseif ($name -eq 'ConcurrencyStamp') { 'concurrency stamp' }
+            elseif ($type -in @('datetime', 'datetime2', 'datetimeoffset', 'smalldatetime', 'date')) { 'date-time' }
+        if ($reason) { $ignoredColumns.Add("$table|$name|$reason") } else { $name }
+    }
+    $projection = (@($kept) | ForEach-Object { "ISNULL(CONVERT(nvarchar(max), [$_], 1), N'<null>') COLLATE DATABASE_DEFAULT" }) -join ", N'|', "
     Write-Lines "data/$table.txt" (Invoke-CatalogQuery "SELECT CONCAT($projection) FROM [dbo].[$table]")
 }
+Write-Lines 'data-ignored-columns.txt' $ignoredColumns
 Write-Host "Catalog written to $OutputDirectory"
