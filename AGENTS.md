@@ -64,10 +64,10 @@ and the [verification procedure](docs/runbook.md).
   `pegasus-ui-guardrails`, `razor-pages-ui-design`,
   `razor-pages-ui-implementation`, `razor-pages-ui-review`,
   `razor-html-mockup-creation`, `razor-html-mockup-conversion`) and the
-  generic workflow skills (`combine-prs`, `investigate-issue`, `record-issue`,
-  `resolve-issue`, `git-branch-cleanup`, `github-researcher`,
-  `microsoft-learn-cli`, `translator`, `typesafe-ai`). `.claude/skills` is a
-  symlink to this folder, so every skill is exposed to Claude Code.
+  issue workflow skills (`combine-prs`, `investigate-issue`, `record-issue`,
+  `resolve-issue`). `.claude/skills` is a symlink to this folder, so every
+  skill is exposed to Claude Code; skills that are not about Pegasus live at
+  user level, not here.
 - Any change under `src/Pegasus.Web` must follow
   [`.agents/skills/pegasus-ui-guardrails/SKILL.md`](.agents/skills/pegasus-ui-guardrails/SKILL.md)
   and any nearer local `AGENTS.md`/`CLAUDE.md`. A Web feature or bug fix is not
