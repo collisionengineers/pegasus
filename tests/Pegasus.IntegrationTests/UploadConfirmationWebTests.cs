@@ -708,6 +708,59 @@ public sealed class UploadConfirmationWebTests
     }
 
     [Fact]
+    public async Task ALetterheadPhotographPdfUploadOffersTheCaseItsPlateNames()
+    {
+        // The operator's case of 28 October 2026: an assessor's "Vehicle
+        // Images" sheet carries letterhead text and the photographs. The text
+        // layer files it as a file (R296); the photographs are still read and
+        // the plate offers the Case for staff to confirm (R472, R473).
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("SH65HTL"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "SH65 HTL", "LAIRD-IMAGES-01");
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "1_Images-V1.pdf",
+            "application/pdf",
+            IntakeTestEvidence.CreatePhotographPdf(
+                2,
+                letterhead: "Our Reference 26-1972727/2630559 Your Reference REB/49932/1 Date 26th Oct 2026 "
+                    + "Vehicle Images VAT: 759313217 Email: enquiries@laird-assessors.com Page 1 of 1"),
+            Guid.NewGuid().ToString("N"));
+        var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None);
+            Assert.NotNull(receipt);
+            Assert.Contains(receipt!.Evidence, evidence => evidence.Signal == IntakeEvidenceSignals.RecognizedNonImageDocument);
+            Assert.Equal(2, receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.EmbeddedImage));
+            Assert.Null(receipt.CurrentCaseId);
+            Assert.Null(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+                .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+        }
+
+        // Filed as a file: no Image intake record and no folder, as for a
+        // waiting image upload.
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "ImageIntakes"));
+        await AssertNoRecordFolderQueuedAsync(factory);
+
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+        var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
+        Assert.Contains("data-upload-phase=\"decision\"", statusPage, StringComparison.Ordinal);
+        Assert.Contains($"data-upload-candidate=\"{caseReference}\"", statusPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("checked=\"checked\"", statusPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-record", statusPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ManualUploadWithAUniqueImageMatchWaitsUnregisteredForStaffConfirmation()
     {
         using var factory = new IntakeWebApplicationFactory(

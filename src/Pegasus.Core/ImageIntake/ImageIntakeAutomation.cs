@@ -100,6 +100,11 @@ public sealed class ImageIntakeAutomation(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(receipt);
+        if (ImageIntakeLifecycleRules.IsPhotographReadEligible(receipt))
+        {
+            return await ReadFiledUploadPhotographsAsync(receipt, cancellationToken);
+        }
+
         if (!ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt)
             || receipt.Decision is not (IntakeDecision.NeedsSorting or IntakeDecision.ImageIntakeRegistered))
         {
@@ -194,6 +199,37 @@ public sealed class ImageIntakeAutomation(
             activity,
             cancellationToken);
         return updated ?? new(receipt);
+    }
+
+    /// <summary>
+    /// A lone manual upload filed as a file whose photographs are still read
+    /// (operator, 28 October 2026, R472): every selected photograph gets its
+    /// durable recognition outcome, and the upload's destination query turns
+    /// one confident read into Case suggestions for staff to confirm (R473).
+    /// Nothing routes here: no registration, no association and no
+    /// Unidentified item. A member of a multi-file batch is left to the
+    /// group's own rule, which never scans a non-image member.
+    /// </summary>
+    private async Task<ImageIntakeAutomationOutcome> ReadFiledUploadPhotographsAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        using var activity = Telemetry.StartActivity("image_intake_automation");
+        activity?.SetTag("intake.receipt_id", receipt.Id);
+        if (groupStore is not null
+            && await groupStore.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken)
+                is { HasSiblingMembers: true })
+        {
+            activity?.SetTag("image_intake.outcome", "filed_upload_in_batch");
+            return new(receipt);
+        }
+
+        var suggestions = await ScanAsync(receipt, cancellationToken);
+        activity?.SetTag("image_intake.outcome", "filed_upload_photographs_read");
+        activity?.SetTag(
+            "image_intake.distinct_confident_registrations",
+            VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(suggestions).Length);
+        return new(receipt);
     }
 
     private static RegisterUnidentifiedRequest BuildTechnicalFailureRegistrationRequest(

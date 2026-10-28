@@ -135,9 +135,14 @@ Unidentified item or U-reference:
 
 A PDF the third-party report profiles recognise as an engineer's report is
 correspondence or evidence, never photographs; its embedded images are not
-Image Intake candidates. A PDF with a readable text layer is a document
-(correspondence or evidence on the Case), never an Image Intake or
-Unidentified candidate, whatever its issuer. An image-only PDF attached to an
+Image Intake candidates. A PDF with a readable text layer is filed as a file
+on the Case (correspondence or evidence) and never itself becomes an Image
+Intake or Unidentified item, whatever its issuer. A document is a file, and
+images can be in a document: the vehicle images a PDF carries, an original
+report's included, are still selected as photographs and, on a manual upload
+with no declared Case, read for a registration that offers the matched Cases
+for staff to confirm (operator, 28 October 2026, R472, R473; the mail route
+is R474). An image-only PDF attached to an
 e-mail is treated as a document too, never Unidentified. An e-mail carrying a
 PDF is a document carrier: its loose photograph attachments open no Image
 Intake or Unidentified item and are filed with it once the Case is matched;

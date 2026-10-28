@@ -124,15 +124,40 @@ public static class ImageIntakeLifecycleRules
         ArgumentNullException.ThrowIfNull(receipt);
         return receipt.InstructionDraft is null
             && receipt.Fields.Count == 0
-            && !receipt.Evidence.Any(item =>
-                item is
-                {
-                    Source: IntakeEvidenceSource.SystemDefault,
-                    Finding: IntakeEvidenceFinding.Information,
-                    Signal: IntakeEvidenceSignals.RecognizedNonImageDocument
-                })
+            && !HasRecognizedNonImageDocument(receipt)
             && InstructionEvidenceImages.HasSelectedPhotographs(receipt);
     }
+
+    /// <summary>
+    /// A manual upload that is filed as a file and still carries photographs:
+    /// a PDF with a text layer, or a recognised report, whose selected
+    /// photographs are vehicle images all the same (operator, 28 October
+    /// 2026, R472). Its photographs are read for a registration so the upload
+    /// can offer the Cases the read matches (R473); the file itself never
+    /// registers an Image intake or an Unidentified item (R296). A declared
+    /// destination needs no identification, and the mail route is R474.
+    /// </summary>
+    public static bool IsPhotographReadEligible(IntakeReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        return receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+            && receipt.CurrentCaseId is null
+            && !receipt.HasDeclaredDestination
+            && receipt.Decision == IntakeDecision.NeedsSorting
+            && receipt.InstructionDraft is null
+            && HasRecognizedNonImageDocument(receipt)
+            && InstructionEvidenceImages.HasSelectedPhotographs(receipt)
+            && IsSupportedImageEvidenceSource(receipt.MediaType);
+    }
+
+    private static bool HasRecognizedNonImageDocument(IntakeReceipt receipt) =>
+        receipt.Evidence.Any(item =>
+            item is
+            {
+                Source: IntakeEvidenceSource.SystemDefault,
+                Finding: IntakeEvidenceFinding.Information,
+                Signal: IntakeEvidenceSignals.RecognizedNonImageDocument
+            });
 
     /// <summary>
     /// The narrower automatic route for image evidence. A photograph does not

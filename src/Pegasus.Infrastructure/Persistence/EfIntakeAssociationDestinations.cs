@@ -63,12 +63,15 @@ public sealed class EfIntakeAssociationDestinations(
             candidateIds.AddRange(imageCandidates.Select(candidate => candidate.CaseId));
         }
         else if (receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
-            && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+            && (ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+                || ImageIntakeLifecycleRules.IsPhotographReadEligible(receipt))
             && await ReadUnregisteredImageRegistrationAsync(receipt, cancellationToken) is { } registration)
         {
             // A manual upload whose images matched Cases waits unregistered
             // (operator, 11 October 2026): offer the Cases its confident read
-            // would have registered against.
+            // would have registered against. An upload filed as a file still
+            // has its photographs read, and the one registration they agree
+            // on offers the same Cases (operator, 28 October 2026, R472, R473).
             var imageCandidates = await imageIntakeCaseCandidates.FindEligibleByRegistrationAsync(
                 registration, cancellationToken);
             candidateIds.AddRange(imageCandidates.Select(candidate => candidate.CaseId));
@@ -96,13 +99,17 @@ public sealed class EfIntakeAssociationDestinations(
 
     /// <summary>
     /// The one registration the upload's image members confidently read, or
-    /// null when they read none or disagree.
+    /// null when they read none or disagree. An upload filed as a file reads
+    /// only its own photographs: a batch's decision belongs to its image
+    /// members (FRD-19 non-image members are excluded).
     /// </summary>
     private async Task<string?> ReadUnregisteredImageRegistrationAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
-        var group = await submissionGroups.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken);
+        var group = ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+            ? await submissionGroups.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken)
+            : null;
         var receiptIds = group is null
             ? [receipt.Id]
             : group.Members.Select(member => member.ProcessedReceiptId).OfType<Guid>().ToArray();

@@ -245,7 +245,11 @@ exactly one Case matches. Add to an existing case files the images on that
 Case. Rejecting the match, Cancel, or leaving it undecided registers the
 group as one Image-initiated Case with its Box folder at that point
 (operator, 11 October 2026). Only a Case created after the group registered
-pairs with it automatically ([Pairing and merge](#pairing-and-merge)). The
+pairs with it automatically ([Pairing and merge](#pairing-and-merge)). A lone
+manual upload filed as a file, a PDF with a text layer or a recognised
+report, still has its photographs read, and the one registration they agree
+on offers the matched Cases the same way; the file itself never registers
+and never becomes Unidentified (operator, 28 October 2026, R472, R473). The
 precedence below applies to non-manual routes. Recognition,
 complete membership, and fail-closed source-identity rules apply to both.
 
@@ -253,8 +257,11 @@ complete membership, and fail-closed source-identity rules apply to both.
   and mailbox receipts containing selected photographs use the same image
   lifecycle as direct image uploads. An established instruction, report,
   Case, or Triage route takes precedence. A PDF with a readable text layer
-  is a document (correspondence or evidence on the Case), never an Image
-  Intake or Unidentified candidate, whatever its issuer. An e-mail carrying
+  is filed as a file on the Case (correspondence or evidence) and never
+  itself becomes an Image Intake or Unidentified item, whatever its issuer;
+  a document is a file, and the vehicle images in it are still photographs,
+  read on a manual upload (R472, R473) and, once R474 is built, on mail
+  (issue 1716). An e-mail carrying
   a PDF is a document carrier: its loose photograph attachments open no
   Image Intake or Unidentified item and are filed with it once the Case is
   matched; with no Case the e-mail waits in No Case Found (operator,
