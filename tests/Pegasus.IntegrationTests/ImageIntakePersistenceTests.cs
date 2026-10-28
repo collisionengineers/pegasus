@@ -1520,9 +1520,11 @@ public sealed class ImageIntakePersistenceTests
     [Fact]
     public async Task VehicleImagesReachTheInstructionCaseThroughTheirTriageCase()
     {
+        var clock = new CaseWorkflowPersistenceTests.MutableTimeProvider(IntakeWebApplicationFactory.FixedUtcNow);
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
+            timeProvider: clock,
             recognitionEngine: new FakeVrmRecognitionEngine());
         using var client = IntakeWebDriver.CreateClient(factory);
         var imageReceiptId = await UploadImageAsync(factory, client);
@@ -1540,6 +1542,10 @@ public sealed class ImageIntakePersistenceTests
             new(photographId, ImageTagVocabulary.OverviewId, true, StaffActor(), $"chain-tag:{Guid.NewGuid():N}"),
             CancellationToken.None);
 
+        // A manually uploaded record pairs by itself only with a Case created
+        // after it registered (FRD-19), so the Triage Case is created a minute
+        // later, as the seeded Cases of the tests above are.
+        clock.Advance(TimeSpan.FromMinutes(1));
         var triage = await services.GetRequiredService<ICreateManualCase>().ExecuteAsync(
             new(StaffActor(), "chain-triage", "QDOS", CaseType.Triage, new(VehicleRegistration: "AB12CDE")),
             CancellationToken.None);

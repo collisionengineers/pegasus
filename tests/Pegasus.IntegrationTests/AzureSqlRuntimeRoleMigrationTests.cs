@@ -98,10 +98,17 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
         var triage = await context.Triage.AsNoTracking().SingleAsync(item => item.OriginReceiptId == receiptId);
         Assert.Equal(caseId, triage.LinkedInstructionCaseId);
-        Assert.Equal("finding_recorded", triage.State);
-        Assert.Equal(2, triage.Version);
+        // The link closes the Triage: Completed, because a finding was recorded
+        // (operator, 26 October 2026), and the closure is the extra version.
+        Assert.Equal("completed", triage.State);
+        Assert.Equal(3, triage.Version);
         var triageCase = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == triage.CaseId);
         Assert.StartsWith("t.", triageCase.Reference, StringComparison.Ordinal);
+        var instructionCase = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == caseId);
+        Assert.Equal(
+            $"Completed: linked to {instructionCase.Reference}.",
+            (await context.TriageHistory.AsNoTracking().SingleAsync(item =>
+                item.TriageCaseId == triage.CaseId && item.EventType == "triage_state_completed")).Reason);
         var history = await context.TriageHistory.AsNoTracking().SingleAsync(item =>
             item.TriageCaseId == triage.CaseId && item.EventType == "triage_case_linked");
         Assert.Equal(nameof(ActorKind.SystemWorker), history.ActorKind);
