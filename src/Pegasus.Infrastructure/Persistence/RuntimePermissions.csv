@@ -5,6 +5,7 @@ pegasus_web_runtime_role,D,DELETE,AppliedValuationCalculations
 pegasus_web_runtime_role,D,DELETE,AppliedValuationSnapshots
 pegasus_web_runtime_role,D,DELETE,ApprovedInboxPoisonMessages
 pegasus_web_runtime_role,D,DELETE,ApprovedInboxPollStates
+pegasus_web_runtime_role,D,DELETE,ApprovedMailboxSubscriptions
 pegasus_web_runtime_role,D,DELETE,ApprovedMailboxes
 pegasus_web_runtime_role,D,DELETE,ApprovedSentPollOutcomes
 pegasus_web_runtime_role,D,DELETE,ApprovedSentPollStates
@@ -91,6 +92,8 @@ pegasus_web_runtime_role,D,DELETE,VehicleLookupObservations
 pegasus_web_runtime_role,D,DELETE,VehicleLookupRequests
 pegasus_web_runtime_role,D,DELETE,WorkCentreDismissals
 pegasus_web_runtime_role,D,DELETE,WorkflowConfigurations
+pegasus_web_runtime_role,D,INSERT,ApprovedMailboxSubscriptions
+pegasus_web_runtime_role,D,UPDATE,ApprovedMailboxSubscriptions
 pegasus_web_runtime_role,D,UPDATE,ContactPrincipalLinks
 pegasus_web_runtime_role,D,UPDATE,DocumentOccurrenceTags
 pegasus_web_runtime_role,D,UPDATE,ImageIntakeLifecycleEvents
@@ -392,6 +395,7 @@ pegasus_worker_runtime_role,D,DELETE,AppliedValuationCalculations
 pegasus_worker_runtime_role,D,DELETE,AppliedValuationSnapshots
 pegasus_worker_runtime_role,D,DELETE,ApprovedInboxPoisonMessages
 pegasus_worker_runtime_role,D,DELETE,ApprovedInboxPollStates
+pegasus_worker_runtime_role,D,DELETE,ApprovedMailboxSubscriptions
 pegasus_worker_runtime_role,D,DELETE,ApprovedMailboxes
 pegasus_worker_runtime_role,D,DELETE,ApprovedSentPollOutcomes
 pegasus_worker_runtime_role,D,DELETE,ApprovedSentPollStates
