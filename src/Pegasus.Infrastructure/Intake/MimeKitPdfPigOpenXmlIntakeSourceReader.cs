@@ -32,7 +32,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     private const string ReaderKey = "mimekit_pdfpig_openxml";
     private const string ReaderVersion =
         "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1;collisiondocnet-doc-msg-0.1;" + ScanPageClassifier.Version
-        + ";" + PdfPageRasteriser.Version;
+        + ";" + PdfPageRasteriser.Version + ";" + ImageMeasurement.Version;
     private const int MinimumReadablePdfCharacters = 80;
     private const double ScannedPageImageCoverage = 0.8;
     private const int MaximumPdfTextCharacters = 5 * 1024 * 1024;
@@ -1823,7 +1823,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 OcrCandidates.Count > 0,
                 failureCode,
                 failureReason,
-                Assets,
+                ImageMeasurement.Complete(Assets),
                 OcrCandidates,
                 IsIncomplete,
                 ReaderKey,

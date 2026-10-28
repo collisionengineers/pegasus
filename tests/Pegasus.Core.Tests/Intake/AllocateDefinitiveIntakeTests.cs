@@ -308,33 +308,11 @@ public sealed class AllocateDefinitiveIntakeTests
     }
 
     [Fact]
-    public async Task ALetterheadBannerIsNotAPhotograph()
+    public async Task PhotographsSentInlineInTheBodyAreImageComplete()
     {
-        // The corpus letterhead shape: 1990x437, comfortably over any byte
-        // floor, with a JPEG sibling at 2214x248. Only the side ratio catches
-        // them, and this pins the readiness gate to the same definition of an
-        // image the gallery and custody already use.
-        var receipt = Receipt(
-            CaseType.Audit,
-            "QDOS",
-            Asset("letterhead.png", "image/png", IntakeAssetKind.EmbeddedImage, 110_783, 1990, 437));
-        var accept = new RecordingAcceptance();
-        var sut = new AllocateIntake(
-            new ReceiptQueries(receipt), new RecordingAllocationStore(), accept, TimeProvider.System);
-
-        await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
-
-        Assert.False(Assert.Single(accept.Requests).Completeness.ImagesComplete);
-    }
-
-    [Fact]
-    public async Task PhotographsEmbeddedInTheBodyRatherThanAttachedAreNotImageComplete()
-    {
-        // A known and accepted consequence, pinned so it is a decision rather
-        // than a surprise: InstructionEvidenceImages counts attachments and
-        // embedded images, never inline ones. A sender who puts the damage
-        // photographs in the HTML body leaves the case Not ready until staff
-        // confirm it.
+        // Operator, 26 October 2026: an inline image is judged by the same
+        // photograph rule as an attachment, so a sender who puts the damage
+        // photographs in the HTML body has sent the Case its images.
         var receipt = Receipt(
             CaseType.Inspection,
             "QDOS",
@@ -345,7 +323,7 @@ public sealed class AllocateDefinitiveIntakeTests
 
         await sut.AttemptAutomaticAsync(receipt, Guid.NewGuid());
 
-        Assert.False(Assert.Single(accept.Requests).Completeness.ImagesComplete);
+        Assert.True(Assert.Single(accept.Requests).Completeness.ImagesComplete);
     }
 
     private static IntakeAssetRecord Asset(

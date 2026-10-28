@@ -70,9 +70,11 @@ document type, not a Principal, and it is ordinary inbound mail: it follows
 the same receipt, classification and extraction rules as any other
 attachment. Pegasus reads the vehicle identity from it (registration, make
 and model, VIN, mileage and accident date) and nothing else, and takes the
-vehicle images from the PDF itself. Its photographs are every JPEG on its
-"Submitted Vehicle Images" page, whatever their size; the letterhead logo and
-page icons are not photographs, and a repeated photograph is kept once. The
+vehicle images from the PDF itself. Its photographs are the JPEGs on its
+"Submitted Vehicle Images" page that pass the photograph rule
+([FRD-19](frd-19-image-led-intake-and-pairing.md) Photograph selection); the
+letterhead logo and page icons are not photographs, and a repeated
+photograph is kept once. The
 printed registration, not a plate read, pairs the photographs with a
 matching Case or registers their Image intake
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#image-initiated-case-projection)). On

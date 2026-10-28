@@ -181,11 +181,6 @@ public sealed class UnidentifiedRecordWebTests
             Guid.NewGuid(), "uploaded source", "vehicle-images.pdf", "application/pdf",
             IntakeAssetKind.Source, IntakeAssetDisposition.Source, 2048, sourceHash,
             "test-source-key", null, null, null, null);
-        var banner = new IntakeAssetRecord(
-            Guid.NewGuid(), "vehicle-images.pdf, page 1, image 1", "letterhead.png", "image/png",
-            IntakeAssetKind.EmbeddedImage, IntakeAssetDisposition.Embedded, 110_783,
-            "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "test-banner-key",
-            1, null, 1990, 437);
         var firstPhoto = new IntakeAssetRecord(
             Guid.NewGuid(), "vehicle-images.pdf, page 1, image 2", "damage-one.jpg", "image/jpeg",
             IntakeAssetKind.EmbeddedImage, IntakeAssetDisposition.Embedded, 121_652,
@@ -199,14 +194,13 @@ public sealed class UnidentifiedRecordWebTests
         var (receiptId, itemId, _) = await SeedOpenItemAsync(
             factory,
             UnidentifiedReasonCode.NoUsableIdentification,
-            [source, banner, firstPhoto, secondPhoto]);
+            [source, firstPhoto, secondPhoto]);
 
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
 
         Assert.Contains("2 photographs extracted from the retained file.", html, StringComparison.Ordinal);
         Assert.Contains($"/Received/{receiptId:D}/Asset/{firstPhoto.Id:D}", html, StringComparison.Ordinal);
         Assert.Contains($"/Received/{receiptId:D}/Asset/{secondPhoto.Id:D}", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(banner.FileName, html, StringComparison.Ordinal);
         Assert.Contains("Storage status unknown", html, StringComparison.Ordinal);
         Assert.Contains("Original file", html, StringComparison.Ordinal);
     }

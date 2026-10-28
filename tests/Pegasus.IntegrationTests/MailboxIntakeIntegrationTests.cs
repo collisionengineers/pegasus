@@ -1937,7 +1937,10 @@ public sealed class MailboxIntakeIntegrationTests
         var body = new Multipart("mixed")
         {
             new TextPart("plain") { Text = "Vehicle photographs attached." },
-            ImagePart("logo.png", ContentDisposition.Inline, [9]),
+            // A decodable 1x1 logo: the photograph rule drops it by size. An
+            // undecodable image has no size and is kept, so the vehicle
+            // photographs below stay as they are.
+            ImagePart("logo.png", ContentDisposition.Inline, Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
             ImagePart("vehicle-1.jpg", ContentDisposition.Attachment, [1]),
             ImagePart("vehicle-2.jpg", ContentDisposition.Attachment, [2]),
             ImagePart("vehicle-3.jpg", ContentDisposition.Attachment, [3])
@@ -1958,11 +1961,15 @@ public sealed class MailboxIntakeIntegrationTests
         message.WriteTo(stream);
         return stream.ToArray();
 
+        // Base64, as mail carries images: written as 7-bit text, a PNG's
+        // signature bytes (CR LF among them) are mangled, the reader cannot
+        // decode it, and an image of unknown size is kept.
         static MimePart ImagePart(string fileName, string disposition, byte[] bytes) =>
             new("image", fileName.EndsWith(".png", StringComparison.Ordinal) ? "png" : "jpeg")
             {
                 FileName = fileName,
                 ContentDisposition = new ContentDisposition(disposition),
+                ContentTransferEncoding = ContentEncoding.Base64,
                 Content = new MimeContent(new MemoryStream(bytes))
             };
     }

@@ -509,10 +509,12 @@ public sealed class ProcessIntakeTests
             "embedded vehicle image",
             "vehicle.jpg",
             "image/jpeg",
-            new byte[InstructionEvidenceImages.EmbeddedPhotographMinimumBytes],
+            new byte[40_000],
             IntakeAssetKind.EmbeddedImage,
             IntakeAssetDisposition.Embedded,
-            PageNumber: 1);
+            PageNumber: 1,
+            WidthPixels: 800,
+            HeightPixels: 600);
         var readResult = Readable(content:
         [
             new(

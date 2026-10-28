@@ -12,20 +12,20 @@ namespace Pegasus.Core.Tests.Intake;
 public sealed class InstructionEvidenceImagesTests
 {
     [Fact]
-    public void SelectsAttachedImagesAndRetainedEmbeddedImagesOnly()
+    public void SelectsEveryRetainedPhotographAndNoDocument()
     {
-        // Small embedded letterhead art never reaches selection: retention
-        // refuses it before storage (TheThresholdIsABoundaryNotAGuess).
-        var attachedPhoto = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "AA");
-        var attachedPdf = Asset(IntakeAssetKind.Attachment, "application/pdf", 90_000, "BB");
-        var embeddedPhoto = Asset(IntakeAssetKind.EmbeddedImage, "image/jpeg", 60_000, "CC");
-        var inlineSignature = Asset(IntakeAssetKind.InlineImage, "image/png", 90_000, "EE");
+        // Retention already applied the photograph rule, so every retained
+        // JPEG or PNG is selected, inline ones included; documents are not.
+        var attachedPhoto = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "AA", "a-damage.jpg");
+        var attachedPdf = Asset(IntakeAssetKind.Attachment, "application/pdf", 90_000, "BB", "b-report.pdf");
+        var embeddedPhoto = Asset(IntakeAssetKind.EmbeddedImage, "image/jpeg", 60_000, "CC", "c-page-1-image-1.jpg");
+        var inlinePhoto = Asset(IntakeAssetKind.InlineImage, "image/png", 90_000, "EE", "d-image001.png");
         var source = Asset(IntakeAssetKind.Source, "message/rfc822", 90_000, "FF");
 
         var selected = InstructionEvidenceImages.Select(
-            [source, inlineSignature, embeddedPhoto, attachedPdf, attachedPhoto]);
+            [source, inlinePhoto, embeddedPhoto, attachedPdf, attachedPhoto]);
 
-        Assert.Equal([attachedPhoto.Id, embeddedPhoto.Id], selected.Select(item => item.Id));
+        Assert.Equal([attachedPhoto.Id, embeddedPhoto.Id, inlinePhoto.Id], selected.Select(item => item.Id));
     }
 
     [Fact]
@@ -40,59 +40,87 @@ public sealed class InstructionEvidenceImagesTests
         Assert.Equal([directPhoto.Id, embeddedPhoto.Id], selected.Select(item => item.Id));
     }
 
-    [Fact]
-    public void RetentionGatePreservesPdfButRejectsInlineAndBannerAssets()
+    /// <summary>
+    /// Operator, 26 October 2026: attached, inline and embedded images are
+    /// judged by one rule, so a small attached logo is dropped and a phone
+    /// photograph sent inline is kept. A document attachment is always kept.
+    /// </summary>
+    [Theory]
+    [InlineData("pdf", IntakeAssetKind.Attachment, "application/pdf", null, null, true)]
+    [InlineData("attached photo", IntakeAssetKind.Attachment, "image/jpeg", 4032, 3024, true)]
+    [InlineData("attached logo", IntakeAssetKind.Attachment, "image/png", 20, 20, false)]
+    [InlineData("inline photo", IntakeAssetKind.InlineImage, "image/jpeg", 4080, 3060, true)]
+    [InlineData("inline logo", IntakeAssetKind.InlineImage, "image/png", 90, 63, false)]
+    [InlineData("inline document", IntakeAssetKind.InlineImage, "application/pdf", null, null, false)]
+    [InlineData("embedded photo", IntakeAssetKind.EmbeddedImage, "image/jpeg", 547, 650, true)]
+    [InlineData("embedded banner", IntakeAssetKind.EmbeddedImage, "image/png", 1990, 437, false)]
+    [InlineData("embedded document", IntakeAssetKind.EmbeddedImage, "application/pdf", null, null, false)]
+    public void EveryImageIsJudgedByTheSamePhotographRule(
+        string shape,
+        IntakeAssetKind kind,
+        string mediaType,
+        int? width,
+        int? height,
+        bool retained)
     {
-        var pdf = Candidate(IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment, "application/pdf", 500_000);
-        var inline = Candidate(IntakeAssetKind.InlineImage, IntakeAssetDisposition.Inline, "image/png", 90_000);
-        var banner = Candidate(
-            IntakeAssetKind.EmbeddedImage,
-            IntakeAssetDisposition.Embedded,
-            "image/png",
-            110_783,
-            width: 1990,
-            height: 437);
-        var photograph = Candidate(
-            IntakeAssetKind.EmbeddedImage,
-            IntakeAssetDisposition.Embedded,
-            "image/jpeg",
-            90_000,
-            width: 547,
-            height: 650);
+        _ = shape;
+        var candidate = Candidate(kind, mediaType, 30_000, width, height);
 
-        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(pdf));
-        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(inline));
-        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(banner));
-        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(photograph));
+        Assert.Equal(retained, InstructionEvidenceImages.IsRetentionCandidate(candidate));
     }
 
     [Fact]
-    public void TheThresholdIsABoundaryNotAGuess()
+    public void TheShortestSideIsABoundaryNotAGuess()
     {
-        var atFloor = Candidate(
-            IntakeAssetKind.EmbeddedImage,
-            IntakeAssetDisposition.Embedded,
-            "image/jpeg",
-            (int)InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
-        var underFloor = Candidate(
-            IntakeAssetKind.EmbeddedImage,
-            IntakeAssetDisposition.Embedded,
-            "image/jpeg",
-            (int)InstructionEvidenceImages.EmbeddedPhotographMinimumBytes - 1);
+        var atFloor = Candidate(IntakeAssetKind.EmbeddedImage, "image/jpeg", 9_000, 200, 267);
+        var underFloor = Candidate(IntakeAssetKind.EmbeddedImage, "image/jpeg", 9_000, 199, 265);
 
         Assert.True(InstructionEvidenceImages.IsRetentionCandidate(atFloor));
         Assert.False(InstructionEvidenceImages.IsRetentionCandidate(underFloor));
     }
 
+    /// <summary>
+    /// a.QDOS26120's "1_Images-V1.pdf", at its measured sizes: five 576x768
+    /// damage photographs of 22–33 KB across three pages, which a 40 KB floor
+    /// dropped, beside banners and a logo placed on every page.
+    /// </summary>
     [Fact]
-    public void RetentionIsTheOneByteFloorSoARetainedSmallPhotographIsSelected()
+    public void SmallFilePhotographsInAnImagesPdfAreKeptAndItsArtIsNot()
     {
-        // A capture PDF's 30 KB photograph was retained as designated; the
-        // selection does not apply the floor a second time.
-        var small = Asset(IntakeAssetKind.EmbeddedImage, "image/jpeg", 30_236, "AA", "page-3-image-1.jpg");
+        const string pdfLabel = "1_Images-V1.pdf";
+        var banner = new byte[27_000];
+        var logo = new byte[10_000];
+        int[] photographBytes = [29_131, 27_345, 22_160, 33_078, 30_575];
+        var art = Enumerable.Range(1, 3).SelectMany(page => new[]
+        {
+            PdfImage(pdfLabel, page, 1, banner, 2481, 480),
+            PdfImage(pdfLabel, page, 2, logo, 320, 214)
+        });
+        var photographs = photographBytes
+            .Select((bytes, index) => PdfImage(pdfLabel, (index / 2) + 1, (index % 2) + 3, new byte[bytes], 576, 768))
+            .ToArray();
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [],
+            [],
+            [],
+            false,
+            Assets: [.. art, .. photographs],
+            Pdfs: [new(pdfLabel, IsRoot: true, 3, HasTextLayer: true)]);
 
-        var only = Assert.Single(InstructionEvidenceImages.Select([small]));
-        Assert.Equal(small.Id, only.Id);
+        Assert.Equal(photographs, RetentionCandidates(read));
+    }
+
+    [Fact]
+    public void RetentionIsTheOneGateSoSelectionKeepsWhatItRetained()
+    {
+        // Selection does not judge size or shape a second time: whatever
+        // retention stored as a photograph is shown.
+        var retainedEarlier = Asset(
+            IntakeAssetKind.EmbeddedImage, "image/jpeg", 30_236, "AA", "page-3-image-1.jpg", width: 2400, height: 800);
+
+        var only = Assert.Single(InstructionEvidenceImages.Select([retainedEarlier]));
+        Assert.Equal(retainedEarlier.Id, only.Id);
     }
 
     [Fact]
@@ -102,6 +130,8 @@ public sealed class InstructionEvidenceImagesTests
 
         var retained = RetentionCandidates(mail);
 
+        // The 1016x565 logo is photograph-sized but is not on the images page;
+        // the 70x65 icon on the images page is under the photograph floor.
         Assert.Equal(
             [
                 VehicleCaptureSamples.PdfLabel,
@@ -110,9 +140,6 @@ public sealed class InstructionEvidenceImagesTests
                 VehicleCaptureSamples.ImageLabel(3, 3)
             ],
             retained.Select(candidate => candidate.SourceLabel));
-        // The 30 KB photograph is under the generic floor and kept all the same;
-        // the 43 KB logo is over it and is not a photograph.
-        Assert.Contains(retained, candidate => candidate.Content.Length < InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
     }
 
     [Fact]
@@ -130,15 +157,35 @@ public sealed class InstructionEvidenceImagesTests
             [
                 VehicleCaptureSamples.PdfLabel,
                 VehicleCaptureSamples.ImageLabel(1, 1),
+                VehicleCaptureSamples.ImageLabel(3, 1),
                 VehicleCaptureSamples.ImageLabel(3, 2),
                 VehicleCaptureSamples.ImageLabel(3, 3)
             ],
             retained.Select(candidate => candidate.SourceLabel));
     }
 
+    [Fact]
+    public void AWidePhotographInACapturePdfIsNotRetained()
+    {
+        // The capture page restriction sits on top of the photograph rule, so
+        // a banner-shaped image is never stored only to be hidden later.
+        var mail = VehicleCaptureSamples.Mail();
+        var wide = mail with
+        {
+            Assets = [.. mail.AssetCandidates.Select(candidate =>
+                candidate.SourceLabel == VehicleCaptureSamples.ImageLabel(3, 1)
+                    ? candidate with { WidthPixels = 2400, HeightPixels = 800 }
+                    : candidate)]
+        };
+
+        var retained = RetentionCandidates(wide);
+
+        Assert.DoesNotContain(retained, candidate => candidate.SourceLabel == VehicleCaptureSamples.ImageLabel(3, 1));
+    }
+
     /// <summary>
     /// Operator, 22 October 2026: an image on every page of a PDF of two or
-    /// more pages is letterhead art, beside the byte floor and the side ratio.
+    /// more pages is letterhead art, beside the photograph size and shape.
     /// The 898x437 logo passes both. A photograph on one page of the same PDF
     /// is kept, and a PDF whose page count was not stated keeps its images.
     /// </summary>
@@ -210,27 +257,18 @@ public sealed class InstructionEvidenceImagesTests
     [Fact]
     public void QdosTwentySixZeroZeroEightsLetterheadBannersAreNotEvidence()
     {
-        // Measured from production. The operator reported the
-        // first two images as signatures/logos. These are those two, at
-        // their real sizes and dimensions, beside one of the nine genuine
-        // photographs from the same receipt. Note the byte floor admits
-        // both banners and one of them is a JPEG, so neither size nor
-        // format could have told them apart — only the shape does.
-        var pngBanner = Asset(
-            IntakeAssetKind.EmbeddedImage, "image/png", 110_783, "b1",
-            "page-1-image-1.png", width: 1990, height: 437);
-        var jpegBanner = Asset(
-            IntakeAssetKind.EmbeddedImage, "image/jpeg", 77_972, "b2",
-            "page-1-image-2.jpg", width: 2214, height: 248);
-        var photograph = Asset(
-            IntakeAssetKind.EmbeddedImage, "image/jpeg", 156_740, "p1",
-            "page-2-image-3.jpg", width: 709, height: 646);
+        // Measured from production. The operator reported the first two
+        // images as signatures/logos. These are those two, at their real
+        // sizes and dimensions, beside one of the nine genuine photographs
+        // from the same receipt. Both banners are large files and one of them
+        // is a JPEG, so neither size nor format tells them apart; the shape does.
+        var pngBanner = Candidate(IntakeAssetKind.EmbeddedImage, "image/png", 110_783, 1990, 437);
+        var jpegBanner = Candidate(IntakeAssetKind.EmbeddedImage, "image/jpeg", 77_972, 2214, 248);
+        var photograph = Candidate(IntakeAssetKind.EmbeddedImage, "image/jpeg", 156_740, 709, 646);
 
-        var selected = InstructionEvidenceImages.Select(
-            [pngBanner, jpegBanner, photograph]);
-
-        var only = Assert.Single(selected);
-        Assert.Equal(photograph.Id, only.Id);
+        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(pngBanner));
+        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(jpegBanner));
+        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(photograph));
     }
 
     [Fact]
@@ -256,12 +294,11 @@ public sealed class InstructionEvidenceImagesTests
     [Fact]
     public void AnImageWithNoRecordedDimensionsIsStillAdmitted()
     {
-        // Failing open is deliberate: refusing to show a genuine
-        // photograph is the worse of the two errors.
-        var unmeasured = Asset(
-            IntakeAssetKind.EmbeddedImage, "image/jpeg", 90_000, "u1");
+        // Failing open is deliberate: losing a genuine photograph is the
+        // worse of the two errors. The reader measures every image that decodes.
+        var unmeasured = Candidate(IntakeAssetKind.Attachment, "image/jpeg", 90_000);
 
-        Assert.Single(InstructionEvidenceImages.Select([unmeasured]));
+        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(unmeasured));
     }
 
     [Fact]
@@ -677,7 +714,6 @@ public sealed class InstructionEvidenceImagesTests
 
     private static IntakeAssetCandidate Candidate(
         IntakeAssetKind kind,
-        IntakeAssetDisposition disposition,
         string mediaType,
         int contentLength,
         int? width = null,
@@ -687,7 +723,29 @@ public sealed class InstructionEvidenceImagesTests
         mediaType,
         new byte[contentLength],
         kind,
-        disposition,
+        kind switch
+        {
+            IntakeAssetKind.Attachment => IntakeAssetDisposition.Attachment,
+            IntakeAssetKind.InlineImage => IntakeAssetDisposition.Inline,
+            _ => IntakeAssetDisposition.Embedded
+        },
+        WidthPixels: width,
+        HeightPixels: height);
+
+    private static IntakeAssetCandidate PdfImage(
+        string pdfLabel,
+        int page,
+        int image,
+        byte[] content,
+        int width,
+        int height) => new(
+        $"{pdfLabel}, page {page}, image {image}",
+        $"page-{page}-image-{image}.jpg",
+        "image/jpeg",
+        content,
+        IntakeAssetKind.EmbeddedImage,
+        IntakeAssetDisposition.Embedded,
+        page,
         WidthPixels: width,
         HeightPixels: height);
 }

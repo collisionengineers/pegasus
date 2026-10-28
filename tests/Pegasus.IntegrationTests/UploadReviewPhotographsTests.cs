@@ -111,7 +111,7 @@ public sealed class UploadReviewPhotographsTests
             "image/jpeg",
             IntakeAssetKind.EmbeddedImage,
             IntakeAssetDisposition.Embedded,
-            InstructionEvidenceImages.EmbeddedPhotographMinimumBytes + 1,
+            50_000,
             new string(hashDigit[0], 64),
             "test-storage-key-" + hashDigit,
             1,

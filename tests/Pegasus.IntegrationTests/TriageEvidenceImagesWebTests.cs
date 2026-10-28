@@ -24,8 +24,8 @@ public sealed partial class QdosTriageIntegrationTests
             "triage-with-images.eml",
             attachments:
             [
-                ("Client vehicle damage 1.png", "image/png", TinyPngBytes),
-                ("Client vehicle damage 2.png", "image/png", TinyPngBytes2)
+                ("Client vehicle damage 1.png", "image/png", FirstPhotograph),
+                ("Client vehicle damage 2.png", "image/png", SecondPhotograph)
             ]);
 
         await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
@@ -115,12 +115,10 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.DoesNotContain("Vehicle images", html, StringComparison.Ordinal);
     }
 
-    private static readonly byte[] TinyPngBytes =
-        Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+    // Photograph-sized, so the photograph rule keeps them, and distinct:
+    // InstructionEvidenceImages de-duplicates by content hash, so identical
+    // bytes would render one entry, not two.
+    private static readonly byte[] FirstPhotograph = MultiFormatFixture.Photograph(1, SkiaSharp.SKEncodedImageFormat.Png);
 
-    // A second, distinct image: InstructionEvidenceImages de-duplicates by
-    // content hash, so identical bytes would render one entry, not two. A
-    // trailing byte after IEND changes the hash and leaves the PNG readable.
-    private static readonly byte[] TinyPngBytes2 =
-        [.. Convert.FromBase64String(MultiFormatFixture.TinyPngBase64), 0x00];
+    private static readonly byte[] SecondPhotograph = MultiFormatFixture.Photograph(2, SkiaSharp.SKEncodedImageFormat.Png);
 }

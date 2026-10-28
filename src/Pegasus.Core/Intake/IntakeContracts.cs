@@ -539,6 +539,11 @@ public sealed record IntakeAssetBounds(
     double Right,
     double Top);
 
+/// <param name="Fingerprint">
+/// The image's difference hash, which <see cref="KnownGraphics"/> matches.
+/// The reader records it for every JPEG and PNG that decodes; it is used
+/// before storage and never persisted.
+/// </param>
 public sealed record IntakeAssetCandidate(
     string SourceLabel,
     string FileName,
@@ -549,7 +554,8 @@ public sealed record IntakeAssetCandidate(
     int? PageNumber = null,
     IntakeAssetBounds? Bounds = null,
     int? WidthPixels = null,
-    int? HeightPixels = null);
+    int? HeightPixels = null,
+    ulong? Fingerprint = null);
 
 public sealed record ScannedPdfOcrCandidate(
     string SourceLabel,

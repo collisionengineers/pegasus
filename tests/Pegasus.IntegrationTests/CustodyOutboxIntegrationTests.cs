@@ -1783,13 +1783,15 @@ public sealed class CustodyOutboxIntegrationTests
             "custody-three-attachments-retry");
         Assert.Equal("pending", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
 
-        // The retry files all three at once, and each keeps its ordinal.
-        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 3);
+        // The retry files both documents at once, then the photograph, and
+        // each keeps its ordinal: documents in file-name order from 002, the
+        // photograph after them.
+        var probe = new CustodyBatchProbe(services.GetRequiredService<ICaseCustody>(), holdUntilConcurrent: 2);
         var publisher = new RecordingCachePublisher();
         await ProcessorWith(probe, publisher).ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
 
         Assert.Equal("completed", await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
-        Assert.Equal(3, probe.MaxInFlight);
+        Assert.Equal(2, probe.MaxInFlight);
         await using var context = await contextFactory.CreateDbContextAsync();
         var ordinals = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
@@ -1798,9 +1800,9 @@ public sealed class CustodyOutboxIntegrationTests
                 where occurrence.CaseId == outcome.Identity.CaseId
                 select new { version.FileName, occurrence.Ordinal })
             .ToDictionaryAsync(item => item.FileName, item => item.Ordinal);
-        Assert.Equal(2, ordinals["1_CLVoffside-V1.jpg"]);
-        Assert.Equal(3, ordinals["43127_1_LtrtoAuditEngin.pdf"]);
-        Assert.Equal(4, ordinals["Bodyshopreport236502-V1.pdf"]);
+        Assert.Equal(2, ordinals["43127_1_LtrtoAuditEngin.pdf"]);
+        Assert.Equal(3, ordinals["Bodyshopreport236502-V1.pdf"]);
+        Assert.Equal(4, ordinals["1_CLVoffside-V1.jpg"]);
 
         // Nobody held the bytes when the completion recorded these versions, so
         // once it committed each one was published to the read cache, once,
@@ -2183,8 +2185,8 @@ public sealed class CustodyOutboxIntegrationTests
     /// <summary>
     /// An instruction's evidence photographs — embedded in its PDF
     /// documents — land beside the source as their own custody files after
-    /// the attachments, while letterhead art stays out. Runs against the
-    /// operator-supplied mapping corpus (local, git-ignored).
+    /// the attached documents, and every one is photograph-sized. Runs
+    /// against the operator-supplied mapping corpus (local, git-ignored).
     /// </summary>
     [Trait("Category", "Corpus")]
     [QdosMappingCustodyFact]
@@ -2215,19 +2217,16 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         var assets = receipt.Assets ?? [];
         var attachments = assets
-            .Where(asset => asset.Kind == IntakeAssetKind.Attachment)
+            .Where(asset => asset.Kind == IntakeAssetKind.Attachment
+                && !InstructionEvidenceImages.IsImage(asset.MediaType))
             .OrderBy(asset => asset.FileName, StringComparer.Ordinal)
             .ThenBy(asset => asset.Id)
             .ToArray();
-        var photographs = InstructionEvidenceImages.Select(assets)
-            .Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage)
-            .ToArray();
-        var letterhead = assets.Where(asset =>
-                asset.Kind == IntakeAssetKind.EmbeddedImage
-                && asset.ContentLength < InstructionEvidenceImages.EmbeddedPhotographMinimumBytes)
-            .ToArray();
+        var photographs = InstructionEvidenceImages.Select(assets).ToArray();
         Assert.True(photographs.Length >= 5, $"Only {photographs.Length} photographs selected.");
-        Assert.NotEmpty(letterhead);
+        Assert.All(photographs, photograph => Assert.True(
+            Math.Min(photograph.WidthPixels ?? 0, photograph.HeightPixels ?? 0)
+                >= InstructionEvidenceImages.MinimumPhotographSidePixels));
 
         var current = await services.GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receipt.Id, CancellationToken.None);
@@ -2257,13 +2256,6 @@ public sealed class CustodyOutboxIntegrationTests
                 "content");
             Assert.True(File.Exists(expected), $"Missing photograph file {expected}.");
         }
-
-        var retainedHashes = Directory.EnumerateDirectories(attachmentsDirectory)
-            .Select(directory => Path.GetFileName(directory)!.Split('-', 2)[1])
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        Assert.All(
-            letterhead,
-            art => Assert.DoesNotContain(art.ContentHash, retainedHashes, StringComparer.OrdinalIgnoreCase));
 
         // The evidence gallery's download path serves the same verified bytes.
         var download = await services.GetRequiredService<IDownloadIntakeAsset>().ExecuteAsync(

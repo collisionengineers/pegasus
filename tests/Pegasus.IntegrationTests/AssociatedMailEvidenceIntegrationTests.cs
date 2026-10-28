@@ -935,7 +935,6 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             for (var index = 0; index < 4; index++)
             {
                 var jpeg = ImageBytes(584, 650, index + 1, SKEncodedImageFormat.Jpeg);
-                Assert.True(jpeg.Length >= InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
                 var left = 36 + index % 2 * 260;
                 var bottom = 390 - index / 2 * 300;
                 page.AddJpeg(jpeg, new PdfRectangle(left, bottom, left + 240, bottom + 270));
