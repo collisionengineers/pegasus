@@ -97,7 +97,7 @@ public sealed class RuntimePermissionRecordTests : IAsyncLifetime
             REVERT;
             """);
 
-    private static IReadOnlyList<(string Role, string State, string Permission, string Table)> ReadRecord() =>
+    private static (string Role, string State, string Permission, string Table)[] ReadRecord() =>
         File.ReadAllLines(RecordPath)
             .Skip(1)
             .Where(line => line.Length > 0)
