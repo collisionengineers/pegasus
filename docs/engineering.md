@@ -13,10 +13,6 @@ Integrate reviewed work into `dev`. The primary agent records the candidate SHA
 and assigns one owner for heavy verification on the host.
 CI routing and required jobs are defined in `.github/workflows/ci.yml`; exact-head
 success or a justified path skip is evidence for that job only.
-In a stack of pull requests, the unit and SQL lanes run on the one based on
-`dev` and on the tip, whose tree holds every link; the links between them defer
-to the tip. That deferral is a justified skip, not evidence, and the `ci:full`
-label runs the lanes on a stacked request when one slice has to be isolated.
 
 ## Documentation authoring
 
@@ -227,16 +223,15 @@ machinery. Stop if observed targets or consequences differ from the plan.
 
 ## Verification policy
 
-Select checks by affected behavior and executable inputs, using the existing
-CI change classifier as a routing aid. Ordinary prose and links do not require
-.NET restore/build/test. Embedded renderer assets and other actual
-application/test inputs require the checks appropriate to their effects.
+The workflow selects checks by the paths a change set touches. Ordinary prose
+and links do not require .NET restore/build/test. Embedded renderer assets and
+other actual application/test inputs require the checks appropriate to their
+effects.
 
-Run focused checks first for affected code. Full solution checks apply when
-shared impact, explicit acceptance criteria or the release procedure requires
-them; serialize heavy work or reuse qualifying exact-head CI evidence. An
-explicit broader regression requirement is not a requirement to rebuild after
-each prose amendment. The [verification procedures](runbook.md)
+Exact-head CI evidence is reused, never repeated locally. Full solution checks
+apply when shared impact, explicit acceptance criteria or the release procedure
+requires them. An explicit broader regression requirement is not a requirement
+to rebuild after each prose amendment. The [verification procedures](runbook.md)
 owns commands and test-environment setup.
 
 Documentation correctness takes priority over obsolete parser/placement rules.

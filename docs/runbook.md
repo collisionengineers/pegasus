@@ -357,23 +357,14 @@ action. Never manually repurpose these commands to remove another run,
 
 ## Locked restore, build, and test
 
-Start with `scripts/Invoke-Verification.ps1`. It selects the checks the change
-set needs and refuses the ones it does not, using the same classifier CI uses:
-prose runs the link check and no build; a commit whose exact-head CI run
-succeeded in every job the change set routes to (the unit and SQL lanes, and
-the `infrastructure` job when an infrastructure path changed) reports that run
-instead of repeating it; a run whose unit and SQL lanes are green but whose
-`infrastructure` job did not run (a stack's tip classifies only its own files)
-is reused for those lanes; a change set whose build lane is evidenced, or that
-routes only to the infrastructure lane, is pointed at the exact-head
-`infrastructure` job, which only CI runs; and anything else
-gets a focused run over the test classes the changed files own. `-WhatIf`
-prints the selection without running it, and `-Full` takes the whole-solution
-lane below while holding the host slot.
-
-```powershell
-pwsh ./scripts/Invoke-Verification.ps1
-```
+CI on the exact head is the evidence, and nothing it runs is repeated here.
+`.github/workflows/ci.yml` decides the lanes from the paths a change set
+touches: Markdown, `docs/`, the skills, the Python helper tests, the
+reference-data generator and the classifier agent are prose to the .NET lanes
+and run only the `invariants` checks; any other path runs the unit and SQL
+lanes; `infra/`, the migrations folder, the release scripts and the workflow
+itself add the `infrastructure` job; the classifier agent adds its own. A
+file list the workflow cannot trust runs every lane.
 
 Read a hosted failure with `scripts/Get-CiStatus.ps1`, which prints the failing
 test names from the job log; a shard's log is served while its siblings are
@@ -423,8 +414,9 @@ with the same four-class concurrency cap on each runner. Case-page feature
 tests use independent classes rather than one shared partial test class.
 Shared test support contains no tests or shared mutable fixtures. Each shard
 retains its enumerated and assigned test lists and results; the partition gate
-checks that every selected test is assigned exactly once. Keep the shard count
-in the workflow matrix, execution and partition verification consistent.
+checks that every selected test is assigned exactly once. The shard count is
+set once in the workflow matrix; the partition verification and the duration
+refresh name the same number.
 
 Shards are dealt by recorded class duration from
 `scripts/test-shard-durations.json`, not by test count; a class the table does

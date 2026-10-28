@@ -26,13 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      build: ${{ steps.detect.outputs.build }}
+      code: ${{ steps.detect.outputs.code }}
       infrastructure: ${{ steps.detect.outputs.infrastructure }}
-      localDevelopment: ${{ steps.detect.outputs.localDevelopment }}
-      referenceData: ${{ steps.detect.outputs.referenceData }}
-      skillScripts: ${{ steps.detect.outputs.skillScripts }}
       classifier: ${{ steps.detect.outputs.classifier }}
-      heavy: ${{ steps.detect.outputs.heavy }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -50,66 +46,43 @@ jobs:
         run: |
           git fetch --no-tags origin refs/heads/dev:refs/remotes/origin/dev
           ./scripts/Test-MainBranchHistory.ps1 -Before $env:BEFORE_SHA -Head $env:HEAD_SHA -ReleaseBranch origin/dev
-      - name: Detect whether a build-relevant path changed
+      - name: Detect which lanes the changed paths need
         id: detect
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
-          HEAD_REF: ${{ github.head_ref }}
-          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
-          $forceAll = $true
+          # The changed paths: the API lists a pull request's files against the
+          # merge base; a push diffs from its before SHA. A list that cannot be
+          # trusted (an API failure, the 3,000-path cap, an unknown before SHA)
+          # runs every lane.
+          $all = $true
           $files = @()
           if ('${{ github.event_name }}' -eq 'pull_request') {
-            # The API lists files against the merge base, the same set a
-            # three-dot diff would give from a full clone.
             $files = @(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --paginate --jq '.[].filename')
-            # GitHub caps this API at 3,000 paths. A successful but truncated
-            # response must run every conditional lane.
-            if ($LASTEXITCODE -eq 0 -and $files.Count -eq [int]'${{ github.event.pull_request.changed_files }}') {
-              $forceAll = $false
-            }
+            if ($LASTEXITCODE -eq 0 -and $files.Count -eq [int]'${{ github.event.pull_request.changed_files }}') { $all = $false }
           } else {
             $base = '${{ github.event.before }}'
             if ($base -and $base -notmatch '^0+$') {
               $files = @(git diff --name-only "$base...${{ github.sha }}")
-              if ($LASTEXITCODE -eq 0) {
-                $forceAll = $false
-              }
+              if ($LASTEXITCODE -eq 0) { $all = $false }
             }
           }
-          $flags = ./scripts/Get-CiChangeFlags.ps1 -ChangedPath $files -ForceAll:$forceAll
-          "build=$($flags.Build.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "infrastructure=$($flags.Infrastructure.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "localDevelopment=$($flags.LocalDevelopment.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "referenceData=$($flags.ReferenceData.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "skillScripts=$($flags.SkillScripts.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "classifier=$($flags.Classifier.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-
-          # Whether the unit and SQL lanes run is decided by
-          # scripts/Get-CiHeavyLaneDecision.ps1; this step only gathers its
-          # inputs. Labels are read live rather than from the event payload so
-          # that adding ci:full and re-running the workflow is enough: a re-run
-          # replays the original payload, which predates the label.
-          $labels = @()
-          $stackedAbove = $null
-          if ($env:EVENT_NAME -eq 'pull_request') {
-            $labels = @(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels" --jq '.[].name')
-            if ($LASTEXITCODE -ne 0) { $labels = @($env:PR_LABELS -split ',') }
-            $head = [uri]::EscapeDataString($env:HEAD_REF)
-            $stacked = gh api "repos/${{ github.repository }}/pulls?state=open&base=$head&per_page=100" --jq 'length'
-            if ($LASTEXITCODE -eq 0) { $stackedAbove = [int]$stacked }
-          }
-          $decision = ./scripts/Get-CiHeavyLaneDecision.ps1 -Build $flags.Build -EventName $env:EVENT_NAME `
-            -BaseRef $env:BASE_REF -Label $labels -StackedAbove $stackedAbove
-          "heavy=$($decision.Heavy.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          Write-Host "Heavy lanes: $(if ($decision.Heavy) { 'running' } else { 'not running' }). $($decision.Reason)"
-      - name: Test SQL shard assignment
-        if: steps.detect.outputs.build == 'true'
-        shell: pwsh
-        run: ./scripts/Test-TestShard.ps1
+          # Code is every path except the ones no .NET build or test reads:
+          # Markdown, docs/ (bar the brand logo the report renderer embeds), the
+          # skills, the Python helper tests, the reference-data generator, the
+          # classifier agent, and the scripts under scripts/ other than the six
+          # the Architecture tests read or the shards run.
+          $prose = '\.md$|^docs/(?!design/brand/logos/)|^\.agents/|^scripts/skill_scripts/|^scripts/reference_data/|^src/pegasus-classifier-agent/|^scripts/(?!(Invoke-TestShard|Update-TestShardDurations|Test-MainBranchHistory|PegasusPlatform|Test-PegasusPlatform|Invoke-LocalDevelopment)\.ps1$)[^/]+\.ps1$'
+          $infrastructure = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Test-AzureDeploymentPlan|Test-ReleaseValidation|Test-MigrationGrants|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|PegasusPlatform)\.ps1$|^\.github/workflows/ci\.yml$'
+          $classifier = '^src/pegasus-classifier-agent/|^\.github/workflows/ci\.yml$'
+          $code = $all -or [bool]($files | Where-Object { $_ -notmatch $prose } | Select-Object -First 1)
+          $infra = $all -or [bool]($files | Where-Object { $_ -match $infrastructure } | Select-Object -First 1)
+          $node = $all -or [bool]($files | Where-Object { $_ -match $classifier } | Select-Object -First 1)
+          "code=$($code.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "infrastructure=$($infra.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "classifier=$($node.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "Lanes: code=$code infrastructure=$infra classifier=$node ($($files.Count) changed paths$(if ($all) { '; the list could not be trusted, so every lane runs' }))."
       - name: Migration runtime-grant check
         if: steps.detect.outputs.infrastructure == 'true'
         shell: pwsh
@@ -130,9 +103,10 @@ jobs:
     # Test-Path, which is case-insensitive there and case-sensitive on Linux;
     # moving it would quietly change the rule.
     #
-    # It needs `changes` for the step flags but must not inherit its verdict:
-    # without `!cancelled()`, a failed path detection would take the link check
-    # down with it and no change set would get the one check all of them run.
+    # It follows `changes` so every lane reads one verdict order, but must not
+    # inherit its verdict: without `!cancelled()`, a failed path detection would
+    # take the link check down with it and no change set would get the one
+    # check all of them run.
     needs: [changes]
     if: ${{ !cancelled() }}
     runs-on: windows-latest
@@ -145,37 +119,24 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
       - name: LocalDB lifecycle classifier tests
-        # This parser contract is Windows-specific, and it is gated on its own
-        # subject alone: Test-PegasusPlatform.ps1 dot-sources PegasusPlatform.ps1
-        # and nothing else, so no application, documentation, infrastructure or
-        # cloud change implies it.
-        if: needs.changes.outputs.localDevelopment == 'true'
+        # Test-PegasusPlatform.ps1 dot-sources PegasusPlatform.ps1, the parser
+        # the release scripts share. Windows-specific, and seconds to run, so it
+        # runs on every change set rather than behind a path flag.
         shell: pwsh
         run: ./scripts/Test-PegasusPlatform.ps1
-      - name: Build-output pruning tests
-        # Clear-BuildOutput.ps1 deletes. This proves it touches only the bin and
-        # obj beside a tracked project, never an evidence or archive folder that
-        # happens to contain one.
-        if: needs.changes.outputs.localDevelopment == 'true'
-        shell: pwsh
-        run: ./scripts/Test-ClearBuildOutput.ps1
       - uses: actions/setup-python@v6
-        if: needs.changes.outputs.referenceData == 'true' || needs.changes.outputs.skillScripts == 'true'
         with:
           python-version: '3.13'
       - name: Principal-reference generator tests
-        # The generator and its tests share one scripts-owned component. This
-        # step is their executable gate; no application caller or production
-        # import is implied.
-        if: needs.changes.outputs.referenceData == 'true'
+        # The generator and its tests share one scripts-owned component; no
+        # application caller or production import is implied.
         shell: pwsh
         run: python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'
       - name: Skill and helper script tests
-        # Everything under .agents/ has this one gate: the helper-script and
-        # frontmatter tests (PyYAML pinned for the frontmatter parse) and the
-        # two tests that sit beside their own skills. Chained, not separate
-        # lines: pwsh reports only the last command's exit code.
-        if: needs.changes.outputs.skillScripts == 'true'
+        # The helper-script and frontmatter tests (PyYAML pinned for the
+        # frontmatter parse) and the two tests that sit beside their own
+        # skills. Chained, not separate lines: pwsh reports only the last
+        # command's exit code.
         shell: pwsh
         run: >
           python -m pip install --disable-pip-version-check PyYAML==6.0.3 &&
@@ -186,19 +147,12 @@ jobs:
   infrastructure:
     # Local mode checks committed fail-closed invariants and compiles Bicep.
     # It does not authenticate, read Azure state, run azd or deploy anything.
-    #
-    # Gated on its own path flag rather than on the tip, unlike the heavy lanes:
-    # it costs well under a minute, so deferring it up a stack would lose
-    # committed-invariant coverage for no runner saving.
     needs: [changes, invariants]
     if: needs.changes.outputs.infrastructure == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - name: Change-classification regression tests
-        shell: pwsh
-        run: ./scripts/Test-CiChangeFlags.ps1
       - name: Release validation behaviour tests
         # Runs the Worker smoke and PreProvision validation against a fake
         # Azure CLI: what they refuse before a live read, what they accept,
@@ -240,7 +194,7 @@ jobs:
     # when PEGASUS_REFERENCE_PACK_ROOT is absent, so no filter is needed here
     # and the skips are visible in the run, not hidden by a filter.
     needs: [changes, invariants]
-    if: needs.changes.outputs.heavy == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -274,13 +228,15 @@ jobs:
     # whole classes across six runners. Allow setup/build plus the longest shard
     # and evidence upload: the 2026-09-09 run exhausted a 30-minute job budget.
     needs: [changes, invariants]
-    if: needs.changes.outputs.heavy == 'true'
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     strategy:
       # One shard's failure must not hide another shard's coverage report.
       fail-fast: false
       matrix:
+        # The shard count is set here; the partition verification and the
+        # duration refresh below name the same number.
         shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v7
@@ -291,7 +247,7 @@ jobs:
           ./scripts/Invoke-TestShard.ps1
           -Project ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
           -Filter "Category!=Corpus"
-          -Shard ${{ matrix.shard }} -ShardCount 6
+          -Shard ${{ matrix.shard }} -ShardCount ${{ strategy.job-total }}
       - name: Retain what this shard enumerated and ran
         if: always()
         uses: actions/upload-artifact@v6
@@ -316,9 +272,9 @@ jobs:
     # assigned tests would otherwise pass.
     needs: [changes, sql-integration]
     # `always()` so a failing shard still gets its coverage reported, but never
-    # when the lane was path-skipped, deferred to the tip, or skipped because a
-    # cheap invariant failed upstream (there are no artifacts to verify then).
-    if: always() && needs.changes.outputs.heavy == 'true' && needs.sql-integration.result != 'skipped' && needs.sql-integration.result != 'cancelled'
+    # when the lane was path-skipped or skipped because a cheap invariant failed
+    # upstream (there are no artifacts to verify then).
+    if: always() && needs.changes.outputs.code == 'true' && needs.sql-integration.result != 'skipped' && needs.sql-integration.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
