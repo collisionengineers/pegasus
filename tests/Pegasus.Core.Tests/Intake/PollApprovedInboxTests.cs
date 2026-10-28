@@ -838,6 +838,7 @@ public sealed class PollApprovedInboxTests
             "inbox-a",
             "conversation-1",
             internetMessageIdentity,
+            [],
             "sender@example.invalid",
             "A Sender",
             toAddresses ?? ["intake@collisionengineers.co.uk"],

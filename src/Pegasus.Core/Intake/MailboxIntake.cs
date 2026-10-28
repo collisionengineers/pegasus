@@ -34,6 +34,12 @@ public static class MailboxMessageIdentity
     public const int MaximumCanonicalLength = 500;
 
     /// <summary>
+    /// How many In-Reply-To and References identities one retained message
+    /// carries. The bound is the mail association query's parameter bound.
+    /// </summary>
+    public const int MaximumReplyIdentities = 100;
+
+    /// <summary>
     /// One comparison representation for RFC Message-ID across Core and storage.
     /// Message-ID transport values are retained verbatim as evidence; this key is
     /// trimmed, Unicode-normalized and case-folded only for mailbox-scoped identity.
@@ -66,6 +72,7 @@ public sealed record RetainedMailboxMessageMetadata(
     string FolderIdentity,
     string? ConversationIdentity,
     string? InternetMessageIdentity,
+    IReadOnlyList<string> InReplyToIdentities,
     string? SenderAddress,
     string? SenderDisplayName,
     IReadOnlyList<string> ToAddresses,
@@ -1157,6 +1164,7 @@ public sealed class PollApprovedInbox(
             // Graph's immutable item id remains separate on the envelope: neither
             // identity is allowed to stand in for the other.
             && IsCanonicalInternetMessageIdentity(metadata.InternetMessageIdentity)
+            && IsReplyIdentityList(metadata.InReplyToIdentities)
             && IsOptionalBounded(metadata.SenderAddress, MaximumAddressLength)
             && IsOptionalBounded(metadata.SenderDisplayName, MaximumAddressLength)
             && IsOptionalBounded(metadata.Subject, MaximumSubjectLength)
@@ -1181,6 +1189,12 @@ public sealed class PollApprovedInbox(
         addresses is not null
         && addresses.Count <= MaximumRecipientCount
         && addresses.All(address => IsBounded(address, MaximumAddressLength));
+
+    private static bool IsReplyIdentityList(IReadOnlyList<string>? identities) =>
+        identities is not null
+        && identities.Count <= MailboxMessageIdentity.MaximumReplyIdentities
+        && identities.Distinct(StringComparer.Ordinal).Count() == identities.Count
+        && identities.All(IsCanonicalInternetMessageIdentity);
 
     private static bool IsBounded(string? value, int maximumLength) =>
         !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength;

@@ -40,6 +40,7 @@
             <span>@summary.MailboxAddress</span>
             <span><time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time></span>
         </span>
+        <partial name="Shared/_MessageDecision" model="Model" />
     </header>
     <div class="record-accent"></div>
     <partial name="Shared/_MessageRecord" model="Model" />

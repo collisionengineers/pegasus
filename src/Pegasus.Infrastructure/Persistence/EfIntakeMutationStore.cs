@@ -378,22 +378,18 @@ internal sealed class EfIntakeMutationStore(
         };
 
         receipt.Version++;
-        // FRD-08 case-state classification first, so the query rule reads the
-        // category the Case's state gives a message no predicate classified.
-        await ApplyCaseStateClassificationAsync(context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
-        // FRD-13 "Report sent and queries": a post-report receipt joining a
-        // Report sent Case raises a query, recorded as the Case's own event.
+        // A message whose classification opens a query, joining a Case whose
+        // report is sent, opens one. Recorded as the Case's own event.
         var beforeStateJson = CaseQueryLedger.SnapshotState(caseWorkflow);
-        var queryRaised = await CaseQueryLedger.RaiseForMailAsync(
-            context, receipt, caseWorkflow, ActorKind.SystemWorker, request.Actor.Trim(),
-            operationKey, occurredAtUtc, cancellationToken);
+        var queryRaised = await OpenQueryOnMailJoinedAsync(
+            context, receipt, caseWorkflow, operationKey, occurredAtUtc, cancellationToken);
         if (queryRaised)
         {
             CaseMutationGuard.Advance(caseWorkflow);
             CaseQueryLedger.AddQueryHistory(
                 context, caseWorkflow, beforeCaseVersion, CaseQueryLedger.QueryReceivedEvent,
-                ActorKind.SystemWorker, request.Actor.Trim(), "[]",
-                operationKey, requestHash, reason, occurredAtUtc, beforeStateJson);
+                ActorKind.SystemWorker, CaseQueryLedger.QueryCriteriaActor, "[]",
+                operationKey, requestHash, CaseQueryLedger.QueryCriteriaReason, occurredAtUtc, beforeStateJson);
         }
         context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
         {
@@ -867,7 +863,6 @@ internal sealed class EfIntakeMutationStore(
             LastOperationKey = operationKey
         };
         receipt.Version++;
-        await ApplyCaseStateClassificationAsync(context, receipt, caseAuthority.Workflow, occurredAtUtc, cancellationToken);
         caseAuthority.CompleteSystemMutation();
         var afterJson = Snapshot(receipt);
         if (staffGroupOrigin is not null)
@@ -1066,18 +1061,12 @@ internal sealed class EfIntakeMutationStore(
         var queryRaised = false;
         var queryWithdrawn = false;
         var beforeStateJson = caseWorkflow is null ? null : CaseQueryLedger.SnapshotState(caseWorkflow);
-        if (eventType == "intake_case_linked" && caseAuthority is not null)
-        {
-            // A Triage Case has no workflow; its linked message is Case update too.
-            await ApplyCaseStateClassificationAsync(context, receipt, caseWorkflow, occurredAtUtc, cancellationToken);
-        }
         if (caseWorkflow is not null)
         {
             if (eventType == "intake_case_linked")
             {
-                queryRaised = await CaseQueryLedger.RaiseForMailAsync(
-                    context, receipt, caseWorkflow, actor.Kind, actor.SubjectId,
-                    operationKey, occurredAtUtc, cancellationToken);
+                queryRaised = await OpenQueryOnMailJoinedAsync(
+                    context, receipt, caseWorkflow, operationKey, occurredAtUtc, cancellationToken);
             }
             else if (eventType == "intake_case_link_reversed")
             {
@@ -1096,7 +1085,12 @@ internal sealed class EfIntakeMutationStore(
                 CaseQueryLedger.AddQueryHistory(
                     context, caseWorkflow, beforeCaseVersion.Value,
                     queryRaised ? CaseQueryLedger.QueryReceivedEvent : CaseQueryLedger.QueryWithdrawnEvent,
-                    actor, operationKey, requestHash, reason, occurredAtUtc, beforeStateJson!);
+                    queryRaised ? ActorKind.SystemWorker : actor.Kind,
+                    queryRaised ? CaseQueryLedger.QueryCriteriaActor : actor.SubjectId,
+                    queryRaised ? "[]" : RolesJson(actor),
+                    operationKey, requestHash,
+                    queryRaised ? CaseQueryLedger.QueryCriteriaReason : reason,
+                    occurredAtUtc, beforeStateJson!);
             }
             else
             {
@@ -1158,36 +1152,54 @@ internal sealed class EfIntakeMutationStore(
     }
 
     /// <summary>
-    /// FRD-08 case-state classification: a retained mail message joining a Case
-    /// with no Principal classification takes its category from whether the
-    /// Case's report is sent, written as the automated decision before the query
-    /// rule reads it. A corrected decision (version above one) is left alone by
-    /// the shared apply. A Triage Case has no workflow (<paramref name="workflow"/>
-    /// is null) and its report is never sent.
+    /// A mailbox message has just been linked. When the classification decision
+    /// opens a query, the Case's report is sent, and the message does not
+    /// already hold a query, open one. The caller records the Case event.
     /// </summary>
-    private static async Task ApplyCaseStateClassificationAsync(
+    private static async Task<bool> OpenQueryOnMailJoinedAsync(
         PegasusDbContext context,
         IntakeReceiptEntity receipt,
-        CaseWorkflowEntity? workflow,
+        CaseWorkflowEntity workflow,
+        string operationKey,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
     {
         if (receipt.SourceChannel != "mailbox")
         {
-            return;
+            return false;
         }
-        var current = receipt.MailClassificationDecision is { } decision
-            ? EfIntakeReceiptStore.MapMailClassificationDecision(decision)
-            : null;
-        var derived = CaseStateMailClassification.Derive(
-            current,
-            workflow is not null
-                && await EfCaseWorkflowStore.ReportIsSentAsync(context, workflow, cancellationToken));
-        if (derived is not null)
+
+        var opensQuery = receipt.MailClassificationDecision?.OpensQuery == true;
+        var reportIsSent = await EfCaseWorkflowStore.ReportIsSentAsync(context, workflow, cancellationToken);
+        var withdrawn = nameof(CaseQueryClosure.Withdrawn);
+        var messageHasQuery = await context.CaseQueries.AnyAsync(
+            item => item.CaseId == workflow.CaseId
+                && item.IntakeReceiptId == receipt.Id
+                && item.ClosedAs != withdrawn,
+            cancellationToken);
+        if (!CaseQueryRules.OpensOnMailJoined(reportIsSent, opensQuery, messageHasQuery))
         {
-            EfIntakeReceiptStore.ApplyMailClassificationDecision(
-                context, receipt, derived, CaseStateMailClassification.Actor, occurredAtUtc);
+            return false;
         }
+
+        var messageId = await context.RetainedMailboxMessages
+            .Where(item => item.ExternalReceiptToken == receipt.ExternalReceiptToken)
+            .Select(item => (Guid?)item.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (messageId is not { } retainedMessageId)
+        {
+            return false;
+        }
+
+        await CaseQueryLedger.OpenForMessageAsync(
+            context,
+            workflow,
+            retainedMessageId,
+            ActionActor.SystemWorker(CaseQueryLedger.QueryCriteriaActor),
+            operationKey,
+            occurredAtUtc,
+            cancellationToken);
+        return true;
     }
 
     private static Task<IntakeReceiptEntity?> LoadReceiptAsync(
@@ -1422,6 +1434,9 @@ internal sealed class EfIntakeMutationStore(
     private static string RolesJson(ActionActor actor) =>
         JsonSerializer.Serialize(actor.Roles.OrderBy(role => role));
 
+    // The reason is left out: it is derived from the matching evidence, not an
+    // operator input, so a redelivery whose fresh evidence names one more
+    // agreeing signal must still replay as AlreadyAssociated.
     private static string RequestHash(string eventType, AutomaticCaseAssociationRequest request)
         => Hash(JsonSerializer.Serialize(new
         {
@@ -1431,8 +1446,7 @@ internal sealed class EfIntakeMutationStore(
             request.MatchPolicyKey,
             request.MatchPolicyVersion,
             request.Actor,
-            request.OperationKey,
-            request.Reason
+            request.OperationKey
         }));
 
     private static async Task<AutomaticMailCaseAssociationEvidence?> LoadMailAssociationEvidenceAsync(
@@ -1450,7 +1464,10 @@ internal sealed class EfIntakeMutationStore(
                 item.ExternalReceiptToken,
                 VehicleRegistration = item.InstructionDraft == null
                     ? null
-                    : item.InstructionDraft.VehicleRegistration
+                    : item.InstructionDraft.VehicleRegistration,
+                IncidentDate = item.InstructionDraft == null
+                    ? (DateOnly?)null
+                    : item.InstructionDraft.DateOfIncident
             })
             .SingleOrDefaultAsync(cancellationToken);
         if (receipt is null)
@@ -1461,7 +1478,14 @@ internal sealed class EfIntakeMutationStore(
         var message = await context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.ExternalReceiptToken == receipt.ExternalReceiptToken)
-            .Select(item => new { item.MailboxId, item.ConversationIdentity })
+            .Select(item => new
+            {
+                item.MailboxId,
+                item.ConversationIdentity,
+                item.InReplyToIdentitiesJson,
+                item.Subject,
+                item.BodyPlainText
+            })
             .SingleOrDefaultAsync(cancellationToken);
         if (message is null)
         {
@@ -1470,33 +1494,21 @@ internal sealed class EfIntakeMutationStore(
 
         var normalizedRegistration = Pegasus.Core.Cases.CaseRegistration.Normalize(
             receipt.VehicleRegistration);
-        Guid[] registrationCaseIds = [];
-        if (normalizedRegistration is not null)
-        {
-            var registrations = await context.CaseDataFields
-                .AsNoTracking()
-                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
-                    && context.CaseWorkflows.Any(workflow =>
-                        workflow.CaseId == item.WorkId && workflow.ArchivedAtUtc == null))
-                .Select(item => new { CaseId = item.WorkId, item.Value })
-                .ToListAsync(cancellationToken);
-            registrationCaseIds = registrations
-                .Where(item => string.Equals(
-                    Pegasus.Core.Cases.CaseRegistration.Normalize(item.Value),
-                    normalizedRegistration,
-                    StringComparison.Ordinal))
-                .Select(item => item.CaseId)
-                .Distinct()
-                .Order()
-                .ToArray();
-        }
+        var registrationCandidates = await RegistrationCandidatesAsync(
+            context,
+            normalizedRegistration,
+            cancellationToken);
 
         Guid[] threadCaseIds = [];
         if (!string.IsNullOrWhiteSpace(message.ConversationIdentity))
         {
+            // A message is never thread evidence for itself: the association an
+            // earlier attempt wrote must not join the intersection on a
+            // redelivery and make the evidence look different from the write.
             var threadReceiptIds = await CurrentIntakeAssociations
                 .ThreadReceipts(context, message.MailboxId, message.ConversationIdentity)
                 .AsNoTracking()
+                .Where(item => item.Id != receipt.Id)
                 .Select(item => item.Id)
                 .ToListAsync(cancellationToken);
             var current = await CurrentIntakeAssociations.ReadAsync(
@@ -1510,15 +1522,218 @@ internal sealed class EfIntakeMutationStore(
                 .ToArray();
         }
 
+        var replyIdentities = DeserializeReplyIdentities(message.InReplyToIdentitiesJson);
+        var replyCaseIds = await ReplyCaseIdsAsync(context, replyIdentities, cancellationToken);
+
+        var claimTokens = MailClaimReferenceTokens.Extract(message.Subject, message.BodyPlainText);
+        var claimReferenceCaseIds = await ClaimReferenceCaseIdsAsync(
+            context,
+            claimTokens,
+            cancellationToken);
+
+        // Every signal's candidate set is cut to the Cases that can take an
+        // association, once, because the Core policy cannot see the difference:
+        // an archived Case must never reach it (D16), and neither must a Triage,
+        // which has no workflow row and is not an association target. The
+        // registration read already filters its own rows.
+        var candidates = threadCaseIds
+            .Concat(replyCaseIds)
+            .Concat(claimReferenceCaseIds)
+            .Distinct()
+            .ToArray();
+        if (candidates.Length > 0)
+        {
+            var eligible = await context.CaseWorkflows
+                .AsNoTracking()
+                .Where(workflow => workflow.ArchivedAtUtc == null
+                    && candidates.Contains(workflow.CaseId))
+                .Select(workflow => workflow.CaseId)
+                .ToArrayAsync(cancellationToken);
+            var eligibleIds = eligible.ToHashSet();
+            threadCaseIds = threadCaseIds.Where(eligibleIds.Contains).ToArray();
+            replyCaseIds = replyCaseIds.Where(eligibleIds.Contains).ToArray();
+            claimReferenceCaseIds = claimReferenceCaseIds.Where(eligibleIds.Contains).ToArray();
+        }
+
         return new(
             receipt.Id,
             receipt.Version,
-            normalizedRegistration,
-            registrationCaseIds,
             (message.MailboxId ?? UploadedCorrespondence.MailboxId).ToString("D"),
             message.ConversationIdentity,
-            threadCaseIds);
+            normalizedRegistration,
+            receipt.IncidentDate,
+            threadCaseIds,
+            replyCaseIds,
+            claimReferenceCaseIds,
+            registrationCandidates);
     }
+
+    /// <summary>
+    /// The Cases whose current registration is the message's, each with the
+    /// incident date the case-match index derived for it. A Case with no index
+    /// row still contributes its registration and a null date: it links when it
+    /// is the only candidate, and is dropped by a narrowing that has a date to
+    /// compare.
+    /// </summary>
+    private static async Task<MailAssociationRegistrationCandidate[]> RegistrationCandidatesAsync(
+        PegasusDbContext context,
+        string? normalizedRegistration,
+        CancellationToken cancellationToken)
+    {
+        if (normalizedRegistration is null)
+        {
+            return [];
+        }
+
+        var registrations = await context.CaseDataFields
+            .AsNoTracking()
+            .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                && context.CaseWorkflows.Any(workflow =>
+                    workflow.CaseId == item.WorkId && workflow.ArchivedAtUtc == null))
+            .Select(item => new { CaseId = item.WorkId, item.Value })
+            .ToListAsync(cancellationToken);
+        var caseIds = registrations
+            .Where(item => string.Equals(
+                Pegasus.Core.Cases.CaseRegistration.Normalize(item.Value),
+                normalizedRegistration,
+                StringComparison.Ordinal))
+            .Select(item => item.CaseId)
+            .Distinct()
+            .Order()
+            .ToArray();
+        if (caseIds.Length == 0)
+        {
+            return [];
+        }
+
+        var incidentDates = await context.CaseMatchIndex
+            .AsNoTracking()
+            .Where(item => caseIds.Contains(item.CaseId))
+            .Select(item => new { item.CaseId, item.IncidentDate })
+            .ToListAsync(cancellationToken);
+        return caseIds
+            .Select(caseId => new MailAssociationRegistrationCandidate(
+                caseId,
+                incidentDates.FirstOrDefault(row => row.CaseId == caseId)?.IncidentDate))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The Cases the message's In-Reply-To and References headers point at: a
+    /// retained received message's own Case, a Pegasus Sent item's authoritative
+    /// Case identities, and a report-sent evidence row's Case. Any approved
+    /// mailbox contributes; the mailbox a message was read from does not bound
+    /// the reply chain (D13).
+    /// </summary>
+    private static async Task<Guid[]> ReplyCaseIdsAsync(
+        PegasusDbContext context,
+        string[] replyIdentities,
+        CancellationToken cancellationToken)
+    {
+        if (replyIdentities.Length == 0)
+        {
+            return [];
+        }
+
+        // A reply header carries the Message-ID without its angle brackets
+        // (MimeKit strips them), while a Graph item, a Sent poll outcome and
+        // report-sent evidence retain the transport value with them. Each
+        // identity is offered in both forms and compared by plain equality: the
+        // identity columns' case-insensitive collation is what every other
+        // identity comparison in this store already relies on.
+        var lookup = replyIdentities
+            .SelectMany(identity => identity.Length > 1
+                && identity[0] == '<'
+                && identity[^1] == '>'
+                    ? new[] { identity, identity[1..^1] }
+                    : new[] { identity, $"<{identity}>" })
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        var caseIds = new List<Guid>();
+
+        var inbox = EfRetainedMailboxMessageStore.ToCode(MailFolderScope.Inbox);
+        var pointedAtTokens = await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .Where(item => item.FolderScope == inbox
+                && item.CanonicalInternetMessageIdentity != null
+                && lookup.Contains(item.CanonicalInternetMessageIdentity))
+            .Select(item => item.ExternalReceiptToken)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (pointedAtTokens.Count > 0)
+        {
+            var pointedAtReceiptIds = await context.IntakeReceipts
+                .AsNoTracking()
+                .Where(item => item.SourceChannel == "mailbox"
+                    && pointedAtTokens.Contains(item.ExternalReceiptToken))
+                .Select(item => item.Id)
+                .ToListAsync(cancellationToken);
+            var current = await CurrentIntakeAssociations.ReadAsync(
+                context,
+                pointedAtReceiptIds,
+                cancellationToken);
+            caseIds.AddRange(current.Current.Values.Select(item => item.CaseId));
+        }
+
+        var sentCaseIdentities = await context.ApprovedSentPollOutcomes
+            .AsNoTracking()
+            .Where(item => item.InternetMessageIdentity != null
+                && item.AuthoritativeCaseIdentitiesJson != null
+                && lookup.Contains(item.InternetMessageIdentity))
+            .Select(item => item.AuthoritativeCaseIdentitiesJson!)
+            .ToListAsync(cancellationToken);
+        foreach (var identities in sentCaseIdentities)
+        {
+            caseIds.AddRange(JsonSerializer.Deserialize<Guid[]>(identities)
+                ?? throw new InvalidDataException(
+                    "A retained Sent item has no authoritative Case identities."));
+        }
+
+        var reportSentCaseIds = await context.CaseReportSentEvidence
+            .AsNoTracking()
+            .Where(item => item.CaseId != null
+                && lookup.Contains(item.InternetMessageIdentity))
+            .Select(item => item.CaseId!.Value)
+            .ToListAsync(cancellationToken);
+        caseIds.AddRange(reportSentCaseIds);
+
+        return caseIds.Distinct().Order().ToArray();
+    }
+
+    /// <summary>
+    /// The Cases whose indexed durable claim token the message's subject or
+    /// body names, across every Principal (D14). The index holds the durable
+    /// tail a full reference normalises to, so both the token and its tail are
+    /// offered.
+    /// </summary>
+    private static async Task<Guid[]> ClaimReferenceCaseIdsAsync(
+        PegasusDbContext context,
+        IReadOnlyList<string> claimTokens,
+        CancellationToken cancellationToken)
+    {
+        if (claimTokens.Count == 0)
+        {
+            return [];
+        }
+
+        var tokens = claimTokens.ToArray();
+        return await context.CaseMatchIndex
+            .AsNoTracking()
+            .Where(item => item.DurableClaimToken != null
+                && tokens.Contains(item.DurableClaimToken))
+            .Select(item => item.CaseId)
+            .Distinct()
+            .Order()
+            .ToArrayAsync(cancellationToken);
+    }
+
+    private static string[] DeserializeReplyIdentities(string? json) =>
+        string.IsNullOrWhiteSpace(json)
+            ? []
+            : JsonSerializer.Deserialize<string[]>(json)
+                ?? throw new InvalidDataException(
+                    "A retained message has no exact reply-chain identities.");
 
     private static string RequestHash(string eventType, ResolveIntakeRequest request) =>
         Hash(JsonSerializer.Serialize(new

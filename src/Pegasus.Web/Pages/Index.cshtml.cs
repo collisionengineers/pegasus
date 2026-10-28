@@ -17,13 +17,11 @@ using Labels = Pegasus.Web.Presentation.OperatorLabels.WorkCentre;
 namespace Pegasus.Web.Pages;
 
 /// <summary>
-/// The Work Centre (v30 B "Office ledger" over Work Centre D1–D10): the five
-/// queue totals, then one tabbed panel holding the paged Needs attention
-/// ledger (grouped by due day, Office/Mine, kind chips and Find, the selected
-/// row expanding to its facts and next action in place), New cases and AI jobs.
-/// A tab is omitted when its section is empty and kept when it is unavailable.
-/// Under the counts sits the Activity panel (v32 A, 5 October 2026): the
-/// day and week figures, read beside the three sections with its own outcome.
+/// The Work Centre (v42 Design A): Office queues beside Activity, then one
+/// tabbed panel. New cases is the landing tab and stamps the last look; System
+/// Actions, AI Actions and Needs attention follow. A tab is omitted when its
+/// section is empty and kept when it is unavailable. One search box applies to
+/// the active tab.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -40,17 +38,20 @@ public partial class IndexModel(
     IAcquireCaseEditLease acquireLease,
     IReleaseCaseEditLease releaseLease,
     IAssignCaseEngineer assignEngineer,
+    IAssignCaseQuery assignQuery,
     IConfirmAiJob confirmAiJob,
     IListWorkCentreAiJobs listAiJobs,
+    IListSystemActions listSystemActions,
     IWorkCentreDismissalStore dismissalStore,
     IDismissWorkCentreItem dismissItem,
     IGetWorkCentreActivity getActivity,
     TimeProvider timeProvider,
     ILogger<IndexModel> logger) : StaffPageModel
 {
-    public const string AttentionTab = "attention";
     public const string NewCasesTab = "new-cases";
-    public const string AiJobsTab = "ai-jobs";
+    public const string SystemActionsTab = "system-actions";
+    public const string AiActionsTab = "ai-actions";
+    public const string AttentionTab = "attention";
 
     public DateTimeOffset NowUtc { get; private set; }
 
@@ -66,14 +67,25 @@ public partial class IndexModel(
     /// <summary>Find within Needs attention (v30 WB): trimmed, null when empty.</summary>
     public string? Search { get; private set; }
 
-    /// <summary>The section the panel shows: attention, new-cases or ai-jobs (v30 WD).</summary>
-    public string Tab { get; private set; } = AttentionTab;
+    /// <summary>The section the panel shows. Landing on <c>/</c> is New cases (v42 Design A).</summary>
+    public string Tab { get; private set; } = NewCasesTab;
+
+    /// <summary>The New cases channel sub-filter; null is every channel.</summary>
+    public CaseArrival? Arrival { get; private set; }
+
+    /// <summary>The System Actions sub-filter.</summary>
+    public SystemActionFilter SystemFilter { get; private set; } = SystemActionFilter.All;
+
+    /// <summary>The AI Actions sub-filter.</summary>
+    public WorkCentreAiActionFilter AiFilter { get; private set; } = WorkCentreAiActionFilter.All;
 
     public bool AttentionFiltered => Kinds.Count > 0 || Search is not null;
 
     public int CurrentPage { get; private set; } = 1;
 
     public int NewCasesPage { get; private set; } = 1;
+
+    public int SystemActionsPage { get; private set; } = 1;
 
     public NeedsAttentionPage? Attention { get; private set; }
 
@@ -116,15 +128,33 @@ public partial class IndexModel(
 
     public bool NewCasesFailed => NewCasesUnavailable || NewCases is null;
 
-    public bool ShowNewCases => NewCasesFailed || NewCases!.Page.TotalCount > 0;
+    /// <summary>The window's Cases before the channel and search filters, so an empty filter keeps the tab.</summary>
+    public int NewCasesWindowCount => NewCases?.Page.ArrivalCounts.Values.Sum() ?? 0;
 
-    public bool ShowAiJobs => AiJobsUnavailable || AiJobs.Count > 0;
+    public bool ShowNewCases => NewCasesFailed || NewCasesWindowCount > 0
+        || Arrival is not null || (Tab == NewCasesTab && Search is not null);
+
+    public bool SystemActionsFailed => SystemActionsUnavailable || SystemActions is null;
+
+    public int SystemActionsWindowCount => SystemActions?.KindCounts.Values.Sum() ?? 0;
+
+    public bool ShowSystemActions => SystemActionsFailed || SystemActionsWindowCount > 0
+        || SystemFilter != SystemActionFilter.All || (Tab == SystemActionsTab && Search is not null);
+
+    public bool ShowAiJobs => AiJobsUnavailable || AiJobs.Count > 0
+        || AiFilter != WorkCentreAiActionFilter.All || (Tab == AiActionsTab && Search is not null);
 
     /// <summary>The whole page has nothing to show and no read failed to say so.</summary>
-    public bool NothingToShow => !ShowAttention && !ShowNewCases && !ShowAiJobs;
+    public bool NothingToShow => !ShowAttention && !ShowNewCases && !ShowSystemActions && !ShowAiJobs;
 
     public IReadOnlyList<string> VisibleTabs =>
-        new[] { (AttentionTab, ShowAttention), (NewCasesTab, ShowNewCases), (AiJobsTab, ShowAiJobs) }
+        new[]
+        {
+            (NewCasesTab, ShowNewCases),
+            (SystemActionsTab, ShowSystemActions),
+            (AiActionsTab, ShowAiJobs),
+            (AttentionTab, ShowAttention)
+        }
             .Where(tab => tab.Item2)
             .Select(tab => tab.Item1)
             .ToArray();
@@ -138,7 +168,17 @@ public partial class IndexModel(
 
     public IReadOnlyList<WorkCentreAiJobRow> AiJobs { get; private set; } = [];
 
+    /// <summary>The AI Actions table: the window narrowed by the sub-filter and by Find.</summary>
+    public IReadOnlyList<WorkCentreAiJobRow> ShownAiJobs => AiJobs
+        .Where(row => WorkCentreAiActionPolicy.Matches(AiFilter, row.Job)
+            && (Search is null || Tab != AiActionsTab || MatchesAiSearch(row)))
+        .ToArray();
+
     public bool AiJobsUnavailable { get; private set; }
+
+    public SystemActionPage? SystemActions { get; private set; }
+
+    public bool SystemActionsUnavailable { get; private set; }
 
     /// <summary>The Activity figures (FRD-15): null until read, and never drawn as zero when the read failed.</summary>
     public WorkCentreActivityCounts? Activity { get; private set; }
@@ -148,12 +188,14 @@ public partial class IndexModel(
     public bool ActivityFailed => ActivityUnavailable || Activity is null;
 
     /// <summary>True when one or more independently rendered live sections could not be read.</summary>
-    public bool HasReadFailure => IsUnavailable || NewCasesUnavailable || AiJobsUnavailable || ActivityUnavailable;
+    public bool HasReadFailure => IsUnavailable || NewCasesUnavailable || SystemActionsUnavailable || AiJobsUnavailable || ActivityUnavailable;
 
     /// <summary>The fragment outcome is failed only when no independently rendered section was read.</summary>
     public string RefreshOutcome => !HasReadFailure
         ? "current"
-        : IsUnavailable && NewCasesUnavailable && AiJobsUnavailable && ActivityUnavailable ? "failed" : "partial";
+        : IsUnavailable && NewCasesUnavailable && SystemActionsUnavailable && AiJobsUnavailable && ActivityUnavailable
+            ? "failed"
+            : "partial";
 
     /// <summary>The head's freshness words: "Updated HH:MM" (FRD-15) unless a section failed.</summary>
     public string RefreshOutcomeLabel => RefreshOutcome switch
@@ -174,6 +216,9 @@ public partial class IndexModel(
         [FromQuery(Name = "kind")] string[]? kind,
         string? q,
         string? tab,
+        string? arrival,
+        string? sys,
+        string? ai,
         Guid? selected,
         bool assign,
         bool refresh,
@@ -182,10 +227,12 @@ public partial class IndexModel(
         // "page" is also the Razor Pages route value naming this page, which
         // outranks the query string; bind the list's page from the query.
         [FromQuery(Name = "page")] int page = 1,
-        int newPage = 1)
+        int newPage = 1,
+        int sysPage = 1)
     {
         using var timing = DocumentReadTelemetry.Start("web.workcentre.main");
-        var refusal = await LoadAsync(scope, kind, q, tab, selected, assign, refresh, since, page, newPage, cancellationToken);
+        var refusal = await LoadAsync(
+            scope, kind, q, tab, arrival, sys, ai, selected, assign, refresh, since, page, newPage, sysPage, cancellationToken);
         return refusal ?? Page();
     }
 
@@ -199,11 +246,15 @@ public partial class IndexModel(
         [FromQuery(Name = "kind")] string[]? kind,
         string? q,
         string? tab,
+        string? arrival,
+        string? sys,
+        string? ai,
         Guid? selected,
         string? since,
         CancellationToken cancellationToken,
         [FromQuery(Name = "page")] int page = 1,
-        int newPage = 1)
+        int newPage = 1,
+        int sysPage = 1)
     {
         using var timing = DocumentReadTelemetry.Start("web.workcentre.refresh.main");
         // A refresh is never the one-shot instruction to reopen an assignment
@@ -213,19 +264,24 @@ public partial class IndexModel(
             kind,
             q,
             tab,
+            arrival,
+            sys,
+            ai,
             selected,
             assign: false,
             refresh: true,
             since: since,
             page: page,
             newPage: newPage,
+            sysPage: sysPage,
             cancellationToken: cancellationToken);
         if (refusal is not null)
         {
             return refusal;
         }
 
-        LogRefreshOutcome(logger, !IsUnavailable, !NewCasesUnavailable, !AiJobsUnavailable, !ActivityUnavailable);
+        LogRefreshOutcome(
+            logger, !IsUnavailable, !NewCasesUnavailable, !SystemActionsUnavailable, !AiJobsUnavailable, !ActivityUnavailable);
         return Partial("_WorkCentreBody", this);
     }
 
@@ -261,6 +317,44 @@ public partial class IndexModel(
             },
             Labels.Assigned,
             cancellationToken);
+
+    /// <summary>
+    /// Take on an Unassigned open query (operator, 27 October 2026). Posts the
+    /// viewer's staff id through the same assignment a Case row's Take uses,
+    /// and returns to the Work Centre. No Case lease: a query act takes none.
+    /// </summary>
+    public async Task<IActionResult> OnPostTakeQueryAsync(
+        Guid queryId,
+        string operationKey,
+        string? returnUrl,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var staffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(actor)
+                ?? throw new InvalidOperationException("Take is a staff act.");
+            await assignQuery.ExecuteAsync(
+                new(queryId, actor, operationKey, staffId),
+                cancellationToken);
+            StatusMessage = Labels.Assigned;
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCommandFailed(logger, "take_query", queryId, exception);
+            ErrorMessage = Labels.AssignRefused;
+        }
+
+        return LocalRedirect(SafeReturnUrl(returnUrl));
+    }
 
     /// <summary>Complete job on a Draft ready Query response or queue pass (D9).</summary>
     public async Task<IActionResult> OnPostCompleteAiJobAsync(
@@ -341,9 +435,14 @@ public partial class IndexModel(
         int? page = null,
         Guid? selected = null,
         int? newPage = null,
+        int? sysPage = null,
         bool assign = false,
         string? fragment = null,
         string? tab = null,
+        CaseArrival? arrival = null,
+        bool clearArrival = false,
+        SystemActionFilter? systemFilter = null,
+        WorkCentreAiActionFilter? aiFilter = null,
         bool clearSearch = false)
     {
         var query = new List<string> { "scope=" + ScopeSlug(scope ?? Scope) };
@@ -370,8 +469,29 @@ public partial class IndexModel(
             query.Add(string.Create(CultureInfo.InvariantCulture, $"newPage={feedPage}"));
         }
 
+        var actionsPage = sysPage ?? SystemActionsPage;
+        if (actionsPage > 1)
+        {
+            query.Add(string.Create(CultureInfo.InvariantCulture, $"sysPage={actionsPage}"));
+        }
+
+        if (!clearArrival && ArrivalSlug(arrival ?? Arrival) is { } arrivalSlug)
+        {
+            query.Add("arrival=" + arrivalSlug);
+        }
+
+        if (SystemFilterSlug(systemFilter ?? SystemFilter) is { } systemSlug)
+        {
+            query.Add("sys=" + systemSlug);
+        }
+
+        if (AiFilterSlug(aiFilter ?? AiFilter) is { } aiSlug)
+        {
+            query.Add("ai=" + aiSlug);
+        }
+
         var section = tab ?? Tab;
-        if (section != AttentionTab)
+        if (section != NewCasesTab)
         {
             query.Add("tab=" + section);
         }
@@ -387,15 +507,17 @@ public partial class IndexModel(
     public static string TabLabel(string tab) => tab switch
     {
         NewCasesTab => Labels.NewCases,
-        AiJobsTab => Labels.AiJobsTitle,
+        SystemActionsTab => Labels.SystemActions,
+        AiActionsTab => Labels.AiActions,
         _ => Labels.NeedsAttention
     };
 
     /// <summary>The tab's count: the section's whole total, or a dash when it could not be read.</summary>
     public string TabCount(string tab) => tab switch
     {
-        NewCasesTab => NewCasesFailed ? "—" : NewCases!.Page.TotalCount.ToString(CultureInfo.InvariantCulture),
-        AiJobsTab => AiJobsUnavailable ? "—" : AiJobs.Count.ToString(CultureInfo.InvariantCulture),
+        NewCasesTab => NewCasesFailed ? "—" : NewCasesWindowCount.ToString(CultureInfo.InvariantCulture),
+        SystemActionsTab => SystemActionsFailed ? "—" : SystemActionsWindowCount.ToString(CultureInfo.InvariantCulture),
+        AiActionsTab => AiJobsUnavailable ? "—" : AiJobs.Count.ToString(CultureInfo.InvariantCulture),
         _ => AttentionFailed ? "—" : ScopeTotal.ToString(CultureInfo.InvariantCulture)
     };
 
@@ -420,10 +542,76 @@ public partial class IndexModel(
 
     private static string ParseTab(string? tab) => tab?.Trim().ToLowerInvariant() switch
     {
-        NewCasesTab => NewCasesTab,
-        AiJobsTab => AiJobsTab,
-        _ => AttentionTab
+        SystemActionsTab => SystemActionsTab,
+        AiActionsTab => AiActionsTab,
+        AttentionTab => AttentionTab,
+        _ => NewCasesTab
     };
+
+    public static string? ArrivalSlug(CaseArrival? arrival) => arrival switch
+    {
+        CaseArrival.PrincipalApi => "api",
+        CaseArrival.Email => "email",
+        CaseArrival.Manual => "manual",
+        CaseArrival.Automation => "automation",
+        _ => null
+    };
+
+    private static CaseArrival? ParseArrival(string? arrival) => arrival?.Trim().ToLowerInvariant() switch
+    {
+        "api" => CaseArrival.PrincipalApi,
+        "email" => CaseArrival.Email,
+        "manual" => CaseArrival.Manual,
+        "automation" => CaseArrival.Automation,
+        _ => null
+    };
+
+    public static string? SystemFilterSlug(SystemActionFilter filter) => filter switch
+    {
+        SystemActionFilter.AutoMatched => "auto-match",
+        SystemActionFilter.ImagesPaired => "images",
+        SystemActionFilter.RulesAndQueries => "rules",
+        _ => null
+    };
+
+    private static SystemActionFilter ParseSystemFilter(string? filter) => filter?.Trim().ToLowerInvariant() switch
+    {
+        "auto-match" => SystemActionFilter.AutoMatched,
+        "images" => SystemActionFilter.ImagesPaired,
+        "rules" => SystemActionFilter.RulesAndQueries,
+        _ => SystemActionFilter.All
+    };
+
+    public static string? AiFilterSlug(WorkCentreAiActionFilter filter) => filter switch
+    {
+        WorkCentreAiActionFilter.Estimate => "estimate",
+        WorkCentreAiActionFilter.QueryDraft => "query-draft",
+        WorkCentreAiActionFilter.Failed => "failed",
+        _ => null
+    };
+
+    private static WorkCentreAiActionFilter ParseAiFilter(string? filter) => filter?.Trim().ToLowerInvariant() switch
+    {
+        "estimate" => WorkCentreAiActionFilter.Estimate,
+        "query-draft" => WorkCentreAiActionFilter.QueryDraft,
+        "failed" => WorkCentreAiActionFilter.Failed,
+        _ => WorkCentreAiActionFilter.All
+    };
+
+    private static bool MatchesAiSearch(WorkCentreAiJobRow row, string? search)
+    {
+        var term = search?.Trim();
+        if (string.IsNullOrEmpty(term))
+        {
+            return true;
+        }
+
+        return row.Job.SubjectReference.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || row.Job.Instruction.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || (row.Job.ClosureReason?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private bool MatchesAiSearch(WorkCentreAiJobRow row) => MatchesAiSearch(row, Search);
 
     /// <summary>Loads the full-page and fragment models through one set of reads.</summary>
     private async Task<IActionResult?> LoadAsync(
@@ -431,12 +619,16 @@ public partial class IndexModel(
         string[]? kind,
         string? q,
         string? tab,
+        string? arrival,
+        string? sys,
+        string? ai,
         Guid? selected,
         bool assign,
         bool refresh,
         string? since,
         int page,
         int newPage,
+        int sysPage,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -452,8 +644,12 @@ public partial class IndexModel(
         Kinds = NeedsAttentionPresentation.ParseKinds(kind);
         Search = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
         Tab = ParseTab(tab);
+        Arrival = ParseArrival(arrival);
+        SystemFilter = ParseSystemFilter(sys);
+        AiFilter = ParseAiFilter(ai);
         CurrentPage = Math.Max(1, page);
         NewCasesPage = Math.Max(1, newPage);
+        SystemActionsPage = Math.Max(1, sysPage);
 
         // The three sections read side by side, each on its own database
         // contexts, and each keeps its own failure: one unreadable section
@@ -469,11 +665,12 @@ public partial class IndexModel(
         var dismissals = new WorkCentreDismissalBatch(dismissalStore, sections: 2, cancellationToken);
         var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, sharedRead, dismissals, cancellationToken);
         var newCasesRead = ReadNewCasesAsync(actor, markSeen: NewCasesPage == 1 && !refresh, cancellationToken);
+        var systemActionsRead = ReadSystemActionsAsync(actor, cancellationToken);
         var aiJobsRead = ReadAiJobsAsync(actor, clientId, sharedRead, dismissals, cancellationToken);
         var activityRead = ReadActivityAsync(actor, cancellationToken);
         try
         {
-            await Task.WhenAll(attentionRead, newCasesRead, aiJobsRead, activityRead);
+            await Task.WhenAll(attentionRead, newCasesRead, systemActionsRead, aiJobsRead, activityRead);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -511,6 +708,16 @@ public partial class IndexModel(
 
         try
         {
+            SystemActions = await systemActionsRead;
+        }
+        catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
+        {
+            LogSectionFailed(logger, "system_actions", exception);
+            SystemActionsUnavailable = true;
+        }
+
+        try
+        {
             AiJobs = await aiJobsRead;
         }
         catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
@@ -533,7 +740,7 @@ public partial class IndexModel(
         var visible = VisibleTabs;
         if (!visible.Contains(Tab))
         {
-            Tab = visible.Count > 0 ? visible[0] : AttentionTab;
+            Tab = visible.Count > 0 ? visible[0] : NewCasesTab;
         }
 
         return null;
@@ -673,7 +880,21 @@ public partial class IndexModel(
         CancellationToken cancellationToken)
     {
         using var timing = DocumentReadTelemetry.Start("web.workcentre.newcases");
-        return await listRecentCases.ExecuteAsync(actor, NewCasesPage, markSeen, cancellationToken, NowUtc);
+        return await listRecentCases.ExecuteAsync(
+            actor, NewCasesPage, markSeen, Arrival, Tab == NewCasesTab ? Search : null, cancellationToken, NowUtc);
+    }
+
+    /// <summary>The System Actions section: the window, narrowed by the sub-filter and by Find.</summary>
+    private async Task<SystemActionPage> ReadSystemActionsAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.systemactions");
+        return await listSystemActions.ExecuteAsync(
+            actor,
+            SystemFilter,
+            Tab == SystemActionsTab ? Search : null,
+            SystemActionsPage,
+            cancellationToken,
+            NowUtc);
     }
 
     /// <summary>The Activity panel: the day and week figures as of this load.</summary>
@@ -702,13 +923,17 @@ public partial class IndexModel(
 
         var names = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
-            AiJobActions.StaffCreatorIds(jobs.Select(row => row.Job)),
+            AiJobActions.StaffCreatorIds(jobs.Select(row => row.Job))
+                .Concat(jobs.Select(row => row.AdoptedByStaffId).OfType<Guid>())
+                .Distinct()
+                .ToArray(),
             cancellationToken);
         return jobs
             .Select(row => new WorkCentreAiJobRow(
                 row.Job,
                 row.Draft,
-                AiJobActions.StartedBy(row.Job, names, clientId)))
+                AiJobActions.StartedBy(row.Job, names, clientId),
+                row.AdoptedByStaffId is { } adopted && names.TryGetValue(adopted, out var name) ? name : null))
             .ToArray();
     }
 
@@ -761,8 +986,9 @@ public partial class IndexModel(
     [LoggerMessage(Level = LogLevel.Warning, Message = "Work Centre section {Section} could not be read.")]
     private static partial void LogSectionFailed(ILogger logger, string section, Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Work Centre refresh sections: attention={Attention}, newCases={NewCases}, aiJobs={AiJobs}, activity={Activity}.")]
-    private static partial void LogRefreshOutcome(ILogger logger, bool attention, bool newCases, bool aiJobs, bool activity);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Work Centre refresh sections: attention={Attention}, newCases={NewCases}, systemActions={SystemActions}, aiJobs={AiJobs}, activity={Activity}.")]
+    private static partial void LogRefreshOutcome(
+        ILogger logger, bool attention, bool newCases, bool systemActions, bool aiJobs, bool activity);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Work Centre command {CommandName} failed for {RecordId}.")]
     private static partial void LogCommandFailed(ILogger logger, string commandName, Guid recordId, Exception exception);
@@ -781,7 +1007,7 @@ public sealed record WorkCentreAssignment(
     IReadOnlyList<WorkCentreEngineer> Engineers);
 
 /// <summary>One AI jobs row: the job, its draft (route and action) when Draft ready, and who started it.</summary>
-public sealed record WorkCentreAiJobRow(AiJobRecord Job, AiDraft? Draft, string StartedBy)
+public sealed record WorkCentreAiJobRow(AiJobRecord Job, AiDraft? Draft, string StartedBy, string? AdoptedBy = null)
 {
     public bool CanComplete => Draft is not null && AiJobPolicy.CompletesByHand(Job);
 }

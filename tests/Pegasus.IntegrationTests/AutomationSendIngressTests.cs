@@ -327,10 +327,10 @@ public sealed class AutomationSendIngressTests
         using (var refused = await PostMcpAsync(client, SendServer, token, ToolCallPayload(40, "pegasus_mail_send", new
         {
             mode = "chaser", caseId, expectedVersion = version, subject = "Images", body = "Please send the images.",
-            operationKey = "mcp:mail-new-resolve", to = Handler, fromMailbox = address, resolveQuery = true,
+            operationKey = "mcp:mail-new-resolve", to = Handler, fromMailbox = address, markQueryDone = true,
         })))
         {
-            Assert.Contains("resolveQuery applies to reply and reply_all only", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+            Assert.Contains("markQueryDone applies to reply and reply_all only", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
         Assert.Empty(mail.Commands);
 
@@ -343,7 +343,7 @@ public sealed class AutomationSendIngressTests
             subject = "Re: The labour rate",
             body = "The labour rate is as reported.",
             operationKey = "mcp:mail-reply-resolve",
-            resolveQuery = true,
+            markQueryDone = true,
         }));
         var result = await ReadStructuredContentAsync(sent);
         Assert.Equal("reply", result.GetProperty("mode").GetString());
@@ -352,7 +352,7 @@ public sealed class AutomationSendIngressTests
         Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
         Assert.Equal(messageId, command.OriginalMessage?.RetainedMessageId);
         Assert.Equal(caseId, command.ContextId);
-        Assert.True(command.ResolvesCaseQueries);
+        Assert.True(command.MarksQueryDone);
     }
 
     /// <summary>
@@ -487,6 +487,7 @@ public sealed class AutomationSendIngressTests
                     "inbox",
                     "conversation-mcp-reply-query",
                     $"<{identity}@example.invalid>",
+                    [],
                     "handler@principal.example",
                     "A Handler",
                     [address],

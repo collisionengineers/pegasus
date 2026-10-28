@@ -33,7 +33,7 @@ context, no desk noise) is owned by the Mail pages and
 
 Owner:
 `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`
-(`principal_mail_classification`, Version 3).
+(`principal_mail_classification`, Version 4).
 
 Built **only on operator-guaranteed generated tells**, matched
 case-sensitively (the casing is part of the tell — a human sentence mentioning
@@ -49,17 +49,12 @@ being chased, not a new instruction.
 | `subject.engineer-triage` | `Engineer Triage`, opening the subject past any forward or reply prefix | Subject |
 | `attachment.audit-report-notification` | `AUDIT REPORT NOTIFICATION` | An attached document's text |
 | `attachment.engineer-notification` | `ENGINEER NOTIFICATION` (with or without the `REPORT + AUDIT REPORT` marker) | An attached document's text |
-| `body.garage-allocation-notice` | `Please be advised that the garage allocated to this claim are shown below for your records:` | The current email body (→ Case update) |
-| `body.repairs-authorised-notice` | `We are now able to authorise repairs. Please can you arrange this with the garage below:` | The current email body (→ Case update; one candidate with the rows above and below) |
-| `body.report-chase-notice` | `we note that we have heard nothing further from you since then.` | The current email body (→ Case update) |
-| `body.pav-dispute-letter` | `The client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle.` | The current email body (→ Query) |
+| `body.pav-dispute-letter` | `The client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle.` | The current email body (sets `OpensQuery`; not a category) |
 
-The four body-notice tells (Version 3) are the fixed sentence of a letter Qdos's case
-system pastes into the email under its `Our Ref: / Dear Sirs / Our Client:` preamble.
-They were verified over the QDOS template registry of 8 October 2026 (the desk@ mailbox,
-twelve months): every example of each notice carries its sentence, no handrolled QDOS
-message does, and no two notices share one. A notice quoted under a later reply is not
-current content and does not fire. The three Case update tells feed one candidate.
+The pre-accident-value dispute sentence (Version 4) is the fixed sentence of a letter
+Qdos's case system pastes into the email. It sets `OpensQuery` and is not a category.
+Garage allocation, repairs authorised, report chase and automatic replies are not
+classified. A notice quoted under a later reply is not current content and does not fire.
 
 An Audit's automatic assessment (Version 2, #864) reads the second attached
 document for exactly one unnegated "repairable" or "total loss". When that

@@ -171,9 +171,9 @@ offered while a colleague holds it. Typical entries include:
 - Tasks, on every standard Case in every state: a link that opens the Tasks dialog
   (`data-dialog-open`, and `?dialog=tasks` without script);
 - Mark report sent;
-- Log query, on a Report sent Case (a compact dialog: channel and details, no reason), and
-  Resolve query while a query is open (a direct post, no dialog, no reason; operator, 11 October
-  2026);
+- Log query, on a Report sent Case (a compact dialog: channel and details, no reason).
+  Mark done, Reopen and Assign live on the query's own row, not in this menu
+  (operator, 27 October 2026);
 - Return to Review / Return to Engineer;
 - Archive, greyed in a `.menu-gated` span whose `title` reads "Complete or cancel every open
   task first." while the Case has an open task (operator, 6 October 2026);

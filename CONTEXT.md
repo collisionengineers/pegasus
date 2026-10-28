@@ -78,8 +78,8 @@ Safely retained image material or an inseparable image submission group that has
 _Avoid_: Triage, Blocked, Blocked intake
 
 **Mail category**:
-The one category a retained received message has, from eleven: New instruction, Triage request, Pre-instruction, Images received, Case update, Cancellation, Query, Billing, General, Not client related and Internal CC ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). A message no classification has decided is Unclassified. Sent items carry no category.
-_Avoid_: family, subtype, destination, Other, Ambiguous
+The one category a retained received message has, from three: New instruction (with Case type Inspection, Audit, or Inspection and Audit), Triage request, and Cancellation ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). Every other message has no category: linked, it is Case correspondence; unlinked, it waits in No Case Found. A classification may also set Opens query, which is not a category. Sent items carry no category.
+_Avoid_: family, subtype, destination, Other, Ambiguous, Unclassified as a category, Query as a mail category
 
 **Held**:
 A Case state that pauses progression and recurring chasers until staff decide. A hold records a reason and may carry a Review on date, which is when it is next due for a decision. A cancellation message never changes a Case by itself; staff may place the Case on Hold with the cancellation as the reason ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)).
@@ -209,10 +209,13 @@ completed (operator, 11 October 2026;
 _Avoid_: Completed, Complete, Post-report, Closed
 
 **Query**:
-A record on a Case: a received e-mail classified Query, or a query
-staff logged with its channel and details. While any is open the Case reads
-Query, in purple, whatever its state; Resolve query closes every open one.
-A dispute, a challenge to a delivered report or finding, is a query: there is
-no separate dispute type, count or column (operator, 9 October 2026). An
-amendment request is a query too (operator, 12 October 2026).
+A record on a Case, opened once the report is sent: a linked e-mail, or a
+query staff logged with its channel and details. A new query is Unassigned
+until taken or assigned. Each open query is marked done on its own, and a
+Done query can be reopened. While any is open the Case reads Query, in
+purple, whatever its stored state. A dispute, a challenge to a delivered
+report or finding, is a query: there is no separate dispute type, count or
+column (operator, 9 October 2026). An amendment request is a query too
+(operator, 12 October 2026;
+[ADR-0085](docs/adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)).
 _Avoid_: Query state, Dispute as its own category

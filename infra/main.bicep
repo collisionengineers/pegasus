@@ -94,6 +94,10 @@ param glassValuationPasswordSecretUri string
 param cazanaCompanionEmailSecretUri string
 @description('Versioned Key Vault secret URI containing the Cazana Companion account password (ADR-0079).')
 param cazanaCompanionPasswordSecretUri string
+@description('Versioned Key Vault secret URI containing the Brego valuation account e-mail (ADR-0084).')
+param bregoValuationEmailSecretUri string
+@description('Versioned Key Vault secret URI containing the Brego valuation account password (ADR-0084).')
+param bregoValuationPasswordSecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
 param dvsaApiKeySecretUri string
 @description('Approved DVSA OAuth token endpoint.')
@@ -150,6 +154,8 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     glassValuationPasswordSecretUri: glassValuationPasswordSecretUri
     cazanaCompanionEmailSecretUri: cazanaCompanionEmailSecretUri
     cazanaCompanionPasswordSecretUri: cazanaCompanionPasswordSecretUri
+    bregoValuationEmailSecretUri: bregoValuationEmailSecretUri
+    bregoValuationPasswordSecretUri: bregoValuationPasswordSecretUri
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope

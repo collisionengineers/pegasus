@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Pages.Mail;
 using Pegasus.Web.Presentation;
 
@@ -127,6 +128,13 @@ internal sealed record MailActionToolResult(
     string OperationKey,
     string CorrelationId);
 
+internal sealed record MailOpenQueryToolResult(
+    Guid QueryId,
+    Guid CaseId,
+    Guid MessageId,
+    string OperationKey,
+    string CorrelationId);
+
 internal enum MailAction
 {
     Dismiss,
@@ -152,6 +160,7 @@ internal sealed class MailMcpTools(
     IGetIntake getIntake,
     IIntakeAssociationDestinationQueries destinations,
     ILinkIntake linkIntake,
+    IOpenCaseQuery openCaseQuery,
     AutomationEditLease leases,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
@@ -168,7 +177,7 @@ internal sealed class MailMcpTools(
     [Description("Lists the retained mail workspace, newest first: one page of messages with the mailboxes that hold retained mail and how fresh the workspace is. Each message names its Case by caseId and caseReference; isTriageCase is true when that Case is a Triage Case, whose reference starts t. and which is not an instruction Case. Defaults to every mailbox and the inbox scope. Reads the retained record only; nothing is marked read in any mailbox.")]
     public async Task<MailToolPage> ListAsync(
         [Description("Optional exact mailbox identity from the mailboxes list. Omit for every mailbox.")] string? mailbox = null,
-        [Description("Optional folder scope: inbox, sent, or deleted. Defaults to inbox.")] string? folder = null,
+        [Description("Optional folder scope: inbox, sent, or dismissed. Defaults to inbox.")] string? folder = null,
         [Description("Opaque continuation returned by the preceding call.")] string? continuation = null,
         [Description("Page size from 1 to 100; 0 selects 50.")] int pageSize = 0,
         CancellationToken cancellationToken = default)
@@ -181,22 +190,24 @@ internal sealed class MailMcpTools(
             null,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
-                if (!IndexModel.TryParseFolder(
-                        string.IsNullOrWhiteSpace(folder) ? null : folder.Trim(),
-                        out var folderScope))
+                var requested = string.IsNullOrWhiteSpace(folder) ? "inbox" : folder.Trim();
+                var dismissed = string.Equals(requested, "dismissed", StringComparison.Ordinal);
+                var folderScope = requested switch
                 {
-                    throw new McpException("The folder scope must be inbox, sent, or deleted.");
-                }
-
+                    "inbox" or "dismissed" => MailFolderScope.Inbox,
+                    "sent" => MailFolderScope.Sent,
+                    _ => throw new McpException("The folder scope must be inbox, sent, or dismissed.")
+                };
                 var scope = new MailWorkspaceScope(
                     Guid.TryParse(mailbox, out var mailboxId) && mailboxId != Guid.Empty
                         ? mailboxId
                         : null,
-                    folderScope);
+                    folderScope,
+                    DismissedOnly: dismissed);
                 var limit = CursorPaging.NormalizeLimit(pageSize == 0 ? null : pageSize);
                 var cursorScope = CursorPaging.CreateScope(
                     "pegasus_mail_list", context.Actor, scope.MailboxId?.ToString("D"),
-                    scope.Folder.ToString(), "received-id-desc");
+                    dismissed ? "dismissed" : scope.Folder.ToString(), "received-id-desc");
                 DateTimeOffset? beforeReceived = null;
                 Guid? beforeId = null;
                 if (!string.IsNullOrWhiteSpace(continuation))
@@ -254,6 +265,45 @@ internal sealed class MailMcpTools(
     }
 
     [McpServerTool(
+        Name = "pegasus_mail_open_query",
+        Title = "Open a query on a message",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Opens a query on a retained message linked to a Report sent Case, through the same Core command as the Case's Open query. The message must hold no non-withdrawn query. A new query is Unassigned. Needs a mcp:-prefixed operation key.")]
+    public async Task<MailOpenQueryToolResult> OpenQueryAsync(
+        [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
+        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync("pegasus_mail_open_query", cancellationToken);
+        var key = AutomationMcpErrors.RequireOperationKey(operationKey);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_mail_open_query",
+            messageId.ToString("D"),
+            key,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var id = AutomationMcpErrors.RequireId(messageId, "retained message identifier");
+                var detail = await getRetainedMail.ExecuteAsync(context.Actor, id, cancellationToken)
+                    ?? throw new McpException("The retained message was not found.");
+                if (detail.Summary.CaseId is not { } caseId || detail.Summary.IsTriageCase)
+                {
+                    throw new McpException("The message is not linked to a Case.");
+                }
+
+                var queryId = await openCaseQuery.ExecuteAsync(
+                    new(caseId, context.Actor, key, id, null, null),
+                    cancellationToken);
+                return new MailOpenQueryToolResult(queryId, caseId, id, key, AutomationMcpAuditor.CorrelationId(context, key));
+            }),
+            cancellationToken);
+    }
+
+    [McpServerTool(
         Name = "pegasus_mail_correct_classification",
         Title = "Correct mail classification",
         ReadOnly = false,
@@ -261,11 +311,11 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Corrects one retained message's classification using the same versioned Core command as the staff workspace. Requires a key from the correction options: a category code, or unclassified for no category (new-instruction also needs workType), a reason, the expected classification version, and a mcp:-prefixed operation key. The prior decision stays in permanent history.")]
+    [Description("Corrects one retained message's type using the same versioned Core command as the staff workspace. Accepts correspondence, new-instruction, triage-request, cancellation, or the combined new-instruction:Inspection form (and Audit, InspectionAndAudit). A split new-instruction also needs workType. Requires a reason, the expected classification version, and a mcp:-prefixed operation key.")]
     public async Task<MailToolClassification> CorrectClassificationAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         [Description("The classification version last read, for optimistic concurrency.")] int expectedClassificationVersion,
-        [Description("A correction options key, for example new-instruction, query or unclassified.")] string classificationKey,
+        [Description("correspondence, a category code, or new-instruction:Inspection.")] string classificationKey,
         [Description("Why this classification is being corrected (1 to 500 characters).")] string reason,
         [Description("Caller idempotency key, prefixed mcp:.")] string operationKey,
         [Description("The case type a New instruction names: Inspection, Audit or InspectionAndAudit; required only with the new-instruction key.")] string? workType = null,
@@ -280,15 +330,10 @@ internal sealed class MailMcpTools(
             key,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
-                if (!MailClassificationSelection.TryParse(classificationKey?.Trim(), out var category))
+                if (!MailClassificationSelection.TryParseSelection(
+                        classificationKey, workType, out var category, out var caseType))
                 {
-                    throw new McpException("The classification key is not a correction option.");
-                }
-                CaseType? caseType = null;
-                if (!string.IsNullOrWhiteSpace(workType)
-                    && !MailClassificationSelection.TryParseWorkType(workType.Trim(), out caseType))
-                {
-                    throw new McpException("The work type is not Inspection, Audit or InspectionAndAudit.");
+                    throw new McpException(MailClassificationSelection.UnknownSelectionMessage);
                 }
 
                 var dossier = await correctClassification.ExecuteAsync(
@@ -540,7 +585,7 @@ internal sealed class MailMcpTools(
             entry.Actor,
             entry.Reason,
             entry.CorrectedAtUtc)).ToArray(),
-        MailClassificationSelection.Options);
+        MailClassificationSelection.TypeSelectOptions);
 
     private static MailToolClassificationResult Map(MailClassificationResult result) => new(
         result.Outcome.ToString(),

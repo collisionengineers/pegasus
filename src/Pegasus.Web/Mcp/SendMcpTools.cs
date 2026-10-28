@@ -212,7 +212,7 @@ internal sealed class SendMcpTools(
         [Description("Cc recipients, plain e-mail addresses: chaser, forward and triage_reply only.")] string[]? cc = null,
         [Description("chaser only, and only for a Case with no instruction e-mail to reply to: the address of the Outgoing approved mailbox to send from.")] string? fromMailbox = null,
         [Description("Files to attach: Case document version ids (documentVersionId from pegasus_case_get), or for triage_reply the origin item's assetIds (pegasus_intake_get).")] Guid[]? attachments = null,
-        [Description("reply and reply_all only: also resolve the Case's open queries once the Sent item is observed, as the composer's Also resolve query tick does.")] bool resolveQuery = false,
+        [Description("reply and reply_all only: mark the replied message's open query done once the Sent item is observed, as the composer's Mark query done tick does.")] bool markQueryDone = false,
         [Description("reply and reply_all only: the Draft ready QueryResponse job (pegasus_ai_job_list) whose draft this reply was composed on; an accepted send completes it, as the staff composer's Send does. A job that is not that message's Draft ready reply is left as it is.")] Guid? aiJobId = null,
         CancellationToken cancellationToken = default)
     {
@@ -247,9 +247,9 @@ internal sealed class SendMcpTools(
                 {
                     throw new McpException($"{verb} takes no messageId.");
                 }
-                if (resolveQuery && verb is not ("reply" or "reply_all"))
+                if (markQueryDone && verb is not ("reply" or "reply_all"))
                 {
-                    throw new McpException("resolveQuery applies to reply and reply_all only.");
+                    throw new McpException("markQueryDone applies to reply and reply_all only.");
                 }
                 if (aiJobId is not null && verb is not ("reply" or "reply_all"))
                 {
@@ -278,7 +278,7 @@ internal sealed class SendMcpTools(
                             Subject = subject.Trim(),
                             Body = body.Trim(),
                             OperationKey = key,
-                            ResolvesCaseQueries = resolveQuery,
+                            MarksQueryDone = markQueryDone,
                             AiJobId = aiJobId is { } cited
                                 ? AutomationMcpErrors.RequireId(cited, "AI job identifier")
                                 : null,

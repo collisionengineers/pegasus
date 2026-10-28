@@ -3,7 +3,7 @@ id: ADR-0072
 status: accepted
 date: 2026-10-13
 supersedes: [ADR-0069, ADR-0070]
-superseded_by: []
+superseded_by: [ADR-0085]
 related_capabilities: [INT-23, MAIL-02, UI-14, UI-18]
 related_frd: [frd-02, frd-08, frd-15, frd-18, frd-20]
 tags: [intake, unidentified, mail, classification, inbox]

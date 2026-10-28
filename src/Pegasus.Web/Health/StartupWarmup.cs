@@ -521,7 +521,7 @@ internal sealed partial class StartupWarmup(
         IServiceProvider services, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var feed = await services.GetRequiredService<IListRecentCases>().ExecuteAsync(
-            actor, 1, markSeen: false, cancellationToken, now);
+            actor, 1, markSeen: false, arrival: null, search: null, cancellationToken, now);
         return feed.Page.Items.Select(item => (Guid?)item.CaseId).FirstOrDefault();
     }
 

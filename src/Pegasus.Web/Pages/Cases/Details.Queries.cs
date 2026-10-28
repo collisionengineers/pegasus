@@ -1,93 +1,135 @@
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.AiWork;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Cases;
 
-/// <summary>
-/// The Queries section's AI draft members (FRD-27): the Case's AI jobs, each
-/// open mail query's live Query response job, whether a row may start one, and
-/// Draft reply with AI on a row, which calls the one Core owner of starting a
-/// Query response job (<see cref="IStartQueryResponse"/>).
-/// </summary>
+/// <summary>The Queries section's posts: open, log, mark done, reopen and assign. No edit lease.</summary>
 public sealed partial class DetailsModel
 {
-    /// <summary>
-    /// The Case's open AI jobs, read once for the Next action's drafts, the
-    /// Valuation section's pending research and the Queries rows' live
-    /// Query response jobs.
-    /// </summary>
-    public IReadOnlyList<AiJobRecord> CaseAiJobs { get; private set; } = [];
+    /// <summary>Opens a query on a linked e-mail. No lease, version or reason.</summary>
+    public Task<IActionResult> OnPostOpenQueryAsync(
+        Guid id,
+        Guid retainedMessageId,
+        string operationKey,
+        string? section,
+        CancellationToken cancellationToken) =>
+        PostQueryAsync(
+            id,
+            operationKey,
+            section is "queries" ? "queries" : "files",
+            actor => openCaseQuery.ExecuteAsync(
+                new(id, actor, operationKey, retainedMessageId, null, null),
+                cancellationToken),
+            CaseWorkspaceLabels.Queries.Opened);
+
+    /// <summary>Logs a query that reached the office outside Pegasus's mail.</summary>
+    public Task<IActionResult> OnPostLogQueryAsync(
+        Guid id,
+        string operationKey,
+        CaseQueryChannel channel,
+        string? details,
+        CancellationToken cancellationToken) =>
+        PostQueryAsync(
+            id,
+            operationKey,
+            "queries",
+            actor => openCaseQuery.ExecuteAsync(
+                new(id, actor, operationKey, null, channel, details),
+                cancellationToken),
+            CaseWorkspaceLabels.Queries.Logged);
+
+    /// <summary>Marks one open query done.</summary>
+    public Task<IActionResult> OnPostMarkQueryDoneAsync(
+        Guid id,
+        Guid queryId,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        PostQueryAsync(
+            id,
+            operationKey,
+            "queries",
+            actor => markCaseQueryDone.ExecuteAsync(new(queryId, actor, operationKey), cancellationToken),
+            CaseWorkspaceLabels.Queries.MarkedDone);
+
+    /// <summary>Reopens one Done query.</summary>
+    public Task<IActionResult> OnPostReopenQueryAsync(
+        Guid id,
+        Guid queryId,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        PostQueryAsync(
+            id,
+            operationKey,
+            "queries",
+            actor => reopenCaseQuery.ExecuteAsync(new(queryId, actor, operationKey), cancellationToken),
+            CaseWorkspaceLabels.Queries.Reopened);
 
     /// <summary>
-    /// Why a Queries row withholds **Draft reply with AI**, or null when the
-    /// row offers it: the same answer the message record gives.
+    /// Assigns one open query. <paramref name="assignee"/> is a staff id or
+    /// <c>unassigned</c>. Take posts the viewer's own id.
     /// </summary>
-    public string? QueryDraftCondition { get; private set; }
-
-    /// <summary>The live Query response job for one open mail query's message, as the Queries row draws it.</summary>
-    public QueryDraft? QueryDraftFor(Guid retainedMessageId) =>
-        QueryDraft.For(CaseAiJobs, retainedMessageId, clock.GetUtcNow());
-
-    /// <summary>
-    /// What the Queries rows need (FRD-27): the Case's jobs for each open mail
-    /// query's live Query response job, and whether a row may start one.
-    /// </summary>
-    private async Task LoadQueryDraftsAsync(Guid id, CaseQueriesSection section, CancellationToken cancellationToken)
+    public Task<IActionResult> OnPostAssignQueryAsync(
+        Guid id,
+        Guid queryId,
+        string operationKey,
+        string? assignee,
+        CancellationToken cancellationToken)
     {
-        CaseAiJobs = await aiJobs.ListOpenForSubjectAsync(id, cancellationToken);
-        QueryDraftCondition = await QueryDraftConditionAsync(section, cancellationToken);
+        Guid? assigneeId = null;
+        if (!string.IsNullOrWhiteSpace(assignee) && !string.Equals(assignee, "unassigned", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Guid.TryParse(assignee, out var parsed) || parsed == Guid.Empty)
+            {
+                TempData["CaseError"] = CaseWorkspaceLabels.Queries.AssigneeRequired;
+                return Task.FromResult<IActionResult>(RedirectToSection(id, "queries"));
+            }
+
+            assigneeId = parsed;
+        }
+
+        return PostQueryAsync(
+            id,
+            operationKey,
+            "queries",
+            actor => assignCaseQuery.ExecuteAsync(new(queryId, actor, operationKey, assigneeId), cancellationToken),
+            CaseWorkspaceLabels.Queries.Assigned);
     }
 
-    // The Send to AI switch is read only when some open mail query has no live
-    // job, so a row would offer Draft reply with AI; otherwise no row asks.
-    private Task<string?> QueryDraftConditionAsync(CaseQueriesSection section, CancellationToken cancellationToken) =>
-        section.Queries.Any(query =>
-            query.IsOpen && query.Message is { } message && QueryDraftFor(message.RetainedMessageId) is null)
-            ? QueryResponseAvailability.ConditionAsync(section.Frame.Workflow, sendToAiControl, cancellationToken)
-            : Task.FromResult<string?>(null);
-
-    /// <summary>
-    /// Draft reply with AI on a Queries row (FRD-27): queues a Query response
-    /// job for that row's retained message through the same Core command as
-    /// the message record's own button. The message must be a Query linked to
-    /// this Case; nothing is sent.
-    /// </summary>
-    public async Task<IActionResult> OnPostDraftQueryReplyAsync(
+    private async Task<IActionResult> PostQueryAsync(
         Guid id,
-        Guid messageId,
         string operationKey,
-        CancellationToken cancellationToken)
+        string section,
+        Func<ActionActor, Task> act,
+        string done)
     {
         if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
+
         if (!IsOperationKeyValid(operationKey))
         {
             TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToSection(id, "queries");
+            return RedirectToSection(id, section);
         }
 
         try
         {
-            await startQueryResponse.ExecuteAsync(
-                new(actor, messageId, operationKey, CaseId: id),
-                cancellationToken);
-            TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.Queries.DraftStarted;
+            await act(actor);
+            TempData["CaseStatus"] = done;
         }
         catch (StaffAuthorizationException)
         {
             return Forbid();
         }
         catch (Exception exception) when (exception is
-            ArgumentException or InvalidOperationException or KeyNotFoundException)
+            ArgumentException or InvalidOperationException or KeyNotFoundException or CaseOperationConflictException)
         {
             TempData["CaseError"] = exception.Message;
         }
 
-        return RedirectToSection(id, "queries");
+        return RedirectToSection(id, section);
     }
 }

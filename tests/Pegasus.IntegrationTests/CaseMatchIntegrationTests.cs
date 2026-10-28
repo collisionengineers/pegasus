@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Caching.Memory;
@@ -207,17 +208,20 @@ public sealed class CaseMatchIntegrationTests
     }
 
     /// <summary>
-    /// FRD-13 "Report sent and queries" (operator, 11 October 2026): a
-    /// post-report e-mail the Worker links to a Report sent Case raises an open
-    /// Mail query and marks the Case; the state stays Report sent.
+    /// A retained message whose classification opens a query, linked to a
+    /// Report sent Case, opens one query. The actor is the query-criteria
+    /// worker, not the association actor. The state stays Report sent.
     /// </summary>
     [Fact]
-    public async Task AutomaticReceivedPostReportAssociationRaisesAQueryOnAReportSentCase()
+    public async Task AutomaticLinkOpensAQueryWhenTheMessageOpensQueryAndTheReportIsSent()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("case-match-accept-automatic-query");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("automatic-post-report-query");
-        await harness.SetReceivedPostReportClassificationAsync(receiptId);
+        var receiptId = await harness.SeedRetainedMailReceiptAsync(
+            "automatic-post-report-query",
+            registration: null,
+            conversationIdentity: "automatic-post-report-query");
+        await harness.SetOpensQueryAsync(receiptId);
         await using (var seed = await harness.Factory.CreateDbContextAsync())
         {
             var seededWorkflow = await seed.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
@@ -250,9 +254,12 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(receiptId, query.IntakeReceiptId);
         Assert.Null(query.ClosedAtUtc);
         Assert.Equal(nameof(ActorKind.SystemWorker), query.RaisedByKind);
-        Assert.Equal("system-worker:intake-processing", query.RaisedBySubjectId);
-        Assert.Equal(1, await verify.CaseWorkflowEvents.CountAsync(item =>
-            item.CaseId == outcome.Identity.CaseId && item.EventType == "case_query_received"));
+        Assert.Equal("system-worker:query-criteria", query.RaisedBySubjectId);
+        var queryEvent = Assert.Single(await verify.CaseWorkflowEvents
+            .Where(item => item.CaseId == outcome.Identity.CaseId && item.EventType == "case_query_received")
+            .ToListAsync());
+        Assert.Equal("system-worker:query-criteria", queryEvent.ActorSubjectId);
+        Assert.Equal("Matched query criteria", queryEvent.Reason);
         var history = Assert.Single(await verify.IntakeMutationHistory
             .Where(item => item.IntakeReceiptId == receiptId
                 && item.EventType == "intake_case_linked_automatic")
@@ -261,14 +268,17 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(1, history.AfterCaseVersion);
     }
 
-    /// <summary>The same automatic link on a Case still with the Engineer raises nothing and leaves the Case untouched.</summary>
+    /// <summary>The same link before the report is sent opens no query.</summary>
     [Fact]
-    public async Task AutomaticReceivedPostReportAssociationRaisesNothingBeforeTheReportIsSent()
+    public async Task AutomaticLinkOpensNothingBeforeTheReportIsSent()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("case-match-accept-automatic-early-query");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("automatic-early-post-report-query");
-        await harness.SetReceivedPostReportClassificationAsync(receiptId);
+        var receiptId = await harness.SeedRetainedMailReceiptAsync(
+            "automatic-early-post-report-query",
+            registration: null,
+            conversationIdentity: "automatic-early-post-report-query");
+        await harness.SetOpensQueryAsync(receiptId);
         await using (var seed = await harness.Factory.CreateDbContextAsync())
         {
             var seededWorkflow = await seed.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
@@ -299,11 +309,14 @@ public sealed class CaseMatchIntegrationTests
             .ToListAsync());
     }
     [Fact]
-    public async Task AutomaticAssociationToAReportSentCaseClassifiesUnclassifiedMailAsAQueryAndRaisesOne()
+    public async Task AutomaticLinkWithoutOpensQueryWritesNoCategoryAndOpensNoQuery()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("case-match-accept-state-query");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("state-classified-query");
+        var receiptId = await harness.SeedRetainedMailReceiptAsync(
+            "state-classified-query",
+            registration: null,
+            conversationIdentity: "state-classified-query");
         await harness.SetWorkflowStateAsync(outcome.Identity.CaseId, CaseLifecycleState.ReportSent);
 
         var result = await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
@@ -322,89 +335,22 @@ public sealed class CaseMatchIntegrationTests
         await using var verify = await harness.Factory.CreateDbContextAsync();
         var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
         Assert.Equal(nameof(CaseLifecycleState.ReportSent), workflow.State);
-        Assert.True(workflow.HasOpenQuery);
-        var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
-            .SingleAsync(item => item.IntakeReceiptId == receiptId);
-        Assert.Equal("classified", decision.Outcome);
-        Assert.Equal("query", decision.Category);
-        Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
-        Assert.Equal(CaseStateMailClassification.Actor, decision.DecidedByActor);
-        Assert.Equal(1, decision.Version);
-    }
-
-    [Fact]
-    public async Task AutomaticAssociationToACaseInProgressClassifiesUnclassifiedMailAsACaseUpdate()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("case-match-accept-state-progress");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("state-classified-progress");
-        await harness.SetWorkflowStateAsync(outcome.Identity.CaseId, CaseLifecycleState.Review);
-
-        await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
-            new(
-                receiptId,
-                outcome.Identity.CaseId,
-                "principal_case_match",
-                1,
-                "system-worker:intake-processing",
-                "case-match-association:state-progress",
-                "Automatic association from the recorded case-match decision."),
-            StartUtc,
-            CancellationToken.None);
-
-        await using var verify = await harness.Factory.CreateDbContextAsync();
-        var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.Review), workflow.State);
-        Assert.Equal(0, workflow.Version);
-        var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
-            .SingleAsync(item => item.IntakeReceiptId == receiptId);
-        Assert.Equal("case-update", decision.Category);
-        Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
-    }
-
-    /// <summary>
-    /// A closed Case is no exception (operator, 13 October 2026): a message
-    /// joining it without a category of its own is a Case update, and raises no query.
-    /// </summary>
-    [Fact]
-    public async Task AutomaticAssociationToAClosedCaseClassifiesUnclassifiedMailAsACaseUpdate()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("case-match-accept-state-closed");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("state-classified-closed");
-        await harness.SetWorkflowStateAsync(outcome.Identity.CaseId, CaseLifecycleState.PrincipalCancelled);
-
-        var result = await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
-            new(
-                receiptId,
-                outcome.Identity.CaseId,
-                "principal_case_match",
-                1,
-                "system-worker:intake-processing",
-                "case-match-association:state-closed",
-                "Automatic association from the recorded case-match decision."),
-            StartUtc,
-            CancellationToken.None);
-
-        Assert.Equal(AutomaticCaseAssociationOutcome.Associated, result);
-        await using var verify = await harness.Factory.CreateDbContextAsync();
-        var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
-        Assert.Equal(nameof(CaseLifecycleState.PrincipalCancelled), workflow.State);
         Assert.False(workflow.HasOpenQuery);
-        var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
-            .SingleAsync(item => item.IntakeReceiptId == receiptId);
-        Assert.Equal("classified", decision.Outcome);
-        Assert.Equal("case-update", decision.Category);
-        Assert.Equal(CaseStateMailClassification.Key, decision.PolicyKey);
+        Assert.False(await verify.Set<IntakeMailClassificationDecisionEntity>()
+            .AnyAsync(item => item.IntakeReceiptId == receiptId));
+        Assert.Empty(await verify.CaseQueries.Where(item => item.IntakeReceiptId == receiptId).ToListAsync());
     }
 
     [Fact]
-    public async Task AutomaticAssociationNeverOverridesAClassifiedDecision()
+    public async Task AutomaticLinkLeavesAClassifiedDecisionAndOpensNoQueryWhenItDoesNot()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("case-match-accept-state-keep");
-        var receiptId = await harness.SeedAdditionalReceiptAsync("state-classified-keep");
-        await harness.SetReceivedClassificationAsync(receiptId, "billing", version: 2);
+        var receiptId = await harness.SeedRetainedMailReceiptAsync(
+            "state-classified-keep",
+            registration: null,
+            conversationIdentity: "state-classified-keep");
+        await harness.SetReceivedClassificationAsync(receiptId, "cancellation", version: 2);
         await harness.SetWorkflowStateAsync(outcome.Identity.CaseId, CaseLifecycleState.ReportSent);
 
         await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
@@ -424,7 +370,8 @@ public sealed class CaseMatchIntegrationTests
         Assert.False(workflow.HasOpenQuery);
         var decision = await verify.Set<IntakeMailClassificationDecisionEntity>()
             .SingleAsync(item => item.IntakeReceiptId == receiptId);
-        Assert.Equal("billing", decision.Category);
+        Assert.Equal("cancellation", decision.Category);
+        Assert.False(decision.OpensQuery);
         Assert.Equal(2, decision.Version);
     }
 
@@ -528,7 +475,11 @@ public sealed class CaseMatchIntegrationTests
             "thread-1");
         var store = new EfIntakeMutationStore(harness.Factory);
         var evidence = await store.GetAsync(receiptId, CancellationToken.None);
-        Assert.Equal([accepted.Identity.CaseId], Assert.IsType<AutomaticMailCaseAssociationEvidence>(evidence).RegistrationCaseIds);
+        Assert.Equal(
+            [accepted.Identity.CaseId],
+            Assert.IsType<AutomaticMailCaseAssociationEvidence>(evidence)
+                .RegistrationCandidates
+                .Select(candidate => candidate.CaseId));
 
         await harness.SetReceiptRegistrationAsync(receiptId, "XY99 ZZZ");
         var staleRequest = new AutomaticCaseAssociationRequest(
@@ -583,6 +534,223 @@ public sealed class CaseMatchIntegrationTests
             [accepted.Identity.CaseId],
             (await store.GetAsync(sameThreadId, CancellationToken.None))!.ThreadCaseIds);
         Assert.Empty((await store.GetAsync(otherMailboxId, CancellationToken.None))!.ThreadCaseIds);
+    }
+
+    /// <summary>
+    /// A reply answers the message it quotes: its In-Reply-To and References
+    /// headers reach the Case of the retained message they point at (D13). The
+    /// header value carries no angle brackets, while the retained identity was
+    /// stored from the transport value with them.
+    /// </summary>
+    [Fact]
+    public async Task ReplyHeadersLinkToTheCaseOfTheRetainedMessageTheyAnswer()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("mail-reply-retained-accept")).Identity.CaseId;
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var original = await harness.SeedRetainedMailReceiptAsync(
+            "reply-retained-original",
+            null,
+            null,
+            messageIdentity: "<original@example.test>");
+        await AssociateAsync(store, original, caseId);
+
+        var reply = await harness.SeedRetainedMailReceiptAsync(
+            "reply-retained-reply",
+            null,
+            null,
+            messageIdentity: "<reply@example.test>",
+            replyIdentities: ["original@example.test"]);
+
+        var evidence = await store.GetAsync(reply, CancellationToken.None);
+        Assert.Equal([caseId], evidence!.ReplyCaseIds);
+        Assert.Equal(
+            AutomaticCaseAssociationOutcome.Associated,
+            await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(reply));
+    }
+
+    /// <summary>
+    /// The message a reply answers may be a Pegasus Sent item from another
+    /// approved mailbox; its authoritative Case identities answer the reply
+    /// headers (D13). The Sent item keeps the transport Message-ID with its
+    /// angle brackets, the reply header does not, and both forms are looked for.
+    /// </summary>
+    [Fact]
+    public async Task ReplyHeadersLinkToASentItemInAnotherApprovedMailbox()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("mail-reply-sent-accept")).Identity.CaseId;
+        var store = new EfIntakeMutationStore(harness.Factory);
+        await harness.SeedSentPollOutcomeAsync("mailbox-2", "<sent-item@example.test>", caseId);
+
+        var reply = await harness.SeedRetainedMailReceiptAsync(
+            "reply-sent-item",
+            null,
+            null,
+            "mailbox-1",
+            messageIdentity: "<sent-reply@example.test>",
+            replyIdentities: ["sent-item@example.test"]);
+
+        var evidence = await store.GetAsync(reply, CancellationToken.None);
+        Assert.Equal([caseId], evidence!.ReplyCaseIds);
+        Assert.Equal(
+            AutomaticCaseAssociationOutcome.Associated,
+            await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(reply));
+    }
+
+    /// <summary>
+    /// A reply to the Case's report answers the report's own Message-ID, which
+    /// the report-sent evidence records against the Case (D13). The evidence row
+    /// keeps the transport Message-ID with its angle brackets, the reply header
+    /// does not, and both forms are looked for.
+    /// </summary>
+    [Fact]
+    public async Task ReplyHeadersLinkToTheCaseOfTheReportTheyAnswer()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("mail-reply-report-accept")).Identity.CaseId;
+        var store = new EfIntakeMutationStore(harness.Factory);
+        await harness.SeedReportSentEvidenceAsync(caseId, "<report-sent@example.test>");
+
+        var reply = await harness.SeedRetainedMailReceiptAsync(
+            "reply-report-sent",
+            null,
+            null,
+            messageIdentity: "<report-reply@example.test>",
+            replyIdentities: ["report-sent@example.test"]);
+
+        var evidence = await store.GetAsync(reply, CancellationToken.None);
+        Assert.Equal([caseId], evidence!.ReplyCaseIds);
+    }
+
+    /// <summary>
+    /// A claim reference the subject or body names links without the Principal's
+    /// own label grammar, by matching the Case's indexed durable claim token
+    /// across every Principal (D14).
+    /// </summary>
+    [Theory]
+    [InlineData("subject", "Re: Claim 12345/1", null)]
+    [InlineData("body", null, "The claim reference is 12345/1.")]
+    public async Task ClaimReferenceTokensInTheSubjectOrBodyLinkToTheIndexedCase(
+        string where,
+        string? subject,
+        string? body)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync($"mail-claim-{where}")).Identity.CaseId;
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var receipt = await harness.SeedRetainedMailReceiptAsync(
+            $"claim-{where}-token",
+            null,
+            null,
+            subject: subject,
+            body: body);
+
+        var evidence = await store.GetAsync(receipt, CancellationToken.None);
+        Assert.Equal([caseId], evidence!.ClaimReferenceCaseIds);
+        Assert.Empty(evidence.ThreadCaseIds);
+        Assert.Empty(evidence.ReplyCaseIds);
+        Assert.Empty(evidence.RegistrationCandidates);
+        Assert.Equal(
+            AutomaticCaseAssociationOutcome.Associated,
+            await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(receipt));
+    }
+
+    /// <summary>
+    /// A registration several Cases share is narrowed by the message's incident
+    /// date, and the narrowing belongs to the policy: the evidence carries both
+    /// candidates with their own dates, and <c>SelectTarget</c> keeps the Case
+    /// carrying the message's date (D15).
+    /// </summary>
+    [Fact]
+    public async Task VehicleRegistrationIsNarrowedByTheMessageIncidentDate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var earlierCaseId = (await harness.AcceptAsync("mail-vrm-earlier")).Identity.CaseId;
+        var laterReceiptId = await harness.SeedManualUploadReceiptAsync("mail-vrm-later-upload");
+        var laterCaseId = (await harness.AcceptAsync("mail-vrm-later", laterReceiptId)).Identity.CaseId;
+        await harness.SetIndexIncidentDateAsync(laterCaseId, new DateOnly(2031, 5, 1));
+        var store = new EfIntakeMutationStore(harness.Factory);
+
+        var receipt = await harness.SeedRetainedMailReceiptAsync(
+            "vrm-narrowed-token",
+            "AB12 CDE",
+            null,
+            incidentDate: new DateOnly(2031, 5, 1));
+
+        var evidence = await store.GetAsync(receipt, CancellationToken.None);
+        Assert.Equal(2, evidence!.RegistrationCandidates.Count);
+        Assert.Equal(
+            new DateOnly(2031, 4, 1),
+            Assert.Single(evidence.RegistrationCandidates, item => item.CaseId == earlierCaseId).IncidentDate);
+        Assert.Equal(
+            new DateOnly(2031, 5, 1),
+            Assert.Single(evidence.RegistrationCandidates, item => item.CaseId == laterCaseId).IncidentDate);
+
+        var target = Assert.IsType<AssociateRetainedMailWithCase.MailAssociationTarget>(
+            AssociateRetainedMailWithCase.SelectTarget(evidence, null));
+        Assert.Equal(laterCaseId, target.CaseId);
+        Assert.Equal(
+            AutomaticCaseAssociationOutcome.Associated,
+            await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(receipt));
+    }
+
+    /// <summary>
+    /// An archived Case is dropped from every signal's candidate set before the
+    /// Core policy sees it, so a reply chain or claim that points only at an
+    /// archived Case links nothing (D16).
+    /// </summary>
+    [Fact]
+    public async Task AnArchivedCaseIsNeverAnAssociationCandidate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("mail-archived-accept")).Identity.CaseId;
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var original = await harness.SeedRetainedMailReceiptAsync(
+            "archived-original",
+            null,
+            null,
+            messageIdentity: "<archived-original@example.test>");
+        await AssociateAsync(store, original, caseId);
+        await harness.ArchiveCaseAsync(caseId);
+
+        var reply = await harness.SeedRetainedMailReceiptAsync(
+            "archived-reply",
+            null,
+            null,
+            messageIdentity: "<archived-reply@example.test>",
+            replyIdentities: ["archived-original@example.test"]);
+
+        var evidence = await store.GetAsync(reply, CancellationToken.None);
+        Assert.Empty(evidence!.ReplyCaseIds);
+        Assert.Null(await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(reply));
+    }
+
+    /// <summary>
+    /// A Triage is not an association target. A thread whose only linked message
+    /// stands linked to a Triage therefore offers no thread candidate at all,
+    /// rather than a candidate the write would fail on (R195; FRD-08).
+    /// </summary>
+    [Fact]
+    public async Task AThreadHoldingOnlyATriageIsNoAssociationCandidate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var triageCaseId = await harness.SeedTriageCaseAsync("t.QDOS31901");
+        var earlier = await harness.SeedRetainedMailReceiptAsync(
+            "triage-thread-earlier",
+            null,
+            "triage-thread");
+        await harness.LinkReceiptToCaseAsync(earlier, triageCaseId);
+
+        var later = await harness.SeedRetainedMailReceiptAsync(
+            "triage-thread-later",
+            null,
+            "triage-thread");
+
+        var evidence = await store.GetAsync(later, CancellationToken.None);
+        Assert.Empty(evidence!.ThreadCaseIds);
+        Assert.Null(await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(later));
     }
 
     [Fact]
@@ -788,8 +956,28 @@ public sealed class CaseMatchIntegrationTests
             return id;
         }
 
-        public Task SetReceivedPostReportClassificationAsync(Guid receiptId) =>
-            SetReceivedClassificationAsync(receiptId, "query", version: 1);
+        public async Task SetOpensQueryAsync(Guid receiptId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var receipt = await context.IntakeReceipts.SingleAsync(item => item.Id == receiptId);
+            receipt.MailClassificationDecision = new()
+            {
+                IntakeReceiptId = receiptId,
+                Outcome = "unclassified",
+                Category = null,
+                OpensQuery = true,
+                IsReplyContext = false,
+                PredicatesJson = "{\"version\":1,\"data\":[]}",
+                Reason = "Matched query criteria.",
+                PolicyKey = "principal_mail_classification",
+                PolicyVersion = 4,
+                DecidedByActor = "test",
+                DecidedAtUtc = StartUtc,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            };
+            await context.SaveChangesAsync();
+        }
 
         public async Task SetReceivedClassificationAsync(Guid receiptId, string category, int version)
         {
@@ -823,17 +1011,22 @@ public sealed class CaseMatchIntegrationTests
         public async Task<Guid> SeedRetainedMailReceiptAsync(
             string externalToken,
             string? registration,
-            string conversationIdentity,
-            string mailboxId = "mailbox-1")
+            string? conversationIdentity,
+            string mailboxId = "mailbox-1",
+            DateOnly? incidentDate = null,
+            string? messageIdentity = null,
+            string[]? replyIdentities = null,
+            string? subject = null,
+            string? body = null)
         {
             var id = await SeedAdditionalReceiptAsync(externalToken);
             var messageId = Guid.NewGuid();
             var sourceHash = new string('d', 64);
             await using var context = await Factory.CreateDbContextAsync();
-            if (registration is not null)
+            if (registration is not null || incidentDate is not null)
             {
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO InstructionDrafts (IntakeReceiptId, VehicleRegistration) VALUES ({id}, {registration})");
+                    $"INSERT INTO InstructionDrafts (IntakeReceiptId, VehicleRegistration, DateOfIncident) VALUES ({id}, {registration}, {incidentDate})");
             }
             var approvedMailboxId = await TestMailboxId.EnsureApprovedAsync(
                 context,
@@ -843,9 +1036,128 @@ public sealed class CaseMatchIntegrationTests
             await context.SaveChangesAsync();
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"IF NOT EXISTS (SELECT 1 FROM ApprovedInboxPollStates WHERE ApprovedMailboxId = {approvedMailboxId}) INSERT INTO ApprovedInboxPollStates (ApprovedMailboxId, MailboxAddress, ScopeFingerprint, ActivatedAtUtc, DueAtUtc) VALUES ({approvedMailboxId}, {$"{mailboxId}@example.test"}, {new string('0', 64)}, {StartUtc}, {StartUtc})");
+            var canonicalIdentity = messageIdentity is null
+                ? null
+                : MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(messageIdentity);
+            var replyIdentitiesJson = replyIdentities is null
+                ? null
+                : JsonSerializer.Serialize(replyIdentities
+                    .Select(MailboxMessageIdentity.CanonicalizeInternetMessageIdentity)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray());
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO RetainedMailboxMessages (Id, MailboxId, MailboxAddress, FolderScope, FolderIdentity, ImmutableMessageId, ConversationIdentity, ExternalReceiptToken, ToAddressesJson, CcAddressesJson, SourceLength, SourceSha256, ReceivedAtUtc, RetainedAtUtc, IsRead) VALUES ({messageId}, {approvedMailboxId}, {"intake@example.test"}, {"inbox"}, {"inbox-folder"}, {$"immutable-{messageId:N}"}, {conversationIdentity}, {externalToken}, {"[]"}, {"[]"}, {50L}, {sourceHash}, {StartUtc}, {StartUtc}, {false})");
+                $"INSERT INTO RetainedMailboxMessages (Id, MailboxId, MailboxAddress, FolderScope, FolderIdentity, ImmutableMessageId, ConversationIdentity, InternetMessageIdentity, CanonicalInternetMessageIdentity, InReplyToIdentitiesJson, ExternalReceiptToken, ToAddressesJson, CcAddressesJson, Subject, BodyPlainText, SourceLength, SourceSha256, ReceivedAtUtc, RetainedAtUtc, IsRead) VALUES ({messageId}, {approvedMailboxId}, {"intake@example.test"}, {"inbox"}, {"inbox-folder"}, {$"immutable-{messageId:N}"}, {conversationIdentity}, {messageIdentity}, {canonicalIdentity}, {replyIdentitiesJson}, {externalToken}, {"[]"}, {"[]"}, {subject}, {body}, {50L}, {sourceHash}, {StartUtc}, {StartUtc}, {false})");
             return id;
+        }
+
+        /// <summary>
+        /// A Pegasus Sent item discovered in another approved mailbox's Sent
+        /// folder, carrying the Case its send was recorded against.
+        /// </summary>
+        public async Task SeedSentPollOutcomeAsync(
+            string mailboxId,
+            string internetMessageIdentity,
+            Guid caseId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"IF NOT EXISTS (SELECT 1 FROM ApprovedSentPollStates WHERE MailboxId = {mailboxId}) INSERT INTO ApprovedSentPollStates (MailboxId, MailboxAddress, SentFolderIdentity, DueAtUtc) VALUES ({mailboxId}, {$"{mailboxId}@example.test"}, {$"sent-folder:{mailboxId}"}, {StartUtc})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO ApprovedSentPollOutcomes (Id, MailboxId, MailboxAddress, SourceOccurrenceIdentity, SourceSha256, ObservationKind, InternetMessageIdentity, AuthoritativeCaseIdentitiesJson, OutcomeKind, RecordedAtUtc, CursorAfterItem, OperationKey) VALUES ({Guid.NewGuid()}, {mailboxId}, {$"{mailboxId}@example.test"}, {$"occurrence:{Guid.NewGuid():N}"}, {new string('d', 64)}, {"Discovered"}, {internetMessageIdentity}, {JsonSerializer.Serialize(new[] { caseId })}, {"Ambiguous"}, {StartUtc}, {$"cursor:{Guid.NewGuid():N}"}, {$"outcome:{Guid.NewGuid():N}"})");
+        }
+
+        public async Task SeedReportSentEvidenceAsync(Guid caseId, string internetMessageIdentity)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var evidenceId = Guid.NewGuid();
+            context.CaseReportSentEvidence.Add(new CaseReportSentEvidenceEntity
+            {
+                Id = evidenceId,
+                CaseId = caseId,
+                MailboxIdentity = "reports@example.test",
+                SentFolderIdentity = "sent-items",
+                ImmutableItemIdentity = $"report-item-{evidenceId:N}",
+                InternetMessageIdentity = internetMessageIdentity,
+                ConversationIdentity = $"report-conversation-{evidenceId:N}",
+                ReplyChainIdentity = $"report-reply-chain-{evidenceId:N}",
+                SourceOccurrenceIdentity = $"report-occurrence-{evidenceId:N}",
+                SourceSha256 = new string('d', 64),
+                MimeSha256 = new string('e', 64),
+                SentAtUtc = StartUtc,
+                DiscoveredAtUtc = StartUtc,
+                DiscoveredByKind = nameof(ActorKind.SystemWorker),
+                DiscoveredBySubjectId = "approved-mailbox-evidence-ingestion",
+                RetentionOperationKey = $"retain-report-{evidenceId:N}",
+                RetentionRequestHash = new string('f', 64)
+            });
+            await context.SaveChangesAsync();
+        }
+
+        public async Task SetIndexIncidentDateAsync(Guid caseId, DateOnly incidentDate)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseMatchIndex SET IncidentDate = {incidentDate} WHERE CaseId = {caseId}");
+        }
+
+        public async Task ArchiveCaseAsync(Guid caseId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET ArchivedAtUtc = {StartUtc}, ArchivedByKind = {"Staff"}, ArchivedBySubjectId = {"test-staff"}, ArchivedByRolesJson = {"[]"}, ArchiveReason = {"Test archive."} WHERE CaseId = {caseId}");
+        }
+
+        /// <summary>
+        /// A Triage Case as intake writes it: a Case row of the seeded QDOS
+        /// Principal with a <c>t.</c> reference and no CaseWorkflows row, because
+        /// a Triage is not a Case that mail association may link to.
+        /// </summary>
+        public async Task<Guid> SeedTriageCaseAsync(string reference)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var principal = await SeededPrincipals.QdosAsync(context);
+            var caseId = Guid.NewGuid();
+            context.Cases.Add(new CaseEntity
+            {
+                Id = caseId,
+                PrincipalId = principal.Id,
+                SequenceLineageId = principal.SequenceLineageId,
+                Year = StartUtc.Year,
+                Sequence = 1 + (await context.Cases
+                    .Where(item => item.SequenceLineageId == principal.SequenceLineageId
+                        && item.Year == StartUtc.Year)
+                    .MaxAsync(item => (int?)item.Sequence) ?? 0),
+                Reference = reference,
+                Type = CaseTypeCodes.Triage,
+                InitialState = null,
+                CustodyState = "pending",
+                OriginIntakeReceiptId = null,
+                CreatedAtUtc = StartUtc,
+                Version = 0,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            await context.SaveChangesAsync();
+            return caseId;
+        }
+
+        /// <summary>A staff link from a receipt to a Case, as the Link to Case confirmation writes it.</summary>
+        public async Task LinkReceiptToCaseAsync(Guid receiptId, Guid caseId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            context.IntakeManualAssociations.Add(new()
+            {
+                IntakeReceiptId = receiptId,
+                CaseId = caseId,
+                IsActive = true,
+                Version = 1,
+                LinkedAtUtc = StartUtc,
+                ActorKind = nameof(ActorKind.Staff),
+                ActorSubjectId = StaffActor.SubjectId,
+                ActorRolesJson = "[\"User\"]",
+                Reason = "Fixture thread association.",
+                LastOperationKey = $"fixture-link:{Guid.NewGuid():N}"
+            });
+            await context.SaveChangesAsync();
         }
 
         public async Task SetReceiptRegistrationAsync(Guid receiptId, string registration)
@@ -879,6 +1191,23 @@ public sealed class CaseMatchIntegrationTests
                 $"INSERT INTO IntakeMailRouteDecisions (IntakeReceiptId, Disposition, RouteOwnerCode, RouteKind, PrincipalCode, PredicatesJson, Reason, PolicyKey, PolicyVersion, TransportIdentitiesJson, OriginalIdentitiesJson) VALUES ({receiptId}, {"accepted"}, {"QDOS"}, {"direct_principal"}, {"QDOS"}, {emptyEnvelope}, {"Accepted QDOS route"}, {"qdos_mail_route"}, {3}, {emptyEnvelope}, {emptyEnvelope})");
         }
     }
+
+    private static Task<AutomaticCaseAssociationOutcome> AssociateAsync(
+        EfIntakeMutationStore store,
+        Guid receiptId,
+        Guid caseId) =>
+        store.AssociateFromMatchAsync(
+            new AutomaticCaseAssociationRequest(
+                receiptId,
+                caseId,
+                AssociateRetainedMailWithCase.PolicyKey,
+                AssociateRetainedMailWithCase.PolicyVersion,
+                "system-worker:intake-processing",
+                $"seed-association:{receiptId:N}",
+                "Seeded association for the test.",
+                null),
+            StartUtc,
+            CancellationToken.None);
 
     private sealed class FixedConfiguration : ICaseWorkflowConfiguration
     {

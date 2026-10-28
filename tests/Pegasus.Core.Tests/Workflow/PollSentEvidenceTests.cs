@@ -788,7 +788,7 @@ public sealed class PollSentEvidenceTests
         var discovered = Item("retained-1", "sent-items", "cursor-1", [], []) with
         {
             RetainedMetadata = new(
-                "sent-items", "conversation-retained-1", "<message-retained-1@example.test>",
+                "sent-items", "conversation-retained-1", "<message-retained-1@example.test>", [],
                 "instructions@example.test", "Instructions", ["claimant@example.invalid"], [], [],
                 "Following up", "Please find the update below.", [], IsRead: true),
             SourceLength = 2048

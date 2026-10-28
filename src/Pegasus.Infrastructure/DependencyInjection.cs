@@ -9,6 +9,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Cazana;
+using Pegasus.Infrastructure.Brego;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -127,9 +128,6 @@ public static class DependencyInjection
         services.AddScoped<IDismissRetainedMail, DismissRetainedMail>();
         services.AddScoped<IRestoreRetainedMail, RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
-        services.TryAddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
-        services.AddSingleton<DeletedMailSearchKeep>();
-        services.AddScoped<SearchDeletedMail>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
         services.AddScoped<EfIntakeMutationStore>();
@@ -367,6 +365,9 @@ public static class DependencyInjection
         services.AddScoped<IWorkCentreDismissalStore, EfWorkCentreDismissalStore>();
         services.AddScoped<IDismissWorkCentreItem, DismissWorkCentreItem>();
         services.AddScoped<IListWorkCentreAiJobs, ListWorkCentreAiJobs>();
+        services.AddScoped<IAiDraftAdoptionQueries, EfAiDraftAdoptionQueries>();
+        services.AddScoped<ISystemActionQueries, EfSystemActionQueries>();
+        services.AddScoped<IListSystemActions, ListSystemActions>();
         services.AddScoped<IWorkCentreActivityQueries, EfWorkCentreActivityQueries>();
         services.AddScoped<IGetWorkCentreActivity, GetWorkCentreActivity>();
         services.AddScoped<IIntakeLogQueries, EfIntakeLogQueries>();
@@ -588,8 +589,10 @@ public static class DependencyInjection
         services.AddScoped<ICloseCase, CloseCase>();
         services.AddScoped<IReopenCase, ReopenCase>();
         services.AddScoped<IReturnCaseToEngineer, ReturnCaseToEngineer>();
-        services.AddScoped<IRaiseCaseQuery, RaiseCaseQuery>();
-        services.AddScoped<IResolveCaseQueries, ResolveCaseQueries>();
+        services.AddScoped<IOpenCaseQuery, OpenCaseQuery>();
+        services.AddScoped<IMarkCaseQueryDone, MarkCaseQueryDone>();
+        services.AddScoped<IReopenCaseQuery, ReopenCaseQuery>();
+        services.AddScoped<IAssignCaseQuery, AssignCaseQuery>();
         services.AddScoped<IArchiveCase, ArchiveCase>();
         services.AddScoped<IRecordManualCaseChase, RecordManualCaseChase>();
 
@@ -979,6 +982,42 @@ public static class DependencyInjection
     }
 
     /// <summary>
+    /// Connects Brego as a guide valuation source (ADR-0084). A host that
+    /// does not call this has no Brego provider, so the Case's Brego card
+    /// says it is unavailable and offers no Get valuation. The account comes
+    /// through a factory and is read on each valuation, because the platform
+    /// can hand over an unresolved Key Vault reference, which must not fail
+    /// the host at build.
+    /// </summary>
+    public static IServiceCollection AddBregoGuideValuation(
+        this IServiceCollection services,
+        Func<IServiceProvider, BregoValuationAccount> accountFactory,
+        Func<IServiceProvider, IBregoSessionStore?>? sessionStoreFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(accountFactory);
+
+        // Each call is bounded once, headers and body together, by
+        // BregoClient.CallTimeout or BregoClient.PdfCallTimeout; cookies are
+        // carried explicitly per BregoSession rather than on a shared handler.
+        services.AddHttpClient(
+                BregoGuideValuationProvider.HttpClientName,
+                client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                UseCookies = false,
+                AllowAutoRedirect = false,
+            });
+        services.AddSingleton<IGuideValuationProvider>(provider => new BregoGuideValuationProvider(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            () => accountFactory(provider),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<BregoGuideValuationProvider>>(),
+            sessionStoreFactory?.Invoke(provider)));
+        return services;
+    }
+
+    /// <summary>
     /// Connects Glass's as a guide valuation source (ADR-0060). A host that
     /// does not call this has no Glass's provider, so the Case's Glass's card
     /// says it is unavailable and offers no Get valuation. The account comes
@@ -1108,7 +1147,6 @@ public static class DependencyInjection
         // Web sends and reads; the Sent-evidence poll that settles Submitted
         // into Sent is the Worker's alone (AddProductionExternalAdapters).
         AddStaffMailSending(services);
-        services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;
     }
 

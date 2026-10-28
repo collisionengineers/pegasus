@@ -205,12 +205,19 @@ public sealed record CaseCorrespondenceEmail(
     /// the row (Tag as query) must name; null for a message with no decision.
     /// </summary>
     public long? ClassificationVersion { get; init; }
+
+    /// <summary>
+    /// The message's non-withdrawn query, if it has one: open reads Query,
+    /// resolved reads Done. Absent when the message holds no such query.
+    /// </summary>
+    public CaseQuerySummary? Query { get; init; }
 }
 
 /// <summary>
-/// One query on a Case (FRD-13 "Report sent and queries"): a tagged e-mail,
+/// One query on a Case (FRD-13 "Report sent and queries"): a linked e-mail,
 /// shown through its message, or a staff-logged query with its channel and
-/// details. Open while <see cref="ClosedAs"/> is null.
+/// details. Open while <see cref="ClosedAs"/> is null. A new query is
+/// Unassigned until taken or assigned.
 /// </summary>
 public sealed record CaseQueryItem(
     Guid Id,
@@ -231,13 +238,25 @@ public sealed record CaseQueryItem(
     public string RaisedByDisplayName { get; init; } = RaisedBy;
 
     public string? ClosedByDisplayName { get; init; } = ClosedBy;
+
+    /// <summary>The staff member the query is assigned to; null while Unassigned.</summary>
+    public Guid? AssigneeStaffId { get; init; }
+
+    /// <summary>That person's name, resolved on read; null while Unassigned.</summary>
+    public string? AssignedTo { get; init; }
 }
 
 /// <summary>
 /// The open query the Next action routes to: a mail query leads to that
-/// message's reply, a staff query to the Resolve query control.
+/// message's reply, a logged query to Mark done.
 /// </summary>
-public sealed record CaseOpenQueryRoute(CaseQuerySource Source, Guid? RetainedMessageId);
+public sealed record CaseOpenQueryRoute(Guid QueryId, CaseQuerySource Source, Guid? RetainedMessageId);
+
+/// <summary>
+/// A message's non-withdrawn query, as Correspondence and the Inbox read it:
+/// open or done, and who holds it.
+/// </summary>
+public sealed record CaseQuerySummary(Guid Id, bool IsOpen, string? AssignedTo);
 
 /// <summary>
 /// The record-level notes shown read-only on a Case's Overview beside the Case's own:
@@ -876,7 +895,8 @@ public sealed class GetCaseQueriesSection(
         var staffIds = queries
             .SelectMany(item => new[] { (item.RaisedByKind, item.RaisedBy), (item.ClosedByKind, item.ClosedBy) })
             .Where(pair => pair.Item1 == nameof(ActorKind.Staff) && Guid.TryParse(pair.Item2, out _))
-            .Select(pair => Guid.Parse(pair.Item2!));
+            .Select(pair => Guid.Parse(pair.Item2!))
+            .Concat(queries.Select(item => item.AssigneeStaffId).OfType<Guid>());
         var names = await ActorDisplayNames.ResolveStaffNamesAsync(staffAccounts, staffIds, cancellationToken);
         return new(frame, queries
             .OrderBy(item => item.IsOpen ? 0 : 1)
@@ -886,7 +906,10 @@ public sealed class GetCaseQueriesSection(
                 RaisedByDisplayName = Display(item.RaisedByKind, item.RaisedBy, names),
                 ClosedByDisplayName = item.ClosedByKind is null || item.ClosedBy is null
                     ? null
-                    : Display(item.ClosedByKind, item.ClosedBy, names)
+                    : Display(item.ClosedByKind, item.ClosedBy, names),
+                AssignedTo = item.AssigneeStaffId is { } assignee && names.TryGetValue(assignee, out var assigned)
+                    ? assigned
+                    : null
             })
             .ToArray());
     }

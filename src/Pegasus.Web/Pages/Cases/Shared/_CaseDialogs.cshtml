@@ -72,7 +72,7 @@
     {
         @* Place on Hold (13 September): the reason and an optional Review on
            date, today or later, that the ribbon then reads. *@
-        <div id="case-hold-dialog" class="dialog-backdrop" data-dialog="case-hold-dialog" hidden>
+        <div id="case-hold-dialog" class="dialog-backdrop" data-dialog="case-hold-dialog" data-dialog-open-on-load="@(Model.OpenDialog == "hold" ? "true" : null)" hidden>
             <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-hold-dialog-title">
                 <div class="dialog-head">
                     <h2 id="case-hold-dialog-title" tabindex="-1">@Frame.PlaceOnHold</h2>
@@ -105,11 +105,9 @@
             </section>
         </div>
     }
-    @if (Model.CanLogQuery)
+    @if (Model.CanOpenQuery)
     {
-        @* Log query (operator, 11 October 2026): the channel the query came
-           by and what it is. A query logged here is a record on the Case, as
-           a tagged e-mail is; Resolve query closes every open one. *@
+        @* Log query: the channel the query came by and what it is. No lease. *@
         <div id="case-log-query-dialog" class="dialog-backdrop" data-dialog="case-log-query-dialog" hidden>
             <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-log-query-dialog-title">
                 <div class="dialog-head">
@@ -118,13 +116,8 @@
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
                     </button>
                 </div>
-                <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="LogQuery" data-log-query-form>
-                    <input type="hidden" name="id" value="@workflow.CaseId" />
-                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                    @if (leased) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
-                    <input type="hidden" name="view" value="@Model.ViewRoute" />
-                    <input type="hidden" name="section" value="@Model.Section" />
+                <form method="post" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-page-handler="LogQuery" data-log-query-form>
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                     <div class="dialog-body stack">
                         <div class="field">
                             <label for="case-log-query-channel">@Frame.Channel</label>
@@ -143,6 +136,39 @@
                     <div class="dialog-foot">
                         <button type="button" class="btn" data-dialog-close>Cancel</button>
                         <button type="submit" data-busy-label="@OperatorLabels.Busy.Logging" class="btn btn--primary">@Frame.LogQuery</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    }
+    @if (Model.AssignEngineerChoices is { Engineers.Count: > 0 } queryAssignees)
+    {
+        <div id="case-assign-query-dialog" class="dialog-backdrop" data-dialog="case-assign-query-dialog" hidden>
+            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-assign-query-dialog-title">
+                <div class="dialog-head">
+                    <h2 id="case-assign-query-dialog-title" tabindex="-1">@CaseWorkspaceLabels.Queries.AssignQuery</h2>
+                    <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                    </button>
+                </div>
+                <form method="post" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-page-handler="AssignQuery" data-assign-query-form>
+                    <input type="hidden" name="queryId" value="" />
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                    <div class="dialog-body stack">
+                        <div class="field">
+                            <label for="case-assign-query-assignee">@CaseWorkspaceLabels.Queries.AssignedTo</label>
+                            <select id="case-assign-query-assignee" name="assignee" data-dialog-initial-focus>
+                                @foreach (var engineer in queryAssignees.Engineers)
+                                {
+                                    <option value="@engineer.StaffId">@queryAssignees.Label(engineer)</option>
+                                }
+                                <option value="unassigned">@CaseWorkspaceLabels.Queries.Unassigned</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="dialog-foot">
+                        <button type="button" class="btn" data-dialog-close>Cancel</button>
+                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Assigning">@CaseWorkspaceLabels.Queries.Assign</button>
                     </div>
                 </form>
             </section>
@@ -268,7 +294,7 @@
     @* Review point 12: which outcome, and why. The chooser lists only the
        outcomes the page model derived from Core's closure rules for this
        state, so nothing offered here is refused for being the wrong outcome. *@
-    <div id="case-close-dialog" class="dialog-backdrop" data-dialog="case-close-dialog" hidden>
+    <div id="case-close-dialog" class="dialog-backdrop" data-dialog="case-close-dialog" data-dialog-open-on-load="@(Model.OpenDialog == "close" ? "true" : null)" hidden>
         <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
             <div class="dialog-head">
                 <h2 id="case-close-dialog-title" tabindex="-1">@OperatorLabels.CaseWorkspace.CloseCase</h2>

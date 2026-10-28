@@ -133,25 +133,13 @@ public sealed partial class DetailsModel
         && !ColleagueIsEditing;
 
     /// <summary>
-    /// Log query is live: a Report sent Case no colleague is editing
-    /// (operator, 11 October 2026). The Actions menu opens its dialog.
+    /// Open or log a query is live once the report is sent, on a Case that is
+    /// not archived. A colleague editing the Case does not block it.
     /// </summary>
-    public bool CanLogQuery =>
-        Case is { } details
-        && CaseQueryRules.CanLog(details.Workflow)
-        && !ColleagueIsEditing;
+    public bool CanOpenQuery =>
+        Case is { } details && CaseQueryRules.CanOpen(details.Workflow);
 
-    /// <summary>
-    /// Resolve query is live while the Case holds an open query and no
-    /// colleague is editing. The Actions menu and the Next action both post it.
-    /// </summary>
-    public bool CanResolveQuery =>
-        Case is { } details
-        && CaseQueryRules.CanResolve(details.Workflow)
-        && !CaseLifecycleRules.IsTerminal(details.Workflow.State)
-        && !ColleagueIsEditing;
-
-    /// <summary>The oldest open query, which the Next action's Resolve query routes to.</summary>
+    /// <summary>The oldest open query, which the Next action's Answer query routes to.</summary>
     public CaseOpenQueryRoute? OldestOpenQuery => Case?.OldestOpenQuery;
 
     /// <summary>The Audit reference the dialog announces: <c>a.{Case/PO}</c>.</summary>

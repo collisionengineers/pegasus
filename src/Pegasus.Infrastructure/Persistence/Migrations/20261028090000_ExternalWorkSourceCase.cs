@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// data change.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
-[Migration("20261026150000_ExternalWorkSourceCase")]
+[Migration("20261028090000_ExternalWorkSourceCase")]
 public partial class ExternalWorkSourceCase : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

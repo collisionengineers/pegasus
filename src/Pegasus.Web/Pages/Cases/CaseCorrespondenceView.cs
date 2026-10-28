@@ -12,9 +12,10 @@ public sealed record CaseCorrespondenceView(
     string CaseReference)
 {
     /// <summary>
-    /// The Case whose Correspondence tab offers Tag as query on each received
-    /// row (operator, 11 October 2026); null on a Triage Case, which takes no
-    /// query.
+    /// The Case whose Correspondence tab offers Open query on a received
+    /// e-mail that holds no non-withdrawn query, once the report is sent.
+    /// Null when Open query is not offered (a Triage Case, or the report is
+    /// not yet sent).
     /// </summary>
-    public Guid? TagAsQueryCaseId { get; init; }
+    public Guid? OpenQueryCaseId { get; init; }
 }

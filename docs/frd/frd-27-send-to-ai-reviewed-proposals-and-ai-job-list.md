@@ -96,7 +96,7 @@ is how an external agent on an automated run picks up work.
 | --- | --- | --- | --- | --- |
 | AI Proposal | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, which may cite the job; state `Draft` | An enabled human staff member uses the draft (**Use repair spec**), which makes it the Current repair spec |
 | Unidentified resolution | The Unidentified record's `Send Unidentified to AI` for that item's U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
-| Query response | **Draft reply with AI** on the retained Query e-mail's record, or on its open query's row in the Case's Queries section, while the Case is in post-report work; while the job is Queued or Taken both read "AI draft · {state}" in its place | The message reference only | Draft reply text, at most 4,000 characters | **Reply with AI draft** (the Case's Next action, the Work Centre row, the Queries row and the message record) opens that message's reply composer on the draft: Message holds the text, one AI line above it says when and by which client it was written, and Also resolve query starts ticked. **Send** from that composer completes the job once the provider accepts the send; a refused send leaves it Draft ready. A send that has gone but leaves the job as it was reads "The AI draft job was not completed by this send: {reason}.", the reason being "it was cancelled", "it was already completed" or "it changed while the reply was being sent" (operator, 16 October 2026). **Complete job** closes it unused. Never sent automatically (operator, 14 October 2026) |
+| Query response | **Draft reply with AI** on the retained Query e-mail's record only, while the Case is in post-report work; while the job is Queued or Taken the record reads "AI draft · {state}" in its place | The message reference only | Draft reply text, at most 4,000 characters | **Reply with AI draft** (the Case's Next action, the Work Centre row and the message record) opens that message's reply composer on the draft: Message holds the text, one AI line above it says when and by which client it was written, and Mark query done starts ticked. **Send** from that composer completes the job once the provider accepts the send; a refused send leaves it Draft ready. A send that has gone but leaves the job as it was reads "The AI draft job was not completed by this send: {reason}.", the reason being "it was cancelled", "it was already completed" or "it changed while the reply was being sent" (operator, 16 October 2026). **Complete job** closes it unused. Never sent automatically (operator, 14 October 2026) |
 | Unidentified-queue pass | The Automation Actor's `create` tool only, for example from an external scheduler; Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item examined | As Unidentified resolution, per item |
 | MarketResearch | **AI market research** in the Case record's Valuation section, while editing, for the chosen Valuation month. The section shows a "Researching · {month}" card while the job is Queued or Taken; a re-run replaces the card. The result is filed without the Case edit lease or version, so it returns while the Engineer is still editing | The Case and its valuation context. External Claude Cowork uses the Pegasus connector plus research tools outside this repository | Research files attached to the Case through the connector, with attributable evidence and optional source-labelled valuation entries | The Automation Actor marks the job Completed after attachment. No staff completion gate and no automatic adoption as the Engineer's Value |
 
@@ -135,11 +135,14 @@ transitions to the staff username. A cancel or confirm made by the Automation
 Actor is attributed to it in the same way. The Administrator kill switch refuses
 claims and progress; queued jobs wait and taken jobs expire back to `Queued`.
 
-**Work Centre AI jobs.** The Work Centre's AI jobs tab is the live queue
-([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Each row
-shows the kind and state, the instruction (a Query response reads "Draft a
-reply to the query": its stored instruction is the message it answers), the
-record, who started it and when. The action is one of `Review estimate`
+**Work Centre AI Actions.** The Work Centre's AI Actions tab is the live queue
+plus the jobs that completed or failed in the same seven days
+([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). Market research
+is still excluded. Each row shows the action (Estimate done, Draft to a query,
+or the kind), the Case, the state, the summary, and when. A repair
+specification with source route AiDraft and the job's id is Engineer adoption:
+the row reads "Taken by {engineer}", which is not the job state Taken. The
+action is one of `Review estimate`
 (opens the Case's Repair Spec section), `Reply with AI draft` (opens the
 reply composer of the message it answers on the draft, or the Case's
 correspondence when the job names no message) or `Review` (opens the

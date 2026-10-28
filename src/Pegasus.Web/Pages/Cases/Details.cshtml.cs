@@ -1151,7 +1151,12 @@ public sealed partial class DetailsModel(
             {
                 await LoadEngineerSectionsAsync(id, actor, workspace, work, estimate, dialog, cancellationToken);
             }
-            OpenDialog ??= tasksOpen ? "tasks" : null;
+            // The message record's Change case links land here with hold or
+            // close (operator, 27 October 2026): the page draws that dialog
+            // open the same way, only where the Case offers the act.
+            OpenDialog ??= tasksOpen
+                ? "tasks"
+                : dialog is "hold" or "close" ? dialog : null;
             using (DocumentReadTelemetry.Start("web.case.extras"))
             {
                 await LoadExtrasAsync(id, actor, cancellationToken);
@@ -1706,7 +1711,17 @@ public sealed partial class DetailsModel(
                     {
                         return FragmentNotFound();
                     }
-                    await LoadQueryDraftsAsync(id, QueriesSection, cancellationToken);
+                    // The mounted body draws the same assignee control and Take
+                    // as the full page, so it reads the same roster (the
+                    // signed-in person first) that ReadWorkspaceExtrasAsync does.
+                    if (QueriesSection.Queries.Any(query => query.IsOpen))
+                    {
+                        var viewerStaffId = Pegasus.Core.Notifications.StaffNotificationPolicy.StaffId(actor);
+                        var roster = (await caseEngineerChoices.GetAsync(actor, cancellationToken))
+                            .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)
+                            .ToArray();
+                        AssignEngineerChoices = new(roster, viewerStaffId);
+                    }
                     break;
                 case "files":
                     FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
@@ -2031,11 +2046,6 @@ public sealed partial class DetailsModel(
         var jobs = await caseAiJobs;
         AiDrafts = AiDraftPolicy.Drafts(jobs, details.Data.RequiredAiDraftTargetDays);
         PendingMarketResearch = MarketResearchPolicy.PendingOf(jobs);
-        CaseAiJobs = jobs;
-        if (QueriesSection is { } queriesSection)
-        {
-            QueryDraftCondition = await QueryDraftConditionAsync(queriesSection, cancellationToken);
-        }
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(
@@ -5168,7 +5178,7 @@ public sealed partial class DetailsModel(
             : null;
         var rosterAndName = reads.Start(async token =>
         {
-            IReadOnlyList<CaseEngineerChoice> listed = CaseLifecycleRules.CanBeAssigned(workflow.State)
+            IReadOnlyList<CaseEngineerChoice> listed = CaseLifecycleRules.CanBeAssigned(workflow.State) || workflow.HasOpenQuery
                 ? [.. (await caseEngineerChoices.GetAsync(inputs.Actor, token))
                     .OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)]
                 : [];

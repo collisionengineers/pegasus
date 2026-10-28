@@ -80,16 +80,16 @@ internal static partial class CaseWebTestSupport
         ActionActor.SystemWorker("sent-evidence-poller"));
 
     /// <summary>
-    /// The Case's queries (operator, 11 October 2026): the workflow's
-    /// open-query mark, the oldest open query the page frame routes to, the
-    /// Queries section's rows as the store answers them (in no set order), and
-    /// the archive that makes the Case read-only. Log query and Resolve query
-    /// are recorded, consume the lease, and answer with the mark they leave.
+    /// The Case's queries: the workflow's open-query mark, the oldest open
+    /// query the page frame routes to, and the Queries section's rows. Query
+    /// acts are recorded and take no lease.
     /// </summary>
     internal sealed partial class RecordingCaseDetailsStore :
         IGetCaseQueriesSection,
-        IRaiseCaseQuery,
-        IResolveCaseQueries
+        IOpenCaseQuery,
+        IMarkCaseQueryDone,
+        IReopenCaseQuery,
+        IAssignCaseQuery
     {
         public bool HasOpenQuery { get; set; }
 
@@ -100,9 +100,13 @@ internal static partial class CaseWebTestSupport
 
         public CaseArchive? Archive { get; set; }
 
-        public List<RaiseCaseQueryRequest> QueryRaises { get; } = [];
+        public List<OpenCaseQueryRequest> QueryOpens { get; } = [];
 
-        public List<ResolveCaseQueriesRequest> QueryResolutions { get; } = [];
+        public List<CaseQueryActRequest> QueryDone { get; } = [];
+
+        public List<CaseQueryActRequest> QueryReopens { get; } = [];
+
+        public List<AssignCaseQueryRequest> QueryAssignments { get; } = [];
 
         Task<CaseQueriesSection?> IGetCaseQueriesSection.ExecuteAsync(
             GetCaseSectionQuery query,
@@ -111,28 +115,42 @@ internal static partial class CaseWebTestSupport
                 ? new(query.Frame ?? FocusedFrame(), Queries)
                 : null);
 
-        Task<CaseWorkflowRecord> IRaiseCaseQuery.ExecuteAsync(
-            RaiseCaseQueryRequest request,
-            CancellationToken cancellationToken)
+        Task<Guid> IOpenCaseQuery.ExecuteAsync(OpenCaseQueryRequest request, CancellationToken cancellationToken)
         {
             ThrowNextFailure();
-            QueryRaises.Add(request);
-            ConsumeLease();
+            QueryOpens.Add(request);
+            HasOpenQuery = true;
+            return Task.FromResult(Guid.NewGuid());
+        }
+
+        Task<CaseWorkflowRecord> IMarkCaseQueryDone.ExecuteAsync(CaseQueryActRequest request, CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            QueryDone.Add(request);
+            HasOpenQuery = false;
+            return Task.FromResult(CreateWorkflow() with { HasOpenQuery = false });
+        }
+
+        Task<CaseWorkflowRecord> IReopenCaseQuery.ExecuteAsync(CaseQueryActRequest request, CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            QueryReopens.Add(request);
+            HasOpenQuery = true;
             return Task.FromResult(CreateWorkflow() with { HasOpenQuery = true });
         }
 
-        Task<CaseWorkflowRecord> IResolveCaseQueries.ExecuteAsync(
-            ResolveCaseQueriesRequest request,
-            CancellationToken cancellationToken)
+        Task<CaseWorkflowRecord> IAssignCaseQuery.ExecuteAsync(AssignCaseQueryRequest request, CancellationToken cancellationToken)
         {
             ThrowNextFailure();
-            QueryResolutions.Add(request);
-            ConsumeLease();
-            return Task.FromResult(CreateWorkflow() with { HasOpenQuery = false });
+            QueryAssignments.Add(request);
+            return Task.FromResult(CreateWorkflow());
         }
     }
 
-    /// <summary>A staff mail sender the Case page reads as available; the page never sends through it.</summary>
+    /// <summary>
+    /// A staff mail sender the Case and message pages read as available, with
+    /// no send in flight; the pages never send through it.
+    /// </summary>
     internal sealed class OfferedStaffMailSend : IStaffMailSend
     {
         public Task<StaffMailOperation> SendAsync(StaffMailSendCommand command, CancellationToken cancellationToken) =>
@@ -143,7 +161,7 @@ internal static partial class CaseWebTestSupport
 
         public Task<StaffMailOperation?> GetLatestForOriginalAsync(
             ActionActor actor, Guid retainedMessageId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            Task.FromResult<StaffMailOperation?>(null);
 
         public Task<StaffMailOperation> CancelAsync(
             ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>

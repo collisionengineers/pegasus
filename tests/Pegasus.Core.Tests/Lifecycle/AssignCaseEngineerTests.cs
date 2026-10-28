@@ -422,14 +422,16 @@ public sealed class AssignCaseEngineerTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<CaseWorkflowRecord> RaiseQueryAsync(
-            RaiseCaseQueryRequest request,
-            CancellationToken cancellationToken) =>
+        public Task<Guid> OpenQueryAsync(OpenCaseQueryRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<CaseWorkflowRecord> ResolveQueriesAsync(
-            ResolveCaseQueriesRequest request,
-            CancellationToken cancellationToken) =>
+        public Task<CaseWorkflowRecord> MarkQueryDoneAsync(CaseQueryActRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseWorkflowRecord> ReopenQueryAsync(CaseQueryActRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseWorkflowRecord> AssignQueryAsync(AssignCaseQueryRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 

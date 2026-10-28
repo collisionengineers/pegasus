@@ -860,7 +860,10 @@ public sealed class EfCaseQueryStore(
                 item.ClosedAs is null ? null : Enum.Parse<CaseQueryClosure>(item.ClosedAs),
                 item.ClosedAtUtc,
                 item.ClosedByKind,
-                item.ClosedBySubjectId))
+                item.ClosedBySubjectId)
+            {
+                AssigneeStaffId = item.AssigneeStaffId
+            })
             .ToArray();
     }
 
@@ -875,7 +878,7 @@ public sealed class EfCaseQueryStore(
             .Where(item => item.CaseId == caseId && item.ClosedAtUtc == null)
             .OrderBy(item => item.RaisedAtUtc)
             .ThenBy(item => item.Id)
-            .Select(item => new { item.Source, item.IntakeReceiptId })
+            .Select(item => new { item.Id, item.Source, item.IntakeReceiptId })
             .FirstOrDefaultAsync(cancellationToken);
         if (oldest is null)
         {
@@ -894,7 +897,7 @@ public sealed class EfCaseQueryStore(
                 .Select(item => (Guid?)item.Id)
                 .FirstOrDefaultAsync(cancellationToken);
         }
-        return new(Enum.Parse<CaseQuerySource>(oldest.Source), messageId);
+        return new(oldest.Id, Enum.Parse<CaseQuerySource>(oldest.Source), messageId);
     }
 
     // The retained message of each tagged receipt, as the Correspondence tab
@@ -1003,6 +1006,37 @@ public sealed class EfCaseQueryStore(
                 })
                 .ToArrayAsync(cancellationToken);
         var receiptByToken = linkedReceipts.ToDictionary(item => item.ExternalReceiptToken, StringComparer.Ordinal);
+        var withdrawn = nameof(CaseQueryClosure.Withdrawn);
+        var queryRows = await context.CaseQueries.AsNoTracking()
+            .Where(item => item.CaseId == caseId
+                && item.IntakeReceiptId != null
+                && item.ClosedAs != withdrawn)
+            .Select(item => new { item.Id, item.IntakeReceiptId, item.ClosedAtUtc, item.AssigneeStaffId })
+            .ToArrayAsync(cancellationToken);
+        var assigneeIds = queryRows
+            .Where(item => item.AssigneeStaffId is not null)
+            .Select(item => item.AssigneeStaffId!.Value)
+            .Distinct()
+            .ToArray();
+        var assigneeNames = assigneeIds.Length == 0
+            ? new Dictionary<Guid, string>()
+            : await context.Users.AsNoTracking()
+                .Where(user => assigneeIds.Contains(user.Id) && user.UserName != null)
+                .ToDictionaryAsync(user => user.Id, user => user.UserName!, cancellationToken);
+        // One non-withdrawn query per message is the rule; should a second ever
+        // stand, the open one (else the latest) is shown rather than the page failing.
+        var queryByReceipt = queryRows
+            .GroupBy(item => item.IntakeReceiptId!.Value)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var item = group.OrderBy(row => row.ClosedAtUtc is null ? 0 : 1).ThenByDescending(row => row.ClosedAtUtc).First();
+                    return new CaseQuerySummary(
+                        item.Id,
+                        item.ClosedAtUtc is null,
+                        item.AssigneeStaffId is { } assignee && assigneeNames.TryGetValue(assignee, out var name) ? name : null);
+                });
         return messages.Select(item =>
             {
                 var receipt = receiptByToken[item.ExternalReceiptToken];
@@ -1012,7 +1046,8 @@ public sealed class EfCaseQueryStore(
                         : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification).Category,
                     item.SourceSha256)
                 {
-                    ClassificationVersion = receipt.Classification?.Version
+                    ClassificationVersion = receipt.Classification?.Version,
+                    Query = queryByReceipt.GetValueOrDefault(receipt.Id)
                 };
             })
             .OrderByDescending(item => item.ReceivedAtUtc)

@@ -27,9 +27,9 @@ import subprocess
 import sys
 
 
-def run(args: list[str], cwd: str | None = None) -> tuple[int, str]:
+def run(args: list[str], cwd: str | None = None) -> tuple[int, str, str]:
     result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd)
-    return result.returncode, (result.stdout or "") + (result.stderr or "")
+    return result.returncode, result.stdout or "", result.stderr or ""
 
 
 def main() -> int:
@@ -46,9 +46,9 @@ def main() -> int:
         print(f"refused: {path} is not a directory")
         return 1
 
-    code, out = run(["git", "worktree", "list", "--porcelain"])
+    code, out, err = run(["git", "worktree", "list", "--porcelain"])
     if code != 0:
-        print(out)
+        print(out + err)
         return 2
     entries = [block.splitlines() for block in out.strip().split("\n\n") if block.strip()]
     main_path = os.path.normcase(os.path.abspath(entries[0][0].split(" ", 1)[1]))
@@ -70,18 +70,18 @@ def main() -> int:
         print("refused: the worktree is detached; remove it by hand if that is intended")
         return 1
 
-    code, status = run(["git", "status", "--porcelain=v2", "--untracked-files=all"], cwd=path)
+    code, status, err = run(["git", "status", "--porcelain=v2", "--untracked-files=all"], cwd=path)
     if code != 0:
-        print(status)
+        print(status + err)
         return 2
     if status.strip():
         print("refused: the worktree has uncommitted or untracked changes:")
         print(status.strip())
         return 1
 
-    code, out = run(["gh", "pr", "view", str(opts.pr), *repo_args, "--json", "state,headRefOid,headRefName,url"])
+    code, out, err = run(["gh", "pr", "view", str(opts.pr), *repo_args, "--json", "state,headRefOid,headRefName,url"])
     if code != 0:
-        print(out)
+        print(out + err)
         return 2
     pr = json.loads(out)
     if pr["state"] not in {"OPEN", "MERGED"}:
@@ -94,7 +94,11 @@ def main() -> int:
         print(f"refused: PR #{opts.pr} head is {pr['headRefOid'][:12]} but the worktree HEAD is {head[:12]}; push or reconcile first")
         return 1
 
-    ignored_code, ignored = run(["git", "status", "--porcelain", "--ignored=matching", "--untracked-files=no"], cwd=path)
+    # Traditional --ignored names a wholly ignored directory once (`!! bin/`), not every file in it.
+    code, ignored, err = run(["git", "status", "--porcelain", "--ignored"], cwd=path)
+    if code != 0:
+        print(ignored + err)
+        return 2
     ignored_lines = [l for l in ignored.splitlines() if l.startswith("!!")]
     if ignored_lines:
         print(f"note: {len(ignored_lines)} ignored path(s) under the worktree will be deleted with it, e.g. {ignored_lines[0][3:]}")
@@ -104,17 +108,17 @@ def main() -> int:
         print(f"dry run: would run `git worktree remove {path}` and `git branch -d {branch}`")
         return 0
 
-    code, out = run(["git", "worktree", "remove", path])
+    code, out, err = run(["git", "worktree", "remove", path])
     if code != 0:
-        print(out)
+        print(out + err)
         return 2
-    code, out = run(["git", "branch", "-d", branch])
+    code, out, err = run(["git", "branch", "-d", branch])
     if code != 0:
         # The branch's commits are on the remote and in the PR; -d refuses only
         # because the integration branch does not contain them yet.
-        code, out = run(["git", "branch", "-D", branch])
+        code, out, err = run(["git", "branch", "-D", branch])
         if code != 0:
-            print(out)
+            print(out + err)
             return 2
     print(f"removed worktree {path} and local branch {branch}; origin/{branch} remains for PR #{opts.pr}")
     return 0

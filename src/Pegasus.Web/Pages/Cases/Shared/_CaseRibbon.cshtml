@@ -34,10 +34,8 @@
     var canConfirmReportSent = mayAct
         && details.AvailableReportSentEvidence.Count > 0
         && (Model.IsInspectionView || state == CaseLifecycleState.ReportPreparation);
-    // Log query on a Report sent Case; Resolve query while a query is open
-    // (operator, 11 October 2026).
-    var canLogQuery = Model.CanLogQuery;
-    var canResolveQuery = Model.CanResolveQuery;
+    // Log query once the report is sent. A colleague editing does not block it.
+    var canLogQuery = Model.CanOpenQuery;
     var canReturnToReview = mayActOnCaseData
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.ReportSent;
     var canReturnToEngineer = mayAct && state == CaseLifecycleState.ReportSent;
@@ -255,10 +253,6 @@
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-reply")" /></svg>
                         <span>@Frame.LogQuery</span>
                     </button>
-                }
-                @if (canResolveQuery)
-                {
-                    <partial name="Cases/Shared/_ResolveQueryForm" model="Model" />
                 }
                 @if (canReturnToReview)
                 {

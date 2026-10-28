@@ -1,35 +1,100 @@
 @model Pegasus.Web.Pages.Mail.MessageModel
 @using Pegasus.Core.Intake
+@using Pegasus.Core.Lifecycle
 @using Pegasus.Web.Presentation
 @{
     var summary = Model.Detail.Summary;
     var dossier = Model.Detail.Classification;
-    // The Case / PO field joins the reason dialog it opens by form="…", so it sits
-    // in the Decision column and the confirmation stays in a dialog.
+    var part = ViewData["MailSettingsPart"] as string;
     var linkFormId = Model.CurrentDestination is null ? "linkCaseForm" : "changeLinkedCaseForm";
-    // A message whose decision leaves no Case to link or change to has no form for the picker to join.
     var picksCase = Model.OffersLinkToCase || Model.OffersChangeLinkedCase;
-    // A Triage the message opened is its Case until staff link it to an instruction Case.
-    var opensTriage = summary.IsTriageCase && summary.CaseId is not null;
-    var workTypeRefused = ViewData.ModelState["WorkType"]?.Errors.Count > 0;
+    var currentValue = MailClassificationSelection.ValueFor(dossier?.Current);
+    var typeLabel = dossier?.Current is { } current
+        ? Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(current)
+        : OperatorLabels.Inbox.Correspondence;
+    var query = summary.Query;
 }
 
-@* Decision (v41 I9, I11, I12): the Classification chips apply at once; the Case
-   is shown once, with the Case / PO picker under it and the buttons that link,
-   change or unlink it; Decided is plain text with its actor. *@
-<section class="decision-card mail-decision">
-    <h2 class="decision-head">Decision</h2>
-    <div class="decision-body">
-        <div class="decision-facts">
-            @if (dossier is { } current)
+@if (part is not "menu")
+{
+    <div class="mail-context-bar" data-mail-context-bar>
+        <span data-context-case>
+            @OperatorLabels.Inbox.Case
+            @if (summary.CaseId is { } contextCaseId)
             {
-                var currentKey = current.Current is { IsClassified: true, Category: { } currentCategory }
-                    ? MailCategories.Code(currentCategory)
-                    : MailClassificationSelection.UnclassifiedKey;
-                @* A chip applies at once and records the fixed reason "Corrected from the Inbox",
-                   as Tag as query records its fixed reason (R179). The Case type a New
-                   instruction asks for sits in the Case picker row, joined by form="…". *@
-                <form method="post" id="mailClassificationForm" class="mail-decision-block"
+                <a class="mail-context-case-link" asp-page="/Cases/Details" asp-route-id="@contextCaseId">@summary.CaseReference</a>
+            }
+            else
+            {
+                <span class="quiet">@OperatorLabels.Inbox.NoCase</span>
+            }
+        </span>
+        <span class="mail-context-sep" aria-hidden="true">·</span>
+        <span>@OperatorLabels.Inbox.Type <strong data-context-type>@typeLabel</strong></span>
+        @if (query is { IsOpen: true })
+        {
+            <span class="mail-context-sep" aria-hidden="true">·</span>
+            <span class="status status--purple" data-context-query>@OperatorLabels.QueryStage · @(query.AssignedTo ?? OperatorLabels.CaseWorkspace.Unassigned)</span>
+        }
+        else if (query is { IsOpen: false })
+        {
+            <span class="mail-context-sep" aria-hidden="true">·</span>
+            <span class="status status--green" data-context-query>@CaseWorkspaceLabels.Frame.Done</span>
+        }
+    </div>
+}
+
+@if (part is not "bar")
+{
+    <details class="menu mail-settings-menu" data-menu data-mail-settings>
+        <summary class="icon-button mail-settings-trigger" aria-label="@OperatorLabels.Inbox.MessageSettings" title="@OperatorLabels.Inbox.MessageSettings">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-settings")" /></svg>
+        </summary>
+        <div class="mail-settings-popover">
+            <div class="mail-settings-section">
+                <div class="decision-row mail-settings-row-head">
+                    <span>@OperatorLabels.Inbox.Case</span>
+                    @if (summary.CaseId is { } caseId)
+                    {
+                        <strong>
+                            <a asp-page="/Cases/Details" asp-route-id="@caseId">@summary.CaseReference</a>
+                            @if (Model.CurrentDestination is not null)
+                            {
+                                <span> · </span>
+                                <button type="button" class="mail-settings-link" data-dialog-open="unlinkCaseDialog">@OperatorLabels.Inbox.Unlink</button>
+                            }
+                        </strong>
+                    }
+                    else
+                    {
+                        <strong class="quiet">@OperatorLabels.Inbox.NoCase</strong>
+                    }
+                </div>
+                @if (picksCase)
+                {
+                    <div class="field case-picker" data-case-picker data-case-picker-fill
+                         data-case-picker-url="@Url.Page("/Mail/Message", "LinkCaseOptions", new { id = summary.Id })">
+                        <label class="mail-decision-label" for="mailLinkCaseReference">@OperatorLabels.Inbox.CasePo</label>
+                        <input id="mailLinkCaseReference" name="caseReference" form="@linkFormId" type="text" maxlength="100"
+                               autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                               aria-controls="mailLinkCaseOptions" />
+                        <div id="mailLinkCaseOptions" class="case-picker-options" data-case-picker-options hidden></div>
+                    </div>
+                    <div class="mail-settings-list">
+                        @if (Model.OffersChangeLinkedCase)
+                        {
+                            <button class="mail-settings-item" type="button" data-dialog-open="changeLinkedCaseDialog">@OperatorLabels.Inbox.ChangeLinkedCase</button>
+                        }
+                        else if (Model.OffersLinkToCase)
+                        {
+                            <button class="mail-settings-item" type="button" data-dialog-open="linkCaseDialog">@OperatorLabels.Inbox.LinkToCase</button>
+                        }
+                    </div>
+                }
+            </div>
+            @if (dossier is { } classification)
+            {
+                <form method="post" id="mailClassificationForm" class="mail-settings-section"
                       asp-page-handler="CorrectClassification" asp-route-id="@summary.Id"
                       asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
                       asp-route-search="@Model.SearchTerm"
@@ -37,139 +102,70 @@
                       asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                       asp-route-pageNumber="@Model.PageNumber"
                       asp-route-dialog="@(Model.InDialog ? "true" : null)">
-                    <input type="hidden" asp-for="ExpectedClassificationVersion" value="@current.Version" />
+                    <input type="hidden" asp-for="ExpectedClassificationVersion" value="@classification.Version" />
                     <input type="hidden" name="CorrectionReason" value="@MailClassificationSelection.CorrectedFromInboxReason" />
-                    <span class="mail-decision-label" id="mailClassificationLabel">@OperatorLabels.Inbox.Classification</span>
-                    <div class="mail-chips" role="group" aria-labelledby="mailClassificationLabel">
+                    <label class="mail-decision-label" id="mailClassificationLabel" for="mailTypeSelect">@OperatorLabels.Inbox.Type</label>
+                    <select id="mailTypeSelect" name="ClassificationKey" class="mail-type-select" data-mail-type-select
+                            aria-labelledby="mailClassificationLabel">
                         @foreach (var option in Model.ClassificationOptions)
                         {
-                            if (option.Value == currentKey)
-                            {
-                                <button type="button" class="chip" aria-pressed="true">
-                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
-                                    <span>@option.Label</span>
-                                </button>
-                            }
-                            else
-                            {
-                                <button type="submit" class="chip" name="ClassificationKey" value="@option.Value" aria-pressed="false"
-                                        data-busy-label="@OperatorLabels.Busy.Saving">@option.Label</button>
-                            }
+                            <option value="@option.Value" selected="@(option.Value == currentValue)">@option.Label</option>
                         }
-                    </div>
+                    </select>
+                    <noscript><button class="btn btn--small" type="submit" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.Inbox.SaveCorrection</button></noscript>
                     <span asp-validation-for="ClassificationKey"></span>
                 </form>
             }
-            else
+            @if (summary.CaseId is not null && !summary.IsTriageCase)
             {
-                <div class="decision-row">
-                    <span>@OperatorLabels.Inbox.Classification</span>
-                    <strong>@Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome)</strong>
-                </div>
-            }
-            <div class="decision-row">
-                <span>@OperatorLabels.Inbox.Case</span>
-                @if (summary.CaseId is { } caseId)
-                {
-                    <strong><a asp-page="/Cases/Details" asp-route-id="@caseId">@summary.CaseReference</a></strong>
-                }
-                else
-                {
-                    <strong class="quiet">@Pegasus.Web.Pages.Mail.MessageModel.AssociationLabel(summary.CaseReference)</strong>
-                }
-            </div>
-            @if (dossier is not null || picksCase)
-            {
-                <div class="mail-decision-block">
-                    @if (dossier is not null)
+                <div class="mail-settings-list" data-mail-query>
+                    @if (query is { IsOpen: true })
                     {
-                        @* Shown by script when New instruction is pressed without a case type. *@
-                        <div class="field mail-case-type" data-work-type-field hidden="@(!workTypeRefused)">
-                            <label class="req" for="mailWorkType">@CaseWorkspaceLabels.Frame.CaseType</label>
-                            <select id="mailWorkType" name="WorkType" form="mailClassificationForm">
-                                <option value="">@OperatorLabels.Inbox.ChooseCaseTypeOption</option>
-                                @foreach (var option in MailClassificationSelection.WorkTypeOptions)
-                                {
-                                    <option value="@option.Value" selected="@(Model.WorkType == option.Value)">@option.Label</option>
-                                }
-                            </select>
-                            <span asp-validation-for="WorkType"></span>
-                        </div>
+                        <form method="post" asp-page-handler="MarkQueryDone" asp-route-id="@summary.Id">
+                            <input type="hidden" name="queryId" value="@query.Id" />
+                            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                            <button class="mail-settings-item" type="submit" data-busy-label="@OperatorLabels.Busy.Saving">
+                                <span>@OperatorLabels.StaffMail.MarkQueryDone</span>
+                            </button>
+                        </form>
                     }
-                    @if (picksCase)
+                    else if (query is null && Model.CurrentCase is { } openCase && CaseQueryRules.CanOpen(openCase.Workflow))
                     {
-                        <div class="field case-picker" data-case-picker data-case-picker-fill
-                             data-case-picker-url="@Url.Page("/Mail/Message", "LinkCaseOptions", new { id = summary.Id })">
-                            <label for="mailLinkCaseReference">@OperatorLabels.Inbox.CasePo</label>
-                            <input id="mailLinkCaseReference" name="caseReference" form="@linkFormId" type="text" maxlength="100"
-                                   autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
-                                   aria-controls="mailLinkCaseOptions" />
-                            <span class="field-hint">@OperatorLabels.Inbox.CasePoHint</span>
-                            <div id="mailLinkCaseOptions" class="case-picker-options" data-case-picker-options hidden></div>
-                        </div>
+                        <form method="post" asp-page-handler="OpenQuery" asp-route-id="@summary.Id">
+                            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                            <button class="mail-settings-item" type="submit" data-busy-label="@OperatorLabels.Busy.Saving">
+                                <span>@CaseWorkspaceLabels.Frame.OpenQuery</span>
+                            </button>
+                        </form>
                     }
                 </div>
             }
-            @if (Model.AssociationReceipt is not null
-                && (opensTriage || Model.CurrentDestination is not null || Model.OffersLinkToCase))
+            @if (summary.CaseId is { } changeCaseId && (Model.OffersPlaceOnHold || Model.OffersCloseCase))
             {
-                <div class="mail-decision-actions">
-                    @if (opensTriage)
+                <div class="mail-settings-list" data-mail-change-case>
+                    <span class="mail-decision-label">@OperatorLabels.Inbox.ChangeCase</span>
+                    @if (Model.OffersPlaceOnHold)
                     {
-                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@summary.CaseId">@OperatorLabels.Inbox.OpenTriage</a>
+                        <a class="mail-settings-item" asp-page="/Cases/Details" asp-route-id="@changeCaseId" asp-route-dialog="hold">
+                            <span>@CaseWorkspaceLabels.Frame.PlaceOnHold</span>
+                        </a>
                     }
-                    @if (Model.CurrentDestination is not null)
+                    @if (Model.OffersCloseCase)
                     {
-                        if (Model.OffersChangeLinkedCase)
-                        {
-                            <button class="btn btn--small" type="button" data-dialog-open="changeLinkedCaseDialog">@OperatorLabels.Inbox.ChangeLinkedCase</button>
-                        }
-                        <button class="btn btn--small" type="button" data-dialog-open="unlinkCaseDialog">@OperatorLabels.Inbox.Unlink</button>
-                    }
-                    else if (Model.OffersLinkToCase)
-                    {
-                        <button class="btn btn--small" type="button" data-dialog-open="linkCaseDialog">@OperatorLabels.Inbox.LinkToCase</button>
+                        <a class="mail-settings-item" asp-page="/Cases/Details" asp-route-id="@changeCaseId" asp-route-dialog="close">
+                            <span>@OperatorLabels.CaseWorkspace.CloseCase</span>
+                        </a>
                     }
                 </div>
             }
             @if (dossier is { } decided)
             {
-                var actorWord = decided.CurrentActorDisplayName == "System"
-                    ? "Automatic"
-                    : decided.CurrentActorDisplayName;
-                <div class="decision-row">
-                    <span>Decided</span>
-                    <strong>
-                        <time datetime="@decided.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(decided.CurrentDecidedAtUtc)</time>
-                        · @actorWord
-                    </strong>
+                var actorWord = decided.CurrentActorDisplayName == "System" ? "Automatic" : decided.CurrentActorDisplayName;
+                <div class="mail-settings-foot">
+                    <span>@OperatorLabels.Inbox.Decided</span>
+                    <span><time datetime="@decided.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(decided.CurrentDecidedAtUtc)</time> · @actorWord</span>
                 </div>
             }
         </div>
-    </div>
-</section>
-
-@if (dossier is { History.Count: > 0 } correctedDossier)
-{
-    <section class="decision-card">
-        <h2 class="decision-head">Corrections</h2>
-        <div class="decision-body">
-            <div class="timeline">
-                @foreach (var entry in correctedDossier.History.OrderByDescending(item => item.Version))
-                {
-                    <div class="timeline-item">
-                        <div class="timeline-title">
-                            @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.Before)
-                            → @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.After)
-                        </div>
-                        <div class="timeline-meta">
-                            <time datetime="@entry.CorrectedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.CorrectedAtUtc)</time>
-                            · @entry.ActorDisplayName
-                        </div>
-                        <div class="timeline-text">@entry.Reason</div>
-                    </div>
-                }
-            </div>
-        </div>
-    </section>
+    </details>
 }

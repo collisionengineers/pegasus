@@ -29,7 +29,10 @@ record is owned by [FRD-16](frd-16-case-record-workspace.md).
 ### Work Centre
 
 The Work Centre (`/`) shows office-wide work in one ledger (v30 design B,
-25 September 2026; v32 design A, 5 October 2026). Its head reads "Updated
+25 September 2026; v32 design A, 5 October 2026; v42 Design A, 27 October 2026,
+[ADR-0086](../adr/0086-work-centre-views-are-computed-on-read.md)). Landing on
+`/` opens New cases and stamps `Users.WorkCentreLastSeenUtc`; a refresh does
+not stamp it. Its head reads "Updated"
 HH:MM", the page's one clock, with **Refresh**. The page refreshes itself only while
 its browser tab is visible: every five minutes, and when the tab regains focus
 after 2 minutes away (operator, 15 October 2026). The five-minute refresh
@@ -48,21 +51,19 @@ looked" divider is computed from that single load. Typed addresses, bookmarks
 and other links to `/` still load Office first and then move to Mine (operator,
 11 October 2026).
 
-**Metrics.** Five counts in one strip, label and figure on one line, in this
+**Metrics.** Five counts in an Office queues card, beside Activity, in this
 order: Not ready, Review, Held, Unidentified and Triages. Each is an exact
 link to its Cases tab (`/Cases?tab=…`; Unidentified opens Unassigned Images
 showing Unidentified) and counts everything regardless of paging. Triages counts the Triage Cases that are Open, Awaiting information or
 Finding recorded; Completed and Cancelled are not counted. A failed read shows
-no figure and the section's unavailable notice, never `0`.
+no figure and the section's unavailable notice, never `0`. The card links to
+All Cases.
 
-**Activity** (v32 A, operator 5 October 2026). Under the counts, a panel
-headed Activity holds a table: the figures head the columns and the rows are
-**Today** and **This week**. The figures are New cases, Sent to Engineer,
-Reports sent and E-mails received, each counted for both rows (operator 8
-and 11 October 2026), set at table size (v41 W6, operator, 15 and 19 October
-2026,
-[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-Today runs from midnight Europe/London and This week
+**Activity** (v32 A, operator 5 October 2026; v42 Design A, 27 October 2026).
+Beside Office queues, a card headed Activity holds four cells: New cases,
+Sent to Engineer, Reports sent and E-mails received. Today is the large figure;
+**This week: N** sits muted beneath. The figures are each counted for both
+(operator 8 and 11 October 2026). Today runs from midnight Europe/London and This week
 from Monday 00:00 Europe/London, both to the instant of the read. Every
 figure is office-wide and plain text; New cases opens the New cases tab
 when that tab is shown. The definitions:
@@ -78,16 +79,19 @@ The figures are their own section with their own refresh state: a failed
 read shows "Activity is unavailable." and no figure, never `0`. The panel is
 drawn whether or not there is work to show. A dismissal changes no figure.
 
-**Sections.** Below the strip one panel carries three tabs: **Needs
-attention**, **New cases** and **AI jobs**, each with its count. A tab is
-omitted when its section is empty: Needs attention when the Office has no
-work and no filter is on (on Mine the section stays, so Office remains one
-click away), New cases when nothing arrived in the window, AI jobs when no
-job waits. A section that could not be read keeps its tab, shows a dash for
-its count and its notice inside. When every section is empty the page reads
-one line, "No work to show.", under the five zero counts. The chosen tab
-travels in the address (`?tab=`), so Refresh, F5 and the background refresh
-keep it.
+**Sections.** Below the cards one panel carries four tabs, in this order:
+**New cases** (the default; `?tab=` is omitted), **System Actions**, **AI
+Actions** and **Needs attention**. Each has its count. A tab is omitted when
+its section is empty: Needs attention when the Office has no work and no
+filter is on (on Mine the section stays, so Office remains one click away),
+New cases when nothing arrived in the window and no channel or search is on,
+System Actions and AI Actions likewise when the window is empty and no
+sub-filter or search is on. A section that could not be read keeps its tab,
+shows a dash for its count and its notice inside. When every section is empty
+the page reads one line, "No work to show.", under the five zero counts. The
+chosen tab travels in the address (`?tab=`), so Refresh, F5 and the background
+refresh keep it. One search box in the panel head applies `q` to the active
+tab, server-side.
 
 **Needs attention** is one list. Each item is exactly one of these kinds.
 Every kind comes from a Core query, never from fixture or placeholder data,
@@ -106,6 +110,7 @@ undated when its Case has none (#1213, v41 sign-off, 19 October 2026,
 | Unidentified | An open Unidentified item | Unidentified target after it was received |
 | Triage | A Triage Case without a finding | Triage target after it opened |
 | Open tasks | A Case with at least one open task, one row per Case: its oldest open task and how many more (6 October 2026) | None; always Later |
+| Query | One open query. Office lists each Unassigned one, with Take; Mine lists those assigned to the viewer (operator, 27 October 2026, [ADR-0085](../adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)) | None; always Later |
 | AI draft | An AI job in Draft ready, except Market research | AI draft target after the draft was written |
 
 The targets are workflow settings
@@ -189,21 +194,49 @@ repeats no Dismiss; the row's own control is the one.
 **New cases.** Every Case except a Triage Case created in the last 7 calendar
 days, newest first, whatever created it: reference, registration, claimant,
 principal and an arrival chip (Manual, E-mail, Principal API, Automation). A
-"Since you last looked" divider marks what is new for this person. Opening the
-Work Centre records the look. The section lists new Cases only: what the
+channel sub-filter (All, Principal API, E-mail, Manual, Automation) is an
+`arrival=` query over that chip, and Find (`q`) matches the reference, the
+claimant or the registration with its spaces and dashes ignored. Both are
+applied by the server. The chip counts are the window before either narrowing.
+A "Since you last looked" divider marks what is new for this person. Opening
+the Work Centre, including landing on `/`, records the look. The section lists new Cases only: what the
 Automation actor does to an existing Case is that Case's history, not a row
 here (operator, 8 October 2026). The section is a table (v32 A): Case, Detail
 (registration, claimant and principal), Arrival, Received and **Dismiss**; the
 "Since you last looked" divider is a group row. The section is paged.
 
-**AI jobs.** The office's unfinished AI jobs (Queued, Taken with its lease
-expiry, Draft ready) and those that failed in the same 7 days, excluding
-Market research, as a table (v32 A): Job, State, Instruction, Record, Started
-(who and when), Note (a Taken job reads "Taken until HH:MM", v32 item K; a
-failed job its reason), then the Draft ready action defined per kind in
+**System Actions.** What Pegasus itself did on a Case in the same 7 days,
+newest first, page 50, computed on read
+([ADR-0086](../adr/0086-work-centre-views-are-computed-on-read.md)). Four kinds,
+each keyed by the underlying record so Dismiss hides that occurrence and not
+the Case's New cases row:
+
+| Kind | Record | Record id |
+| --- | --- | --- |
+| Auto-matched e-mail | An `intake_case_linked_automatic` history row joined to its association. The signal is the association reason, which names the agreeing signals, or the match policy key when no reason was recorded | The receipt |
+| Vehicle images paired | A Case workflow event `image_initiated_case_merged`. The image intake id is read from the after payload the merge writes | The image intake |
+| Query opened automatically | A Case query raised by the Worker or the Automation actor. Open query, and Take when unassigned | The query |
+| Cancellation matched | The newest receipt currently linked to the Case whose category is cancellation, by the same link rule as the Case's cancellation notice | The receipt |
+
+A receipt whose current category is cancellation is the cancellation row, not
+also an auto-matched row: both would dismiss the same receipt. Sub-filters are
+All, Auto-matched, Images paired, and Rules & queries (the query and the
+cancellation). Columns are System action, Case, Matched detail & signal, When,
+and Action with Dismiss.
+
+**AI Actions.** The office's unfinished AI jobs (Queued, Taken with its lease
+expiry, Draft ready), those that completed in the same 7 days, and those that
+failed in that window, excluding Market research. A completed estimate reads
+Estimate done; a query-response job reads Draft to a query. "Taken by
+{engineer}" is the Engineer who adopted the job's draft: a repair specification
+with source route AiDraft and that job's id, not the job state Taken. The table
+is AI action, Case, State, Summary / output, When, then the Draft ready action
+defined per kind in
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
-(Review estimate, Reply with AI draft, Review, Complete job) and **Dismiss**. A failed
-job shows its reason with Open Case. There is no Cancel
+(Review estimate, Reply with AI draft, Review, Complete job) and **Dismiss**. A Taken
+job still reads "Taken until HH:MM" (v32 item K) when nobody has adopted the
+draft. A failed job shows its reason with Open Case. Sub-filters are All,
+Estimate done, Draft to a query and Failed. There is no Cancel
 here; an Administrator stops a job on Administration AI jobs.
 
 **Dismiss** (2 October 2026) takes a row off the Work Centre without
@@ -224,8 +257,9 @@ dismissal shows again:
 | Unidentified | The item was opened or reopened |
 | Triage | The Triage changed state, or opened |
 | Open tasks | The Case's newest open task was created |
-| AI draft, AI job | The job entered the state it shows (taken, draft written, failed, or returned to the queue when its lease lapsed); a job released back to the queue keeps its creation time |
+| AI draft, AI action | The job entered the state it shows (taken, draft written, completed, failed, or returned to the queue when its lease lapsed); a job released back to the queue keeps its creation time |
 | New case | The Case was created |
+| System action | The underlying record's action: the automatic link, the image merge, the query being raised, or the cancellation match |
 
 Due dates play no part, so a target change never brings a dismissed row back.
 The section counts, kind chips, groups and pages leave dismissed rows out;

@@ -65,6 +65,14 @@ internal sealed class RetainedMailboxMessageEntity
     public string? ConversationIdentity { get; set; }
     public string? InternetMessageIdentity { get; set; }
     public string? CanonicalInternetMessageIdentity { get; set; }
+
+    /// <summary>
+    /// The exact Message-IDs this message answers (its In-Reply-To and
+    /// References headers), as JSON, exactly as
+    /// <c>ApprovedSentPollOutcomeEntity.InReplyToIdentitiesJson</c> is.
+    /// </summary>
+    public string? InReplyToIdentitiesJson { get; set; }
+
     public required string ExternalReceiptToken { get; set; }
     public string? SenderAddress { get; set; }
     public string? SenderDisplayName { get; set; }
@@ -149,6 +157,7 @@ internal sealed class IntakeMailClassificationDecisionEntity : IApplicationManag
     public string? Category { get; set; }
     public string? CaseType { get; set; }
     public bool IsReplyContext { get; set; }
+    public bool OpensQuery { get; set; }
     public required string PredicatesJson { get; set; }
     public required string Reason { get; set; }
     public required string PolicyKey { get; set; }

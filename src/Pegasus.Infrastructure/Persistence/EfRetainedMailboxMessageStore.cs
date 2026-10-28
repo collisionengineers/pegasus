@@ -1,5 +1,4 @@
 using System.Linq.Expressions;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +6,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -74,6 +73,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             ConversationIdentity = message.Metadata.ConversationIdentity,
             InternetMessageIdentity = message.Metadata.InternetMessageIdentity,
             CanonicalInternetMessageIdentity = CanonicalInternetMessageIdentity(message),
+            InReplyToIdentitiesJson = message.Metadata.InReplyToIdentities.Count == 0
+                ? null
+                : JsonSerializer.Serialize(message.Metadata.InReplyToIdentities, JsonOptions),
             ExternalReceiptToken = message.ExternalReceiptToken,
             SenderAddress = message.Metadata.SenderAddress,
             SenderDisplayName = message.Metadata.SenderDisplayName,
@@ -302,6 +304,10 @@ internal sealed class EfRetainedMailboxMessageStore(
                 Decision = item.MailClassificationDecision,
                 Route = item.MailRouteDecision!.Disposition,
                 EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress,
+                RoutePrincipalCode = item.MailRouteDecision!.PrincipalCode,
+                DraftRegistration = item.InstructionDraft == null
+                    ? null
+                    : item.InstructionDraft.VehicleRegistration,
                 BodySearchText = item.SearchDocuments
                     .Where(document => document.AttachmentFileName == null)
                     .Select(document => document.Text)
@@ -353,7 +359,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                     receipt.EffectiveSenderAddress,
                     receipt.BodySearchText is { } bodyText
                         ? bodyText[..Math.Min(bodyText.Length, BodyHeadLength)]
-                        : null)]))[0];
+                        : null,
+                    receipt.RoutePrincipalCode,
+                    receipt.DraftRegistration)]))[0];
 
         // A staff forward is de-cluttered on read so existing (write-once) rows
         // are corrected too: the effective sender differs from the transport
@@ -591,6 +599,16 @@ internal sealed class EfRetainedMailboxMessageStore(
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<string>> ListPrincipalsAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Set<PrincipalEntity>().AsNoTracking()
+            .Where(principal => principal.IsActive)
+            .OrderBy(principal => principal.Code)
+            .Select(principal => principal.Code)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken) =>
         EvictableCacheEntry.GetOrReadAsync(
@@ -686,21 +704,13 @@ internal sealed class EfRetainedMailboxMessageStore(
             throw new MailClassificationConcurrencyException();
         }
 
-        // The Case this message is currently linked to, by staff or by its
-        // accepted origin. A Triage Case has no Completed or Query state.
+        // The Case this message is currently linked to, so a cancellation
+        // correction can notify its Engineer. A category change does not open
+        // or withdraw a query.
         var associations = await CurrentIntakeAssociations.ReadAsync(context, [receipt.Id], cancellationToken);
         var linkedCase = associations.Current.TryGetValue(receipt.Id, out var association) && !association.IsTriage
             ? association
             : null;
-        CaseWorkflowEntity? workflow = null;
-        if (linkedCase is not null)
-        {
-            await EfIntakeMutationStore.AcquireCaseQueryLockAsync(
-                context, transaction, linkedCase.CaseId, receipt.Id, cancellationToken);
-            workflow = await context.CaseWorkflows
-                .SingleOrDefaultAsync(item => item.CaseId == linkedCase.CaseId, cancellationToken);
-        }
-        var wasQuery = CaseQueryLedger.IsQuery(receipt);
 
         Apply(after, decision);
         decision.Version++;
@@ -728,39 +738,6 @@ internal sealed class EfRetainedMailboxMessageStore(
             CorrectedAtUtc = correctedAtUtc
         });
 
-        // FRD-13 "Report sent and queries": a message corrected to Query
-        // joins the Case as a tagged query; one corrected away withdraws the
-        // query it raised. The same rule and the same lock as the link paths.
-        var queryRaised = false;
-        var queryWithdrawn = false;
-        if (workflow is not null)
-        {
-            var isQuery = CaseQueryLedger.IsQuery(receipt);
-            var beforeCaseVersion = workflow.Version;
-            var beforeStateJson = CaseQueryLedger.SnapshotState(workflow);
-            var operationKey = $"mail-correction:{receipt.Id:N}:v{decision.Version}";
-            var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(afterJson)));
-            if (isQuery && !wasQuery)
-            {
-                queryRaised = await CaseQueryLedger.RaiseForMailAsync(
-                    context, receipt, workflow, actor.Kind, actor.SubjectId,
-                    operationKey, correctedAtUtc, cancellationToken);
-            }
-            else if (wasQuery && !isQuery)
-            {
-                queryWithdrawn = await CaseQueryLedger.WithdrawForMailAsync(
-                    context, receipt, workflow, actor.Kind, actor.SubjectId, correctedAtUtc, cancellationToken);
-            }
-            if (queryRaised || queryWithdrawn)
-            {
-                CaseMutationGuard.Advance(workflow);
-                CaseQueryLedger.AddQueryHistory(
-                    context, workflow, beforeCaseVersion,
-                    queryRaised ? CaseQueryLedger.QueryReceivedEvent : CaseQueryLedger.QueryWithdrawnEvent,
-                    actor, operationKey, requestHash, reason, correctedAtUtc, beforeStateJson);
-            }
-        }
-
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -772,7 +749,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
 
         var dossier = (await LoadClassificationAsync(context, messageId, cancellationToken))!;
-        return new(dossier, linkedCase?.CaseId, queryRaised, queryWithdrawn);
+        return new(dossier, linkedCase?.CaseId);
     }
 
     private static async Task<MailClassificationDossier?> LoadClassificationAsync(
@@ -855,6 +832,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         };
         target.Category = source.Category is { } category ? MailCategories.Code(category) : null;
         target.IsReplyContext = source.IsReplyContext;
+        target.OpensQuery = source.OpensQuery;
         target.CaseType = source.CaseType is { } caseType
             ? CaseTypeCodes.ToCode(caseType)
             : null;
@@ -904,7 +882,8 @@ internal sealed class EfRetainedMailboxMessageStore(
         string PolicyKey,
         int PolicyVersion,
         CaseType? CaseType,
-        StandaloneAuditReportEvaluation? StandaloneAuditReport)
+        StandaloneAuditReportEvaluation? StandaloneAuditReport,
+        bool OpensQuery = false)
     {
         public static ClassificationSnapshot From(MailClassificationResult value) => new(
             value.Outcome,
@@ -915,7 +894,8 @@ internal sealed class EfRetainedMailboxMessageStore(
             value.PolicyKey,
             value.PolicyVersion,
             value.CaseType,
-            value.StandaloneAuditReport);
+            value.StandaloneAuditReport,
+            value.OpensQuery);
 
         public MailClassificationResult ToResult() => new(
             Outcome,
@@ -926,7 +906,8 @@ internal sealed class EfRetainedMailboxMessageStore(
             PolicyVersion,
             CaseType,
             StandaloneAuditReport,
-            IsReplyContext);
+            IsReplyContext,
+            OpensQuery);
     }
 
     private async Task<bool> IsAlreadyRetainedAsync(
@@ -1070,7 +1051,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                 item.SearchDocuments
                     .Where(document => document.AttachmentFileName == null && document.Text != null)
                     .Select(document => document.Text!.Substring(0, BodyHeadLength))
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                item.MailRouteDecision == null ? null : item.MailRouteDecision.PrincipalCode,
+                item.InstructionDraft == null ? null : item.InstructionDraft.VehicleRegistration))
             .ToListAsync(cancellationToken);
         var receiptsByToken = receipts.ToDictionary(
             item => item.ExternalReceiptToken,
@@ -1113,6 +1096,61 @@ internal sealed class EfRetainedMailboxMessageStore(
                     item => item.ReceiptId,
                     item => new CurrentIntakeAssociation(item.CaseId, item.Reference, item.IsTriage),
                     cancellationToken);
+        // One Cases read and one CaseQueries read for the page, never one per row.
+        var pageCaseIds = associations.Current.Values.Select(item => item.CaseId)
+            .Concat(allocationStates.Values.Where(item => item.CaseId is not null).Select(item => item.CaseId!.Value))
+            .Concat(triageCases.Values.Select(item => item.CaseId))
+            .Distinct()
+            .ToArray();
+        var caseFacts = pageCaseIds.Length == 0
+            ? []
+            : await (
+                from caseEntity in context.Set<CaseEntity>().AsNoTracking()
+                where pageCaseIds.Contains(caseEntity.Id)
+                join principal in context.Set<PrincipalEntity>().AsNoTracking()
+                    on caseEntity.PrincipalId equals principal.Id
+                join registrationCandidate in context.CaseDataFields.AsNoTracking()
+                        .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                            && item.ValueKind == CaseDataCodes.Confirmed)
+                    on caseEntity.Id equals registrationCandidate.WorkId into registrations
+                from registration in registrations.DefaultIfEmpty()
+                join draftCandidate in context.Set<InstructionDraftEntity>().AsNoTracking()
+                    on caseEntity.OriginIntakeReceiptId equals draftCandidate.IntakeReceiptId into drafts
+                from draft in drafts.DefaultIfEmpty()
+                select new
+                {
+                    caseEntity.Id,
+                    caseEntity.Type,
+                    PrincipalCode = principal.Code,
+                    Registration = registration == null ? draft.VehicleRegistration : registration.Value
+                })
+                .ToListAsync(cancellationToken);
+        var casesById = caseFacts.ToDictionary(item => item.Id);
+        var withdrawn = nameof(CaseQueryClosure.Withdrawn);
+        var queryRows = receiptIds.Length == 0
+            ? []
+            : await (
+                from query in context.CaseQueries.AsNoTracking()
+                where query.IntakeReceiptId != null
+                    && receiptIds.Contains(query.IntakeReceiptId.Value)
+                    && query.ClosedAs != withdrawn
+                join userCandidate in context.Users.AsNoTracking()
+                    on query.AssigneeStaffId equals userCandidate.Id into users
+                from user in users.DefaultIfEmpty()
+                select new
+                {
+                    query.Id,
+                    query.CaseId,
+                    ReceiptId = query.IntakeReceiptId!.Value,
+                    IsOpen = query.ClosedAtUtc == null,
+                    AssignedTo = user == null ? null : user.UserName
+                })
+                .ToListAsync(cancellationToken);
+        var queryByReceipt = queryRows
+            .GroupBy(item => item.ReceiptId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(item => item.IsOpen).ThenBy(item => item.Id).First());
         return rows
             .Select(row =>
             {
@@ -1151,6 +1189,13 @@ internal sealed class EfRetainedMailboxMessageStore(
                 var classification = receipt?.Classification is null
                     ? null
                     : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification);
+                var caseFact = caseId is { } resolvedCaseId
+                    ? casesById.GetValueOrDefault(resolvedCaseId)
+                    : null;
+                var query = receipt is null ? null : queryByReceipt.GetValueOrDefault(receipt.Id);
+                var messageQuery = query is null || query.CaseId != caseId
+                    ? null
+                    : new CaseQuerySummary(query.Id, query.IsOpen, query.AssignedTo);
                 // MAIL-009: the route decision is authoritative but is written
                 // by intake processing, a later hop. Until it exists the same
                 // unwrap is applied to what retention already holds, so a
@@ -1202,7 +1247,13 @@ internal sealed class EfRetainedMailboxMessageStore(
                 {
                     DismissedAtUtc = row.DismissedAtUtc,
                     IsTriageCase = isTriageCase,
-                    ClassificationVersion = receipt?.Classification?.Version
+                    ClassificationVersion = receipt?.Classification?.Version,
+                    PrincipalCode = receipt?.RoutePrincipalCode ?? caseFact?.PrincipalCode,
+                    VehicleSummary = string.IsNullOrWhiteSpace(caseFact?.Registration)
+                        ? receipt?.DraftRegistration
+                        : caseFact.Registration,
+                    CaseType = caseFact is null ? null : CaseTypeCodes.Parse(caseFact.Type),
+                    Query = messageQuery
                 };
             })
             .ToArray();
@@ -1210,8 +1261,8 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     /// <summary>
     /// The one filter pipeline for a workspace scope: folder, dismissal,
-    /// mailbox, unread, search and classification. The list
-    /// pages it and the scope-rail counts it; neither owns a second copy.
+    /// mailbox, unread, search, Principal and the Inbox membership. The list
+    /// pages it and the scope counts it; neither owns a second copy.
     /// </summary>
     private static IQueryable<RetainedMailboxMessageEntity> BuildMatches(
         PegasusDbContext context,
@@ -1254,51 +1305,101 @@ internal sealed class EfRetainedMailboxMessageStore(
                         document.Text != null
                         && document.Text.Contains(searchTerm))));
         }
-        return ApplyClassificationFilter(matches, context, scope);
+        return ApplyWorkspaceFilter(matches, context, scope);
     }
 
-    private static IQueryable<RetainedMailboxMessageEntity> ApplyClassificationFilter(
+    private static IQueryable<RetainedMailboxMessageEntity> ApplyWorkspaceFilter(
         IQueryable<RetainedMailboxMessageEntity> messages,
         PegasusDbContext context,
         MailWorkspaceScope scope)
     {
-        const string classified = "classified";
-        if (scope.Category is { } category)
+        if (scope.PrincipalCode is { } principalCode)
         {
-            var code = MailCategories.Code(category);
+            messages = messages.Where(message => context.IntakeReceipts.Any(receipt =>
+                receipt.SourceChannel == "mailbox"
+                && receipt.ExternalReceiptToken == message.ExternalReceiptToken
+                && ((receipt.MailRouteDecision != null && receipt.MailRouteDecision.PrincipalCode == principalCode)
+                    || context.Set<CaseEntity>().Any(caseRow =>
+                        caseRow.Principal.Code == principalCode
+                        && (context.IntakeManualAssociations.Any(association =>
+                                association.IntakeReceiptId == receipt.Id
+                                && association.IsActive
+                                && association.CaseId == caseRow.Id)
+                            || (!context.IntakeManualAssociations.Any(association =>
+                                    association.IntakeReceiptId == receipt.Id)
+                                && context.CaseIntakeLinks.Any(link =>
+                                    link.IntakeReceiptId == receipt.Id && link.CaseId == caseRow.Id))
+                            || (!context.IntakeManualAssociations.Any(association =>
+                                    association.IntakeReceiptId == receipt.Id && !association.IsActive)
+                                && context.IntakeAllocationAttempts
+                                    .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
+                                    .OrderByDescending(attempt => attempt.AttemptNumber)
+                                    .Select(attempt => attempt.CaseId)
+                                    .FirstOrDefault() == caseRow.Id)
+                            || context.Triage.Any(triage =>
+                                triage.OriginReceiptId == receipt.Id && triage.CaseId == caseRow.Id))))));
+        }
+
+        if (scope.NoCaseFound)
+        {
+            // No Case Found: received mail whose receipt stands linked to no Case.
+            // The same order the summaries read the Case in (MapSummariesAsync):
+            // an active association; else an accepted link when no association
+            // row exists; else the Case the latest allocation created, unless an
+            // association was reversed; else the Triage the receipt opened.
             return messages.Where(message => context.IntakeReceipts.Any(receipt =>
                 receipt.SourceChannel == "mailbox"
                 && receipt.ExternalReceiptToken == message.ExternalReceiptToken
-                && receipt.MailClassificationDecision != null
-                && receipt.MailClassificationDecision.Outcome == classified
-                && receipt.MailClassificationDecision.Category == code));
+                && !context.IntakeManualAssociations.Any(association =>
+                    association.IntakeReceiptId == receipt.Id && association.IsActive)
+                && (context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id)
+                    || !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id))
+                && (context.IntakeManualAssociations.Any(association =>
+                        association.IntakeReceiptId == receipt.Id && !association.IsActive)
+                    || context.IntakeAllocationAttempts
+                        .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
+                        .OrderByDescending(attempt => attempt.AttemptNumber)
+                        .Select(attempt => attempt.CaseId)
+                        .FirstOrDefault() == null)
+                && !context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id)));
         }
-        if (!scope.NoCaseFound)
+
+        // All, on Inbox only: linked mail, a New instruction, a Triage request,
+        // or a receipt nothing has classified yet. Sent and Upload are not the
+        // Inbox ledger. Dismissed is its own scope.
+        if (scope.Folder != MailFolderScope.Inbox || scope.DismissedOnly)
         {
             return messages;
         }
 
-        // No Case Found: received mail whose receipt stands linked to no Case.
-        // The same order the summaries read the Case in (MapSummariesAsync):
-        // an active staff or automatic association; else an accepted link when
-        // no association row exists; else the Case the latest allocation
-        // created, unless an association was reversed; else the Triage the
-        // receipt opened.
-        return messages.Where(message => context.IntakeReceipts.Any(receipt =>
-            receipt.SourceChannel == "mailbox"
-            && receipt.ExternalReceiptToken == message.ExternalReceiptToken
-            && !context.IntakeManualAssociations.Any(association =>
-                association.IntakeReceiptId == receipt.Id && association.IsActive)
-            && (context.IntakeManualAssociations.Any(association => association.IntakeReceiptId == receipt.Id)
-                || !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id))
-            && (context.IntakeManualAssociations.Any(association =>
-                    association.IntakeReceiptId == receipt.Id && !association.IsActive)
-                || context.IntakeAllocationAttempts
-                    .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
-                    .OrderByDescending(attempt => attempt.AttemptNumber)
-                    .Select(attempt => attempt.CaseId)
-                    .FirstOrDefault() == null)
-            && !context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id)));
+        var newInstruction = MailCategories.Code(MailCategory.NewInstruction);
+        var triageRequest = MailCategories.Code(MailCategory.TriageRequest);
+        const string classified = "classified";
+        return messages.Where(message =>
+            !context.IntakeReceipts.Any(receipt =>
+                receipt.SourceChannel == "mailbox"
+                && receipt.ExternalReceiptToken == message.ExternalReceiptToken
+                && receipt.MailClassificationDecision != null)
+            || context.IntakeReceipts.Any(receipt =>
+                receipt.SourceChannel == "mailbox"
+                && receipt.ExternalReceiptToken == message.ExternalReceiptToken
+                && ((receipt.MailClassificationDecision != null
+                        && receipt.MailClassificationDecision.Outcome == classified
+                        && (receipt.MailClassificationDecision.Category == newInstruction
+                            || receipt.MailClassificationDecision.Category == triageRequest))
+                    || context.IntakeManualAssociations.Any(association =>
+                        association.IntakeReceiptId == receipt.Id && association.IsActive)
+                    || (!context.IntakeManualAssociations.Any(association =>
+                            association.IntakeReceiptId == receipt.Id)
+                        && context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id))
+                    || (!context.IntakeManualAssociations.Any(association =>
+                            association.IntakeReceiptId == receipt.Id && !association.IsActive)
+                        && context.IntakeAllocationAttempts
+                            .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
+                            .OrderByDescending(attempt => attempt.AttemptNumber)
+                            .Select(attempt => attempt.CaseId)
+                            .FirstOrDefault() != null)
+                    || context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id))));
     }
 
     /// <summary>
@@ -1400,7 +1501,6 @@ internal sealed class EfRetainedMailboxMessageStore(
     {
         MailFolderScope.Inbox => "inbox",
         MailFolderScope.Sent => "sent",
-        MailFolderScope.DeletedItems => "deleted_items",
         MailFolderScope.Upload => "upload",
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)value}'.")
     };
@@ -1409,7 +1509,6 @@ internal sealed class EfRetainedMailboxMessageStore(
     {
         "inbox" => MailFolderScope.Inbox,
         "sent" => MailFolderScope.Sent,
-        "deleted_items" => MailFolderScope.DeletedItems,
         "upload" => MailFolderScope.Upload,
         _ => throw new InvalidDataException($"Unknown persisted mail folder scope '{value}'.")
     };
@@ -1435,7 +1534,9 @@ internal sealed class EfRetainedMailboxMessageStore(
         string Decision,
         IntakeMailClassificationDecisionEntity? Classification,
         string? EffectiveSenderAddress,
-        string? BodyHead);
+        string? BodyHead,
+        string? RoutePrincipalCode = null,
+        string? DraftRegistration = null);
 
     /// <summary>
     /// The one list-row projection, shared by the page and cursor lists so the

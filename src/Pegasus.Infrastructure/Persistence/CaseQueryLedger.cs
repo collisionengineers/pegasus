@@ -3,87 +3,39 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The one writer of a Case's queries and of the workflow's open-query mark,
-/// applying <see cref="CaseQueryRules"/> for every store: a Query
-/// receipt joining or leaving a Case, a staff-logged query, Resolve query, and
-/// a flagged reply's observed Sent item. Each caller owns its transaction and
-/// holds the Case's workflow row lock; the mail paths return whether anything
-/// changed so the caller advances the version and records the event through
-/// <see cref="AddQueryHistory"/>.
+/// applying <see cref="CaseQueryRules"/> for every store: a message whose
+/// classification opens a query joining a Case, a query opened from a message
+/// or a channel,
+/// Mark done, Reopen, Assign, and a flagged reply's observed Sent item. Each
+/// caller owns its transaction and holds the Case's workflow row lock; the
+/// mail paths return whether anything changed so the caller advances the
+/// version and records the event through <see cref="AddQueryHistory"/>.
 /// </summary>
 internal static class CaseQueryLedger
 {
     internal const string QueryReceivedEvent = "case_query_received";
     internal const string QueryWithdrawnEvent = "case_query_withdrawn";
     internal const string QueryLoggedEvent = "case_query_logged";
-    internal const string QueriesResolvedEvent = "case_queries_resolved";
+    internal const string QueryResolvedEvent = "case_query_resolved";
+    internal const string QueryReopenedEvent = "case_query_reopened";
+    internal const string QueryAssignedEvent = "case_query_assigned";
 
-    private static readonly string QueryCategory = MailCategories.Code(MailCategory.Query);
+    /// <summary>The actor a matched query criterion records. Not a staff member.</summary>
+    internal const string QueryCriteriaActor = "system-worker:query-criteria";
 
-    /// <summary>A mailbox receipt whose current classification is Query.</summary>
-    internal static bool IsQuery(IntakeReceiptEntity receipt) =>
-        receipt.SourceChannel == "mailbox" && IsQuery(receipt.MailClassificationDecision);
-
-    internal static bool IsQuery(IntakeMailClassificationDecisionEntity? decision) =>
-        decision is { Outcome: "classified" } && decision.Category == QueryCategory;
-
-    /// <summary>
-    /// A received message has joined the Case (automatic match, staff link or
-    /// correction): raises a Mail query when the Core rule says so. True when
-    /// a row was added and the open-query mark set.
-    /// </summary>
-    internal static async Task<bool> RaiseForMailAsync(
-        PegasusDbContext context,
-        IntakeReceiptEntity receipt,
-        CaseWorkflowEntity workflow,
-        ActorKind actorKind,
-        string actorSubjectId,
-        string operationKey,
-        DateTimeOffset occurredAtUtc,
-        CancellationToken cancellationToken)
-    {
-        var isQuery = IsQuery(receipt);
-        if (!isQuery)
-        {
-            return false;
-        }
-        var reportIsSent = await EfCaseWorkflowStore.ReportIsSentAsync(context, workflow, cancellationToken);
-        if (!CaseQueryRules.RaisesOnMailJoined(reportIsSent, isQuery, alreadyOpenForMessage: false))
-        {
-            return false;
-        }
-        var alreadyOpen = await context.CaseQueries
-            .AnyAsync(item => item.CaseId == workflow.CaseId
-                && item.IntakeReceiptId == receipt.Id
-                && item.ClosedAtUtc == null, cancellationToken);
-        if (!CaseQueryRules.RaisesOnMailJoined(reportIsSent, isQuery, alreadyOpen))
-        {
-            return false;
-        }
-        context.CaseQueries.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Workflow = workflow,
-            Source = nameof(CaseQuerySource.Mail),
-            IntakeReceiptId = receipt.Id,
-            RaisedAtUtc = occurredAtUtc,
-            RaisedByKind = actorKind.ToString(),
-            RaisedBySubjectId = actorSubjectId,
-            RaisedOperationKey = operationKey
-        });
-        workflow.HasOpenQuery = true;
-        return true;
-    }
+    /// <summary>The history reason a matched query criterion records.</summary>
+    internal const string QueryCriteriaReason = "Matched query criteria";
 
     /// <summary>
-    /// A received message has left the Case (unlink) or stopped being
-    /// a query (correction): withdraws the open query it raised, if any.
+    /// A received message has left the Case (unlink): withdraws the open query
+    /// it raised, if any. A category correction does not.
     /// True when a row closed; the mark is recomputed from the remaining rows.
     /// </summary>
     internal static async Task<bool> WithdrawForMailAsync(
@@ -111,20 +63,69 @@ internal static class CaseQueryLedger
         return true;
     }
 
-    /// <summary>A staff member or Automation logs a query (Channel and Details); runs inside the workflow mutation.</summary>
-    internal static void RaiseForStaff(
+    /// <summary>
+    /// Opens a query on a linked received message. Refuses when that message
+    /// already holds a non-withdrawn query. Returns the new query's id. The
+    /// caller notifies the Case's Engineer.
+    /// </summary>
+    internal static async Task<Guid> OpenForMessageAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
-        RaiseCaseQueryRequest request,
-        DateTimeOffset occurredAtUtc)
+        Guid retainedMessageId,
+        ActionActor actor,
+        string operationKey,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
     {
+        var receiptId = await ReceiptOfMessageAsync(context, retainedMessageId, cancellationToken)
+            ?? throw new InvalidOperationException("The message is not a retained receipt.");
+        if (!await IsLinkedToCaseAsync(context, receiptId, workflow.CaseId, cancellationToken))
+        {
+            throw new InvalidOperationException("The message is not linked to this case.");
+        }
+
+        var withdrawn = nameof(CaseQueryClosure.Withdrawn);
+        if (await context.CaseQueries.AnyAsync(
+                item => item.CaseId == workflow.CaseId
+                    && item.IntakeReceiptId == receiptId
+                    && item.ClosedAs != withdrawn,
+                cancellationToken))
+        {
+            throw new InvalidOperationException("This message already has a query.");
+        }
+
+        var id = Guid.NewGuid();
         context.CaseQueries.Add(new()
         {
-            Id = Guid.NewGuid(),
+            Id = id,
+            CaseId = workflow.CaseId,
+            Workflow = workflow,
+            Source = nameof(CaseQuerySource.Mail),
+            IntakeReceiptId = receiptId,
+            RaisedAtUtc = occurredAtUtc,
+            RaisedByKind = actor.Kind.ToString(),
+            RaisedBySubjectId = actor.SubjectId,
+            RaisedOperationKey = operationKey
+        });
+        workflow.HasOpenQuery = true;
+        return id;
+    }
+
+    /// <summary>Opens a logged query (channel and details). A new query is Unassigned.</summary>
+    internal static Guid OpenLogged(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        OpenCaseQueryRequest request,
+        DateTimeOffset occurredAtUtc)
+    {
+        var id = Guid.NewGuid();
+        context.CaseQueries.Add(new()
+        {
+            Id = id,
             CaseId = workflow.CaseId,
             Workflow = workflow,
             Source = nameof(CaseQuerySource.Staff),
-            Channel = request.Channel.ToString(),
+            Channel = request.Channel!.Value.ToString(),
             Details = string.IsNullOrWhiteSpace(request.Details) ? null : request.Details.Trim(),
             RaisedAtUtc = occurredAtUtc,
             RaisedByKind = request.Actor.Kind.ToString(),
@@ -132,39 +133,99 @@ internal static class CaseQueryLedger
             RaisedOperationKey = request.OperationKey.Trim()
         });
         workflow.HasOpenQuery = true;
+        return id;
     }
 
-    /// <summary>
-    /// Resolves every open query on the Case (operator, 11 October 2026) and
-    /// clears the mark. Returns how many closed; the caller decides whether
-    /// zero is a refusal (an action) or a no-op (an observed Sent item).
-    /// </summary>
-    internal static async Task<int> ResolveAllAsync(
+    /// <summary>Marks one open query done and recomputes the open-query mark from the rows that remain.</summary>
+    internal static async Task MarkDoneAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
+        CaseQueryEntity query,
         ActorKind actorKind,
         string actorSubjectId,
         DateTimeOffset occurredAtUtc,
         Guid? resolvedByMailOperationId,
         CancellationToken cancellationToken)
     {
-        var open = await context.CaseQueries
-            .Where(item => item.CaseId == workflow.CaseId && item.ClosedAtUtc == null)
-            .ToListAsync(cancellationToken);
-        foreach (var item in open)
-        {
-            Close(item, nameof(CaseQueryClosure.Resolved), actorKind, actorSubjectId, occurredAtUtc, resolvedByMailOperationId);
-        }
-        workflow.HasOpenQuery = false;
-        return open.Count;
+        Close(query, nameof(CaseQueryClosure.Resolved), actorKind, actorSubjectId, occurredAtUtc, resolvedByMailOperationId);
+        workflow.HasOpenQuery = await AnyOtherOpenAsync(context, workflow.CaseId, query.Id, cancellationToken);
+    }
+
+    /// <summary>Clears a Done query's closure and sets the open-query mark. The assignee is kept.</summary>
+    internal static void Reopen(CaseWorkflowEntity workflow, CaseQueryEntity query)
+    {
+        query.ClosedAs = null;
+        query.ClosedAtUtc = null;
+        query.ClosedByKind = null;
+        query.ClosedBySubjectId = null;
+        query.ResolvedByMailOperationId = null;
+        workflow.HasOpenQuery = true;
     }
 
     /// <summary>
-    /// A reply flagged "Also resolve query" reached Sent: resolves the Case's
-    /// open queries under the workflow row lock, attributed to the reply's
-    /// sender, advancing the version as any system write does. Returns rather
-    /// than throws, so the mailbox's Sent poll never stalls on a Case that has
-    /// nothing open.
+    /// Assigns the query, or sets it Unassigned. Returns the history reason:
+    /// "Assigned to {name}", "Taken by {name}" or "Set to Unassigned".
+    /// </summary>
+    internal static async Task<string> AssignAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        CaseQueryEntity query,
+        ActionActor actor,
+        Guid? assigneeStaffId,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        string reason;
+        if (assigneeStaffId is null)
+        {
+            query.AssigneeStaffId = null;
+            query.AssignedAtUtc = null;
+            reason = "Set to Unassigned";
+        }
+        else
+        {
+            var name = await context.Users.AsNoTracking()
+                .Where(user => user.Id == assigneeStaffId && user.IsEnabled && user.UserName != null)
+                .Select(user => user.UserName)
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new InvalidOperationException("The assignee is not an enabled member of staff.");
+            query.AssigneeStaffId = assigneeStaffId;
+            query.AssignedAtUtc = occurredAtUtc;
+            var actorStaffId = StaffNotificationPolicy.StaffId(actor);
+            reason = assigneeStaffId == actorStaffId ? $"Taken by {name}" : $"Assigned to {name}";
+            Notify(
+                context,
+                workflow,
+                StaffNotificationCause.QueryAssigned,
+                assigneeStaffId,
+                actor,
+                StaffNotificationPolicy.CaseRoute(workflow.CaseId, "queries"),
+                occurredAtUtc);
+        }
+
+        return reason;
+    }
+
+    /// <summary>The Case's Engineer is told when a query is opened from an e-mail, unless they opened it.</summary>
+    internal static void NotifyQueryReceived(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        DateTimeOffset occurredAtUtc) =>
+        Notify(
+            context,
+            workflow,
+            StaffNotificationCause.QueryReceived,
+            workflow.AssignedEngineerId,
+            actor,
+            StaffNotificationPolicy.CaseRoute(workflow.CaseId, "correspondence"),
+            occurredAtUtc);
+
+    /// <summary>
+    /// A reply flagged Mark query done reached Sent: marks that replied
+    /// message's own open query done, under the workflow row lock, attributed
+    /// to the reply's sender. Returns rather than throws, so the mailbox's
+    /// Sent poll never stalls on a message that has no open query.
     /// </summary>
     internal static async Task ResolveForObservedReplyAsync(
         PegasusDbContext context,
@@ -172,26 +233,125 @@ internal static class CaseQueryLedger
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
     {
-        if (!mail.ResolvesCaseQueries)
+        if (!mail.ResolvesCaseQueries || mail.OriginalRetainedMessageId is not { } messageId)
         {
             return;
         }
+
         await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, mail.ContextId, cancellationToken);
         var workflow = await context.CaseWorkflows
             .SingleOrDefaultAsync(item => item.CaseId == mail.ContextId, cancellationToken);
-        if (workflow is null || !CaseQueryRules.ResolvesOnObservedReply(mail.ResolvesCaseQueries, workflow.HasOpenQuery))
+        if (workflow is null)
         {
             return;
         }
+
+        var receiptId = await ReceiptOfMessageAsync(context, messageId, cancellationToken);
+        var open = receiptId is null
+            ? null
+            : await context.CaseQueries.SingleOrDefaultAsync(
+                item => item.CaseId == workflow.CaseId
+                    && item.IntakeReceiptId == receiptId
+                    && item.ClosedAtUtc == null,
+                cancellationToken);
+        if (!CaseQueryRules.ResolvesOnObservedReply(mail.ResolvesCaseQueries, open is not null))
+        {
+            return;
+        }
+
         var beforeVersion = workflow.Version;
         var beforeJson = SnapshotState(workflow);
-        await ResolveAllAsync(
-            context, workflow, mail.ActorKind, mail.ActorSubjectId, occurredAtUtc, mail.Id, cancellationToken);
+        await MarkDoneAsync(
+            context, workflow, open!, mail.ActorKind, mail.ActorSubjectId, occurredAtUtc, mail.Id, cancellationToken);
         CaseMutationGuard.Advance(workflow);
         AddQueryHistory(
-            context, workflow, beforeVersion, QueriesResolvedEvent,
+            context, workflow, beforeVersion, QueryResolvedEvent,
             mail.ActorKind, mail.ActorSubjectId, "[]",
             $"query-reply:{mail.Id:N}", mail.PayloadHash, null, occurredAtUtc, beforeJson);
+    }
+
+    /// <summary>
+    /// The link the caller just wrote may still be only in the change tracker.
+    /// A saved link is read the same way every other association is.
+    /// </summary>
+    private static async Task<bool> IsLinkedToCaseAsync(
+        PegasusDbContext context,
+        Guid receiptId,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var tracked = context.IntakeManualAssociations.Local
+            .FirstOrDefault(item => item.IntakeReceiptId == receiptId && item.IsActive);
+        if (tracked is not null)
+        {
+            return tracked.CaseId == caseId;
+        }
+
+        var associations = await CurrentIntakeAssociations.ReadAsync(context, [receiptId], cancellationToken);
+        return associations.Current.TryGetValue(receiptId, out var link) && link.CaseId == caseId;
+    }
+
+    private static async Task<Guid?> ReceiptOfMessageAsync(
+        PegasusDbContext context,
+        Guid retainedMessageId,
+        CancellationToken cancellationToken)
+    {
+        var token = await context.RetainedMailboxMessages.AsNoTracking()
+            .Where(item => item.Id == retainedMessageId)
+            .Select(item => item.ExternalReceiptToken)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (string.IsNullOrEmpty(token))
+        {
+            return null;
+        }
+
+        return await context.IntakeReceipts.AsNoTracking()
+            .Where(item => item.ExternalReceiptToken == token)
+            .Select(item => (Guid?)item.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private static Task<bool> AnyOtherOpenAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid exceptId,
+        CancellationToken cancellationToken) =>
+        context.CaseQueries.AnyAsync(
+            item => item.CaseId == caseId && item.ClosedAtUtc == null && item.Id != exceptId,
+            cancellationToken);
+
+    private static void Notify(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        StaffNotificationCause cause,
+        Guid? recipientStaffId,
+        ActionActor actor,
+        string route,
+        DateTimeOffset occurredAtUtc)
+    {
+        var recipient = StaffNotificationPolicy.Recipient(
+            cause,
+            recipientStaffId,
+            jobStarterStaffId: null,
+            StaffNotificationPolicy.StaffId(actor),
+            assigneeStaffId: recipientStaffId);
+        if (recipient is not { } staffId || workflow.Case is null)
+        {
+            return;
+        }
+
+        context.Set<StaffNotificationEntity>().Add(new()
+        {
+            Id = Guid.NewGuid(),
+            StaffId = staffId,
+            CaseId = workflow.CaseId,
+            Reference = workflow.Case.Reference,
+            Registration = null,
+            Cause = cause.ToString(),
+            Route = route,
+            ActorSubjectId = actor.Kind == ActorKind.Staff ? actor.SubjectId : null,
+            RaisedAtUtc = occurredAtUtc
+        });
     }
 
     /// <summary>One workflow event and its action-history row for a query raised, withdrawn or resolved outside a lease-carrying mutation.</summary>

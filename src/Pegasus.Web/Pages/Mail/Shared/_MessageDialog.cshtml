@@ -27,9 +27,14 @@
                 @if (!composing)
                 {
                     <p class="mail-route">@string.Join(" · ", routeParts) · <time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time></p>
+                    <partial name="Shared/_MessageDecision" model="Model" view-data="@(new ViewDataDictionary(ViewData) { { "MailSettingsPart", "bar" } })" />
                 }
             </div>
             <span class="mail-dialog-tools">
+                @if (!composing)
+                {
+                    <partial name="Shared/_MessageDecision" model="Model" view-data="@(new ViewDataDictionary(ViewData) { { "MailSettingsPart", "menu" } })" />
+                }
                 @if (!composing)
                 {
                     <span class="cluster mail-dialog-nav">

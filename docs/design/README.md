@@ -861,13 +861,15 @@ the section as one line.
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
-repair-estimate launch. Glass's and Cazana are the connected guide sources, so
+repair-estimate launch. Glass's, Brego and Cazana are the connected guide sources, so
 only their cards offer Get valuation; the other guide cards are filled in by hand
 ([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
-temporary section-scoped drop overlay. Cazana is connected (9 October 2026,
-[ADR-0066](../adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md)),
-so it is no longer a disabled seam.
+temporary section-scoped drop overlay. Cazana (9 October 2026,
+[ADR-0066](../adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md))
+and Brego (26 October 2026,
+[ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)) are
+connected, so neither is a disabled seam.
 
 Every other uncomposed capability stays absent: no inert card, no
 "Unavailable" placeholder, no unlinked route. A disabled seam carries its
@@ -906,7 +908,7 @@ deleted in wave 5.
 | `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (dismiss, section fold) |
 | `freshness`, `freshness-status`, `health-dot`, `refresh-button` (`Shared/_RefreshButton`) | Page freshness line and the one Refresh control every surface composes; the label becomes "Refreshing" and the icon spins while a refresh runs (`prefers-reduced-motion` keeps the label and disabled state) |
 | `busy-spin`, `busy-done`, `[data-busy]`, `[data-busy-aside]`, `[data-busy-complete]`, `data-busy-label`, `data-busy-still`, `data-busy-done`, `data-busy-download` | Action feedback (site.js `pegasusBusy`): from the press until the result arrives the pressed button or link shows the turning `icon-loader` glyph and its busy words (`OperatorLabels.Busy`), keeping its colours; after five seconds the words say "Still …" (the layout's `data-busy-still` word); the form's other submit buttons stand aside. An action answered in place that succeeds holds the `icon-check` glyph and its `data-busy-done` word (`OperatorLabels.Busy.Done`, or its own label) in the confirmed green for 1.4 s; a page that reloads shows its notice instead. A download link or form fetches its file and stays busy until it arrives |
-| `metric-strip`, `metric-strip--2`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line; under it the `wc-activity` panel holds the day and week figures as a table, the figures across and Today / This week down; the Intake log's two counts sit in `metric-strip--2` ([v41 A24](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
+| `metric-strip`, `metric-strip--2`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in an Office queues card beside an Activity card (Today large, This week beneath) in `wc-stats-grid`; the Intake log's two counts sit in `metric-strip--2` ([v42 Design A](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v42_planning/notes/v42-notes.md)) |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |
@@ -924,7 +926,7 @@ deleted in wave 5.
 
 | Class | Role |
 | --- | --- |
-| `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container |
+| `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container: the Case record, a message, and the initial Upload sheet, whose one action bar is the record bar |
 | `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar, measured at runtime into `--sticky-h` |
 | `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-registration`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace", Registration, Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
 | `section-row`, `section-nav`, `section-link`, `section-tools` | The 40px section row: section links (the one in view carries `aria-current`) and Refresh |
@@ -948,10 +950,11 @@ deleted in wave 5.
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `decision-card` | Message decision |
 | `inbox-row--ticks`, `inbox-row-tick`, `inbox-bulk` | A row's gutter tick and the one bulk form above the Inbox list (v41 I18) |
-| `dialog--mail`, `mail-split`, `mail-chips`, `mail-decision` | The Inbox message dialog: the message beside Decision, the Classification chips and the Case / PO picker (v41 I2, I9, I17) |
+| `dialog--mail`, `mail-context-bar`, `mail-settings-menu`, `inbox-ledger` | The Inbox ledger (Case, Type, Subject, Sender, Received) and the message dialog: full-width body, context bar, and the cog settings menu (Case, Type, Query, Change case, Decided) |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `admin-layout`, `admin-nav` | Administration |
-| `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |
+| `up-sheet`, `up-drop`, `up-evidence`, `up-declared`, `up-file-list` (`upload.css`) | Upload's initial sheet (v42 E): its head states the destination and the limits, its body is the drop target, and **Selected files** with the one action bar appear under it once files are chosen; the file rows are the same list on the review |
+| `up-surface`, `up-workspace`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case` (`upload.css`) | Upload's review: the inspector beside the one Case decision (v30 E) |
 | `report-preview` | Report draft preview dialog body |
 
 ### Dialogs and feedback

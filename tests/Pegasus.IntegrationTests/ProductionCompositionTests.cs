@@ -66,6 +66,7 @@ public sealed class ProductionCompositionTests
         "report.renderer.initialize",
         "web.workcentre.attention",
         "web.workcentre.newcases",
+        "web.workcentre.systemactions",
         "web.workcentre.aijobs",
         "web.workcentre.activity",
         "report.photos.prepare",
@@ -498,10 +499,10 @@ public sealed class ProductionCompositionTests
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
             initializer => initializer is GlassCallbackTelemetryInitializer);
-        // The same host connects Glass's (ADR-0060) and Cazana (ADR-0079) as
-        // guide valuation sources, one provider each.
+        // The same host connects Glass's (ADR-0060), Cazana (ADR-0079) and
+        // Brego (ADR-0084) as guide valuation sources, one provider each.
         Assert.Equal(
-            [ValuationSource.Glasses, ValuationSource.Cazana],
+            [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.Brego],
             factory.Services.GetServices<IGuideValuationProvider>().Select(provider => provider.Source));
     }
 
@@ -674,8 +675,6 @@ public sealed class ProductionCompositionTests
             scope.ServiceProvider.GetRequiredService<ICaseCustody>());
         Assert.Null(scope.ServiceProvider.GetService<IDocumentContentStore>());
         Assert.Null(scope.ServiceProvider.GetService<IAddCaseDocument>());
-        Assert.IsType<UnavailableDeletedMailSearchSource>(
-            scope.ServiceProvider.GetRequiredService<IDeletedMailSearchSource>());
     }
 
     [Fact]
@@ -719,24 +718,6 @@ public sealed class ProductionCompositionTests
         var third = factory.CreateDbContext();
         Assert.Same(first, third);
         third.Dispose();
-    }
-
-    [Fact]
-    public void ProductionGraphRegistrationSurvivesTheInfrastructureFallback()
-    {
-        var services = NewServices();
-        services.AddSingleton<TokenCredential>(new CompositionCredential());
-        services.AddSingleton<IIntakeSourceReader>(
-            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
-        services.AddLogging();
-        services.AddProductionApprovedMailboxResolver("https://graph.microsoft.com/v1.0/");
-        services.AddPegasusInfrastructure(ConfigureDatabase);
-        using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
-
-        Assert.IsType<GraphDeletedMailSearchSource>(
-            scope.ServiceProvider.GetRequiredService<IDeletedMailSearchSource>());
-        Assert.Single(scope.ServiceProvider.GetServices<IDeletedMailSearchSource>());
     }
 
     [Fact]

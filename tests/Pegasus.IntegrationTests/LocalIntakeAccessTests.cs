@@ -108,6 +108,8 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Glass:ValuationAccount:Password")]
     [InlineData("Cazana:CompanionAccount:Email")]
     [InlineData("Cazana:CompanionAccount:Password")]
+    [InlineData("Brego:ValuationAccount:Email")]
+    [InlineData("Brego:ValuationAccount:Password")]
     [InlineData("GitHub:ProblemReports:Token")]
     [InlineData("GitHub:ProblemReports:Repository")]
     public void ProductionFailsClosedWithoutTheExternalConfigurationItComposes(string missingKey)
@@ -142,6 +144,8 @@ public sealed class LocalIntakeAccessTests
             ["Glass:ValuationAccount:Password"] = "synthetic-password",
             ["Cazana:CompanionAccount:Email"] = "companion@example.test",
             ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
+            ["Brego:ValuationAccount:Email"] = "brego@example.test",
+            ["Brego:ValuationAccount:Password"] = "synthetic-brego-password",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
         };

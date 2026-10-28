@@ -127,7 +127,9 @@ public sealed class CaseActionsMenuWebTests
     /// A Report sent Case, with or without an open query, is editable like a
     /// With Engineer Case (operator, 11 October 2026): it offers Edit Case,
     /// and a colleague's lease on it is offered Take over (operator, 29
-    /// September 2026) while the Actions menu keeps only Export case and Tasks.
+    /// September 2026) while the Actions menu keeps Export case, Tasks and Log
+    /// query: a colleague's lease does not block a query act (operator, 27
+    /// October 2026).
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -142,8 +144,9 @@ public sealed class CaseActionsMenuWebTests
 
         var held = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state, HasOpenQuery = hasOpenQuery, LeaseHolder = "colleague-staff-id" }));
         Assert.Contains("data-case-export", held, StringComparison.Ordinal);
-        Assert.Equal(1, Occurrences(held, "data-dialog-open"));
+        Assert.Equal(2, Occurrences(held, "data-dialog-open"));
         Assert.Contains("data-dialog-open=\"case-tasks-dialog\"", held, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"case-log-query-dialog\"", held, StringComparison.Ordinal);
         Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, held, StringComparison.Ordinal);
         Assert.Contains("handler=ClaimLease", held, StringComparison.Ordinal);
         Assert.Contains("name=\"takeOver\" value=\"true\"", held, StringComparison.Ordinal);
@@ -163,6 +166,27 @@ public sealed class CaseActionsMenuWebTests
         Assert.DoesNotContain("id=\"case-hold-dialog\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=Hold", page, StringComparison.Ordinal);
         Assert.Contains("data-dialog-open=\"case-correct-principal-dialog\"", page, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The message record's Change case links land here with dialog=hold or
+    /// dialog=close (v42 G): the page draws that dialog open the way Tasks is,
+    /// and only where the Case offers the act, so a Report sent Case ignores
+    /// dialog=hold.
+    /// </summary>
+    [Fact]
+    public async Task AChangeCaseLinkDrawsItsDialogOpenWhereTheCaseOffersIt()
+    {
+        var hold = await ReadCaseAsync(new RecordingCaseDetailsStore(), dialog: "hold");
+        Assert.Contains("data-dialog=\"case-hold-dialog\" data-dialog-open-on-load=\"true\"", hold, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"case-close-dialog\" data-dialog-open-on-load=\"true\"", hold, StringComparison.Ordinal);
+
+        var close = await ReadCaseAsync(new RecordingCaseDetailsStore { State = CaseLifecycleState.Review }, dialog: "close");
+        Assert.Contains("data-dialog=\"case-close-dialog\" data-dialog-open-on-load=\"true\"", close, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"case-hold-dialog\" data-dialog-open-on-load=\"true\"", close, StringComparison.Ordinal);
+
+        var reportSent = await ReadCaseAsync(new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportSent }, dialog: "hold");
+        Assert.DoesNotContain("data-dialog-open-on-load=\"true\"", reportSent, StringComparison.Ordinal);
     }
 
     /// <summary>

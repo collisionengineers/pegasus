@@ -1,6 +1,6 @@
-/* Upload (v30 E, "Inspection studio"): page-specific rules composed on the
-   shared shell tokens. Linked from Pages/Upload.cshtml, UploadGroupStatus and
-   UploadStatus only. */
+/* Upload: page-specific rules composed on the shared shell tokens. Linked
+   from Pages/Upload.cshtml (v42 E, "Focused record sheet"), UploadGroupStatus
+   and UploadStatus (v30 E, "Inspection studio") only. */
 
 .up-head { margin-bottom: 20px; }
 .up-meta { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
@@ -68,34 +68,45 @@
 .up-alert > .icon { flex: none; margin-top: 1px; width: 16px; height: 16px; }
 .up-alert--error { background: var(--danger-bg); border-left-color: var(--danger); }
 
-/* Choosing files: one centred column until a file is chosen. upload.js sets
-   has-files when it shows the roster; the picker then sits left of the
-   selected files (FRD-18). The workspace stays full width because it is the
-   drop target; only the picker narrows. Below 900px both states stack at
-   full width, further down, so adding a file moves nothing there. */
-.up-workspace.is-choosing { display: block; }
-.up-workspace.has-files { display: grid; grid-template-columns: minmax(320px, 1.25fr) minmax(0, .88fr); }
-@media (min-width: 901px) {
-    .up-workspace.is-choosing:not(.has-files) > .up-select { max-width: 760px; margin-inline: auto; }
-}
-.up-select { grid-column: 1; grid-row: 1; padding: 30px; min-width: 0; }
-.up-select-title { margin-bottom: 18px; }
-.up-declared { margin-bottom: 18px; }
-.up-declared .up-final-destination { margin: 6px 0 0; padding: 12px 0; border-top: 0; }
-.up-declared .up-final-destination strong { font-size: 18px; }
-.up-drop { border: 1px dashed var(--line-strong); border-radius: 4px; background: var(--surface-2); text-align: center; padding: 42px 24px; display: flex; align-items: center; flex-direction: column; gap: 12px; }
-.up-drop.is-over { background: var(--navy-bg); border-color: var(--navy); }
-.up-drop > .icon { color: var(--muted); height: 29px; width: 29px; margin-bottom: 4px; }
-.up-drop h2 { font-size: 18px; }
-.up-drop p { margin: 0; font-size: 12px; color: var(--muted); max-width: 400px; line-height: 1.7; }
-.up-drop label { cursor: pointer; margin: 3px 0; }
-.up-drop input[type="file"] { max-width: 100%; }
+/* The initial Upload surface (v42 E, "Focused record sheet"): one full-width
+   record that fills the working area under the utility bar. Its identity band
+   states the destination and the limits; its body is the drop target; the
+   selected files and their one action bar appear under it once files are
+   chosen, so nothing is stated twice and revealing them moves nothing.
+   upload.js toggles has-files on the sheet as it shows the roster (FRD-18). */
+.up-sheet { display: flex; flex-direction: column; height: calc(100vh - var(--utility-h) - var(--page-pad) - 50px); min-height: 480px; }
+.up-sheet > form { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.up-sheet .record-head { padding: 18px 26px; }
+.up-sheet-title { min-width: 0; }
+.up-sheet .up-eyebrow { margin: 0 0 4px; color: inherit; opacity: .72; }
+.up-sheet .record-identity { margin-top: 4px; font-size: 12px; gap: 14px; }
+.up-sheet-badge { width: 44px; height: 44px; border: 1px solid rgba(255, 255, 255, .18); border-radius: var(--radius-lg); background: rgba(255, 255, 255, .1); display: grid; place-items: center; }
+.up-sheet-badge .icon { width: 20px; height: 20px; }
+.up-sheet .record-head-end { display: flex; align-items: center; gap: 8px; }
+.up-sheet .up-declared { margin-top: 8px; }
+.up-sheet .up-declared .up-final-destination { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.up-sheet .up-declared .up-final-destination strong { font-size: 12.5px; }
+.up-sheet .up-declared .up-final-destination p { color: inherit; opacity: .82; }
+.up-sheet .record-body { padding: 24px 26px; display: flex; flex-direction: column; gap: 18px; flex: 1; min-height: 0; min-width: 0; overflow: auto; }
+.up-sheet .up-alert { margin-bottom: 0; flex: none; }
+.up-sheet .up-evidence { flex: none; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+.up-sheet .record-bar { padding: 14px 26px; border-top: 1px solid var(--line); border-bottom: 0; background: var(--surface-2); margin-top: auto; }
+.up-sheet .record-bar p { margin: 0; font-size: 11.5px; color: var(--muted); }
+
+/* The drop target: the whole body, so a real drag is easy to hit. */
+.up-sheet .up-drop { flex: 1; min-height: 420px; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-2); text-align: center; padding: 56px 32px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+.up-sheet .up-drop.is-over { background: var(--navy-bg); border-color: var(--navy); }
+.up-sheet .up-drop-badge { width: 60px; height: 60px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 2px 6px rgba(20, 30, 35, .06); display: grid; place-items: center; color: var(--navy); }
+.up-sheet .up-drop-badge .icon { width: 26px; height: 26px; }
+.up-sheet .up-drop h2 { font-size: 20px; }
+.up-sheet .up-drop p { margin: 0; font-size: 12px; color: var(--muted); max-width: 400px; line-height: 1.7; }
+.up-sheet .up-drop label { cursor: pointer; margin: 3px 0; }
+.up-sheet .up-drop input[type="file"] { max-width: 100%; }
+/* Choosing files keeps the sheet in place: the drop target gives up the
+   height the selected files take. */
+.up-sheet.has-files .up-drop { min-height: 220px; padding: 32px 24px; }
 .is-enhanced .up-file-input { width: 1px; height: 1px; position: absolute; opacity: 0; }
 .is-enhanced .up-file-input:focus-visible + label { outline: 3px solid var(--focus); outline-offset: 3px; }
-.up-limits { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; margin-top: 17px; color: var(--muted); font-size: 11px; }
-.up-select-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
-.up-select-actions p { margin: 0; font-size: 11px; color: var(--muted); }
-.up-workspace.is-choosing > .up-evidence { grid-column: 2; grid-row: 1; min-width: 0; border-left: 1px solid var(--line); }
 .up-section-head { padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
 .up-section-head h2 { font-size: 12px; letter-spacing: 0; }
 .up-section-head span { color: var(--muted); font-size: 11px; }
@@ -188,10 +199,9 @@
 }
 
 @media (max-width: 900px) {
-    .up-workspace, .up-workspace.is-choosing { display: flex; flex-direction: column; }
+    .up-workspace { display: flex; flex-direction: column; }
     .up-decision { order: -1; width: 100%; border: 0; }
-    .up-inspector, .up-workspace.is-choosing > .up-evidence { width: 100%; border-left: 0; border-top: 1px solid var(--line); }
-    .up-select { width: 100%; padding: 24px; }
+    .up-inspector { width: 100%; border-left: 0; border-top: 1px solid var(--line); }
     .up-meta { font-size: 10px; }
     .up-filmstrip { grid-template-columns: repeat(6, minmax(0, 1fr)); }
     .up-inspect-photo { width: 420px; }
@@ -207,13 +217,22 @@
     .up-file-state { font-size: 9.5px; white-space: normal; }
     .up-case { padding-left: 38px; }
     .up-radio { left: 13px; }
-    .up-drop { padding: 28px 14px; }
-    .up-drop h2 { font-size: 16px; }
+    .up-sheet .up-drop { padding: 28px 14px; }
+    .up-sheet .up-drop h2 { font-size: 16px; }
     .up-filmstrip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .up-select-actions { align-items: flex-start; }
-    .up-select-actions p { max-width: 110px; }
     .up-inspect-media { padding: 12px; }
     .up-confirm-case dl { grid-template-columns: 75px 1fr; }
+}
+
+/* The record sheet's head stacks the badge beside the title and the way back
+   under it, so the reference and the limits stay readable at 760px; the sheet
+   keeps its height and its body keeps scrolling, so choosing files still
+   moves nothing on the page. */
+@media (max-width: 760px) {
+    .up-sheet .record-head { grid-template-columns: auto minmax(0, 1fr); }
+    .up-sheet .record-head-end { grid-column: 1 / -1; }
+    .up-sheet .record-body { padding: 12px; }
+    .up-sheet .record-bar { padding: 10px 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

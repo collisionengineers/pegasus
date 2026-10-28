@@ -314,21 +314,13 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.ReportSent);
-        var lease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, 0, actor, "claim-log-query"),
-            CancellationToken.None);
 
-        var raised = await harness.Store.RaiseQueryAsync(
-            new(
-                harness.CaseId,
-                0,
-                actor,
-                "log-phone-query",
-                "Principal rang about the report.",
-                lease.Token,
-                CaseQueryChannel.Phone,
-                "  Asked about the labour rate.  "),
+        var queryId = await harness.Store.OpenQueryAsync(
+            new(harness.CaseId, actor, "log-phone-query", null, CaseQueryChannel.Phone, "  Asked about the labour rate.  "),
             CancellationToken.None);
+        var raised = await harness.Store.GetAsync(harness.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The case was not found.");
+        Assert.NotEqual(Guid.Empty, queryId);
 
         Assert.Equal(CaseLifecycleState.ReportSent, raised.State);
         Assert.True(raised.HasOpenQuery);
@@ -355,20 +347,9 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     {
         await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var lease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, 0, actor, "claim-log-review-query"),
-            CancellationToken.None);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.RaiseQueryAsync(
-            new(
-                harness.CaseId,
-                0,
-                actor,
-                "log-review-query",
-                "Too early.",
-                lease.Token,
-                CaseQueryChannel.Email,
-                null),
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.OpenQueryAsync(
+            new(harness.CaseId, actor, "log-review-query", null, CaseQueryChannel.Email, null),
             CancellationToken.None));
 
         var persisted = await harness.Store.GetAsync(harness.CaseId, CancellationToken.None);
@@ -436,9 +417,9 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
                     new(Guid.NewGuid(), "case-report-v1.pdf", new string('A', 64))),
                 default));
         await RefusedAsync(
-            "The case has no open query to resolve.",
-            () => new ResolveCaseQueries(harness.Store).ExecuteAsync(
-                new ResolveCaseQueriesRequest(caseId, 0, actor, "resolve-in-review", string.Empty, token), default));
+            "A query can be opened only once the report is sent.",
+            () => new OpenCaseQuery(harness.Store).ExecuteAsync(
+                new(caseId, actor, "open-in-review", null, CaseQueryChannel.Phone, null), default));
         await RefusedAsync(
             "Only a terminal case can be archived.",
             () => new ArchiveCase(harness.Store).ExecuteAsync(
@@ -555,12 +536,11 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     }
 
     /// <summary>
-    /// Resolve query closes every open query on the Case at once (operator, 11
-    /// October 2026) and clears the mark; a second Resolve with nothing open
-    /// is refused and changes nothing.
+    /// Mark done closes one open query and recomputes the open-query mark.
+    /// Marking a query that is already Done is refused and changes nothing.
     /// </summary>
     [Fact]
-    public async Task ResolveClosesEveryOpenQueryTogetherAndThenHasNothingToResolve()
+    public async Task MarkDoneClosesOneOpenQueryAndRefusesASecondMark()
     {
         await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -568,26 +548,30 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         var version = 0L;
         foreach (var (key, channel) in new[] { ("log-email-query", CaseQueryChannel.Email), ("log-whatsapp-query", CaseQueryChannel.WhatsApp) })
         {
-            var logLease = await harness.Store.ClaimAsync(
-                new(harness.CaseId, version, actor, $"claim-{key}"),
+            await harness.Store.OpenQueryAsync(
+                new(harness.CaseId, actor, key, null, channel, null),
                 CancellationToken.None);
-            version = (await harness.Store.RaiseQueryAsync(
-                new(harness.CaseId, version, actor, key, "Query logged.", logLease.Token, channel, null),
-                CancellationToken.None)).Version;
+            version = (await harness.Store.GetAsync(harness.CaseId, CancellationToken.None))!.Version;
             await AssertOpenQueryMarkMatchesRowsAsync(harness, harness.CaseId);
         }
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
-        var resolveLease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, version, actor, "claim-resolve-queries"),
-            CancellationToken.None);
 
-        var resolved = await harness.Store.ResolveQueriesAsync(
-            new(harness.CaseId, version, actor, "resolve-queries", "Answered by phone.", resolveLease.Token),
-            CancellationToken.None);
+        Guid[] openIds;
+        await using (var listed = await harness.Factory.CreateDbContextAsync())
+        {
+            openIds = await listed.CaseQueries.Where(item => item.CaseId == harness.CaseId).Select(item => item.Id).ToArrayAsync();
+        }
+        CaseWorkflowRecord resolved = null!;
+        foreach (var (id, index) in openIds.Select((id, index) => (id, index)))
+        {
+            resolved = await harness.Store.MarkQueryDoneAsync(
+                new(id, actor, $"mark-done-{index}"),
+                CancellationToken.None);
+        }
 
         Assert.Equal(CaseLifecycleState.ReportSent, resolved.State);
         Assert.False(resolved.HasOpenQuery);
-        Assert.Equal(version + 1, resolved.Version);
+        Assert.Equal(version + openIds.Length, resolved.Version);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var queries = await context.CaseQueries
@@ -603,19 +587,16 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
                 Assert.Null(query.ResolvedByMailOperationId);
             });
         }
-        Assert.Equal(1L, await harness.WorkflowEventTypeCountAsync(harness.CaseId, "case_queries_resolved"));
+        Assert.Equal(2L, await harness.WorkflowEventTypeCountAsync(harness.CaseId, "case_query_resolved"));
         await AssertOpenQueryMarkMatchesRowsAsync(harness, harness.CaseId);
 
-        var againLease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, resolved.Version, actor, "claim-resolve-again"),
-            CancellationToken.None);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.ResolveQueriesAsync(
-            new(harness.CaseId, resolved.Version, actor, "resolve-again", "Nothing left.", againLease.Token),
+        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.MarkQueryDoneAsync(
+            new(openIds[0], actor, "mark-done-again"),
             CancellationToken.None));
 
         var persisted = await harness.Store.GetAsync(harness.CaseId, CancellationToken.None);
         Assert.Equal(resolved.Version, persisted?.Version);
-        Assert.Equal(1L, await harness.WorkflowEventTypeCountAsync(harness.CaseId, "case_queries_resolved"));
+        Assert.Equal(2L, await harness.WorkflowEventTypeCountAsync(harness.CaseId, "case_query_resolved"));
         await AssertOpenQueryMarkMatchesRowsAsync(harness, harness.CaseId);
     }
 
@@ -626,12 +607,11 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         await SetStateAsync(harness, harness.CaseId, CaseLifecycleState.ReportSent);
-        var logLease = await harness.Store.ClaimAsync(
-            new(harness.CaseId, 0, actor, "claim-log-before-hold"),
+        await harness.Store.OpenQueryAsync(
+            new(harness.CaseId, actor, "log-before-hold", null, CaseQueryChannel.Other, "By letter."),
             CancellationToken.None);
-        var logged = await harness.Store.RaiseQueryAsync(
-            new(harness.CaseId, 0, actor, "log-before-hold", "Query logged.", logLease.Token, CaseQueryChannel.Other, "By letter."),
-            CancellationToken.None);
+        var logged = await harness.Store.GetAsync(harness.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The case was not found.");
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId);

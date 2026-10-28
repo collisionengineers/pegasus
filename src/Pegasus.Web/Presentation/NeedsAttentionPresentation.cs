@@ -19,6 +19,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.ReviewCase,
         NeedsAttentionKind.UnassignedEngineer,
         NeedsAttentionKind.WithEngineer,
+        NeedsAttentionKind.Query,
         NeedsAttentionKind.VehicleImagesPaired,
         NeedsAttentionKind.Unidentified,
         NeedsAttentionKind.Triage,
@@ -52,6 +53,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.Unidentified => "unidentified",
         NeedsAttentionKind.Triage => "triage",
         NeedsAttentionKind.OpenTasks => "tasks",
+        NeedsAttentionKind.Query => "query",
         NeedsAttentionKind.AiDraft => "ai",
         _ => kind.ToString().ToLowerInvariant()
     };
@@ -72,6 +74,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.ReviewCase => "Review Case",
         NeedsAttentionKind.UnassignedEngineer => Labels.AssignEngineer,
         NeedsAttentionKind.OpenTasks => Labels.OpenTasks,
+        NeedsAttentionKind.Query => Labels.OpenQuery,
         _ => Labels.OpenCase
     };
 

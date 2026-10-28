@@ -1062,6 +1062,7 @@ public sealed partial class QdosTriageIntegrationTests
                     "inbox",
                     conversationId,
                     internetMessageId,
+                    [],
                     senderAddress,
                     "Sender Name",
                     [mailboxAddress],
@@ -1293,6 +1294,9 @@ public sealed partial class QdosTriageIntegrationTests
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
             CancellationToken cancellationToken) =>
             inner.ListMailboxesAsync(cancellationToken);
+
+        public Task<IReadOnlyList<string>> ListPrincipalsAsync(CancellationToken cancellationToken) =>
+            inner.ListPrincipalsAsync(cancellationToken);
 
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>

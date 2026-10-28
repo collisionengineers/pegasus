@@ -93,6 +93,8 @@ only when the stamp changes.
      Glass__ValuationAccount__Password = 'migration-host-placeholder'
      Cazana__CompanionAccount__Email = 'migration-host-placeholder'
      Cazana__CompanionAccount__Password = 'migration-host-placeholder'
+     Brego__ValuationAccount__Email = 'migration-host-placeholder'
+     Brego__ValuationAccount__Password = 'migration-host-placeholder'
      GitHub__ProblemReports__Token = 'migration-host-placeholder'
      GitHub__ProblemReports__Repository = $values['GITHUB_PROBLEM_REPORT_REPOSITORY']
    }
@@ -103,7 +105,7 @@ only when the stamp changes.
 
    `GitHub__ProblemReports__Token`, `Graph__ChangeNotificationClientState`, `Box__ConfigJson`,
    `Box__ClientSecret`, `Glass__ValuationAccount__Username`, `Glass__ValuationAccount__Password`,
-   `Cazana__CompanionAccount__Email` and `Cazana__CompanionAccount__Password` above are intentionally non-empty process-only placeholders, not azd
+   `Cazana__CompanionAccount__Email`, `Cazana__CompanionAccount__Password`, `Brego__ValuationAccount__Email` and `Brego__ValuationAccount__Password` above are intentionally non-empty process-only placeholders, not azd
    configuration or secrets. The migration host validates the GitHub
    configuration but does not dispatch problem reports. The Box value is
    shape-valid JWT JSON. The migration host builds its deferred Box and

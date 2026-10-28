@@ -10,63 +10,70 @@ public sealed class PrincipalMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("principal_mail_classification", PrincipalMailClassificationPolicy.Key);
-        Assert.Equal(3, PrincipalMailClassificationPolicy.Version);
+        Assert.Equal(4, PrincipalMailClassificationPolicy.Version);
     }
 
     /// <summary>
-    /// Version 3: the notices Qdos's case system pastes into the body, verified over the
-    /// QDOS template registry (8 October 2026). Each tell is the notice's fixed sentence.
+    /// Version 4: garage allocation, repairs authorised and report chase are
+    /// plain correspondence. The PAV dispute sentence sets OpensQuery and is
+    /// not a category.
     /// </summary>
     [Theory]
     [InlineData(
         "garage allocation",
-        "We refer to the above claim and to the instructions that were sent to you on 11 June 2026.\nPlease be advised that the garage allocated to this claim are shown below for your records:\nName\nEssex Emergency Services Ltd",
-        MailCategory.CaseUpdate, "body.garage-allocation-notice")]
+        "We refer to the above claim and to the instructions that were sent to you on 11 June 2026.\nPlease be advised that the garage allocated to this claim are shown below for your records:\nName\nEssex Emergency Services Ltd")]
     [InlineData(
         "repairs authorised",
-        "We refer to your previous without prejudice inspection.\nWe are now able to authorise repairs. Please can you arrange this with the\r\ngarage below:\nName: John Card ARC",
-        MailCategory.CaseUpdate, "body.repairs-authorised-notice")]
+        "We refer to your previous without prejudice inspection.\nWe are now able to authorise repairs. Please can you arrange this with the\r\ngarage below:\nName: John Card ARC")]
     [InlineData(
         "report chase",
-        "We note that we have recently given you instructions to inspect our client's vehicle and prepare a report, however; we note that we have heard nothing further from you since then.\nPlease provide us with a copy of your report by return.",
-        MailCategory.CaseUpdate, "body.report-chase-notice")]
-    [InlineData(
-        "pav dispute",
-        "We refer to the above claim and further to previous correspondence.\nThe client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle. The client has therefore provided their comments and evidence to support an increased value.",
-        MailCategory.Query, "body.pav-dispute-letter")]
-    public void AGeneratedNoticeSentenceClassifiesItsCategory(string notice, string body, MailCategory category, string predicate)
+        "We note that we have recently given you instructions to inspect our client's vehicle and prepare a report, however; we note that we have heard nothing further from you since then.\nPlease provide us with a copy of your report by return.")]
+    public void AGeneratedOperationalNoticeIsUnclassifiedCorrespondence(string notice, string body)
     {
         Assert.NotEmpty(notice);
         var result = Classify(subject: "(EREF23) RTA on 06/06/2026 : Mr Example (Our Ref: KAD/45975/1, Vehicle: M15GGF)", body: body);
 
-        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(category, result.Category);
-        Assert.False(result.IsReplyContext);
-        Assert.True(result.Predicates.Single(item => item.Key == predicate).Matched);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.Null(result.Category);
+        Assert.False(result.OpensQuery);
     }
 
     [Fact]
-    public void TheCaseUpdateNoticesTogetherAreOneCaseUpdateCandidate()
+    public void APavDisputeSetsOpensQueryAndIsNotACategory()
+    {
+        var result = Classify(
+            subject: "(EREF23) RTA on 06/06/2026 : Mr Example (Our Ref: KAD/45975/1, Vehicle: M15GGF)",
+            body: "We refer to the above claim and further to previous correspondence.\nThe client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle. The client has therefore provided their comments and evidence to support an increased value.");
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.Null(result.Category);
+        Assert.True(result.OpensQuery);
+        Assert.True(result.Predicates.Single(item => item.Key == "body.pav-dispute-letter").Matched);
+    }
+
+    [Fact]
+    public void TheOperationalNoticesTogetherStayUnclassified()
     {
         var result = Classify(body:
             "Please be advised that the garage allocated to this claim are shown below for your records:\n"
             + "We are now able to authorise repairs. Please can you arrange this with the garage below:\n"
             + "we note that we have heard nothing further from you since then.");
 
-        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(MailCategory.CaseUpdate, result.Category);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.Null(result.Category);
+        Assert.False(result.OpensQuery);
     }
 
     [Fact]
-    public void AChaseAndADisputeTogetherStayUnclassifiedNamingBoth()
+    public void AChaseAndADisputeTogetherAreCorrespondenceThatOpensAQuery()
     {
         var result = Classify(body:
             "we note that we have heard nothing further from you since then.\n"
             + "The client has confirmed that they do not agree with the figure for the pre-accident value of their vehicle.");
 
         Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
-        Assert.Contains("case-update", result.Reason, StringComparison.Ordinal);
-        Assert.Contains("query", result.Reason, StringComparison.Ordinal);
+        Assert.Null(result.Category);
+        Assert.True(result.OpensQuery);
     }
 
     [Theory]
@@ -85,8 +92,9 @@ public sealed class PrincipalMailClassificationPolicyTests
             subject: "RE: (EREF12) RTA on 15/06/2026 : Mr Example (Our Ref: SAB/46286/1, Vehicle: HN13XMO)",
             body: "we note that we have heard nothing further from you since then.");
 
-        Assert.Equal(MailCategory.CaseUpdate, result.Category);
-        Assert.True(result.IsReplyContext);
+        Assert.Null(result.Category);
+        Assert.False(result.OpensQuery);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
     }
 
     [Fact]
@@ -523,12 +531,14 @@ public sealed class PrincipalMailClassificationPolicyTests
     }
 
     [Fact]
-    public void AutomaticReplySubjectClassifiesGeneralAutoreply()
+    public void AutomaticReplySubjectIsUnclassified()
     {
         var result = Classify(subject: "Automatic reply: (EREF8) RTA on 18/06/2026");
 
-        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
-        Assert.Equal(MailCategory.General, result.Category);
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.Null(result.Category);
+        Assert.False(result.OpensQuery);
+        Assert.True(result.Predicates.Single(item => item.Key == "subject.automatic-reply").Matched);
     }
 
     [Fact]
@@ -774,7 +784,8 @@ public sealed class PrincipalMailClassificationPolicyTests
     {
         var result = Classify(body: "Anything at all.");
 
-        Assert.Equal(11, result.Predicates.Count);
+        // Version 4 dropped the three Case update notices (operator, 27 October 2026).
+        Assert.Equal(8, result.Predicates.Count);
         Assert.Equal(
             result.Predicates.Count,
             result.Predicates.Select(predicate => predicate.Key).Distinct(StringComparer.Ordinal).Count());

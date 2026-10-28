@@ -5,172 +5,111 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Tests.Lifecycle;
 
 /// <summary>
-/// Log query and Resolve query (operator, 11 October 2026): the use cases
-/// hand the store the request as it is. The store asks the Core rule of the
-/// workflow it read under its lock and skips it for a replay of the same
-/// operation key (eff-07-l, register A3-06).
+/// Query acts take no lease, expected version or reason. Open returns the
+/// query id. Exactly one of a message and a channel.
 /// </summary>
 public sealed class CaseQueryLifecycleTests
 {
-    private static readonly Guid CaseId = Guid.NewGuid();
-    private static readonly ActionActor Actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+    private static readonly Guid CaseId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+    private static readonly ActionActor Actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
 
     [Fact]
-    public async Task LoggingAQueryOnAReportSentCaseReachesTheStoreWithItsChannelAndDetails()
+    public async Task OpenReturnsTheQueryIdTheStoreRecorded()
     {
-        var store = new QueryStore(CaseLifecycleState.ReportSent, hasOpenQuery: false);
-        var request = Raise(CaseQueryChannel.Phone, "The claimant disputes the pre-accident value.");
-
-        var raised = await new RaiseCaseQuery(store).ExecuteAsync(request, default);
-
-        Assert.Same(request, store.Raised);
-        Assert.True(raised.HasOpenQuery);
+        var store = new QueryStore();
+        var request = new OpenCaseQueryRequest(CaseId, Actor, "open-phone", null, CaseQueryChannel.Phone, "Called.");
+        var id = await new OpenCaseQuery(store).ExecuteAsync(request, default);
+        Assert.Equal(store.OpenedId, id);
+        Assert.Equal(request, store.Opened);
     }
 
     [Fact]
-    public async Task ADetailLessQueryIsStillLogged()
+    public async Task MarkDoneReopenAndAssignReachTheStoreWithoutALease()
     {
-        var store = new QueryStore(CaseLifecycleState.ReportSent, hasOpenQuery: false);
-
-        await new RaiseCaseQuery(store).ExecuteAsync(Raise(CaseQueryChannel.WhatsApp, null), default);
-
-        Assert.Equal(CaseQueryChannel.WhatsApp, store.Raised!.Channel);
-        Assert.Null(store.Raised.Details);
+        var store = new QueryStore();
+        var queryId = Guid.NewGuid();
+        var act = new CaseQueryActRequest(queryId, Actor, "act");
+        await new MarkCaseQueryDone(store).ExecuteAsync(act, default);
+        await new ReopenCaseQuery(store).ExecuteAsync(act, default);
+        var assign = new AssignCaseQueryRequest(queryId, Actor, "assign", null);
+        await new AssignCaseQuery(store).ExecuteAsync(assign, default);
+        Assert.Equal(act, store.Marked);
+        Assert.Equal(act, store.Reopened);
+        Assert.Equal(assign, store.Assigned);
     }
 
     [Theory]
-    [InlineData("not sent", false, false)]
-    [InlineData("archived", true, true)]
-    [InlineData("not sent and archived", false, true)]
-    public void AQueryIsRefusedBeforeTheReportIsSentOrOnAnArchivedCase(string label, bool reportIsSent, bool archived)
+    [InlineData("archived", true)]
+    [InlineData("open", false)]
+    public void RequireCanOpenRefusesUntilTheReportIsSentAndTheCaseIsNotArchived(string name, bool archived)
     {
-        Assert.NotEmpty(label);
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => CaseQueryRules.RequireCanLog(reportIsSent, archived));
-
-        Assert.Equal("A query can be logged only once the report is sent.", exception.Message);
-    }
-
-    [Fact]
-    public void AQueryIsLoggedOnceTheReportIsSentOnAnArchivableCase() =>
-        CaseQueryRules.RequireCanLog(reportIsSent: true, archived: false);
-
-    [Fact]
-    public async Task AnUnknownChannelIsRefused()
-    {
-        var store = new QueryStore(CaseLifecycleState.ReportSent, hasOpenQuery: false);
-
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            new RaiseCaseQuery(store).ExecuteAsync(Raise((CaseQueryChannel)99, "A query."), default));
-    }
-
-    [Fact]
-    public async Task ResolvingReachesTheStoreWhileAQueryIsOpen()
-    {
-        var store = new QueryStore(CaseLifecycleState.ReportSent, hasOpenQuery: true);
-        var request = Resolve();
-
-        var resolved = await new ResolveCaseQueries(store).ExecuteAsync(request, default);
-
-        Assert.Same(request, store.Resolved);
-        Assert.False(resolved.HasOpenQuery);
-    }
-
-    [Fact]
-    public async Task ResolvingAnOpenQueryIsNotTiedToReportSent()
-    {
-        // The query outlives Return to Engineer (operator, 11 October 2026).
-        var store = new QueryStore(CaseLifecycleState.ReportPreparation, hasOpenQuery: true);
-
-        await new ResolveCaseQueries(store).ExecuteAsync(Resolve(), default);
-
-        Assert.NotNull(store.Resolved);
-    }
-
-    [Theory]
-    [InlineData("nothing open", false, false)]
-    [InlineData("archived", true, true)]
-    [InlineData("nothing open and archived", false, true)]
-    public void ResolvingWithNothingOpenOrOnAnArchivedCaseIsRefused(string label, bool hasOpenQuery, bool archived)
-    {
-        Assert.NotEmpty(label);
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => CaseQueryRules.RequireCanResolve(hasOpenQuery, archived));
-
-        Assert.Equal("The case has no open query to resolve.", exception.Message);
-    }
-
-    [Fact]
-    public async Task NeitherActionReadsTheCaseBeforeTheStore()
-    {
-        var store = new QueryStore(CaseLifecycleState.ReportSent, hasOpenQuery: true);
-
-        await new RaiseCaseQuery(store).ExecuteAsync(Raise(CaseQueryChannel.Other, "A query."), default);
-        await new ResolveCaseQueries(store).ExecuteAsync(Resolve(), default);
-
-        Assert.NotNull(store.Raised);
-        Assert.NotNull(store.Resolved);
-        Assert.Equal(0, store.Reads);
-    }
-
-    [Fact]
-    public async Task NeitherActionNeedsAReasonButBothNeedTheLease()
-    {
-        var store = new QueryStore(CaseLifecycleState.ReportSent, hasOpenQuery: true);
-
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            new RaiseCaseQuery(store).ExecuteAsync(
-                new(CaseId, 4, Actor, "log", string.Empty, string.Empty, CaseQueryChannel.Email, null), default));
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            new ResolveCaseQueries(store).ExecuteAsync(
-                new(CaseId, 4, Actor, "resolve", string.Empty, string.Empty), default));
-    }
-
-    private static RaiseCaseQueryRequest Raise(CaseQueryChannel channel, string? details) =>
-        new(CaseId, 4, Actor, "log-query", string.Empty, "lease-token", channel, details);
-
-    private static ResolveCaseQueriesRequest Resolve() =>
-        new(CaseId, 4, Actor, "resolve-query", string.Empty, "lease-token");
-
-    private sealed class QueryStore(CaseLifecycleState state, bool hasOpenQuery) : ICaseWorkflowStore
-    {
-        private CaseWorkflowRecord _current = CaseQueryRulesTests.Workflow(state, hasOpenQuery);
-
-        public RaiseCaseQueryRequest? Raised { get; private set; }
-        public ResolveCaseQueriesRequest? Resolved { get; private set; }
-
-        /// <summary>Every read of the Case or of its operations a command made before the write.</summary>
-        public int Reads { get; private set; }
-
-        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        Assert.NotEmpty(name);
+        Assert.Throws<InvalidOperationException>(() => CaseQueryRules.RequireCanOpen(reportIsSent: false, archived));
+        if (archived)
         {
-            Reads++;
-            return Task.FromResult<CaseWorkflowRecord?>(caseId == CaseId ? _current : null);
+            Assert.Throws<InvalidOperationException>(() => CaseQueryRules.RequireCanOpen(reportIsSent: true, archived: true));
+        }
+        else
+        {
+            CaseQueryRules.RequireCanOpen(reportIsSent: true, archived: false);
+        }
+    }
+
+    [Fact]
+    public void AnUnknownChannelIsRefused()
+    {
+        var store = new QueryStore();
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new OpenCaseQuery(store).ExecuteAsync(
+                new(CaseId, Actor, "bad-channel", null, (CaseQueryChannel)99, "A query."),
+                default).GetAwaiter().GetResult());
+        Assert.Null(store.Opened);
+    }
+
+    private sealed class QueryStore : ICaseWorkflowStore
+    {
+        public Guid OpenedId { get; } = Guid.NewGuid();
+        public OpenCaseQueryRequest? Opened { get; private set; }
+        public CaseQueryActRequest? Marked { get; private set; }
+        public CaseQueryActRequest? Reopened { get; private set; }
+        public AssignCaseQueryRequest? Assigned { get; private set; }
+
+        public Task<Guid> OpenQueryAsync(OpenCaseQueryRequest request, CancellationToken cancellationToken)
+        {
+            Opened = request;
+            return Task.FromResult(OpenedId);
         }
 
-        public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(IReadOnlyCollection<Guid> caseIds, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken)
+        public Task<CaseWorkflowRecord> MarkQueryDoneAsync(CaseQueryActRequest request, CancellationToken cancellationToken)
         {
-            Reads++;
-            return Task.FromResult(false);
+            Marked = request;
+            return Task.FromResult(Record());
         }
 
-        public Task<CaseWorkflowRecord> RaiseQueryAsync(RaiseCaseQueryRequest request, CancellationToken cancellationToken)
+        public Task<CaseWorkflowRecord> ReopenQueryAsync(CaseQueryActRequest request, CancellationToken cancellationToken)
         {
-            Raised = request;
-            _current = _current with { HasOpenQuery = true, Version = _current.Version + 1 };
-            return Task.FromResult(_current);
+            Reopened = request;
+            return Task.FromResult(Record());
         }
 
-        public Task<CaseWorkflowRecord> ResolveQueriesAsync(ResolveCaseQueriesRequest request, CancellationToken cancellationToken)
+        public Task<CaseWorkflowRecord> AssignQueryAsync(AssignCaseQueryRequest request, CancellationToken cancellationToken)
         {
-            Resolved = request;
-            _current = _current with { HasOpenQuery = false, Version = _current.Version + 1 };
-            return Task.FromResult(_current);
+            Assigned = request;
+            return Task.FromResult(Record());
         }
 
+        private static CaseWorkflowRecord Record() => new(
+            CaseId, new(CaseId, "QDOS", 2026, 1, "QDOS260001"), CaseLifecycleState.ReportSent,
+            null, null, null, null, null, null, null, 1);
+
+        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(IReadOnlyCollection<Guid> caseIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseEditLease> ClaimAsync(ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseEditLease> RenewAsync(RenewCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseEditLease> HeartbeatAsync(HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<CaseEditLease?> ResumeAsync(ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> StartWorkAsync(CaseMutationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> HoldAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReleaseHoldAsync(CaseMutationRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -182,10 +121,5 @@ public sealed class CaseQueryLifecycleTests
         public Task<CaseWorkflowRecord> CloseAsync(CloseCaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<CaseWorkflowRecord> ReturnToEngineerAsync(ReturnCaseToEngineerRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseEditLease> ClaimAsync(ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseEditLease> RenewAsync(RenewCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseEditLease> HeartbeatAsync(HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<CaseEditLease?> ResumeAsync(ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

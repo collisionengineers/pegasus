@@ -395,7 +395,10 @@ public sealed class CaseCustodyWebTests
                     "Forwarding Desk",
                     "desk@collisionengineers.co.uk",
                     "Repair query",
-                    MailCategory.Query),
+                    null)
+                {
+                    Query = new(Guid.NewGuid(), true, null)
+                },
                 new(
                     senderlessId,
                     receivedAtUtc.AddMinutes(-1),
@@ -403,7 +406,7 @@ public sealed class CaseCustodyWebTests
                     null,
                     null,
                     "Sender unavailable",
-                    MailCategory.Query)
+                    MailCategory.Cancellation)
             ]
         };
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
@@ -431,7 +434,7 @@ public sealed class CaseCustodyWebTests
         var queries = Correspondence(html);
         var visible = WebUtility.HtmlDecode(VisibleText(queries));
 
-        foreach (var heading in new[] { "Received", "Sender", "Subject", "Classification" })
+        foreach (var heading in new[] { OperatorLabels.CaseWorkspace.Received, OperatorLabels.CaseWorkspace.Sender, OperatorLabels.CaseWorkspace.Subject, OperatorLabels.CaseWorkspace.Type })
         {
             Assert.Contains(heading, visible, StringComparison.Ordinal);
         }
@@ -440,7 +443,9 @@ public sealed class CaseCustodyWebTests
         Assert.DoesNotContain("Forwarding Desk", visible, StringComparison.Ordinal);
         Assert.DoesNotContain("desk@collisionengineers.co.uk", visible, StringComparison.Ordinal);
         Assert.Contains("Repair query", visible, StringComparison.Ordinal);
-        Assert.Contains("<td>Query</td>", queries, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.Inbox.Correspondence, visible, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Queries.Open, visible, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.MailClassification(MailCategory.Cancellation), visible, StringComparison.Ordinal);
         Assert.Contains("Sender unavailable", visible, StringComparison.Ordinal);
         Assert.DoesNotContain("Sender not recorded", visible, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Inbox/{forwardedId:D}\"", queries, StringComparison.OrdinalIgnoreCase);

@@ -19,7 +19,6 @@ public sealed record CaseNextActionStep(
     AssessmentReadinessItem? Blocker = null,
     bool OpensCreateAudit = false,
     bool OpensAssignEngineer = false,
-    bool ResolvesQuery = false,
     bool ListsOpenTasks = false);
 
 /// <summary>
@@ -76,12 +75,13 @@ public static class CaseNextAction
         {
             return early;
         }
-        // An open query is the next concern of any open Case (the Query stage,
-        // operator 11 October 2026), including one With Engineer that holds the
-        // Inspection report's Sent item while its Audit is still to come.
+        // An open query is the next concern of any open Case (the Query stage),
+        // including one With Engineer that holds the Inspection report's Sent
+        // item while its Audit is still to come. The step is Answer query; the
+        // aside chooses Reply or Mark done from the oldest open query.
         if (CaseQueryRules.IsQueryStage(workflow.State, workflow.HasOpenQuery))
         {
-            return new(CaseWorkspaceLabels.Frame.ResolveQuery, "queries", ResolvesQuery: true);
+            return new(CaseWorkspaceLabels.Frame.AnswerQuery, "queries");
         }
         return ReportStep(reportBlockers, blockerSection, currentReport)
             ?? AuditStep(workflow, caseType, works)

@@ -89,6 +89,31 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.Empty(display.ReplyToAddresses);
     }
 
+    /// <summary>
+    /// The exact messages a reply answers are read from its In-Reply-To and
+    /// References headers, In-Reply-To first, in the canonical comparison form,
+    /// de-duplicated, and an identity outside the storage bound is dropped
+    /// rather than kept (D13; the retained reply-identity column). The header
+    /// values arrive without angle brackets — MimeKit strips them — and that is
+    /// the form retained.
+    /// </summary>
+    [Fact]
+    public async Task LocalEmailDisplayKeepsTheCanonicalDistinctReplyChainIdentities()
+    {
+        var oversized = $"<{new string('x', MailboxMessageIdentity.MaximumCanonicalLength)}@example.invalid>";
+        var display = await ReadDisplayAsync(message =>
+        {
+            message.Headers.Add(
+                HeaderId.References,
+                $"<first@example.invalid> <second@example.invalid> {oversized}");
+            message.Headers.Add(HeaderId.InReplyTo, "<Second@Example.Invalid>");
+        });
+
+        Assert.Equal(
+            ["SECOND@EXAMPLE.INVALID", "FIRST@EXAMPLE.INVALID"],
+            display.InReplyToIdentities ?? []);
+    }
+
     [Fact]
     public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
     {
@@ -621,63 +646,128 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
     }
 
     [Fact]
-    public async Task CategoryScopesUseTheCurrentClassificationAndNoCaseFoundIgnoresIt()
+    public async Task AllListsLinkedNewInstructionTriageAndUndecidedAndNoCaseFoundListsUnlinkedMail()
     {
         var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
-        var fixtures = new[]
-        {
-            ("receiving", MailClassificationResult.Classified(
-                MailCategory.NewInstruction, [], "fixture", "test", 1)),
-            ("queries", MailClassificationResult.Classified(
-                MailCategory.Query, [], "fixture", "test", 1)),
-            ("unclassified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
-            ("triage", MailClassificationResult.Classified(
-                MailCategory.TriageRequest, [], "fixture", "test", 1)),
-            ("general", MailClassificationResult.Classified(
-                MailCategory.General, [], "fixture", "test", 1))
-        };
-        foreach (var (key, classification) in fixtures)
-        {
-            var message = Message(key, subject: key);
-            await RetainAsync(database, message);
-            await StoreClassifiedReceiptAsync(database, message, classification);
-        }
+        var instruction = Message("all-instruction", subject: "Instruction");
+        var triage = Message("all-triage", subject: "Triage");
+        var undecided = Message("all-undecided", subject: "Undecided");
+        var correspondence = Message("ncf-correspondence", subject: "Correspondence");
+        var cancellation = Message("ncf-cancellation", subject: "Cancellation");
+        await RetainAsync(database, instruction);
+        await StoreClassifiedReceiptAsync(
+            database, instruction, MailClassificationResult.Classified(
+                MailCategory.NewInstruction, [], "fixture", "test", 1));
+        await RetainAsync(database, triage);
+        await StoreClassifiedReceiptAsync(
+            database, triage, MailClassificationResult.Classified(
+                MailCategory.TriageRequest, [], "fixture", "test", 1));
+        await RetainAsync(database, undecided);
+        await RetainAsync(database, correspondence);
+        await StoreClassifiedReceiptAsync(
+            database, correspondence, MailClassificationResult.Unclassified([], "fixture", "test", 1));
+        await RetainAsync(database, cancellation);
+        await StoreClassifiedReceiptAsync(
+            database, cancellation, MailClassificationResult.Classified(
+                MailCategory.Cancellation, [], "fixture", "test", 1));
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
-        foreach (var (key, category) in new[]
-        {
-            ("receiving", MailCategory.NewInstruction),
-            ("queries", MailCategory.Query),
-            ("triage", MailCategory.TriageRequest),
-            ("general", MailCategory.General)
-        })
-        {
-            var item = Assert.Single((await queries.ListAsync(
-                new(null, MailFolderScope.Inbox, Category: category),
-                1,
-                25,
-                CancellationToken.None)).Items);
-            Assert.Equal(key, item.Subject);
-            Assert.Equal(category, item.Classification?.Category);
-        }
+        var all = (await queries.ListAsync(
+            new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items;
+        Assert.Equal(
+            ["Instruction", "Triage", "Undecided"],
+            all.Select(item => item.Subject).Order(StringComparer.Ordinal));
 
-        // No Case Found reads the link, not the classification: none of
-        // these messages is linked to a Case, whatever its category.
         var noCaseFound = (await queries.ListAsync(
             new(null, MailFolderScope.Inbox, NoCaseFound: true),
             1,
             25,
             CancellationToken.None)).Items;
         Assert.Equal(
-            ["general", "queries", "receiving", "triage", "unclassified"],
+            ["Cancellation", "Correspondence", "Instruction", "Triage"],
             noCaseFound.Select(item => item.Subject).Order(StringComparer.Ordinal));
-        Assert.Empty((await queries.ListAsync(
-            new(null, MailFolderScope.Inbox, Category: MailCategory.Billing),
+        Assert.DoesNotContain(all, item => item.Subject is "Correspondence" or "Cancellation");
+    }
+
+    [Fact]
+    public async Task PrincipalFilterAndSummaryProjectionAreReadInOneBatch()
+    {
+        var database = await shared.FreshAsync();
+        await SeedPollStateAsync(database);
+        var qdos = Message("principal-qdos", subject: "Qdos mail");
+        var other = Message("principal-other", subject: "Other mail");
+        await RetainAsync(database, qdos);
+        await RetainAsync(database, other);
+        var qdosReceipt = await StoreClassifiedReceiptAsync(
+            database,
+            qdos,
+            MailClassificationResult.Classified(MailCategory.NewInstruction, [], "fixture", "test", 1));
+        await StoreClassifiedReceiptAsync(
+            database,
+            other,
+            MailClassificationResult.Classified(MailCategory.NewInstruction, [], "fixture", "test", 1));
+        var (caseId, _) = await SeedQueryCasesAsync(database);
+        var queryId = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receipts = await context.IntakeReceipts
+                .Where(item => item.Id == qdosReceipt.Id
+                    || item.ExternalReceiptToken == other.ExternalReceiptToken)
+                .ToListAsync();
+            foreach (var receipt in receipts)
+            {
+                var code = receipt.Id == qdosReceipt.Id ? "QDOS" : "OTHER";
+                context.Set<IntakeMailRouteDecisionEntity>().Add(new()
+                {
+                    IntakeReceiptId = receipt.Id,
+                    Disposition = "Accepted",
+                    PrincipalCode = code,
+                    PredicatesJson = "[]",
+                    Reason = "Fixture route.",
+                    PolicyKey = "fixture",
+                    PolicyVersion = 1,
+                    TransportIdentitiesJson = "[]",
+                    OriginalIdentitiesJson = "[]"
+                });
+            }
+
+            var linked = receipts.Single(item => item.Id == qdosReceipt.Id);
+            AddAssociation(context, linked, caseId, true);
+            context.Set<InstructionDraftEntity>().Add(new()
+            {
+                IntakeReceiptId = linked.Id,
+                VehicleRegistration = "AB12CDE"
+            });
+            context.CaseQueries.Add(new()
+            {
+                Id = queryId,
+                CaseId = caseId,
+                Source = "Mail",
+                IntakeReceiptId = linked.Id,
+                RaisedAtUtc = ReceivedAtUtc,
+                RaisedByKind = "SystemWorker",
+                RaisedBySubjectId = "system-worker:query-criteria",
+                RaisedOperationKey = "projection-query"
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var filtered = await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, PrincipalCode: "QDOS"),
             1,
             25,
-            CancellationToken.None)).Items);
+            CancellationToken.None);
+        var summary = Assert.Single(filtered.Items);
+        Assert.Equal("Qdos mail", summary.Subject);
+        Assert.Equal("QDOS", summary.PrincipalCode);
+        Assert.Equal("AB12CDE", summary.VehicleSummary);
+        Assert.Equal(CaseType.Inspection, summary.CaseType);
+        Assert.Equal(queryId, summary.Query?.Id);
+        Assert.True(summary.Query?.IsOpen);
     }
 
     [Fact]
@@ -776,15 +866,20 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             noCaseFound.Items.Select(item => item.Subject).Order(StringComparer.Ordinal));
         Assert.Equal(2, Assert.Single(await queries.CountManyAsync([noCaseFoundScope], CancellationToken.None)));
 
-        // The scope agrees with the Case each summary reads.
+        Assert.Null(Assert.Single(noCaseFound.Items, item => item.Subject == "Plain").CaseId);
+        Assert.Null(Assert.Single(noCaseFound.Items, item => item.Subject == "Reversed link").CaseId);
+
+        // All incoming is instructions, triage requests and linked mail, plus a
+        // receipt nothing has classified yet. Unlinked correspondence stays in
+        // No Case Found.
         var allIncoming = (await queries.ListAsync(
             new(null, MailFolderScope.Inbox),
             1,
             25,
             CancellationToken.None)).Items;
-        Assert.Equal(6, allIncoming.Count);
-        Assert.Null(Assert.Single(allIncoming, item => item.Subject == "Plain").CaseId);
-        Assert.Null(Assert.Single(allIncoming, item => item.Subject == "Reversed link").CaseId);
+        Assert.Equal(
+            ["Accepted link", "Active link", "No receipt", "Triage origin"],
+            allIncoming.Select(item => item.Subject).Order(StringComparer.Ordinal));
         Assert.Equal(caseId, Assert.Single(allIncoming, item => item.Subject == "Active link").CaseId);
         Assert.Equal(caseId, Assert.Single(allIncoming, item => item.Subject == "Accepted link").CaseId);
         Assert.NotNull(Assert.Single(allIncoming, item => item.Subject == "Triage origin").CaseId);
@@ -801,7 +896,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             ("batch-receiving", MailClassificationResult.Classified(
                 MailCategory.NewInstruction, [], "fixture", "test", 1)),
             ("batch-queries", MailClassificationResult.Classified(
-                MailCategory.Query, [], "fixture", "test", 1)),
+                MailCategory.Cancellation, [], "fixture", "test", 1)),
             ("batch-triage", MailClassificationResult.Classified(
                 MailCategory.TriageRequest, [], "fixture", "test", 1)),
             ("batch-unclassified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
@@ -823,10 +918,9 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             await context.SaveChangesAsync();
         }
 
-        // The four Mail/Index scope-rail queries (All incoming, No Case Found,
-        // Sent Items, Dismissed), then a duplicate and an empty scope to pin
-        // CountMany's positional contract. No message is linked to a Case, so
-        // every incoming one is in No Case Found.
+        // All, No Case Found, Sent and Dismissed, then a duplicate and a
+        // Principal that matches nothing, to pin CountMany's positional contract.
+        // Unlinked correspondence is not in All. Dismissed is only in Dismissed.
         IReadOnlyList<MailWorkspaceScope> scopes =
         [
             new(null, MailFolderScope.Inbox),
@@ -834,14 +928,14 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             new(null, MailFolderScope.Sent),
             new(null, MailFolderScope.Inbox, DismissedOnly: true),
             new(null, MailFolderScope.Inbox, NoCaseFound: true),
-            new(null, MailFolderScope.Inbox, Category: MailCategory.Billing)
+            new(null, MailFolderScope.Inbox, PrincipalCode: "NO-SUCH")
         ];
 
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
         var batchCounts = await queries.CountManyAsync(scopes, CancellationToken.None);
 
-        Assert.Equal([4, 4, 0, 1, 4, 0], batchCounts);
+        Assert.Equal([2, 4, 0, 1, 4, 0], batchCounts);
         Assert.Equal(batchCounts[1], batchCounts[4]);
         Assert.Equal(0, batchCounts[5]);
     }
@@ -863,33 +957,42 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         var billing = Message("billing-query", "Billing query", ReceivedAtUtc.AddMinutes(5));
         var unassociated = Message("unassociated-query", "Unassociated", ReceivedAtUtc.AddMinutes(4));
         var sharedToken = Message("shared-token-query", "Shared first", ReceivedAtUtc.AddMinutes(3));
-        // The mail not linked to the Case and the shared-token pair are
-        // cancellations, so the page frame's cancellation read below must
-        // skip the newer unlinked ones and name the shared pair's newer row.
+        // A query, a dispute, a Case update and billing are correspondence:
+        // no category, and a query criterion where that was the point. Only a
+        // genuine cancellation keeps Cancellation. The page frame's cancellation
+        // read must skip the newer unlinked cancellations and name the shared
+        // pair's newer row.
+        MailClassificationResult Correspondence(bool opensQuery = false) =>
+            MailClassificationResult.Unclassified(
+                [],
+                "Fixture classification.",
+                "query-test",
+                1,
+                opensQuery);
+        MailClassificationResult Cancellation() =>
+            MailClassificationResult.Classified(
+                MailCategory.Cancellation,
+                [],
+                "Fixture classification.",
+                "query-test",
+                1);
         var fixtures = new[]
         {
-            (instruction, MailCategory.NewInstruction),
-            (query, MailCategory.Query),
-            (dispute, MailCategory.Query),
-            (otherCase, MailCategory.Cancellation),
-            (caseUpdate, MailCategory.CaseUpdate),
-            (reversed, MailCategory.Cancellation),
-            (billing, MailCategory.Billing),
-            (unassociated, MailCategory.Cancellation),
-            (sharedToken, MailCategory.Cancellation)
+            (instruction, MailClassificationResult.Classified(
+                MailCategory.NewInstruction, [], "Fixture classification.", "query-test", 1)),
+            (query, Correspondence(opensQuery: true)),
+            (dispute, Correspondence(opensQuery: true)),
+            (otherCase, Cancellation()),
+            (caseUpdate, Correspondence()),
+            (reversed, Cancellation()),
+            (billing, Correspondence()),
+            (unassociated, Cancellation()),
+            (sharedToken, Cancellation())
         };
-        foreach (var (message, category) in fixtures)
+        foreach (var (message, classification) in fixtures)
         {
             await RetainAsync(database, message);
-            await StoreClassifiedReceiptAsync(
-                database,
-                message,
-                MailClassificationResult.Classified(
-                    category,
-                    [],
-                    "Fixture classification.",
-                    "query-test",
-                    1));
+            await StoreClassifiedReceiptAsync(database, message, classification);
         }
 
         Guid instructionId;
@@ -963,24 +1066,29 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             details.CorrespondenceEmails.Select(item => item.Subject));
         Assert.Equal(ReceivedAtUtc.AddMinutes(5), details.CorrespondenceEmails[1].ReceivedAtUtc);
         Assert.Equal("sender@example.invalid", details.CorrespondenceEmails[1].SenderAddress);
-        Assert.Equal(MailCategory.Billing, details.CorrespondenceEmails[1].Classification);
+        Assert.Null(details.CorrespondenceEmails[1].Classification);
         Assert.Equal("second@example.invalid", details.CorrespondenceEmails[3].SenderAddress);
         Assert.Equal(MailCategory.NewInstruction, details.CorrespondenceEmails[6].Classification);
         Assert.DoesNotContain(details.CorrespondenceEmails, item => item.Subject is
             "Other case" or "Reversed" or "Unassociated");
 
         // The page frame reads only the newest linked cancellation, for the
-        // Next action: by the same link rule as the list above, not the newer
-        // case update, and not the newer cancellations on another Case, on a
-        // reversed association or on no association.
+        // Next action: the shared pair's newer row, not the newer correspondence,
+        // and not the newer cancellations on another Case, on a reversed
+        // association or on no association.
         var frame = await scope.ServiceProvider
             .GetRequiredService<ICaseQueryStore>()
             .GetPageFrameAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(sharedFirstId, frame!.LinkedCancellationMessageId);
     }
 
+    /// <summary>
+    /// All incoming and No Case Found filter before the SQL count and the page.
+    /// Correcting correspondence to a New instruction brings it into All incoming;
+    /// an unlinked message that stays correspondence stays in No Case Found only.
+    /// </summary>
     [Fact]
-    public async Task CategoryViewFiltersBeforeSqlCountAndPagingAndUsesCorrections()
+    public async Task AllIncomingAndNoCaseFoundFilterBeforeCountAndPagingAndUseCorrections()
     {
         var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
@@ -990,6 +1098,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             "fixture",
             "test",
             1);
+        var correspondence = MailClassificationResult.Unclassified([], "fixture", "test", 1);
         for (var index = 0; index < 6; index++)
         {
             var message = Message(
@@ -1004,31 +1113,29 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             subject: "corrected",
             receivedAtUtc: ReceivedAtUtc.AddMinutes(10));
         await RetainAsync(database, correctedMessage);
-        var before = MailClassificationResult.Classified(
-            MailCategory.General,
-            [],
-            "fixture",
-            "test",
-            1);
-        await StoreClassifiedReceiptAsync(database, correctedMessage, before);
+        await StoreClassifiedReceiptAsync(database, correctedMessage, correspondence);
         var unrelated = Message("unrelated", subject: "unrelated");
         await RetainAsync(database, unrelated);
-        await StoreClassifiedReceiptAsync(database, unrelated, before);
+        await StoreClassifiedReceiptAsync(database, unrelated, correspondence);
 
+        var noCaseFound = new MailWorkspaceScope(null, MailFolderScope.Inbox, NoCaseFound: true);
         await using (var correctionScope = database.CreateAsyncScope())
         {
             var queries = correctionScope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
-            var messageId = (await queries.ListAsync(
+            var beforeAll = await queries.ListAsync(
                 new(null, MailFolderScope.Inbox),
                 1,
                 25,
-                CancellationToken.None)).Items.Single(item => item.Subject == "corrected").Id;
+                CancellationToken.None);
+            Assert.DoesNotContain(beforeAll.Items, item => item.Subject == "corrected");
+            var messageId = (await queries.ListAsync(noCaseFound, 1, 25, CancellationToken.None))
+                .Items.Single(item => item.Subject == "corrected").Id;
             await correctionScope.ServiceProvider
                 .GetRequiredService<IRetainedMailClassificationStore>()
                 .AppendCorrectionAsync(
                     messageId,
                     1,
-                    before,
+                    correspondence,
                     instruction,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
                     "Corrected fixture.",
@@ -1039,22 +1146,28 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         await using var scope = database.CreateAsyncScope();
         var retained = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
         var first = await retained.ListAsync(
-            new(null, MailFolderScope.Inbox, Category: MailCategory.NewInstruction),
+            new(null, MailFolderScope.Inbox),
             1,
             3,
             CancellationToken.None);
         var third = await retained.ListAsync(
-            new(null, MailFolderScope.Inbox, Category: MailCategory.NewInstruction),
+            new(null, MailFolderScope.Inbox),
             3,
             3,
             CancellationToken.None);
+        var waiting = await retained.ListAsync(noCaseFound, 1, 25, CancellationToken.None);
 
+        // Six instructions plus the corrected one. The filter runs before the count and the page.
         Assert.Equal(7, first.TotalCount);
         Assert.Equal(3, first.TotalPages);
         Assert.Equal(3, first.Items.Count);
         Assert.Contains(first.Items, item => item.Subject == "corrected");
         Assert.Single(third.Items);
         Assert.DoesNotContain(first.Items.Concat(third.Items), item => item.Subject == "unrelated");
+        // Unlinked mail of either type is in No Case Found. The correction did not link it.
+        Assert.Contains(waiting.Items, item => item.Subject == "unrelated");
+        Assert.Contains(waiting.Items, item => item.Subject == "corrected");
+        Assert.Equal(8, waiting.TotalCount);
     }
 
     [Fact]
@@ -1468,19 +1581,23 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         {
             retainedId = Assert.Single((await readScope.ServiceProvider
                 .GetRequiredService<IRetainedMailQueries>()
-                .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items).Id;
+                .ListAsync(
+                    new(null, MailFolderScope.Inbox, NoCaseFound: true),
+                    1,
+                    25,
+                    CancellationToken.None)).Items).Id;
             var service = readScope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>();
+            // An acknowledgement is correspondence: no category.
             var corrected = await service.ExecuteAsync(
                 ActionActor.Staff(Guid.Parse("11111111-1111-1111-1111-111111111111"), [StaffRole.User]),
-                new(retainedId, 1, MailCategory.General,
-                    "The retained reply is an acknowledgement."));
+                new(retainedId, 1, null, "The retained reply is an acknowledgement."));
             Assert.Equal(2, corrected!.Version);
             Assert.Equal(original.Predicates, corrected.Current.Predicates);
             Assert.Single(corrected.History);
 
             await Assert.ThrowsAsync<MailClassificationConcurrencyException>(() => service.ExecuteAsync(
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-                new(retainedId, 1, MailCategory.InternalCc, "Stale correction.")));
+                new(retainedId, 1, null, "Stale correction.")));
         }
 
         // A later processor replay must not erase an accepted human correction.
@@ -1498,7 +1615,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         var detail = Assert.IsType<RetainedMailDetail>(await finalScope.ServiceProvider
             .GetRequiredService<IRetainedMailQueries>()
             .GetAsync(retainedId, CancellationToken.None));
-        Assert.Equal(MailCategory.General, detail.Classification!.Current.Category);
+        Assert.Null(detail.Classification!.Current.Category);
         Assert.Equal(4, detail.Classification.Current.PolicyVersion);
         Assert.Single(detail.Classification.History);
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeMailClassificationHistory"));
@@ -1521,13 +1638,17 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         {
             var listed = Assert.Single((await scope.ServiceProvider
                 .GetRequiredService<IRetainedMailQueries>()
-                .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+                .ListAsync(
+                    new(null, MailFolderScope.Inbox, NoCaseFound: true),
+                    1,
+                    25,
+                    CancellationToken.None)).Items);
             // The list row carries the version a correction from the list names.
             Assert.Equal(1, listed.ClassificationVersion);
             retainedId = listed.Id;
             await scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>().ExecuteAsync(
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-                new(retainedId, 1, MailCategory.General, "An acknowledgement."));
+                new(retainedId, 1, null, "An acknowledgement."));
         }
 
         // A re-evaluation that classifies nothing, then one that classifies
@@ -1555,7 +1676,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             .GetAsync(retainedId, CancellationToken.None));
         Assert.Equal(2, detail.Classification!.Version);
         Assert.Equal(2, detail.Summary.ClassificationVersion);
-        Assert.Equal(MailCategory.General, detail.Classification.Current.Category);
+        Assert.Null(detail.Classification.Current.Category);
         Assert.Single(detail.Classification.History);
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeMailClassificationHistory"));
     }
@@ -1575,7 +1696,11 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         await using var scope = database.CreateAsyncScope();
         var retainedId = Assert.Single((await scope.ServiceProvider
             .GetRequiredService<IRetainedMailQueries>()
-            .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items).Id;
+            .ListAsync(
+                new(null, MailFolderScope.Inbox, NoCaseFound: true),
+                1,
+                25,
+                CancellationToken.None)).Items).Id;
         var correct = scope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>();
         var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -1594,7 +1719,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         // Away again: the match goes with it.
         await correct.ExecuteAsync(
             actor,
-            new(retainedId, 2, MailCategory.General, "An autoreply after all."));
+            new(retainedId, 2, null, "An autoreply after all."));
         var asAutoreply = (await receipts.GetAsync(stored.Id, CancellationToken.None))!;
         Assert.DoesNotContain(asAutoreply.Evidence, item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
         Assert.Equal(stored.Version + 2, asAutoreply.Version);
@@ -1662,7 +1787,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             Guid.Parse("11111111-1111-1111-1111-111111111111"),
             [StaffRole.User]);
         var retained = (await queries.ListAsync(
-                new(null, MailFolderScope.Inbox),
+                new(null, MailFolderScope.Inbox, NoCaseFound: true),
                 1,
                 25,
                 CancellationToken.None))
@@ -1680,7 +1805,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 new(
                     item.Id,
                     1,
-                    MailCategory.General,
+                    null,
                     "The exact retained message is an acknowledgement."));
 
             Assert.Equal(2, corrected!.Version);
@@ -1696,14 +1821,14 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 new(
                     retained[0].Id,
                     1,
-                    MailCategory.InternalCc,
+                    null,
                     "A stale correction must not affect either mailbox.")));
         Assert.Null(await command.ExecuteAsync(
             actor,
             new(
                 Guid.NewGuid(),
                 1,
-                MailCategory.InternalCc,
+                null,
                 "An unknown retained message must not create a decision.")));
         Assert.Equal(
             2L,
@@ -1850,7 +1975,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
     }
 
     [Fact]
-    public async Task ASentRowListsUnderSentOnlyAndDeletedHoldsNothing()
+    public async Task ASentRowListsUnderSentOnly()
     {
         var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
@@ -1878,10 +2003,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         var inbox = await queries.ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
         Assert.Equal("message-1", Assert.Single(inbox.Items.Select(item => item.Id).Select(id =>
             sent.Items.Any(sentItem => sentItem.Id == id) ? "sent" : "message-1")));
-
-        var deleted = await queries.ListAsync(new(null, MailFolderScope.DeletedItems), 1, 25, CancellationToken.None);
-        Assert.Empty(deleted.Items);
-        Assert.False(deleted.HasUnretainedHistory);
+        Assert.DoesNotContain(inbox.Items, item => item.Id == row.Id);
 
         var detail = await queries.GetAsync(row.Id, CancellationToken.None);
         Assert.NotNull(detail);
@@ -2011,6 +2133,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             "inbox",
             "conversation-1",
             internetMessageIdentity ?? $"<{immutableMessageId}@example.invalid>",
+            [],
             senderAddress,
             senderDisplayName,
             ["intake@collisionengineers.co.uk"],
@@ -2230,6 +2353,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 "inbox",
                 "conversation-1",
                 internetMessageIdentity,
+                [],
                 "sender@example.invalid",
                 "Sender",
                 [MailboxAddress],

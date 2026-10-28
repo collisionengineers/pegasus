@@ -86,7 +86,7 @@ public sealed class CaseCorrespondenceUploadWebTests
         Assert.Contains($"href=\"/Inbox/{messageId:D}\"", html, StringComparison.Ordinal);
 
         // Corrected to anything else, the row goes.
-        await SetClassificationAsync(factory, messageId, "case-update");
+        await SetClassificationAsync(factory, messageId, "triage-request");
         html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");
         Assert.DoesNotContain("data-cancellation-received", html, StringComparison.Ordinal);
     }

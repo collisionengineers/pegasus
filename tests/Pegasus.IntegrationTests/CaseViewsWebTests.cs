@@ -669,11 +669,11 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>
-    /// A Report sent Case with an open query resolves it next, before Create
-    /// audit (operator, 11 October 2026): a query that came by e-mail leads to
-    /// that message's reply with Also resolve query ticked, while staff mail is
-    /// available; otherwise, and for a staff-logged query, the step is the
-    /// Actions menu's own Resolve query post. The ribbon's chip reads Query.
+    /// A Report sent Case with an open query answers it next, before Create
+    /// audit (operator, 27 October 2026): a query that came by e-mail leads to
+    /// that message's reply with Mark query done ticked, while staff mail is
+    /// available; otherwise, and for a staff-logged query, the step is Mark
+    /// done. The ribbon's chip reads Query.
     /// </summary>
     [Theory]
     [InlineData(CaseQuerySource.Mail, true, CaseType.Inspection)]
@@ -690,7 +690,7 @@ public sealed class CaseViewsWebTests
             AssignedEngineerId = Guid.NewGuid(),
             ReportSentEvidence = SentEvidence(InspectionSentAtUtc),
             HasOpenQuery = true,
-            OldestOpenQuery = new(source, source == CaseQuerySource.Mail ? messageId : null)
+            OldestOpenQuery = new(Guid.NewGuid(), source, source == CaseQuerySource.Mail ? messageId : null)
         };
         using var host = new ReadingHost(store, services =>
         {
@@ -707,27 +707,26 @@ public sealed class CaseViewsWebTests
         var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
         var next = NextAction(html);
 
-        Assert.Contains("data-next-resolve-query", next, StringComparison.Ordinal);
+        Assert.Contains("data-next-answer-query", next, StringComparison.Ordinal);
         Assert.DoesNotContain("data-next-create-audit", next, StringComparison.Ordinal);
         Assert.DoesNotContain("data-next-mark-completed", next, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.QueryStage}</span>", RibbonStateChip(html), StringComparison.Ordinal);
         if (source == CaseQuerySource.Mail && staffMail)
         {
-            Assert.Contains($"<strong data-next-label>{Frame.ResolveQuery}</strong>", next, StringComparison.Ordinal);
+            Assert.Contains($"<strong data-next-label>{Frame.AnswerQuery}</strong>", next, StringComparison.Ordinal);
             var reply = Regex.Match(next, "<a[^>]*data-next-reply-query[^>]*>");
             Assert.True(reply.Success, "The Next action does not lead to the query's reply.");
             Assert.Contains($"href=\"/Inbox/{messageId:D}?", reply.Value, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("compose=reply", reply.Value, StringComparison.Ordinal);
             Assert.Contains($"correspondenceCaseReference={Reference}", reply.Value, StringComparison.Ordinal);
-            Assert.Contains("resolveQuery=true", reply.Value, StringComparison.Ordinal);
-            Assert.DoesNotContain("data-resolve-query-form", next, StringComparison.Ordinal);
+            Assert.Contains("markQueryDone=true", reply.Value, StringComparison.Ordinal);
+            Assert.DoesNotContain("handler=MarkQueryDone", next, StringComparison.OrdinalIgnoreCase);
             return;
         }
         Assert.DoesNotContain("data-next-reply-query", next, StringComparison.Ordinal);
-        Assert.Contains("data-resolve-query-form", next, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/{store.CaseId:D}/Closure?handler=ResolveQuery", next, StringComparison.OrdinalIgnoreCase);
-        Assert.Matches("<button type=\"submit\" class=\"btn next-step-go\"[^>]*data-resolve-query>", next);
-        Assert.Contains(Frame.ResolveQuery, next, StringComparison.Ordinal);
+        Assert.Contains("handler=MarkQueryDone", next, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(CaseWorkspaceLabels.Queries.MarkDone, next, StringComparison.Ordinal);
+        Assert.Contains(Frame.AnswerQuery, next, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -754,8 +753,6 @@ public sealed class CaseViewsWebTests
         var html = await host.ReadAsync($"/Cases/{store.CaseId:D}");
 
         AssertNoNextActionCard(html);
-        Assert.DoesNotContain("data-next-resolve-query", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-resolve-query", html, StringComparison.Ordinal);
         Assert.Contains($">{OperatorLabels.CaseStage(CaseLifecycleState.ReportSent)}</span>", RibbonStateChip(html), StringComparison.Ordinal);
     }
 

@@ -316,7 +316,7 @@ submission is not part of it.
   message page gives them; `triage_reply` is the Triage Case's reply to its
   origin e-mail, the chaser until the outcome is recorded and the outcome
   reply once Completed ([FRD-03](frd-03-triage.md)). `reply` and
-  `reply_all` take `resolveQuery`, the composer's Also resolve query tick
+  `reply_all` take `markQueryDone`, the composer's Mark query done tick
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)),
   and `aiJobId`, the Draft ready Query response job the reply was composed
   on: a send the provider accepts completes it, as the staff composer's Send
@@ -426,8 +426,10 @@ replays by its operation key.
   a resolution or closure with a reason.
 - The Automation Actor reads, reclassifies and links mail through the mail
   tools in scope `automation.mail` (operator ruling, 15 October 2026).
-- `pegasus_mail_correct_classification` takes a mail category or
-  Unclassified, with a reason, as the staff correction does
+- `pegasus_mail_list` folder is `inbox`, `sent` or `dismissed`.
+- `pegasus_mail_correct_classification` takes `correspondence`, one of the
+  three category codes, or `new-instruction:Inspection` (and Audit,
+  InspectionAndAudit), with a reason, as the staff Type select does
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
 - `pegasus_mail_link_destinations` lists the Cases and Triage Cases the
   staff **Case / PO** picker offers for **Link to Case**, and
@@ -436,9 +438,12 @@ replays by its operation key.
 - `pegasus_mail_action` with `dismiss` or `restore` changes the message's
   Pegasus scope only
   ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
-- `pegasus_work_centre_dismiss` dismisses a Case, Unidentified item or AI
-  job from the Work Centre for everyone, as a row's **Dismiss** does
-  ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)).
+- `pegasus_work_centre_dismiss` dismisses a record from the Work Centre for
+  everyone, as a row's **Dismiss** does. The record id is the Case, the
+  Unidentified item, the AI job, or — for a System Action — the underlying
+  receipt, image intake or query
+  ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre),
+  [ADR-0086](../adr/0086-work-centre-views-are-computed-on-read.md)).
 
 ### AI job and estimate tools
 
@@ -543,7 +548,7 @@ cross-tool rules and make none. `/mcp` is replaced, not aliased: an
 Administrator adds a connector once per server and consents to it once for
 each.
 
-The Actor's whole inventory, 67 tools, by scope; a server serves the rows
+The Actor's whole inventory, 69 tools, by scope; a server serves the rows
 of its scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
@@ -555,10 +560,11 @@ its one command when none is given.
 | `automation.cases` | `pegasus_case_get` | One Case with its paged documents (occurrence and version ids for download) and history | none |
 | `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
 | `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
-| `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, manual_chase, log_query, resolve_query | one-command lease |
+| `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, manual_chase | one-command lease |
+| `automation.cases` | `pegasus_case_query` | One query act with an `action`: open, mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to | none |
 | `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags | none |
-| `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item or AI job from the Work Centre | key only |
+| `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | key only |
 | `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` takes a lease a staff member holds | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
 | `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |
@@ -589,10 +595,11 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification to a mail category or Unclassified through the staff command | version and key |
 | `automation.mail` | `pegasus_mail_link_destinations` | The Cases and Triage Cases the message may be linked to, with their versions | none |
 | `automation.mail` | `pegasus_mail_link_case` | Link the message to a Case or Triage Case through the staff command | one-command lease |
+| `automation.mail` | `pegasus_mail_open_query` | Open a query on a linked message whose report is sent | key only |
 | `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
-| `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `resolveQuery` and `aiJobId`), `forward`, `triage_reply` | Case or Triage version and key |
+| `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone` and `aiJobId`), `forward`, `triage_reply` | Case or Triage version and key |
 
 ## States and transitions
 

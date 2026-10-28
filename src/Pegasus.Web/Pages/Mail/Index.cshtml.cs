@@ -16,18 +16,15 @@ namespace Pegasus.Web.Pages.Mail;
 /// and opening a message here does not mark it read in the mailbox. The writes
 /// on the list are Dismiss (and Restore under the Dismissed scope), from a row
 /// or for ticked rows, which moves the retained message to the Dismissed
-/// logical folder without classifying or linking it (Inbox, 13 September), and
-/// a classification correction for ticked rows (operator, 15 October 2026).
+/// logical folder without classifying or linking it (Inbox, 13 September).
 /// Each applies the single-message command to one message at a time; none
 /// changes read state or reaches Outlook.
 /// </remarks>
 public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
     GetRetainedMailFreshness getFreshness,
-    SearchDeletedMail searchDeletedMail,
     IDismissRetainedMail dismissRetainedMail,
     IRestoreRetainedMail restoreRetainedMail,
-    CorrectRetainedMailClassification correctClassification,
     IApprovedMailboxStore approvedMailboxes,
     IStaffMailSend? staffMailSend = null) : StaffPageModel
 {
@@ -61,20 +58,16 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "pageNumber")]
     public int? PageNumber { get; set; }
 
-    /// <summary>
-    /// Carried by the Deleted Items Next and Previous links only, so those two
-    /// reuse the kept search result. The search form, Refresh and a reload do not
-    /// carry it and read the source.
-    /// </summary>
-    [BindProperty(SupportsGet = true, Name = "paged")]
-    public bool Paged { get; set; }
-
     [BindProperty(SupportsGet = true, Name = "search")]
     public string? SearchTerm { get; set; }
 
-    /// <summary>The Category filter (the mail category vocabulary); the route key stays <c>queue</c>.</summary>
+    /// <summary>The No Case Found scope; the route key stays <c>queue</c>.</summary>
     [BindProperty(SupportsGet = true, Name = "queue")]
     public string? QueueFilter { get; set; }
+
+    /// <summary>The Principal filter; absent is every Principal.</summary>
+    [BindProperty(SupportsGet = true, Name = "principal")]
+    public string? PrincipalFilter { get; set; }
 
     /// <summary>The list's sort toggle: <c>oldest</c>, or absent for newest.</summary>
     [BindProperty(SupportsGet = true, Name = "sort")]
@@ -83,17 +76,6 @@ public sealed class IndexModel(
     /// <summary>The message whose row carries the selection mark; the address names it so a reload or Back lands on it.</summary>
     [BindProperty(SupportsGet = true, Name = "selected")]
     public string? SelectedMessage { get; set; }
-
-    // The ticked rows' correction: one category, case type and reason for
-    // every ticked message, under the message record's own field names.
-    [BindProperty]
-    public string? ClassificationKey { get; set; }
-
-    [BindProperty]
-    public string? WorkType { get; set; }
-
-    [BindProperty]
-    public string? CorrectionReason { get; set; }
 
     /// <summary>The key a bulk post leaves, for the list it redirects to, naming the messages it could not change.</summary>
     private const string BulkNotChangedKey = "BulkNotChanged";
@@ -107,12 +89,6 @@ public sealed class IndexModel(
 
     /// <summary>How many ticked messages the last bulk post could not change; the line above the list says so once.</summary>
     public int NotChangedCount { get; private set; }
-
-    /// <summary>The bulk correction was refused: its dialog opens again with the refusal in it.</summary>
-    public bool ClassifyRefused { get; private set; }
-
-    /// <summary>The one mail category the list narrows to, from <c>queue</c>.</summary>
-    public MailCategory? CategoryFilter { get; private set; }
 
     /// <summary>The No Case Found scope (<c>queue=no_case_found</c>): received mail with no linked Case.</summary>
     public bool NoCaseFoundFilter { get; private set; }
@@ -129,6 +105,9 @@ public sealed class IndexModel(
 
     public IReadOnlyList<RetainedMailMailbox> Mailboxes { get; private set; } = [];
 
+    /// <summary>The Principal codes the filter offers, in code order.</summary>
+    public IReadOnlyList<string> Principals { get; private set; } = [];
+
     /// <summary>
     /// The scope rail: one row per operator scope, with the count that clicking
     /// it would page through. An invalid search term withholds the counts rather
@@ -141,8 +120,6 @@ public sealed class IndexModel(
 
     public MailFreshness Freshness { get; private set; } =
         new(MailFreshnessState.Unavailable, null);
-
-    public DeletedMailSearchPage? DeletedResults { get; private set; }
 
     public string? SearchValidationMessage { get; private set; }
 
@@ -203,9 +180,8 @@ public sealed class IndexModel(
             // nothing and each reads on its own database context, so they start
             // together. Each starts inside its own async method, so a reader that
             // throws before its first await still fails through the same catches.
-            var mailboxesRead = ReadAsync(() => Folder == MailFolderScope.DeletedItems
-                ? searchDeletedMail.ListMailboxesAsync(actor, cancellationToken)
-                : listRetainedMail.ListMailboxesAsync(actor, cancellationToken));
+            var mailboxesRead = ReadAsync(() => listRetainedMail.ListMailboxesAsync(actor, cancellationToken));
+            var principalsRead = ReadAsync(() => listRetainedMail.ListPrincipalsAsync(actor, cancellationToken));
             var listRead = ReadListAsync(actor, mailbox, page, cancellationToken);
             var scopesRead = ReadAsync(() => SearchValidationMessage is null
                 ? LoadScopeCountsAsync(actor, mailbox, cancellationToken)
@@ -214,8 +190,9 @@ public sealed class IndexModel(
             var replyRead = ReadAsync(() => StaffMailAvailable
                 ? approvedMailboxes.ListAsync(cancellationToken)
                 : Task.FromResult<IReadOnlyList<ApprovedMailbox>>([]));
-            await Task.WhenAll(mailboxesRead, listRead, scopesRead, freshnessRead, replyRead);
+            await Task.WhenAll(mailboxesRead, principalsRead, listRead, scopesRead, freshnessRead, replyRead);
             Mailboxes = await mailboxesRead;
+            Principals = await principalsRead;
             Scopes = await scopesRead;
             Freshness = await freshnessRead;
             ReplyMailboxIds = (await replyRead)
@@ -244,10 +221,11 @@ public sealed class IndexModel(
     /// </summary>
     public bool OffersReply(RetainedMailSummary item) =>
         Folder != MailFolderScope.Sent
+        && !Dismissed
         && ReplyMailboxIds.Contains(item.MailboxId)
         && !string.IsNullOrWhiteSpace(item.SenderAddress);
 
-    /// <summary>The list itself, or the read-only Deleted Items search.</summary>
+    /// <summary>The list itself.</summary>
     private async Task ReadListAsync(
         ActionActor actor,
         Guid? mailbox,
@@ -259,26 +237,13 @@ public sealed class IndexModel(
             return;
         }
 
-        if (Folder == MailFolderScope.DeletedItems && SearchTerm is not null)
-        {
-            DeletedResults = await searchDeletedMail.ExecuteAsync(
-                actor,
-                mailbox,
-                SearchTerm,
-                page,
-                PageSize,
-                Paged,
-                cancellationToken);
-            return;
-        }
-
         Results = await listRetainedMail.ExecuteAsync(
             actor,
             new(
                 mailbox,
                 Folder,
                 SearchTerm,
-                CategoryFilter,
+                PrincipalFilter,
                 NoCaseFoundFilter,
                 UnreadOnly: false,
                 OldestFirst,
@@ -414,52 +379,6 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// The ticked rows' classification correction: the message record's
-    /// command once per message, each against the classification version its
-    /// row showed, with the one category, case type and reason entered for all.
-    /// </summary>
-    public async Task<IActionResult> OnPostBulkClassifyAsync(
-        Guid[]? ids,
-        Dictionary<Guid, int>? versions,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (!TryParseListContext() || !OffersBulk(dismissedScope: false))
-        {
-            return NotFound();
-        }
-        if (ids is not { Length: > 0 })
-        {
-            return RedirectToList();
-        }
-
-        MessageModel.RefuseInvalidCorrection(
-            ModelState, ClassificationKey, WorkType, CorrectionReason, out var category, out var workType);
-        if (!ModelState.IsValid)
-        {
-            // The refusal shows in the dialog it came from, over the rows that were ticked.
-            ClassifyRefused = true;
-            TickedIds = ids.ToHashSet();
-            return await LoadAsync(actor, cancellationToken);
-        }
-
-        // A message posted without its row's classification version has no
-        // decision to correct, and is named among the failures.
-        return await ApplyToEachAsync(
-            ids,
-            async id => versions is not null
-                && versions.TryGetValue(id, out var version)
-                && await correctClassification.ExecuteAsync(
-                    actor,
-                    new(id, version, category, CorrectionReason!, workType),
-                    cancellationToken) is not null,
-            confirmation: null);
-    }
-
-    /// <summary>
     /// Where the ticked-row acts are offered, as the row's own Dismiss and
     /// Restore are: the incoming scopes, or the Dismissed scope; never Sent
     /// Items or Deleted Items.
@@ -519,6 +438,7 @@ public sealed class IndexModel(
         mailbox = MailboxFilter,
         folder = FolderRouteValue,
         search = SearchTerm,
+        principal = PrincipalFilter,
         queue = QueueFilter,
         sort = OldestFirst ? "oldest" : null,
         pageNumber = PageNumber is > 1 ? PageNumber : null
@@ -528,12 +448,7 @@ public sealed class IndexModel(
     {
         if (!TryParseFolder(FolderFilter, out var folder, out var dismissed)
             || !TryParseSort(SortOrder, out var oldestFirst)
-            || !TryParseQueue(
-                QueueFilter,
-                out var normalizedQueue,
-                out var category,
-                out var noCaseFound)
-            || (folder is MailFolderScope.DeletedItems or MailFolderScope.Sent && normalizedQueue is not null))
+            || !TryParseQueue(QueueFilter, out var normalizedQueue, out var noCaseFound))
         {
             return false;
         }
@@ -542,8 +457,8 @@ public sealed class IndexModel(
         Dismissed = dismissed;
         OldestFirst = oldestFirst;
         QueueFilter = normalizedQueue;
-        CategoryFilter = category;
         NoCaseFoundFilter = noCaseFound;
+        PrincipalFilter = string.IsNullOrWhiteSpace(PrincipalFilter) ? null : PrincipalFilter.Trim();
         return true;
     }
 
@@ -556,6 +471,7 @@ public sealed class IndexModel(
             mailbox,
             definition.Folder,
             SearchTerm,
+            PrincipalFilter,
             NoCaseFound: definition.NoCaseFound,
             UnreadOnly: false,
             DismissedOnly: definition.Dismissed)).ToArray();
@@ -569,7 +485,8 @@ public sealed class IndexModel(
                 definition.Matches(Folder, QueueFilter, Dismissed),
                 counts[index],
                 mailbox,
-                SearchTerm));
+                SearchTerm,
+                PrincipalFilter));
         }
 
         return options;
@@ -621,7 +538,6 @@ public sealed class IndexModel(
     {
         MailFolderScope.Inbox => "inbox",
         MailFolderScope.Sent => "sent",
-        MailFolderScope.DeletedItems => "deleted",
         MailFolderScope.Upload => "upload",
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
     };
@@ -630,7 +546,6 @@ public sealed class IndexModel(
     {
         MailFolderScope.Inbox => "Inbox",
         MailFolderScope.Sent => "Sent",
-        MailFolderScope.DeletedItems => "Deleted items",
         MailFolderScope.Upload => "Uploaded",
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
     };
@@ -652,13 +567,12 @@ public sealed class IndexModel(
         ["mailbox"] = MailboxFilter,
         ["folder"] = FolderRouteValue,
         ["search"] = SearchTerm,
+        ["principal"] = PrincipalFilter,
         ["queue"] = QueueFilter,
         ["sort"] = OldestFirst ? "oldest" : null,
         ["selected"] = SelectedMessageId?.ToString("D"),
         ["pageNumber"] = Results.Page > 1
             ? Results.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
-            : DeletedResults?.Page > 1
-                ? DeletedResults.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
             : null
     };
 
@@ -673,7 +587,8 @@ public sealed class IndexModel(
         bool Pressed,
         int Count,
         Guid? MailboxId,
-        string? SearchTerm)
+        string? SearchTerm,
+        string? PrincipalCode)
     {
         /// <summary>The hidden inputs the scope's GET form submits.</summary>
         public IReadOnlyDictionary<string, string> HiddenFields
@@ -692,6 +607,10 @@ public sealed class IndexModel(
                 if (SearchTerm is { } searchTerm)
                 {
                     fields["search"] = searchTerm;
+                }
+                if (PrincipalCode is { } principal)
+                {
+                    fields["principal"] = principal;
                 }
                 if (Definition.NoCaseFound)
                 {
@@ -722,18 +641,15 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// The scope rail, in the planned order (Inbox, 13 September; v41 I1): no
-    /// Unread scope — read state is not a queue; unread rows are bold — then the
-    /// Dismissed scope and Deleted Items. The Folder select is gone: every folder
-    /// is a scope. The No Case Found scope keeps the <c>queue</c> key it always had.
+    /// The Inbox scopes (operator, 27 October 2026): All, No Case Found and
+    /// Dismissed, drawn as the shared tabs. Sent Items and Deleted Items are
+    /// not Inbox scopes. The No Case Found scope keeps the <c>queue</c> key.
     /// </summary>
     public static readonly IReadOnlyList<MailScopeDefinition> ScopeDefinitions =
     [
-        new("All incoming", "inbox", MailFolderScope.Inbox),
+        new(OperatorLabels.Inbox.All, "inbox", MailFolderScope.Inbox),
         new(OperatorLabels.Inbox.NoCaseFound, "search", MailFolderScope.Inbox, NoCaseFound: true),
-        new("Sent Items", "send", MailFolderScope.Sent),
-        new(OperatorLabels.Inbox.DismissedScope, "x", MailFolderScope.Inbox, Dismissed: true),
-        new(OperatorLabels.Inbox.DeletedItemsScope, "trash-2", MailFolderScope.DeletedItems)
+        new(OperatorLabels.Inbox.DismissedScope, "x", MailFolderScope.Inbox, Dismissed: true)
     ];
 
     /// <summary>The <c>queue</c> value of the No Case Found scope.</summary>
@@ -742,29 +658,15 @@ public sealed class IndexModel(
     public sealed record MailViewOption(string Value, string Label);
 
     /// <summary>
-    /// The Category select: one flat list of the eleven mail categories, in
-    /// order. Each value is the category's code. No Case Found is a scope, not a
-    /// category, though <c>queue=no_case_found</c> still addresses it.
-    /// </summary>
-    public static IReadOnlyList<MailViewOption> CategoryViews { get; } =
-    [
-        .. MailCategories.All.Select(category => new MailViewOption(
-            MailCategories.Code(category),
-            OperatorLabels.MailClassification(category)))
-    ];
-
-    /// <summary>
-    /// A <c>queue</c> value: a mail category code or <c>no_case_found</c>;
-    /// anything else is not an address.
+    /// A <c>queue</c> value: absent, or <c>no_case_found</c>. A category is not
+    /// an Inbox filter.
     /// </summary>
     internal static bool TryParseQueue(
         string? value,
         out string? normalized,
-        out MailCategory? category,
         out bool noCaseFound)
     {
         normalized = null;
-        category = null;
         noCaseFound = false;
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -772,19 +674,13 @@ public sealed class IndexModel(
         }
 
         var candidate = value.Trim();
-        if (string.Equals(candidate, NoCaseFoundQueueKey, StringComparison.Ordinal))
-        {
-            normalized = NoCaseFoundQueueKey;
-            noCaseFound = true;
-            return true;
-        }
-        if (!MailCategories.TryParse(candidate, out var parsed))
+        if (!string.Equals(candidate, NoCaseFoundQueueKey, StringComparison.Ordinal))
         {
             return false;
         }
 
-        normalized = candidate;
-        category = parsed;
+        normalized = NoCaseFoundQueueKey;
+        noCaseFound = true;
         return true;
     }
 
@@ -807,9 +703,8 @@ public sealed class IndexModel(
         TryParseFolder(value, out folder, out _);
 
     /// <summary>
-    /// The list folder address: Inbox (absent or <c>inbox</c>), <c>sent</c>,
-    /// <c>deleted</c>, or <c>dismissed</c> — the Dismissed scope, which reads the
-    /// retained Inbox mail that has been dismissed.
+    /// The list folder address: Inbox (absent or <c>inbox</c>), or
+    /// <c>dismissed</c>. Sent and Deleted Items are not Inbox addresses.
     /// </summary>
     internal static bool TryParseFolder(string? value, out MailFolderScope folder, out bool dismissed)
     {
@@ -822,12 +717,6 @@ public sealed class IndexModel(
                 return true;
             case DismissedFolderCode:
                 dismissed = true;
-                return true;
-            case "sent":
-                folder = MailFolderScope.Sent;
-                return true;
-            case "deleted":
-                folder = MailFolderScope.DeletedItems;
                 return true;
             default:
                 return false;

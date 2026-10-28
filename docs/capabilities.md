@@ -13,7 +13,7 @@ exclusion.
 | --- | --- | --- |
 | OPS-10 | Production environment deployed directly from an authorised terminal | [ADR-0014](adr/0014-local-to-production-deployment.md) |
 | MAIL-21 | Shared Core classification: versioned rules, evidence, Unclassified abstention | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
-| MAIL-22 | One flat list of eleven received-mail categories | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
+| MAIL-22 | Three received-mail categories, or none (Case correspondence) | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | MAIL-26 | Mail classifier agent: an Automation MCP client under `automation.mail` that classifies and links only mail that is Unclassified or has no Case and was decided by the pipeline, and leaves a decision by staff, an Automation caller or a Principal alone | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | ACC-01 | Staff sign-in with Pegasus-managed usernames and passwords | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-02 | Administrator, Engineer and User roles held as data | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
@@ -75,7 +75,7 @@ exclusion.
 | CASE-13 | Instruction and image completeness as separate named blockers | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
 | CASE-14 | Mandatory instruction-completeness and image-completeness gate before Engineers-queue eligibility | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
 | CASE-15 | Not ready becomes Review automatically when requirements are met | [Readiness and Review](frd/frd-13-case-lifecycle-and-workflow.md#readiness-and-review) |
-| CASE-16 | `Not ready`, `Review`, `With Engineer`, `Report sent` and `Held` workflow, with `Query` as the open-query mark | [States and labels](frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels) |
+| CASE-16 | `Not ready`, `Review`, `With Engineer`, `Report sent` and `Held` workflow, with `Query` as the open-query mark; each query is assignable and marked done on its own | [States and labels](frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels) |
 | CASE-17 | Due-by date extraction and overdue display | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-18 | Configurable whole-calendar-day missing-information chase schedule | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
@@ -92,8 +92,8 @@ exclusion.
 | CASE-34 | Inspect at fast-update choices and Case storage location | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | UI-02 | Case queues for Not ready, Review, and Held | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-03 | Unidentified records, including closed and could-not-be-read items | [Pre-Case records](frd/frd-15-work-centre-queues-and-search.md#pre-case-records) |
-| UI-04 | Activity: New cases, Sent to Engineer, Reports sent and E-mails received, each today and this week | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
-| UI-05 | Click-through filtered work queues | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
+| UI-04 | Activity: New cases, Sent to Engineer, Reports sent and E-mails received, Today large and This week beneath, beside the Office queues | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
+| UI-05 | Work Centre views computed on read: New cases, System Actions, AI Actions and Needs attention | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | [Dashboard freshness and reconciliation](frd/frd-15-work-centre-queues-and-search.md#dashboard-freshness-and-reconciliation) |
 | UI-07 | Search and filter across Cases and pre-Case records | [Search](frd/frd-15-work-centre-queues-and-search.md#search) |
 | UI-08 | Upload confirmation surface | [Upload confirmation surface](frd/frd-18-manual-upload.md#upload-confirmation-surface) |

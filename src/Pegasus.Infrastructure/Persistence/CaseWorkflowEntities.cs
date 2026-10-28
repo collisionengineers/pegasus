@@ -66,6 +66,9 @@ internal sealed class CaseQueryEntity
     public string? ClosedByKind { get; set; }
     public string? ClosedBySubjectId { get; set; }
     public Guid? ResolvedByMailOperationId { get; set; }
+    // Unassigned until taken or assigned. Only CaseQueryLedger writes these.
+    public Guid? AssigneeStaffId { get; set; }
+    public DateTimeOffset? AssignedAtUtc { get; set; }
 }
 
 internal sealed class CaseWorkflowEventEntity

@@ -223,38 +223,28 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
-    public async Task ListAcceptsEitherOneCategoryOrTheNoCaseFoundScope()
+    public async Task ListAcceptsAllAndNoCaseFoundAndAPrincipalFilter()
     {
         var queries = new Queries();
         var list = new ListRetainedMail(queries);
 
         await list.ExecuteAsync(
             Caseworker(),
-            new(null, MailFolderScope.Inbox, Category: MailCategory.General),
+            new(null, MailFolderScope.Inbox),
             1,
             25,
             CancellationToken.None);
         await list.ExecuteAsync(
             Caseworker(),
-            new(null, MailFolderScope.Inbox, NoCaseFound: true),
+            new(null, MailFolderScope.Inbox, NoCaseFound: true, PrincipalCode: " QDOS "),
             1,
             25,
             CancellationToken.None);
 
         Assert.Equal(2, queries.Scopes.Count);
-        await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
-            Caseworker(),
-            new(null, MailFolderScope.Inbox, Category: MailCategory.Query, NoCaseFound: true),
-            1,
-            25,
-            CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
-            Caseworker(),
-            new(null, MailFolderScope.Inbox, Category: (MailCategory)99),
-            1,
-            25,
-            CancellationToken.None));
-        Assert.Equal(2, queries.Scopes.Count);
+        Assert.Null(queries.Scopes[0].Scope.PrincipalCode);
+        Assert.True(queries.Scopes[1].Scope.NoCaseFound);
+        Assert.Equal("QDOS", queries.Scopes[1].Scope.PrincipalCode);
     }
 
     [Theory]
@@ -275,149 +265,6 @@ public sealed class RetainedMailTests
         Assert.Empty(queries.Scopes);
     }
 
-    [Fact]
-    public async Task DeletedSearchIsAuthorizedBoundedAndPagedAfterNewestFirstOrdering()
-    {
-        var source = new DeletedSource(new(
-            [
-                Deleted("old", NowUtc.AddMinutes(-2)),
-                Deleted("new", NowUtc),
-                Deleted("middle", NowUtc.AddMinutes(-1))
-            ],
-            true));
-
-        var page = await new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System)).ExecuteAsync(
-            Caseworker(),
-            Guid.Parse("11111111-1111-1111-1111-111111111111"),
-            " estimate ",
-            2,
-            2,
-            cancellationToken: CancellationToken.None);
-
-        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), source.MailboxId);
-        Assert.Equal("estimate", source.SearchTerm);
-        Assert.Equal(SearchDeletedMail.MaximumMessages, source.MaximumMessages);
-        Assert.Equal(["old"], page.Items.Select(item => item.ImmutableMessageId));
-        Assert.Equal(3, page.TotalCount);
-        Assert.True(page.IsTruncated);
-    }
-
-    [Fact]
-    public async Task DeletedSearchRequiresCaseworkAuthorizationBeforeCallingItsSource()
-    {
-        var source = new DeletedSource(new([], false));
-
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System)).ExecuteAsync(
-                ActionActor.Principal(Guid.NewGuid()),
-                null,
-                "estimate",
-                1,
-                25));
-
-        Assert.Null(source.SearchTerm);
-    }
-
-    [Fact]
-    public async Task DeletedSearchKeepsAnAvailableResultFiveMinutesPerStaffMailboxAndTerm()
-    {
-        var clock = new SteppedTimeProvider(NowUtc);
-        var source = new DeletedSource(new(
-            [Deleted("a", NowUtc), Deleted("b", NowUtc.AddMinutes(-1)), Deleted("c", NowUtc.AddMinutes(-2))],
-            true));
-        var search = new SearchDeletedMail(source, new DeletedMailSearchKeep(clock));
-        var staff = Caseworker();
-
-        var first = await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2);
-        var next = await search.ExecuteAsync(staff, MailboxA, " estimate ", 2, 2, paging: true);
-        var previous = await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2, paging: true);
-
-        Assert.Equal(1, source.SearchCount);
-        Assert.Equal(["a", "b"], first.Items.Select(item => item.ImmutableMessageId));
-        Assert.Equal(["c"], next.Items.Select(item => item.ImmutableMessageId));
-        Assert.Equal(first.Items, previous.Items);
-        Assert.True(next.IsTruncated);
-        Assert.Equal(3, next.TotalCount);
-
-        await search.ExecuteAsync(staff, MailboxA, "other", 1, 2, paging: true);
-        await search.ExecuteAsync(staff, MailboxB, "estimate", 1, 2, paging: true);
-        await search.ExecuteAsync(Caseworker(), MailboxA, "estimate", 1, 2, paging: true);
-        Assert.Equal(4, source.SearchCount);
-
-        clock.Advance(TimeSpan.FromMinutes(5) - TimeSpan.FromSeconds(1));
-        await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2, paging: true);
-        Assert.Equal(4, source.SearchCount);
-
-        clock.Advance(TimeSpan.FromSeconds(1));
-        await search.ExecuteAsync(staff, MailboxA, "estimate", 1, 2, paging: true);
-        Assert.Equal(5, source.SearchCount);
-    }
-
-    [Fact]
-    public async Task DeletedSearchThatIsNotPagingReadsTheSourceAgain()
-    {
-        var source = new DeletedSource(new([Deleted("a", NowUtc)], false));
-        var search = new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System));
-        var staff = Caseworker();
-
-        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
-        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
-        Assert.Equal(2, source.SearchCount);
-
-        await search.ExecuteAsync(staff, null, "estimate", 2, 25, paging: true);
-        Assert.Equal(2, source.SearchCount);
-        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
-        Assert.Equal(3, source.SearchCount);
-    }
-
-    [Fact]
-    public async Task DeletedSearchNeverKeepsAnUnavailableResult()
-    {
-        var source = new DeletedSource(new([], false, DeletedMailSearchState.Unavailable));
-        var search = new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System));
-        var staff = Caseworker();
-
-        var first = await search.ExecuteAsync(staff, null, "estimate", 1, 25);
-        await search.ExecuteAsync(staff, null, "estimate", 1, 25, paging: true);
-
-        Assert.Equal(DeletedMailSearchState.Unavailable, first.State);
-        Assert.Equal(2, source.SearchCount);
-    }
-
-    [Fact]
-    public async Task DeletedSearchAuthorizesBeforeReadingTheKeep()
-    {
-        var source = new DeletedSource(new([Deleted("a", NowUtc)], false));
-        var search = new SearchDeletedMail(source, new DeletedMailSearchKeep(TimeProvider.System));
-        var staff = Caseworker();
-        await search.ExecuteAsync(staff, null, "estimate", 1, 25);
-
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            search.ExecuteAsync(ActionActor.Principal(Guid.NewGuid()), null, "estimate", 1, 25, paging: true));
-        Assert.Equal(1, source.SearchCount);
-    }
-
-    private sealed class SteppedTimeProvider(DateTimeOffset now) : TimeProvider
-    {
-        private DateTimeOffset current = now;
-
-        internal void Advance(TimeSpan by) => current += by;
-
-        public override DateTimeOffset GetUtcNow() => current;
-    }
-
-    private static DeletedMailSearchItem Deleted(string id, DateTimeOffset receivedAtUtc) => new(
-        MailboxA,
-        "instructions@collisionengineers.co.uk",
-        id,
-        null,
-        null,
-        null,
-        null,
-        receivedAtUtc,
-        false,
-        [],
-        [new(MailSearchMatchKind.MessageBody)]);
 
     [Fact]
     public async Task GetRequiresCaseworkAuthorizationAndAnIdentifier()
@@ -468,7 +315,7 @@ public sealed class RetainedMailTests
     [Fact]
     public async Task PreviewPassesTheListRowThroughUntouchedAndReadsNothingElse()
     {
-        var detail = ClassifiedDetail("mailbox-a", MailCategory.General);
+        var detail = ClassifiedDetail("mailbox-a", MailCategory.Cancellation);
         var queries = new Queries { DetailToReturn = detail };
 
         var preview = await new GetRetainedMailPreview(queries).ExecuteAsync(
@@ -486,7 +333,7 @@ public sealed class RetainedMailTests
     [Fact]
     public async Task PreviewWithoutARowAsksTheStoreToReadTheSummaryItself()
     {
-        var detail = ClassifiedDetail("mailbox-a", MailCategory.General);
+        var detail = ClassifiedDetail("mailbox-a", MailCategory.Cancellation);
         var queries = new Queries { DetailToReturn = detail };
 
         await new GetRetainedMailPreview(queries).ExecuteAsync(Caseworker(), detail.Summary.Id);
@@ -653,7 +500,7 @@ public sealed class RetainedMailTests
 
         var result = await sut.ExecuteAsync(
             ActionActor.Staff(staffId, [StaffRole.User]),
-            new(Guid.NewGuid(), 1, MailCategory.General,
+            new(Guid.NewGuid(), 1, MailCategory.Cancellation,
                 "Confirmed from the retained message."));
 
         Assert.Equal(2, result!.Version);
@@ -676,7 +523,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<MailClassificationConcurrencyException>(() => sut.ExecuteAsync(
             Caseworker(),
-            new(Guid.NewGuid(), 1, MailCategory.InternalCc, "Reviewed.")));
+            new(Guid.NewGuid(), 1, MailCategory.Cancellation, "Reviewed.")));
 
         Assert.Equal(0, store.AppendCount);
     }
@@ -692,7 +539,7 @@ public sealed class RetainedMailTests
         await Assert.ThrowsAsync<ArgumentException>(() =>
             new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc)).ExecuteAsync(
                 Caseworker(),
-                new(Guid.NewGuid(), 1, MailCategory.InternalCc, reason)));
+                new(Guid.NewGuid(), 1, MailCategory.Cancellation, reason)));
 
         Assert.Equal(0, store.AppendCount);
     }
@@ -739,7 +586,7 @@ public sealed class RetainedMailTests
         await Assert.ThrowsAsync<ArgumentException>(() =>
             new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc)).ExecuteAsync(
                 Caseworker(),
-                new(Guid.NewGuid(), 1, MailCategory.General,
+                new(Guid.NewGuid(), 1, MailCategory.Cancellation,
                     "Reviewed.", CaseType.Inspection)));
 
         Assert.Equal(0, store.AppendCount);
@@ -749,7 +596,7 @@ public sealed class RetainedMailTests
     public async Task CorrectionToUnclassifiedRecordsAnUnclassifiedResultAndCarriesNoCaseType()
     {
         var original = MailClassificationResult.Classified(
-            MailCategory.General,
+            MailCategory.Cancellation,
             [new("subject.automatic-reply", true, "The subject carries the generated prefix.")],
             "Read.",
             "policy",
@@ -775,34 +622,16 @@ public sealed class RetainedMailTests
         Assert.Equal(1, store.AppendCount);
     }
 
-    [Theory]
-    [InlineData(true, 1)]
-    [InlineData(false, 0)]
-    public async Task ACorrectionThatRaisesAQueryTellsTheCaseEngineer(bool queryRaised, int arrivals)
-    {
-        var caseId = Guid.NewGuid();
-        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
-        var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []))
-        {
-            LinkedCaseId = caseId,
-            QueryRaised = queryRaised
-        };
-        var notifier = new RecordingCaseNotifier();
-
-        await new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc), notifier).ExecuteAsync(
-            Caseworker(),
-            new(Guid.NewGuid(), 1, MailCategory.Query, "A query."));
-
-        Assert.Equal(arrivals, notifier.Raised.Count);
-        Assert.All(notifier.Raised, raised => Assert.Equal((StaffNotificationCause.QueryReceived, caseId), raised));
-    }
-
+    /// <summary>
+    /// A correction never opens or withdraws a query (operator, 27 October
+    /// 2026): only the Case's Engineer is told, and only when the message
+    /// becomes a cancellation it was not before.
+    /// </summary>
     [Fact]
     public async Task ACorrectionToACancellationOnALinkedCaseTellsTheCaseEngineerOnce()
     {
         var caseId = Guid.NewGuid();
-        var original = MailClassificationResult.Classified(
-            MailCategory.CaseUpdate, [], "Read.", "policy", 1);
+        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
         var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []))
         {
             LinkedCaseId = caseId
@@ -1006,35 +835,14 @@ public sealed class RetainedMailTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
 
+        public Task<IReadOnlyList<string>> ListPrincipalsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
+
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MailPollHealth>>([]);
     }
 
-    private sealed class DeletedSource(DeletedMailSourceResult result) : IDeletedMailSearchSource
-    {
-        internal Guid? MailboxId { get; private set; }
-        internal string? SearchTerm { get; private set; }
-        internal int MaximumMessages { get; private set; }
-        internal int SearchCount { get; private set; }
-
-        public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
-
-        public Task<DeletedMailSourceResult> SearchAsync(
-            Guid? mailboxId,
-            string searchTerm,
-            int maximumMessages,
-            CancellationToken cancellationToken)
-        {
-            MailboxId = mailboxId;
-            SearchTerm = searchTerm;
-            MaximumMessages = maximumMessages;
-            SearchCount++;
-            return Task.FromResult(result);
-        }
-    }
 
     private sealed class ClassificationStore(MailClassificationDossier dossier)
         : IRetainedMailClassificationStore
@@ -1042,8 +850,6 @@ public sealed class RetainedMailTests
         internal int AppendCount { get; private set; }
 
         internal Guid? LinkedCaseId { get; init; }
-
-        internal bool QueryRaised { get; init; }
 
         public Task<MailClassificationDossier?> GetClassificationAsync(
             Guid messageId,
@@ -1068,9 +874,7 @@ public sealed class RetainedMailTests
                     packed,
                     correctedAtUtc,
                     [.. dossier.History, new(expectedVersion + 1, before, after, packed, reason, correctedAtUtc)]),
-                LinkedCaseId,
-                QueryRaised,
-                false));
+                LinkedCaseId));
         }
     }
 

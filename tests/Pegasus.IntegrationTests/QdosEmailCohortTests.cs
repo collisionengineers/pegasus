@@ -38,7 +38,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
     ];
 
     private static readonly MailCategory[] PreInstructionCategories =
-        [MailCategory.TriageRequest, MailCategory.PreInstruction, MailCategory.ImagesReceived];
+        [MailCategory.TriageRequest, MailCategory.Cancellation, MailCategory.Cancellation];
 
     private static string? Code(MailClassificationResult result) =>
         result.Category is { } category ? MailCategories.Code(category) : null;

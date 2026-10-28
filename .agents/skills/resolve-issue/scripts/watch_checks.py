@@ -92,8 +92,9 @@ def main() -> int:
             print(f"  {first.get('link', '')}")
             if jid:
                 print(f"  log: gh api repos/{{owner}}/{{repo}}/actions/jobs/{jid}/logs")
-            for c in failed[1:]:
-                print(f"  also failed: {c['name']}")
+            for c in failed:
+                if c is not first:
+                    print(f"  also failed: {c['name']}")
             return 1
         if not pending and checks:
             print("All checks finished and passed.")

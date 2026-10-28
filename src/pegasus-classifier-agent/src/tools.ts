@@ -9,7 +9,7 @@ import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { hasChangedSince, isStillWritable, stateOf, type MessageState } from "./eligibility.js";
 import type { LinkDestination, MailDetail, PegasusMail } from "./pegasus.js";
-import { MailCategoryCodes, WorkTypes } from "./prompt.js";
+import { CorrespondenceCode, MailCategoryCodes, WorkTypes } from "./prompt.js";
 
 export interface Candidate {
   detail: MailDetail;
@@ -21,7 +21,7 @@ export interface Logger {
 }
 
 export const ServerName = "classifier";
-export const ToolNames = ["list_eligible_emails", "classify_email", "link_case"] as const;
+export const ToolNames = ["list_eligible_emails", "classify_email", "link_case", "open_query"] as const;
 
 const BodyLimit = 6000;
 const ReasonPrefix = "Classifier agent: ";
@@ -133,7 +133,7 @@ export function createClassifierServer(options: {
     "Gives one listed e-mail its mail category, with a one-sentence reason naming the evidence. new-instruction also needs workType.",
     {
       messageId: z.guid().describe("messageId from list_eligible_emails"),
-      category: z.enum(MailCategoryCodes),
+      category: z.enum([CorrespondenceCode, ...MailCategoryCodes]),
       workType: z.enum(WorkTypes).optional().describe("Only with new-instruction"),
       reason: z.string().min(1).max(450),
     },
@@ -240,7 +240,31 @@ export function createClassifierServer(options: {
   return createSdkMcpServer({
     name: ServerName,
     version: "1.0.0",
-    tools: [listEligible, classify, link],
+    tools: [listEligible, classify, link, tool(
+      "open_query",
+      "Opens a query on a listed e-mail that is linked to a Case whose report is sent, when the fresh text is a question about or challenge to that report.",
+      { messageId: z.guid().describe("messageId from list_eligible_emails") },
+      async (args) => {
+        try {
+          const read = await reread(args.messageId);
+          if (typeof read === "string") {
+            return text(read, true);
+          }
+          log("open query", { messageId: args.messageId, dryRun });
+          if (dryRun) {
+            return text("Dry run: would open a query.");
+          }
+          const opened = await pegasus.openQuery({
+            messageId: args.messageId,
+            operationKey: operationKey("qry", args.messageId, read.expected.classificationVersion),
+          });
+          return text(`Opened query ${opened.queryId}.`);
+        } catch (error) {
+          failed.set(args.messageId, (error as Error).message);
+          log("open query failed", { messageId: args.messageId, error: (error as Error).message });
+          return text(`Pegasus refused the query: ${(error as Error).message}`, true);
+        }
+      })],
     alwaysLoad: true,
   });
 }

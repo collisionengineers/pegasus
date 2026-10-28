@@ -21,6 +21,7 @@ public static class DocumentReadTelemetry
         "web.workcentre.main",
         "web.workcentre.attention",
         "web.workcentre.newcases",
+        "web.workcentre.systemactions",
         "web.workcentre.aijobs",
         "web.workcentre.activity",
         "web.workcentre.refresh.resource",

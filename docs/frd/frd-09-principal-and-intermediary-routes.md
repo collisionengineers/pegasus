@@ -263,6 +263,14 @@ key. Reads and Case-index writes share one normalisation.
    stamped, does nothing when any active association exists, and staff can
    reverse it through the ordinary unlink with full history.
 
+Automatic association after the match is a separate, wider policy
+(`mail_case_association` v2). It reads the message's exact conversation
+thread, its `In-Reply-To` and `References` headers, a bounded claim-reference
+token in its subject or current body, and its registration narrowed by
+incident date; the shared eliminator above still outranks all of them. The
+"never from free text" restriction above belongs to the instruction match
+keys (`principal_case_match`), not to this association read.
+
 The Core policies are versioned in code. The derived match index is kept in
 the same transaction by every existing Case-data writer through one shared
 projector. There is no new rule engine, rule table, admin editor or parallel
@@ -285,6 +293,12 @@ sentence mentioning either is not the tell. Two tells feed one Triage
 candidate. A second candidate for one category would make the message
 Unclassified with the candidates named, so a message carrying both would
 classify worse than one carrying either.
+
+Garage allocation, repairs authorised, report chase and automatic replies are
+plain correspondence. They are not categories. The pre-accident-value dispute
+sentence is a query criterion: it sets `OpensQuery` and is not a category
+(`principal_mail_classification` v4;
+[QDOS profile](../principal-profiles/qdos.md)).
 
 The classification decision is itself the Triage-match evidence, stamped with
 that policy's key and version. There is no separate Triage matcher.
