@@ -90,32 +90,55 @@ remove superseded code within the affected scope.
 
 ## Simplicity
 
-The [simplicity rails](../AGENTS.md#project-principles) in `AGENTS.md` are the
-rules; these are the mechanics.
+The [project principles](../AGENTS.md#project-principles) in `AGENTS.md` are
+the rules; these are the mechanics.
 
-### The four lenses
+### Subtract before you add
 
-Run each over the branch's own diff before the PR opens; each answers one
-question and returns `file:line`, the concrete cost, and the concrete
-alternative:
+Before a PR adds a mechanism, it names the existing owner of the same job and
+either reuses it or removes it in the same PR. The owners that already exist:
+`IMemoryCache` through `EvictableCacheEntry` for in-process caching; the Case
+edit lease and the record edit scope for edit authority; `OperatorLabels` and
+`CaseWorkspaceLabels` for operator-facing text; the FRD clause for a
+behaviour rule; [rulings](rulings.md) for a decision. A second implementation
+of any of these is a defect to consolidate within the PR's scope, not a third
+copy to wait for.
 
-| Lens | Question | Typical find |
-| --- | --- | --- |
-| Reuse | Does the codebase already have this? | a second inner-exception unwrapper; a hand-rolled page header beside `_PageHeader`; a third copy of a test fake |
-| Simplification | What does the diff add that nothing reads, or could be plainer? | enum values with no reader; a forwarder whose only reason left; a `?? default` hiding which path names a value; nested ternaries |
-| Efficiency | What work is repeated or blocking? | two round-trips one correlated subquery would do; sequential independent I/O; a fixed 2 s reload against a 60 s dispatcher; blocking work on startup or a hot path; a long-lived closure capturing a large scope (prefer a class or record copying only the fields it needs) |
-| Altitude | Is this a special case bolted onto a shared mechanism? | a result record carrying an `Exception` to a composition root; Core matching BCL exception types instead of adapters naming faults |
+### Page budgets
 
-Findings are recorded in the ticket plan with a disposition each — applied,
-skipped (see below), or deferred to a named ticket. Nothing evaporates.
+Server time at p95 over a week of real use, read from the request timing
+filter's rows in Application Insights with one query a week and recorded in
+the current-estate part of [operations](operations.md):
 
-### Skip rules
+| Page | Budget |
+| --- | --- |
+| Work Centre, Inbox list, Cases list, Case page open | 500 ms |
+| Save, handler fetches, dialog loads, refresh | 300 ms |
+| Everything else (administration, reports, logs) | 1 second |
+| Report PDF render, exports | 3 seconds, behind a busy state |
 
-A finding is skipped, and the skip recorded, when its fix would (a) change
-intended behaviour, (b) require changes well outside the reviewed diff, or
-(c) is a false positive on inspection. "Skipped — behaviour change, see
-INTK-00x" beats silence. The pass hunts quality, not bugs; a suspected bug goes
-to review.
+A page within budget gets no efficiency work. A change is built only when it
+brings a page under its budget or saves at least 100 ms at p95 on one, and
+its PR records the before and after figures. A reviewer flags a regression
+only when it adds 50 ms or more to a hot page's p95. A new query-count test
+asserts an upper bound or a no-growth pair (six rows cost the same statements
+as three), never an exact total; an exact total breaks every other PR that
+touches the page.
+
+### Ports
+
+A Core use case is a class registered by its own type. It gets an interface
+only when a test fakes it or a second implementation exists. External
+boundaries (SQL stores, Box, Graph, the valuation providers, the queue) keep
+their ports, and so do the use cases the integration tests fake today.
+
+### Decisions
+
+A ruling is appended to [rulings](rulings.md) as one row and cited by id from
+the FRD clause, code comment or test it governs. An ADR records only a choice
+that is expensive to reverse: hosting, schema policy, an authentication
+boundary, an external contract. An ADR reversed within two weeks is a signal
+that the decision was not ripe; try the change first.
 
 ### Balance
 
@@ -124,14 +147,6 @@ ternaries and clever one-liners; keep abstractions that improve organisation;
 do not combine unrelated concerns into one function or component; do not
 remove a name, a type, or a step a reader relies on. Comments that narrate
 what the code visibly does are removed; comments that carry a reason stay.
-Only refinements that change how a reader understands the code are called out
-in the report; the rest is just the diff.
-
-### Scope and timing
-
-The pass runs over the code the branch changed and its immediate
-surroundings, proactively — right after the code is written and before the PR
-opens — not over the whole repository and not as a later review stage.
 
 ### Fault handling shape
 
@@ -174,11 +189,13 @@ and immutable, and no corpus file is committed, renamed or modified.
 
 ### Plan sizing
 
-A plan states its diff estimate first. Six real steps beat thirteen procedural
-ones; a step that only re-runs what CI runs, or re-checks what `git diff`
-shows, is deleted. Research separates verified facts (read-only checks, with
-the command) from assumptions; an assumption a five-minute query would settle
-is run, not defended.
+A plan is one page, written against the head it is built on, at the moment it
+is built; a plan older than a week is re-derived from the issue and the code,
+not re-verified. It states its diff estimate first. Six real steps beat
+thirteen procedural ones; a step that only re-runs what CI runs, or re-checks
+what `git diff` shows, is deleted. Research separates verified facts
+(read-only checks, with the command) from assumptions; an assumption a
+five-minute query would settle is run, not defended.
 
 ## Destructive operations
 

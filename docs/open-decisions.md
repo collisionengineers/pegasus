@@ -8,3 +8,18 @@ and its linked PR/CI records own delivery work.
 Add a question here only when it is genuinely unresolved, with its owner,
 affected contract and the decision needed; remove it once its outcome has a
 durable owner.
+
+## Cutover date and the definition of v1
+
+- **Owner**: the operator.
+- **Affected contract**: [ADR-0030](adr/0030-non-additive-schema-changes-before-cutover.md)
+  (non-additive schema changes are permitted only before cutover),
+  [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md) (the
+  destructive-migration shutdown sequence), the disposable-test-data basis of
+  the intake wipe, and the proof round and UAT pack that close release
+  readiness.
+- **Decision needed**: the date, or the condition, at which production stops
+  being a test estate and carries real Cases, and what the application must
+  do by then to be v1. Until it is made, production data is disposable and
+  releases verify changes; after it, ADR-0002's expand-and-contract rule and
+  ADR-0046's full containment apply without exemption.
