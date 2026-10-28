@@ -2,3 +2,7 @@
 # these one-shot arrays would obscure immutable migration history without saving work.
 [*.cs]
 dotnet_diagnostic.CA1861.severity = none
+
+# The generated Baseline passes an empty descending array to CreateIndex for
+# an index declared IsDescending(); hoisting it would edit generated history.
+dotnet_diagnostic.CA1825.severity = none

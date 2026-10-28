@@ -47,14 +47,14 @@ internal sealed class DatabaseLessCaseReads :
     IReadImageTagVocabulary,
     IImageIntakeQueries
 {
-    /// <summary>The built-in cards <c>20261013090000_LabourRateBuiltInCards</c> seeds.</summary>
+    /// <summary>The built-in cards the schema seeds.</summary>
     private static readonly IReadOnlyList<LabourRateCard> LabourRateCards =
     [
         new(new Guid("5b0f3c1e-8f4a-4d2b-9a57-1c3e2f6a7b01"), LabourRateCardAdministration.Standard, 83.28m, 1),
         new(new Guid("5b0f3c1e-8f4a-4d2b-9a57-1c3e2f6a7b02"), LabourRateCardAdministration.PrestigeAluminium, 103.06m, 1),
     ];
 
-    /// <summary>The presets <c>20260906054658_V1PlatformFoundation</c> seeds, in the store's label order.</summary>
+    /// <summary>The presets the schema seeds, in the store's label order.</summary>
     private static readonly IReadOnlyList<ValuationPreset> ValuationPresets =
     [
         SeededPreset("00000000-0000-4000-8000-00000000f004", "Camper conversion", 0.00m),
@@ -65,9 +65,8 @@ internal sealed class DatabaseLessCaseReads :
     ];
 
     /// <summary>
-    /// The built-in tags <c>20260910120000_CaseImageTags</c> seeds, in the
-    /// reader's name order (<c>20261007140000_MarketResearchDocumentRole</c>
-    /// removed the fifth).
+    /// The built-in tags the schema seeds, in the reader's name order (a
+    /// fifth was removed on 7 October 2026).
     /// </summary>
     private static readonly IReadOnlyList<ImageTag> ImageTags =
     [
@@ -78,10 +77,9 @@ internal sealed class DatabaseLessCaseReads :
     ];
 
     /// <summary>
-    /// The claim sources <c>20261012190000_PrincipalReportSendingRules</c>
-    /// (slots 01 to 05), <c>20261013091000_ContactSopSeed</c> (06 to 0a) and
-    /// <c>20261017120000_ReportSendingSopV8</c> (0b) seed, in the store's name
-    /// order. No migration seeds a repairer.
+    /// The claim sources the schema seeds (slots 01 to 0b, from the SOP seeds
+    /// of 12, 13 and 17 October 2026), in the store's name order. No seed is a
+    /// repairer.
     /// </summary>
     private static readonly IReadOnlyList<ContactChoice> ClaimSources =
     [
