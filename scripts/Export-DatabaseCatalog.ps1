@@ -71,8 +71,8 @@ Write-Lines 'permissions.csv' (@('Role,State,Permission,Table') + $permissionRow
 Write-Lines 'tables.txt' (Invoke-CatalogQuery "SELECT CONCAT(SCHEMA_NAME(schema_id), N'.', name) FROM sys.tables WHERE is_ms_shipped = 0")
 Write-Lines 'columns.txt' (Invoke-CatalogQuery @"
 SELECT CONCAT(
-    t.name, N'|', c.name, N'|', ty.name, N'|', c.max_length, N'|', c.precision, N'|', c.scale, N'|', c.is_nullable,
-    N'|', ISNULL(c.collation_name, N''), N'|', ISNULL(cc.definition, N''), N'|', ISNULL(cc.is_persisted, 0),
+    t.name COLLATE DATABASE_DEFAULT, N'|', c.name COLLATE DATABASE_DEFAULT, N'|', ty.name COLLATE DATABASE_DEFAULT, N'|', c.max_length, N'|', c.precision, N'|', c.scale, N'|', c.is_nullable,
+    N'|', ISNULL(c.collation_name, N'') COLLATE DATABASE_DEFAULT, N'|', ISNULL(cc.definition, N'') COLLATE DATABASE_DEFAULT, N'|', ISNULL(cc.is_persisted, 0),
     N'|', c.is_identity, N'|', c.is_rowguidcol)
 FROM sys.columns AS c
 JOIN sys.tables AS t ON t.object_id = c.object_id AND t.is_ms_shipped = 0
@@ -80,61 +80,61 @@ JOIN sys.types AS ty ON ty.user_type_id = c.user_type_id
 LEFT JOIN sys.computed_columns AS cc ON cc.object_id = c.object_id AND cc.column_id = c.column_id
 "@)
 Write-Lines 'column-order.txt' (Invoke-CatalogQuery @"
-SELECT CONCAT(t.name, N'|', RIGHT(CONCAT(N'000', c.column_id), 3), N'|', c.name)
+SELECT CONCAT(t.name COLLATE DATABASE_DEFAULT, N'|', RIGHT(CONCAT(N'000', c.column_id), 3), N'|', c.name COLLATE DATABASE_DEFAULT)
 FROM sys.columns AS c JOIN sys.tables AS t ON t.object_id = c.object_id AND t.is_ms_shipped = 0
 "@)
 Write-Lines 'defaults.txt' (Invoke-CatalogQuery @"
-SELECT CONCAT(t.name, N'|', c.name, N'|', d.definition)
+SELECT CONCAT(t.name COLLATE DATABASE_DEFAULT, N'|', c.name COLLATE DATABASE_DEFAULT, N'|', d.definition COLLATE DATABASE_DEFAULT)
 FROM sys.default_constraints AS d
 JOIN sys.columns AS c ON c.object_id = d.parent_object_id AND c.column_id = d.parent_column_id
 JOIN sys.tables AS t ON t.object_id = d.parent_object_id
 "@)
 Write-Lines 'indexes.txt' (Invoke-CatalogQuery @"
 SELECT CONCAT(
-    t.name, N'|', i.name, N'|', i.type_desc, N'|', i.is_unique, N'|', i.is_unique_constraint, N'|', i.is_primary_key,
-    N'|', ISNULL(i.filter_definition, N''),
-    N'|', STUFF((SELECT CONCAT(N',', c.name, CASE WHEN ic.is_descending_key = 1 THEN N' DESC' ELSE N'' END)
+    t.name COLLATE DATABASE_DEFAULT, N'|', i.name COLLATE DATABASE_DEFAULT, N'|', i.type_desc COLLATE DATABASE_DEFAULT, N'|', i.is_unique, N'|', i.is_unique_constraint, N'|', i.is_primary_key,
+    N'|', ISNULL(i.filter_definition, N'') COLLATE DATABASE_DEFAULT,
+    N'|', STUFF((SELECT CONCAT(N',', c.name COLLATE DATABASE_DEFAULT, CASE WHEN ic.is_descending_key = 1 THEN N' DESC' ELSE N'' END)
                  FROM sys.index_columns AS ic JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
                  WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 0
-                 ORDER BY ic.key_ordinal FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N''),
-    N'|', ISNULL(STUFF((SELECT CONCAT(N',', c.name)
+                 ORDER BY ic.key_ordinal FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N'') COLLATE DATABASE_DEFAULT,
+    N'|', ISNULL(STUFF((SELECT CONCAT(N',', c.name COLLATE DATABASE_DEFAULT)
                  FROM sys.index_columns AS ic JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
                  WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 1
-                 ORDER BY c.name FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N''), N''))
+                 ORDER BY c.name FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N''), N'') COLLATE DATABASE_DEFAULT)
 FROM sys.indexes AS i
 JOIN sys.tables AS t ON t.object_id = i.object_id AND t.is_ms_shipped = 0
 WHERE i.type > 0
 "@)
 Write-Lines 'foreign-keys.txt' (Invoke-CatalogQuery @"
 SELECT CONCAT(
-    fk.name, N'|', pt.name, N'|',
-    STUFF((SELECT CONCAT(N',', pc.name) FROM sys.foreign_key_columns AS fkc JOIN sys.columns AS pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
-           WHERE fkc.constraint_object_id = fk.object_id ORDER BY fkc.constraint_column_id FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N''),
-    N'|', rt.name, N'|',
-    STUFF((SELECT CONCAT(N',', rc.name) FROM sys.foreign_key_columns AS fkc JOIN sys.columns AS rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
-           WHERE fkc.constraint_object_id = fk.object_id ORDER BY fkc.constraint_column_id FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N''),
-    N'|', fk.delete_referential_action_desc, N'|', fk.update_referential_action_desc, N'|', fk.is_not_trusted, N'|', fk.is_disabled)
+    fk.name COLLATE DATABASE_DEFAULT, N'|', pt.name COLLATE DATABASE_DEFAULT, N'|',
+    STUFF((SELECT CONCAT(N',', pc.name COLLATE DATABASE_DEFAULT) FROM sys.foreign_key_columns AS fkc JOIN sys.columns AS pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
+           WHERE fkc.constraint_object_id = fk.object_id ORDER BY fkc.constraint_column_id FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N'') COLLATE DATABASE_DEFAULT,
+    N'|', rt.name COLLATE DATABASE_DEFAULT, N'|',
+    STUFF((SELECT CONCAT(N',', rc.name COLLATE DATABASE_DEFAULT) FROM sys.foreign_key_columns AS fkc JOIN sys.columns AS rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+           WHERE fkc.constraint_object_id = fk.object_id ORDER BY fkc.constraint_column_id FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N'') COLLATE DATABASE_DEFAULT,
+    N'|', fk.delete_referential_action_desc COLLATE DATABASE_DEFAULT, N'|', fk.update_referential_action_desc COLLATE DATABASE_DEFAULT, N'|', fk.is_not_trusted, N'|', fk.is_disabled)
 FROM sys.foreign_keys AS fk
 JOIN sys.tables AS pt ON pt.object_id = fk.parent_object_id
 JOIN sys.tables AS rt ON rt.object_id = fk.referenced_object_id
 "@)
 Write-Lines 'check-constraints.txt' (Invoke-CatalogQuery @"
-SELECT CONCAT(t.name, N'|', ck.name, N'|', ck.definition, N'|', ck.is_not_trusted, N'|', ck.is_disabled)
+SELECT CONCAT(t.name COLLATE DATABASE_DEFAULT, N'|', ck.name COLLATE DATABASE_DEFAULT, N'|', ck.definition COLLATE DATABASE_DEFAULT, N'|', ck.is_not_trusted, N'|', ck.is_disabled)
 FROM sys.check_constraints AS ck JOIN sys.tables AS t ON t.object_id = ck.parent_object_id
 "@)
 Write-Lines 'identity.txt' (Invoke-CatalogQuery @"
-SELECT CONCAT(t.name, N'|', ic.name, N'|', CONVERT(nvarchar(40), ic.seed_value), N'|', CONVERT(nvarchar(40), ic.increment_value), N'|', ISNULL(CONVERT(nvarchar(40), ic.last_value), N''))
+SELECT CONCAT(t.name COLLATE DATABASE_DEFAULT, N'|', ic.name COLLATE DATABASE_DEFAULT, N'|', CONVERT(nvarchar(40), ic.seed_value), N'|', CONVERT(nvarchar(40), ic.increment_value), N'|', ISNULL(CONVERT(nvarchar(40), ic.last_value), N''))
 FROM sys.identity_columns AS ic JOIN sys.tables AS t ON t.object_id = ic.object_id AND t.is_ms_shipped = 0
 "@)
 Write-Lines 'objects.txt' (Invoke-CatalogQuery @"
-SELECT CONCAT(type_desc, N'|', SCHEMA_NAME(schema_id), N'.', name)
+SELECT CONCAT(type_desc COLLATE DATABASE_DEFAULT, N'|', SCHEMA_NAME(schema_id) COLLATE DATABASE_DEFAULT, N'.', name COLLATE DATABASE_DEFAULT)
 FROM sys.objects
 WHERE is_ms_shipped = 0 AND type NOT IN ('U', 'PK', 'F', 'D', 'C', 'UQ', 'IT')
 "@)
 Write-Lines 'roles.txt' (Invoke-CatalogQuery @"
-SELECT CONCAT(r.name, N'|', ISNULL(o.name, N''), N'|',
-    ISNULL(STUFF((SELECT CONCAT(N',', m.name) FROM sys.database_role_members AS rm JOIN sys.database_principals AS m ON m.principal_id = rm.member_principal_id
-                  WHERE rm.role_principal_id = r.principal_id ORDER BY m.name FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N''), N''))
+SELECT CONCAT(r.name COLLATE DATABASE_DEFAULT, N'|', ISNULL(o.name, N'') COLLATE DATABASE_DEFAULT, N'|',
+    ISNULL(STUFF((SELECT CONCAT(N',', m.name COLLATE DATABASE_DEFAULT) FROM sys.database_role_members AS rm JOIN sys.database_principals AS m ON m.principal_id = rm.member_principal_id
+                  WHERE rm.role_principal_id = r.principal_id ORDER BY m.name FOR XML PATH(N''), TYPE).value(N'.', N'nvarchar(max)'), 1, 1, N''), N'') COLLATE DATABASE_DEFAULT)
 FROM sys.database_principals AS r
 LEFT JOIN sys.database_principals AS o ON o.principal_id = r.owning_principal_id
 WHERE r.type = 'R' AND r.is_fixed_role = 0 AND r.name <> N'public'
@@ -142,7 +142,7 @@ WHERE r.type = 'R' AND r.is_fixed_role = 0 AND r.name <> N'public'
 
 # 3. The rows of every table that holds any, so seeded reference data compares.
 $countedTables = Invoke-CatalogQuery @"
-SELECT CONCAT(t.name, N'|', SUM(p.rows))
+SELECT CONCAT(t.name COLLATE DATABASE_DEFAULT, N'|', SUM(p.rows))
 FROM sys.tables AS t JOIN sys.partitions AS p ON p.object_id = t.object_id AND p.index_id IN (0, 1)
 WHERE t.is_ms_shipped = 0
 GROUP BY t.name
@@ -153,7 +153,7 @@ foreach ($entry in $countedTables) {
     $table = $entry.Split('|')[0]
     if ($table -eq '__EFMigrationsHistory') { continue }
     $columns = Invoke-CatalogQuery "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[$table]')"
-    $projection = ($columns | ForEach-Object { "ISNULL(CONVERT(nvarchar(max), [$_], 1), N'<null>')" }) -join ", N'|', "
+    $projection = ($columns | ForEach-Object { "ISNULL(CONVERT(nvarchar(max), [$_], 1), N'<null>') COLLATE DATABASE_DEFAULT" }) -join ", N'|', "
     Write-Lines "data/$table.txt" (Invoke-CatalogQuery "SELECT CONCAT($projection) FROM [dbo].[$table]")
 }
 Write-Host "Catalog written to $OutputDirectory"
