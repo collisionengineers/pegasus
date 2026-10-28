@@ -259,9 +259,9 @@ complete membership, and fail-closed source-identity rules apply to both.
   Case, or Triage route takes precedence. A PDF with a readable text layer
   is filed as a file on the Case (correspondence or evidence) and never
   itself becomes an Image Intake or Unidentified item, whatever its issuer;
-  a document is a file, and the vehicle images in it are still photographs,
-  read on a manual upload (R472, R473) and, once R474 is built, on mail
-  (issue 1716). An e-mail carrying
+  its images are extracted and added as Case images, the bar charts and the
+  other known graphics filtered out, and are read on a manual upload (R472,
+  R473, R477) and, once R474 is built, on mail (issue 1716). An e-mail carrying
   a PDF is a document carrier: its loose photograph attachments open no
   Image Intake or Unidentified item and are filed with it once the Case is
   matched; with no Case the e-mail waits in No Case Found (operator,
