@@ -1,8 +1,13 @@
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'ConnectionString')]
 param(
     # A SQL Server connection string the current Windows identity can open,
     # such as the LocalDB one the CI job uses.
-    [Parameter(Mandatory)][string] $ConnectionString,
+    [Parameter(Mandatory, ParameterSetName = 'ConnectionString')][string] $ConnectionString,
+    # Or an Azure SQL database read with an access token, as the release
+    # bootstrap connects (az account get-access-token --resource https://database.windows.net/).
+    [Parameter(Mandatory, ParameterSetName = 'AccessToken')][string] $ServerInstance,
+    [Parameter(Mandatory, ParameterSetName = 'AccessToken')][string] $Database,
+    [Parameter(Mandatory, ParameterSetName = 'AccessToken')][string] $AccessToken,
     [Parameter(Mandatory)][string] $OutputDirectory
 )
 
@@ -17,9 +22,14 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+$usesAccessToken = $PSCmdlet.ParameterSetName -eq 'AccessToken'
 
 function Invoke-CatalogQuery([string] $Query) {
-    if (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue) {
+    if ($usesAccessToken) {
+        $rows = @(Invoke-Sqlcmd -ServerInstance $ServerInstance -Database $Database -AccessToken $AccessToken -Query $Query -AbortOnError -OutputAs DataRows -ErrorAction Stop |
+            ForEach-Object { [string]$_[0] })
+    }
+    elseif (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue) {
         $rows = @(Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $Query -AbortOnError -OutputAs DataRows -ErrorAction Stop |
             ForEach-Object { [string]$_[0] })
     }
@@ -33,10 +43,12 @@ function Invoke-CatalogQuery([string] $Query) {
     $sorted = [Collections.Generic.List[string]]::new()
     foreach ($row in $rows) { $sorted.Add(([string]$row).TrimEnd()) }
     $sorted.Sort([StringComparer]::Ordinal)
-    return @($sorted)
+    # The comma keeps an empty result an array: a bare empty array returns as nothing.
+    return , $sorted.ToArray()
 }
 
-function Write-Lines([string] $Name, [string[]] $Lines) {
+function Write-Lines([string] $Name, [AllowEmptyCollection()][AllowNull()][string[]] $Lines) {
+    $Lines = @($Lines | Where-Object { $null -ne $_ })
     $path = Join-Path $OutputDirectory $Name
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
     [IO.File]::WriteAllText($path, (($Lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))

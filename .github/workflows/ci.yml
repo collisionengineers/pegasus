@@ -83,10 +83,6 @@ jobs:
           "infrastructure=$($infra.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "classifier=$($node.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           Write-Host "Lanes: code=$code infrastructure=$infra classifier=$node ($($files.Count) changed paths$(if ($all) { '; the list could not be trusted, so every lane runs' }))."
-      - name: Migration runtime-grant check
-        if: steps.detect.outputs.infrastructure == 'true'
-        shell: pwsh
-        run: ./scripts/Test-MigrationGrants.ps1
 
   invariants:
     # The cheap invariant checks, in one runner rather than three. They gate

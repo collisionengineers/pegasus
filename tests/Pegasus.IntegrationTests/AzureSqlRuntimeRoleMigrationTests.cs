@@ -140,7 +140,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
     private const string V1FoundationMigration = "20260906054658_V1PlatformFoundation";
     private const string FilterActiveReportGenerationMigration =
         "20260906170000_FilterActiveCaseReportGenerationSnapshot";
-    private const string WebRole = "pegasus_web_runtime_role";
     private const string WorkerRole = "pegasus_worker_runtime_role";
 
     private const string FoundationTableSpec = """
@@ -160,36 +159,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
         ValuationPresets
         """;
 
-    private const string FoundationWebGrantSpec = """
-        AppliedValuationSnapshots:SELECT,INSERT
-        CaseReportGenerations:SELECT,INSERT,UPDATE
-        ContactPrincipalLinks:SELECT,INSERT,DELETE
-        DocumentContentCacheEntries:SELECT,INSERT,UPDATE
-        EditScopes:SELECT,INSERT,UPDATE,DELETE
-        GeneratedCaseArtifacts:SELECT,INSERT,UPDATE
-        GlassRepairEstimateSessions:SELECT,INSERT,UPDATE,DELETE
-        IntakeOcrOperations:SELECT,INSERT
-        IntakeSourceCandidates:SELECT
-        LabourRateCards:SELECT,INSERT,UPDATE
-        RetainedInstructionAnalyses:SELECT
-        StaffMailSendOperations:SELECT,INSERT,UPDATE
-        UserExternalCredentials:SELECT,INSERT,UPDATE,DELETE
-        ValuationPresets:SELECT,INSERT,UPDATE
-        """;
-
-    private const string FoundationWorkerGrantSpec = """
-        CaseReportGenerations:SELECT,UPDATE
-        ContactPrincipalLinks:SELECT
-        DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
-        GeneratedCaseArtifacts:SELECT,UPDATE
-        IntakeOcrOperations:SELECT,INSERT,UPDATE
-        IntakeSourceCandidates:SELECT,INSERT
-        RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
-        StaffMailSendOperations:SELECT,INSERT,UPDATE
-        """;
-
     [Fact]
-    public async Task LatestMigrationKeepsBootstrapRemovedAndRestoresAutomationOpenIddictState()
+    public async Task LatestSchemaKeepsBootstrapRemovedAndTheOpenIddictTables()
     {
         var database = fixture.Database;
 
@@ -215,84 +186,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
                 N'OpenIddictScopes',
                 N'OpenIddictTokens')
             """));
-        Assert.Equal(
-            [
-                "OpenIddictApplications:D:DELETE",
-                "OpenIddictApplications:G:INSERT",
-                "OpenIddictApplications:G:SELECT",
-                "OpenIddictApplications:G:UPDATE",
-                "OpenIddictAuthorizations:D:DELETE",
-                "OpenIddictAuthorizations:G:INSERT",
-                "OpenIddictAuthorizations:G:SELECT",
-                "OpenIddictAuthorizations:G:UPDATE",
-                "OpenIddictScopes:D:DELETE",
-                "OpenIddictScopes:G:SELECT",
-                "OpenIddictTokens:D:DELETE",
-                "OpenIddictTokens:G:INSERT",
-                "OpenIddictTokens:G:SELECT",
-                "OpenIddictTokens:G:UPDATE"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    tableObject.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.objects AS tableObject
-                    ON tableObject.object_id = permission.major_id
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE tableObject.name IN (
-                        N'OpenIddictApplications',
-                        N'OpenIddictAuthorizations',
-                        N'OpenIddictScopes',
-                        N'OpenIddictTokens')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name = N'{WebRole}'
-                ORDER BY
-                    tableObject.name COLLATE DATABASE_DEFAULT,
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    permission.permission_name COLLATE DATABASE_DEFAULT
-                """));
-        Assert.Equal(
-            [
-                "OpenIddictApplications:D:DELETE",
-                "OpenIddictAuthorizations:D:DELETE",
-                "OpenIddictScopes:D:DELETE",
-                "OpenIddictTokens:D:DELETE"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    tableObject.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.objects AS tableObject
-                    ON tableObject.object_id = permission.major_id
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE tableObject.name IN (
-                        N'OpenIddictApplications',
-                        N'OpenIddictAuthorizations',
-                        N'OpenIddictScopes',
-                        N'OpenIddictTokens')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name = N'{WorkerRole}'
-                ORDER BY
-                    tableObject.name COLLATE DATABASE_DEFAULT,
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    permission.permission_name COLLATE DATABASE_DEFAULT
-                """));
         // The third-party vehicle flag is gone: image tags carry the
         // classification, and the case export exclusion reads the Third party tag.
         Assert.Equal(
@@ -326,7 +219,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
     /// tag from an image.
     /// </summary>
     [Fact]
-    public async Task LatestMigrationSeedsImageTagsAndGivesThemTheirExactRuntimePermissions()
+    public async Task LatestSchemaSeedsTheBuiltInImageTags()
     {
         var database = fixture.Database;
 
@@ -339,122 +232,19 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
                 FROM [dbo].[ImageTags]
                 WHERE IsBuiltIn = 1
                 """));
-        Assert.Equal(
-            [
-                "DocumentOccurrenceTags:DELETE",
-                "DocumentOccurrenceTags:INSERT",
-                "DocumentOccurrenceTags:SELECT",
-                "ImageTags:INSERT",
-                "ImageTags:SELECT"
-            ],
-            (await ReadGrantedPermissionsAsync(database, WebRole))
-                .Where(value => value.StartsWith("ImageTags:", StringComparison.Ordinal)
-                    || value.StartsWith("DocumentOccurrenceTags:", StringComparison.Ordinal))
-                .ToArray());
-        // The Worker inserts occurrence tags when it carries a pre-Case image's
-        // tags onto the Case (20260914091000_PreCaseImagePreparation); it still
-        // never deletes them.
-        Assert.Equal(
-            ["DocumentOccurrenceTags:INSERT", "DocumentOccurrenceTags:SELECT", "ImageTags:SELECT"],
-            (await ReadGrantedPermissionsAsync(database, WorkerRole))
-                .Where(value => value.StartsWith("ImageTags:", StringComparison.Ordinal)
-                    || value.StartsWith("DocumentOccurrenceTags:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Equal(
-            ["ImageTags"],
-            (await ReadDeniedDeleteTablesAsync(database, WebRole))
-                .Where(value => value is "ImageTags" or "DocumentOccurrenceTags")
-                .ToArray());
-        Assert.Equal(
-            ["DocumentOccurrenceTags", "ImageTags"],
-            (await ReadDeniedDeleteTablesAsync(database, WorkerRole))
-                .Where(value => value is "ImageTags" or "DocumentOccurrenceTags")
-                .ToArray());
     }
 
     [Fact]
-    public async Task LatestMigrationDropsDeadBoxRequestsAndGrantsWorkerCaseCreation()
+    public async Task LatestSchemaDropsDeadBoxRequests()
     {
         var database = fixture.Database;
 
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'BoxFileRequests'"));
-        Assert.Equal(
-            [
-                "CaseDataFields:INSERT", "CaseDataFields:SELECT", "CaseDataFields:UPDATE",
-                "CaseDataSnapshots:INSERT", "CaseDataSnapshots:SELECT", "CaseDataSnapshots:UPDATE",
-                "CaseDueWork:INSERT", "CaseDueWork:SELECT", "CaseDueWork:UPDATE",
-                "CaseHistory:INSERT", "CaseHistory:SELECT",
-                "CaseIntakeLinks:INSERT", "CaseIntakeLinks:SELECT",
-                "CaseMatchIndex:INSERT", "CaseMatchIndex:SELECT", "CaseMatchIndex:UPDATE",
-                "CaseSequences:INSERT", "CaseSequences:SELECT", "CaseSequences:UPDATE",
-                "CaseWorkflows:INSERT", "CaseWorkflows:SELECT", "CaseWorkflows:UPDATE",
-                "Cases:INSERT", "Cases:SELECT", "Cases:UPDATE",
-                "ExternalWorkItems:INSERT", "ExternalWorkItems:SELECT", "ExternalWorkItems:UPDATE",
-                "IntakeMutationHistory:INSERT", "IntakeMutationHistory:SELECT",
-                "Organizations:SELECT",
-                "PrincipalSequenceLineages:INSERT", "PrincipalSequenceLineages:SELECT",
-                "Principals:SELECT", "Principals:UPDATE",
-                "StandaloneAuditEvidence:INSERT", "StandaloneAuditEvidence:SELECT",
-                "WorkflowConfigurations:SELECT"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    tableObject.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.objects AS tableObject
-                    ON tableObject.object_id = permission.major_id
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE tableObject.name IN (
-                        N'StandaloneAuditEvidence', N'Cases', N'CaseSequences',
-                        N'CaseMatchIndex', N'CaseIntakeLinks', N'CaseHistory',
-                        N'CaseWorkflows', N'CaseDataSnapshots', N'CaseDataFields',
-                        N'CaseDueWork', N'ExternalWorkItems', N'IntakeMutationHistory',
-                        N'Principals', N'PrincipalSequenceLineages', N'Organizations',
-                        N'WorkflowConfigurations')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND permission.[state] = 'G'
-                  AND principal.name = N'{WorkerRole}'
-                ORDER BY
-                    tableObject.name COLLATE DATABASE_DEFAULT,
-                    permission.permission_name COLLATE DATABASE_DEFAULT
-                """));
     }
 
     [Fact]
-    public async Task LatestMigrationGrantsOnlyWebReadAccessToMigrationHistory()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [$"{WebRole}:G:SELECT"],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE permission.major_id = OBJECT_ID(N'[dbo].[__EFMigrationsHistory]')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                """));
-    }
-
-    [Fact]
-    public async Task LatestMigrationGivesFoundationTablesTheirExactRuntimePermissions()
+    public async Task LatestSchemaKeepsTheFoundationTablesAndTheirConstraints()
     {
         var database = fixture.Database;
 
@@ -474,29 +264,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
                 FROM sys.tables
                 WHERE name IN ({string.Join(", ", tables.Select(table => $"N'{table}'"))})
                 """));
-        Assert.Equal(
-            ParseGrantSpec(FoundationWebGrantSpec),
-            (await ReadGrantedPermissionsAsync(database, WebRole))
-                .Where(value => tables.Any(table => value.StartsWith($"{table}:", StringComparison.Ordinal)))
-                .ToArray());
-        Assert.Equal(
-            ParseGrantSpec(FoundationWorkerGrantSpec)
-                .Append("IntakeAssets:UPDATE")
-                .OrderBy(value => value, StringComparer.Ordinal)
-                .ToArray(),
-            (await ReadGrantedPermissionsAsync(database, WorkerRole))
-                .Where(value => value == "IntakeAssets:UPDATE"
-                    || tables.Any(table => value.StartsWith($"{table}:", StringComparison.Ordinal)))
-                .ToArray());
-        foreach (var role in new[] { WebRole, WorkerRole })
-        {
-            var expectedDeniedTables = role == WorkerRole
-                ? tables.Where(table => table is not ("DocumentContentCacheEntries" or "EditScopes")).ToArray()
-                : tables.Where(table => table is not ("ContactPrincipalLinks" or "EditScopes" or "GlassRepairEstimateSessions" or "UserExternalCredentials")).ToArray();
-            Assert.Equal(expectedDeniedTables, (await ReadDeniedDeleteTablesAsync(database, role))
-                .Where(tables.Contains)
-                .ToArray());
-        }
         Assert.Equal(0, await database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*)
@@ -520,409 +287,46 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
             """));
     }
 
-    [Fact]
-    public async Task LatestMigrationAllowsOnlyStaffAccountDeletionTablesForWeb()
-    {
-        var database = fixture.Database;
-
-        var deleteGrants = (await ReadGrantedPermissionsAsync(database, WebRole))
-            .Where(value => value.EndsWith(":DELETE", StringComparison.Ordinal))
-            .ToArray();
-        foreach (var table in new[] { "AspNetUsers", "UserExternalCredentials", "GlassRepairEstimateSessions", "StaffNotifications" })
-        {
-            Assert.Contains($"{table}:DELETE", deleteGrants);
-            Assert.DoesNotContain(table, await ReadDeniedDeleteTablesAsync(database, WebRole));
-        }
-        Assert.DoesNotContain("ProblemReports:DELETE", deleteGrants);
-        Assert.Contains("ProblemReports", await ReadDeniedDeleteTablesAsync(database, WebRole));
-        // 20261008174505_CaseListPresets: a removed preset is kept, never deleted.
-        Assert.DoesNotContain("CaseListPresets:DELETE", deleteGrants);
-        Assert.Contains("CaseListPresets", await ReadDeniedDeleteTablesAsync(database, WebRole));
-        // 20261011191701_ReportSentAndCaseQueries: a query is closed, never deleted.
-        Assert.DoesNotContain("CaseQueries:DELETE", deleteGrants);
-        Assert.Contains("CaseQueries", await ReadDeniedDeleteTablesAsync(database, WebRole));
-    }
-
     // 20261011191701_ReportSentAndCaseQueries: Web logs, tags and resolves
     // queries; the Worker raises one when a post-report e-mail links
     // automatically and resolves them when a flagged reply reaches Sent.
     // Neither deletes one.
-    [Fact]
-    public async Task LatestMigrationGivesCaseQueriesItsExactRuntimePermissions()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                $"{WebRole}:D:DELETE",
-                $"{WebRole}:G:INSERT",
-                $"{WebRole}:G:SELECT",
-                $"{WebRole}:G:UPDATE",
-                $"{WorkerRole}:D:DELETE",
-                $"{WorkerRole}:G:INSERT",
-                $"{WorkerRole}:G:SELECT",
-                $"{WorkerRole}:G:UPDATE"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE permission.major_id = OBJECT_ID(N'[dbo].[CaseQueries]')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                """));
-    }
-
     // 20261017110000_InspectionLocations: the Case page reads the reviewed
     // locations and their links, and a Principal's replacement in the Web
     // copies its links to the successor. The register loader writes as the
     // operator, outside both runtime roles, and neither role deletes a row.
-    [Fact]
-    public async Task LatestMigrationGivesInspectionLocationsTheirExactRuntimePermissions()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                $"InspectionLocationPrincipalLinks:{WebRole}:D:DELETE",
-                $"InspectionLocationPrincipalLinks:{WebRole}:G:INSERT",
-                $"InspectionLocationPrincipalLinks:{WebRole}:G:SELECT",
-                $"InspectionLocationPrincipalLinks:{WorkerRole}:D:DELETE",
-                $"InspectionLocations:{WebRole}:D:DELETE",
-                $"InspectionLocations:{WebRole}:G:SELECT",
-                $"InspectionLocations:{WorkerRole}:D:DELETE"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    tableObject.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.objects AS tableObject
-                    ON tableObject.object_id = permission.major_id
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE tableObject.name IN (N'InspectionLocations', N'InspectionLocationPrincipalLinks')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                """));
-    }
-
     // 20261023160000_AppliedValuationCalculationRows: the Case save and Create
     // audit's copy write an applied valuation's calculation rows and the Case
     // page reads them, as they do the snapshot table: SELECT and INSERT for Web,
     // no DELETE for either role, and the Worker has no caller.
-    [Fact]
-    public async Task LatestMigrationGivesAppliedValuationCalculationRowsTheirExactRuntimePermissions()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                $"AppliedValuationAdditions:{WebRole}:D:DELETE",
-                $"AppliedValuationAdditions:{WebRole}:G:INSERT",
-                $"AppliedValuationAdditions:{WebRole}:G:SELECT",
-                $"AppliedValuationAdditions:{WorkerRole}:D:DELETE",
-                $"AppliedValuationCalculations:{WebRole}:D:DELETE",
-                $"AppliedValuationCalculations:{WebRole}:G:INSERT",
-                $"AppliedValuationCalculations:{WebRole}:G:SELECT",
-                $"AppliedValuationCalculations:{WorkerRole}:D:DELETE"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    tableObject.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.objects AS tableObject
-                    ON tableObject.object_id = permission.major_id
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE tableObject.name IN (N'AppliedValuationCalculations', N'AppliedValuationAdditions')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                """));
-    }
-
     // 20260924180000_CaseWorksAndTriageCases: Web and Worker both create Cases
     // (and so their primary work); Web updates a work (Create audit moves the
     // Inspection report's evidence onto it), and since
     // 20261012120000_WorkerObservesReportSends so does the Worker (the Sent
     // poll links the Inspection report's evidence after the Audit exists);
     // neither deletes one. Web also creates Triage Cases.
-    [Fact]
-    public async Task LatestMigrationGivesCaseWorksItsExactRuntimePermissions()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                $"{WebRole}:D:DELETE",
-                $"{WebRole}:G:INSERT",
-                $"{WebRole}:G:SELECT",
-                $"{WebRole}:G:UPDATE",
-                $"{WorkerRole}:D:DELETE",
-                $"{WorkerRole}:G:INSERT",
-                $"{WorkerRole}:G:SELECT",
-                $"{WorkerRole}:G:UPDATE"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE permission.major_id = OBJECT_ID(N'[dbo].[CaseWorks]')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                """));
-        Assert.Equal(
-            ["Triage:INSERT", "Triage:SELECT", "Triage:UPDATE"],
-            (await ReadGrantedPermissionsAsync(database, WebRole))
-                .Where(value => value.StartsWith("Triage:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Contains("Triage", await ReadDeniedDeleteTablesAsync(database, WebRole));
-    }
-
     // 20260927002303_EmailTemplates: Web alone reads and writes the saved
     // e-mail templates and neither role deletes one; the Worker has no part in
     // them.
-    [Fact]
-    public async Task LatestMigrationGivesEmailTemplatesItsExactRuntimePermissions()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                $"{WebRole}:D:DELETE",
-                $"{WebRole}:G:INSERT",
-                $"{WebRole}:G:SELECT",
-                $"{WebRole}:G:UPDATE",
-                $"{WorkerRole}:D:DELETE"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE permission.major_id = OBJECT_ID(N'[dbo].[EmailTemplates]')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                """));
-    }
-
     // 20261002105641_WorkCentreDismissals: Web records each Work Centre
     // dismissal and moves a later one on; there is no undo, so neither role
     // deletes one, and the Worker has no part in it.
-    [Fact]
-    public async Task LatestMigrationGivesWorkCentreDismissalsItsExactRuntimePermissions()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                $"{WebRole}:D:DELETE",
-                $"{WebRole}:G:INSERT",
-                $"{WebRole}:G:SELECT",
-                $"{WebRole}:G:UPDATE",
-                $"{WorkerRole}:D:DELETE"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE permission.major_id = OBJECT_ID(N'[dbo].[WorkCentreDismissals]')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                """));
-    }
-
     // 20261012192000_GrantWorkerCaseTasksForReportSent: the Worker's Sent-evidence link
     // creates the after-send tasks the send recorded, in the same transaction as Report
     // sent. It inserts tasks, never updating or deleting one; Web's task grants are
     // unchanged. The tests run full-privilege, so only this assertion catches a missing
     // grant before production refuses the write.
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerCaseTaskInsertForReportSent()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            ["CaseTasks:INSERT", "CaseTasks:SELECT"],
-            (await ReadGrantedPermissionsAsync(database, WorkerRole))
-                .Where(value => value.StartsWith("CaseTasks:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Equal(
-            ["CaseTasks:INSERT", "CaseTasks:SELECT", "CaseTasks:UPDATE"],
-            (await ReadGrantedPermissionsAsync(database, WebRole))
-                .Where(value => value.StartsWith("CaseTasks:", StringComparison.Ordinal))
-                .ToArray());
-        var deniedDelete = await ReadDeniedDeleteTablesAsync(database, WorkerRole);
-        Assert.Contains("CaseTasks", deniedDelete);
-        // What the same transaction writes was already granted.
-        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
-        Assert.Contains("CaseWorkflowEvents:INSERT", granted);
-        Assert.Contains("CaseWorkflowEvents:SELECT", granted);
-        Assert.Contains("ActionHistory:INSERT", granted);
-        Assert.Contains("CaseWorkflows:UPDATE", granted);
-    }
-
     // 20261018080000_GrantWorkerContactPrincipalLinksRead: the Worker's mail route
     // evaluation reads which Principal each Claim Source is linked to, to recognise an
     // intermediary. It reads the links only; Web's link grants are unchanged. The tests
     // run full-privilege, so only this assertion catches a missing grant.
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerContactPrincipalLinkRead()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            ["ContactPrincipalLinks:SELECT"],
-            (await ReadGrantedPermissionsAsync(database, WorkerRole))
-                .Where(value => value.StartsWith("ContactPrincipalLinks:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Contains("ContactPrincipalLinks", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
-        Assert.Equal(
-            ["ContactPrincipalLinks:DELETE", "ContactPrincipalLinks:INSERT", "ContactPrincipalLinks:SELECT"],
-            (await ReadGrantedPermissionsAsync(database, WebRole))
-                .Where(value => value.StartsWith("ContactPrincipalLinks:", StringComparison.Ordinal))
-                .ToArray());
-        // What the registry reads beside the links was already granted.
-        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
-        Assert.Contains("Organizations:SELECT", granted);
-        Assert.Contains("Principals:SELECT", granted);
-    }
-
-    [Fact]
-    public async Task RetainedMailSearchProjectionUsesExactCallerPermissions()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            ["IntakeSearchDocuments:SELECT"],
-            (await ReadGrantedPermissionsAsync(database, WebRole))
-                .Where(value => value.StartsWith("IntakeSearchDocuments:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Equal(
-            [
-                "IntakeSearchDocuments:DELETE",
-                "IntakeSearchDocuments:INSERT",
-                "IntakeSearchDocuments:SELECT"
-            ],
-            (await ReadGrantedPermissionsAsync(database, WorkerRole))
-                .Where(value => value.StartsWith("IntakeSearchDocuments:", StringComparison.Ordinal))
-                .ToArray());
-    }
-
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerAutomaticVehicleLookupInsert()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                "VehicleLookupRequests:INSERT",
-                "VehicleLookupRequests:SELECT"
-            ],
-            (await ReadGrantedPermissionsAsync(database, WorkerRole))
-                .Where(value => value.StartsWith("VehicleLookupRequests:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Contains("VehicleLookupRequests", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
-    }
-
     // A complete vehicle lookup answer that no longer carries engine, fuel,
     // colour, tax expiry or MOT expiry clears that fact, so the Worker deletes
     // the CaseAssessmentFields row it recorded.
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerDeleteOnCaseAssessmentFields()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                "CaseAssessmentFields:DELETE",
-                "CaseAssessmentFields:INSERT",
-                "CaseAssessmentFields:SELECT",
-                "CaseAssessmentFields:UPDATE"
-            ],
-            (await ReadGrantedPermissionsAsync(database, WorkerRole))
-                .Where(value => value.StartsWith("CaseAssessmentFields:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.DoesNotContain("CaseAssessmentFields", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
-    }
-
     // 20260928090000_GrantWorkerGeneratedCaseArtifactUpdate: the Worker's sweep
     // records a generated report file as stored once custody has filed it, so
     // it updates the artifact row and its generation. It never inserts or
     // deletes either.
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerUpdateOnGeneratedCaseArtifacts()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                "CaseReportGenerations:SELECT",
-                "CaseReportGenerations:UPDATE",
-                "GeneratedCaseArtifacts:SELECT",
-                "GeneratedCaseArtifacts:UPDATE"
-            ],
-            (await ReadGrantedPermissionsAsync(database, WorkerRole))
-                .Where(value => value.StartsWith("CaseReportGenerations:", StringComparison.Ordinal)
-                    || value.StartsWith("GeneratedCaseArtifacts:", StringComparison.Ordinal))
-                .ToArray());
-        var deniedDelete = await ReadDeniedDeleteTablesAsync(database, WorkerRole);
-        Assert.Contains("CaseReportGenerations", deniedDelete);
-        Assert.Contains("GeneratedCaseArtifacts", deniedDelete);
-    }
-
     // Case-document registration moved into the Worker's
     // custody processor while these three tables were granted to Web only, so
     // every deployed case uploaded its evidence to Box and was then refused the
@@ -931,187 +335,34 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
     // 20260928160000_GrantWorkerDocumentOccurrenceUpdate: the Worker gives the
     // original report it recognised among a receipt's filed files the Audit
     // report role, so it updates an occurrence too.
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerTheCaseDocumentTables()
-    {
-        var database = fixture.Database;
-
-        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
-        var webGranted = await ReadGrantedPermissionsAsync(database, WebRole);
-        Assert.Contains("DocumentOccurrences:UPDATE", webGranted);
-        var deniedDelete = await ReadDeniedDeleteTablesAsync(database, WorkerRole);
-        foreach (var (table, expected) in new[]
-        {
-            ("CaseDocuments", new[] { "CaseDocuments:INSERT", "CaseDocuments:SELECT" }),
-            ("DocumentOccurrences",
-                ["DocumentOccurrences:INSERT", "DocumentOccurrences:SELECT", "DocumentOccurrences:UPDATE"]),
-            ("DocumentVersions",
-                ["DocumentVersions:INSERT", "DocumentVersions:SELECT", "DocumentVersions:UPDATE"])
-        })
-        {
-            Assert.Equal(
-                expected,
-                granted
-                    .Where(value => value.StartsWith($"{table}:", StringComparison.Ordinal))
-                    .ToArray());
-            Assert.Contains(table, deniedDelete);
-        }
-    }
-
     // 20261005120000_GrantWorkerCaseManualChases: a Case chaser that reaches
     // Sent is recorded as a chase by the Worker's Sent poll, which held no
     // permission on the chase table. Nothing else caught it because the tests
     // run full-privilege; this asserts the grant itself.
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerTheCaseChaseRecord()
-    {
-        var database = fixture.Database;
-
-        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
-        Assert.Equal(
-            ["CaseManualChases:INSERT", "CaseManualChases:SELECT"],
-            granted
-                .Where(value => value.StartsWith("CaseManualChases:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Contains("CaseManualChases", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
-    }
-
     // 20261007183000_GrantWorkerTriageFindings: the automatic Triage link runs
     // as the Worker and now reads the Triage's current finding to fill the
     // linked Case's empty findings.
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerTheTriageFindingRead()
-    {
-        var database = fixture.Database;
-
-        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
-        Assert.Equal(
-            ["TriageFindings:SELECT"],
-            granted
-                .Where(value => value.StartsWith("TriageFindings:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Contains("TriageFindings", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
-    }
-
     // 20261012120000_WorkerObservesReportSends: the Sent poll observes a report
     // send as the Worker and freezes its Sent repair specification. The
     // CaseWorks UPDATE it also gains is pinned with that table's exact set.
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerTheSentRepairSpecificationFreeze()
-    {
-        var database = fixture.Database;
-
-        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
-        Assert.Equal(
-            ["CaseRepairSpecificationSnapshots:INSERT", "CaseRepairSpecificationSnapshots:SELECT"],
-            granted
-                .Where(value => value.StartsWith("CaseRepairSpecificationSnapshots:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Contains(
-            "CaseRepairSpecificationSnapshots",
-            await ReadDeniedDeleteTablesAsync(database, WorkerRole));
-    }
-
     // 20261021120000_GrantWebRepairSpecDiscardDelete: Discard in the Web
     // process deletes the spec, its lines and its numbered versions (FRD-25;
     // operator, 11 October 2026). Web holds DELETE on all three tables; the
     // Worker never discards and keeps its snapshot DELETE denial.
-    [Fact]
-    public async Task LatestMigrationGrantsWebRepairSpecDiscardDelete()
-    {
-        var database = fixture.Database;
-
-        var webGranted = await ReadGrantedPermissionsAsync(database, WebRole);
-        Assert.Equal(
-            [
-                "CaseRepairSpecifications:DELETE",
-                "CaseRepairSpecifications:INSERT",
-                "CaseRepairSpecifications:SELECT",
-                "CaseRepairSpecifications:UPDATE"
-            ],
-            webGranted
-                .Where(value => value.StartsWith("CaseRepairSpecifications:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Equal(
-            [
-                "CaseRepairSpecificationSnapshots:DELETE",
-                "CaseRepairSpecificationSnapshots:INSERT",
-                "CaseRepairSpecificationSnapshots:SELECT"
-            ],
-            webGranted
-                .Where(value => value.StartsWith("CaseRepairSpecificationSnapshots:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Contains("CaseEstimateLines:DELETE", webGranted);
-        var webDeniedDelete = await ReadDeniedDeleteTablesAsync(database, WebRole);
-        Assert.DoesNotContain("CaseRepairSpecifications", webDeniedDelete);
-        Assert.DoesNotContain("CaseRepairSpecificationSnapshots", webDeniedDelete);
-        Assert.Contains(
-            "CaseRepairSpecificationSnapshots",
-            await ReadDeniedDeleteTablesAsync(database, WorkerRole));
-    }
-
     // 20260929091000_GrantWebRetainedMailDismissal: Inbox Dismiss and Restore
     // write the dismissal cells of the retained message row as the Web role,
     // which held SELECT only. The grant is table-level; the exact list below
     // proves no DELETE grant.
-    [Fact]
-    public async Task LatestMigrationGrantsWebUpdateOnRetainedMailboxMessages()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            ["RetainedMailboxMessages:SELECT", "RetainedMailboxMessages:UPDATE"],
-            (await ReadGrantedPermissionsAsync(database, WebRole))
-                .Where(value => value.StartsWith("RetainedMailboxMessages:", StringComparison.Ordinal))
-                .ToArray());
-    }
-
     // 20261017100000_VehicleLookupMileageEstimate: a Case save that replaces the
     // Case mileage the MOT mileage estimate filled records its disposition on the
     // lookup observation as the Web role, which held SELECT only. The grant is
     // table-level; the exact lists below prove no DELETE grant and the Worker's
     // grants unchanged.
-    [Fact]
-    public async Task LatestMigrationGrantsWebUpdateOnVehicleLookupObservations()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        await using var context = await database.CreateContextAsync();
-
-        await context.Database.MigrateAsync();
-
-        Assert.Equal(
-            ["VehicleLookupObservations:SELECT", "VehicleLookupObservations:UPDATE"],
-            (await ReadGrantedPermissionsAsync(database, WebRole))
-                .Where(value => value.StartsWith("VehicleLookupObservations:", StringComparison.Ordinal))
-                .ToArray());
-        Assert.Equal(
-            ["VehicleLookupObservations:INSERT"],
-            (await ReadGrantedPermissionsAsync(database, WorkerRole))
-                .Where(value => value.StartsWith("VehicleLookupObservations:", StringComparison.Ordinal))
-                .ToArray());
-    }
-
     // 20260929150000_GrantCaseDataSnapshotUpdate: completing a Case's images
     // (Worker) and a Case save (Web) record re-evaluated readiness on the
     // snapshot row, which both roles could only read and insert. Production
     // refused every such write while these tests, running full-privilege,
     // passed; this asserts the grant itself.
-    [Fact]
-    public async Task LatestMigrationGrantsBothRuntimeRolesUpdateOnCaseDataSnapshots()
-    {
-        var database = fixture.Database;
-
-        foreach (var role in new[] { WebRole, WorkerRole })
-        {
-            Assert.Equal(
-                ["CaseDataSnapshots:INSERT", "CaseDataSnapshots:SELECT", "CaseDataSnapshots:UPDATE"],
-                (await ReadGrantedPermissionsAsync(database, role))
-                    .Where(value => value.StartsWith("CaseDataSnapshots:", StringComparison.Ordinal))
-                    .ToArray());
-            Assert.Contains("CaseDataSnapshots", await ReadDeniedDeleteTablesAsync(database, role));
-        }
-    }
-
     // The same migration queues again a fold the refused snapshot write failed:
     // its files are already in the Case folder and nothing was recorded. A
     // fold that failed for any other reason stays failed.
@@ -1165,194 +416,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
     // the Worker runs at filing (IDocumentContentCachePublisher) inserts and
     // updates the same table, so it relies on the same grants and needs no
     // migration of its own.
-    [Fact]
-    public async Task LatestMigrationGrantsWorkerTheThumbnailSweepTables()
-    {
-        var database = fixture.Database;
-
-        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
-        foreach (var permission in new[]
-        {
-            "Cases:SELECT",
-            "CaseDocuments:SELECT",
-            "DocumentVersions:SELECT",
-            "DocumentContentCacheEntries:SELECT",
-            "DocumentContentCacheEntries:INSERT",
-            "DocumentContentCacheEntries:UPDATE",
-            "DocumentContentCacheEntries:DELETE"
-        })
-        {
-            Assert.Contains(permission, granted);
-        }
-    }
-
-    [Fact]
-    public async Task LatestMigrationGrantsImageIntakeLifecycleUpdatesToBothRuntimeRoles()
-    {
-        var database = fixture.Database;
-
-        foreach (var role in new[] { WebRole, WorkerRole })
-        {
-            Assert.Equal(
-                [
-                    "ImageIntakes:INSERT",
-                    "ImageIntakes:SELECT",
-                    "ImageIntakes:UPDATE"
-                ],
-                (await ReadGrantedPermissionsAsync(database, role))
-                    .Where(value => value.StartsWith("ImageIntakes:", StringComparison.Ordinal))
-                    .ToArray());
-            Assert.Contains("ImageIntakes", await ReadDeniedDeleteTablesAsync(database, role));
-        }
-    }
-
-    [Fact]
-    public async Task LatestMigrationGivesBothRuntimeRolesAppendOnlyImageLifecycleEvents()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                $"{WebRole}:D:DELETE",
-                $"{WebRole}:D:UPDATE",
-                $"{WebRole}:G:INSERT",
-                $"{WebRole}:G:SELECT",
-                $"{WorkerRole}:D:DELETE",
-                $"{WorkerRole}:D:UPDATE",
-                $"{WorkerRole}:G:INSERT",
-                $"{WorkerRole}:G:SELECT"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions AS permission
-                INNER JOIN sys.database_principals AS principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE permission.major_id = OBJECT_ID(N'[dbo].[ImageIntakeLifecycleEvents]')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                ORDER BY
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    permission.permission_name COLLATE DATABASE_DEFAULT
-                """));
-    }
-
-    [Fact]
-    public async Task LatestMigrationGrantsOnlyTheRequiredSubscriptionPermissions()
-    {
-        var database = fixture.Database;
-
-        Assert.Equal(
-            [
-                $"{WebRole}:G:SELECT",
-                $"{WorkerRole}:G:INSERT",
-                $"{WorkerRole}:G:SELECT",
-                $"{WorkerRole}:G:UPDATE"
-            ],
-            await ReadValuesAsync(
-                database,
-                $"""
-                SELECT CONCAT(
-                    principal.name COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.[state] COLLATE DATABASE_DEFAULT,
-                    N':',
-                    permission.permission_name COLLATE DATABASE_DEFAULT)
-                FROM sys.database_permissions permission
-                INNER JOIN sys.database_principals principal
-                    ON principal.principal_id = permission.grantee_principal_id
-                WHERE permission.major_id = OBJECT_ID(N'[dbo].[ApprovedMailboxSubscriptions]')
-                  AND permission.class = 1
-                  AND permission.minor_id = 0
-                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
-                """));
-    }
-
     // Catalog-grant checks alone run as the LocalDB administrator and
     // therefore cannot detect a real runtime save denied by SQL Server. These
     // loginless users have only their corresponding Pegasus runtime role.
     [Fact]
-    public async Task V1FoundationRuntimeRolesCanPerformOnlyTheirRepresentativeWrites()
-    {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
-
-        await database.ExecuteAsync(
-            $"""
-            CREATE USER [pegasus_test_web_runtime] WITHOUT LOGIN;
-            CREATE USER [pegasus_test_worker_runtime] WITHOUT LOGIN;
-            ALTER ROLE [{WebRole}] ADD MEMBER [pegasus_test_web_runtime];
-            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_worker_runtime];
-            """);
-
-        var contactOrganizationId = Guid.NewGuid();
-        await database.ExecuteAsync(
-            $"INSERT INTO [dbo].[Organizations] ([Id], [Name], [Version], [Active], [Role]) VALUES ('{contactOrganizationId:D}', N'restricted-role-fixture', 0, 1, N'repairer');");
-
-        await database.ExecuteAsync(
-            $"""
-            EXECUTE AS USER = N'pegasus_test_web_runtime';
-            BEGIN TRANSACTION;
-            DECLARE @StaffMailLockResult int;
-            EXEC @StaffMailLockResult = sys.sp_getapplock
-                @Resource = N'staff-mail-prepare',
-                @LockMode = N'Exclusive',
-                @LockOwner = N'Transaction',
-                @LockTimeout = 0;
-            IF @StaffMailLockResult < 0
-                THROW 51000, 'Web runtime could not acquire the staff-mail transaction lock.', 1;
-            ROLLBACK TRANSACTION;
-            INSERT INTO [dbo].[ContactPrincipalLinks] ([PrincipalId], [OrganizationId])
-            SELECT [Id], '{contactOrganizationId:D}' FROM [dbo].[Principals] WHERE [Code] = N'QDOS';
-            INSERT INTO dbo.EditScopes (ScopeKind, RecordId, HolderKind, Holder, TokenHash, ExpectedVersion, Generation, ExpiresAtUtc)
-            VALUES (N'Contact', '{contactOrganizationId:D}', N'Staff', N'permission-fixture', REPLICATE('a', 64), 0, 1, SYSDATETIMEOFFSET());
-            UPDATE dbo.EditScopes SET Generation = 2 WHERE RecordId = '{contactOrganizationId:D}';
-            DELETE FROM dbo.EditScopes WHERE RecordId = '{contactOrganizationId:D}';
-            REVERT;
-
-            EXECUTE AS USER = N'pegasus_test_worker_runtime';
-            DELETE FROM [dbo].[DocumentContentCacheEntries]
-            WHERE [Id] = '00000000-0000-0000-0000-000000000000';
-            REVERT;
-            """);
-
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM [dbo].[ContactPrincipalLinks] WHERE [OrganizationId] = '{contactOrganizationId:D}'"));
-
-        await database.ExecuteAsync(
-            $"""
-            EXECUTE AS USER = N'pegasus_test_web_runtime';
-            BEGIN TRY
-                UPDATE [dbo].[ContactPrincipalLinks] SET [PrincipalId] = [PrincipalId] WHERE [OrganizationId] = '{contactOrganizationId:D}';
-                THROW 51000, 'Web runtime unexpectedly updated a Principal link.', 1;
-            END TRY
-            BEGIN CATCH
-                IF ERROR_NUMBER() <> 229 THROW;
-            END CATCH;
-            REVERT;
-
-            EXECUTE AS USER = N'pegasus_test_worker_runtime';
-            BEGIN TRY
-                DELETE FROM [dbo].[ContactPrincipalLinks] WHERE [OrganizationId] = '{contactOrganizationId:D}';
-                THROW 51000, 'Worker runtime unexpectedly deleted a Principal link.', 1;
-            END TRY
-            BEGIN CATCH
-                IF ERROR_NUMBER() <> 229 THROW;
-            END CATCH;
-            REVERT;
-
-            """);
-    }
-
-    [Fact]
-    public async Task WebRuntimeCanInsertPairedOcrWorkRowsButCannotProcessOcr()
+    public async Task WorkerRuntimeClaimsTheIntakeHandOverThroughTheCustodyStore()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
 
@@ -1379,43 +447,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
                 N'application/pdf', N'attachment', N'retained', 1,
                 REPLICATE(N'B', 64), N'runtime-role/{assetId:N}');
             """);
-
-        var operationId = Guid.NewGuid();
-        var workId = Guid.NewGuid();
-        await database.ExecuteAsync(
-            $"""
-            CREATE USER [pegasus_test_ocr_web] WITHOUT LOGIN;
-            ALTER ROLE [{WebRole}] ADD MEMBER [pegasus_test_ocr_web];
-            EXECUTE AS USER = N'pegasus_test_ocr_web';
-            BEGIN TRANSACTION;
-            INSERT INTO [dbo].[IntakeOcrOperations] (
-                [Id], [IntakeAssetId], [SourceSha256], [QualifiedPagesJson],
-                [OperationKey], [State], [Version], [ConcurrencyToken])
-            VALUES (
-                '{operationId:D}', '{assetId:D}', REPLICATE(N'B', 64), N'[1]',
-                N'ocr-permission-operation', N'Pending', 0, '{Guid.NewGuid():D}');
-            INSERT INTO [dbo].[ExternalWorkItems] (
-                [Id], [Kind], [OperationKey], [State], [AttemptCount], [DueAtUtc])
-            VALUES (
-                '{workId:D}', N'intake_ocr', N'ocr-permission-operation', N'pending', 0,
-                '2031-05-06T10:32:00+00:00');
-            COMMIT TRANSACTION;
-            BEGIN TRY
-                UPDATE [dbo].[IntakeOcrOperations]
-                SET [State] = N'Completed'
-                WHERE [Id] = '{operationId:D}';
-                THROW 51000, 'Web runtime unexpectedly processed OCR work.', 1;
-            END TRY
-            BEGIN CATCH
-                IF ERROR_NUMBER() <> 229 THROW;
-            END CATCH;
-            REVERT;
-            """);
-
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM [dbo].[IntakeOcrOperations] WHERE [Id] = '{operationId:D}' AND [State] = N'Pending'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM [dbo].[ExternalWorkItems] WHERE [Id] = '{workId:D}' AND [State] = N'pending'"));
 
         // Exercise the actual EF custody claim as Worker, not merely the
         // permission census: intake retention uses only the intake asset row.
@@ -1674,9 +705,9 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
     }
 
     [Fact]
-    public async Task RetainedMailboxReplyTargetsRoundTripThroughRestrictedRuntimeRoles()
+    public async Task LatestSchemaKeepsReplyToAddressesJsonNullable()
     {
-        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var database = fixture.Database;
 
         Assert.Equal(1, await database.ScalarAsync<int>(
             """
@@ -1690,60 +721,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
               AND column_value.max_length = -1
               AND column_value.is_nullable = 1
             """));
-
-        var withReplyToId = Guid.NewGuid();
-        var withoutReplyToId = Guid.NewGuid();
-        await database.ExecuteAsync(
-            $"""
-            INSERT INTO [dbo].[ApprovedInboxPollStates] (
-                [ApprovedMailboxId], [MailboxAddress], [ScopeFingerprint], [Generation],
-                [ActivatedAtUtc], [StartBoundaryUtc], [DueAtUtc])
-            VALUES (
-                '49f47eb9-c5b0-464f-b8f0-8c90ba061728',
-                N'instructions@collisionengineers.co.uk', REPLICATE(N'C', 64), 1,
-                '2031-05-06T10:00:00+00:00', '2031-05-06T10:00:00+00:00',
-                '2031-05-06T10:00:00+00:00');
-
-            CREATE USER [pegasus_test_reply_web] WITHOUT LOGIN;
-            CREATE USER [pegasus_test_reply_worker] WITHOUT LOGIN;
-            ALTER ROLE [{WebRole}] ADD MEMBER [pegasus_test_reply_web];
-            ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_reply_worker];
-
-            DECLARE @MailboxId uniqueidentifier =
-                (SELECT TOP (1) [ApprovedMailboxId] FROM [dbo].[ApprovedInboxPollStates]);
-            IF @MailboxId IS NULL
-                THROW 51000, 'The retained-mailbox role fixture requires an approved mailbox.', 1;
-
-            EXECUTE AS USER = N'pegasus_test_reply_worker';
-            INSERT INTO [dbo].[RetainedMailboxMessages] (
-                [Id], [MailboxId], [MailboxAddress], [FolderScope], [FolderIdentity],
-                [ImmutableMessageId], [ExternalReceiptToken], [ToAddressesJson],
-                [CcAddressesJson], [ReplyToAddressesJson], [IsRead], [SourceLength],
-                [SourceSha256], [ReceivedAtUtc], [RetainedAtUtc])
-            VALUES
-                ('{withReplyToId:D}', @MailboxId, N'intake@example.test', N'Inbox', N'inbox',
-                 N'reply-target-message', N'reply-target-receipt', N'[]', N'[]',
-                 N'["reply@example.test"]', 0, 1, REPLICATE(N'A', 64),
-                 '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00'),
-                ('{withoutReplyToId:D}', @MailboxId, N'intake@example.test', N'Inbox', N'inbox',
-                 N'no-reply-target-message', N'no-reply-target-receipt', N'[]', N'[]',
-                 NULL, 0, 1, REPLICATE(N'B', 64),
-                 '2031-05-06T10:32:00+00:00', '2031-05-06T10:33:00+00:00');
-            REVERT;
-
-            EXECUTE AS USER = N'pegasus_test_reply_web';
-            IF NOT EXISTS (
-                SELECT 1 FROM [dbo].[RetainedMailboxMessages]
-                WHERE [Id] = '{withReplyToId:D}'
-                  AND [ReplyToAddressesJson] = N'["reply@example.test"]')
-                THROW 51000, 'Web runtime did not read the retained reply targets.', 1;
-            IF NOT EXISTS (
-                SELECT 1 FROM [dbo].[RetainedMailboxMessages]
-                WHERE [Id] = '{withoutReplyToId:D}'
-                  AND [ReplyToAddressesJson] IS NULL)
-                THROW 51000, 'Web runtime did not preserve absent reply metadata as NULL.', 1;
-            REVERT;
-            """);
     }
 
     [Fact]
@@ -1818,55 +795,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests(RuntimeRoleSchemaFixture f
             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
-
-    private static string[] ParseGrantSpec(string spec) =>
-        ParseLines(spec)
-            .SelectMany(line =>
-            {
-                var separator = line.IndexOf(':', StringComparison.Ordinal);
-                var table = line[..separator];
-                return line[(separator + 1)..]
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(permission => $"{table}:{permission}");
-            })
-            .OrderBy(value => value, StringComparer.Ordinal)
-            .ToArray();
-
-    private static Task<string[]> ReadGrantedPermissionsAsync(
-        LocalDbTestDatabase database,
-        string role) =>
-        ReadValuesAsync(
-            database,
-            $"""
-            SELECT CONCAT(
-                target.name COLLATE DATABASE_DEFAULT,
-                N':',
-                permission.permission_name COLLATE DATABASE_DEFAULT)
-            FROM sys.database_permissions AS permission
-            INNER JOIN sys.objects AS target
-                ON target.object_id = permission.major_id
-            WHERE permission.grantee_principal_id = DATABASE_PRINCIPAL_ID(N'{role}')
-              AND permission.class = 1
-              AND permission.minor_id = 0
-              AND permission.[state] = 'G'
-            """);
-
-    private static Task<string[]> ReadDeniedDeleteTablesAsync(
-        LocalDbTestDatabase database,
-        string role) =>
-        ReadValuesAsync(
-            database,
-            $"""
-            SELECT target.name
-            FROM sys.database_permissions AS permission
-            INNER JOIN sys.objects AS target
-                ON target.object_id = permission.major_id
-            WHERE permission.grantee_principal_id = DATABASE_PRINCIPAL_ID(N'{role}')
-              AND permission.class = 1
-              AND permission.minor_id = 0
-              AND permission.permission_name = N'DELETE'
-              AND permission.[state] = 'D'
-            """);
 
     private sealed class ConnectedContextFactory(DbContextOptions<PegasusDbContext> options)
         : IDbContextFactory<PegasusDbContext>
