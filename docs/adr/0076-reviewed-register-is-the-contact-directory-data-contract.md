@@ -54,9 +54,8 @@ register:
 
 1. **The Contact types are unchanged.** The operator first ruled "add an
    Insurer kind (52)" (15 October 2026). After a cross-reference of those
-   rows
-   (`artifacts/pegasus-release-readiness/entities/register/insurer-cross-reference-2026-10-16.md`),
-   the operator ruled "Drop the Insurer kind" and "the 52 rows stay as
+   rows (the cross-reference of 16 October 2026 is operator-held outside
+   the repository), the operator ruled "Drop the Insurer kind" and "the 52 rows stay as
    evidence in the register" (16 October 2026). Owner:
    [FRD-04](../frd/frd-04-parties-accounts-and-access.md#parties-principals-organisations-accounts-and-access).
 2. **An intermediary is a Claim Source.** "intermediary is claim source now"
