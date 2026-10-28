@@ -75,37 +75,38 @@ public sealed class LocalDbTemplateDatabaseTests
     }
 
     /// <summary>
-    /// SQL Server creates an index whose key could exceed its limit and only
-    /// refuses the row that does, so the limit is checked for the tables the
-    /// foundation release named: 900 bytes for a clustered key, 1,700 for a
-    /// nonclustered one. (Four older indexes elsewhere already exceed it.)
+    /// SQL Server creates an index whose key could exceed its limit (900 bytes
+    /// for a clustered key, 1,700 for a nonclustered one) and refuses only the
+    /// row that does, so every table is checked here. Four indexes are accepted
+    /// as they are (R485): ASP.NET Core Identity's login and token keys and two
+    /// OpenIddict indexes, library defaults whose real values are short.
     /// </summary>
     [Fact]
-    public async Task NoFoundationIndexKeyCanExceedTheEngineLimit()
+    public async Task OnlyTheFourLibraryIndexesCanExceedTheEngineKeyLimit()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
 
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            """
-            SELECT COUNT(*)
-            FROM (
-                SELECT i.object_id, i.index_id
-                FROM sys.indexes AS i
-                INNER JOIN sys.tables AS t ON t.object_id = i.object_id
-                INNER JOIN sys.index_columns AS ic
-                    ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.key_ordinal > 0
-                INNER JOIN sys.columns AS c
-                    ON c.object_id = ic.object_id AND c.column_id = ic.column_id
-                WHERE t.name IN (
-                    N'AppliedValuationSnapshots', N'CaseReportGenerations', N'ContactPrincipalLinks',
-                    N'DocumentContentCacheEntries', N'EditScopes', N'GeneratedCaseArtifacts',
-                    N'GlassRepairEstimateSessions', N'IntakeOcrOperations', N'IntakeSourceCandidates',
-                    N'LabourRateCards', N'RetainedInstructionAnalyses', N'StaffMailSendOperations',
-                    N'UserExternalCredentials', N'ValuationPresets')
-                GROUP BY i.object_id, i.index_id, i.[type]
-                HAVING SUM(c.max_length) > CASE WHEN i.[type] = 1 THEN 900 ELSE 1700 END
-            ) AS oversized
-            """));
+        Assert.Equal(
+            "AspNetUserLogins.PK_AspNetUserLogins," +
+            "AspNetUserTokens.PK_AspNetUserTokens," +
+            "OpenIddictAuthorizations.IX_OpenIddictAuthorizations_ApplicationId_Status_Subject_Type," +
+            "OpenIddictTokens.IX_OpenIddictTokens_ApplicationId_Status_Subject_Type",
+            await database.ScalarAsync<string>(
+                """
+                SELECT STRING_AGG(oversized.name, N',') WITHIN GROUP (ORDER BY oversized.name)
+                FROM (
+                    SELECT CONCAT(t.name COLLATE DATABASE_DEFAULT, N'.', i.name COLLATE DATABASE_DEFAULT) AS name
+                    FROM sys.indexes AS i
+                    INNER JOIN sys.tables AS t ON t.object_id = i.object_id
+                    INNER JOIN sys.index_columns AS ic
+                        ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.key_ordinal > 0
+                    INNER JOIN sys.columns AS c
+                        ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+                    WHERE t.is_ms_shipped = 0
+                    GROUP BY t.name, i.name, i.[type]
+                    HAVING SUM(c.max_length) > CASE WHEN i.[type] = 1 THEN 900 ELSE 1700 END
+                ) AS oversized
+                """));
     }
 
     [LocalDbTemplateFact]
