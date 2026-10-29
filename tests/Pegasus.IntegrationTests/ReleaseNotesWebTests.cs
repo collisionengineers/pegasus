@@ -233,6 +233,54 @@ public sealed partial class ReleaseNotesWebTests
     }
 
     /// <summary>
+    /// A title of spaces passes the browser's required check; Save and Publish
+    /// refuse it with Core's reason and no internal parameter name (#1581).
+    /// </summary>
+    [Fact]
+    public async Task ABlankTitleIsRefusedWithItsReasonOnSaveAndPublish()
+    {
+        const string Refusal = "A release note title is 1 to 120 characters on one line.";
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var administrator = CreateClient(factory);
+        var newForm = await GetHtmlAsync(administrator, EditPage);
+        using var blankSave = await administrator.PostAsync($"{EditPage}?handler=Save", Form(newForm, new()
+        {
+            ["Id"] = string.Empty,
+            ["ExpectedRowVersion"] = "0",
+            ["OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["Title"] = "   ",
+            ["Body"] = "One"
+        }));
+        Assert.Equal(HttpStatusCode.OK, blankSave.StatusCode);
+        var refusedSave = await blankSave.Content.ReadAsStringAsync();
+        Assert.Contains(Refusal, refusedSave, StringComparison.Ordinal);
+        Assert.DoesNotContain("(Parameter", refusedSave, StringComparison.Ordinal);
+
+        using var saved = await administrator.PostAsync($"{EditPage}?handler=Save", Form(newForm, new()
+        {
+            ["Id"] = string.Empty,
+            ["ExpectedRowVersion"] = "0",
+            ["OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["Title"] = "First",
+            ["Body"] = "One"
+        }));
+        var draftPage = await GetHtmlAsync(administrator, saved.Headers.Location!.OriginalString);
+        var id = InputValue(draftPage, "Id");
+        using var blankPublish = await administrator.PostAsync($"{EditPage}/{id}?handler=Publish", Form(draftPage, new()
+        {
+            ["Id"] = id,
+            ["ExpectedRowVersion"] = InputValue(draftPage, "ExpectedRowVersion"),
+            ["OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["Title"] = "   ",
+            ["Body"] = "One"
+        }));
+        Assert.Equal(HttpStatusCode.OK, blankPublish.StatusCode);
+        var refusedPublish = await blankPublish.Content.ReadAsStringAsync();
+        Assert.Contains(Refusal, refusedPublish, StringComparison.Ordinal);
+        Assert.DoesNotContain("(Parameter", refusedPublish, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The shell asks for the newest unacknowledged note on every full page. It
     /// is one read that joins the person's acknowledgement (before: two reads,
     /// the newest note with its body, then the acknowledgement), and the body is

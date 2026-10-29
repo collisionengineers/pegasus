@@ -73,6 +73,22 @@ public static partial class OperatorLabels
         public const string DeliveryUnknown = "Delivery unknown";
         public const string Unknown = DeliveryUnknown + ". An Administrator must check GitHub for the report ID before retrying.";
 
+        // The Administrator's list: its headings, the Delivery unknown row's
+        // actions and their outcomes (R533: the page's words, moved unchanged).
+        public const string When = "When";
+        public const string Who = "Who";
+        public const string Page = "Page";
+        public const string Case = "Case";
+        public const string Status = "Status";
+        public const string Issue = "Issue";
+        public const string Actions = "Actions";
+        public const string MatchingIssueNumber = "Matching issue number";
+        public const string ConfirmIssue = "Confirm issue";
+        public const string ConfirmNoIssue = "Confirm no issue";
+        public const string IssueNumberRequired = "A valid issue number is required.";
+        public const string CanBeRetried = "The report can now be retried.";
+        public const string StatusChanged = "The report status changed. Reload and check it again.";
+
         public static string Reported(int issueNumber) =>
             string.Create(CultureInfo.InvariantCulture, $"Reported as #{issueNumber}.");
 
