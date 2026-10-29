@@ -867,7 +867,7 @@ public sealed class CaseMatchIntegrationTests
     private sealed class Harness : IAsyncDisposable
     {
         private readonly LocalDbTestDatabase database;
-        private readonly AcquireCaseEditLease acquireLease;
+        private readonly CaseEditLeases leases;
         private readonly AcceptIntake acceptIntake;
         private readonly EfCaseDataStore dataStore;
 
@@ -879,7 +879,7 @@ public sealed class CaseMatchIntegrationTests
             EfCaseDataStore dataStore,
             AcceptIntake acceptIntake,
             EfCaseWorkspaceStore workspaceStore,
-            AcquireCaseEditLease acquireLease)
+            CaseEditLeases leases)
         {
             this.database = database;
             Factory = factory;
@@ -888,7 +888,7 @@ public sealed class CaseMatchIntegrationTests
             this.dataStore = dataStore;
             this.acceptIntake = acceptIntake;
             WorkspaceStore = workspaceStore;
-            this.acquireLease = acquireLease;
+            this.leases = leases;
         }
 
         public PooledDbContextFactory<PegasusDbContext> Factory { get; }
@@ -928,7 +928,7 @@ public sealed class CaseMatchIntegrationTests
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
                     new EfCaseWorkspaceStore(factory, timeProvider, matchPolicies),
-                    new AcquireCaseEditLease(workflowStore));
+                    new CaseEditLeases(workflowStore));
             }
             catch
             {
@@ -955,7 +955,7 @@ public sealed class CaseMatchIntegrationTests
         public Task<CaseEditLease> AcquireLeaseAsync(
             Guid caseId,
             long version,
-            string operationKey) => acquireLease.ExecuteAsync(
+            string operationKey) => leases.ClaimAsync(
             new(caseId, version, StaffActor, operationKey),
             CancellationToken.None);
 

@@ -20,14 +20,14 @@ public sealed class ClosureModel(
     ReturnCaseToEngineer returnToEngineer,
     IArchiveCase archiveCase,
     ICaseWorkflowQueries workflows,
-    IAcquireCaseEditLease acquireLease,
+    CaseEditLeases leases,
     ILogger<ClosureModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// An action taken inside the edit session keeps it unless the Case is
     /// now terminal or archived (operator, 9 October 2026).
     /// </summary>
-    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
+    protected override (ICaseWorkflowQueries Workflows, CaseEditLeases Leases)? LeaseReclaim => (workflows, leases);
 
     public IActionResult OnGet() => NotFound();
 

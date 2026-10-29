@@ -1483,7 +1483,7 @@ public sealed class UploadConfirmationWebTests
                 ? await ImageIntakeTestData.SeedInstructionCaseAsync(factory, client, "EF56 HJK", "GROUP-OTHER-01")
                 : caseId;
             var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
-            var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            var lease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
                 new(priorCaseId, await CaseVersionAsync(factory, priorCaseId), actor, "group-prior-decision-lease"),
                 CancellationToken.None);
             await scope.ServiceProvider.GetRequiredService<ILinkIntake>().ExecuteAsync(

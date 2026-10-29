@@ -1080,7 +1080,7 @@ public sealed class CaseDetailsWebTests
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<ISaveCaseWorkspace>(services, store);
-            Substitute<IAcquireCaseEditLease>(services, new ClaimsOnce(store));
+            Substitute<ILeaseCaseForEdit>(services, new ClaimsOnce(store));
         });
         var expectedVersion = store.CaseVersion;
 
@@ -1094,16 +1094,32 @@ public sealed class CaseDetailsWebTests
     }
 
     /// <summary>The store's first claim enters edit mode; a later one, the reclaim after a save, is refused.</summary>
-    private sealed class ClaimsOnce(RecordingCaseDetailsStore store) : IAcquireCaseEditLease
+    private sealed class ClaimsOnce(RecordingCaseDetailsStore store) : ILeaseCaseForEdit
     {
         private int claims;
 
-        public Task<CaseEditLease> ExecuteAsync(
+        public Task<CaseEditLease> ClaimAsync(
             ClaimCaseEditLeaseRequest request,
             CancellationToken cancellationToken) =>
             claims++ == 0
-                ? ((IAcquireCaseEditLease)store).ExecuteAsync(request, cancellationToken)
+                ? ((ILeaseCaseForEdit)store).ClaimAsync(request, cancellationToken)
                 : throw new InvalidOperationException("The lease could not be claimed again.");
+
+        /// <summary>Only the claim is faked: there is no lease to resume.</summary>
+        public Task<CaseEditLease?> ResumeAsync(
+            ResumeCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseEditLease?>(null);
+
+        public Task<CaseEditLease> HeartbeatAsync(
+            HeartbeatCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            ((ILeaseCaseForEdit)store).HeartbeatAsync(request, cancellationToken);
+
+        public Task ReleaseAsync(
+            ReleaseCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            ((ILeaseCaseForEdit)store).ReleaseAsync(request, cancellationToken);
     }
 
     /// <summary>The Save posted the way case-workspace.js posts a commit: a fetch, expecting the page's HTML.</summary>

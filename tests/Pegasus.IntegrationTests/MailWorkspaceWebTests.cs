@@ -650,8 +650,8 @@ public sealed class MailWorkspaceWebTests
         {
             var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
             var held = await colleagueScope.ServiceProvider
-                .GetRequiredService<Pegasus.Core.Workflow.IAcquireCaseEditLease>()
-                .ExecuteAsync(
+                .GetRequiredService<CaseEditLeases>()
+                .ClaimAsync(
                     new(newCaseId, 0, colleague, $"mail-test-colleague:{Guid.NewGuid():N}"),
                     CancellationToken.None);
             var busy = DialogSubmission(page, "ChangeLinkedCase", "Moved to the right Case.", "MAIL33002");
@@ -666,8 +666,8 @@ public sealed class MailWorkspaceWebTests
             await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
             Assert.Null(await CaseLeaseTokenAsync(factory, firstCaseId));
             await colleagueScope.ServiceProvider
-                .GetRequiredService<Pegasus.Core.Workflow.IReleaseCaseEditLease>()
-                .ExecuteAsync(
+                .GetRequiredService<CaseEditLeases>()
+                .ReleaseAsync(
                     new(newCaseId, colleague, $"mail-test-colleague-release:{Guid.NewGuid():N}", held.Token),
                     CancellationToken.None);
         }
@@ -1086,8 +1086,8 @@ public sealed class MailWorkspaceWebTests
             DevelopmentOfflineIdentity.AdministratorId,
             [StaffRole.Administrator]);
         var retryLease = await verificationScope.ServiceProvider
-            .GetRequiredService<Pegasus.Core.Workflow.IAcquireCaseEditLease>()
-            .ExecuteAsync(
+            .GetRequiredService<CaseEditLeases>()
+            .ClaimAsync(
                 new(caseId, 0, actor, $"mail-test-retry:{Guid.NewGuid():N}"),
                 CancellationToken.None);
         Assert.Equal(caseId, retryLease.CaseId);
@@ -1188,10 +1188,10 @@ public sealed class MailWorkspaceWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IReleaseCaseEditLease>();
-                services.AddScoped<IReleaseCaseEditLease>(services =>
-                    new FailOnceReleaseCaseEditLease(
-                        services.GetRequiredService<ILeaseCaseForEdit>(),
+                services.RemoveAll<ILeaseCaseForEdit>();
+                services.AddScoped<ILeaseCaseForEdit>(services =>
+                    new FailOnceReleaseLeases(
+                        services.GetRequiredService<ICaseWorkflowStore>(),
                         releaseFailures));
                 services.RemoveAll<ILinkIntake>();
                 services.AddScoped<ILinkIntake>(services =>
@@ -3013,18 +3013,32 @@ public sealed class MailWorkspaceWebTests
                 : inner.ExecuteAsync(request, cancellationToken);
     }
 
-    private sealed class FailOnceReleaseCaseEditLease(
+    /// <summary>The real lease port, whose first release times out.</summary>
+    private sealed class FailOnceReleaseLeases(
         ILeaseCaseForEdit leases,
-        ReleaseFailureGate failures) : IReleaseCaseEditLease
+        ReleaseFailureGate failures) : ILeaseCaseForEdit
     {
-        private readonly ReleaseCaseEditLease release = new(leases);
+        public Task<CaseEditLease> ClaimAsync(
+            ClaimCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            leases.ClaimAsync(request, cancellationToken);
 
-        public Task ExecuteAsync(
+        public Task<CaseEditLease> HeartbeatAsync(
+            HeartbeatCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            leases.HeartbeatAsync(request, cancellationToken);
+
+        public Task<CaseEditLease?> ResumeAsync(
+            ResumeCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            leases.ResumeAsync(request, cancellationToken);
+
+        public Task ReleaseAsync(
             ReleaseCaseEditLeaseRequest request,
             CancellationToken cancellationToken) =>
             failures.FailThisAttempt()
                 ? Task.FromException(new TimeoutException("Fixture release timeout."))
-                : release.ExecuteAsync(request, cancellationToken);
+                : leases.ReleaseAsync(request, cancellationToken);
     }
 
     /// <summary>

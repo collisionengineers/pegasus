@@ -330,8 +330,8 @@ internal static class AutomationMcpTestSupport
                     lease.LeaseToken),
                 CancellationToken.None);
         // The Automation lease stands after its write, so the fixture ends it.
-        await scope.ServiceProvider.GetRequiredService<IReleaseCaseEditLease>()
-            .ExecuteAsync(
+        await scope.ServiceProvider.GetRequiredService<CaseEditLeases>()
+            .ReleaseAsync(
                 new(caseId, ActionActor.Automation(ClientId), Guid.NewGuid().ToString("N"), lease.LeaseToken),
                 CancellationToken.None);
     }

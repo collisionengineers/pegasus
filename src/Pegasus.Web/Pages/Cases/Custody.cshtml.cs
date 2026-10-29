@@ -23,14 +23,14 @@ public sealed class CustodyModel(
     ISetCaseImageInReport setCaseImageInReport,
     ICreateImageTag createImageTag,
     ICaseWorkflowQueries workflows,
-    IAcquireCaseEditLease acquireLease,
+    CaseEditLeases leases,
     ILogger<CustodyModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// Tagging and removing are immediate posts inside the edit
     /// session (v25 decision F): after one succeeds the session carries on.
     /// </summary>
-    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
+    protected override (ICaseWorkflowQueries Workflows, CaseEditLeases Leases)? LeaseReclaim => (workflows, leases);
 
     public IActionResult OnGet() => NotFound();
 

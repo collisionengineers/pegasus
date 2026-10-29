@@ -176,7 +176,7 @@ public sealed partial class CaseAcceptanceReplayTests
                 CancellationToken.None);
         var caseId = accepted.Identity.CaseId;
         await SeedOpenTaskAsync(factory.Services, caseId);
-        var acquireLease = scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>();
+        var leases = scope.ServiceProvider.GetRequiredService<CaseEditLeases>();
         var reverse = scope.ServiceProvider.GetRequiredService<IReverseIntakeLink>();
         var link = scope.ServiceProvider.GetRequiredService<ILinkIntake>();
         var getIntake = scope.ServiceProvider.GetRequiredService<IGetIntake>();
@@ -186,7 +186,7 @@ public sealed partial class CaseAcceptanceReplayTests
             CancellationToken.None));
         Assert.True(beforeUnlink.UnlinkCancelsCase);
 
-        var unlinkLease = await acquireLease.ExecuteAsync(
+        var unlinkLease = await leases.ClaimAsync(
             new(caseId, 0, AcceptingActor, "lease:association-unlink"),
             CancellationToken.None);
         var unlinkRequest = new ReverseIntakeLinkRequest(
@@ -233,7 +233,7 @@ public sealed partial class CaseAcceptanceReplayTests
         // Staff "Link to Case" reaches a Case in any lifecycle state (operator,
         // 24 September 2026): the relink is accepted, and it is only a link —
         // it does not reopen the cancelled Case.
-        var relinkLease = await acquireLease.ExecuteAsync(
+        var relinkLease = await leases.ClaimAsync(
             new(caseId, unlinkLease.Version + 1, AcceptingActor, "lease:association-relink"),
             CancellationToken.None);
         await link.ExecuteAsync(

@@ -2273,7 +2273,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.RemoveAll<IAddCaseDocument>();
                 services.RemoveAll<IGetCaseDocumentMetadata>();
                 services.RemoveAll<IReadLogicalDocumentVersion>();
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.RemoveAll<ICaseWorkflowQueries>();
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISaveEstimate>();
@@ -2302,7 +2302,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.AddSingleton<IAddCaseDocument>(store);
                 services.AddSingleton<IGetCaseDocumentMetadata>(store);
                 services.AddSingleton<IReadLogicalDocumentVersion>(store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 services.AddSingleton<ICaseWorkflowQueries>(store);
                 services.AddSingleton<IListCaseEstimates>(store);
                 services.AddSingleton<ISaveEstimate>(provider =>
@@ -2486,7 +2486,7 @@ public sealed partial class AssessmentEstimateImportWebTests
           IGetCaseValuationSection,
           IGetCaseNotesSection, IGetAssessmentWorkspace, IRepairSpecificationStore, IAddCaseDocument,
           IGetCaseDocumentMetadata, IReadLogicalDocumentVersion,
-          IAcquireCaseEditLease, ICaseWorkflowQueries, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
+          ILeaseCaseForEdit, ICaseWorkflowQueries, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
           IDiscardEstimate, ISetCurrentEstimate, IScaleRepairSpecification,
           IRepairSpecificationSnapshotStore, ISaveCaseWorkspace, ILabourRateCardStore,
           IGetCaseFilesSection
@@ -3232,7 +3232,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 file.Version.FileName, file.Version.MediaType));
         }
 
-        public Task<CaseEditLease> ExecuteAsync(
+        public Task<CaseEditLease> ClaimAsync(
             ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken)
         {
             LeaseClaims.Add(request);
@@ -3260,5 +3260,18 @@ public sealed partial class AssessmentEstimateImportWebTests
                 request.ExpectedVersion,
                 DateTimeOffset.UtcNow.AddMinutes(5)));
         }
+
+        /// <summary>Only the claim is faked: there is no lease to resume.</summary>
+        public Task<CaseEditLease?> ResumeAsync(
+            ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseEditLease?>(null);
+
+        public Task<CaseEditLease> HeartbeatAsync(
+            HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task ReleaseAsync(
+            ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 }

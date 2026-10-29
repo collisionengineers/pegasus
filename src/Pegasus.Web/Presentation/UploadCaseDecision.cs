@@ -149,7 +149,7 @@ public interface IUploadCaseDecision
 public sealed class UploadCaseDecision(
     ISearchCases searchCases,
     IGetIntake getIntake,
-    IAcquireCaseEditLease acquireCaseEditLease,
+    CaseEditLeases caseEditLeases,
     ILinkIntake linkIntake,
     IIntakeAssociationDestinationQueries destinations,
     IEditScopeLeases editScopes) : IUploadCaseDecision
@@ -371,7 +371,7 @@ public sealed class UploadCaseDecision(
                 input.ExpectedCaseVersion,
                 actor,
                 $"upload-attach-lease:{operationKey}",
-                acquireCaseEditLease,
+                caseEditLeases,
                 editScopes,
                 cancellationToken);
             await linkIntake.ExecuteAsync(
@@ -545,7 +545,7 @@ public sealed class UploadCaseDecision(
                     nextCaseVersion,
                     actor,
                     $"upload-attach-lease:{operationKey}",
-                    acquireCaseEditLease,
+                    caseEditLeases,
                     editScopes,
                     cancellationToken);
                 await linkIntake.ExecuteAsync(

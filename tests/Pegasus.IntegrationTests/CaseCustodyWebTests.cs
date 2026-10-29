@@ -629,10 +629,10 @@ public sealed class CaseCustodyWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IStaffAccountQueries>(services,
                     new StubStaffAccounts(Guid.NewGuid(), "Engineer", StaffRole.Engineer));

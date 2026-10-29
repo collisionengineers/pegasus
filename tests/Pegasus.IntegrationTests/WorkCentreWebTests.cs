@@ -445,8 +445,7 @@ public sealed class WorkCentreWebTests
             configure: services =>
             {
                 CaseWebTestSupport.Substitute<IGetCaseEditBasis>(services, store);
-                CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.IAcquireCaseEditLease>(services, store);
-                CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.IReleaseCaseEditLease>(services, store);
+                CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.ILeaseCaseForEdit>(services, store);
                 CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.IAssignCaseEngineer>(services, store);
             });
         using var client = Client(host);

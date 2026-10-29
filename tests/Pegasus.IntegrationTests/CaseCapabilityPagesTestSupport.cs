@@ -54,7 +54,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetCaseQueriesSection>(services, store);
                 Substitute<IValidateCaseRenderLease>(services, store);
-                Substitute<IAcquireCaseEditLease>(services, store);
+                Substitute<ILeaseCaseForEdit>(services, store);
                 Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts(services);
@@ -758,7 +758,7 @@ internal static partial class CaseWebTestSupport
         Substitute<IGetCaseFilesSection>(services, store);
         Substitute<IGetCaseQueriesSection>(services, store);
         Substitute<IGetAssessmentWorkspace>(services, store);
-        Substitute<IResumeCaseEditLease>(services, store);
+        Substitute<ILeaseCaseForEdit>(services, store);
     }
 
     /// <summary>
@@ -826,8 +826,7 @@ internal static partial class CaseWebTestSupport
         IGetCaseSectionFrame,
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
-        IAcquireCaseEditLease,
-        IResumeCaseEditLease,
+        ILeaseCaseForEdit,
         IRecordManualCaseChase,
         IHoldCase,
         IReleaseCase,
@@ -1212,7 +1211,7 @@ internal static partial class CaseWebTestSupport
             where T : notnull =>
             new(null, null, null);
 
-        Task<CaseEditLease> IAcquireCaseEditLease.ExecuteAsync(
+        Task<CaseEditLease> ILeaseCaseForEdit.ClaimAsync(
             ClaimCaseEditLeaseRequest request,
             CancellationToken cancellationToken)
         {
@@ -1234,7 +1233,7 @@ internal static partial class CaseWebTestSupport
         public List<ResumeCaseEditLeaseRequest> Resumes { get; } = [];
 
         /// <summary>The holder's own live lease, as the store resumes it for any page they open.</summary>
-        Task<CaseEditLease?> IResumeCaseEditLease.ExecuteAsync(
+        Task<CaseEditLease?> ILeaseCaseForEdit.ResumeAsync(
             ResumeCaseEditLeaseRequest request,
             CancellationToken cancellationToken)
         {
@@ -1427,7 +1426,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetCaseQueriesSection>(services, store);
                 Substitute<IValidateCaseRenderLease>(services, store);
-                Substitute<IAcquireCaseEditLease>(services, store);
+                Substitute<ILeaseCaseForEdit>(services, store);
                 Substitute<ICaseWorkflowQueries>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 Substitute<IGetAssessmentWorkspace>(services, store);

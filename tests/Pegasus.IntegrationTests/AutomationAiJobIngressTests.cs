@@ -1139,7 +1139,7 @@ public sealed class AutomationAiJobIngressTests
             taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
                 new(created.JobId, created.Version, Client, "market-research-staff-editing-take"),
                 CancellationToken.None);
-            staffLease = await services.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            staffLease = await services.GetRequiredService<CaseEditLeases>().ClaimAsync(
                 new(caseId, 0, Staff, "market-research-staff-editing-lease"),
                 CancellationToken.None);
         }

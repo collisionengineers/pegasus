@@ -20,7 +20,7 @@ public sealed class CaseTaskArchivePersistenceTests
     {
         await using var harness = await Harness.CreateAsync();
         var taskId = Guid.NewGuid();
-        var lease = await harness.AcquireLease.ExecuteAsync(
+        var lease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, 0, harness.UserActor, "claim-task-denials"),
             default);
 
@@ -37,7 +37,7 @@ public sealed class CaseTaskArchivePersistenceTests
         // A lapsed lease carries on only while nobody claims the Case; once a
         // colleague has it, the lapsed token is no authority.
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(5).Add(TimeSpan.FromSeconds(1)));
-        await harness.AcquireLease.ExecuteAsync(
+        await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, 0, harness.AdministratorActor, "claim-task-after-lapse"),
             default);
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => harness.CreateTask.ExecuteAsync(
@@ -79,7 +79,7 @@ public sealed class CaseTaskArchivePersistenceTests
         var existingTaskId = Guid.NewGuid();
         await harness.SeedOpenTaskAsync(existingTaskId);
         await harness.SetWorkflowStateAsync(harness.TaskCaseId, terminalState);
-        var lease = await harness.AcquireLease.ExecuteAsync(
+        var lease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, 0, harness.AdministratorActor, $"claim-{terminalState}-{mutation}"),
             default);
 
@@ -151,7 +151,7 @@ public sealed class CaseTaskArchivePersistenceTests
     {
         await using var harness = await Harness.CreateAsync();
         await harness.SeedOpenTaskAsync(Guid.NewGuid());
-        var lease = await harness.AcquireLease.ExecuteAsync(
+        var lease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, 0, harness.UserActor, $"claim-close-{outcome}"),
             default);
 
@@ -177,7 +177,7 @@ public sealed class CaseTaskArchivePersistenceTests
     {
         await using var harness = await Harness.CreateAsync();
         await harness.SeedOpenTaskAsync(Guid.NewGuid());
-        var lease = await harness.AcquireLease.ExecuteAsync(
+        var lease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, 0, harness.UserActor, "claim-close-created-in-error"),
             default);
 
@@ -230,7 +230,7 @@ public sealed class CaseTaskArchivePersistenceTests
             harness.TaskCaseId,
             CaseLifecycleState.PrincipalCancelled);
         await harness.SetCustodyStateAsync(harness.TaskCaseId, "confirmed");
-        var lease = await harness.AcquireLease.ExecuteAsync(
+        var lease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, 0, harness.UserActor, "claim-closed-archive"),
             default);
 
@@ -319,7 +319,7 @@ public sealed class CaseTaskArchivePersistenceTests
     public async Task ConcurrentTaskCreationAndClosureUnderOneLeaseCommitExactlyOne()
     {
         await using var harness = await Harness.CreateAsync();
-        var lease = await harness.AcquireLease.ExecuteAsync(
+        var lease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, 0, harness.UserActor, "claim-create-close-race"),
             default);
         var create = harness.CreateTask.ExecuteAsync(
@@ -370,7 +370,7 @@ public sealed class CaseTaskArchivePersistenceTests
         var firstTaskId = Guid.NewGuid();
         var secondTaskId = Guid.NewGuid();
 
-        var createLease = await harness.AcquireLease.ExecuteAsync(
+        var createLease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, 0, harness.UserActor, "claim-task-create"),
             default);
         var createRequest = CreateRequest(
@@ -393,7 +393,7 @@ public sealed class CaseTaskArchivePersistenceTests
             createRequest with { Description = "A different task payload" },
             default));
 
-        var assignLease = await harness.AcquireLease.ExecuteAsync(
+        var assignLease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, created.CaseVersion, harness.UserActor, "claim-task-reassign"),
             default);
         // Under a proven lease only a version the Case has not reached is
@@ -425,7 +425,7 @@ public sealed class CaseTaskArchivePersistenceTests
         Assert.Equal(harness.AdministratorId, reassigned.AssigneeId);
         Assert.Equal(1, reassigned.Version);
 
-        var unassignLease = await harness.AcquireLease.ExecuteAsync(
+        var unassignLease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, reassigned.CaseVersion, harness.AdministratorActor, "claim-task-unassign"),
             default);
         var unassigned = await harness.AssignTask.ExecuteAsync(
@@ -443,7 +443,7 @@ public sealed class CaseTaskArchivePersistenceTests
         Assert.Null(unassigned.AssigneeId);
         Assert.Equal(2, unassigned.Version);
 
-        var completeLease = await harness.AcquireLease.ExecuteAsync(
+        var completeLease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, unassigned.CaseVersion, harness.EngineerActor, "claim-task-complete"),
             default);
         var taskConflict = await Assert.ThrowsAsync<CaseTaskVersionConflictException>(
@@ -473,7 +473,7 @@ public sealed class CaseTaskArchivePersistenceTests
         Assert.Equal(CaseTaskState.Completed, completed.State);
         Assert.Equal(3, completed.Version);
 
-        var secondCreateLease = await harness.AcquireLease.ExecuteAsync(
+        var secondCreateLease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, completed.CaseVersion, harness.UserActor, "claim-second-task-create"),
             default);
         var second = await harness.CreateTask.ExecuteAsync(
@@ -485,7 +485,7 @@ public sealed class CaseTaskArchivePersistenceTests
                 "second-task-create",
                 secondCreateLease.Token),
             default);
-        var cancelLease = await harness.AcquireLease.ExecuteAsync(
+        var cancelLease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, second.CaseVersion, harness.UserActor, "claim-second-task-cancel"),
             default);
         var cancelled = await harness.CancelTask.ExecuteAsync(
@@ -501,7 +501,7 @@ public sealed class CaseTaskArchivePersistenceTests
             default);
         Assert.Equal(CaseTaskState.Cancelled, cancelled.State);
 
-        var closeLease = await harness.AcquireLease.ExecuteAsync(
+        var closeLease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, cancelled.CaseVersion, harness.UserActor, "claim-case-close"),
             default);
         var closeRequest = new CloseCaseRequest(
@@ -515,7 +515,7 @@ public sealed class CaseTaskArchivePersistenceTests
         var closed = await harness.CloseCase.ExecuteAsync(closeRequest, default);
         var closeReplay = await harness.CloseCase.ExecuteAsync(closeRequest, default);
         Assert.Equal(closed, closeReplay);
-        var archiveLease = await harness.AcquireLease.ExecuteAsync(
+        var archiveLease = await harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, closed.Version, harness.UserActor, "claim-case-archive"),
             default);
         var archiveRequest = new ArchiveCaseRequest(
@@ -567,7 +567,7 @@ public sealed class CaseTaskArchivePersistenceTests
         Assert.NotNull(archived.Archive);
         Assert.Equal("Retain the completed file as read-only", archived.Archive.Reason);
         Assert.Equal(CaseLifecycleState.PrincipalCancelled, archived.State);
-        await Assert.ThrowsAsync<CaseArchivedException>(() => harness.AcquireLease.ExecuteAsync(
+        await Assert.ThrowsAsync<CaseArchivedException>(() => harness.Leases.ClaimAsync(
             new(harness.TaskCaseId, archived.Version, harness.AdministratorActor, "claim-archived-case"),
             default));
         await Assert.ThrowsAsync<CaseArchivedException>(() => harness.CreateTask.ExecuteAsync(
@@ -631,7 +631,7 @@ public sealed class CaseTaskArchivePersistenceTests
         Harness harness,
         string operationSuffix)
     {
-        var closeLease = await harness.AcquireLease.ExecuteAsync(
+        var closeLease = await harness.Leases.ClaimAsync(
             new(
                 harness.TaskCaseId,
                 0,
@@ -649,7 +649,7 @@ public sealed class CaseTaskArchivePersistenceTests
                 CaseClosureOutcome.PrincipalCancelled),
             default);
         await harness.SetCustodyStateAsync(harness.TaskCaseId, "confirmed");
-        var archiveLease = await harness.AcquireLease.ExecuteAsync(
+        var archiveLease = await harness.Leases.ClaimAsync(
             new(
                 harness.TaskCaseId,
                 closed.Version,
@@ -714,7 +714,7 @@ public sealed class CaseTaskArchivePersistenceTests
             UserActor = ActionActor.Staff(userId, [StaffRole.User]);
 
             var services = scope.ServiceProvider;
-            AcquireLease = services.GetRequiredService<IAcquireCaseEditLease>();
+            Leases = services.GetRequiredService<CaseEditLeases>();
             WorkflowStore = services.GetRequiredService<ICaseWorkflowStore>();
             TaskQueries = services.GetRequiredService<ICaseTaskQueries>();
             CreateTask = services.GetRequiredService<ICreateCaseTask>();
@@ -736,7 +736,7 @@ public sealed class CaseTaskArchivePersistenceTests
         public ActionActor AdministratorActor { get; }
         public ActionActor EngineerActor { get; }
         public ActionActor UserActor { get; }
-        public IAcquireCaseEditLease AcquireLease { get; }
+        public CaseEditLeases Leases { get; }
         public ICaseWorkflowStore WorkflowStore { get; }
         public ICaseTaskQueries TaskQueries { get; }
         public ICreateCaseTask CreateTask { get; }

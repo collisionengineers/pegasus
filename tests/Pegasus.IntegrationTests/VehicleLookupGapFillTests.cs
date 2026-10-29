@@ -189,7 +189,7 @@ public sealed class VehicleLookupGapFillTests
 
         await using (var scope = database.CreateAsyncScope())
         {
-            var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            var lease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
                 new(caseId, version, Staff, $"staff-mileage-lease-{row}"),
                 CancellationToken.None);
             await scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
@@ -501,7 +501,7 @@ public sealed class VehicleLookupGapFillTests
 
         await using (var scope = database.CreateAsyncScope())
         {
-            var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            var lease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
                 new(caseId, version, Staff, "registration-change-lease"),
                 CancellationToken.None);
             await scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
@@ -552,7 +552,7 @@ public sealed class VehicleLookupGapFillTests
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
         await using var scope = database.CreateAsyncScope();
-        var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+        var lease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
             new(caseId, 0, Staff, $"fill-behind-save-lease-{row}"),
             CancellationToken.None);
 
@@ -617,7 +617,7 @@ public sealed class VehicleLookupGapFillTests
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
         await using var scope = database.CreateAsyncScope();
-        var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+        var lease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
             new(caseId, 0, Staff, $"vin-behind-save-lease-{row}"),
             CancellationToken.None);
 

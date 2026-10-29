@@ -45,9 +45,7 @@ internal sealed record EditLeaseReleaseToolResult(
 /// </summary>
 [McpServerToolType]
 internal sealed class EditLeaseMcpTools(
-    IAcquireCaseEditLease acquireCase,
-    IRenewCaseEditLease renewCase,
-    IReleaseCaseEditLease releaseCase,
+    CaseEditLeases caseLeases,
     IEditScopeLeases editScopes,
     IGetTriage getTriage,
     AutomationActorResolver resolver,
@@ -85,7 +83,7 @@ internal sealed class EditLeaseMcpTools(
                 AutomationMcpErrors.RequireId(recordId, "record identifier");
                 if (kind == EditLeaseRecordKind.Case)
                 {
-                    var lease = await acquireCase.ExecuteAsync(
+                    var lease = await caseLeases.ClaimAsync(
                         new(recordId, expectedVersion, context.Actor, normalizedKey) { TakeOver = takeOver },
                         cancellationToken);
                     return new EditLeaseToolResult(
@@ -115,13 +113,12 @@ internal sealed class EditLeaseMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Extends the edit lease claimed with pegasus_edit_begin so work that outlasts five minutes continues without re-claiming. A Case renewal needs expectedVersion; a Triage renewal is a heartbeat and ignores it. Fails closed for a non-holder or an expired lease.")]
+    [Description("Extends the edit lease claimed with pegasus_edit_begin so work that outlasts five minutes continues without re-claiming. A renewal is a heartbeat, for a Case as for a Triage, and takes no version. Fails closed for a non-holder or an expired lease.")]
     public async Task<EditLeaseToolResult> RenewAsync(
         [Description(RecordKindDescription)] string recordKind,
         [Description("The Case identifier, or the Triage Case identifier.")] Guid recordId,
         [Description("The lease token returned by pegasus_edit_begin.")] string editLeaseToken,
         [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        [Description("The Case version the caller observed; required for a Case, ignored for a Triage.")] long? expectedVersion = null,
         CancellationToken cancellationToken = default)
     {
         var kind = ParseKind(recordKind);
@@ -140,10 +137,8 @@ internal sealed class EditLeaseMcpTools(
                 var token = RequireToken(editLeaseToken);
                 if (kind == EditLeaseRecordKind.Case)
                 {
-                    var version = expectedVersion
-                        ?? throw new McpException("A Case renewal needs the expectedVersion the caller observed.");
-                    var lease = await renewCase.ExecuteAsync(
-                        new(recordId, version, context.Actor, normalizedKey, token),
+                    var lease = await caseLeases.HeartbeatAsync(
+                        new(recordId, context.Actor, token),
                         cancellationToken);
                     return new EditLeaseToolResult(
                         kind.ToString(), recordId, null, lease.Token, lease.Holder, lease.Version,
@@ -195,7 +190,7 @@ internal sealed class EditLeaseMcpTools(
                 {
                     if (kind == EditLeaseRecordKind.Case)
                     {
-                        await releaseCase.ExecuteAsync(
+                        await caseLeases.ReleaseAsync(
                             new(recordId, context.Actor, normalizedKey, token),
                             cancellationToken);
                     }

@@ -165,11 +165,11 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         Guid caseId,
         ActionActor actor,
         CaseEditLeaseSnapshot? activeLease,
-        IResumeCaseEditLease resumeLease,
+        CaseEditLeases leases,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        ArgumentNullException.ThrowIfNull(resumeLease);
+        ArgumentNullException.ThrowIfNull(leases);
 
         // An expired lease is already absent from the projection, so no page keeps a second rule.
         if (activeLease is null
@@ -188,7 +188,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             CaseEditLease? resumed;
             try
             {
-                resumed = await resumeLease.ExecuteAsync(new(caseId, actor), cancellationToken);
+                resumed = await leases.ResumeAsync(new(caseId, actor), cancellationToken);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -226,8 +226,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// page it returns to resumes the lease, and otherwise that page offers a new claim.
     /// </summary>
     protected async Task<IActionResult> ClaimLeaseAsync(
-        IAcquireCaseEditLease acquireLease,
-        IResumeCaseEditLease resumeLease,
+        CaseEditLeases leases,
         Guid id,
         long expectedVersion,
         string operationKey,
@@ -244,8 +243,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         try
         {
             var normalizedOperationKey = RequireOperationKey(operationKey);
-            var lease = await resumeLease.ExecuteAsync(new(id, actor), cancellationToken)
-                ?? await acquireLease.ExecuteAsync(
+            var lease = await leases.ResumeAsync(new(id, actor), cancellationToken)
+                ?? await leases.ClaimAsync(
                     new ClaimCaseEditLeaseRequest(id, expectedVersion, actor, normalizedOperationKey)
                     {
                         TakeOver = takeOver
@@ -275,7 +274,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
     /// <summary>Leaves edit mode, releasing the server-owned authority rather than forgetting it.</summary>
     protected async Task<IActionResult> ReleaseLeaseAsync(
-        IReleaseCaseEditLease releaseLease,
+        CaseEditLeases leases,
         Guid id,
         string operationKey,
         string editLeaseToken,
@@ -290,7 +289,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
         try
         {
-            await releaseLease.ExecuteAsync(
+            await leases.ReleaseAsync(
                 new(id, actor, RequireOperationKey(operationKey), editLeaseToken),
                 cancellationToken);
             ClearLeaseState();
@@ -496,10 +495,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         ActionActor actor,
         Func<Guid, RedirectToPageResult> redirect)
     {
-        var acquire = HttpContext.RequestServices.GetRequiredService<IAcquireCaseEditLease>();
+        var leases = HttpContext.RequestServices.GetRequiredService<CaseEditLeases>();
         try
         {
-            var lease = await acquire.ExecuteAsync(
+            var lease = await leases.ClaimAsync(
                 new ClaimCaseEditLeaseRequest(id, expectedVersion, actor, NewOperationKey()),
                 HttpContext.RequestAborted);
             return (lease, null);
@@ -522,7 +521,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// </summary>
     protected Task ReleaseCommandLeaseQuietlyAsync(Guid id, ActionActor actor, CaseEditLease lease) =>
         Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
-            HttpContext.RequestServices.GetRequiredService<IReleaseCaseEditLease>(),
+            HttpContext.RequestServices.GetRequiredService<CaseEditLeases>(),
             logger,
             id,
             actor,
@@ -536,7 +535,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// The reclaim needs only the workflow's version, state and archive, so
     /// it reads the workflow row alone; the claim authorizes the actor.
     /// </summary>
-    protected virtual (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => null;
+    protected virtual (ICaseWorkflowQueries Workflows, CaseEditLeases Leases)? LeaseReclaim => null;
 
     /// <summary>
     /// Claims a fresh lease on the Case's new version and stores it, so the
@@ -560,7 +559,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
                 return;
             }
             var operationKey = NewOperationKey();
-            var lease = await reclaim.Leases.ExecuteAsync(
+            var lease = await reclaim.Leases.ClaimAsync(
                 new(id, current.Version, actor, operationKey),
                 cancellationToken);
             StoreLeaseAuthority(id, lease.Token);
@@ -712,7 +711,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// anyway: the page it lands on already renders the case's real edit state.
     /// </remarks>
     protected async Task<IActionResult> HeartbeatLeaseAsync(
-        IHeartbeatCaseEditLease heartbeat,
+        CaseEditLeases leases,
         Guid id,
         string editLeaseToken,
         CancellationToken cancellationToken)
@@ -725,7 +724,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         CaseEditLease lease;
         try
         {
-            lease = await heartbeat.ExecuteAsync(new(id, actor, editLeaseToken), cancellationToken);
+            lease = await leases.HeartbeatAsync(new(id, actor, editLeaseToken), cancellationToken);
         }
         catch (StaffAuthorizationException)
         {

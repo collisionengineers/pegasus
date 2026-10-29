@@ -123,9 +123,9 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         // The source is deliberately held at version 1 while a genuine source
         // mutation advances the Case and the caller reloads/reacquires at 2.
         await harness.AddSourceAsync();
-        var lease = await new AcquireCaseEditLease(
+        var lease = await new CaseEditLeases(
                 new EfCaseWorkflowStore(harness.Factory, Harness.Clock))
-            .ExecuteAsync(new(harness.CaseId, 2, harness.StaffActor, harness.Key("lease-report-2")), default);
+            .ClaimAsync(new(harness.CaseId, 2, harness.StaffActor, harness.Key("lease-report-2")), default);
 
         await Assert.ThrowsAsync<CaseVersionConflictException>(() => harness.Store.FreezeAsync(
             new(harness.StaffActor, harness.CaseId, 2, lease.Token, harness.OperationKey,
@@ -309,7 +309,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         var stale = Assert.Single(await harness.GenerationRowsAsync());
         Assert.Equal(CaseReportGenerationState.Stale, stale.State);
         Assert.Equal(CaseReportStaleReasons.SignatoryChanged, await harness.StaleReasonAsync());
-        var lease = await new AcquireCaseEditLease(workflowStore).ExecuteAsync(
+        var lease = await new CaseEditLeases(workflowStore).ClaimAsync(
             new(
                 harness.CaseId,
                 changed.Workflow.Version,
@@ -1413,9 +1413,9 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
 
         var nextDay = Harness.StartUtc.AddDays(1);
         var nextDayStore = harness.StoreAt(nextDay);
-        var nextDayLease = await new AcquireCaseEditLease(
+        var nextDayLease = await new CaseEditLeases(
                 new EfCaseWorkflowStore(harness.Factory, Harness.ClockAt(nextDay)))
-            .ExecuteAsync(
+            .ClaimAsync(
                 new(harness.CaseId, 1, harness.StaffActor, harness.Key("lease-report-next-day")),
                 CancellationToken.None);
         var feeNote = await harness.Generate(
@@ -1511,9 +1511,9 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
 
         // The next day's report is dated afresh, so it is new material.
         var nextDay = Harness.StartUtc.AddDays(1);
-        var nextDayLease = await new AcquireCaseEditLease(
+        var nextDayLease = await new CaseEditLeases(
                 new EfCaseWorkflowStore(harness.Factory, Harness.ClockAt(nextDay)))
-            .ExecuteAsync(
+            .ClaimAsync(
                 new(harness.CaseId, 1, harness.StaffActor, harness.Key("lease-inspection-again")),
                 CancellationToken.None);
         var again = await harness.Generate(
@@ -2036,9 +2036,9 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                     supporting.Add(await SeedDocumentAsync(
                         factory, caseId, $"supporting-{index + 1}.png", "image/png", (byte)(4 + index)));
                 }
-                var lease = await new AcquireCaseEditLease(
+                var lease = await new CaseEditLeases(
                         new EfCaseWorkflowStore(factory, new FixedTimeProvider(StartUtc)))
-                    .ExecuteAsync(new(caseId, 1, staffActor, KeyOf(caseId, "lease-report")), CancellationToken.None);
+                    .ClaimAsync(new(caseId, 1, staffActor, KeyOf(caseId, "lease-report")), CancellationToken.None);
                 await using var sourceContext = await factory.CreateDbContextAsync();
                 var confirmed = await EfAssessmentReportProjectionSource.ConfirmedDocumentsAsync(
                     sourceContext, caseId, default);

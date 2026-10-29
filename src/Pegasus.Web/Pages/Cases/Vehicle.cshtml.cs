@@ -19,10 +19,10 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed class VehicleModel(
     IRequestVehicleLookup requestVehicleLookup,
     ICaseWorkflowQueries workflows,
-    IAcquireCaseEditLease acquireLease,
+    CaseEditLeases leases,
     ILogger<VehicleModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
-    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
+    protected override (ICaseWorkflowQueries Workflows, CaseEditLeases Leases)? LeaseReclaim => (workflows, leases);
 
     public IActionResult OnGet() => NotFound();
 

@@ -212,7 +212,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
     {
         private readonly LocalDbTestDatabase database;
         private readonly PooledDbContextFactory<PegasusDbContext> factory;
-        private readonly AcquireCaseEditLease acquireLease;
+        private readonly CaseEditLeases leases;
 
         private Harness(
             LocalDbTestDatabase database,
@@ -224,7 +224,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
             EfCaseAcceptanceStore acceptanceStore,
             AcceptIntake acceptIntake,
             EfCaseWorkspaceStore workspaceStore,
-            AcquireCaseEditLease acquireLease)
+            CaseEditLeases leases)
         {
             this.database = database;
             this.factory = factory;
@@ -235,7 +235,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
             AcceptanceStore = acceptanceStore;
             AcceptIntake = acceptIntake;
             WorkspaceStore = workspaceStore;
-            this.acquireLease = acquireLease;
+            this.leases = leases;
         }
 
         public Guid ReceiptId { get; }
@@ -280,7 +280,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
                     acceptanceStore,
                     acceptIntake,
                     new EfCaseWorkspaceStore(factory, timeProvider),
-                    new AcquireCaseEditLease(workflowStore));
+                    new CaseEditLeases(workflowStore));
             }
             catch
             {
@@ -311,7 +311,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
         public Task<CaseEditLease> AcquireLeaseAsync(
             Guid caseId,
             long version,
-            string operationKey) => acquireLease.ExecuteAsync(
+            string operationKey) => leases.ClaimAsync(
             new(caseId, version, StaffActor, operationKey),
             CancellationToken.None);
 

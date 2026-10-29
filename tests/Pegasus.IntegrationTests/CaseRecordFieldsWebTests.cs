@@ -735,11 +735,11 @@ public sealed class CaseRecordFieldsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -793,10 +793,10 @@ public sealed class CaseRecordFieldsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
