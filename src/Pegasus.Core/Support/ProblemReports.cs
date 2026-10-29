@@ -138,6 +138,12 @@ public static class ProblemReportPolicy
     public static readonly TimeSpan RecentActionWindow = TimeSpan.FromDays(7);
     public static readonly TimeSpan DispatchClaimLease = TimeSpan.FromMinutes(2);
 
+    /// <summary>
+    /// The reason a report confirmed as no issue keeps beside its Not sent
+    /// status (FRD-17 "Not sent with the reason"; R538).
+    /// </summary>
+    public const string NoIssueConfirmed = "No issue was created; confirmed by an administrator.";
+
     public static string ValidateDescription(string? description)
     {
         var value = (description ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Trim();

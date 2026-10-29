@@ -300,8 +300,10 @@ public sealed class ProblemReportTests
 
         Assert.Equal(ProblemReportStatus.Unknown, unresolved!.Status);
         Assert.Empty(sink.Sent);
-        await new ReconcileProblemReport(store, sink, new FixedClock(Now))
+        var confirmed = await new ReconcileProblemReport(store, sink, new FixedClock(Now))
             .ConfirmNoIssueAsync(Administrator(), failed.Id, default);
+        Assert.Equal(ProblemReportStatus.NotSent, confirmed.Status);
+        Assert.Equal(ProblemReportPolicy.NoIssueConfirmed, confirmed.Failure);
         var recovered = await new RetryProblemReport(store, sink, new FixedClock(Now)).ExecuteAsync(Administrator(), failed.Id, default);
         Assert.Equal(ProblemReportStatus.Sent, recovered!.Status);
         Assert.Single(sink.Sent);
@@ -475,7 +477,7 @@ public sealed class ProblemReportTests
 
         public Task<ProblemReport> ConfirmNoIssueAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Replace(id, report => report.Status == ProblemReportStatus.Unknown
-                ? report with { Status = ProblemReportStatus.NotSent, Failure = null }
+                ? report with { Status = ProblemReportStatus.NotSent, Failure = ProblemReportPolicy.NoIssueConfirmed }
                 : throw new ProblemReportClaimConflictException()));
 
         private ProblemReport Replace(Guid id, Func<ProblemReport, ProblemReport> change)

@@ -398,7 +398,10 @@ public sealed class ProblemReportsWebTests
             $"{ListPage}?handler=ConfirmNoIssue&id={id}", AdminForm(list));
         Assert.Equal(HttpStatusCode.Redirect, reconciled.StatusCode);
         list = await GetHtmlAsync(administrator, ListPage);
-        Assert.Contains(">Not sent<", list, StringComparison.Ordinal);
+        // Not sent with the reason, beside the chip (#1578, R538).
+        Assert.Matches(
+            $">{OperatorLabels.ProblemReports.NotSent}</span>\\s*<span class=\"muted\">{Regex.Escape(ProblemReportPolicy.NoIssueConfirmed)}</span>",
+            list);
         Assert.Contains(OperatorLabels.ProblemReports.CanBeRetried, list, StringComparison.Ordinal);
         using var sent = await RetryAsync(administrator, list, id.ToString("D"));
         Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
