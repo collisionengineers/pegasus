@@ -1,9 +1,12 @@
+using System.Globalization;
 using System.Net;
+using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -266,7 +269,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Enter an amount of", body, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.ValuationPresets.AmountRequired, body, StringComparison.Ordinal);
         Assert.Contains("value=\"Roof rack\"", body, StringComparison.Ordinal);
         Assert.NotEqual(operationKey, LastValue(body, OperationKeyRegex()));
         Assert.DoesNotContain("Roof rack</td>", body, StringComparison.Ordinal);
@@ -276,6 +279,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
     [InlineData("not-a-number")]
     [InlineData("-1.00")]
     [InlineData("300.123")]
+    [InlineData("10000000000000000")]
     public async Task ARefusedRowEditKeepsItsAttemptedLabelAndRawAmount(string amount)
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -293,7 +297,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Enter an amount of", body, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.ValuationPresets.AmountRequired, body, StringComparison.Ordinal);
         Assert.Contains("value=\"Updated tow bar\"", body, StringComparison.Ordinal);
         Assert.Contains("name=\"amount\" type=\"number\" inputmode=\"decimal\"", body, StringComparison.Ordinal);
         Assert.Contains($"value=\"{amount}\"", body, StringComparison.Ordinal);
@@ -306,6 +310,90 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Contains("value=\"Tow bar\"", reloaded, StringComparison.Ordinal);
         Assert.Contains("value=\"300.00\"", reloaded, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// An amount above the most a preset keeps is a validation refusal, not a
+    /// server error, and nothing is saved; the maximum itself is accepted.
+    /// Both amount inputs carry that maximum.
+    /// </summary>
+    [Fact]
+    public async Task AnAmountAboveThePresetMaximumIsRefusedAndTheMaximumIsAccepted()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var page = await GetPageAsync(client);
+        var maximum = ValuationCalculationPolicy.MaximumPresetAmount.ToString("0.00", CultureInfo.InvariantCulture);
+        Assert.Contains($"form=\"preset-create\" min=\"0\" max=\"{maximum}\"", page, StringComparison.Ordinal);
+        Assert.Contains($"form=\"preset-save-{TowBarPresetId:N}\" min=\"0\" max=\"{maximum}\"", page, StringComparison.Ordinal);
+
+        using (var refused = await PostCreateAsync(client, page, "Walk big", "10000000000000000"))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            var body = await refused.Content.ReadAsStringAsync();
+            Assert.Contains(OperatorLabels.ValuationPresets.AmountRequired, body, StringComparison.Ordinal);
+            Assert.Contains("value=\"Walk big\"", body, StringComparison.Ordinal);
+            Assert.Contains("value=\"10000000000000000\"", body, StringComparison.Ordinal);
+        }
+        Assert.Equal(5, await PresetCountAsync(factory));
+
+        page = await GetPageAsync(client);
+        using (var accepted = await PostCreateAsync(client, page, "Walk biggest", maximum))
+        {
+            Assert.Equal(HttpStatusCode.Found, accepted.StatusCode);
+        }
+        Assert.Contains($"value=\"{maximum}\"", await GetPageAsync(client), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A label over Core's maximum once trimmed, or one holding a control
+    /// character such as a tab pasted from a spreadsheet, is refused by the
+    /// page with the typed values kept and nothing saved.
+    /// </summary>
+    [Theory]
+    [InlineData("long")]
+    [InlineData("tab")]
+    public async Task ALabelOutOfRangeIsRefusedWithTheTypedValuesKept(string kind)
+    {
+        var label = kind == "long"
+            ? new string('a', ValuationCalculationPolicy.MaximumAdditionLabelLength + 1)
+            : "Tow\tbar extra";
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var page = await GetPageAsync(client);
+
+        using var response = await PostCreateAsync(client, page, label, "126.50");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains(OperatorLabels.ValuationPresets.LabelRequired, body, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.ValuationPresets.NotAccepted, body, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{HtmlEncoder.Default.Encode(label)}\"", body, StringComparison.Ordinal);
+        Assert.Contains("value=\"126.50\"", body, StringComparison.Ordinal);
+        Assert.Equal(5, await PresetCountAsync(factory));
+    }
+
+    private static Task<HttpResponseMessage> PostCreateAsync(
+        HttpClient client,
+        string page,
+        string label,
+        string amount)
+    {
+        var createForm = CreateForm(page);
+        return client.PostAsync(
+            $"{Page}?handler=Create",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["presetId"] = FirstValue(createForm, PresetIdRegex()),
+                ["operationKey"] = FirstValue(createForm, OperationKeyRegex()),
+                ["label"] = label,
+                ["amount"] = amount,
+                ["active"] = "true",
+                ["__RequestVerificationToken"] = Token(page)
+            }));
+    }
+
+    private static async Task<int> PresetCountAsync(IntakeWebApplicationFactory factory) =>
+        await (await factory.DatabaseAsync).ScalarAsync<int>("SELECT COUNT(*) FROM ValuationPresets;");
 
     /// <summary>
     /// The hidden add-row form's own fields, read from that form rather than

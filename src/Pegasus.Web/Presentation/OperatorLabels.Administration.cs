@@ -371,6 +371,42 @@ public static partial class OperatorLabels
     }
 
     /// <summary>
+    /// Administration › Valuation presets: the list, its rows and its
+    /// confirmations and refusals. The area's own name lives in
+    /// <see cref="Admin.ValuationPresets"/>.
+    /// </summary>
+    public static class ValuationPresets
+    {
+        public const string Presets = "Presets";
+        public const string PresetLabel = "Label";
+        public const string Amount = "Amount";
+        public const string Save = "Save";
+        public const string Enabled = "Enabled";
+        public const string Remove = "Remove";
+        public const string Add = "Add";
+        public const string Actions = "Actions";
+        public const string NoPresets = "No valuation presets are recorded.";
+        public const string Created = "The valuation preset was created.";
+        public const string Saved = "The valuation preset was saved.";
+        public const string Disabled = "The valuation preset was disabled.";
+        public const string Removed = "The valuation preset was removed.";
+        public const string AlreadyRemoved = "That valuation preset was removed.";
+        public const string Expired = "The form has expired. Retry the operation.";
+        public const string LabelRequired = "Enter a label.";
+        /// <summary>The amount's range in the operator's words (R431).</summary>
+        public const string AmountRequired = "Enter an amount from £0.00 to £999,999.00.";
+        public const string NotFound = "The valuation preset no longer exists.";
+        public const string DuplicateLabel = "That label is already assigned to a valuation preset.";
+        public const string StaleVersion = "The preset changed after this page was loaded. Reload it and try again.";
+        public const string OperationConflict = "The form was already used for a different operation. Retry from the current page.";
+        public const string NotAccepted = "The change was not accepted.";
+
+        /// <summary>The preset count the panel head shows under the title.</summary>
+        public static string PresetCount(int count) =>
+            count == 1 ? "1 preset" : $"{count} presets";
+    }
+
+    /// <summary>
     /// The consolidated "Staff accounts &amp; roles" administration area —
     /// one list. The area's own name lives in
     /// <see cref="Admin.Accounts"/>; the three <see cref="StaffRole"/> names

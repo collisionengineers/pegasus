@@ -1022,11 +1022,11 @@ public sealed class EfValuationPresetStore(
         ArgumentNullException.ThrowIfNull(request);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
-        // The label's row, or the gap a new one would fill, is the first
+        // The label's live row, or the gap a new one would fill, is the first
         // lock, so a second save of the label waits, then replays or is
         // refused as a duplicate.
         await context.Database.ExecuteSqlAsync(
-            $"SELECT 1 FROM [ValuationPresets] WITH (UPDLOCK, HOLDLOCK) WHERE [Label] = {request.Label}",
+            $"SELECT 1 FROM [ValuationPresets] WITH (UPDLOCK, HOLDLOCK) WHERE [Label] = {request.Label} AND [RemovedAtUtc] IS NULL",
             cancellationToken);
 
         var replay = await context.ActionHistory.AsNoTracking().SingleOrDefaultAsync(
@@ -1047,10 +1047,11 @@ public sealed class EfValuationPresetStore(
             throw new ValuationPresetException(ValuationPresetError.Removed);
         }
 
-        // A removed preset keeps its label. The label is unique across the
-        // whole table, so it stays reserved rather than becoming available to
-        // a second record that history would then be unable to tell apart.
+        // A removed preset frees its label (FRD-17, R530): the label is unique
+        // among the presets kept, and history tells two holders of one label
+        // apart by their Ids.
         if (entities.Any(item => item.Id != request.PresetId
+            && item.RemovedAtUtc is null
             && string.Equals(item.Label, request.Label, StringComparison.OrdinalIgnoreCase)))
         {
             throw new ValuationPresetException(ValuationPresetError.DuplicateLabel);

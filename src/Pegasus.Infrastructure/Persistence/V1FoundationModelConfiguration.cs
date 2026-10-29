@@ -38,7 +38,8 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<ValuationPresetEntity>(e =>
         {
-            e.ToTable("ValuationPresets"); e.HasKey(x => x.Id); e.HasIndex(x => x.Label).IsUnique();
+            // A removed preset frees its label (R530), as a removed Case list preset frees its name.
+            e.ToTable("ValuationPresets"); e.HasKey(x => x.Id); e.HasIndex(x => x.Label).IsUnique().HasFilter("[RemovedAtUtc] IS NULL");
             e.Property(x => x.Label).HasMaxLength(200); e.Property(x => x.UpdatedBy).HasMaxLength(200);
             e.Property(x => x.SuggestedAmount).HasPrecision(18, 2);
             e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();

@@ -211,7 +211,8 @@ rows editable immediately, with no separate creation or edit dialog. Save and
 Remove use each row's rendered expected version. A stale change is refused
 and asks the Administrator to reload.
 **Remove** is a soft removal that acts on the click. The preset drops out of
-the list and out of new selection. A valuation already recorded against it
+the list and out of new selection. A removed preset frees its label
+(operator, 29 October 2026; R432, R530). A valuation already recorded against it
 keeps its own snapshot
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 
