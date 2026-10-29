@@ -232,6 +232,42 @@ public sealed class TriageReferenceAllocationTests
     }
 
     /// <summary>
+    /// A takeover from a holder whose staff account name cannot be resolved records them as
+    /// unnamed, never by their subject identifier (R520, 29 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task ATakeoverFromAnUnresolvableHolderNeverNamesItsIdentifier()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-TAKEOVER-UNNAMED");
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var unresolvable = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var colleague = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        await leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, unresolvable,
+                "triage-unnamed-first"),
+            CancellationToken.None);
+
+        await leases.ClaimAsync(
+            new ClaimEditScopeRequest(
+                EditScopeKind.Triage, created.CaseId, created.Version, colleague,
+                "triage-unnamed-takeover")
+            {
+                TakeOver = true
+            }, CancellationToken.None);
+
+        var detail = Assert.IsType<TriageDetail>(
+            await services.GetRequiredService<ITriageQueries>()
+                .GetAsync(created.CaseId, CancellationToken.None));
+        var history = Assert.Single(detail.History,
+            entry => entry.EventType == "edit_lease_taken_over");
+        Assert.Equal("Edit lease taken over from another member of staff.", history.Reason);
+    }
+
+    /// <summary>
     /// A one-off claim is refused while the holder's own scope is live, so it never rotates their
     /// open window. The record page's Edit replaces their own scope explicitly: the earlier
     /// window's token is rotated out, and no takeover of themselves is recorded.

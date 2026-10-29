@@ -170,8 +170,9 @@ public sealed class EfCaseWorkflowStore(
                 ? liveHolder
                 : null;
 
-        var previousName = previousHolder is not null
-            ? await LeaseHolderNameAsync(context, previousHolderKind, previousHolder, cancellationToken)
+        var takeOverReason = previousHolder is not null
+            ? await EfEditScopeStore.TakeOverHistoryReasonAsync(
+                context, previousHolderKind, previousHolder, cancellationToken)
             : null;
         CaseMutationGuard.ClearLease(workflow);
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
@@ -196,11 +197,11 @@ public sealed class EfCaseWorkflowStore(
             workflow.Version,
             expiresAtUtc,
             tokenHash);
-        if (previousHolder is not null)
+        if (takeOverReason is not null)
         {
             AddEvent(
                 context, workflow, request.Actor, operationKey,
-                $"Edit lease taken over from {previousName}.", requestHash,
+                takeOverReason, requestHash,
                 "edit_lease_taken_over", workflow.Version, workflow.Version,
                 now, null, null);
         }
@@ -2219,18 +2220,6 @@ public sealed class EfCaseWorkflowStore(
             LeaseTokenHash = leaseToken is null ? null : Hash(leaseToken),
             TakeOver = takeOver
         }));
-
-    private static async Task<string> LeaseHolderNameAsync(
-        PegasusDbContext context, ActorKind? holderKind, string holder, CancellationToken cancellationToken)
-    {
-        if (holderKind == ActorKind.Automation) return CaseEditAuthorityHolder.AutomationName;
-        if (!Guid.TryParse(holder, out var staffId)) return holder;
-        var name = await context.Users.AsNoTracking()
-            .Where(item => item.Id == staffId)
-            .Select(item => item.UserName)
-            .SingleOrDefaultAsync(cancellationToken);
-        return string.IsNullOrWhiteSpace(name) ? holder : name;
-    }
 
     private static void AddLeaseOperation(
         PegasusDbContext context,

@@ -36,9 +36,7 @@ public sealed class EfEditScopeStore(
         return new(
             scopeKind,
             recordId,
-            Enum.TryParse<ActorKind>(scope.HolderKind, out var holderKind)
-                ? holderKind
-                : null,
+            ParseHolderKind(scope.HolderKind),
             scope.Holder,
             scope.ExpectedVersion,
             scope.ExpiresAtUtc);
@@ -59,11 +57,8 @@ public sealed class EfEditScopeStore(
         {
             throw new KeyNotFoundException($"{request.ScopeKind} '{request.RecordId}' was not found.");
         }
-        if (currentVersion.Value != request.ExpectedVersion)
-        {
-            throw new EditScopeVersionConflictException(
-                request.ScopeKind, request.RecordId, request.ExpectedVersion, currentVersion.Value);
-        }
+        EditScopeAuthority.RequireVersion(
+            request.ScopeKind, request.RecordId, currentVersion.Value, request.ExpectedVersion);
         // A live scope refuses every claim that does not explicitly replace it, so a one-off
         // command never rotates the holder's open window. The record page's Edit replaces the
         // viewer's own scope without a takeover; only a colleague's scope is a takeover, and only
@@ -73,9 +68,7 @@ public sealed class EfEditScopeStore(
         {
             throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
         }
-        ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(scope?.HolderKind, out var parsedKind)
-            ? parsedKind
-            : null;
+        var previousHolderKind = ParseHolderKind(scope?.HolderKind);
         var previousHolder = isLive
             && !EditScopeAuthority.IsHolder(previousHolderKind, scope!.Holder, request.Actor)
                 ? scope!.Holder
@@ -205,19 +198,10 @@ public sealed class EfEditScopeStore(
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(actor);
-        if (currentVersion != expectedVersion)
-        {
-            throw new EditScopeVersionConflictException(
-                scopeKind, recordId, expectedVersion, currentVersion);
-        }
-
+        EditScopeAuthority.RequireVersion(scopeKind, recordId, currentVersion, expectedVersion);
         var scope = await FindForUpdateAsync(context, scopeKind, recordId, cancellationToken);
         Require(scope, scopeKind, recordId, actor, leaseToken, now);
-        if (scope!.ExpectedVersion != expectedVersion)
-        {
-            throw new EditScopeVersionConflictException(
-                scopeKind, recordId, expectedVersion, scope.ExpectedVersion);
-        }
+        EditScopeAuthority.RequireVersion(scopeKind, recordId, scope!.ExpectedVersion, expectedVersion);
     }
 
     /// <summary>
@@ -288,45 +272,32 @@ public sealed class EfEditScopeStore(
         _ => throw new ArgumentOutOfRangeException(nameof(scopeKind))
     };
 
+    /// <summary>
+    /// Applies <see cref="EditScopeAuthority.RequireScope"/> to the retained scope, supplying the
+    /// fixed-time comparison of the presented token against the retained hash.
+    /// </summary>
     private static void Require(
         EditScopeEntity? scope,
         EditScopeKind scopeKind,
         Guid recordId,
         ActionActor actor,
         string? leaseToken,
-        DateTimeOffset now)
-    {
-        if (scope is null || !EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now))
-        {
-            throw new EditScopeExpiredException(scopeKind, recordId);
-        }
+        DateTimeOffset now) =>
+        EditScopeAuthority.RequireScope(
+            scopeKind,
+            recordId,
+            actor,
+            leaseToken,
+            ParseHolderKind(scope?.HolderKind),
+            scope?.Holder,
+            scope?.ExpiresAtUtc,
+            presented => CryptographicOperations.FixedTimeEquals(
+                Convert.FromHexString(scope!.TokenHash),
+                SHA256.HashData(Encoding.UTF8.GetBytes(presented))),
+            now);
 
-        RequireHolder(scope, scopeKind, recordId, actor, leaseToken);
-    }
-
-    private static void RequireHolder(
-        EditScopeEntity? scope,
-        EditScopeKind scopeKind,
-        Guid recordId,
-        ActionActor actor,
-        string? leaseToken)
-    {
-        if (scope is null
-            || string.IsNullOrWhiteSpace(leaseToken)
-            || leaseToken.Length != CaseEditAuthority.LeaseTokenLength)
-        {
-            throw new EditScopeExpiredException(scopeKind, recordId);
-        }
-
-        if (!Enum.TryParse<ActorKind>(scope.HolderKind, out var holderKind)
-            || !EditScopeAuthority.IsHolder(holderKind, scope.Holder, actor)
-            || !CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(scope.TokenHash),
-                SHA256.HashData(Encoding.UTF8.GetBytes(leaseToken))))
-        {
-            throw new EditScopeConflictException(scopeKind, recordId);
-        }
-    }
+    private static ActorKind? ParseHolderKind(string? holderKind) =>
+        Enum.TryParse<ActorKind>(holderKind, out var parsed) ? parsed : null;
 
     private static Task<List<EditScopeEntity>> FindForActorAsync(
         PegasusDbContext context,
@@ -392,19 +363,8 @@ public sealed class EfEditScopeStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var name = previousHolder;
-        if (previousHolderKind == ActorKind.Automation)
-        {
-            name = CaseEditAuthorityHolder.AutomationName;
-        }
-        else if (Guid.TryParse(previousHolder, out var staffId))
-        {
-            name = await context.Users.AsNoTracking()
-                .Where(item => item.Id == staffId)
-                .Select(item => item.UserName)
-                .SingleOrDefaultAsync(cancellationToken) ?? previousHolder;
-        }
-        var reason = $"Edit lease taken over from {name}.";
+        var reason = await TakeOverHistoryReasonAsync(
+            context, previousHolderKind, previousHolder, cancellationToken);
         var fingerprint = Hash(
             $"{request.ScopeKind}|{request.RecordId:D}|{request.ExpectedVersion}|{request.Actor.SubjectId}|{request.OperationKey}");
         if (request.ScopeKind == EditScopeKind.Triage)
@@ -449,6 +409,28 @@ public sealed class EfEditScopeStore(
                 AfterVersion = image.LifecycleVersion
             });
         }
+    }
+
+    /// <summary>
+    /// The takeover history line for a Case lease or an edit scope, naming the previous holder by
+    /// <see cref="CaseEditAuthorityHolder.ResolveAsync"/> with the account read inside the
+    /// caller's transaction.
+    /// </summary>
+    internal static async Task<string> TakeOverHistoryReasonAsync(
+        PegasusDbContext context,
+        ActorKind? previousHolderKind,
+        string previousHolder,
+        CancellationToken cancellationToken)
+    {
+        var holder = await CaseEditAuthorityHolder.ResolveAsync(
+            previousHolderKind,
+            previousHolder,
+            (staffId, token) => context.Users.AsNoTracking()
+                .Where(item => item.Id == staffId)
+                .Select(item => item.UserName)
+                .SingleOrDefaultAsync(token),
+            cancellationToken);
+        return holder.TakeOverHistoryReason;
     }
 
     private static string Hash(string value) =>

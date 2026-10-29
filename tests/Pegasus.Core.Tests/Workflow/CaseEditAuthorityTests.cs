@@ -343,6 +343,41 @@ public sealed class CaseEditAuthorityTests
         Assert.Null(accounts.Requested);
     }
 
+    /// <summary>
+    /// The takeover history line names the previous holder by the one rule the holder chip uses:
+    /// AI for the Automation Actor, the staff account name, and otherwise another member of
+    /// staff, never the subject identifier (R520, 29 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task TheTakeoverHistoryLineNeverNamesAHolderByItsIdentifier()
+    {
+        var staffId = Guid.NewGuid();
+        var unresolvable = Guid.NewGuid().ToString("D");
+        Task<string?> AccountName(Guid id, CancellationToken _) =>
+            Task.FromResult(id == staffId ? "r.hughes" : null);
+
+        Assert.Equal(
+            "Edit lease taken over from r.hughes.",
+            (await CaseEditAuthorityHolder.ResolveAsync(
+                ActorKind.Staff, staffId.ToString("D"), AccountName, default)).TakeOverHistoryReason);
+        Assert.Equal(
+            "Edit lease taken over from AI.",
+            (await CaseEditAuthorityHolder.ResolveAsync(
+                ActorKind.Automation, staffId.ToString("D"), AccountName, default)).TakeOverHistoryReason);
+        foreach (var (kind, subject) in new (ActorKind?, string)[]
+        {
+            (ActorKind.Staff, unresolvable),
+            (ActorKind.Staff, "automation"),
+            (null, staffId.ToString("D"))
+        })
+        {
+            var reason = (await CaseEditAuthorityHolder.ResolveAsync(
+                kind, subject, AccountName, default)).TakeOverHistoryReason;
+            Assert.Equal("Edit lease taken over from another member of staff.", reason);
+            Assert.DoesNotContain(subject, reason, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public async Task DisclosingTheHolderRequiresCaseworkPermissionBeforeAnyAccountIsRead()
     {
