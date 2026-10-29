@@ -412,8 +412,15 @@ Application Insights sampling and Log Analytics daily caps control telemetry
 cost. Alerts cover application availability, authentication anomalies, mailbox
 cursor/ingestion failures, poison queues, OCR/PDF failures, Box failures, overdue
 work, chase generation, EVA export, database pressure, and unexpected cost.
-Alerts for matching failures, chasing failures and availability are wanted, on
-the existing action group (operator ruling OPS-08, 15 October 2026).
+Since 29 October 2026, three rules on the existing action group cover matching
+failures, chasing failures and availability (operator ruling OPS-08, 15 October
+2026; thresholds [R447](../rulings.md), 22 October 2026), each read every 15
+minutes. `pegasus-prod-matching-failures` (Sev2) fires on three or more failures
+of the image or Triage pairing step in 15 minutes. `pegasus-prod-chasing-failures`
+(Sev2) fires on one due-work sweep that fails or passes its 60 s budget in an
+hour. Availability is `pegasus-prod-web-http5xx` together with
+`pegasus-prod-web-readiness` (Sev1), which fires on three or more failed
+`/health/ready` probes in 15 minutes.
 
 Azure SQL automated point-in-time restore is the database recovery mechanism.
 Azure SQL creates transaction-log backups approximately every ten minutes and
