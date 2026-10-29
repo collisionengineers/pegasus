@@ -38,7 +38,7 @@ public sealed class StaffAccountsAndRolesWebTests
         Assert.Equal(StaffRole.Administrator, administrator.Role);
 
         using var settings = await client.GetAsync(
-            AreaRoute + "?editStaffId=" + administrator.Id + "&expectedVersion=" + administrator.Version);
+            AreaRoute + "?editStaffId=" + administrator.Id);
         var settingsHtml = await settings.Content.ReadAsStringAsync();
         Assert.Contains("Save settings", settingsHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Save account settings", settingsHtml, StringComparison.Ordinal);
@@ -59,7 +59,7 @@ public sealed class StaffAccountsAndRolesWebTests
             item.UserName == DevelopmentOfflineIdentity.UserName);
 
         using var editResponse = await client.GetAsync(
-            AreaRoute + "?editStaffId=" + administrator.Id + "&expectedVersion=" + administrator.Version);
+            AreaRoute + "?editStaffId=" + administrator.Id);
         var editHtml = await editResponse.Content.ReadAsStringAsync();
 
         var fields = new Dictionary<string, string>
@@ -107,8 +107,7 @@ public sealed class StaffAccountsAndRolesWebTests
             .ListAsync(0, ListStaffAccounts.MaximumPageSize, default);
         var administrator = accounts.Accounts.Single(item =>
             item.UserName == DevelopmentOfflineIdentity.UserName);
-        var path = AreaRoute + "?editStaffId=" + administrator.Id
-            + "&expectedVersion=" + administrator.Version;
+        var path = AreaRoute + "?editStaffId=" + administrator.Id;
         using var editResponse = await client.GetAsync(path);
         var editHtml = await editResponse.Content.ReadAsStringAsync();
         var refused = await client.PostAsync(
@@ -148,7 +147,7 @@ public sealed class StaffAccountsAndRolesWebTests
                 default);
         Assert.Equal(StaffRole.User, created.Account.Role);
 
-        var path = AreaRoute + "?editStaffId=" + created.Account.Id + "&expectedVersion=" + created.Account.Version;
+        var path = AreaRoute + "?editStaffId=" + created.Account.Id;
         using var edit = await client.GetAsync(path);
         var html = await edit.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
@@ -213,7 +212,7 @@ public sealed class StaffAccountsAndRolesWebTests
         var settingsId = "settings-" + staffId;
 
         using var response = await client.GetAsync(
-            AreaRoute + "?editStaffId=" + created.Account.Id + "&expectedVersion=" + created.Account.Version);
+            AreaRoute + "?editStaffId=" + created.Account.Id);
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

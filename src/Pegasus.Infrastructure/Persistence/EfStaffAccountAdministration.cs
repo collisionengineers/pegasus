@@ -437,13 +437,15 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
+        // The version first: a request rendered before another Administrator
+        // disabled the account is stale, and asks for a reload.
+        RequireExpectedVersion(user, request.ExpectedVersion);
         if (!user.IsEnabled)
         {
             throw new StaffAccountAdministrationException(
                 StaffAccountAdministrationError.DisabledAccount);
         }
 
-        RequireExpectedVersion(user, request.ExpectedVersion);
         var role = await GetRoleAsync(user);
         var temporaryPassword = GenerateTemporaryPassword();
         var before = Snapshot(user, role);
