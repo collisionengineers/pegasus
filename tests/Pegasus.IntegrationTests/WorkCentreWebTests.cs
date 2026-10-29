@@ -471,8 +471,9 @@ public sealed class WorkCentreWebTests
             [("take-from-the-row", (Guid?)viewer), ("hand-to-unassigned", null)],
             store.EngineerAssignments.Select(request => (request.OperationKey, request.EngineerId)).ToArray());
         Assert.All(store.EngineerAssignments, request => Assert.Equal(string.Empty, request.Reason));
-        // The refused post claimed a lease and released it.
-        Assert.Single(store.LeaseReleases);
+        // Each post claimed a lease and released it after the assignment,
+        // whatever the assignment answered (R523).
+        Assert.Equal(3, store.LeaseReleases.Count);
     }
 
     /// <summary>

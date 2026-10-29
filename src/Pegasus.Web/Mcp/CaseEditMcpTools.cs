@@ -144,7 +144,7 @@ internal sealed class CaseEditMcpTools(
     TimeProvider timeProvider,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
-    AutomationEditLease leases)
+    OneCommandEdit leases)
 {
     [McpServerTool(
         Name = "pegasus_case_update_details",

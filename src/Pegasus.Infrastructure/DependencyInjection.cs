@@ -443,6 +443,7 @@ public static class DependencyInjection
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<CaseEditLeases>();
+        services.AddScoped<OneCommandEditAuthority>();
         services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<EfCaseQueryStore>();

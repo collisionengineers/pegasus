@@ -149,10 +149,9 @@ public interface IUploadCaseDecision
 public sealed class UploadCaseDecision(
     ISearchCases searchCases,
     IGetIntake getIntake,
-    CaseEditLeases caseEditLeases,
+    OneCommandEdit oneCommandEdit,
     ILinkIntake linkIntake,
-    IIntakeAssociationDestinationQueries destinations,
-    IEditScopeLeases editScopes) : IUploadCaseDecision
+    IIntakeAssociationDestinationQueries destinations) : IUploadCaseDecision
 {
     public async Task<IReadOnlyList<UploadCaseSuggestion>> SearchForUploadsAsync(
         IReadOnlyList<Guid> receiptIds,
@@ -366,24 +365,23 @@ public sealed class UploadCaseDecision(
         try
         {
             // A Triage Case destination is claimed through its Triage edit scope.
-            var lease = await CaseLinkAuthority.ClaimAsync(
-                destination,
+            await oneCommandEdit.RunAsync(
+                destination.CaseId,
+                destination.IsTriageCase,
                 input.ExpectedCaseVersion,
                 actor,
                 $"upload-attach-lease:{operationKey}",
-                caseEditLeases,
-                editScopes,
-                cancellationToken);
-            await linkIntake.ExecuteAsync(
-                new(
-                    receiptId,
-                    targetCaseId,
-                    receipt.Version,
-                    lease.Version,
-                    lease.Token,
-                    actor,
-                    operationKey,
-                    Reason: null),
+                lease => linkIntake.ExecuteAsync(
+                    new(
+                        receiptId,
+                        targetCaseId,
+                        receipt.Version,
+                        lease.Version,
+                        lease.Token,
+                        actor,
+                        operationKey,
+                        Reason: null),
+                    cancellationToken),
                 cancellationToken);
         }
         catch (Exception exception) when (
@@ -540,25 +538,24 @@ public sealed class UploadCaseDecision(
                 // Each owned link consumes its lease and advances the Case by
                 // one. Carry that known result forward rather than refreshing
                 // and accidentally treating another writer as our own change.
-                var lease = await CaseLinkAuthority.ClaimAsync(
-                    currentDestination,
+                await oneCommandEdit.RunAsync(
+                    currentDestination.CaseId,
+                    currentDestination.IsTriageCase,
                     nextCaseVersion,
                     actor,
                     $"upload-attach-lease:{operationKey}",
-                    caseEditLeases,
-                    editScopes,
-                    cancellationToken);
-                await linkIntake.ExecuteAsync(
-                    new(
-                        receiptId,
-                        targetCaseId,
-                        receipt.Version,
-                        lease.Version,
-                        lease.Token,
-                        actor,
-                        operationKey,
-                        Reason: null,
-                        SettleUnidentified: receiptId == memberReceiptIds[^1]),
+                    lease => linkIntake.ExecuteAsync(
+                        new(
+                            receiptId,
+                            targetCaseId,
+                            receipt.Version,
+                            lease.Version,
+                            lease.Token,
+                            actor,
+                            operationKey,
+                            Reason: null,
+                            SettleUnidentified: receiptId == memberReceiptIds[^1]),
+                        cancellationToken),
                     cancellationToken);
                 added++;
                 nextCaseVersion++;

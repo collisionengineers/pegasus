@@ -41,7 +41,7 @@ internal sealed record EditLeaseReleaseToolResult(
 /// through every write made under it until <c>pegasus_edit_end</c> releases it
 /// (operator, 8 October 2026). A single write needs none of this: a write tool
 /// given no token holds the lease for that one command
-/// (<see cref="AutomationEditLease"/>).
+/// (<see cref="Pegasus.Web.Presentation.OneCommandEdit"/>).
 /// </summary>
 [McpServerToolType]
 internal sealed class EditLeaseMcpTools(

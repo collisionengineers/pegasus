@@ -161,7 +161,7 @@ internal sealed class MailMcpTools(
     IIntakeAssociationDestinationQueries destinations,
     ILinkIntake linkIntake,
     IOpenCaseQuery openCaseQuery,
-    AutomationEditLease leases,
+    OneCommandEdit leases,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
     ICursorProtector cursors)
