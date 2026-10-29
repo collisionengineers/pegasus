@@ -116,6 +116,11 @@ it keeps the lookup's value, and a different value typed over it is refused
 until the page has caught up. The heartbeat answers the Case's version, and
 the page redraws each section that holds nothing unsent as the Case now
 stands ([FRD-16](frd-16-case-record-workspace.md#case-workspace)).
+System work on a Case either yields to a held lease (an image merge or an
+automatic link waits while a member of staff edits) or advances the version
+under it, and never ends it; system work on a Triage Case never yields to its
+Triage scope and leaves the Triage version alone. The two stay different
+(R522, 29 October 2026).
 
 **Same guard everywhere.** Web pages and MCP Automation Actor calls use the
 same check. Background records that only append, such as receipts, dispatch
@@ -139,7 +144,8 @@ not its queue or a linked Case. A Triage Case has no Case edit lease: its
 Triage edit scope and Triage version are its edit authority wherever a Case
 needs one,
 including Case custody and upload association, and a custody completion by
-the system never invalidates it.
+the system never invalidates it: system work on a Triage Case never yields to
+the scope and leaves the Triage version alone (R522, 29 October 2026).
 
 - Save checks the holder token and the expected version inside the change
   transaction, applies the change, and releases the scope in the same
@@ -157,17 +163,32 @@ the system never invalidates it.
   own transaction. Automatic image processing runs as the system worker; it
   never impersonates a staff scope.
 - Disabling an account or revoking its sessions clears that account's
-  record scopes, so a token from the old session cannot save later. The Case
-  lease is owned by the Case workflow and is handled there.
+  record scopes, so a token from the old session cannot save later. Its Case
+  leases are not cleared: the Case workflow owns them, and each lapses within
+  five minutes. The two stay different (R521, 29 October 2026).
+
+A record scope follows the Case lease's rules:
+
+- A heartbeat or save that finds the holder's scope lapsed, with nobody
+  having claimed the record since, carries on with the same token (R515,
+  29 October 2026).
+- A scope is claimed at the record's current version, and a claim or a save
+  under it is refused only when it expects a version newer than the record's
+  (R516, 29 October 2026). A Triage or Image Intake save still checks, in its
+  own store, the record version it was loaded at, and a Triage save, which has
+  no Edit step to draw the record again, is refused as changed when the
+  Triage moved past the version it was posted with.
+- A claim sent again with the same operation key and details returns the
+  same token while the scope it issued is live (R519, 29 October 2026).
 
 ### Take over
 
 **Your own lease.** A staff member never takes over their own lease. A Case
 they hold resumes as described under Coming back. An Image Intake record
-still opens read-only; its **Edit** replaces their own scope with a new
-token, so another window of theirs on the same record has its next heartbeat
-refused. Neither writes history. A one-off change made from elsewhere is
-refused while their scope is live.
+still opens read-only; its **Edit** on a scope they hold resumes it with the
+same token, so another window of theirs on the same record keeps editing
+(R518, 29 October 2026). Neither writes history. A one-off change made from
+elsewhere is refused while their scope is live.
 
 **A colleague's lease.** Any staff member with edit rights for that record
 may press **Take over** on a lease a colleague holds. No reason is asked for.
@@ -180,14 +201,17 @@ is the same for everyone with edit rights. The Automation Actor may take over
 a Case lease or Triage scope a staff member holds in the same way, and the
 takeover is recorded the same way
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases); operator,
-7 October 2026). Staff may take over a Case lease the Automation Actor holds
-in the same way, and only staff may; the history line names the Automation
-Actor as AI (operator, 15 and 16 October 2026). Otherwise that lease lapses
+7 October 2026). Staff may take over a Case lease or record scope the
+Automation Actor holds in the same way, and only staff may: the Automation
+Actor never takes over an Automation holder (R517, 29 October 2026); the
+history line names the Automation Actor as AI (operator, 15 and 16 October
+2026). Otherwise that lease lapses
 within five minutes, or ends at once when an Administrator stops the
 automation client
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)). Take over
-applies to a Case and an Image Intake record only: a Triage Case's scope
-lasts one save.
+applies to a Case, an Image Intake record and a Triage Case (R517, 29 October
+2026). A member of staff's Triage save never takes over: its scope lasts that
+one save.
 
 ### Refusals and recovery
 
@@ -217,7 +241,7 @@ heartbeating, though its timers are throttled.
 | Free | No lease, or the last one expired or was released | Edit is offered |
 | Held | Edit claimed it and heartbeats keep renewing it | Holder's name, read-only, Take over; the holder resumes it |
 | Expired | Five minutes without a heartbeat | Edit is offered; until someone claims it, the holder's own heartbeat or save picks it up again |
-| Taken over | A colleague took it over, or the holder claimed a record scope back in another window | Previous holder's saves are refused |
+| Taken over | A colleague took it over | Previous holder's saves are refused |
 
 ## Edge cases and fail-closed behaviour
 
@@ -230,8 +254,8 @@ heartbeating, though its timers are throttled.
   window ends edit mode in the other. A save in either moves the lease on:
   the other window's next heartbeat is refused, it catches up with the Case
   as it stands, and the value it was typing stays on screen.
-- A record-scope window of the same holder is refused after that holder
-  claims the scope back in another window.
+- A second window of the same holder shares the record scope: claiming it
+  again in one resumes it in both (R518, 29 October 2026).
 - A revoked session's token cannot save an existing record.
 - Automatic processing has no lease and cannot claim one.
 
