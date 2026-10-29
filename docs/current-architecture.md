@@ -98,7 +98,7 @@ any message staff or an Automation caller has decided.
 | Responsibility | Current source |
 | --- | --- |
 | Core intake receipt/query/command use cases | `src/Pegasus.Core/Intake/` |
-| Core source-download contract and policy | `src/Pegasus.Core/Intake/DownloadIntakeSource.cs`, `src/Pegasus.Core/Intake/IntakeContracts.cs` |
+| Core source-download contract and policy | `src/Pegasus.Core/Intake/DownloadIntakeSource.cs`, `src/Pegasus.Core/Intake/IntakeContracts.cs`; the upload review's image from intake bytes, `src/Pegasus.Core/Intake/ReadUploadedImage.cs` |
 | QDOS extraction policy | `src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs` |
 | Evidenced principal mail route, classification, and case-match policies | `src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`; the intermediaries the route reads from the Contacts directory: `src/Pegasus.Core/Intake/IntermediaryDomains.cs` (`IIntermediaryRegistry`, `IntermediaryDomains`), `src/Pegasus.Infrastructure/Persistence/EfIntermediaryRegistry.cs` ([ADR-0078](adr/0078-intermediaries-are-linked-claim-sources.md)) |
 | Core mail categories (three: New instruction, Triage request, Cancellation; [ADR-0085](adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)) | `src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs` (`MailCategory`, `MailCategories`, `MailClassificationResult.OpensQuery`) |
