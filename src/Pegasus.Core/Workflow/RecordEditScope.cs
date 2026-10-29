@@ -116,7 +116,7 @@ public static class EditScopeAuthority
         StaffAuthorization.Require(actor, right);
     }
 
-    public static readonly TimeSpan Duration = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan Duration = CaseEditAuthority.LeaseDuration;
 
     public static readonly TimeSpan HeartbeatInterval = CaseEditAuthority.HeartbeatInterval;
 

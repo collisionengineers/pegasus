@@ -17,7 +17,6 @@ public sealed class EfCaseWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore, IReleaseAutomationLeases
 {
-    private static readonly TimeSpan EditLeaseDuration = TimeSpan.FromMinutes(5);
     private const string ClaimLeaseOperationKind = "claim";
     private const string RenewLeaseOperationKind = "renew";
     private const string ReleaseLeaseOperationKind = "release";
@@ -177,7 +176,7 @@ public sealed class EfCaseWorkflowStore(
         CaseMutationGuard.ClearLease(workflow);
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var tokenHash = Hash(token);
-        var expiresAtUtc = now + EditLeaseDuration;
+        var expiresAtUtc = now + CaseEditAuthority.LeaseDuration;
         workflow.EditLeaseToken = token;
         workflow.EditLeaseTokenHash = tokenHash;
         workflow.EditLeaseRequestHash = requestHash;
@@ -269,7 +268,7 @@ public sealed class EfCaseWorkflowStore(
         CaseMutationGuard.RequireLease(workflow, request.Actor, request.LeaseToken, now);
         CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
         var tokenHash = Hash(request.LeaseToken);
-        var expiresAtUtc = now + EditLeaseDuration;
+        var expiresAtUtc = now + CaseEditAuthority.LeaseDuration;
         workflow.EditLeaseToken = request.LeaseToken;
         workflow.EditLeaseTokenHash = tokenHash;
         workflow.EditLeaseRequestHash = requestHash;
@@ -330,7 +329,7 @@ public sealed class EfCaseWorkflowStore(
 
         var now = timeProvider.GetUtcNow();
         CaseMutationGuard.RequireHeartbeat(workflow, request.Actor, request.LeaseToken, now);
-        var expiresAtUtc = now + EditLeaseDuration;
+        var expiresAtUtc = now + CaseEditAuthority.LeaseDuration;
         workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -380,7 +379,7 @@ public sealed class EfCaseWorkflowStore(
             return null;
         }
 
-        var expiresAtUtc = now + EditLeaseDuration;
+        var expiresAtUtc = now + CaseEditAuthority.LeaseDuration;
         workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

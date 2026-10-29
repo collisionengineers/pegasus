@@ -96,7 +96,10 @@ association, evidence change or other staff change sends both the lease token
 and the Case version the editor loaded. Core checks both inside the
 transaction. Every staff change ends the lease it was made under and the
 holder's page receives the next one, so a token that still matches proves no
-staff change has landed since the page loaded its version. Create audit is a
+staff change has landed since the page loaded its version. Core's Case edit
+authority owns this rule, the five-minute lease length and the two writes that
+keep the lease (an Automation write and a Glass's return), and every store
+applies it (R514, 29 October 2026). Create audit is a
 staff change, so a change prepared before it is refused; every change after it
 edits the Audit
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)).

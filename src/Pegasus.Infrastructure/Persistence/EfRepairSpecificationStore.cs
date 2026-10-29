@@ -1269,8 +1269,9 @@ public sealed class EfRepairSpecificationStore(
     /// <summary>
     /// The guard every specification write passes: the Case open and writable,
     /// the lease proven, the version not from the future. The write advances
-    /// the Case and ends the lease it was made under, unless it is one the
-    /// staff member's session continues past (<see cref="SaveEstimateRequest.KeepsLease"/>).
+    /// the Case, and the lease it was made under ends or stays as
+    /// <see cref="CaseEditAuthority.WriteEndsLease"/> says for the writer and
+    /// <see cref="SaveEstimateRequest.KeepsLease"/>.
     /// </summary>
     private static void Guard(
         CaseWorkflowEntity workflow, long expectedVersion, ActionActor actor, string lease, DateTimeOffset now,
@@ -1285,14 +1286,7 @@ public sealed class EfRepairSpecificationStore(
         }
         CaseMutationGuard.RequireLease(workflow, actor, lease, now);
         CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
-        if (keepLease)
-        {
-            CaseMutationGuard.Advance(workflow);
-        }
-        else
-        {
-            CaseMutationGuard.Complete(workflow);
-        }
+        CaseMutationGuard.Complete(workflow, keepLease);
     }
 
     private static void RequireAssessmentEditable(CaseWorkflowEntity workflow)

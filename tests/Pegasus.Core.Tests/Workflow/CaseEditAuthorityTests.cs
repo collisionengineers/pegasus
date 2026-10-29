@@ -102,6 +102,40 @@ public sealed class CaseEditAuthorityTests
         Assert.Equal(9, exception.ActualVersion);
     }
 
+    /// <summary>A staff write ends the lease it was made under.</summary>
+    [Fact]
+    public void AStaffWriteEndsItsLease() =>
+        Assert.True(CaseEditAuthority.WriteEndsLease(ActorKind.Staff, keepsLease: false));
+
+    /// <summary>
+    /// The Automation Actor's write keeps its lease until pegasus_edit_end releases it (operator,
+    /// 8 October 2026).
+    /// </summary>
+    [Fact]
+    public void AnAutomationWriteKeepsItsLease()
+    {
+        Assert.False(CaseEditAuthority.WriteEndsLease(ActorKind.Automation, keepsLease: false));
+        Assert.False(CaseEditAuthority.WriteEndsLease(ActorKind.Automation, keepsLease: true));
+    }
+
+    /// <summary>
+    /// A Glass's return landing its estimate under the staff member's own session keeps their
+    /// lease (operator, 6 October 2026).
+    /// </summary>
+    [Fact]
+    public void AWriteThatKeepsTheLeaseLeavesAStaffLeaseStanding() =>
+        Assert.False(CaseEditAuthority.WriteEndsLease(ActorKind.Staff, keepsLease: true));
+
+    /// <summary>
+    /// A lease lasts five minutes (FRD-14), and a record edit scope lasts as long as a Case lease.
+    /// </summary>
+    [Fact]
+    public void ALeaseLastsFiveMinutes()
+    {
+        Assert.Equal(TimeSpan.FromMinutes(5), CaseEditAuthority.LeaseDuration);
+        Assert.Equal(CaseEditAuthority.LeaseDuration, EditScopeAuthority.Duration);
+    }
+
     [Fact]
     public void MissingPresentedTokenRetainedHashOrHolderIsRefusedAsHavingNoEditAuthority()
     {

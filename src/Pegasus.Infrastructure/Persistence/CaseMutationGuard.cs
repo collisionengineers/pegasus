@@ -167,26 +167,24 @@ internal static class CaseMutationGuard
     }
 
     /// <summary>
-    /// A write under the lease: the version advances and the lease it was made under ends as
-    /// <see cref="EndWriteLease"/> says.
+    /// A write under the lease: the version advances and the lease it was made under ends or
+    /// stays as <see cref="CaseEditAuthority.WriteEndsLease"/> says.
     /// </summary>
-    public static void Complete(CaseWorkflowEntity workflow)
+    public static void Complete(CaseWorkflowEntity workflow, bool keepsLease = false)
     {
         Advance(workflow);
-        EndWriteLease(workflow);
+        EndWriteLease(workflow, keepsLease);
     }
 
     /// <summary>
-    /// The lease a write was made under, once the write is made. A staff lease ends, so the
-    /// holder's next write presents the lease claimed again after it. The Automation actor's
-    /// lease stands until pegasus_edit_end releases it, so one token from pegasus_edit_begin
-    /// carries every write of its multi-step work (operator, 8 October 2026). A write proves
-    /// the lease first, so the retained holder is the writer.
+    /// Applies <see cref="CaseEditAuthority.WriteEndsLease"/> to the lease a write was made
+    /// under, once the write is made: a lease that ends is cleared from the retained row.
     /// </summary>
-    public static void EndWriteLease(CaseWorkflowEntity workflow)
+    public static void EndWriteLease(CaseWorkflowEntity workflow, bool keepsLease = false)
     {
         ArgumentNullException.ThrowIfNull(workflow);
-        if (RetainedHolderKind(workflow.EditLeaseHolderKind) != ActorKind.Automation)
+        if (CaseEditAuthority.WriteEndsLease(
+                RetainedHolderKind(workflow.EditLeaseHolderKind), keepsLease))
         {
             ClearLease(workflow);
         }
