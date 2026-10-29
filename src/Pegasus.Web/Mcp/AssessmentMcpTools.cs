@@ -206,7 +206,7 @@ internal sealed class AssessmentMcpTools(
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
-    AutomationEditLease leases,
+    OneCommandEdit leases,
     IImportRawEstimate? importRawEstimate = null)
 {
     [McpServerTool(

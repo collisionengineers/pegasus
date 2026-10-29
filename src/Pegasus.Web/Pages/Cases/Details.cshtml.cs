@@ -2865,12 +2865,11 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
 
-        CaseEditLease lease;
+        OneCommandEditClaim lease;
         try
         {
-            lease = await leases.ClaimAsync(
-                new ClaimCaseEditLeaseRequest(id, expectedCaseVersion, actor, NewOperationKey()),
-                cancellationToken);
+            lease = await OneCommandEdit.ClaimAsync(
+                id, isTriageCase: false, expectedCaseVersion, actor, NewOperationKey(), cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -2883,17 +2882,9 @@ public sealed partial class DetailsModel(
             return RedirectToReport(id);
         }
 
-        try
-        {
-            return await GenerateAsync(
-                actor, id, operationKey, lease.Token, expectedCaseVersion,
-                kind, targetGenerationId, feeNoteOperationKey, cancellationToken);
-        }
-        finally
-        {
-            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
-                leases, logger, id, actor, lease);
-        }
+        return await OneCommandEdit.RunClaimedAsync(lease, actor, () => GenerateAsync(
+            actor, id, operationKey, lease.Token, expectedCaseVersion,
+            kind, targetGenerationId, feeNoteOperationKey, cancellationToken));
     }
 
     /// <summary>

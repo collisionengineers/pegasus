@@ -10,7 +10,7 @@
 @{
     // The Triage Case's record on /Cases/{id} (v31 C, Contact sheet). There
     // is no Edit step: each control posts once and the save claims and
-    // releases the Triage edit scope itself (TriageWriteAuthority).
+    // releases the Triage edit scope itself (OneCommandEdit).
     var view = Model.TriageCase!;
     var record = view.Record;
     var reference = record.Reference;

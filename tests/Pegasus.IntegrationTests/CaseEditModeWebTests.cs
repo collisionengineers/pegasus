@@ -1240,8 +1240,9 @@ public sealed class CaseEditModeWebTests
     /// An action taken without pressing Edit (operator, 26 and 29 September
     /// 2026; issue 912) runs under a lease the handler claims for it: one
     /// claim on the Case's version, the command under that token, and the
-    /// lease given back unless the command consumed it. A command the Case
-    /// refuses, or a request abandoned mid-command, frees the lease; a
+    /// lease given back after it whatever the command answered (R523). A
+    /// command the Case refuses, or a request abandoned mid-command, frees
+    /// the lease; a
     /// colleague's live lease refuses the claim in the claim's own words, so
     /// the command never runs and nothing is released. Place on Hold claims
     /// through the shared page model; the Generates claim through their own
@@ -1679,9 +1680,10 @@ public sealed class CaseEditModeWebTests
     private static LeaseScenario LeaseScenarioFor(string row) => row switch
     {
         // The Actions menu's Place on Hold (operator, 29 September 2026): the
-        // command consumes the lease it ran under, so none is left to release.
+        // lease claimed for it is released after the command whatever it
+        // answered (R523), even though the command consumed it.
         "hold" => HoldScenario(
-            "hold-outside-a-session", command: null, colleague: false, ran: true, released: false,
+            "hold-outside-a-session", command: null, colleague: false, ran: true, released: true,
             says: ["The case was put on hold."]),
         // A command the Case refuses frees the lease claimed for it and says so.
         "hold-refused" => HoldScenario(

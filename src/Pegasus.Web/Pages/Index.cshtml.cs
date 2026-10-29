@@ -35,7 +35,7 @@ public partial class IndexModel(
     IStaffAccountQueries staffAccounts,
     IGetCaseHeader getCaseHeader,
     IGetCaseEditBasis getCaseEditBasis,
-    CaseEditLeases leases,
+    OneCommandEdit oneCommandEdit,
     IAssignCaseEngineer assignEngineer,
     IAssignCaseQuery assignQuery,
     IConfirmAiJob confirmAiJob,
@@ -288,8 +288,8 @@ public partial class IndexModel(
     /// Assign Engineer from the expanded row (P4), and Take, which posts the
     /// viewer's own staff id (#1213). The Work Centre holds no edit session, so
     /// the handler claims the Case's lease, runs the same Core assignment the
-    /// Case record's dialog runs, and returns here; a refused assignment
-    /// releases the lease it claimed. Core composes the history reason.
+    /// Case record's dialog runs, and returns here, releasing the lease it
+    /// claimed whatever the assignment answered (R523). Core composes the history reason.
     /// </summary>
     public Task<IActionResult> OnPostAssignEngineerAsync(
         Guid caseId,
@@ -940,7 +940,7 @@ public partial class IndexModel(
         Guid caseId,
         string? returnUrl,
         string commandName,
-        Func<ActionActor, CaseEditLease, Task> execute,
+        Func<ActionActor, OneCommandEditClaim, Task> execute,
         string successMessage,
         CancellationToken cancellationToken)
     {
@@ -949,30 +949,27 @@ public partial class IndexModel(
             return Forbid();
         }
 
-        CaseEditLease? lease = null;
         try
         {
             var basis = await getCaseEditBasis.ExecuteAsync(new GetCaseQuery(caseId, actor), cancellationToken)
                 ?? throw new KeyNotFoundException("The case was not found.");
-            lease = await leases.ClaimAsync(
-                new ClaimCaseEditLeaseRequest(caseId, basis.Workflow.Version, actor, NewOperationKey()),
+            await oneCommandEdit.RunAsync(
+                caseId,
+                isTriageCase: false,
+                basis.Workflow.Version,
+                actor,
+                NewOperationKey(),
+                lease => execute(actor, lease),
                 cancellationToken);
-            await execute(actor, lease);
-            // The committed mutation consumed the lease.
-            lease = null;
             StatusMessage = successMessage;
         }
         catch (StaffAuthorizationException)
         {
-            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
-                leases, logger, caseId, actor, lease);
             return Forbid();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             LogCommandFailed(logger, commandName, caseId, exception);
-            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
-                leases, logger, caseId, actor, lease);
             ErrorMessage = Labels.AssignRefused;
         }
 

@@ -96,7 +96,7 @@ internal sealed class ReportPreparationMcpTools(
     TimeProvider timeProvider,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
-    AutomationEditLease leases)
+    OneCommandEdit leases)
 {
     private const string WorkDescription =
         "current (the default; the Audit once a Case has one) or inspection (the Inspection report of a Case that has its Audit).";

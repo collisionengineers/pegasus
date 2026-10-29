@@ -552,7 +552,7 @@ internal sealed class IntakeActionMcpTools(
                 receipt.Id,
                 expectedReceiptVersion,
                 actor,
-                AutomationEditLease.Derive(key, ":draft"),
+                Pegasus.Core.Workflow.OneCommandEditAuthority.DeriveOperationKey(key, ":draft"),
                 ReviewedDraftReason,
                 IntakeResolutionKind.CorrectDraft,
                 draft),

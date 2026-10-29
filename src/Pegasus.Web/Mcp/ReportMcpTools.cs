@@ -103,7 +103,7 @@ internal sealed class ReportMcpTools(
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
-    AutomationEditLease leases)
+    Pegasus.Web.Presentation.OneCommandEdit leases)
 {
     private const int MaximumOperationKeyLength = 100;
 

@@ -30,6 +30,7 @@ public sealed record TriageCasePorts(
     ILinkTriageCase LinkCase,
     IUnlinkTriageCase UnlinkCase,
     IEditScopeLeases EditScopes,
+    Pegasus.Web.Presentation.OneCommandEdit OneCommandEdit,
     IGetIntake GetIntake,
     IDescribeCaseEditAuthorityHolder DescribeEditAuthorityHolder,
     ICaseEngineerChoices EngineerChoices,

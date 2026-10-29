@@ -67,7 +67,7 @@ internal sealed class DocumentMcpTools(
     IRenderImageForDelivery images,
     IExtractPdfPageText pdfText,
     DocumentUploads uploads,
-    AutomationEditLease leases,
+    Pegasus.Web.Presentation.OneCommandEdit leases,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
