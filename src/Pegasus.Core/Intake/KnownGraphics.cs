@@ -67,7 +67,11 @@ public static class KnownGraphics
         // report with the reader's own fingerprint; the layout's bar-height
         // variants with the left bar the taller sit within 12 of it and no
         // nearer than 37 to the pie chart, so the two entries never share an
-        // image. The corpus check over the 14 reports is owed (issue 1718).
+        // image. Over the corpus (issue 1718) the chart is 13 encodings in 14
+        // documents: the 12 with the left bar the taller sit within 8, and the
+        // one with the right bar the taller sits at 19, outside this entry;
+        // whether it gets its own entry is the operator's call. That report's
+        // chart is the fixture KnownGraphicsTests reads.
         new("Bodyshop bar chart", 0xc0c6e6e6e6e6e6e6UL, 16, 300, 300),
         // 14 Bodyshop reports, 13 encodings; spread 16. No other corpus image
         // is 450x282.

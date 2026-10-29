@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Intake\Fixtures\*.png" LogicalName="Pegasus.Core.Tests.Intake.Fixtures.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Pegasus.Core.Tests.Support" />
   </ItemGroup>

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -39,6 +40,29 @@ public sealed class KnownGraphicsTests
         Assert.Null(logo.WidthPixels);
         Assert.True(logo.Matches(Image(logo.Fingerprint, 3150, 1756)));
         Assert.True(logo.Matches(Image(logo.Fingerprint, 563, 318)));
+    }
+
+    /// <summary>
+    /// The Repair Costs Analysis chart from page 5 of a.QDOS26123's
+    /// "Bodyshopreport316478-V1.pdf" (R476), as the PDF reader takes it out:
+    /// a 300x300 PNG with the soft mask as alpha. It passes the size rule, so
+    /// only the bar chart entry keeps it out of the photographs.
+    /// </summary>
+    [Fact]
+    public void TheBodyshopReportBarChartIsNotAPhotograph()
+    {
+        const string resource = "Pegasus.Core.Tests.Intake.Fixtures.bodyshop-report-316478-bar-chart.png";
+        using var stream = typeof(KnownGraphicsTests).Assembly.GetManifestResourceStream(resource)
+            ?? throw new InvalidOperationException($"{resource} is not embedded.");
+        using var content = new MemoryStream();
+        stream.CopyTo(content);
+        var chart = Assert.Single(ImageMeasurement.Complete(
+            [Image(null, null, null) with { MediaType = "image/png", Content = content.ToArray() }]));
+
+        Assert.Equal(300, chart.WidthPixels);
+        Assert.Equal(300, chart.HeightPixels);
+        Assert.Equal("Bodyshop bar chart", Assert.Single(KnownGraphics.Entries, entry => entry.Matches(chart)).Name);
+        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(chart));
     }
 
     [Fact]
@@ -84,7 +108,7 @@ public sealed class KnownGraphicsTests
     private static ulong FlipBits(ulong fingerprint, int count) =>
         fingerprint ^ (count >= 64 ? ulong.MaxValue : (1UL << count) - 1);
 
-    private static IntakeAssetCandidate Image(ulong? fingerprint, int width, int height) => new(
+    private static IntakeAssetCandidate Image(ulong? fingerprint, int? width, int? height) => new(
         "message, page 1, image 1",
         "page-1-image-1.jpg",
         "image/jpeg",
