@@ -38,6 +38,9 @@ public static partial class OperatorLabels
 {
     public const string MarkAsOriginalReport = "Mark as original report";
 
+    /// <summary>A pre-Case record's act that was refused or raced, on whichever page ran it.</summary>
+    public const string ActionNotApplied = "The action was not applied because the item changed or the action is not permitted. Reload and try again.";
+
     /// <summary>
     /// The Case requirement an Audit lists first until its original report is
     /// filed (FRD-01): the Case page's aside and the Cases quick detail name it.

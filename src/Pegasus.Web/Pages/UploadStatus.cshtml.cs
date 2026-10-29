@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Web.Presentation;
 using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload;
 
@@ -23,7 +24,8 @@ public sealed class UploadStatusModel(
     ISearchCases searchCases,
     IIntakeSubmissionGroupStore submissionGroups,
     IDeclineImageMatch declineImageMatch,
-    TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
+    GetUnidentifiedItemContext unidentifiedContexts,
+    TimeProvider timeProvider) : UploadReviewPageModel(caseDecision, unidentifiedContexts)
 {
     public QueuedIntakeStatus Status { get; private set; } = null!;
 
@@ -71,10 +73,12 @@ public sealed class UploadStatusModel(
     /// Carried on the URL so the duplicate value survives the page's own refreshes.
     /// </param>
     /// <param name="q">The Find term.</param>
+    /// <param name="register">Opens Register images, for a browser without script.</param>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         bool duplicate,
         string? q,
+        bool register,
         CancellationToken cancellationToken)
     {
         var status = await queries.GetAsync(id, cancellationToken);
@@ -111,7 +115,7 @@ public sealed class UploadStatusModel(
             await SearchAsync(q, actor, cancellationToken);
         }
 
-        await BuildReviewAsync(id, cancellationToken);
+        await BuildReviewAsync(id, register, cancellationToken);
         return Page();
     }
 
@@ -174,7 +178,7 @@ public sealed class UploadStatusModel(
         return RedirectToPage("/Upload");
     }
 
-    private async Task BuildReviewAsync(Guid id, CancellationToken cancellationToken)
+    private async Task BuildReviewAsync(Guid id, bool register, CancellationToken cancellationToken)
     {
         var haveActor = TryGetActor(out var actor);
         var unreadable = Receipt is { Decision: IntakeDecision.Unsupported or IntakeDecision.TechnicalFailure }
@@ -236,6 +240,9 @@ public sealed class UploadStatusModel(
             ?? Outcome?.Attach?.ReceiptVersion
             ?? Receipt?.Version
             ?? 0;
+        var registration = haveActor && phase is UploadReviewPhase.Decision or UploadReviewPhase.Report
+            ? await RegistrationOfferAsync(Outcome?.UnidentifiedItemId, actor!, cancellationToken)
+            : null;
         var known = suggestions.Concat(SearchResults);
         Review = new UploadReviewView(
             phase,
@@ -266,7 +273,9 @@ public sealed class UploadStatusModel(
                 && Outcome is { Kind: UploadOutcomeKind.PossibleMatch }
                 && Receipt is not null
                 && ImageIntakeLifecycleRules.IsImageOnlyMaterial(Receipt),
-            SingleReceiptId = attachReceiptId
+            SingleReceiptId = attachReceiptId,
+            Registration = registration,
+            OpenRegister = register && registration is not null
         };
     }
 
@@ -282,13 +291,15 @@ public sealed class UploadStatusModel(
             _ when unreadable => (Labels.StateCouldNotBeRead, "is-error"),
             _ => (Labels.StateReady, string.Empty)
         };
+        // The staged file's media type is known before processing has read it.
+        var mediaType = Receipt?.MediaType ?? Status.MediaType;
         return new UploadReviewFile(
             0,
             Status.StagedReceiptId,
             Status.SourceFileName,
             Receipt?.SourceLength,
-            Labels.Kind(Receipt?.MediaType, Status.SourceFileName),
-            UploadReviewFile.ImageUrlOf(Outcome, Receipt),
+            Labels.Kind(mediaType, Status.SourceFileName),
+            UploadReviewFile.ImageUrlOf(Status.StagedReceiptId, mediaType, Status.SourceHash ?? Receipt?.SourceHash),
             Receipt is null ? null : $"/Received/{Receipt.Id:D}/Source",
             label,
             tone,
@@ -304,7 +315,35 @@ public sealed class UploadStatusModel(
     protected override Task<IActionResult> RenderSurfaceAsync(
         Guid surfaceId,
         CancellationToken cancellationToken) =>
-        OnGetAsync(surfaceId, duplicate: false, q: null, cancellationToken: cancellationToken);
+        OnGetAsync(surfaceId, duplicate: false, q: null, register: false, cancellationToken: cancellationToken);
+
+    /// <summary>
+    /// The Unidentified item this file's outcome names, read afresh; none while
+    /// the file is still moving or when it belongs to a group, whose own
+    /// surface owns the decision.
+    /// </summary>
+    protected override async Task<Guid?> FindSurfaceUnidentifiedItemAsync(
+        Guid surfaceId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var status = await queries.GetAsync(surfaceId, cancellationToken);
+        if (status is not { Status: QueuedIntakeStatusKind.Complete })
+        {
+            return null;
+        }
+
+        var receipt = await getIntake.ExecuteAsync(
+            new(status.ProcessedReceiptId ?? status.StagedReceiptId, actor), cancellationToken);
+        if (await FindManualSiblingGroupAsync(receipt, cancellationToken) is not null)
+        {
+            return null;
+        }
+
+        var outcome = await outcomeQueries.BuildAsync(
+            status, receipt, submissionGroupId: null, actor, cancellationToken);
+        return outcome.UnidentifiedItemId;
+    }
 
     protected override async Task<bool> SurfaceContainsReceiptAsync(
         Guid surfaceId,

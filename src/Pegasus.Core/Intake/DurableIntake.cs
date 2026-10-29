@@ -115,6 +115,10 @@ public enum QueuedIntakeStatusKind
 /// surface can say how long the work genuinely cannot progress for instead of
 /// polling as if it were about to move.
 /// </param>
+/// <param name="MediaType">
+/// The staged file's media type and SHA-256, known from the moment it is
+/// received, so the upload review can address an image before processing.
+/// </param>
 public sealed record QueuedIntakeStatus(
     Guid StagedReceiptId,
     string SourceFileName,
@@ -122,7 +126,9 @@ public sealed record QueuedIntakeStatus(
     QueuedIntakeStatusKind Status,
     Guid? ProcessedReceiptId,
     string? FailureCode,
-    DateTimeOffset? RetryDueAtUtc = null);
+    DateTimeOffset? RetryDueAtUtc = null,
+    string? MediaType = null,
+    string? SourceHash = null);
 
 public static class QueuedIntakeStatusKinds
 {
@@ -157,6 +163,15 @@ public interface IQueuedIntakeStatusQueries
     /// <summary>The status of the source retained under this identity, or null when none was.</summary>
     Task<QueuedIntakeStatus?> FindBySourceIdentityAsync(
         IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The staged receipt itself, with the key its bytes were staged under:
+    /// what the upload review reads an image from before it is processed
+    /// (<see cref="ReadUploadedImage"/>).
+    /// </summary>
+    Task<IntakeStagedReceipt?> GetStagedReceiptAsync(
+        Guid stagedReceiptId,
         CancellationToken cancellationToken = default);
 }
 

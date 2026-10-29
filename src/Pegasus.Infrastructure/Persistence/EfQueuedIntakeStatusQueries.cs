@@ -24,6 +24,17 @@ public sealed class EfQueuedIntakeStatusQueries(
             cancellationToken);
     }
 
+    public async Task<IntakeStagedReceipt?> GetStagedReceiptAsync(
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.IntakeStagedReceipts
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == stagedReceiptId, cancellationToken);
+        return entity is null ? null : EfIntakeWorkStore.Map(entity);
+    }
+
     private async Task<QueuedIntakeStatus?> FindAsync(
         Expression<Func<IntakeStagedReceiptEntity, bool>> predicate,
         CancellationToken cancellationToken)
@@ -37,6 +48,8 @@ public sealed class EfQueuedIntakeStatusQueries(
                 item.Id,
                 item.SourceFileName,
                 item.ReceivedAtUtc,
+                item.MediaType,
+                item.SourceHash,
                 State = item.WorkItem!.State,
                 item.WorkItem.DueAtUtc,
                 item.WorkItem.ProcessedReceiptId,
@@ -59,6 +72,8 @@ public sealed class EfQueuedIntakeStatusQueries(
             QueuedIntakeStatusKinds.FromWorkState(workState),
             staged.ProcessedReceiptId,
             staged.FailureCode,
-            workState == IntakeWorkState.RetryScheduled ? staged.DueAtUtc : null);
+            workState == IntakeWorkState.RetryScheduled ? staged.DueAtUtc : null,
+            staged.MediaType,
+            staged.SourceHash);
     }
 }

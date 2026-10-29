@@ -778,6 +778,11 @@ public sealed class PrincipalSubmissionTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(statuses.GetValueOrDefault(sourceIdentity));
 
+        public Task<IntakeStagedReceipt?> GetStagedReceiptAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Receipts.GetValueOrDefault(id));
     }

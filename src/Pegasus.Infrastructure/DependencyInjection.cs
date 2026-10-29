@@ -145,6 +145,7 @@ public static class DependencyInjection
         services.AddScoped<RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
+        services.AddScoped<ReadUploadedImage>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
         services.AddScoped<EfIntakeMutationStore>();
         services.AddScoped<IIntakeMutationStore>(provider =>

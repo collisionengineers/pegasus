@@ -31,6 +31,13 @@ public static class IntakeImageAddress
         $"/Received/{receiptId:D}/Image{Query(contentHash)}";
 
     /// <summary>
+    /// An uploaded image on the upload review, from the bytes intake holds
+    /// (R463), named by the staged receipt and its content hash when known.
+    /// </summary>
+    public static string Upload(Guid stagedReceiptId, string? contentHash) =>
+        $"/Upload/Image/{stagedReceiptId:D}{Query(contentHash)}";
+
+    /// <summary>
     /// A pre-Case image's tile: the recorded crop and rotation, or the whole
     /// frame when none is recorded, named by the content hash, the preparation
     /// version (<see cref="Pegasus.Core.ImageIntake.PreCaseImagePreparation.TileVersion"/>)
