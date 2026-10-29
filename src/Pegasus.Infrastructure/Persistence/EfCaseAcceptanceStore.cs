@@ -277,7 +277,21 @@ public sealed class EfCaseAcceptanceStore(
             await OriginalReportPrefillWriter.ApplyAsync(
                 context, caseId, null, declaredAuditVerdict, acceptedAtUtc, cancellationToken);
         }
-        var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
+        // The retained e-mail the receipt was read from gives the Case its
+        // contact (R462); a receipt the route proved no sender for reads none.
+        InstructionEmailSender? instructionEmail = null;
+        if (receipt.MailRouteDecision?.EffectiveSenderAddress is not null
+            && !string.IsNullOrEmpty(receipt.ExternalReceiptToken))
+        {
+            var retained = await context.RetainedMailboxMessages.AsNoTracking()
+                .Where(item => item.ExternalReceiptToken == receipt.ExternalReceiptToken)
+                .Select(item => new InstructionEmailSender(item.SenderAddress, item.SenderDisplayName, item.BodyPlainText))
+                .Take(2)
+                .ToListAsync(cancellationToken);
+            instructionEmail = retained.Count == 1 ? retained[0] : null;
+        }
+
+        var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc, instructionEmail);
         dataSnapshot.CompletenessPolicySatisfied = completenessEvaluation.SatisfiesPolicy;
         dataSnapshot.CompletenessPolicyKey = completenessEvaluation.PolicyKey;
         dataSnapshot.CompletenessPolicyVersion = completenessEvaluation.PolicyVersion;

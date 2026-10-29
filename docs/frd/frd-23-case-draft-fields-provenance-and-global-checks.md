@@ -107,6 +107,7 @@ Capture:
 | Accident Circumstances | From the instruction. |
 | Date of Incident | From the instruction. |
 | Inspection Address | FRD-06 inspection-location rules. |
+| Contact name, e-mail and phone | From the instruction. Where it gives none, a Case created from a polled e-mail takes the sender's name and e-mail, then the first UK telephone number below the sender's sign-off; a staff forward gives the original sender's e-mail only. Nothing already on the Case is replaced (operator, 28 October 2026; R462). |
 
 Montreal Prestige instructions also read the vehicle registration and the
 date of incident from the e-mail subject, as QDOS does; the document's own
