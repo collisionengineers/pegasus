@@ -269,7 +269,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains(OperatorLabels.ValuationPresets.AmountRequired, body, StringComparison.Ordinal);
+        Assert.Contains(HtmlEncoder.Default.Encode(OperatorLabels.ValuationPresets.AmountRequired), body, StringComparison.Ordinal);
         Assert.Contains("value=\"Roof rack\"", body, StringComparison.Ordinal);
         Assert.NotEqual(operationKey, LastValue(body, OperationKeyRegex()));
         Assert.DoesNotContain("Roof rack</td>", body, StringComparison.Ordinal);
@@ -297,7 +297,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains(OperatorLabels.ValuationPresets.AmountRequired, body, StringComparison.Ordinal);
+        Assert.Contains(HtmlEncoder.Default.Encode(OperatorLabels.ValuationPresets.AmountRequired), body, StringComparison.Ordinal);
         Assert.Contains("value=\"Updated tow bar\"", body, StringComparison.Ordinal);
         Assert.Contains("name=\"amount\" type=\"number\" inputmode=\"decimal\"", body, StringComparison.Ordinal);
         Assert.Contains($"value=\"{amount}\"", body, StringComparison.Ordinal);
@@ -330,7 +330,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
         {
             Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
             var body = await refused.Content.ReadAsStringAsync();
-            Assert.Contains(OperatorLabels.ValuationPresets.AmountRequired, body, StringComparison.Ordinal);
+            Assert.Contains(HtmlEncoder.Default.Encode(OperatorLabels.ValuationPresets.AmountRequired), body, StringComparison.Ordinal);
             Assert.Contains("value=\"Walk big\"", body, StringComparison.Ordinal);
             Assert.Contains("value=\"10000000000000000\"", body, StringComparison.Ordinal);
         }
