@@ -197,6 +197,13 @@ public sealed class EfManualCaseCreationStore(
             }
         }
 
+        // The Case's one automatic Glass's valuation is requested here too,
+        // beside its vehicle lookup, while the Administrator's switch is on
+        // (R545, R546). The Web host runs it once the registration and mileage
+        // are accepted.
+        await EfAutomaticGuideValuationStore.EnqueueForCaseAsync(
+            context, caseId, caseEntity, now, cancellationToken);
+
         CaseMutationHistory.Add(
             context,
             workflow,

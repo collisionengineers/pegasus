@@ -190,10 +190,13 @@ Administration → Automation & AI has an AI settings panel. Only an
 Administrator can open the page. The panel appears with the Automation
 panel, where the Automation client is composed. This is capability `MCP-07`.
 
-The panel holds one checkbox, the Send to AI on/off switch, and one Save.
-Turning the switch off refuses new AI jobs at once. A Save that leaves the
-switch as it was writes no history. Each change is attributed and kept in
-permanent history. An absent switch record means on.
+The panel holds two checkboxes, the Send to AI on/off switch and the
+Automatic Glass's valuation switch
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources);
+R546, 29 October 2026), and one Save. Turning Send to AI off refuses new AI
+jobs at once. A Save that leaves a switch as it was writes no history for it.
+Each change is attributed and kept in permanent history. An absent switch
+record means on.
 
 There is no connector address, timeout or token: no Send to AI request is
 pushed to a channel.

@@ -16,8 +16,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// report staleness).
 /// </summary>
 public sealed class EfValuationStore(
-    IDbContextFactory<PegasusDbContext> contextFactory)
-    : IValuationStore, IAppliedValuationStore, IAutomaticGuideValuationStore
+    IDbContextFactory<PegasusDbContext> contextFactory) : IValuationStore, IAppliedValuationStore
 {
     private static readonly JsonSerializerOptions SerializerOptions =
         new(JsonSerializerDefaults.Web);
@@ -634,94 +633,6 @@ public sealed class EfValuationStore(
             .Where(item => selectedWorkIds.Contains(item.WorkId))
             .ToArrayAsync(cancellationToken);
         return entities.OrderByDescending(OrderKey).Select(Map).ToArray();
-    }
-
-    public async Task<AutomaticGuideValuationTarget?> ReadAutomaticTargetAsync(
-        Guid caseId,
-        ValuationSource source,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workflow = await context.CaseWorkflows.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-        return workflow is null
-            ? null
-            : await AutomaticTargetAsync(context, workflow, source, cancellationToken);
-    }
-
-    /// <summary>
-    /// The automatic valuation's card, recorded as system work under the
-    /// Case's workflow lock (FRD-14): the rule is asked again here, so a lease
-    /// claimed or a card recorded while the provider answered writes nothing;
-    /// otherwise the card is recorded as a Save records it, the version
-    /// advances and whoever edits next keeps their own lease.
-    /// </summary>
-    public async Task<bool> RecordAutomaticAsync(
-        Guid caseId,
-        ActionActor actor,
-        string operationKey,
-        ValuationDetails card,
-        DateTimeOffset nowUtc,
-        CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
-        var details = ValuationPolicy.ValidateGuideEntry(actor, card);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
-        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, caseId, cancellationToken);
-        var workflow = await context.CaseWorkflows
-            .Include(item => item.Case)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-        if (workflow is null
-            || !AutomaticGuideValuationPolicy.Accepts(
-                await AutomaticTargetAsync(context, workflow, details.Source, cancellationToken),
-                nowUtc))
-        {
-            return false;
-        }
-
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
-        var recorded = await RecordGuideEntriesAsync(
-            context, workflow, workId, actor, operationKey, [details], nowUtc, cancellationToken);
-        await MarkStaleIfNeededAsync(
-            context, caseId, workId, recorded.Before, recorded.After, nowUtc, cancellationToken);
-        var beforeVersion = workflow.Version;
-        CaseMutationGuard.Advance(workflow);
-        var valuation = Map(recorded.Written.Single());
-        CaseMutationHistory.Add(
-            context,
-            workflow,
-            actor,
-            operationKey,
-            "Valuation recorded.",
-            "valuation_created",
-            Hash(details),
-            beforeVersion,
-            workflow.Version,
-            "{}",
-            JsonSerializer.Serialize(new { Valuation = valuation }, SerializerOptions),
-            $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
-            nowUtc);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return true;
-    }
-
-    private static async Task<AutomaticGuideValuationTarget> AutomaticTargetAsync(
-        PegasusDbContext context,
-        CaseWorkflowEntity workflow,
-        ValuationSource source,
-        CancellationToken cancellationToken)
-    {
-        var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
-        var sourceName = source.ToString();
-        return new(
-            Enum.Parse<CaseLifecycleState>(workflow.State),
-            workflow.ArchivedAtUtc is not null,
-            workflow.EditLeaseExpiresAtUtc,
-            await context.CaseValuations.AnyAsync(
-                item => item.WorkId == workId && item.Source == sourceName,
-                cancellationToken));
     }
 
     /// <summary>

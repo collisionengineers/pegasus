@@ -426,6 +426,7 @@ public sealed partial class AutomationAdministrationWebTests
             Form(
                 AntiforgeryValue(html),
                 ("SendToAiEnabled", "false"),
+                ("AutomaticGlassValuationEnabled", "true"),
                 ("OperationKey", InputValue(html, "OperationKey")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
@@ -442,6 +443,60 @@ public sealed partial class AutomationAdministrationWebTests
         Assert.False(CheckboxIsChecked(savedHtml, "SendToAiEnabled"));
     }
 
+    /// <summary>
+    /// R546 (29 October 2026): the automatic Glass's valuation at Case creation
+    /// is an Administrator switch in the AI settings panel, on until it is
+    /// turned off as Send to AI is, and the same one Save turns it off.
+    /// </summary>
+    [Fact]
+    public async Task TheOneSaveTurnsTheAutomaticGlassValuationOff()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithAutomationMcp(baseFactory);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, AutomationRoute);
+        Assert.Contains(
+            $"<span>{System.Text.Encodings.Web.HtmlEncoder.Default.Encode(OperatorLabels.AutomationAdmin.AutomaticGlassValuation)}</span>",
+            html,
+            StringComparison.Ordinal);
+        Assert.True(CheckboxIsChecked(html, "AutomaticGlassValuationEnabled"));
+        var operationKey = InputValue(html, "OperationKey");
+
+        using (var response = await client.PostAsync(
+            $"{AutomationRoute}?handler=SaveAiSettings",
+            Form(
+                AntiforgeryValue(html),
+                ("SendToAiEnabled", "true"),
+                ("AutomaticGlassValuationEnabled", "false"),
+                ("OperationKey", operationKey))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            Assert.False(await scope.ServiceProvider
+                .GetRequiredService<Pegasus.Core.Assessment.IAutomaticGuideValuationControl>()
+                .IsEnabledAsync(CancellationToken.None));
+            Assert.True(await scope.ServiceProvider
+                .GetRequiredService<ISendToAiControl>()
+                .IsEnabledAsync(CancellationToken.None));
+            var contextFactory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Equal(
+                ["automatic_guide_valuation_disabled"],
+                await context.ActionHistory.AsNoTracking()
+                    .Where(item => item.CorrelationId == operationKey)
+                    .Select(item => item.EventKind)
+                    .ToArrayAsync());
+        }
+
+        var savedHtml = await GetHtmlAsync(client, AutomationRoute);
+        Assert.False(CheckboxIsChecked(savedHtml, "AutomaticGlassValuationEnabled"));
+    }
+
     [Fact]
     public async Task ACheckboxOnlySaveWritesOnlyTheSwitchHistory()
     {
@@ -456,6 +511,7 @@ public sealed partial class AutomationAdministrationWebTests
             Form(
                 AntiforgeryValue(html),
                 ("SendToAiEnabled", "false"),
+                ("AutomaticGlassValuationEnabled", "true"),
                 ("OperationKey", operationKey))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);

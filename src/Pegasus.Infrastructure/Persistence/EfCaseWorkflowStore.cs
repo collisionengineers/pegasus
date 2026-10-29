@@ -654,10 +654,8 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken)
     {
         var replayed = false;
-        var entered = false;
         var assigned = await MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
         {
-            entered = workflow.State != targetState.ToString();
             // The Review gate guards entry to With Engineer; a With Engineer
             // Case handed to another Engineer or to Unassigned (#1213) has
             // already passed it.
@@ -698,7 +696,7 @@ public sealed class EfCaseWorkflowStore(
             }
         },
         onReplay: () => replayed = true);
-        return new(assigned, replayed, entered && !replayed);
+        return new(assigned, replayed);
     }
 
     public Task<CaseWorkflowRecord> RecordReportApprovalAsync(
@@ -2106,9 +2104,12 @@ public sealed class EfCaseWorkflowStore(
                         || (item.Kind == ExternalWorkKinds.VehicleLookup
                             && item.State != "completed"
                             && item.State != "failed")
+                        // The automatic Glass's valuation settles itself on a
+                        // closed Case and never holds up its archive.
                         || (item.Kind != ExternalWorkKinds.CreateCaseCustody
                             && item.Kind != ExternalWorkKinds.CreateAuditReferenceCustody
-                            && item.Kind != ExternalWorkKinds.VehicleLookup)),
+                            && item.Kind != ExternalWorkKinds.VehicleLookup
+                            && item.Kind != ExternalWorkKinds.GuideValuation)),
                 cancellationToken);
         return new(isCustodyConfirmed, hasBlockingExternalWork);
     }

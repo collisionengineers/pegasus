@@ -2035,20 +2035,40 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
     }
 
     /// <summary>
-    /// R465 (28 October 2026): the Glass's card a Case reaching With Engineer
-    /// asks for is system work (FRD-14). It yields while a lease is held, and
-    /// otherwise records the card as a Save does, advances the version and
-    /// leaves the retained lease as it was. It is recorded once: a work that
-    /// holds a Glass's card takes no second one.
+    /// R545 and R546 (29 October 2026): Case acceptance records the Case's one
+    /// automatic Glass's valuation request beside its vehicle lookup while the
+    /// Administrator's switch is on, which it is until turned off. The card is
+    /// system work (FRD-14): it advances the version and leaves the editor's
+    /// lease standing, and a work that holds a Glass's card takes no second
+    /// one. The request is asked once and then settled; with the switch off,
+    /// creation records no request.
     /// </summary>
     [Fact]
-    public async Task TheAutomaticGlassCardYieldsToAHeldLeaseAndAdvancesTheCaseOnce()
+    public async Task CaseCreationRecordsOneAutomaticValuationRequestAndItsCardIsSystemWork()
     {
-        await using var harness = await Harness.CreateAsync(shared);
+        // A database of its own: it turns the estate's switch off.
+        await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("automatic-valuation-accept-case");
         var caseId = outcome.Identity.CaseId;
-        await SetReportPreparationAsync(harness.Factory, caseId);
-        var actor = AutomaticGuideValuationPolicy.Actor;
+        var store = new EfAutomaticGuideValuationStore(harness.Factory);
+        var now = harness.Clock.GetUtcNow();
+
+        var request = Assert.Single(await store.ListDueAutomaticAsync(now, 10, CancellationToken.None));
+        Assert.Equal(caseId, request.CaseId);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var work = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == request.WorkItemId);
+            Assert.Equal(Pegasus.Core.Custody.ExternalWorkKinds.GuideValuation, work.Kind);
+            Assert.Equal($"guide-valuation:auto:{caseId:N}", work.OperationKey);
+            Assert.Equal("pending", work.State);
+        }
+
+        // An Engineer editing the Case holds the request back.
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.EngineerActor, "automatic-valuation-lease");
+        var target = await store.ReadAutomaticTargetAsync(caseId, ValuationSource.Glasses, CancellationToken.None);
+        Assert.True(AutomaticGuideValuationPolicy.IsNeeded(target!));
+        Assert.True(AutomaticGuideValuationPolicy.Waits(target!, hasVehicleFacts: true, now));
+
         var card = new ValuationDetails(
             ValuationSource.Glasses,
             new DateOnly(2031, 5, 6),
@@ -2057,39 +2077,53 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             17717m,
             15600m,
             new DateOnly(2031, 5, 1));
-        var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.EngineerActor, "automatic-valuation-lease");
-        var now = harness.Clock.GetUtcNow();
+        var actor = AutomaticGuideValuationPolicy.Actor;
+        Assert.True(await store.BeginAutomaticAsync(request.WorkItemId, now, CancellationToken.None));
+        Assert.False(await store.BeginAutomaticAsync(request.WorkItemId, now, CancellationToken.None));
+        Assert.True(await store.RecordAutomaticAsync(
+            caseId, actor, "automatic-valuation:first", card, now, CancellationToken.None));
+        Assert.False(await store.RecordAutomaticAsync(
+            caseId, actor, "automatic-valuation:again", card, now, CancellationToken.None));
+        await store.CompleteAutomaticAsync(
+            request.WorkItemId, AutomaticGuideValuationOutcome.Recorded, now, CancellationToken.None);
+        Assert.Empty(await store.ListDueAutomaticAsync(now, 10, CancellationToken.None));
 
-        var held = await harness.Valuations.ReadAutomaticTargetAsync(caseId, ValuationSource.Glasses, CancellationToken.None);
-        Assert.False(AutomaticGuideValuationPolicy.Accepts(held!, now));
-        Assert.False(await harness.Valuations.RecordAutomaticAsync(
-            caseId, actor, "automatic-valuation:held", card, now, CancellationToken.None));
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var recorded = await context.CaseValuations.AsNoTracking().SingleAsync(item => item.WorkId == caseId);
+            Assert.Equal(nameof(ValuationSource.Glasses), recorded.Source);
+            Assert.Equal(17717m, recorded.RetailValue);
+            Assert.Equal(15600m, recorded.TradeValue);
+            Assert.Null(recorded.Mileage);
+            Assert.Equal(AutomaticGuideValuationPolicy.ActorId, recorded.RecordedBy);
+            var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+            Assert.Equal(lease.Version + 1, workflow.Version);
+            Assert.Equal(harness.EngineerActor.SubjectId, workflow.EditLeaseHolder);
+            Assert.False(string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash));
+            var history = await context.CaseWorkflowEvents.AsNoTracking()
+                .SingleAsync(item => item.CaseId == caseId && item.OperationKey == "automatic-valuation:first");
+            Assert.Equal(lease.Version, history.BeforeVersion);
+            Assert.Equal(workflow.Version, history.AfterVersion);
+            Assert.Equal(ActorKind.Automation.ToString(), history.ActorKind);
+            var work = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == request.WorkItemId);
+            Assert.Equal("completed", work.State);
+            Assert.Equal(1, work.AttemptCount);
+        }
 
-        // Once the lease has lapsed nobody holds it, and the card is recorded.
-        var lapsed = lease.ExpiresAtUtc.AddSeconds(1);
-        Assert.True(await harness.Valuations.RecordAutomaticAsync(
-            caseId, actor, "automatic-valuation:lapsed", card, lapsed, CancellationToken.None));
-        Assert.False(await harness.Valuations.RecordAutomaticAsync(
-            caseId, actor, "automatic-valuation:again", card, lapsed, CancellationToken.None));
-
-        await using var context = await harness.Factory.CreateDbContextAsync();
-        var recorded = await context.CaseValuations.AsNoTracking().SingleAsync(item => item.WorkId == caseId);
-        Assert.Equal(nameof(ValuationSource.Glasses), recorded.Source);
-        Assert.Equal(17717m, recorded.RetailValue);
-        Assert.Equal(15600m, recorded.TradeValue);
-        Assert.Null(recorded.Mileage);
-        Assert.Equal(AutomaticGuideValuationPolicy.ActorId, recorded.RecordedBy);
-        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
-        Assert.Equal(lease.Version + 1, workflow.Version);
-        Assert.Equal(harness.EngineerActor.SubjectId, workflow.EditLeaseHolder);
-        Assert.False(string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash));
-        var history = await context.CaseWorkflowEvents.AsNoTracking()
-            .SingleAsync(item => item.CaseId == caseId && item.OperationKey == "automatic-valuation:lapsed");
-        Assert.Equal(lease.Version, history.BeforeVersion);
-        Assert.Equal(workflow.Version, history.AfterVersion);
-        Assert.Equal(ActorKind.Automation.ToString(), history.ActorKind);
-        Assert.False(await context.CaseWorkflowEvents.AnyAsync(
-            item => item.CaseId == caseId && item.OperationKey == "automatic-valuation:held"));
+        IAutomaticGuideValuationControl control = new EfSendToAiControlStore(harness.Factory, harness.Clock);
+        Assert.True(await control.IsEnabledAsync(CancellationToken.None));
+        await control.SetEnabledAsync(
+            false,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+            reason: null,
+            "automatic-valuation-switch-off",
+            CancellationToken.None);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await EfAutomaticGuideValuationStore.EnqueueForCaseAsync(
+                context, Guid.NewGuid(), caseEntity: null, now, CancellationToken.None);
+            Assert.Empty(context.ChangeTracker.Entries<ExternalWorkItemEntity>());
+        }
     }
 
     [Fact]

@@ -146,26 +146,28 @@ public sealed class FetchGuideValuationTests
     }
 
     /// <summary>
-    /// R465 (28 October 2026): a Case reaching With Engineer has its Glass's
-    /// valuation requested by the system. It is Get valuation for the current
-    /// work and the current London month, made as the Glass's recorder, and its
-    /// figures are recorded as the card a Save records, with no mileage.
+    /// R465 (28 October 2026), R545 (29 October 2026): a Case's one automatic
+    /// request is Get valuation run by the system for the current work and the
+    /// current London month, made as the Glass's recorder; its figures are
+    /// recorded as the card a Save records, with no mileage, and the request is
+    /// marked asked before Glass's is asked and settled after.
     /// </summary>
     [Fact]
-    public async Task AnAutomaticValuationRecordsTheGlassCardForTheCurrentMonth()
+    public async Task AnAutomaticRequestRecordsTheGlassCardForTheCurrentMonth()
     {
         var caseId = Guid.NewGuid();
         var schedule = new RecordingSchedule();
-        var store = new AutomaticStore(Accepting());
+        var store = new AutomaticStore(Open());
         var run = Automatic(
             new AnsweringProvider(ValuationSource.Glasses, new StubReport("glass-stock:1")),
             new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)),
             store,
-            schedule);
+            schedule: schedule);
 
-        var outcome = await run.ExecuteAsync(caseId, default);
+        var outcome = await run.ExecuteAsync(new(WorkItem, caseId), default);
 
         Assert.Equal(AutomaticGuideValuationOutcome.Recorded, outcome);
+        Assert.Equal(["begin", "record", "complete:Recorded"], store.Steps);
         var (actor, card) = Assert.Single(store.Recorded);
         Assert.Same(AutomaticGuideValuationPolicy.Actor, actor);
         Assert.Equal(ActorKind.Automation, actor.Kind);
@@ -179,108 +181,130 @@ public sealed class FetchGuideValuationTests
     }
 
     /// <summary>
-    /// Glass's is not asked for a Case that would refuse the card: one not With
-    /// Engineer, archived, whose current work already holds a Glass's card, or
-    /// whose edit lease is held, because system work yields to a held lease.
+    /// The request waits, asking nothing of Glass's, while the registration or
+    /// mileage is not yet accepted (as the vehicle lookup waits for a
+    /// registration, and so a mileage the lookup fills is the one valued), and
+    /// while anyone holds the Case's edit lease, because system work yields to
+    /// a held lease.
     /// </summary>
     [Theory]
-    [InlineData("review")]
-    [InlineData("archived")]
-    [InlineData("card")]
+    [InlineData("registration")]
     [InlineData("lease")]
-    public async Task AnAutomaticValuationAsksNothingOfACaseThatRefusesIt(string refusal)
+    public async Task AnAutomaticRequestWaitsWithoutAskingGlass(string reason)
     {
         var caseId = Guid.NewGuid();
         var provider = new CountingProvider();
-        var accepting = Accepting();
-        var store = new AutomaticStore(refusal switch
-        {
-            "review" => accepting with { State = CaseLifecycleState.Review },
-            "archived" => accepting with { IsArchived = true },
-            "card" => accepting with { HoldsSourceCard = true },
-            _ => accepting with { EditLeaseExpiresAtUtc = Now.AddMinutes(5) },
-        });
+        var store = new AutomaticStore(reason == "lease" ? Open() with { EditLeaseExpiresAtUtc = Now.AddMinutes(5) } : Open());
+        var registration = reason == "registration" ? " " : "KY12CAB";
 
-        var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)), store)
-            .ExecuteAsync(caseId, default);
+        var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, registration, 69000)), store)
+            .ExecuteAsync(new(WorkItem, caseId), default);
 
-        Assert.Equal(AutomaticGuideValuationOutcome.NotAccepted, outcome);
+        Assert.Equal(AutomaticGuideValuationOutcome.Waiting, outcome);
         Assert.Equal(0, provider.Calls);
-        Assert.Empty(store.Recorded);
+        Assert.Equal([$"defer:{Now + AutomaticGuideValuationPolicy.Wait:O}"], store.Steps);
     }
 
-    /// <summary>A lapsed lease is nobody's, so it does not stop the request.</summary>
+    /// <summary>A lapsed lease is nobody's, so it does not hold the request.</summary>
     [Fact]
-    public void ALapsedLeaseDoesNotRefuseTheAutomaticValuation() =>
-        Assert.True(AutomaticGuideValuationPolicy.Accepts(
-            Accepting() with { EditLeaseExpiresAtUtc = Now.AddSeconds(-1) }, Now));
+    public void ALapsedLeaseDoesNotHoldTheAutomaticRequest() =>
+        Assert.False(AutomaticGuideValuationPolicy.Waits(
+            Open() with { EditLeaseExpiresAtUtc = Now.AddSeconds(-1) }, hasVehicleFacts: true, Now));
 
-    [Fact]
-    public async Task AnAutomaticValuationWithoutRegistrationOrMileageAsksNothing()
+    /// <summary>
+    /// A request is settled unasked when the switch is off (R546), when this
+    /// host has no Glass's provider, and when the Case is closed or its current
+    /// work already holds a Glass's card.
+    /// </summary>
+    [Theory]
+    [InlineData("off", AutomaticGuideValuationOutcome.SwitchedOff)]
+    [InlineData("offline", AutomaticGuideValuationOutcome.Unavailable)]
+    [InlineData("closed", AutomaticGuideValuationOutcome.NotNeeded)]
+    [InlineData("card", AutomaticGuideValuationOutcome.NotNeeded)]
+    public async Task AnAutomaticRequestIsSettledUnasked(string reason, AutomaticGuideValuationOutcome expected)
     {
         var caseId = Guid.NewGuid();
         var provider = new CountingProvider();
-        var store = new AutomaticStore(Accepting());
+        var store = new AutomaticStore(reason switch
+        {
+            "closed" => Open() with { IsOpen = false },
+            "card" => Open() with { HoldsSourceCard = true },
+            _ => Open(),
+        });
+        IGuideValuationProvider connected = reason == "offline" ? new StubProvider(ValuationSource.Brego) : provider;
 
-        var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, " ", 69000)), store)
-            .ExecuteAsync(caseId, default);
+        var outcome = await Automatic(
+                connected,
+                new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)),
+                store,
+                enabled: reason != "off")
+            .ExecuteAsync(new(WorkItem, caseId), default);
 
-        Assert.Equal(AutomaticGuideValuationOutcome.MissingVehicleFacts, outcome);
+        Assert.Equal(expected, outcome);
         Assert.Equal(0, provider.Calls);
+        Assert.Equal([$"complete:{expected}"], store.Steps);
     }
 
     /// <summary>
-    /// A vehicle Glass's cannot value, or Glass's not answering, records
-    /// nothing; the card stays for Get valuation.
+    /// A vehicle Glass's cannot value, or Glass's not answering, settles the
+    /// request with nothing recorded: there is one automatic request ever, and
+    /// any later valuation is staff-started (R545).
     /// </summary>
     [Theory]
     [InlineData("age", AutomaticGuideValuationOutcome.NotValued)]
     [InlineData("down", AutomaticGuideValuationOutcome.Unavailable)]
-    public async Task AnAutomaticValuationGlassCannotAnswerRecordsNothing(
+    public async Task AnAutomaticRequestGlassCannotAnswerIsSettledOnce(
         string answer, AutomaticGuideValuationOutcome expected)
     {
         var caseId = Guid.NewGuid();
-        var store = new AutomaticStore(Accepting());
+        var store = new AutomaticStore(Open());
         var provider = new CountingProvider(answer == "age"
             ? new GuideValuationNotValuedException(ValuationSource.Glasses, GuideValuationNotValuedReason.VehicleAge)
             : new GuideValuationProviderUnavailableException(ValuationSource.Glasses));
 
         var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)), store)
-            .ExecuteAsync(caseId, default);
+            .ExecuteAsync(new(WorkItem, caseId), default);
 
         Assert.Equal(expected, outcome);
         Assert.Equal(1, provider.Calls);
         Assert.Empty(store.Recorded);
+        Assert.Equal(["begin", $"complete:{expected}"], store.Steps);
     }
 
+    /// <summary>A request another pass has already started is not asked again.</summary>
     [Fact]
-    public async Task AnAutomaticValuationWithoutAGlassProviderReadsNothing()
+    public async Task AnAutomaticRequestAlreadyStartedIsNotAskedAgain()
     {
-        var caseData = new RecordingCaseData();
-        var store = new AutomaticStore(Accepting());
+        var caseId = Guid.NewGuid();
+        var provider = new CountingProvider();
+        var store = new AutomaticStore(Open(), begins: false);
 
-        var outcome = await Automatic(new StubProvider(ValuationSource.Brego), caseData, store)
-            .ExecuteAsync(Guid.NewGuid(), default);
+        var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)), store)
+            .ExecuteAsync(new(WorkItem, caseId), default);
 
-        Assert.Equal(AutomaticGuideValuationOutcome.NotConnected, outcome);
-        Assert.Equal(0, caseData.Reads);
-        Assert.Equal(0, store.Reads);
+        Assert.Equal(AutomaticGuideValuationOutcome.NotRecorded, outcome);
+        Assert.Equal(0, provider.Calls);
+        Assert.Equal(["begin"], store.Steps);
     }
 
     private static readonly DateTimeOffset Now = new(2031, 5, 14, 9, 30, 0, TimeSpan.Zero);
 
-    private static AutomaticGuideValuationTarget Accepting() =>
-        new(CaseLifecycleState.ReportPreparation, IsArchived: false, EditLeaseExpiresAtUtc: null, HoldsSourceCard: false);
+    private static readonly Guid WorkItem = Guid.NewGuid();
+
+    private static AutomaticGuideValuationTarget Open() =>
+        new(IsOpen: true, HoldsSourceCard: false, EditLeaseExpiresAtUtc: null);
 
     private static RunAutomaticGuideValuation Automatic(
         IGuideValuationProvider provider,
         RecordingCaseData caseData,
         AutomaticStore store,
+        bool enabled = true,
         RecordingSchedule? schedule = null) =>
         new(
             new FetchGuideValuation([provider], caseData, schedule ?? new RecordingSchedule(), new RecordingVins()),
             caseData,
             store,
+            new FixedSwitch(enabled),
             new FixedClock(Now));
 
     private static FetchGuideValuationRequest Request(ValuationSource source) => new(
@@ -356,17 +380,41 @@ public sealed class FetchGuideValuationTests
         }
     }
 
-    private sealed class AutomaticStore(AutomaticGuideValuationTarget target) : IAutomaticGuideValuationStore
+    private sealed class AutomaticStore(AutomaticGuideValuationTarget target, bool begins = true)
+        : IAutomaticGuideValuationStore
     {
-        public int Reads { get; private set; }
+        public List<string> Steps { get; } = [];
 
         public List<(ActionActor Actor, ValuationDetails Card)> Recorded { get; } = [];
 
+        public Task<IReadOnlyList<AutomaticGuideValuationRequest>> ListDueAutomaticAsync(
+            DateTimeOffset nowUtc, int maximumItems, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<AutomaticGuideValuationTarget?> ReadAutomaticTargetAsync(
-            Guid caseId, ValuationSource source, CancellationToken cancellationToken)
+            Guid caseId, ValuationSource source, CancellationToken cancellationToken) =>
+            Task.FromResult<AutomaticGuideValuationTarget?>(target);
+
+        public Task DeferAutomaticAsync(Guid workItemId, DateTimeOffset dueAtUtc, CancellationToken cancellationToken)
         {
-            Reads++;
-            return Task.FromResult<AutomaticGuideValuationTarget?>(target);
+            Steps.Add($"defer:{dueAtUtc:O}");
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> BeginAutomaticAsync(Guid workItemId, DateTimeOffset nowUtc, CancellationToken cancellationToken)
+        {
+            Steps.Add("begin");
+            return Task.FromResult(begins);
+        }
+
+        public Task CompleteAutomaticAsync(
+            Guid workItemId,
+            AutomaticGuideValuationOutcome outcome,
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken)
+        {
+            Steps.Add($"complete:{outcome}");
+            return Task.CompletedTask;
         }
 
         public Task<bool> RecordAutomaticAsync(
@@ -377,9 +425,19 @@ public sealed class FetchGuideValuationTests
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken)
         {
+            Steps.Add("record");
             Recorded.Add((actor, card));
             return Task.FromResult(true);
         }
+    }
+
+    private sealed class FixedSwitch(bool on) : IAutomaticGuideValuationControl
+    {
+        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) => Task.FromResult(on);
+
+        public Task<bool> SetEnabledAsync(
+            bool enabled, ActionActor actor, string? reason, string operationKey, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

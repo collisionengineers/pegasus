@@ -114,6 +114,10 @@
                             <input asp-for="SendToAiEnabled" type="checkbox" />
                             <span>@OperatorLabels.AutomationAdmin.SendToAi</span>
                         </label>
+                        <label class="choice">
+                            <input asp-for="AutomaticGlassValuationEnabled" type="checkbox" />
+                            <span>@OperatorLabels.AutomationAdmin.AutomaticGlassValuation</span>
+                        </label>
                         <div class="cluster admin-actions-end">
                             <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">
                                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>

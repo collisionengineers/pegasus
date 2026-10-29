@@ -478,12 +478,10 @@ public sealed record LinkReportEvidenceResult(
     IReadOnlyList<CaseTaskRecord> TasksCreated);
 
 /// <summary>
-/// The outcome of Assign Engineer: the Case's workflow as it now stands, whether
-/// the store answered an operation it had already committed (which tells nobody again),
-/// and whether this assignment brought the Case to With Engineer rather than handing a
-/// With Engineer Case on.
+/// The outcome of Assign Engineer: the Case's workflow as it now stands, and whether
+/// the store answered an operation it had already committed (which tells nobody again).
 /// </summary>
-public sealed record CaseEngineerAssignment(CaseWorkflowRecord Workflow, bool IsReplay, bool EnteredWithEngineer);
+public sealed record CaseEngineerAssignment(CaseWorkflowRecord Workflow, bool IsReplay);
 
 public sealed record UnlinkReportEvidenceRequest(
     Guid CaseId,

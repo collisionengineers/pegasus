@@ -13,6 +13,12 @@ public static class ExternalWorkKinds
     public const string CopyTriageCaseFiles = "copy_triage_case_files";
     public const string VehicleLookup = "vehicle_lookup";
     public const string IntakeOcr = "intake_ocr";
+
+    /// <summary>
+    /// A Case's one automatic Glass's valuation request (R545), recorded at its
+    /// creation and run by the Web host, which holds the valuation account.
+    /// </summary>
+    public const string GuideValuation = "guide_valuation";
 }
 
 public sealed record QueuedExternalWork(Guid Id, string Kind);

@@ -773,13 +773,10 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     Pegasus.Core.Assessment.IFetchGuideValuation,
     Pegasus.Core.Assessment.FetchGuideValuation>();
-// A Case reaching With Engineer has its Glass's valuation requested on the
-// same queue (R465), so Assign Engineer and Start work are given the
-// scheduler here, and only this host runs it.
-builder.Services.AddScoped<
-    Pegasus.Core.Assessment.IScheduleAutomaticGuideValuation,
-    Pegasus.Web.Background.AutomaticGuideValuationScheduler>();
+// A Case's one automatic Glass's valuation, recorded at its creation (R545,
+// R546), is run here, where the valuation account is, beside Get valuation.
 builder.Services.AddScoped<Pegasus.Core.Assessment.RunAutomaticGuideValuation>();
+builder.Services.AddHostedService<Pegasus.Web.Background.AutomaticGuideValuationService>();
 builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
 builder.Services.AddScoped<Pegasus.Web.Intake.StaffIntakeActions>();
 if (developmentOfflineProfile)

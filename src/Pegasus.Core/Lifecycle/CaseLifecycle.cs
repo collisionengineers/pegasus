@@ -50,8 +50,7 @@ public sealed class AssignCaseEngineer(
     ICaseWorkflowStore store,
     ICaseWorkflowConfiguration configuration,
     IStaffAccountQueries staffAccounts,
-    ICaseStaffNotifier? notifier = null,
-    Pegasus.Core.Assessment.IScheduleAutomaticGuideValuation? automaticValuation = null) : IAssignCaseEngineer
+    ICaseStaffNotifier? notifier = null) : IAssignCaseEngineer
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICaseWorkflowConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -89,14 +88,6 @@ public sealed class AssignCaseEngineer(
                 section: null,
                 registration: null,
                 cancellationToken);
-        }
-
-        // The Case's Glass's valuation is requested when the Case reaches
-        // With Engineer (R465, 28 October 2026), not when a With Engineer
-        // Case is handed on.
-        if (assignment is { IsReplay: false, EnteredWithEngineer: true } && automaticValuation is not null)
-        {
-            await automaticValuation.ScheduleAsync(request.CaseId, cancellationToken);
         }
 
         return assigned;
@@ -183,24 +174,14 @@ public static class CaseSignOffEngineerResolver
             : profiles.FirstOrDefault(profile => profile.StaffId == staffId.Value);
 }
 
-public sealed class StartCaseWork(
-    ICaseWorkflowStore store,
-    Pegasus.Core.Assessment.IScheduleAutomaticGuideValuation? automaticValuation = null)
+public sealed class StartCaseWork(ICaseWorkflowStore store)
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(CaseMutationRequest request, CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        var started = await _store.StartWorkAsync(request, cancellationToken);
-        // Starting work brings the Case from Review to With Engineer, where
-        // its Glass's valuation is requested (R465, 28 October 2026).
-        if (automaticValuation is not null)
-        {
-            await automaticValuation.ScheduleAsync(request.CaseId, cancellationToken);
-        }
-
-        return started;
+        return await _store.StartWorkAsync(request, cancellationToken);
     }
 }
 

@@ -640,6 +640,7 @@ pegasus_worker_runtime_role,G,SELECT,Principals
 pegasus_worker_runtime_role,G,SELECT,RetainedInstructionAnalyses
 pegasus_worker_runtime_role,G,SELECT,RetainedMailboxAttachments
 pegasus_worker_runtime_role,G,SELECT,RetainedMailboxMessages
+pegasus_worker_runtime_role,G,SELECT,SendToAiControl
 pegasus_worker_runtime_role,G,SELECT,SentEmailEvidence
 pegasus_worker_runtime_role,G,SELECT,StaffMailSendOperations
 pegasus_worker_runtime_role,G,SELECT,StaffNotifications
