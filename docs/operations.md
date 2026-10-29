@@ -90,6 +90,19 @@ week with restarts in it, not the week of real use the budget rule names; it
 is recorded so the next reading has a comparison, and no efficiency change is
 built from it alone.
 
+## Proof debt settled - 29 October 2026
+
+The owed live-proof chain that every record from Release 81 to Release 128
+carried ("Release N to M owed items otherwise stand") is settled once
+(operator, 29 October 2026, R525 and R526). Its 208 items are classified in
+[the release proof checklist](release-proof-checklist.md): 131 still provable
+and 7 re-written for a new Case form one checklist, run on the next release and
+recorded once in that release's record; 20 are discharged by the records
+themselves, 18 are superseded by later PRs or rulings, 16 are GitHub issues and
+16 are operator decisions that come in rounds of four. The 58 "Waiting for the
+operator" items that landed in Release 123 are approved as built (R526). No
+record is edited: this note supersedes their owed sentences, and the release
+record that names the run deletes the checklist.
 ## Operations record corrections - 22 October 2026 (addendum)
 
 This section adds dated observations to three statements below that lean on
