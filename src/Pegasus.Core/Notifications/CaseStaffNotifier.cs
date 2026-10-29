@@ -60,11 +60,11 @@ public interface ICaseStaffNotifier
 }
 
 public sealed class CaseStaffNotifier(
-    IRaiseStaffNotification raise,
+    RaiseStaffNotification raise,
     ICaseWorkflowQueries workflows,
     IIntakeReceiptQueries receipts) : ICaseStaffNotifier
 {
-    private readonly IRaiseStaffNotification _raise = raise ?? throw new ArgumentNullException(nameof(raise));
+    private readonly RaiseStaffNotification _raise = raise ?? throw new ArgumentNullException(nameof(raise));
     private readonly ICaseWorkflowQueries _workflows = workflows ?? throw new ArgumentNullException(nameof(workflows));
     private readonly IIntakeReceiptQueries _receipts = receipts ?? throw new ArgumentNullException(nameof(receipts));
 

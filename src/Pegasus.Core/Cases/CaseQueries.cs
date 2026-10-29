@@ -1063,12 +1063,7 @@ public interface IAvailableReportSentEvidenceQueries
 
 public sealed record ListCaseReferencesQuery(ActionActor Actor, IReadOnlyCollection<Guid> CaseIds);
 
-public interface IListCaseReferences
-{
-    Task<IReadOnlyDictionary<Guid, string>> ExecuteAsync(ListCaseReferencesQuery query, CancellationToken cancellationToken);
-}
-
-public sealed class ListCaseReferences(ICaseQueryStore store) : IListCaseReferences
+public sealed class ListCaseReferences(ICaseQueryStore store)
 {
     public Task<IReadOnlyDictionary<Guid, string>> ExecuteAsync(ListCaseReferencesQuery query, CancellationToken cancellationToken)
     {
@@ -1346,20 +1341,13 @@ public sealed record SearchCasesCursorQuery(
     string? Cursor = null,
     int? Limit = null);
 
-public interface ISearchCasesByCursor
-{
-    Task<CursorPage<CaseSearchItem>> ExecuteAsync(
-        SearchCasesCursorQuery query,
-        CancellationToken cancellationToken);
-}
-
 /// <summary>
 /// The keyset-paged sibling of <see cref="SearchCases"/>. Shares the same
 /// authorization and filter/order validation
 /// (<see cref="CaseSearchQueryValidation"/>) so the two search entry points
 /// can never disagree about what a valid query is.
 /// </summary>
-public sealed class SearchCasesByCursor(ICaseQueryStore store, ICursorProtector protector) : ISearchCasesByCursor
+public sealed class SearchCasesByCursor(ICaseQueryStore store, ICursorProtector protector)
 {
     private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICursorProtector _protector = protector ?? throw new ArgumentNullException(nameof(protector));

@@ -66,7 +66,7 @@ internal sealed class DocumentMcpTools(
     IOpenCaseDocumentBatch openBatch,
     IRenderImageForDelivery images,
     IExtractPdfPageText pdfText,
-    IOpenDocumentUpload uploads,
+    DocumentUploads uploads,
     AutomationEditLease leases,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)

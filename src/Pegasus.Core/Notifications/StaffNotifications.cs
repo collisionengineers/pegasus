@@ -204,16 +204,11 @@ public sealed record StaffNotificationEvent(
     ActionActor? Actor,
     Guid? JobStarterStaffId = null);
 
-public interface IRaiseStaffNotification
-{
-    /// <summary>The notification written, or null when the policy names nobody.</summary>
-    Task<StaffNotification?> ExecuteAsync(StaffNotificationEvent notificationEvent, CancellationToken cancellationToken);
-}
-
-public sealed class RaiseStaffNotification(IStaffNotificationStore store) : IRaiseStaffNotification
+public sealed class RaiseStaffNotification(IStaffNotificationStore store)
 {
     private readonly IStaffNotificationStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
+    /// <summary>The notification written, or null when the policy names nobody.</summary>
     public async Task<StaffNotification?> ExecuteAsync(
         StaffNotificationEvent notificationEvent,
         CancellationToken cancellationToken)
