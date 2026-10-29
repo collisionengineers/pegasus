@@ -163,12 +163,13 @@ internal sealed class EfIntakeLogQueries(
             return null;
         }
 
-        var page = await RowForAsync(receiptId, cancellationToken);
-        if (page is null)
+        var found = await RowForAsync(receiptId, cancellationToken);
+        if (found is null)
         {
             return null;
         }
 
+        var (page, unidentifiedClosed) = found.Value;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var attempts = (await context.IntakeAllocationAttempts.AsNoTracking()
                 .Where(item => item.IntakeReceiptId == receiptId)
@@ -186,7 +187,10 @@ internal sealed class EfIntakeLogQueries(
             readings,
             attempts,
             new IntakeLogActions(
-                CanReevaluate: true,
+                // Re-evaluate applies only before the file became a Case and
+                // while its Unidentified item is not closed (FRD-02): the store
+                // refuses both, so the drawer does not offer them.
+                CanReevaluate: receipt.AcceptedCaseId is null && !unidentifiedClosed,
                 CanRetryAllocation: attempts.LastOrDefault()?.CanRetry == true,
                 CanRetryOcr: IntakeOcrRetryPolicy.CanRetry(
                     lastOcr is { } ocr
@@ -194,7 +198,7 @@ internal sealed class EfIntakeLogQueries(
                         : null)));
     }
 
-    private async Task<IntakeLogRow?> RowForAsync(Guid receiptId, CancellationToken cancellationToken)
+    private async Task<(IntakeLogRow Row, bool UnidentifiedClosed)?> RowForAsync(Guid receiptId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var candidate = await Candidates(context, context.IntakeReceipts.AsNoTracking().Where(item => item.Id == receiptId))
@@ -206,8 +210,11 @@ internal sealed class EfIntakeLogQueries(
 
         var outcome = ComposeOutcome(candidate);
         var rows = await MapRowsAsync(context, [(candidate, outcome)], cancellationToken);
-        return rows.Single();
+        return (rows.Single(), IsUnidentifiedClosed(candidate));
     }
+
+    private static bool IsUnidentifiedClosed(Candidate candidate) =>
+        candidate.Unidentified is { State: nameof(UnidentifiedState.Resolved), ResolutionTargetKind: nameof(UnidentifiedResolutionTargetKind.Closed) };
 
     private static async Task<IReadOnlyList<IntakeLogRow>> MapRowsAsync(
         PegasusDbContext context,
@@ -326,7 +333,7 @@ internal sealed class EfIntakeLogQueries(
         IntakeLogPolicy.Outcome(
             EfIntakeReceiptStore.ParseDecision(candidate.Decision),
             candidate.Triage is not null,
-            candidate.Unidentified is { State: nameof(UnidentifiedState.Resolved), ResolutionTargetKind: nameof(UnidentifiedResolutionTargetKind.Closed) },
+            IsUnidentifiedClosed(candidate),
             candidate.ProcessingFailed,
             allocationFailed: candidate.LastAllocationStatus == "failed"
                 && new IntakeAllocationState(

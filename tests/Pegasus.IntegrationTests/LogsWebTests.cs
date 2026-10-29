@@ -1,13 +1,17 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
+using Pegasus.Infrastructure.Persistence;
 using OperatorLabels = Pegasus.Web.Presentation.OperatorLabels;
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
@@ -201,6 +205,183 @@ public sealed class LogsWebTests
         }
         Assert.Single(log.OcrRetries);
     }
+
+    /// <summary>
+    /// Re-evaluate on the real Core and store (#1566): the form is checked
+    /// before anything else, so a blank key or a negative version reads as an
+    /// expired form; an over-long reason has its own message; a store refusal
+    /// and a retained file that no longer matches read the page's words, never
+    /// the store's, and never a server error. Nothing is recorded, and a closed
+    /// Unidentified item is not offered Re-evaluate (FRD-02).
+    /// </summary>
+    [Fact]
+    public async Task ReevaluateRefusalsOnTheRealStoreReadThePagesWordsAndRecordNothing()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "scan.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var drawerRoute = $"/Administration/Logs?tab=intake&Receipt={receiptId:D}";
+        var drawer = await GetHtmlAsync(client, drawerRoute);
+        var reevaluate = ActionForm(drawer, "reevaluate");
+
+        var page = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", reevaluate, "Re-read the image.", operationKey: string.Empty);
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.Expired);
+        page = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", reevaluate, "Re-read the image.", expectedVersion: "-1");
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.Expired);
+        page = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", reevaluate, new string('r', 501));
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.ReasonTooLong);
+
+        // Already being evaluated: the store refuses, in the page's words.
+        await ChangeEvaluationWorkAsync(factory, receiptId, work =>
+        {
+            work.State = "processing";
+            work.LeaseExpiresAtUtc = IntakeWebApplicationFactory.FixedUtcNow.AddHours(1);
+        });
+        page = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", reevaluate, "Re-read the image.",
+            operationKey: Guid.NewGuid().ToString("N"));
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.ItemChanged);
+        Assert.DoesNotContain("intake receipt", page, StringComparison.OrdinalIgnoreCase);
+
+        // The retained source no longer matches the evaluation work: refused, not a 500.
+        await ChangeEvaluationWorkAsync(factory, receiptId, work =>
+        {
+            work.State = "completed";
+            work.LeaseExpiresAtUtc = null;
+            work.StagedReceipt.SourceLength += 1;
+        });
+        page = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", reevaluate, "Re-read the image.",
+            operationKey: Guid.NewGuid().ToString("N"));
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.RetainedFileMismatch);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            Assert.Empty(await HistoryAsync(context, receiptId, "intake_reevaluation_queued"));
+
+            var unidentified = await context.UnidentifiedItems.SingleAsync(item => item.OriginId == receiptId);
+            unidentified.State = nameof(UnidentifiedState.Resolved);
+            unidentified.ResolutionTargetKind = nameof(UnidentifiedResolutionTargetKind.Closed);
+            await context.SaveChangesAsync();
+        }
+
+        drawer = await GetHtmlAsync(client, drawerRoute);
+        Assert.Contains($"data-intake-drawer=\"{receiptId:D}\"", drawer, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-intake-action=\"reevaluate\"", drawer, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A receipt stored with no evaluation work is refused Re-evaluate in the
+    /// page's words rather than a server error; once it has become a Case the
+    /// drawer no longer offers Re-evaluate (FRD-02, #1566).
+    /// </summary>
+    [Fact]
+    public async Task AReceiptThatBecameACaseIsNotOfferedReevaluate()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var principal = $"L{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            principal);
+        var drawerRoute = $"/Administration/Logs?tab=intake&Receipt={receipt.Id:D}";
+        var drawer = await GetHtmlAsync(client, drawerRoute);
+        var page = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", ActionForm(drawer, "reevaluate"), "Re-read the instruction.");
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.ItemChanged);
+
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, principal);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var result = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                .AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
+            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
+        }
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
+
+        drawer = await GetHtmlAsync(client, drawerRoute);
+        Assert.Contains($"data-intake-drawer=\"{receipt.Id:D}\"", drawer, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-intake-action=\"reevaluate\"", drawer, StringComparison.Ordinal);
+    }
+
+    private static void AssertDangerNotice(string html, string notice) =>
+        Assert.Contains(
+            $"<div class=\"notice notice--danger\" role=\"alert\"><span>{System.Text.Encodings.Web.HtmlEncoder.Default.Encode(notice)}</span></div>",
+            html,
+            StringComparison.Ordinal);
+
+    /// <summary>Changes the receipt's evaluation work, found as the store finds it: by its source identity.</summary>
+    private static async Task ChangeEvaluationWorkAsync(
+        IntakeWebApplicationFactory factory,
+        Guid receiptId,
+        Action<IntakeWorkItemEntity> change)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var receipt = await context.IntakeReceipts.AsNoTracking().SingleAsync(item => item.Id == receiptId);
+        var work = await context.IntakeWorkItems
+            .Include(item => item.StagedReceipt)
+            .SingleAsync(item =>
+                item.StagedReceipt.SourceChannel == receipt.SourceChannel
+                && item.StagedReceipt.ExternalReceiptToken == receipt.ExternalReceiptToken);
+        change(work);
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>Posts one drawer action with the drawer's own values, then reads the page it returns to.</summary>
+    private static async Task<string> PostIntakeActionAsync(
+        HttpClient client,
+        string drawer,
+        string handler,
+        string form,
+        string reason,
+        string? expectedVersion = null,
+        string? operationKey = null)
+    {
+        var fields = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = Input(drawer, "__RequestVerificationToken"),
+            ["receiptId"] = Input(form, "receiptId"),
+            ["expectedVersion"] = expectedVersion ?? Input(form, "expectedVersion"),
+            ["operationKey"] = operationKey ?? Input(form, "operationKey"),
+            ["reason"] = reason,
+            ["returnUrl"] = Input(form, "returnUrl")
+        };
+        if (form.Contains("name=\"expectedAttemptId\"", StringComparison.Ordinal))
+        {
+            fields["expectedAttemptId"] = Input(form, "expectedAttemptId");
+        }
+
+        using var response = await client.PostAsync(
+            $"/Administration/Logs?handler={handler}", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        return await GetHtmlAsync(client, response.Headers.Location!.OriginalString);
+    }
+
+    private static async Task<List<IntakeMutationHistoryEntity>> HistoryAsync(
+        PegasusDbContext context, Guid receiptId, string eventType) =>
+        await context.IntakeMutationHistory.AsNoTracking()
+            .Where(item => item.IntakeReceiptId == receiptId && item.EventType == eventType)
+            .ToListAsync();
 
     private static WebApplicationFactory<Program> Configure(IntakeWebApplicationFactory baseFactory, RecordingIntakeLog log) =>
         baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>

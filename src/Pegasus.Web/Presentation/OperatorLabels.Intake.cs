@@ -261,6 +261,30 @@ public static partial class OperatorLabels
         public const string OpenFile = "Open file";
         public const string OpenMessage = "Open message";
 
+        /// <summary>The Action logs period error (R438): the Management Reports sentence.</summary>
+        public const string PeriodInvalid = "Choose a valid date range.";
+
+        /// <summary>A drawer action posted without a valid operation key or version.</summary>
+        public const string Expired = EmailTemplates.Expired;
+
+        public const string ReasonRequired = "Give a reason for this action.";
+
+        /// <summary>
+        /// A reason over Core's 500-character limit. Its own words wait for the
+        /// operator (R437); until then it reads as a missing reason.
+        /// </summary>
+        public const string ReasonTooLong = ReasonRequired;
+
+        /// <summary>
+        /// A stale or refused drawer action. The store's refusals (already being
+        /// evaluated, OCR no longer retryable, a closed Unidentified item, no
+        /// evaluation work) read this until the operator gives their words (R437).
+        /// </summary>
+        public const string ItemChanged = "The received item changed. Reload it before trying again.";
+
+        /// <summary>Re-evaluate refused because the retained file no longer matches what was received.</summary>
+        public static string RetainedFileMismatch => IntakeFailure("artifact_integrity_failure");
+
         public static string Outcome(IntakeLogOutcome outcome) => outcome switch
         {
             IntakeLogOutcome.CaseCreated => "Case created",

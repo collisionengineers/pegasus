@@ -229,6 +229,8 @@ type** filter (Staff / AI / Pegasus) narrows the list by this kind. An AI job
 row links through to the Case or Unidentified record it acted on. Time values
 and the From/To period pickers show and accept whole minutes only; storage
 keeps its sub-second precision.
+The From/To pickers read and show London office time, as the Time column
+does (operator, 29 October 2026; R532).
 
 **Intake log** lists one row per received file: received, source, item
 (opening the original), outcome with its reason, what it became, and
