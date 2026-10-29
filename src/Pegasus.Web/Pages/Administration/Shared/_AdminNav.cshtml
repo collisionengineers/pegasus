@@ -1,13 +1,10 @@
 @{
     var area = ViewData["AdminArea"] as string;
     var page = ViewContext.RouteData.Values["page"] as string;
-    var automationComposed = ViewContext.HttpContext.RequestServices.GetService(
-        typeof(Pegasus.Web.Mcp.AutomationClientRegistry)) is not null;
     string? Current(string key) => area == key
         || page == (key switch
         {
             "logs" => "/Administration/Logs",
-            "ai-jobs" => "/Administration/AiJobs",
             "reports" => "/Administration/Reports",
             "release-notes" => "/Administration/ReleaseNotes/Index",
             "problem-reports" => "/Administration/ProblemReports",
@@ -73,16 +70,11 @@
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
             <span>@OperatorLabels.Admin.ProblemReports</span>
         </a>
-        <a asp-page="/Administration/AiJobs" aria-current="@Current("ai-jobs")">
-            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
-            <span>@OperatorLabels.Admin.AiJobs</span>
+        @* One page holds the AI jobs list and, where composed, the Automation
+           client (R467), so it is listed in every deployment. *@
+        <a asp-page="/Administration/Automation/Index" aria-current="@Current("automation")">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-bot")" /></svg>
+            <span>@OperatorLabels.Admin.Automation</span>
         </a>
-        @if (automationComposed)
-        {
-            <a asp-page="/Administration/Automation/Index" aria-current="@Current("automation")">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-bot")" /></svg>
-                <span>@OperatorLabels.Admin.Automation</span>
-            </a>
-        }
     </div>
 </nav>

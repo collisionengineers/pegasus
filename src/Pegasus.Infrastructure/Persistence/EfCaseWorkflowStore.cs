@@ -15,7 +15,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore, IReleaseAutomationLeases
+    TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore
 {
     private const string ClaimLeaseOperationKind = "claim";
     private const string RenewLeaseOperationKind = "renew";
@@ -455,10 +455,15 @@ public sealed class EfCaseWorkflowStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
-    public async Task<AutomationLeasesReleased> ReleaseAllAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Stop's release of every Case lease and edit scope Automation holds, live or lapsed, on the
+    /// caller's context inside the caller's transaction (<see cref="EfAutomationSwitchStore"/>);
+    /// the caller saves and commits.
+    /// </summary>
+    internal static async Task<AutomationLeasesReleased> ReleaseAutomationLeasesAsync(
+        PegasusDbContext context,
+        CancellationToken cancellationToken)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var automation = nameof(ActorKind.Automation);
         var caseIds = await context.CaseWorkflows
             .AsNoTracking()
@@ -484,8 +489,6 @@ public sealed class EfCaseWorkflowStore(
             context,
             ActorKind.Automation,
             cancellationToken);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         return new(workflows.Select(item => item.CaseId).ToArray(), scopes);
     }
 

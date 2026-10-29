@@ -72,17 +72,10 @@
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                     <h3>@OperatorLabels.Admin.ProblemReports</h3>
                 </a>
-                <a class="admin-card" asp-page="/Administration/AiJobs">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
-                    <h3>@OperatorLabels.Admin.AiJobs</h3>
+                <a class="admin-card" asp-page="/Administration/Automation/Index">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-bot")" /></svg>
+                    <h3>@OperatorLabels.Admin.Automation</h3>
                 </a>
-                @if (Model.AutomationComposed)
-                {
-                    <a class="admin-card" asp-page="/Administration/Automation/Index">
-                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-bot")" /></svg>
-                        <h3>@OperatorLabels.Admin.Automation</h3>
-                    </a>
-                }
             </div>
         </div>
     </section>
