@@ -31,6 +31,7 @@ using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Infrastructure.Vision;
 using Pegasus.Infrastructure.Reports;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -429,7 +430,7 @@ public static class DependencyInjection
         services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();
         services.AddScoped<IMyStaffNotifications, MyStaffNotifications>();
         services.AddScoped<PurgeStaffNotifications>();
-        services.AddMemoryCache();
+        AddPegasusMemoryCache(services);
         services.AddScoped<Pegasus.Core.ReleaseNotes.IReleaseNoteStore, EfReleaseNoteStore>();
         services.AddScoped<Pegasus.Core.ReleaseNotes.IMyReleaseNotes, Pegasus.Core.ReleaseNotes.MyReleaseNotes>();
         services.AddScoped<Pegasus.Core.Support.IProblemReportStore, EfProblemReportStore>();
@@ -797,6 +798,9 @@ public static class DependencyInjection
         // renderer registers its own embedded faces, so no host font is read.
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
         QuestPDF.Settings.UseEnvironmentFonts = false;
+        // The renderer keeps prepared signatures in the process's one
+        // IMemoryCache, added here too so this profile stands up on its own.
+        AddPegasusMemoryCache(services);
         services.AddSingleton<ReportRenderGate>();
         services.AddSingleton<IAssessmentReportRenderer, QuestPdfAssessmentReportRenderer>();
         services.AddSingleton<IEstimateDocumentRenderer, QuestPdfEstimateDocumentRenderer>();
@@ -943,6 +947,7 @@ public static class DependencyInjection
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(BoxContentClient)),
             provider.GetRequiredService<IBoxAuthorizationHeaderProvider>(),
             provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<IMemoryCache>(),
             provider.GetService<ILogger<BoxContentClient>>()));
         services.AddSingleton<ICaseCustody>(provider => new BoxCaseCustody(
             provider.GetRequiredService<IIntakeArtifactStore>(),
@@ -1177,6 +1182,21 @@ public static class DependencyInjection
         {
             PooledConnectionLifetime = TimeSpan.FromMinutes(10)
         });
+
+    /// <summary>
+    /// The process's one <see cref="IMemoryCache"/> (AddMemoryCache adds it
+    /// only once), its entries expiring on the host's <see cref="TimeProvider"/>.
+    /// The TimeProvider is taken when the cache is first resolved, so a host or test
+    /// that registers its own TimeProvider after this moves the cache's too.
+    /// </summary>
+    private static void AddPegasusMemoryCache(IServiceCollection services)
+    {
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddMemoryCache();
+        services.AddOptions<MemoryCacheOptions>()
+            .Configure<TimeProvider>((options, timeProvider) =>
+                options.Clock = new TimeProviderCacheClock(timeProvider));
+    }
 
     private static void AddStaffMailSending(IServiceCollection services)
     {
