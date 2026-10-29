@@ -23,3 +23,20 @@ durable owner.
   do by then to be v1. Until it is made, production data is disposable and
   releases verify changes; after it, ADR-0002's expand-and-contract rule and
   ADR-0046's full containment apply without exemption.
+
+## Cutover: a re-sent or forwarded old-system instruction creates a Case (#1600)
+
+- **Owner**: the operator.
+- **Affected contract**: [FRD-01](frd/frd-01-case-identity-and-lifecycle.md)
+  (new correspondence about old work is handled under the current process),
+  [FRD-08](frd/frd-08-email-mailbox-and-background-processing.md) (a forwarded
+  old instruction is never promoted by guesswork), and the automatic allocation
+  in `AllocateIntake.AttemptAutomaticAsync`, which creates a Case for a
+  mailbox receipt classified New instruction with no Case match.
+- **Decision needed**: how a re-sent or forwarded instruction for a Case still
+  run in the old system is handled at cutover, so it does not become a
+  duplicate Case under a new reference. The operator's ruling of 28 October
+  2026 (R512) makes this the one cutover item that is decided and built before
+  the v1 date; [#1336](https://github.com/collisionengineers/pegasus/issues/1336)
+  and [#1601](https://github.com/collisionengineers/pegasus/issues/1601) stay
+  parked under R391 until the date is set.

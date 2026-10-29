@@ -5,9 +5,9 @@ were typed and as the chosen option where one was offered. This is the
 decision record: an FRD clause, an ADR, a code comment or a test that cites
 `Rnnn` means a row here. Rows are appended, never edited; a later ruling that
 changes an earlier one is a new row that names it. The register began during
-the second audit of 15 October 2026 and ran to R457 in the release-readiness
-programme of 15 to 26 October 2026; those rows were written against the code
-of their day and keep their plan and issue references as provenance.
+the second audit of 15 October 2026; the rows to R457 came from the
+release-readiness programme of 15 to 26 October 2026, were written against the
+code of their day and keep their plan and issue references as provenance.
 
 | Id | Question (short) | Answer |
 | --- | --- | --- |
@@ -496,3 +496,31 @@ of their day and keep their plan and issue references as provenance.
 | R483 | Phase 2a (PR 1725), 28 October 2026: production holds four DENY rows on `ApprovedMailboxSubscriptions` (Web INSERT, UPDATE and DELETE; Worker DELETE) that the record lacked and no migration issues; `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions` granted without the convention's denials, the bootstrap's matrix expected them from its first commit, and production has carried them since, applied outside the chain | The operator chose **"Add them: record plus one migration"**: the four rows join the record and `20261028160000_DenyApprovedMailboxSubscriptionsWrites` issues them, a no-op in production and the convention restored for a fresh database; the census stays 697 and 489 |
 | R484 | Phase 2b (PR 1726), 28 October 2026: the 244-step migration chain, the tests that replayed it and the applied-migration lists R89 kept | Under R481 (**"Approve, after Phase 1's CI and test PRs land"**) one `20261028171919_Baseline` migration generated from the model, with the two runtime roles, the grants and denials of `RuntimePermissions.csv` and the chain's seed rows appended to its `Up()`, replaces the chain; production adopts it by one `__EFMigrationsHistory` row and keeps its 244 legacy rows, so earlier artifacts stay deployable. The 45 replay facts, and the 10 head-schema facts that the catalog equivalence diff, `RuntimePermissionRecordTests` and `DatabaseLessWebHostTests` cover, go with their 22 files; the four Worker-role facts stay as `WorkerRuntimeRoleTests`; `LocalDbTemplateDatabaseTests` keeps the applied-equals-assembly check and gains the index key-size rule. Supersedes R89's retention of the post-V1 replay tests and the chain lists |
 | R485 | Issue #1728, 28 October 2026: four library-owned indexes (ASP.NET Core Identity's `AspNetUserLogins` and `AspNetUserTokens` keys, OpenIddict's two `ApplicationId_Status_Subject_Type` indexes) can exceed SQL Server's index key limit; shorten the libraries' columns, accept them, or leave the rule at fourteen tables | The operator chose **"Accept them"** ("i choose your choice", the recommended option): the four stay as the libraries ship them, `LocalDbTemplateDatabaseTests` names them as the only indexes that may exceed the limit and checks every other table |
+| R486 | Release-readiness decisions page, 28 October 2026, A1: merge PR 1727 (compiled model goes) and PR 1729 (index key-size rule) | "I merge both now" |
+| R487 | Release-readiness decisions page, 28 October 2026, A2: Release 129, the Phase 2 release | "Run it as soon as 1727 and 1729 are merged" |
+| R488 | Release-readiness decisions page, 28 October 2026, A3: PR 2c, remove the one-off Baseline tooling after the release | "Yes, straight after the release" |
+| R489 | Release-readiness decisions page, 28 October 2026, A4: the nine remote branches (six merged `task/*`, `claude/loving-euler-w4vb99`, `task/eff-10-c`, `kanmer-board`) | "Delete all nine" |
+| R490 | Release-readiness decisions page, 28 October 2026, B1: split `docs/operations.md` | "Move 40 to 123 to a one-line history file" |
+| R491 | Release-readiness decisions page, 28 October 2026, B2: `docs/current-architecture.md` rows | "One line per row" |
+| R492 | Release-readiness decisions page, 28 October 2026, B3: four capability ids owned by two FRDs (INT-19, CASE-32, UI-14, INT-33) | "The PR proposes each owner, I approve at review" |
+| R493 | Release-readiness decisions page, 28 October 2026, B4: the 17 superseded ADRs | "Move the 17" |
+| R494 | Release-readiness decisions page, 28 October 2026, B5: three documents link to the gitignored workspace | "Replace each link with a sentence saying the material is operator-held outside the repository" |
+| R495 | Release-readiness decisions page, 28 October 2026, B6: operator working rules into `AGENTS.md` | "Fold the five rules into AGENTS.md now" |
+| R496 | Release-readiness decisions page, 28 October 2026, B7: the nine plain-language rewrite plans (docs-plain-01 to 08) | "Drop them; readability only after the shrink, where it is needed" |
+| R497 | Release-readiness decisions page, 28 October 2026, C1: Core interfaces no test fakes | "Remove the 53 first, then re-count by the finer method" |
+| R498 | Release-readiness decisions page, 28 October 2026, C2: edit authority, 13 concepts to 3 | "Design note first, then the collapse" |
+| R499 | Release-readiness decisions page, 28 October 2026, C3: caches | "Unify as described" (one in-process mechanism, `IMemoryCache` through the evictable entry; the SQL-plus-blob document cache kept; the duplicate regex cache and the second `AddMemoryCache()` registration removed) |
+| R500 | Release-readiness decisions page, 28 October 2026, C4: telemetry components | "Consolidate as described" (one request timing filter, the two SQL interceptors and the heartbeat; the rest removed unless a bicep alert reads it) |
+| R501 | Release-readiness decisions page, 28 October 2026, C5: `OperatorLabels.cs` | "Split by area" |
+| R502 | Release-readiness decisions page, 28 October 2026, C6: `DetailsModel` | "With the next design conversion"; note: "record as github issue" (#1730) |
+| R503 | Release-readiness decisions page, 28 October 2026, D1: shard rebalance | "Refresh and rebalance to four if the figures allow" |
+| R504 | Release-readiness decisions page, 28 October 2026, D2: Linux runners | "Measure once, then decide" |
+| R505 | Release-readiness decisions page, 28 October 2026, E3: UAT pack and the first round | "Defer until I set a date"; note: "record as github issue" (#1731) |
+| R506 | Release-readiness decisions page, 28 October 2026, E4: recovery drill | "Defer until I set a date"; note: "record as github issue" (#1732) |
+| R507 | Release-readiness decisions page, 28 October 2026, E5: page p95 baseline | "Record one baseline" |
+| R508 | Release-readiness decisions page, 28 October 2026, E6: alert rules (issue 1355) | "Build them; thresholds proposed in the PR" |
+| R509 | Release-readiness decisions page, 28 October 2026, E7: MCP connectors after the server split | No option chosen; note: "7 connectors was dumb i need to rework this record as github issue" (#1733) |
+| R510 | Release-readiness decisions page, 28 October 2026, E8: order for the 28 October triage issues | "The agent proposes the order, bugs first" |
+| R511 | Release-readiness decisions page, 28 October 2026, E9: release checks owed to the operator (issues 1711, 1712, 1713) | "I do them before then"; note: "record as github issue" (a comment on each) |
+| R512 | Release-readiness decisions page, 28 October 2026, E10: cutover decisions (issues 1336, 1600, 1601) | "Stay parked until I pick a date"; note: "record as github issue (record resent instruction seperately - thats a release blocker)": #1600 is recorded as a release blocker for v1 in [open decisions](open-decisions.md), #1336 and #1601 stay parked under R391 |
+| R513 | Release-readiness decisions page, 28 October 2026, E11: the workspace folder `artifacts/pegasus-release-readiness` | "After the walk and the proof page: delete the debris, keep entities/ and the admin audit" |
