@@ -56,8 +56,18 @@ public static partial class OperatorLabels
         public const string SaveDraft = "Save draft";
         public const string Publish = "Publish";
         public const string Saved = "Release note saved.";
-        public const string Published = "Release note published.";
+        public const string NotePublished = "Release note published.";
         public const string Conflict = "The release note changed before this edit was saved. Reload and try again.";
+        public const string SaveBeforePublish = "Save the draft before publishing it.";
+
+        // The list headings and the form fields (R527: the page's words, moved unchanged).
+        public const string Title = "Title";
+        public const string Body = "Body";
+        public const string Status = "Status";
+        public const string Version = "Version";
+        public const string Published = "Published";
+        public const string PublishedBy = "Published by";
+        public const string Cancel = "Cancel";
     }
 
     /// <summary>Report a problem (FRD-12; FRD-17): the dialog, the outcomes and the Administrator's list.</summary>

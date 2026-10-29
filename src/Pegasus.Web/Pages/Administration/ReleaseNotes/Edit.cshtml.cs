@@ -54,9 +54,9 @@ public sealed class EditModel(ReleaseNoteAdministration administration) : Admini
     public async Task<IActionResult> OnPostPublishAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        if (!IsOperationKeyValid(OperationKey) || Id is not { } id || id == Guid.Empty)
+        if (Id is not { } id || id == Guid.Empty)
         {
-            ModelState.AddModelError(string.Empty, "Save the draft before publishing it.");
+            ModelState.AddModelError(string.Empty, OperatorLabels.ReleaseNotes.SaveBeforePublish);
             return await ReloadAsync(actor, cancellationToken);
         }
 
@@ -64,7 +64,7 @@ public sealed class EditModel(ReleaseNoteAdministration administration) : Admini
         {
             await administration.PublishAsync(
                 actor, id, ExpectedRowVersion, Title, Body, cancellationToken);
-            TempData["Confirmation"] = OperatorLabels.ReleaseNotes.Published;
+            TempData["Confirmation"] = OperatorLabels.ReleaseNotes.NotePublished;
             return RedirectToPage("/Administration/ReleaseNotes/Index");
         }
         catch (StaffAuthorizationException)
@@ -92,7 +92,7 @@ public sealed class EditModel(ReleaseNoteAdministration administration) : Admini
 
         if (!IsOperationKeyValid(OperationKey))
         {
-            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+            ModelState.AddModelError(string.Empty, OperatorLabels.EmailTemplates.Expired);
             return await ReloadAsync(actor, cancellationToken);
         }
 

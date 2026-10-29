@@ -69,7 +69,13 @@ public sealed class IndexModel(
 
         try
         {
-            if (!IsOperationKeyValid(operationKey))
+            if (expectedVersion < 0)
+            {
+                // The page renders no version below 0, so one is a version
+                // that changed, not a body error (#1560, R527).
+                ModelState.AddModelError(string.Empty, Labels.Stale);
+            }
+            else if (!IsOperationKeyValid(operationKey))
             {
                 ModelState.AddModelError(nameof(operationKey), Labels.Expired);
             }
@@ -90,7 +96,7 @@ public sealed class IndexModel(
         {
             ModelState.AddModelError(nameof(body), Labels.UnknownPlaceholder(exception.Placeholder));
         }
-        catch (ArgumentOutOfRangeException)
+        catch (ArgumentOutOfRangeException exception) when (exception.ParamName == nameof(body))
         {
             ModelState.AddModelError(nameof(body), Labels.TooLong);
         }

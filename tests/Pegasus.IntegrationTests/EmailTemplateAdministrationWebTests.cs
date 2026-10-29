@@ -206,6 +206,26 @@ public sealed class EmailTemplateAdministrationWebTests
         Assert.Equal("First {registration}", template.Body);
     }
 
+    /// <summary>
+    /// The page renders no version below 0, so a posted -1 reads as a version
+    /// that changed, never as a too-long body, and nothing is saved (#1560).
+    /// </summary>
+    [Fact]
+    public async Task ANegativeVersionIsRefusedAsChangedNotAsTooLong()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var html = await GetHtmlAsync(client, Page);
+
+        using var response = await PostSaveAsync(client, html, -1, "Short body");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var refused = await response.Content.ReadAsStringAsync();
+        Assert.Contains(OperatorLabels.EmailTemplates.Stale, refused, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.EmailTemplates.TooLong, refused, StringComparison.Ordinal);
+        Assert.Equal(0, (await GetTemplateAsync(factory)).Version);
+    }
+
     [Fact]
     public async Task ABodyWithAnUnknownPlaceholderCannotBeSaved()
     {

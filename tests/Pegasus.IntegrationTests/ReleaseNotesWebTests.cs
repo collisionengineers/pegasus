@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Presentation;
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -169,6 +170,69 @@ public sealed partial class ReleaseNotesWebTests
         Assert.Equal(id, note.Id.ToString("D"));
         Assert.Equal("Final body", note.Body);
         Assert.Equal("Published", note.Status);
+    }
+
+    /// <summary>
+    /// Core takes no operation key on Publish; the row version alone makes a
+    /// replay safe, so a saved draft posted with a malformed key, and its
+    /// replay with none, publishes once (#1584). With no saved draft Publish
+    /// is still refused. The list and the read-only note read their words from
+    /// <see cref="OperatorLabels.ReleaseNotes"/> (#1583).
+    /// </summary>
+    [Fact]
+    public async Task PublishNeedsASavedDraftButNoOperationKey()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var administrator = CreateClient(factory);
+        var newForm = await GetHtmlAsync(administrator, EditPage);
+        using var unsaved = await administrator.PostAsync($"{EditPage}?handler=Publish", Form(newForm, new()
+        {
+            ["Id"] = string.Empty,
+            ["ExpectedRowVersion"] = "0",
+            ["Title"] = "Keyless",
+            ["Body"] = "One"
+        }));
+        Assert.Equal(HttpStatusCode.OK, unsaved.StatusCode);
+        Assert.Contains(OperatorLabels.ReleaseNotes.SaveBeforePublish,
+            await unsaved.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        using var saved = await administrator.PostAsync($"{EditPage}?handler=Save", Form(newForm, new()
+        {
+            ["Id"] = string.Empty,
+            ["ExpectedRowVersion"] = "0",
+            ["OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["Title"] = "Keyless",
+            ["Body"] = "One"
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        var draft = await GetHtmlAsync(administrator, saved.Headers.Location!.OriginalString);
+        var id = InputValue(draft, "Id");
+        var publishFields = new Dictionary<string, string>
+        {
+            ["Id"] = id,
+            ["ExpectedRowVersion"] = InputValue(draft, "ExpectedRowVersion"),
+            ["OperationKey"] = "x",
+            ["Title"] = "Keyless",
+            ["Body"] = "One"
+        };
+        using var published = await administrator.PostAsync(
+            $"{EditPage}/{id}?handler=Publish", Form(draft, new(publishFields)));
+        publishFields.Remove("OperationKey");
+        using var replay = await administrator.PostAsync(
+            $"{EditPage}/{id}?handler=Publish", Form(draft, new(publishFields)));
+        Assert.Equal(HttpStatusCode.Redirect, published.StatusCode);
+        Assert.Equal(published.Headers.Location, replay.Headers.Location);
+
+        var list = await GetHtmlAsync(administrator, AdministrationPage);
+        Assert.Contains($"<th scope=\"col\">{OperatorLabels.ReleaseNotes.PublishedBy}</th>", list, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.ReleaseNotes.Published}<", list, StringComparison.Ordinal);
+        var readOnly = await GetHtmlAsync(administrator, $"{EditPage}/{id}");
+        Assert.Contains($"<dt>{OperatorLabels.ReleaseNotes.Published}</dt>", readOnly, StringComparison.Ordinal);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal("Published", Assert.Single(await context.Set<ReleaseNoteEntity>().ToArrayAsync()).Status);
     }
 
     [Fact]
