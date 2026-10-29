@@ -29,6 +29,40 @@ public static class ReportColumnTitles
 }
 
 /// <summary>
+/// The Management Reports' headings and column titles, one copy: the page
+/// draws its section headings, column headers and the totals they head from
+/// these, and each CSV and workbook sheet is named and headed with them
+/// (FRD-17: the CSVs and the workbook use the page's headings).
+/// </summary>
+public static class AdministrationReportHeadings
+{
+    public const string EngineerActivity = "Engineer activity";
+    public const string ReportsByPrincipal = "Reports by Principal";
+    public const string ByMonth = "By month";
+    public const string Outcomes = "Outcomes";
+    public const string Turnaround = "Turnaround";
+    public const string Queues = "Queues";
+
+    public const string Person = "Person";
+    public const string QueriesReceived = "Queries received";
+    public const string ReportsSent = "Reports sent";
+    public const string AuditReportsSent = "Audit reports sent";
+    public const string ReceivedToSent = "Received to sent";
+    public const string Principal = "Principal";
+    public const string ReportsProduced = "Reports produced";
+    public const string AgreedFees = "Agreed fees";
+    public const string Month = "Month";
+    public const string FeeNotesProduced = "Fee notes produced";
+    public const string TimeToProduce = "Time to produce";
+    public const string TimeToReady = "Time to ready";
+    public const string TimeToSend = "Time to send";
+    public const string CurrentlyHeld = "Currently held";
+    public const string OldestHeldSince = "Oldest held since";
+    public const string Triages = "Triages";
+    public const string OldestTriageSince = "Oldest Triage since";
+}
+
+/// <summary>
 /// One sheet: a titled, typed table with a header row, a filter over it, a
 /// frozen header and, when <see cref="Totals"/> is set, a totals row under
 /// every Integer and Money column. Cells are strings, integers, decimals,
@@ -68,13 +102,13 @@ public static class AdministrationReportTables
         ArgumentNullException.ThrowIfNull(report);
         ArgumentNullException.ThrowIfNull(labels);
         return new(
-            "Engineer activity",
+            AdministrationReportHeadings.EngineerActivity,
             [
-                new("Person", WorkbookColumnKind.Text),
-                new("Queries received", WorkbookColumnKind.Count),
-                new("Reports sent", WorkbookColumnKind.Count),
-                new("Audit reports sent", WorkbookColumnKind.Count),
-                new("Received to sent", WorkbookColumnKind.Text)
+                new(AdministrationReportHeadings.Person, WorkbookColumnKind.Text),
+                new(AdministrationReportHeadings.QueriesReceived, WorkbookColumnKind.Count),
+                new(AdministrationReportHeadings.ReportsSent, WorkbookColumnKind.Count),
+                new(AdministrationReportHeadings.AuditReportsSent, WorkbookColumnKind.Count),
+                new(AdministrationReportHeadings.ReceivedToSent, WorkbookColumnKind.Text)
             ],
             report.Rows.Select(row => (IReadOnlyList<object?>)
             [
@@ -88,12 +122,12 @@ public static class AdministrationReportTables
     {
         ArgumentNullException.ThrowIfNull(report);
         return new(
-            "Reports by Principal",
+            AdministrationReportHeadings.ReportsByPrincipal,
             [
-                new("Principal", WorkbookColumnKind.Text),
-                .. Split("Reports produced", WorkbookColumnKind.Count),
-                .. Split("Reports sent", WorkbookColumnKind.Count),
-                .. Split("Agreed fees", WorkbookColumnKind.Money)
+                new(AdministrationReportHeadings.Principal, WorkbookColumnKind.Text),
+                .. Split(AdministrationReportHeadings.ReportsProduced, WorkbookColumnKind.Count),
+                .. Split(AdministrationReportHeadings.ReportsSent, WorkbookColumnKind.Count),
+                .. Split(AdministrationReportHeadings.AgreedFees, WorkbookColumnKind.Money)
             ],
             report.Rows
                 .Where(row => row.ReportsProduced > 0 || row.Sent > 0)
@@ -113,12 +147,12 @@ public static class AdministrationReportTables
         ArgumentNullException.ThrowIfNull(report);
         ArgumentNullException.ThrowIfNull(labels);
         return new(
-            "Turnaround",
+            AdministrationReportHeadings.Turnaround,
             [
-                new("Principal", WorkbookColumnKind.Text),
-                new("Time to produce", WorkbookColumnKind.Text),
-                new("Time to ready", WorkbookColumnKind.Text),
-                new("Time to send", WorkbookColumnKind.Text)
+                new(AdministrationReportHeadings.Principal, WorkbookColumnKind.Text),
+                new(AdministrationReportHeadings.TimeToProduce, WorkbookColumnKind.Text),
+                new(AdministrationReportHeadings.TimeToReady, WorkbookColumnKind.Text),
+                new(AdministrationReportHeadings.TimeToSend, WorkbookColumnKind.Text)
             ],
             TurnaroundRows(report)
                 .Select(row => (IReadOnlyList<object?>)
@@ -135,14 +169,14 @@ public static class AdministrationReportTables
     {
         ArgumentNullException.ThrowIfNull(monthly);
         return new(
-            "By month",
+            AdministrationReportHeadings.ByMonth,
             [
-                new("Month", WorkbookColumnKind.Text),
-                new("Principal", WorkbookColumnKind.Text),
-                .. Split("Reports produced", WorkbookColumnKind.Count),
-                .. Split("Fee notes produced", WorkbookColumnKind.Count),
-                .. Split("Reports sent", WorkbookColumnKind.Count),
-                .. Split("Agreed fees", WorkbookColumnKind.Money)
+                new(AdministrationReportHeadings.Month, WorkbookColumnKind.Text),
+                new(AdministrationReportHeadings.Principal, WorkbookColumnKind.Text),
+                .. Split(AdministrationReportHeadings.ReportsProduced, WorkbookColumnKind.Count),
+                .. Split(AdministrationReportHeadings.FeeNotesProduced, WorkbookColumnKind.Count),
+                .. Split(AdministrationReportHeadings.ReportsSent, WorkbookColumnKind.Count),
+                .. Split(AdministrationReportHeadings.AgreedFees, WorkbookColumnKind.Money)
             ],
             monthly.Select(row => (IReadOnlyList<object?>)
             [
@@ -159,9 +193,9 @@ public static class AdministrationReportTables
     {
         ArgumentNullException.ThrowIfNull(report);
         return new(
-            "Outcomes",
+            AdministrationReportHeadings.Outcomes,
             [
-                new("Principal", WorkbookColumnKind.Text),
+                new(AdministrationReportHeadings.Principal, WorkbookColumnKind.Text),
                 .. GetReportOutcomes.Order.Select(outcome =>
                     new WorkbookColumn(CaseReportDeliveryNaming.OutcomeWords(outcome), WorkbookColumnKind.Count)),
                 new(CaseListPolicy.Agrees, WorkbookColumnKind.Count),
@@ -180,13 +214,13 @@ public static class AdministrationReportTables
     {
         ArgumentNullException.ThrowIfNull(report);
         return new(
-            "Queues",
+            AdministrationReportHeadings.Queues,
             [
-                new("Principal", WorkbookColumnKind.Text),
-                new("Currently held", WorkbookColumnKind.Count),
-                new("Oldest held since", WorkbookColumnKind.DateTime),
-                new("Triages", WorkbookColumnKind.Count),
-                new("Oldest Triage since", WorkbookColumnKind.DateTime)
+                new(AdministrationReportHeadings.Principal, WorkbookColumnKind.Text),
+                new(AdministrationReportHeadings.CurrentlyHeld, WorkbookColumnKind.Count),
+                new(AdministrationReportHeadings.OldestHeldSince, WorkbookColumnKind.DateTime),
+                new(AdministrationReportHeadings.Triages, WorkbookColumnKind.Count),
+                new(AdministrationReportHeadings.OldestTriageSince, WorkbookColumnKind.DateTime)
             ],
             QueueRows(report)
                 .Select(row => (IReadOnlyList<object?>)
