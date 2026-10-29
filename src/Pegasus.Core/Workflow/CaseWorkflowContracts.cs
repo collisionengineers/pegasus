@@ -704,24 +704,9 @@ public interface IPutCaseOnHold
     Task<CaseWorkflowRecord> ExecuteAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken);
 }
 
-public interface IReleaseCaseHold
-{
-    Task<CaseWorkflowRecord> ExecuteAsync(CaseMutationRequest request, CancellationToken cancellationToken);
-}
-
-public interface IReturnCaseToReview
-{
-    Task<CaseWorkflowRecord> ExecuteAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken);
-}
-
 public interface IAssignCaseEngineer
 {
     Task<CaseWorkflowRecord> ExecuteAsync(AssignCaseEngineerRequest request, CancellationToken cancellationToken);
-}
-
-public interface IStartCaseWork
-{
-    Task<CaseWorkflowRecord> ExecuteAsync(CaseMutationRequest request, CancellationToken cancellationToken);
 }
 
 
@@ -761,13 +746,6 @@ public interface ICloseCase
 public interface IReopenCase
 {
     Task<CaseWorkflowRecord> ExecuteAsync(ReopenCaseRequest request, CancellationToken cancellationToken);
-}
-
-public interface IReturnCaseToEngineer
-{
-    Task<CaseWorkflowRecord> ExecuteAsync(
-        ReturnCaseToEngineerRequest request,
-        CancellationToken cancellationToken);
 }
 
 public interface IOpenCaseQuery

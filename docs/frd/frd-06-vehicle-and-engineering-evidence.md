@@ -357,7 +357,7 @@ behaviour.
 ### Conservative MOT mileage estimation
 
 This section is the only owner of the rule that
-[ADR-0012](../adr/0012-conservative-mot-mileage-estimation.md) (superseded)
+[ADR-0012](../adr/superseded/0012-conservative-mot-mileage-estimation.md) (superseded)
 once held.
 
 When DVSA history must estimate a Case mileage, Pegasus:
@@ -434,7 +434,7 @@ DVLA/DVSA and recognition evidence are separate tiers
   [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md),
   [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md).
 - Technical constraints:
-  [ADR-0012](../adr/0012-conservative-mot-mileage-estimation.md)
+  [ADR-0012](../adr/superseded/0012-conservative-mot-mileage-estimation.md)
   (superseded; rule now here),
   [ADR-0018](../adr/0018-provider-inspection-mode-database-setting.md),
   [ADR-0019](../adr/0019-in-process-onnx-vrm-recognition.md),

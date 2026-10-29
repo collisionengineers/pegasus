@@ -65,19 +65,6 @@ public interface IListTriage
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// The keyset seam for the Triage list. It is separate from
-/// <see cref="IListTriage"/> because the offset list is still what the queue
-/// tab reads; when that surface moves to continuation this port replaces it
-/// rather than joining it.
-/// </summary>
-public interface IListTriagePage
-{
-    Task<CursorPage<TriageSummary>> ExecuteAsync(
-        ListTriagePageQuery query,
-        CancellationToken cancellationToken = default);
-}
-
 public interface IGetTriage
 {
     Task<TriageDetail?> ExecuteAsync(
@@ -160,9 +147,11 @@ public sealed class ListTriage(ITriageQueries queries) : IListTriage
 /// The Triage list as a keyset continuation. The opaque cursor is minted here,
 /// over the shared <see cref="CursorPaging"/> contract: the store below deals
 /// only in a decoded <see cref="TriageListPosition"/> and never sees a token.
+/// It is separate from <see cref="IListTriage"/> because the offset list is still
+/// what the queue tab reads; when that surface moves to continuation this class
+/// replaces it rather than joining it.
 /// </summary>
 public sealed class ListTriagePage(ITriageQueries queries, ICursorProtector protector)
-    : IListTriagePage
 {
     private const string QueryName = "triage";
     private const string Order = "created_desc,case_desc";

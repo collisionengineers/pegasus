@@ -45,7 +45,7 @@ namespace Pegasus.Web.Pages.Cases;
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed partial class CreateModel(
     IGetIntake getIntake,
-    IResolveIntake resolveIntake,
+    ResolveIntake resolveIntake,
     IAllocateIntake allocateIntake,
     IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
     IInspectionAddressResolutionStore addressResolutionStore,

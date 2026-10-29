@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -16,7 +17,7 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed class ClosureModel(
     ICloseCase closeCase,
     IReopenCase reopenCase,
-    IReturnCaseToEngineer returnToEngineer,
+    ReturnCaseToEngineer returnToEngineer,
     IArchiveCase archiveCase,
     ICaseWorkflowQueries workflows,
     IAcquireCaseEditLease acquireLease,

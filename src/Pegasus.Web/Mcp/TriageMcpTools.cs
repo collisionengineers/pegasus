@@ -40,9 +40,9 @@ internal enum TriageAssignAction
 /// </summary>
 [McpServerToolType]
 internal sealed class TriageMcpTools(
-    IListTriagePage listTriage,
+    ListTriagePage listTriage,
     IGetTriage getTriage,
-    IGetIntakeSourceMetadata getSourceMetadata,
+    GetIntakeSourceMetadata getSourceMetadata,
     IDownloadIntakeSource downloadSource,
     IRenderImageForDelivery images,
     IExtractPdfPageText pdfText,
@@ -57,8 +57,8 @@ internal sealed class TriageMcpTools(
     ILinkTriageCase linkCase,
     IUnlinkTriageCase unlinkCase,
     IAssignTriage assign,
-    IUnassignTriage unassign,
-    IAddTriageNote addNote,
+    UnassignTriage unassign,
+    AddTriageNote addNote,
     ICaseEngineerChoices engineerChoices,
     AutomationEditLease leases,
     AutomationActorResolver resolver,

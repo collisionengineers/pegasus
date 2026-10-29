@@ -614,7 +614,6 @@ public sealed class DispatchPendingIntakeWork(
     TimeProvider timeProvider) : ICommittedIntakeWorkPublisher
 {
     private static readonly TimeSpan DispatchLeaseDuration = TimeSpan.FromMinutes(1);
-    private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
     /// <summary>
     /// Attempts publication for one already-committed receipt. A transport
@@ -630,10 +629,6 @@ public sealed class DispatchPendingIntakeWork(
             throw new ArgumentException("A staged receipt identifier is required.", nameof(stagedReceiptId));
         }
 
-        using var activity = Telemetry.StartActivity("publish_committed_intake_work");
-        activity?.SetTag("intake.staged_receipt_id", stagedReceiptId);
-        activity?.SetTag("intake.publication.path", "immediate");
-
         var workItem = await workStore.ClaimDispatchAsync(
             stagedReceiptId,
             timeProvider.GetUtcNow(),
@@ -641,7 +636,6 @@ public sealed class DispatchPendingIntakeWork(
             cancellationToken);
         if (workItem is null)
         {
-            activity?.SetTag("intake.publication.outcome", "already_claimed_or_complete");
             return;
         }
 
@@ -658,12 +652,9 @@ public sealed class DispatchPendingIntakeWork(
                 workItem.LeaseToken,
                 timeProvider.GetUtcNow(),
                 cancellationToken);
-            activity?.SetTag("intake.publication.outcome", "published");
-            activity?.SetStatus(ActivityStatusCode.Ok);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            activity?.SetTag("intake.publication.enqueue_error", exception.GetType().Name);
             try
             {
                 await workStore.ReleaseDispatchAsync(
@@ -671,18 +662,13 @@ public sealed class DispatchPendingIntakeWork(
                     workItem.LeaseToken,
                     timeProvider.GetUtcNow(),
                     CancellationToken.None);
-                activity?.SetTag("intake.publication.outcome", "enqueue_failed_released");
             }
             catch (Exception releaseException) when (IntakeExceptionPolicy.IsRecoverable(releaseException))
             {
                 // The lease expires even if this best-effort release cannot be
                 // persisted. The committed receipt remains acknowledged and
                 // the recovery sweep reclaims it after the lease.
-                activity?.SetTag("intake.publication.release_error", releaseException.GetType().Name);
-                activity?.SetTag("intake.publication.outcome", "enqueue_failed_lease_expiry_recovery");
             }
-
-            activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
         }
     }
 
@@ -776,7 +762,6 @@ public sealed class ProcessQueuedIntake(
     private static readonly ActionActor SystemWorkerActor =
         ActionActor.SystemWorker("intake-processing");
 
-    private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
 
     /// <summary>
@@ -804,14 +789,11 @@ public sealed class ProcessQueuedIntake(
         CancellationToken cancellationToken = default)
     {
         (IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)? claimed;
-        using (StartStage("queue_claim"))
-        {
-            claimed = await workStore.ClaimProcessingAsync(
-                stagedReceiptId,
-                timeProvider.GetUtcNow(),
-                ProcessingLeaseDuration,
-                cancellationToken);
-        }
+        claimed = await workStore.ClaimProcessingAsync(
+            stagedReceiptId,
+            timeProvider.GetUtcNow(),
+            ProcessingLeaseDuration,
+            cancellationToken);
         if (claimed is null)
         {
             var completedEvaluation = await workStore.GetCompletedEvaluationAsync(
@@ -920,27 +902,24 @@ public sealed class ProcessQueuedIntake(
             {
                 ReadOnlyMemory<byte> content;
                 string durableStorageKey;
-                using (StartStage("artifact_read_and_retain"))
+                if (workItem.IsReevaluation)
                 {
-                    if (workItem.IsReevaluation)
-                    {
-                        (content, durableStorageKey) = await ReadRetainedSourceAsync(
-                            workItem,
-                            stagedReceipt,
-                            cancellationToken);
-                    }
-                    else
-                    {
-                        content = await ReadVerifiedAsync(
-                            stagedReceipt.StorageKey,
-                            stagedReceipt.SourceHash,
-                            cancellationToken);
-                        durableStorageKey = await artifactStore.PromoteStagedAsync(
-                            stagedReceipt.StorageKey,
-                            stagedReceipt.SourceHash,
-                            content,
-                            cancellationToken);
-                    }
+                    (content, durableStorageKey) = await ReadRetainedSourceAsync(
+                        workItem,
+                        stagedReceipt,
+                        cancellationToken);
+                }
+                else
+                {
+                    content = await ReadVerifiedAsync(
+                        stagedReceipt.StorageKey,
+                        stagedReceipt.SourceHash,
+                        cancellationToken);
+                    durableStorageKey = await artifactStore.PromoteStagedAsync(
+                        stagedReceipt.StorageKey,
+                        stagedReceipt.SourceHash,
+                        content,
+                        cancellationToken);
                 }
                 // Mirrors the terminal check below: once this attempt is the last
                 // one the retry schedule allows, a transient reader fault must be
@@ -948,22 +927,19 @@ public sealed class ProcessQueuedIntake(
                 // Unidentified) here rather than deferred to a retry that will
                 // never happen.
                 var isFinalAttempt = workItem.AttemptCount >= RetryDelays.Length;
-                using (StartStage("source_read_and_process"))
-                {
-                    processed = await processIntake.ExecuteRetainedAsync(
-                        new(
-                            stagedReceipt.SourceFileName,
-                            stagedReceipt.MediaType,
-                            content,
-                            stagedReceipt.ReceivedAtUtc,
-                            stagedReceipt.Actor,
-                            stagedReceipt.SourceIdentity,
-                            stagedReceipt.DeclaredCaseId),
-                        durableStorageKey,
-                        workItem.IsReevaluation,
-                        isFinalAttempt,
-                        cancellationToken);
-                }
+                processed = await processIntake.ExecuteRetainedAsync(
+                    new(
+                        stagedReceipt.SourceFileName,
+                        stagedReceipt.MediaType,
+                        content,
+                        stagedReceipt.ReceivedAtUtc,
+                        stagedReceipt.Actor,
+                        stagedReceipt.SourceIdentity,
+                        stagedReceipt.DeclaredCaseId),
+                    durableStorageKey,
+                    workItem.IsReevaluation,
+                    isFinalAttempt,
+                    cancellationToken);
             }
             await BeginOcrOperationsAsync(processed, cancellationToken);
             evaluation = await workStore.RecordEvaluationAsync(
@@ -976,38 +952,35 @@ public sealed class ProcessQueuedIntake(
 
             TriageCreationOutcome triage;
             AutomaticCaseEvidencePromotionOutcome promotion;
-            using (StartStage("association_and_allocation"))
+            // A destination the uploading member of staff declared is
+            // their decision, made before the upload: it is recorded
+            // first, so nothing below identifies, registers or holds
+            // material that already has its Case.
+            if (await AssociateDeclaredDestinationAsync(processed, stagedReceipt, cancellationToken))
             {
-                // A destination the uploading member of staff declared is
-                // their decision, made before the upload: it is recorded
-                // first, so nothing below identifies, registers or holds
-                // material that already has its Case.
-                if (await AssociateDeclaredDestinationAsync(processed, stagedReceipt, cancellationToken))
-                {
-                    processed = await ReloadAsync(processed, cancellationToken);
-                }
-                if (await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken))
-                {
-                    processed = await ReloadAsync(processed, cancellationToken);
-                }
-                if (await AssociateRetainedMailAsync(processed, cancellationToken))
-                {
-                    processed = await ReloadAsync(processed, cancellationToken);
-                }
-                promotion = await PromoteAssociatedCaseEvidenceAsync(processed, cancellationToken);
+                processed = await ReloadAsync(processed, cancellationToken);
+            }
+            if (await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken))
+            {
+                processed = await ReloadAsync(processed, cancellationToken);
+            }
+            if (await AssociateRetainedMailAsync(processed, cancellationToken))
+            {
+                processed = await ReloadAsync(processed, cancellationToken);
+            }
+            promotion = await PromoteAssociatedCaseEvidenceAsync(processed, cancellationToken);
 
-                var allocation = await allocateIntake.AttemptAutomaticAsync(
-                    processed,
-                    evaluation.Id,
-                    cancellationToken);
-                var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
-                triage = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
-                if (allocated)
-                {
-                    // Allocation wrote CurrentCaseId durably; image automation must
-                    // see the associated state rather than attempt a conflicting link.
-                    processed = await ReloadAsync(processed, cancellationToken);
-                }
+            var allocation = await allocateIntake.AttemptAutomaticAsync(
+                processed,
+                evaluation.Id,
+                cancellationToken);
+            var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
+            triage = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+            if (allocated)
+            {
+                // Allocation wrote CurrentCaseId durably; image automation must
+                // see the associated state rather than attempt a conflicting link.
+                processed = await ReloadAsync(processed, cancellationToken);
             }
 
             var imageOutcome = await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
@@ -1151,13 +1124,6 @@ public sealed class ProcessQueuedIntake(
             throw new IntakeArtifactIntegrityException();
         }
         return content;
-    }
-
-    private static Activity? StartStage(string stage)
-    {
-        var activity = Telemetry.StartActivity($"intake.{stage}", ActivityKind.Internal);
-        activity?.SetTag("intake.stage", stage);
-        return activity;
     }
 
     /// <summary>
@@ -1482,8 +1448,8 @@ public sealed class ProcessQueuedIntake(
         // R195 (operator, 22 October 2026): a request in reply form opens the
         // Triage unless the thread already holds a Case or Triage; a reply
         // into such a thread is that thread's correspondence. One the
-        // association above already linked to a Case is that Case's, with no
-        // read.
+        // association above already linked to a Case, or to the thread's
+        // Triage (R469), is that Case's, with no read.
         var replyForm = receipt.MailClassificationDecision is { IsReplyContext: true };
         if (replyForm && receipt.CurrentCaseId is not null)
         {
@@ -1739,7 +1705,7 @@ public sealed class ReconcileStagedArtifacts(
 
 public sealed class ResolveIntake(
     IIntakeMutationStore store,
-    TimeProvider timeProvider) : IResolveIntake
+    TimeProvider timeProvider)
 {
     public Task<IntakeReceipt> ExecuteAsync(
         ResolveIntakeRequest request,

@@ -612,9 +612,9 @@ The reviewed register reaches the Contacts directory through a "one-off
 operator-run loader through `IContactDirectoryAdministration.SaveAsync` from
 reviewed CSVs under `artifacts/`", with the "prod run under separate
 authorisation" (operator, 15 October 2026). The loader is
-`scripts/reference-data-loader/`. It reads the load files in
-`artifacts/pegasus-release-readiness/entities/load/`, loads only rows whose
-`review` is `approved`, and writes through the Contacts directory and
+`scripts/reference-data-loader/`. It reads the reviewed load CSVs, which
+are operator-held outside the repository, loads only rows whose `review` is
+`approved`, and writes through the Contacts directory and
 inspection-location writers as an enabled Administrator. Its plan hash holds
 no clock: `apply` recomputes it from the stored state and the files and writes
 nothing unless it equals the approved one and `--target` names the connection
@@ -625,7 +625,7 @@ kept as it is.
 ```powershell
 $env:ConnectionStrings__Pegasus = "<connection string>"
 dotnet run --project ./scripts/reference-data-loader -- dry-run `
-  --data artifacts/pegasus-release-readiness/entities/load `
+  --data <folder holding the reviewed load CSVs> `
   --actor-staff-id <administrator staff id> --batch <batch> `
   --reviewed-at <yyyy-MM-dd> `
   --report artifacts/reference-data-load/<batch>-dry-run.json
@@ -832,24 +832,6 @@ item below has one query for Log Analytics. Web telemetry is sampled, and it
 stops mid-afternoon on days the daily cap is reached, so read counts as lower
 bounds.
 
-- **Counters.** Twelve runtime and SqlClient counters go to `AppMetrics`, one
-  row each a minute, and are not sampled. `System.Runtime` gives
-  `working-set`, `gc-heap-size`, `gen-2-gc-count`, `time-in-gc`,
-  `threadpool-thread-count`, `threadpool-queue-length` and
-  `monitor-lock-contention-count`. `Microsoft.Data.SqlClient.EventSource` gives
-  `hard-connects`, `soft-connects`, `number-of-active-connections`,
-  `number-of-free-connections` and `number-of-stasis-connections`. The metric
-  name is the source, a bar, then the counter's display name. Query:
-  `AppMetrics | where AppRoleName startswith "pegasus-prod-web" and (Name startswith "System.Runtime|" or Name startswith "Microsoft.Data.SqlClient.EventSource|") | summarize avg(Sum / ItemCount) by Name, bin(TimeGenerated, 5m)`.
-- **Request properties.** Each page request row carries `tp.threads` and
-  `tp.pending` (thread-pool threads and queued work when the request began),
-  `gc.gen2.delta` and `gc.pause.ms.delta` (second-generation collections and
-  milliseconds paused during it) and `majflt.delta` (major page faults during
-  it; absent where `/proc` is). `majflt.delta` is read from one sample of
-  `/proc/self/stat` a second, shared by every request and taken through one
-  handle kept open, so a request that starts and ends inside one second shows
-  zero. The deltas are the process's, not the request's alone. Query:
-  `AppRequests | where TimeGenerated > ago(1d) and isnotempty(tostring(Properties["tp.threads"])) | project TimeGenerated, Name, DurationMs, threads=toint(Properties["tp.threads"]), pending=toint(Properties["tp.pending"]), gen2=toint(Properties["gc.gen2.delta"]), pauseMs=todouble(Properties["gc.pause.ms.delta"]), majflt=toint(Properties["majflt.delta"]) | order by DurationMs desc`.
 - **Memory heartbeat.** Every five minutes (`Diagnostics:HeartbeatInterval`;
   `00:00:00` turns it off) Web logs one trace, "Runtime heartbeat", of
   `name=value` pairs: resident memory (`vmrss_mb`, `rssanon_mb`, `rssfile_mb`,
@@ -861,7 +843,7 @@ bounds.
   `AppTraces | where Message startswith "Runtime heartbeat" | extend rssMb=toint(extract(@"vmrss_mb=(\d+)", 1, Message)), availableMb=toint(extract(@"mem_available_mb=(\d+)", 1, Message)) | project TimeGenerated, rssMb, availableMb, Message`.
 - **Slow connection opens.** A database connection open of 100 ms or more is
   the `db.connection.open` phase, an event of the same kind as the document
-  phases. Faster opens record nothing; the counters give their totals. Query:
+  phases. Faster opens record nothing. Query:
   `AppEvents | where Name == "Pegasus.Document.Read" and tostring(Properties.phase) == "db.connection.open" | summarize n=count(), p50=percentile(todouble(Measurements.durationMs),50), maxMs=max(todouble(Measurements.durationMs)) by bin(TimeGenerated, 1h)`.
 - **Work Centre sections.** `web.workcentre.attention`, `web.workcentre.newcases`
   and `web.workcentre.aijobs` time the page's three reads. The page waits for
@@ -914,8 +896,15 @@ and Error lines for these categories:
 `Pegasus.Worker` stays at Information. In the seven days to 30 September 2026,
 the trace categories in that list were 83% of the Worker's trace bytes.
 
-Nothing reads the dropped lines. The one alert, `pegasus-prod-application-exceptions`,
-reads `AppExceptions` and `AppRequests`, not `AppTraces`. `Host.Results` is not
+Nothing reads the dropped lines. Since 29 October 2026 ([R447](rulings.md)), the
+alerts read `AppExceptions`, `AppRequests` and the worker process's own lines in
+`AppTraces`. `pegasus-prod-application-exceptions` reads the first two.
+`pegasus-prod-matching-failures` (Sev2, three or more in 15 minutes) counts the
+`The {Step} step failed` line of the image and Triage pairing steps.
+`pegasus-prod-chasing-failures` (Sev2, one or more in an hour) counts the due-work
+sweep's `The {Job} job failed` and `passed its 60 second budget` lines.
+`pegasus-prod-web-readiness` (Sev1, three or more in 15 minutes) counts failed
+`/health/ready` requests. None of these lines is filtered. `Host.Results` is not
 filtered, because it writes the `AppRequests` rows. Every function run, its
 duration and its failure are still in `AppRequests`. A failed run is still an
 Error line. To see a dropped category again, set it back in `host.json` and
@@ -933,16 +922,7 @@ When you read `AppTraces`, read both `Properties.Category` (the host) and
 `Properties.CategoryName` (the worker process). The effect of these filters
 shows only in a query after the next release.
 
-### The Worker's own spans and slow SQL
-
-Core opens spans on the intake, image intake, custody and Triage paths. The Worker
-sends each stopped span as one `AppEvents` row named `Pegasus.Worker.Span`. The
-`span` property is the span name, `durationMs` is its length, and the row carries the
-trace's operation id and parent id, so it joins the invocation's `AppRequests` row.
-The rows join adaptive sampling like other events. They carry no tag values: the
-intake receipt and custody work item ids the spans are tagged with are never sent.
-`triage_case_pairing` opens a span only when a Triage Case is waiting to be
-linked, so an idle tick sends no row.
+### The Worker's slow SQL
 
 `SqlDependencyTelemetryFilter` still drops a successful SQL call, but keeps one that
 took 250 ms or more, and every failed one. It runs before sampling, so a dropped
@@ -960,11 +940,6 @@ process's dependencies, exceptions and log lines. The `excludedTypes` list in
 row of each run. A quiet Worker stays under those rates and loses nothing. A kept
 row that stands for dropped rows has `ItemCount` above 1, so count with
 `sum(ItemCount)`.
-
-Use the two together. A run that took 26 s with no dependency shows its spans by
-stage, and a slow statement in the same trace shows as a dependency. Sampling keeps
-or drops a whole operation, but events and the other types are sampled apart. Under
-load a run can keep its spans and lose its slow statement, or the reverse.
 
 ### Statement-level evidence from Query Store
 
@@ -1012,7 +987,7 @@ the release record.
 **Limits.** Query Store has no per-request attribution: it says which statements
 ran and how long they took, not which request issued them. Its capture mode can
 skip rare, cheap statements. Parameters appear as `@p0`, not as values. For one
-slow request, use the [Worker's spans and slow SQL](#the-workers-own-spans-and-slow-sql)
+slow request, use the [Worker's slow SQL](#the-workers-slow-sql)
 above and the request's own trace.
 
 ### A failing sweep step names its cause
