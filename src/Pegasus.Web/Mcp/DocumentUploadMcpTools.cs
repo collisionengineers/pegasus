@@ -34,8 +34,8 @@ internal sealed record UploadPartToolResult(
 /// </summary>
 [McpServerToolType]
 internal sealed class DocumentUploadMcpTools(
-    IBeginDocumentUpload begin,
-    IAppendDocumentUploadPart append,
+    DocumentUploads begin,
+    DocumentUploads append,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -70,7 +70,7 @@ internal sealed class DocumentUploadMcpTools(
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
                 var ticket = await begin.ExecuteAsync(
-                    new(uploadId, context.ClientId, totalBytes, sha256),
+                    new BeginDocumentUploadRequest(uploadId, context.ClientId, totalBytes, sha256),
                     cancellationToken);
                 return new UploadBeginToolResult(
                     ticket.UploadId,
@@ -115,7 +115,7 @@ internal sealed class DocumentUploadMcpTools(
                     DocumentUploadLimits.PartBytes,
                     "The part content");
                 var receipt = await append.ExecuteAsync(
-                    new(uploadId, context.ClientId, partNumber, content, sha256),
+                    new AppendDocumentUploadPartRequest(uploadId, context.ClientId, partNumber, content, sha256),
                     cancellationToken);
                 return new UploadPartToolResult(
                     receipt.UploadId,
@@ -133,7 +133,7 @@ internal sealed class DocumentUploadMcpTools(
     /// declaration before the call claims a lease or opens a transaction.
     /// </summary>
     internal static async Task<ReadOnlyMemory<byte>> ReadContentAsync(
-        IOpenDocumentUpload uploads,
+        DocumentUploads uploads,
         AutomationActorContext context,
         string? contentBase64,
         Guid? uploadId,
@@ -154,7 +154,7 @@ internal sealed class DocumentUploadMcpTools(
         }
 
         AutomationMcpErrors.RequireId(staged, "upload identifier");
-        var opened = await uploads.ExecuteAsync(new(staged, context.ClientId), cancellationToken);
+        var opened = await uploads.ExecuteAsync(new OpenDocumentUploadRequest(staged, context.ClientId), cancellationToken);
         return opened.Content;
     }
 }

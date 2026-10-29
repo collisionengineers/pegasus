@@ -21,7 +21,7 @@ namespace Pegasus.Web.Pages.Intake;
 /// </remarks>
 public sealed partial class AssetModel(
     IDownloadIntakeAsset downloadAsset,
-    IReadPreCaseImageThumbnail readPreCaseThumbnail,
+    ReadPreCaseImageThumbnail readPreCaseThumbnail,
     ILogger<AssetModel> logger) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>

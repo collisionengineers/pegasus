@@ -21,12 +21,6 @@ public interface IStartMarketResearch
     Task<AiJobRecord> ExecuteAsync(StartMarketResearchRequest request, CancellationToken cancellationToken);
 }
 
-/// <summary>The Case's Market research job still in progress, so the card can read as pending.</summary>
-public interface IMarketResearchQueries
-{
-    Task<AiJobRecord?> GetPendingAsync(Guid caseId, CancellationToken cancellationToken);
-}
-
 public static class MarketResearchPolicy
 {
     /// <summary>
@@ -80,7 +74,8 @@ public static class MarketResearchPolicy
     }
 }
 
-public sealed class MarketResearchQueries(IAiJobQueries jobs) : IMarketResearchQueries
+/// <summary>The Case's Market research job still in progress, so the card can read as pending.</summary>
+public sealed class MarketResearchQueries(IAiJobQueries jobs)
 {
     private readonly IAiJobQueries _jobs = jobs ?? throw new ArgumentNullException(nameof(jobs));
 
@@ -96,10 +91,10 @@ public sealed class MarketResearchQueries(IAiJobQueries jobs) : IMarketResearchQ
 }
 
 public sealed class StartMarketResearch(
-    IMarketResearchQueries queries,
+    MarketResearchQueries queries,
     ICreateAiJob createJob) : IStartMarketResearch
 {
-    private readonly IMarketResearchQueries _queries = queries ?? throw new ArgumentNullException(nameof(queries));
+    private readonly MarketResearchQueries _queries = queries ?? throw new ArgumentNullException(nameof(queries));
     private readonly ICreateAiJob _createJob = createJob ?? throw new ArgumentNullException(nameof(createJob));
 
     public async Task<AiJobRecord> ExecuteAsync(

@@ -150,30 +150,10 @@ public interface IPrincipalSubmissionBindings
         CancellationToken cancellationToken);
 }
 
-public interface ISubmitPrincipalInstruction
-{
-    Task<PrincipalSubmissionReceipt> ExecuteAsync(
-        PrincipalSubmissionRequest request,
-        CancellationToken cancellationToken);
-}
-
 public interface IPrincipalAttachmentAdmission
 {
     Task RequireSupportedAsync(
         IReadOnlyList<PrincipalSubmissionFile> files,
-        CancellationToken cancellationToken);
-}
-
-public interface IGetPrincipalSubmissionResult
-{
-    /// <summary>
-    /// Null when the submission does not exist or belongs to another
-    /// Principal — the two are indistinguishable to the caller (FRD-09:
-    /// cross-principal disclosure fails closed).
-    /// </summary>
-    Task<PrincipalSubmissionResult?> ExecuteAsync(
-        PrincipalCredentialAuthentication credential,
-        Guid submissionId,
         CancellationToken cancellationToken);
 }
 
@@ -264,7 +244,7 @@ public sealed class SubmitPrincipalInstruction(
     IIntakeSubmission intakeSubmission,
     IPrincipalAttachmentAdmission attachmentAdmission,
     IActionHistoryWriter actionHistory,
-    TimeProvider timeProvider) : ISubmitPrincipalInstruction
+    TimeProvider timeProvider)
 {
     public async Task<PrincipalSubmissionReceipt> ExecuteAsync(
         PrincipalSubmissionRequest request,
@@ -388,8 +368,13 @@ public sealed class GetPrincipalSubmissionResult(
     IPrincipalSubmissionStore store,
     IQueuedIntakeStatusQueries statusQueries,
     IIntakeReceiptQueries receiptQueries,
-    Pegasus.Core.Triage.ITriageQueries triageQueries) : IGetPrincipalSubmissionResult
+    Pegasus.Core.Triage.ITriageQueries triageQueries)
 {
+    /// <summary>
+    /// Null when the submission does not exist or belongs to another
+    /// Principal — the two are indistinguishable to the caller (FRD-09:
+    /// cross-principal disclosure fails closed).
+    /// </summary>
     public async Task<PrincipalSubmissionResult?> ExecuteAsync(
         PrincipalCredentialAuthentication credential,
         Guid submissionId,
