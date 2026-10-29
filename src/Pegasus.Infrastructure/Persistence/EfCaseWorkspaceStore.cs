@@ -30,7 +30,7 @@ public sealed class EfCaseWorkspaceStore(
     TimeProvider timeProvider,
     IEnumerable<IPrincipalCaseMatchPolicy>? caseMatchPolicies = null) : ICaseWorkspaceStore
 {
-    private const string EventType = "case_workspace_saved";
+    internal const string EventType = "case_workspace_saved";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -390,6 +390,14 @@ public sealed class EfCaseWorkspaceStore(
                 dueWorkVersionBeforeSave);
         }
 
+        // One note per save session (R466, operator, 28 October 2026), read
+        // before the version moves.
+        var session = await ContinuedSessionAsync(
+            context,
+            request.CaseId,
+            workflow.Version,
+            request.Actor,
+            cancellationToken);
         var beforeVersion = workflow.Version;
         CaseMutationGuard.Complete(workflow);
         var afterJson = JsonSerializer.Serialize(
@@ -407,25 +415,29 @@ public sealed class EfCaseWorkspaceStore(
                 AppliedValuation = adopted
             },
             JsonOptions);
+        var changed = CaseWorkspaceChangeSummary.Parts(
+            beforeData,
+            data,
+            beforeFields,
+            afterFields,
+            estimateChanged: estimate is not null,
+            imagesPrepared: preparedImages?.Count ?? 0,
+            wordingChanged,
+            guideEntries?.Recorded,
+            valuationAdopted: adopted is not null);
+        // A save that carries its session on writes the session's line and the
+        // version the session opened at, so the Case's timeline shows the
+        // session once (EfCaseQueryStore.TimelineRows); its action history
+        // keeps this save's own account.
         CaseMutationHistory.Add(
             context,
             workflow,
             request.Actor,
             request.OperationKey,
-            CaseWorkspaceChangeSummary.Describe(
-                beforeData,
-                data,
-                beforeFields,
-                afterFields,
-                estimateChanged: estimate is not null,
-                imagesPrepared: preparedImages?.Count ?? 0,
-                request.Reason,
-                wordingChanged,
-                guideEntries?.Recorded,
-                valuationAdopted: adopted is not null),
+            CaseWorkspaceChangeSummary.Summarise(changed, request.Reason),
             EventType,
             requestHash,
-            beforeVersion,
+            session?.OpenedAtVersion ?? beforeVersion,
             workflow.Version,
             JsonSerializer.Serialize(
                 new
@@ -438,7 +450,14 @@ public sealed class EfCaseWorkspaceStore(
                 JsonOptions),
             afterJson,
             $"{CaseWorkspacePolicy.PolicyKey}/v{CaseWorkspacePolicy.PolicyVersion}",
-            now);
+            now,
+            session is null
+                ? null
+                : CaseWorkspaceChangeSummary.ExtendSession(
+                    session.Line,
+                    changed,
+                    request.Reason,
+                    beforeData.ClaimSourceName));
         await EfVehicleLookupWorkStore.RecordEstimateDispositionAsync(
             context,
             workflow,
@@ -634,6 +653,57 @@ public sealed class EfCaseWorkspaceStore(
             ? estimateId
             : null;
     }
+
+    /// <summary>
+    /// The save session this save carries on (R466, operator, 28 October
+    /// 2026), or null when it opens one. It carries one on when the line at the
+    /// Case's version is the same person's Case save, nothing else has been
+    /// written to the Case since (an event that moves no version, a Case note
+    /// or a take-over, records the version it found), and since that save the
+    /// edit lease was claimed exactly once and never released: the claim the
+    /// Case page makes to keep editing after a save. Done, or a link away from
+    /// the Case, releases it; a lapsed lease claimed again, or a colleague's
+    /// take-over, is a second claim. The Automation actor's lease outlives its
+    /// writes, so no claim follows one and each keeps its own line. One
+    /// command reads it all.
+    /// </summary>
+    private static async Task<SaveSession?> ContinuedSessionAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        long version,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var claim = EfCaseWorkflowStore.ClaimLeaseOperationKind;
+        var release = EfCaseWorkflowStore.ReleaseLeaseOperationKind;
+        var atVersion = await context.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.AfterVersion == version)
+            .Select(item => new
+            {
+                item.EventType,
+                item.ActorKind,
+                item.ActorSubjectId,
+                item.Reason,
+                item.BeforeVersion,
+                Claims = context.CaseEditLeaseOperations.Count(operation =>
+                    operation.CaseId == caseId && operation.ResultVersion == version && operation.OperationKind == claim),
+                Releases = context.CaseEditLeaseOperations.Count(operation =>
+                    operation.CaseId == caseId && operation.ResultVersion == version && operation.OperationKind == release)
+            })
+            .Take(2)
+            .ToArrayAsync(cancellationToken);
+        return atVersion is [var only]
+            && only.EventType == EventType
+            && only.ActorKind == actor.Kind.ToString()
+            && only.ActorSubjectId == actor.SubjectId
+            && only.Claims == 1
+            && only.Releases == 0
+                ? new SaveSession(only.Reason ?? string.Empty, only.BeforeVersion)
+                : null;
+    }
+
+    /// <summary>The session's line so far and the version the session opened at.</summary>
+    private sealed record SaveSession(string Line, long OpenedAtVersion);
 
     /// <summary>
     /// The Engineer's changes to the report's narrative blocks (v28 P30). A

@@ -400,7 +400,7 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
-    public async Task ActionLogPageValidationIsSeparateFromUtcPeriodValidation()
+    public async Task ActionLogPageValidationIsSeparateFromPeriodValidation()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -408,7 +408,12 @@ public sealed class AdministrationSearchAccountWebTests
         var html = await client.GetStringAsync("/Administration/Logs?page=0");
 
         Assert.Contains("Choose a valid page.", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Choose a valid UTC period.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.IntakeLog.PeriodInvalid, html, StringComparison.Ordinal);
+
+        // A period that ends before it starts reads the Management Reports sentence (R438).
+        var reversed = await client.GetStringAsync(
+            "/Administration/Logs?From=2026-09-10T12%3A00&To=2026-09-10T11%3A00");
+        Assert.Contains(OperatorLabels.IntakeLog.PeriodInvalid, reversed, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -674,12 +679,14 @@ public sealed class AdministrationSearchAccountWebTests
     /// <summary>
     /// Minutes are the smallest unit the log is filtered and read by: storage
     /// keeps its sub-second precision, but neither the period pickers nor the
-    /// Time column show seconds, and a minute-only value still binds.
+    /// Time column show seconds, and a minute-only value still binds. The
+    /// pickers are London office time, as the Time column is (R532).
     /// </summary>
     [Fact]
     public async Task TheActionLogPeriodPickersAndTimeColumnStopAtMinutes()
     {
-        var occurredAt = new DateTimeOffset(2026, 9, 10, 11, 43, 27, 123, TimeSpan.Zero);
+        // 10:43 UTC is 11:43 in London: British summer time.
+        var occurredAt = new DateTimeOffset(2026, 9, 10, 10, 43, 27, 123, TimeSpan.Zero);
         using var factory = new IntakeWebApplicationFactory();
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -692,18 +699,20 @@ public sealed class AdministrationSearchAccountWebTests
         }
 
         using var client = IntakeWebDriver.CreateClient(factory);
-        // A whole day, because a minute-only value carries no offset and binds in
-        // the host's zone: the window has to hold the row on a UTC host and on a
-        // British-summer-time one alike.
+        // One London hour, whatever the host's zone: read as UTC it would be
+        // 12:00 to 13:00 London and miss the row.
         var html = await client.GetStringAsync(
-            "/Administration/Logs?From=2026-09-10T00%3A00&To=2026-09-11T00%3A00");
+            "/Administration/Logs?From=2026-09-10T11%3A00&To=2026-09-10T12%3A00");
 
-        Assert.Contains("\"2026-09-10T00:00\"", html, StringComparison.Ordinal);
-        Assert.Contains("\"2026-09-11T00:00\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("2026-09-10T00:00:00", html, StringComparison.Ordinal);
+        Assert.Contains("\"2026-09-10T11:00\"", html, StringComparison.Ordinal);
+        Assert.Contains("\"2026-09-10T12:00\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("2026-09-10T11:00:00", html, StringComparison.Ordinal);
         Assert.Contains("step=\"60\"", html, StringComparison.Ordinal);
+        // The sort and page links carry the same London window, with no offset.
+        Assert.Contains("From=2026-09-10T11%3A00%3A00&amp;To=2026-09-10T12%3A00%3A00", html, StringComparison.Ordinal);
 
         var row = ActionLogRow(html, "minute-precision-row");
+        Assert.Contains("10 Sep 2026 11:43", row, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.OfficeTime(occurredAt), row, StringComparison.Ordinal);
         // The machine-readable instant keeps full precision; the words do not.
         // Razor's attribute encoder writes the offset's '+' as &#x2B;.

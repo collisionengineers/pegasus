@@ -337,13 +337,14 @@ public sealed class EfCaseQueryStore(
         // The three counts are one command: a header read is a handful of round
         // trips, and each one is paid for by every page that shows a Case.
         var openTaskState = nameof(CaseTaskState.Open);
+        var timeline = TimelineRows(context, query.CaseId);
         var counts = await context.Cases
             .AsNoTracking()
             .Where(item => item.Id == query.CaseId)
             .Select(item => new
             {
                 Documents = context.Set<CaseDocumentEntity>().Count(document => document.CaseId == query.CaseId),
-                History = context.CaseWorkflowEvents.Count(entry => entry.CaseId == query.CaseId),
+                History = timeline.Count(),
                 OpenTasks = context.Set<CaseTaskEntity>()
                     .Count(task => task.CaseId == query.CaseId && task.State == openTaskState)
             })
@@ -553,9 +554,8 @@ public sealed class EfCaseQueryStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entities = await context.CaseWorkflowEvents
+        var entities = await TimelineRows(context, caseId)
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
             .OrderByDescending(item => item.OccurredAtUtc)
             .ThenByDescending(item => item.Id)
             .Take(200)
@@ -565,6 +565,25 @@ public sealed class EfCaseQueryStore(
             .OrderByDescending(item => item.OccurredAtUtc)
             .ThenByDescending(item => item.EntryId)
             .ToArray();
+    }
+
+    /// <summary>
+    /// The Case's timeline: every workflow event but a Case save that a later
+    /// save of the same session carried on (R466, operator, 28 October 2026).
+    /// The saves of one session record the version the session opened at,
+    /// and the latest of them lists every field the session changed, so the
+    /// session shows once. No two sessions open at one version, so a save
+    /// that carried no session on always shows.
+    /// </summary>
+    private static IQueryable<CaseWorkflowEventEntity> TimelineRows(PegasusDbContext context, Guid caseId)
+    {
+        const string saved = EfCaseWorkspaceStore.EventType;
+        return context.CaseWorkflowEvents.Where(item => item.CaseId == caseId
+            && (item.EventType != saved
+                || !context.CaseWorkflowEvents.Any(later => later.CaseId == caseId
+                    && later.EventType == saved
+                    && later.BeforeVersion == item.BeforeVersion
+                    && later.AfterVersion > item.AfterVersion)));
     }
 
     /// <summary>
@@ -1442,7 +1461,7 @@ public sealed class EfCaseQueryStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = context.CaseWorkflowEvents.AsNoTracking().Where(item => item.CaseId == caseId);
+        var rows = TimelineRows(context, caseId).AsNoTracking();
         if (afterId is { } id)
         {
             var afterValue = afterOccurredAtUtc!.Value;
