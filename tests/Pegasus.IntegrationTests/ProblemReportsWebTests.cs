@@ -539,6 +539,8 @@ public sealed class ProblemReportsWebTests
         list = await GetHtmlAsync(administrator, ListPage);
         AssertProblemNotice(list, OperatorLabels.ProblemReports.IssueNumberRequired);
         Assert.Contains($">{OperatorLabels.ProblemReports.DeliveryUnknown}<", list, StringComparison.Ordinal);
+        // A second tab still open on the Delivery unknown row; a Sent row offers no form.
+        var unknownPage = list;
 
         using var confirmed = await administrator.PostAsync(
             $"{ListPage}?handler=ConfirmIssue&id={id}", AdminForm(list, new() { ["issueNumber"] = "12" }));
@@ -550,7 +552,7 @@ public sealed class ProblemReportsWebTests
         Assert.Empty(sink.Sent);
 
         using var stale = await administrator.PostAsync(
-            $"{ListPage}?handler=ConfirmIssue&id={id}", AdminForm(list, new() { ["issueNumber"] = "13" }));
+            $"{ListPage}?handler=ConfirmIssue&id={id}", AdminForm(unknownPage, new() { ["issueNumber"] = "13" }));
         Assert.Equal(HttpStatusCode.Redirect, stale.StatusCode);
         list = await GetHtmlAsync(administrator, ListPage);
         AssertProblemNotice(list, OperatorLabels.ProblemReports.StatusChanged);
