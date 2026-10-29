@@ -420,7 +420,7 @@ public static class DependencyInjection
         services.AddScoped<UpdateApprovedMailbox>();
         services.AddScoped<EfCaseWorkflowStore>();
         services.AddScoped<ICaseWorkflowStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
-        services.AddScoped<IReleaseAutomationLeases>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<IAutomationSwitchStore, EfAutomationSwitchStore>();
         services.AddScoped<IAutoLinkReportEvidenceStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());

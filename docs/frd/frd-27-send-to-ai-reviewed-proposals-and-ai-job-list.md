@@ -162,7 +162,7 @@ While the Administrator switch is off, the action is refused with "AI work is
 not accepting new jobs."
 
 Staff cannot cancel a job from these surfaces. An Administrator stops a
-non-terminal job on Administration AI jobs; the Automation Actor cancels one
+non-terminal job on Administration → Automation & AI; the Automation Actor cancels one
 with `pegasus_ai_job_transition`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)).
 
@@ -175,9 +175,13 @@ the history of the same jobs is
 where an AI job row's Reference opens the Case or Unidentified record.
 
 **Where the list appears.** The list appears in two places: the Work Centre
-pane above, and the Administration AI jobs page. The Administration page
+pane above, and the Administration Automation & AI page, in every deployment
+(operator, 28 October 2026; R467). The Administration page
 lists every recorded job in pages, with the active and failed counts and the
-Send to AI switch state, and offers `Stop` for a non-terminal job. Both
+Send to AI switch state, and offers `Stop` for a non-terminal job. A Stop
+that meets a newer version or a job already settled reads "The AI job changed
+before it could be stopped."; one Core refuses for its input or for a job it
+cannot find reads "The AI job could not be stopped." (29 October 2026; R527). Both
 refresh when the page is reloaded. There is no live event stream.
 
 ### Send to AI switch
