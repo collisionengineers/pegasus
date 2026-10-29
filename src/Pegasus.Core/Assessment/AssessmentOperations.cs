@@ -21,7 +21,7 @@ public sealed class GetCaseAssessment(ICaseAssessmentStore store) : IGetCaseAsse
     }
 }
 
-public sealed class SaveAssessment(ICaseAssessmentStore store) : ISaveAssessment
+public sealed class SaveAssessment(ICaseAssessmentStore store)
 {
     private readonly ICaseAssessmentStore _store =
         store ?? throw new ArgumentNullException(nameof(store));

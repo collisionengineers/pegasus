@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.AiWork;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
@@ -193,7 +193,7 @@ public static class DependencyInjection
         // stay in custody behind the authenticated content URL.
         services.AddSingleton<IRenderImageForDelivery, ImageDeliveryRenderer>();
         services.AddSingleton<IExtractPdfPageText, PdfPigPageTextExtractor>();
-        services.AddScoped<IReadPreCaseImageThumbnail, ReadPreCaseImageThumbnail>();
+        services.AddScoped<ReadPreCaseImageThumbnail>();
         services.AddScoped<GetUnidentifiedItemContext>();
         services.AddScoped<GetIntakeOfferedActions>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
@@ -335,8 +335,8 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfPrincipalSubmissionStore>());
         services.AddScoped<MimeKitPdfPigOpenXmlIntakeSourceReader>();
         services.AddScoped<IPrincipalAttachmentAdmission, PrincipalAttachmentAdmission>();
-        services.AddScoped<ISubmitPrincipalInstruction, SubmitPrincipalInstruction>();
-        services.AddScoped<IGetPrincipalSubmissionResult, GetPrincipalSubmissionResult>();
+        services.AddScoped<SubmitPrincipalInstruction>();
+        services.AddScoped<GetPrincipalSubmissionResult>();
         services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
@@ -424,7 +424,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IStaffNotificationStore, EfStaffNotificationStore>();
-        services.AddScoped<IRaiseStaffNotification, RaiseStaffNotification>();
+        services.AddScoped<RaiseStaffNotification>();
         services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();
         services.AddScoped<IMyStaffNotifications, MyStaffNotifications>();
         services.AddScoped<PurgeStaffNotifications>();
@@ -461,10 +461,10 @@ public static class DependencyInjection
         services.AddScoped<IAvailableReportSentEvidenceQueries>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
         services.AddScoped<IGetCaseKind, GetCaseKind>();
-        services.AddScoped<IGetCaseHasAuditWork, GetCaseHasAuditWork>();
+        services.AddScoped<GetCaseHasAuditWork>();
         services.AddScoped<ISearchCases, SearchCases>();
         services.AddScoped<IGetCaseCircumstances, GetCaseCircumstances>();
-        services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
+        services.AddScoped<SearchCasesByCursor>();
         services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCaseHeader, GetCaseHeader>();
@@ -478,7 +478,7 @@ public static class DependencyInjection
         services.AddScoped<IGetCaseTasksSection, GetCaseTasksSection>();
         services.AddScoped<IGetCaseFilesSection, GetCaseFilesSection>();
         services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
-        services.AddScoped<IListCaseReferences, ListCaseReferences>();
+        services.AddScoped<ListCaseReferences>();
         services.AddScoped<ICaseDataQueries, EfCaseDataStore>();
         services.AddScoped<IInspectionAddressChoicesQueries, InspectionAddressChoicesQueries>();
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
@@ -490,8 +490,8 @@ public static class DependencyInjection
         services.AddScoped<IUnroadworthyReasonBankStore, EfUnroadworthyReasonBankStore>();
         services.AddScoped<ISaveUnroadworthyReason, SaveUnroadworthyReason>();
         services.AddScoped<IScaleRepairSpecification, ScaleRepairSpecification>();
-        services.AddScoped<IRemoveRepairSpecificationScaling, RemoveRepairSpecificationScaling>();
-        services.AddScoped<IRestoreRepairSpecificationSnapshot, RestoreRepairSpecificationSnapshot>();
+        services.AddScoped<RemoveRepairSpecificationScaling>();
+        services.AddScoped<RestoreRepairSpecificationSnapshot>();
         // Every retained-source caller uses this same format set. One PDF
         // container detects Glass's or Audatex from the document itself.
         services.AddSingleton<JsonEstimateParser>();
@@ -543,14 +543,14 @@ public static class DependencyInjection
         services.AddScoped<IAssessmentWorkspaceSource, EfAssessmentWorkspaceSource>();
         services.AddScoped<IGetAssessmentWorkspace, GetAssessmentWorkspace>();
         services.AddScoped<IGetAssessmentWorkspaceVersion, GetAssessmentWorkspaceVersion>();
-        services.AddScoped<ISaveAssessment, SaveAssessment>();
+        services.AddScoped<SaveAssessment>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
         services.AddScoped<EfAiJobStore>();
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<ICreateAiJob, CreateAiJob>();
         services.AddScoped<StartQueryResponse>();
-        services.AddScoped<IMarketResearchQueries, MarketResearchQueries>();
+        services.AddScoped<MarketResearchQueries>();
         services.AddScoped<IStartMarketResearch, StartMarketResearch>();
         // Guide providers register beside their adapter (Glass's through
         // AddGlassGuideValuation, Cazana through AddCazanaGuideValuation); a host that composes none answers Get
@@ -739,9 +739,6 @@ public static class DependencyInjection
             services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
             // A document staged in parts for the call that adds it (R203).
             services.AddScoped<DocumentUploads>();
-            services.AddScoped<IBeginDocumentUpload>(provider => provider.GetRequiredService<DocumentUploads>());
-            services.AddScoped<IAppendDocumentUploadPart>(provider => provider.GetRequiredService<DocumentUploads>());
-            services.AddScoped<IOpenDocumentUpload>(provider => provider.GetRequiredService<DocumentUploads>());
         }
         return services;
     }

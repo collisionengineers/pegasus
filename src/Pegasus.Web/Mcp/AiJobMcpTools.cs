@@ -76,7 +76,7 @@ internal sealed class AiJobMcpTools(
     CancelAiJob cancel,
     IConfirmAiJob confirm,
     ICompleteMarketResearchAiJob completeMarketResearch,
-    Pegasus.Core.Documents.IOpenDocumentUpload uploads,
+    Pegasus.Core.Documents.DocumentUploads uploads,
     StartQueryResponse startQueryResponse,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
