@@ -268,12 +268,13 @@ public sealed class TriageReferenceAllocationTests
     }
 
     /// <summary>
-    /// A one-off claim is refused while the holder's own scope is live, so it never rotates their
-    /// open window. The record page's Edit replaces their own scope explicitly: the earlier
-    /// window's token is rotated out, and no takeover of themselves is recorded.
+    /// A one-off claim is refused while the holder's own scope is live, so it never ends their
+    /// open window. Claiming their own scope again resumes it: the same token comes back, the
+    /// earlier window keeps heartbeating, and no takeover of themselves is recorded (R518,
+    /// 29 October 2026).
     /// </summary>
     [Fact]
-    public async Task TheHoldersOwnScopeIsReplacedExplicitlyWithoutATakeover()
+    public async Task TheHoldersOwnScopeResumesWithTheSameTokenWithoutATakeover()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -297,15 +298,161 @@ public sealed class TriageReferenceAllocationTests
             },
             CancellationToken.None);
 
-        Assert.NotEqual(held.Token, again.Token);
+        Assert.Equal(held.Token, again.Token);
+        Assert.Equal(held.Generation, again.Generation);
         Assert.Equal(holder.SubjectId, again.Holder);
-        await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.HeartbeatAsync(
-            new(EditScopeKind.Triage, created.CaseId, holder, held.Token), CancellationToken.None));
+        var beat = await leases.HeartbeatAsync(
+            new(EditScopeKind.Triage, created.CaseId, holder, held.Token), CancellationToken.None);
+        Assert.Equal(held.Token, beat.Token);
         var detail = Assert.IsType<TriageDetail>(
             await services.GetRequiredService<ITriageQueries>()
                 .GetAsync(created.CaseId, CancellationToken.None));
         Assert.DoesNotContain(detail.History,
             entry => entry.EventType == "edit_lease_taken_over");
+    }
+
+    /// <summary>
+    /// An Automation session never takes over a Triage scope another Automation session holds,
+    /// as for a Case lease; a member of staff may (R517, 29 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AutomationNeverTakesOverAnAutomationHeldTriageScope()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-AUTOMATION-TAKEOVER");
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+        var otherAutomation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+        var staff = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var held = await leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, automation, "mcp:triage-first"),
+            CancellationToken.None);
+
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.ClaimAsync(
+            new ClaimEditScopeRequest(
+                EditScopeKind.Triage, created.CaseId, created.Version, otherAutomation, "mcp:triage-other")
+            {
+                TakeOver = true
+            },
+            CancellationToken.None));
+        var taken = await leases.ClaimAsync(
+            new ClaimEditScopeRequest(
+                EditScopeKind.Triage, created.CaseId, created.Version, staff, "triage-staff-takeover")
+            {
+                TakeOver = true
+            },
+            CancellationToken.None);
+
+        Assert.NotEqual(held.Token, taken.Token);
+        var detail = Assert.IsType<TriageDetail>(
+            await services.GetRequiredService<ITriageQueries>()
+                .GetAsync(created.CaseId, CancellationToken.None));
+        var history = Assert.Single(detail.History,
+            entry => entry.EventType == "edit_lease_taken_over");
+        Assert.Equal("Edit lease taken over from AI.", history.Reason);
+    }
+
+    /// <summary>
+    /// A claim replayed with its operation key returns the token it was issued, as a Case
+    /// claim's replay does, and records nothing more; the same key with other details is a new
+    /// claim, refused while the scope is live (R519, 29 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task AReplayedTriageClaimReturnsTheSameToken()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-CLAIM-REPLAY");
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+        var request = new ClaimEditScopeRequest(
+            EditScopeKind.Triage, created.CaseId, created.Version, automation, "mcp:triage-replay");
+
+        var first = await leases.ClaimAsync(request, CancellationToken.None);
+        var replayed = await leases.ClaimAsync(request, CancellationToken.None);
+
+        Assert.Equal(first.Token, replayed.Token);
+        Assert.Equal(first.Generation, replayed.Generation);
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.ClaimAsync(
+            request with { TakeOver = true }, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A scope is claimed at the record's current version: a claim from a page that read an
+    /// older version is issued at the version the record now stands at, and only a version from
+    /// the future is refused (R516, 29 October 2026).
+    /// </summary>
+    [Fact]
+    public async Task ATriageScopeIsClaimedAtTheCurrentVersionAndRefusesOnlyANewerOne()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-CLAIM-VERSION");
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var lease = await leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, actor,
+                $"claim-version-await-edit:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+        var awaited = await services.GetRequiredService<IAwaitTriageInformation>().ExecuteAsync(
+            new TriageTransitionRequest(
+                created.CaseId,
+                created.Version,
+                actor,
+                $"claim-version-await:{Guid.NewGuid():N}")
+            {
+                EditLeaseToken = lease.Token
+            },
+            CancellationToken.None);
+        Assert.True(awaited.Version > created.Version);
+
+        var older = await leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, actor, "claim-version-older"),
+            CancellationToken.None);
+        Assert.Equal(awaited.Version, older.RecordVersion);
+        await leases.ReleaseAsync(
+            new(EditScopeKind.Triage, created.CaseId, actor, "claim-version-older-release", older.Token),
+            CancellationToken.None);
+
+        var newer = await Assert.ThrowsAsync<EditScopeVersionConflictException>(() => leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, awaited.Version + 1, actor, "claim-version-newer"),
+            CancellationToken.None));
+        Assert.Equal(awaited.Version, newer.ActualVersion);
+    }
+
+    /// <summary>
+    /// A holder whose scope lapsed, with nobody having claimed the record since, carries on with
+    /// the same token, as a Case lease does: the heartbeat picks it up again (R515, 29 October
+    /// 2026).
+    /// </summary>
+    [Fact]
+    public async Task ALapsedTriageScopeWhoseTokenStillMatchesCarriesOn()
+    {
+        var clock = new CaseWorkflowPersistenceTests.MutableTimeProvider(IntakeWebApplicationFactory.FixedUtcNow);
+        using var factory = new IntakeWebApplicationFactory(clock);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-LAPSED-CARRIES-ON");
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var automation = ActionActor.Automation($"grant:{Guid.NewGuid():N}");
+        var held = await leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, automation, "mcp:triage-lapse"),
+            CancellationToken.None);
+
+        clock.Advance(EditScopeAuthority.Duration + TimeSpan.FromMinutes(1));
+        Assert.Null(await leases.GetActiveAsync(
+            EditScopeKind.Triage, created.CaseId, automation, CancellationToken.None));
+        var picked = await leases.HeartbeatAsync(
+            new(EditScopeKind.Triage, created.CaseId, automation, held.Token), CancellationToken.None);
+
+        Assert.Equal(held.Token, picked.Token);
+        Assert.True(picked.ExpiresAtUtc > clock.GetUtcNow());
     }
 
     /// <summary>

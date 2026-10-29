@@ -63,6 +63,16 @@ public static partial class TriageWriteAuthority
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(action);
         var lease = await ClaimAsync(editScopes, triageCaseId, expectedVersion, actor, operationKey, cancellationToken);
+        // The scope is claimed at the record's current version (R516), but a Triage save has no
+        // Edit step that draws the record again at it: a record that moved past the posted
+        // version makes this a stale post, refused as changed before the command runs.
+        if (lease.RecordVersion != expectedVersion)
+        {
+            await ReleaseAsync(editScopes, triageCaseId, actor, operationKey, lease.Token, logger);
+            throw new EditScopeVersionConflictException(
+                EditScopeKind.Triage, triageCaseId, expectedVersion, lease.RecordVersion);
+        }
+
         T result;
         try
         {

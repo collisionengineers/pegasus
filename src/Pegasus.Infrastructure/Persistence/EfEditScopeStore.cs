@@ -42,6 +42,12 @@ public sealed class EfEditScopeStore(
             scope.ExpiresAtUtc);
     }
 
+    /// <summary>
+    /// Claims, resumes or takes over the record's scope as <see cref="EditScopeAuthority.RequireClaim"/>
+    /// decides, at the record's current version (R516). A claim replayed with the operation key and
+    /// details of the claim that issued the retained scope returns its token and writes nothing
+    /// (R519); the claim that last issued or resumed the scope is the one a replay matches.
+    /// </summary>
     public async Task<EditScopeLease> ClaimAsync(
         ClaimEditScopeRequest request,
         CancellationToken cancellationToken)
@@ -57,25 +63,40 @@ public sealed class EfEditScopeStore(
         {
             throw new KeyNotFoundException($"{request.ScopeKind} '{request.RecordId}' was not found.");
         }
+
+        var requestHash = ClaimRequestHash(request);
+        var holderKind = ParseHolderKind(scope?.HolderKind);
+        if (scope is not null && string.Equals(scope.ClaimRequestHash, requestHash, StringComparison.Ordinal))
+        {
+            EditScopeAuthority.RequireReplay(
+                request.ScopeKind, request.RecordId, request.Actor, holderKind, scope.Holder,
+                scope.ExpiresAtUtc, now);
+            var replayed = RetainedToken(scope)
+                ?? throw new EditScopeExpiredException(request.ScopeKind, request.RecordId);
+            return Lease(scope, request.ScopeKind, replayed);
+        }
+
         EditScopeAuthority.RequireVersion(
             request.ScopeKind, request.RecordId, currentVersion.Value, request.ExpectedVersion);
-        // A live scope refuses every claim that does not explicitly replace it, so a one-off
-        // command never rotates the holder's open window. The record page's Edit replaces the
-        // viewer's own scope without a takeover; only a colleague's scope is a takeover, and only
-        // that is history.
-        var isLive = scope is not null && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now);
-        if (isLive && !request.TakeOver)
+        var claim = EditScopeAuthority.RequireClaim(
+            request.ScopeKind,
+            request.RecordId,
+            request.Actor,
+            request.TakeOver,
+            holderKind,
+            scope?.Holder,
+            scope?.ExpiresAtUtc,
+            now);
+        // Only a scope taken from a colleague is history; the holder resuming their own is not.
+        if (claim == EditScopeClaim.TakeOver)
         {
-            throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
+            await AddTakeoverHistoryAsync(
+                context, request, holderKind, scope!.Holder, now, cancellationToken);
         }
-        var previousHolderKind = ParseHolderKind(scope?.HolderKind);
-        var previousHolder = isLive
-            && !EditScopeAuthority.IsHolder(previousHolderKind, scope!.Holder, request.Actor)
-                ? scope!.Holder
-                : null;
 
-        var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
-        var generation = checked((scope?.Generation ?? 0) + 1);
+        // A resumed scope keeps its token and generation. A retained token its hash cannot prove
+        // is never handed back, so that resume issues a new one, as a claim does.
+        var token = claim == EditScopeClaim.Resume ? RetainedToken(scope!) : null;
         if (scope is null)
         {
             scope = new EditScopeEntity
@@ -84,36 +105,33 @@ public sealed class EfEditScopeStore(
                 RecordId = request.RecordId,
                 HolderKind = request.Actor.Kind.ToString(),
                 Holder = request.Actor.SubjectId,
-                TokenHash = Hash(token)
+                TokenHash = string.Empty
             };
             context.Set<EditScopeEntity>().Add(scope);
         }
 
+        if (token is null)
+        {
+            token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+            scope.Generation = checked(scope.Generation + 1);
+        }
+
         scope.HolderKind = request.Actor.Kind.ToString();
         scope.Holder = request.Actor.SubjectId;
+        scope.Token = token;
         scope.TokenHash = Hash(token);
-        scope.ExpectedVersion = request.ExpectedVersion;
-        scope.Generation = generation;
+        scope.ClaimRequestHash = requestHash;
+        scope.ExpectedVersion = currentVersion.Value;
         scope.ExpiresAtUtc = now.Add(EditScopeAuthority.Duration);
-        if (previousHolder is not null)
-        {
-            await AddTakeoverHistoryAsync(
-                context, request, previousHolderKind, previousHolder, now, cancellationToken);
-        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new(
-            request.ScopeKind,
-            request.RecordId,
-            token,
-            request.Actor.SubjectId,
-            request.ExpectedVersion,
-            scope.ExpiresAtUtc)
-        {
-            Generation = generation
-        };
+        return Lease(scope, request.ScopeKind, token);
     }
 
+    /// <summary>
+    /// Extends the holder's scope, and picks up a holder's lapsed scope nobody claimed since (R515),
+    /// as a Case heartbeat does.
+    /// </summary>
     public async Task<EditScopeLease> HeartbeatAsync(
         HeartbeatEditScopeRequest request,
         CancellationToken cancellationToken)
@@ -185,6 +203,11 @@ public sealed class EfEditScopeStore(
         return scopes.Count;
     }
 
+    /// <summary>
+    /// The scope a write is made under, proven inside the write's transaction: a version newer
+    /// than the record's or the scope's is refused (R516), and the presented token must be the
+    /// holder's, live or lapsed with nobody having claimed the record since (R515).
+    /// </summary>
     internal static async Task RequireAsync(
         PegasusDbContext context,
         EditScopeKind scopeKind,
@@ -291,10 +314,47 @@ public sealed class EfEditScopeStore(
             ParseHolderKind(scope?.HolderKind),
             scope?.Holder,
             scope?.ExpiresAtUtc,
-            presented => CryptographicOperations.FixedTimeEquals(
-                Convert.FromHexString(scope!.TokenHash),
-                SHA256.HashData(Encoding.UTF8.GetBytes(presented))),
+            presented => TokenMatches(scope!.TokenHash, presented),
             now);
+
+    private static EditScopeLease Lease(EditScopeEntity scope, EditScopeKind scopeKind, string token) =>
+        new(scopeKind, scope.RecordId, token, scope.Holder, scope.ExpectedVersion, scope.ExpiresAtUtc)
+        {
+            Generation = scope.Generation
+        };
+
+    /// <summary>
+    /// The retained plaintext token, only when it is the one the retained hash proves; anything
+    /// else is unreadable and is never handed back.
+    /// </summary>
+    private static string? RetainedToken(EditScopeEntity scope) =>
+        scope.Token is { Length: CaseEditAuthority.LeaseTokenLength } token
+        && TokenMatches(scope.TokenHash, token)
+            ? token
+            : null;
+
+    private static bool TokenMatches(string retainedHash, string presented) =>
+        retainedHash.Length == 64
+        && CryptographicOperations.FixedTimeEquals(
+            Convert.FromHexString(retainedHash),
+            SHA256.HashData(Encoding.UTF8.GetBytes(presented)));
+
+    /// <summary>
+    /// The details a replayed claim must repeat: the record, the expected version, the actor, the
+    /// operation key and whether it asked to take over.
+    /// </summary>
+    private static string ClaimRequestHash(ClaimEditScopeRequest request) =>
+        Hash(JsonSerializer.Serialize(new
+        {
+            SchemaVersion = 1,
+            ScopeKind = ToCode(request.ScopeKind),
+            request.RecordId,
+            request.ExpectedVersion,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            OperationKey = request.OperationKey.Trim(),
+            request.TakeOver
+        }));
 
     private static ActorKind? ParseHolderKind(string? holderKind) =>
         Enum.TryParse<ActorKind>(holderKind, out var parsed) ? parsed : null;
