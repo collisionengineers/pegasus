@@ -18,6 +18,8 @@ internal static class EditScopeModelConfiguration
             entity.Property(item => item.HolderKind).HasMaxLength(40).IsRequired();
             entity.Property(item => item.Holder).HasMaxLength(200).IsRequired();
             entity.Property(item => item.TokenHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.Token).HasMaxLength(64).IsFixedLength();
+            entity.Property(item => item.ClaimRequestHash).HasMaxLength(64).IsFixedLength();
             entity.HasIndex(item => new { item.HolderKind, item.Holder });
             entity.HasIndex(item => item.ExpiresAtUtc);
         });

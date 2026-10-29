@@ -289,7 +289,7 @@ internal sealed class EfTriageCaseFilesCopy(
 
         if (copied.Count > 0)
         {
-            var authority = await CaseMutationAuthority.LoadAsync(context, claim.CaseId, cancellationToken)
+            var authority = await CaseMutationGuard.LoadAsync(context, claim.CaseId, cancellationToken)
                 ?? throw new InvalidOperationException("The linked instruction Case is unavailable.");
             var targetIds = copied.Select(item => item.OccurrenceId).ToArray();
             var targets = await context.Set<DocumentOccurrenceEntity>()

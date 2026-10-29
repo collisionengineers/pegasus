@@ -389,5 +389,5 @@ public sealed partial class DetailsModel
     /// operator's edit session (v25 decision F), so after one succeeds the
     /// base reclaims a fresh lease with these two readers.
     /// </summary>
-    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (caseWorkflows, acquireLease);
+    protected override (ICaseWorkflowQueries Workflows, CaseEditLeases Leases)? LeaseReclaim => (caseWorkflows, leases);
 }

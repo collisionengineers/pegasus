@@ -171,8 +171,8 @@ public sealed class InspectionAddressChoicesPersistenceTests
             .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The accepted case was not found.");
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var lease = await services.GetRequiredService<IAcquireCaseEditLease>()
-            .ExecuteAsync(
+        var lease = await services.GetRequiredService<CaseEditLeases>()
+            .ClaimAsync(
                 new(caseId, current.Version, actor, $"lease-{Guid.NewGuid():N}"),
                 CancellationToken.None);
         await services.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(

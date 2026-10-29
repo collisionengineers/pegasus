@@ -540,7 +540,7 @@ public sealed class CustodyOutboxIntegrationTests
             Assert.False(string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash));
         }
 
-        var beat = await services.GetRequiredService<IHeartbeatCaseEditLease>().ExecuteAsync(
+        var beat = await services.GetRequiredService<CaseEditLeases>().HeartbeatAsync(
             new(accepted.CaseId, editor, lease.Token),
             CancellationToken.None);
         Assert.Equal(lease.Token, beat.Token);

@@ -61,53 +61,6 @@ public interface ICaseArchiveStore
         CancellationToken cancellationToken);
 }
 
-public interface IAcquireCaseEditLease
-{
-    Task<CaseEditLease> ExecuteAsync(
-        ClaimCaseEditLeaseRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IRenewCaseEditLease
-{
-    Task<CaseEditLease> ExecuteAsync(
-        RenewCaseEditLeaseRequest request,
-        CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// Keeps the lease its holder already has from lapsing under an open editor.
-/// Unlike renewal it carries no operation key and leaves no replay record:
-/// FRD-01 counts a heartbeat as telemetry, and an editor produces one every
-/// minute for as long as the page stays open.
-/// </summary>
-public interface IHeartbeatCaseEditLease
-{
-    Task<CaseEditLease> ExecuteAsync(
-        HeartbeatCaseEditLeaseRequest request,
-        CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// Resumes the live lease the calling staff member already holds, so returning to a case they are
-/// editing puts them straight back into edit mode. Only the Case page resumes; a one-off change
-/// made elsewhere claims, and is refused while the lease is live, so it never ends the holder's
-/// edit session. A caller who holds no live lease gets null.
-/// </summary>
-public interface IResumeCaseEditLease
-{
-    Task<CaseEditLease?> ExecuteAsync(
-        ResumeCaseEditLeaseRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IReleaseCaseEditLease
-{
-    Task ExecuteAsync(
-        ReleaseCaseEditLeaseRequest request,
-        CancellationToken cancellationToken);
-}
-
 public interface IHoldCase
 {
     Task<CaseWorkflowRecord> ExecuteAsync(

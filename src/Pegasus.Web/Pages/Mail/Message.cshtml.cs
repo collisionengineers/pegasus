@@ -48,9 +48,7 @@ public sealed class MessageModel(
     IStaffMailAttachmentResolver attachmentResolver,
     IApprovedMailboxStore approvedMailboxes,
     IGetIntake getIntake,
-    IAcquireCaseEditLease acquireCaseEditLease,
-    IReleaseCaseEditLease releaseCaseEditLease,
-    IEditScopeLeases editScopes,
+    OneCommandEditAuthority editAuthority,
     ILinkIntake linkIntake,
     IReverseIntakeLink reverseIntakeLink,
     IOpenCaseQuery openCaseQuery,
@@ -740,7 +738,7 @@ public sealed class MessageModel(
     /// <summary>
     /// Link to Case: one step (v41 I13). The Case / PO the operator named and
     /// the reason arrive together; this claims the Case's edit authority through
-    /// <see cref="CaseLinkAuthority"/>, runs the link under it and releases or
+    /// <see cref="OneCommandEditAuthority"/>, runs the link under it and releases or
     /// compensates on every way out. Staff linking reaches every Case and every
     /// Triage Case in any state (operator, 24 September 2026); the destination
     /// owner refuses only an archived Case.
@@ -1008,7 +1006,7 @@ public sealed class MessageModel(
             LinkCommand(actor, binding, destination.CaseId, operationKey, reason, cancellationToken),
             cancellationToken);
 
-    private Func<CaseLinkAuthorityClaim, Task> LinkCommand(
+    private Func<OneCommandEditClaim, Task> LinkCommand(
         ActionActor actor,
         IntakeReceipt binding,
         Guid caseId,
@@ -2066,7 +2064,7 @@ public sealed class MessageModel(
 
     /// <summary>
     /// One association step (v41 I13): claims the destination's edit authority
-    /// through <see cref="CaseLinkAuthority.ClaimAsync"/> (a Triage Case's Triage
+    /// through <see cref="OneCommandEditAuthority.ClaimAsync"/> (a Triage Case's Triage
     /// edit scope, a Case's edit lease), runs <paramref name="command"/> under
     /// it, and gives the authority back when the command did not complete. The
     /// command consumes the authority itself when it commits. Null on success.
@@ -2075,7 +2073,7 @@ public sealed class MessageModel(
         ActionActor actor,
         IntakeAssociationDestination destination,
         string leaseOperationKey,
-        Func<CaseLinkAuthorityClaim, Task> command,
+        Func<OneCommandEditClaim, Task> command,
         CancellationToken cancellationToken)
     {
         var (claim, failure) = await ClaimAuthorityAsync(actor, destination, leaseOperationKey, cancellationToken);
@@ -2085,7 +2083,7 @@ public sealed class MessageModel(
     }
 
     /// <summary>The destination's edit authority, or why it was refused (nothing is written either way).</summary>
-    private async Task<(CaseLinkAuthorityClaim? Claim, AssociationFailure? Failure)> ClaimAuthorityAsync(
+    private async Task<(OneCommandEditClaim? Claim, AssociationFailure? Failure)> ClaimAuthorityAsync(
         ActionActor actor,
         IntakeAssociationDestination destination,
         string leaseOperationKey,
@@ -2093,13 +2091,12 @@ public sealed class MessageModel(
     {
         try
         {
-            var claim = await CaseLinkAuthority.ClaimAsync(
-                destination,
+            var claim = await editAuthority.ClaimAsync(
+                destination.CaseId,
+                destination.IsTriageCase,
                 destination.Version,
                 actor,
                 leaseOperationKey,
-                acquireCaseEditLease,
-                editScopes,
                 cancellationToken);
             return (claim, null);
         }
@@ -2116,8 +2113,8 @@ public sealed class MessageModel(
     /// <summary>Runs <paramref name="command"/> under a claimed authority and gives it back when the command did not complete.</summary>
     private async Task<AssociationFailure?> RunClaimedAsync(
         ActionActor actor,
-        CaseLinkAuthorityClaim claim,
-        Func<CaseLinkAuthorityClaim, Task> command,
+        OneCommandEditClaim claim,
+        Func<OneCommandEditClaim, Task> command,
         CancellationToken cancellationToken)
     {
         try
@@ -2144,32 +2141,15 @@ public sealed class MessageModel(
     }
 
     /// <summary>Gives a claimed authority back; true when it could not be (it then lapses on its own).</summary>
-    private async Task<bool> ReleaseClaimAsync(ActionActor actor, CaseLinkAuthorityClaim claim)
+    private async Task<bool> ReleaseClaimAsync(ActionActor actor, OneCommandEditClaim claim)
     {
         try
         {
-            var releaseOperationKey = $"mail-association-release:{Guid.NewGuid():N}";
-            if (claim.IsTriageCase)
-            {
-                await editScopes.ReleaseAsync(
-                    new(
-                        EditScopeKind.Triage,
-                        claim.CaseId,
-                        actor,
-                        releaseOperationKey,
-                        claim.Token),
-                    CancellationToken.None);
-            }
-            else
-            {
-                await releaseCaseEditLease.ExecuteAsync(
-                    new(
-                        claim.CaseId,
-                        actor,
-                        releaseOperationKey,
-                        claim.Token),
-                    CancellationToken.None);
-            }
+            await editAuthority.ReleaseAsync(
+                claim,
+                actor,
+                $"mail-association-release:{Guid.NewGuid():N}",
+                CancellationToken.None);
         }
         catch (Exception releaseException) when (IsDefinitiveAssociationFailure(releaseException))
         {

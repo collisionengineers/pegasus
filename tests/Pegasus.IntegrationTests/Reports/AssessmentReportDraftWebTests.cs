@@ -682,8 +682,8 @@ public sealed partial class AssessmentReportDraftWebTests
                 }
                 // v26: the Report head's controls render inside the edit
                 // session, which the fake answers with a lease of its own.
-                services.RemoveAll<IAcquireCaseEditLease>();
-                services.AddSingleton<IAcquireCaseEditLease>(caseReads);
+                services.RemoveAll<ILeaseCaseForEdit>();
+                services.AddSingleton<ILeaseCaseForEdit>(caseReads);
                 if (generateReport is not null)
                 {
                     services.RemoveAll<IGenerateCaseReport>();
@@ -860,14 +860,14 @@ public sealed partial class AssessmentReportDraftWebTests
         IGetCaseValuationSection,
         IGetCaseNotesSection,
         IGetCaseFilesSection,
-        IAcquireCaseEditLease
+        ILeaseCaseForEdit
     {
         private static readonly Guid CaseEngineerId = Guid.Parse("5b0c7e1a-2d4f-4b8e-9a61-3c2f8d7e1b42");
 
         private CaseEditLeaseSnapshot? activeLease;
 
         /// <summary>The page's own Edit Case claim, answered so the Report section edits.</summary>
-        public Task<CaseEditLease> ExecuteAsync(
+        public Task<CaseEditLease> ClaimAsync(
             ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken)
         {
             activeLease = new(
@@ -876,6 +876,19 @@ public sealed partial class AssessmentReportDraftWebTests
                 request.CaseId, "held-report-lease", request.Actor.SubjectId, request.ExpectedVersion,
                 DateTimeOffset.UtcNow.AddMinutes(5)));
         }
+
+        /// <summary>Only the claim is faked: there is no lease to resume.</summary>
+        public Task<CaseEditLease?> ResumeAsync(
+            ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseEditLease?>(null);
+
+        public Task<CaseEditLease> HeartbeatAsync(
+            HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task ReleaseAsync(
+            ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
 
         Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
             GetCaseSectionQuery query,

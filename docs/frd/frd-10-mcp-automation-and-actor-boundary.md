@@ -145,23 +145,29 @@ refused. An upload lives 24 hours. `pegasus_intake_submit` takes no
 **Edit leases.** <a id="edit-leases"></a> A write tool presented without an
 edit lease token claims the record's lease through the same Core port as
 staff, runs its one command, and releases the lease afterwards; while another
-editor holds the record, or the version is stale, the claim is refused and
-nothing is written (operator, 1 October 2026). `pegasus_edit_begin`,
+editor holds the record, or the expected version is newer than the record's,
+the claim is refused and nothing is written (operator, 1 October 2026; R516,
+29 October 2026). `pegasus_edit_begin`,
 `pegasus_edit_renew` and `pegasus_edit_end` hold a Case or a Triage Case for
 multi-step work, named by `recordKind`, under that record's own scope
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). With `takeOver`,
 `pegasus_edit_begin` takes over a lease a staff member holds, as a staff
 **Take over** does, and the takeover goes into the record's history. Staff
-may take over an Automation Case lease in the same way, and only staff may;
-the history line names the Automation Actor as AI (operator, 15 and 16
-October 2026). Otherwise it lapses within five minutes. An Automation lease
+may take over an Automation Case lease or Triage scope in the same way, and
+only staff may: the Automation Actor never takes over an Automation holder
+(R517, 29 October 2026); the history line names the Automation Actor as AI
+(operator, 15 and 16 October 2026). `pegasus_edit_begin` replayed with the
+same operation key and details returns the same token while that lease is
+live, for a Triage Case as for a Case (R519, 29 October 2026). Otherwise it lapses within five minutes. An Automation lease
 that lapsed, with nobody claiming the record since, carries on with the same
 token, as a staff lease does (operator, 7 October 2026). A
 write made under an Automation lease advances the record's version and keeps
 the lease, so one token from `pegasus_edit_begin` carries every write of the
 work until `pegasus_edit_end` releases it (operator, 8 October 2026).
-`pegasus_edit_end` on a lease that has already lapsed or been released answers
-`released` false. `pegasus_edit_begin` and `pegasus_edit_end` record permanent
+`pegasus_edit_end` on a lease that has already been released answers
+`released` false; one that lapsed with nobody claiming the record since is
+released as a live one is (R515, 29 October 2026). `pegasus_edit_renew` is a heartbeat, for a Case as for a
+Triage Case, and takes no version (R524, 29 October 2026). `pegasus_edit_begin` and `pegasus_edit_end` record permanent
 history; a routine `pegasus_edit_renew` is telemetry only and records
 permanent history only when refused
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease); operator, 14 October
@@ -640,8 +646,8 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
   UnidentifiedQueuePass; those others complete through their record's own
   act.
 - A subject field a job kind does not take is refused, not ignored.
-- Only staff take over an Automation Case lease; otherwise it lapses within
-  five minutes.
+- Only staff take over an Automation Case lease or Triage scope (R517,
+  29 October 2026); otherwise it lapses within five minutes.
 - Stopping the automation client releases every lease Automation holds.
 - Missing production signing or encryption keys fail closed.
 

@@ -247,7 +247,7 @@ public sealed class OpenCaseTasksPersistenceTests
         }
 
         private Task<CaseEditLease> ClaimAsync(Guid caseId, long caseVersion, string key) =>
-            services.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+            services.GetRequiredService<CaseEditLeases>().ClaimAsync(
                 new(caseId, caseVersion, actor, $"claim-{key}"),
                 CancellationToken.None);
     }

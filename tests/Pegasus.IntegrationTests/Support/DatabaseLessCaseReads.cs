@@ -43,7 +43,7 @@ internal sealed class DatabaseLessCaseReads :
     IListAppliedValuations,
     IValuationPresetStore,
     IContactDirectoryQueries,
-    IResumeCaseEditLease,
+    ILeaseCaseForEdit,
     IReadImageTagVocabulary,
     IImageIntakeQueries
 {
@@ -259,9 +259,21 @@ internal sealed class DatabaseLessCaseReads :
         ActionActor actor, Guid? contactId, CancellationToken cancellationToken) =>
         Refused<IReadOnlyList<PrincipalAdministrationDetails>>(nameof(IContactDirectoryQueries));
 
-    Task<CaseEditLease?> IResumeCaseEditLease.ExecuteAsync(
+    Task<CaseEditLease?> ILeaseCaseForEdit.ResumeAsync(
         ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
         Task.FromResult<CaseEditLease?>(null);
+
+    Task<CaseEditLease> ILeaseCaseForEdit.ClaimAsync(
+        ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+        Refused<CaseEditLease>(nameof(ILeaseCaseForEdit));
+
+    Task<CaseEditLease> ILeaseCaseForEdit.HeartbeatAsync(
+        HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+        Refused<CaseEditLease>(nameof(ILeaseCaseForEdit));
+
+    Task ILeaseCaseForEdit.ReleaseAsync(
+        ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+        Refused<bool>(nameof(ILeaseCaseForEdit));
 
     Task<IReadOnlyList<ImageTag>> IReadImageTagVocabulary.ListAsync(CancellationToken cancellationToken) =>
         Task.FromResult(ImageTags);

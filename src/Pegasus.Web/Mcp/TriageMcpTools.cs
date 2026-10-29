@@ -60,7 +60,7 @@ internal sealed class TriageMcpTools(
     UnassignTriage unassign,
     AddTriageNote addNote,
     ICaseEngineerChoices engineerChoices,
-    AutomationEditLease leases,
+    Pegasus.Web.Presentation.OneCommandEdit leases,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {

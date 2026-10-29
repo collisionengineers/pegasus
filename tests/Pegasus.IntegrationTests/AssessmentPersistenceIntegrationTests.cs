@@ -2467,7 +2467,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
     {
         private readonly LocalDbTestDatabase database;
         private readonly bool ownsDatabase;
-        private readonly AcquireCaseEditLease acquireLease;
+        private readonly CaseEditLeases leases;
         private readonly AcceptIntake acceptIntake;
         private readonly CaseDataCompletenessPersistenceTests.MutableTimeProvider timeProvider;
 
@@ -2477,7 +2477,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             PooledDbContextFactory<PegasusDbContext> factory,
             Guid receiptId,
             AcceptIntake acceptIntake,
-            AcquireCaseEditLease acquireLease,
+            CaseEditLeases leases,
             SaveAssessment saveAssessment,
             EfRepairSpecificationStore repairSpecifications,
             EfValuationStore valuations,
@@ -2488,7 +2488,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             Factory = factory;
             ReceiptId = receiptId;
             this.acceptIntake = acceptIntake;
-            this.acquireLease = acquireLease;
+            this.leases = leases;
             SaveAssessment = saveAssessment;
             RepairSpecifications = repairSpecifications;
             Valuations = valuations;
@@ -2553,7 +2553,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
                         new DiscardingCommittedWorkPublisher(),
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
-                    new AcquireCaseEditLease(workflowStore),
+                    new CaseEditLeases(workflowStore),
                     new SaveAssessment(
                         new EfCaseAssessmentStore(factory, timeProvider)),
                     repairSpecifications,
@@ -2592,7 +2592,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             Guid caseId,
             long version,
             ActionActor actor,
-            string operationKey) => acquireLease.ExecuteAsync(
+            string operationKey) => leases.ClaimAsync(
             new(caseId, version, actor, operationKey),
             CancellationToken.None);
 

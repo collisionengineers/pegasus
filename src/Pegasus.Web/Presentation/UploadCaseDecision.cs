@@ -149,10 +149,9 @@ public interface IUploadCaseDecision
 public sealed class UploadCaseDecision(
     ISearchCases searchCases,
     IGetIntake getIntake,
-    IAcquireCaseEditLease acquireCaseEditLease,
+    OneCommandEdit oneCommandEdit,
     ILinkIntake linkIntake,
-    IIntakeAssociationDestinationQueries destinations,
-    IEditScopeLeases editScopes) : IUploadCaseDecision
+    IIntakeAssociationDestinationQueries destinations) : IUploadCaseDecision
 {
     public async Task<IReadOnlyList<UploadCaseSuggestion>> SearchForUploadsAsync(
         IReadOnlyList<Guid> receiptIds,
@@ -366,13 +365,14 @@ public sealed class UploadCaseDecision(
         try
         {
             // A Triage Case destination is claimed through its Triage edit scope.
-            var lease = await CaseLinkAuthority.ClaimAsync(
-                destination,
+            // The claim is keyed from the decision and is not released when the
+            // link fails, so the same confirmation retried replays this claim.
+            var lease = await oneCommandEdit.ClaimAsync(
+                destination.CaseId,
+                destination.IsTriageCase,
                 input.ExpectedCaseVersion,
                 actor,
                 $"upload-attach-lease:{operationKey}",
-                acquireCaseEditLease,
-                editScopes,
                 cancellationToken);
             await linkIntake.ExecuteAsync(
                 new(
@@ -540,13 +540,14 @@ public sealed class UploadCaseDecision(
                 // Each owned link consumes its lease and advances the Case by
                 // one. Carry that known result forward rather than refreshing
                 // and accidentally treating another writer as our own change.
-                var lease = await CaseLinkAuthority.ClaimAsync(
-                    currentDestination,
+                // Not released when the link fails: the same confirmation
+                // retried replays this claim and carries on from here.
+                var lease = await oneCommandEdit.ClaimAsync(
+                    currentDestination.CaseId,
+                    currentDestination.IsTriageCase,
                     nextCaseVersion,
                     actor,
                     $"upload-attach-lease:{operationKey}",
-                    acquireCaseEditLease,
-                    editScopes,
                     cancellationToken);
                 await linkIntake.ExecuteAsync(
                     new(

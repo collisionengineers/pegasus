@@ -220,7 +220,7 @@ public sealed partial class SendToAiIntegrationTests
                 services.RemoveAll<IGetCaseNotesSection>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.RemoveAll<ICreateAiJob>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCaseHeader>(source);
@@ -229,7 +229,7 @@ public sealed partial class SendToAiIntegrationTests
                 services.AddSingleton<IGetCaseVehicleSection>(source);
                 services.AddSingleton<IGetCaseValuationSection>(source);
                 services.AddSingleton<IGetCaseNotesSection>(source);
-                services.AddSingleton<IAcquireCaseEditLease>(source);
+                services.AddSingleton<ILeaseCaseForEdit>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
                 services.AddSingleton<ICreateAiJob>(jobs);
@@ -359,12 +359,12 @@ public sealed partial class SendToAiIntegrationTests
         IGetCaseValuationSection,
         IGetCaseNotesSection,
         IGetAssessmentWorkspace,
-        IAcquireCaseEditLease
+        ILeaseCaseForEdit
     {
         private CaseEditLeaseSnapshot? activeLease;
 
         /// <summary>The page's own Edit Case claim, so the section renders inside the session.</summary>
-        public Task<CaseEditLease> ExecuteAsync(
+        public Task<CaseEditLease> ClaimAsync(
             ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken)
         {
             activeLease = new(
@@ -373,6 +373,19 @@ public sealed partial class SendToAiIntegrationTests
                 request.CaseId, "lease-1", request.Actor.SubjectId, request.ExpectedVersion,
                 DateTimeOffset.UtcNow.AddMinutes(5)));
         }
+
+        /// <summary>Only the claim is faked: there is no lease to resume.</summary>
+        public Task<CaseEditLease?> ResumeAsync(
+            ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseEditLease?>(null);
+
+        public Task<CaseEditLease> HeartbeatAsync(
+            HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task ReleaseAsync(
+            ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
 
         Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
             GetCaseQuery query, CancellationToken cancellationToken) =>

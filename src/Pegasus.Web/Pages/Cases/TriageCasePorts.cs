@@ -16,7 +16,7 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed record TriageCasePorts(
     IGetTriage GetTriage,
     IGetCaseHeader GetCaseHeader,
-    ILeaseCaseForEdit CaseLeases,
+    CaseEditLeases CaseLeases,
     IAssignTriage Assign,
     UnassignTriage Unassign,
     IRecordTriageFinding RecordFinding,
@@ -30,6 +30,7 @@ public sealed record TriageCasePorts(
     ILinkTriageCase LinkCase,
     IUnlinkTriageCase UnlinkCase,
     IEditScopeLeases EditScopes,
+    Pegasus.Web.Presentation.OneCommandEdit OneCommandEdit,
     IGetIntake GetIntake,
     IDescribeCaseEditAuthorityHolder DescribeEditAuthorityHolder,
     ICaseEngineerChoices EngineerChoices,

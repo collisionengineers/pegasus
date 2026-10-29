@@ -225,7 +225,7 @@ public sealed class CaseEditModeWebTests
         using var workspace = await EnterEditModeAsync(store, services =>
         {
             Substitute<ISaveCaseWorkspace>(services, store);
-            Substitute<IReleaseCaseEditLease>(services, store);
+            Substitute<ILeaseCaseForEdit>(services, store);
         });
         var before = store.CaseVersion;
         // Decoded: the status words carry an ellipsis the encoder writes as an entity.
@@ -278,7 +278,7 @@ public sealed class CaseEditModeWebTests
             Substitute<IGetCaseValuationSection>(services, store);
             Substitute<IGetCaseNotesSection>(services, store);
             Substitute<IGetCaseFilesSection>(services, store);
-            Substitute<IAcquireCaseEditLease>(services, store);
+            Substitute<ILeaseCaseForEdit>(services, store);
             Substitute<ICaseWorkflowQueries>(services, store);
             Substitute<IGetAssessmentAccess>(services, store);
             Substitute<IGetAssessmentWorkspace>(services, store);
@@ -453,7 +453,7 @@ public sealed class CaseEditModeWebTests
             Substitute<IGetCaseValuationSection>(services, store);
             Substitute<IGetCaseNotesSection>(services, store);
             Substitute<IGetCaseFilesSection>(services, store);
-            Substitute<IAcquireCaseEditLease>(services, store);
+            Substitute<ILeaseCaseForEdit>(services, store);
             Substitute<ICaseWorkflowQueries>(services, store);
             Substitute<IGetAssessmentAccess>(services, store);
             Substitute<IGetAssessmentWorkspace>(services, store);
@@ -522,7 +522,10 @@ public sealed class CaseEditModeWebTests
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
-            Substitute<ISaveCaseWorkspace>(services, store));
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<ILeaseCaseForEdit>(services, new NoResume(store));
+        });
         store.NextFailure = new StaffAuthorizationException(StaffAccessRight.PerformCasework);
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(DetailsModelOperationKey, "Corrected claimant spelling",
@@ -536,6 +539,25 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
+    /// The store's lease port with no lease to resume: an account refused casework is refused the
+    /// resume too (<see cref="CaseEditLeases"/> checks casework first), which the store does not model.
+    /// </summary>
+    private sealed class NoResume(RecordingCaseDetailsStore store) : ILeaseCaseForEdit
+    {
+        public Task<CaseEditLease> ClaimAsync(ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            ((ILeaseCaseForEdit)store).ClaimAsync(request, cancellationToken);
+
+        public Task<CaseEditLease> HeartbeatAsync(HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            ((ILeaseCaseForEdit)store).HeartbeatAsync(request, cancellationToken);
+
+        public Task<CaseEditLease?> ResumeAsync(ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseEditLease?>(null);
+
+        public Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            ((ILeaseCaseForEdit)store).ReleaseAsync(request, cancellationToken);
+    }
+
+    /// <summary>
     /// Editing never expires while the page is open (operator, 6 October 2026), so the workspace
     /// renders no Renew editing control; Done leaves edit mode with the key it rendered.
     /// </summary>
@@ -545,7 +567,7 @@ public sealed class CaseEditModeWebTests
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
-            Substitute<IReleaseCaseEditLease>(services, store);
+            Substitute<ILeaseCaseForEdit>(services, store);
         });
         var leased = await workspace.GetWorkspaceAsync();
         Assert.DoesNotContain("handler=RenewLease", leased, StringComparison.Ordinal);
@@ -587,7 +609,7 @@ public sealed class CaseEditModeWebTests
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
-            Substitute<IHeartbeatCaseEditLease>(services, store);
+            Substitute<ILeaseCaseForEdit>(services, store);
         });
         var leased = await workspace.GetWorkspaceAsync();
         var releaseKey = HandlerFormInputValue(leased, "ReleaseLease", "operationKey");
@@ -643,7 +665,7 @@ public sealed class CaseEditModeWebTests
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
-            Substitute<IHeartbeatCaseEditLease>(services, store);
+            Substitute<ILeaseCaseForEdit>(services, store);
         });
 
         store.NextFailure = new CaseEditLeaseExpiredException(store.CaseId, store.CaseVersion);
@@ -844,10 +866,10 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -900,11 +922,11 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -962,11 +984,11 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -1080,13 +1102,13 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
                 var readers = new TwoCasePageReaders(store, otherStore);
                 Substitute<IGetCasePageFrame>(services, readers);
                 Substitute<IGetAssessmentWorkspace>(services, readers);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -1183,7 +1205,7 @@ public sealed class CaseEditModeWebTests
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
-            Substitute<IReleaseCaseEditLease>(services, store);
+            Substitute<ILeaseCaseForEdit>(services, store);
         });
         var editing = await workspace.GetWorkspaceAsync();
         Assert.Contains("handler=ReleaseLeaseBeacon", editing, StringComparison.Ordinal);
@@ -1218,8 +1240,9 @@ public sealed class CaseEditModeWebTests
     /// An action taken without pressing Edit (operator, 26 and 29 September
     /// 2026; issue 912) runs under a lease the handler claims for it: one
     /// claim on the Case's version, the command under that token, and the
-    /// lease given back unless the command consumed it. A command the Case
-    /// refuses, or a request abandoned mid-command, frees the lease; a
+    /// lease given back after it whatever the command answered (R523). A
+    /// command the Case refuses, or a request abandoned mid-command, frees
+    /// the lease; a
     /// colleague's live lease refuses the claim in the claim's own words, so
     /// the command never runs and nothing is released. Place on Hold claims
     /// through the shared page model; the Generates claim through their own
@@ -1593,7 +1616,7 @@ public sealed class CaseEditModeWebTests
         RecordingCaseDetailsStore store,
         RecordingGenerateReport generator)
     {
-        Substitute<IReleaseCaseEditLease>(services, store);
+        Substitute<ILeaseCaseForEdit>(services, store);
         Substitute<ICaseReportSnapshotSource>(
             services,
             new AssessmentReportDraftWebTests.FakeProjectionSource(AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
@@ -1657,9 +1680,10 @@ public sealed class CaseEditModeWebTests
     private static LeaseScenario LeaseScenarioFor(string row) => row switch
     {
         // The Actions menu's Place on Hold (operator, 29 September 2026): the
-        // command consumes the lease it ran under, so none is left to release.
+        // lease claimed for it is released after the command whatever it
+        // answered (R523), even though the command consumed it.
         "hold" => HoldScenario(
-            "hold-outside-a-session", command: null, colleague: false, ran: true, released: false,
+            "hold-outside-a-session", command: null, colleague: false, ran: true, released: true,
             says: ["The case was put on hold."]),
         // A command the Case refuses frees the lease claimed for it and says so.
         "hold-refused" => HoldScenario(
@@ -1716,7 +1740,7 @@ public sealed class CaseEditModeWebTests
             Ports: services =>
             {
                 Substitute<IHoldCase>(services, command ?? store);
-                Substitute<IReleaseCaseEditLease>(services, store);
+                Substitute<ILeaseCaseForEdit>(services, store);
             },
             Page: $"/Cases/{id}",
             FromPage: _ =>
@@ -2086,12 +2110,12 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
@@ -2178,10 +2202,10 @@ public sealed class CaseEditModeWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

@@ -40,7 +40,7 @@ internal sealed class DocumentActionMcpTools(
     ICaseWorkflowQueries workflowQueries,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
-    AutomationEditLease leases)
+    Pegasus.Web.Presentation.OneCommandEdit leases)
 {
     private static readonly string[] Actions =
     [

@@ -242,11 +242,11 @@ public sealed class CaseTasksWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ILeaseCaseForEdit>();
                 services.RemoveAll<IRecordManualCaseChase>();
                 services.AddSingleton<IGetCaseEditBasis>(store);
                 SubstituteDetailsPageReaders(services, store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ILeaseCaseForEdit>(store);
                 Substitute<ICaseWorkflowQueries>(services, store);
                 services.AddSingleton<IRecordManualCaseChase>(store);
             }));

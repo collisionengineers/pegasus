@@ -41,8 +41,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 public sealed partial class GlassSessionWork(
     IGlassRepairEstimateGateway glassEstimates,
     IGetCaseHeader caseHeaders,
-    IAcquireCaseEditLease leases,
-    IResumeCaseEditLease resumeLease,
+    CaseEditLeases leases,
     ILogger<GlassSessionWork> logger)
 {
     /// <summary>The provider work a step owes, keyed by its session.</summary>
@@ -135,7 +134,7 @@ public sealed partial class GlassSessionWork(
                     LogHeldEstimateWaits(logger, session.CaseId, session.Id, "another staff member holds the Case");
                     return;
                 }
-                lease = await resumeLease.ExecuteAsync(new(session.CaseId, actor), cancellationToken);
+                lease = await leases.ResumeAsync(new(session.CaseId, actor), cancellationToken);
                 if (lease is null)
                 {
                     LogHeldEstimateWaits(logger, session.CaseId, session.Id, "the staff member's lease could not be resumed");
@@ -144,7 +143,7 @@ public sealed partial class GlassSessionWork(
             }
             else
             {
-                lease = await leases.ExecuteAsync(
+                lease = await leases.ClaimAsync(
                     new(session.CaseId, current.Workflow.Version, actor, StaffPageModel.NewOperationKey()),
                     cancellationToken);
             }

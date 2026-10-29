@@ -33,7 +33,6 @@ public static class AutomationMcpExtensions
         services.AddScoped<AutomationClientRegistry>();
         services.AddScoped<AutomationActorResolver>();
         services.AddScoped<AutomationMcpAuditor>();
-        services.AddScoped<AutomationEditLease>();
 
         if (!options.UseDevelopmentKeys)
         {

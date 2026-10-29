@@ -51,7 +51,7 @@ internal sealed class CaseLifecycleMcpTools(
     TimeProvider timeProvider,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
-    AutomationEditLease leases)
+    OneCommandEdit leases)
 {
     private static readonly string[] Actions =
     [

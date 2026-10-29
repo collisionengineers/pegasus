@@ -630,7 +630,7 @@ public sealed class AutomationMcpIngressTests
     }
 
     [Fact]
-    public async Task EditRenewUsesTheCoreUseCaseAndRefusalsNameTheGuardAndCurrentVersion()
+    public async Task EditRenewHeartbeatsTheCaseLeaseAndRefusalsNameTheGuardAndCurrentVersion()
     {
         var caseId = Guid.Parse("6f5a3d21-9c44-4f70-8f1a-7d2b0c9e4a55");
         var leases = new RecordingAutomationLeases(caseId);
@@ -638,14 +638,14 @@ public sealed class AutomationMcpIngressTests
         using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IRenewCaseEditLease>();
-                services.AddSingleton<IRenewCaseEditLease>(leases);
+                services.RemoveAll<ILeaseCaseForEdit>();
+                services.AddSingleton<ILeaseCaseForEdit>(leases);
             }));
         using var client = mcpFactory.CreateClient();
         var accessToken = await RequestTokenAsync(client, "automation.cases");
 
-        // The holder renews through the same Core use case the staff renew
-        // control calls, and the tool returns the begin-shaped result.
+        // A Case renewal is the heartbeat an open staff editor sends (R524), and the tool
+        // returns the begin-shaped result.
         using (var response = await PostMcpAsync(
             client,
             accessToken,
@@ -656,7 +656,6 @@ public sealed class AutomationMcpIngressTests
                 {
                     recordKind = "Case",
                     recordId = caseId,
-                    expectedVersion = 3,
                     editLeaseToken = RecordingAutomationLeases.HeldToken,
                     operationKey = "mcp:renew-held"
                 })))
@@ -672,9 +671,8 @@ public sealed class AutomationMcpIngressTests
             Assert.Equal("mcp:renew-held", structured.GetProperty("operationKey").GetString());
         }
 
-        var renewal = Assert.Single(leases.Renewals);
+        var renewal = Assert.Single(leases.Heartbeats);
         Assert.Equal(caseId, renewal.CaseId);
-        Assert.Equal(3, renewal.ExpectedVersion);
         Assert.Equal(RecordingAutomationLeases.HeldToken, renewal.LeaseToken);
         Assert.Equal("pegasus-automation", renewal.Actor.SubjectId);
 
@@ -690,7 +688,6 @@ public sealed class AutomationMcpIngressTests
                 {
                     recordKind = "Case",
                     recordId = caseId,
-                    expectedVersion = 3,
                     editLeaseToken = new string('b', 64),
                     operationKey = "mcp:renew-non-holder"
                 })))
@@ -832,14 +829,29 @@ public sealed class AutomationMcpIngressTests
         }
     }
 
-    private sealed class RecordingAutomationLeases(Guid caseId) : IRenewCaseEditLease
+    private sealed class RecordingAutomationLeases(Guid caseId) : ILeaseCaseForEdit
     {
         public const string HeldToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
-        public List<RenewCaseEditLeaseRequest> Renewals { get; } = [];
+        public List<HeartbeatCaseEditLeaseRequest> Heartbeats { get; } = [];
 
-        public Task<CaseEditLease> ExecuteAsync(
-            RenewCaseEditLeaseRequest request,
+        public Task<CaseEditLease> ClaimAsync(
+            ClaimCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this test.");
+
+        public Task<CaseEditLease?> ResumeAsync(
+            ResumeCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this test.");
+
+        public Task ReleaseAsync(
+            ReleaseCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this test.");
+
+        public Task<CaseEditLease> HeartbeatAsync(
+            HeartbeatCaseEditLeaseRequest request,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -848,13 +860,13 @@ public sealed class AutomationMcpIngressTests
                 throw new CaseEditLeaseConflictException(caseId, 9);
             }
 
-            Renewals.Add(request);
+            Heartbeats.Add(request);
             return Task.FromResult(
                 new CaseEditLease(
                     caseId,
                     HeldToken,
                     request.Actor.SubjectId,
-                    request.ExpectedVersion,
+                    3,
                     DateTimeOffset.UtcNow.AddMinutes(5)));
         }
     }

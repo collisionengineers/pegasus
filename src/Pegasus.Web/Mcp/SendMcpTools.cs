@@ -68,7 +68,7 @@ internal sealed class SendMcpTools(
     IGetTriage getTriage,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
-    AutomationEditLease leases)
+    OneCommandEdit leases)
 {
     private static readonly string[] Modes = ["chaser", "reply", "reply_all", "forward", "triage_reply"];
 

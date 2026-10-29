@@ -306,7 +306,7 @@ internal sealed class EfCaseArtifactCustody(
         // A Triage Case keeps standard Case files but has no workflow; its
         // Triage is the authority, and a member of staff's link may file
         // receipt evidence on it (IntakePromotionTarget owns that rule).
-        var authority = await CaseMutationAuthority.LoadAsync(db, caseId, cancellationToken)
+        var authority = await CaseMutationGuard.LoadAsync(db, caseId, cancellationToken)
             ?? throw new InvalidOperationException("The artifact Case is unavailable.");
         if (request.IsAutomaticIntakeEvidencePromotion)
         {

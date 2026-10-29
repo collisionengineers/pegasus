@@ -67,7 +67,7 @@ public sealed partial class DetailsModel(
     IUnroadworthyReasonBankStore unroadworthyReasonBank,
     IPrincipalSalvageMatrixQueries principalSalvageMatrices,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
-    IResumeCaseEditLease resumeLease,
+    CaseEditLeases leases,
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
     IContactDirectoryQueries contactDirectory,
     IImageIntakeQueries imageIntakeQueries,
@@ -1135,7 +1135,7 @@ public sealed partial class DetailsModel(
             ApplyAssessmentAccess(actor, Case.Workflow);
             // The lease decides how much of the record is rendered now, so it is
             // restored before deciding which section bodies render directly.
-            await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
+            await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, leases, cancellationToken);
             // Each phase below starts its independent reads together, at most
             // four at a time and each on its own database context, and sets the
             // page's state only once all of them have finished. The phases stay
@@ -2057,8 +2057,7 @@ public sealed partial class DetailsModel(
         Guid? estimate,
         CancellationToken cancellationToken) =>
         ClaimLeaseAsync(
-            acquireLease,
-            resumeLease,
+            leases,
             id,
             expectedVersion,
             operationKey,
@@ -2090,7 +2089,7 @@ public sealed partial class DetailsModel(
         Guid id,
         string editLeaseToken,
         CancellationToken cancellationToken) =>
-        HeartbeatLeaseAsync(heartbeatLease, id, editLeaseToken, cancellationToken);
+        HeartbeatLeaseAsync(leases, id, editLeaseToken, cancellationToken);
 
     public Task<IActionResult> OnPostReleaseLeaseAsync(
         Guid id,
@@ -2099,7 +2098,7 @@ public sealed partial class DetailsModel(
         string? section,
         CancellationToken cancellationToken) =>
         ReleaseLeaseAsync(
-            releaseLease,
+            leases,
             id,
             operationKey,
             editLeaseToken,
@@ -2129,7 +2128,7 @@ public sealed partial class DetailsModel(
 
         try
         {
-            await releaseLease.ExecuteAsync(
+            await leases.ReleaseAsync(
                 new(id, actor, NewOperationKey(), editLeaseToken),
                 cancellationToken);
         }
@@ -2866,12 +2865,11 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
 
-        CaseEditLease lease;
+        OneCommandEditClaim lease;
         try
         {
-            lease = await acquireLease.ExecuteAsync(
-                new ClaimCaseEditLeaseRequest(id, expectedCaseVersion, actor, NewOperationKey()),
-                cancellationToken);
+            lease = await OneCommandEdit.ClaimAsync(
+                id, isTriageCase: false, expectedCaseVersion, actor, NewOperationKey(), cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -2884,17 +2882,9 @@ public sealed partial class DetailsModel(
             return RedirectToReport(id);
         }
 
-        try
-        {
-            return await GenerateAsync(
-                actor, id, operationKey, lease.Token, expectedCaseVersion,
-                kind, targetGenerationId, feeNoteOperationKey, cancellationToken);
-        }
-        finally
-        {
-            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
-                releaseLease, logger, id, actor, lease);
-        }
+        return await OneCommandEdit.RunClaimedAsync(lease, actor, () => GenerateAsync(
+            actor, id, operationKey, lease.Token, expectedCaseVersion,
+            kind, targetGenerationId, feeNoteOperationKey, cancellationToken));
     }
 
     /// <summary>
@@ -4808,7 +4798,7 @@ public sealed partial class DetailsModel(
                 // A new Case document consumes one version and its lease. Claim
                 // exactly that version before the importer performs its mutation.
                 importVersion = checked(expectedVersion + 1);
-                var lease = await acquireLease.ExecuteAsync(
+                var lease = await leases.ClaimAsync(
                     new(id, importVersion, actor!, NewOperationKey()), cancellationToken);
                 importLeaseToken = lease.Token;
                 StoreLeaseAuthority(id, lease.Token);
@@ -4987,7 +4977,7 @@ public sealed partial class DetailsModel(
         {
             try
             {
-                var lease = await acquireLease.ExecuteAsync(
+                var lease = await leases.ClaimAsync(
                     new(id, expectedVersion, actor, NewOperationKey()), cancellationToken);
                 activeLeaseToken = lease.Token;
                 StoreLeaseAuthority(id, lease.Token);

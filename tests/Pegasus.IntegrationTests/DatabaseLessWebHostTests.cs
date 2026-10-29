@@ -147,8 +147,8 @@ public sealed class DatabaseLessWebHostTests
                 .ListByRoleAsync(administrator, ContactRole.ClaimSource, none)),
             ("repairers", async services => await services.GetRequiredService<IContactDirectoryQueries>()
                 .ListByRoleAsync(administrator, ContactRole.Repairer, none)),
-            ("lease to resume", async services => await services.GetRequiredService<IResumeCaseEditLease>()
-                .ExecuteAsync(new(caseId, administrator), none)),
+            ("lease to resume", async services => await services.GetRequiredService<CaseEditLeases>()
+                .ResumeAsync(new(caseId, administrator), none)),
             ("image tags", async services =>
                 await services.GetRequiredService<IReadImageTagVocabulary>().ListAsync(none)),
             ("image intakes", async services =>

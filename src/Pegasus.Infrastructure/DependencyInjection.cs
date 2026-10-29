@@ -442,11 +442,8 @@ public static class DependencyInjection
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
-        services.AddScoped<IAcquireCaseEditLease, AcquireCaseEditLease>();
-        services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
-        services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
-        services.AddScoped<IResumeCaseEditLease, ResumeCaseEditLease>();
-        services.AddScoped<IReleaseCaseEditLease, ReleaseCaseEditLease>();
+        services.AddScoped<CaseEditLeases>();
+        services.AddScoped<OneCommandEditAuthority>();
         services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<EfCaseQueryStore>();

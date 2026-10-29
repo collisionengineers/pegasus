@@ -284,13 +284,6 @@ public sealed record ClaimCaseEditLeaseRequest(
     public bool TakeOver { get; init; }
 }
 
-public sealed record RenewCaseEditLeaseRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string LeaseToken);
-
 /// <summary>
 /// Extends the lease the caller already holds, so an open editor is never timed
 /// out mid-edit. It carries no operation key and no expected version: a version
@@ -573,7 +566,7 @@ public interface ICaseWorkflowQueries
 }
 
 /// <summary>
-/// Atomic persistence boundary for case edit leases. An exact claim or renewal replay returns the
+/// Atomic persistence boundary for case edit leases. An exact claim replay returns the
 /// same opaque token and expiry, and an exact release replay returns success, before mutable-state,
 /// version, ownership, or expiry preconditions are evaluated. Reusing an operation key with
 /// different request material fails with <see cref="CaseOperationConflictException"/>.
@@ -582,8 +575,6 @@ public interface ICaseWorkflowQueries
 public interface ILeaseCaseForEdit
 {
     Task<CaseEditLease> ClaimAsync(ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken);
-
-    Task<CaseEditLease> RenewAsync(RenewCaseEditLeaseRequest request, CancellationToken cancellationToken);
 
     Task<CaseEditLease> HeartbeatAsync(
         HeartbeatCaseEditLeaseRequest request,

@@ -50,8 +50,9 @@ holds that one word for the holder chip and both takeover history writers.
 ## Consequences
 
 - The Case ribbon offers Take over on a Case the Automation Actor holds.
-- The Automation Actor's next heartbeat, renew, write or release under the
-  token it held is refused.
+- The Automation Actor's next heartbeat, write or release under the token it
+  held is refused. Renew no longer exists: a renewal is a heartbeat (R524,
+  29 October 2026).
 - Otherwise an Automation lease still lapses within five minutes, or ends
   when an Administrator stops the automation client.
 - ADR-0064 lists this record in `superseded_by`, and its index row names the

@@ -26,8 +26,7 @@ public sealed partial class DetailsModel(
     ICloseUnidentified closeUnidentified,
     ReopenUnidentified reopenUnidentified,
     IIntakeAssociationDestinationQueries destinations,
-    IAcquireCaseEditLease acquireLease,
-    IReleaseCaseEditLease releaseLease,
+    OneCommandEdit oneCommandEdit,
     ICreateAiJob createAiJob,
     ILinkIntake linkIntake,
     IVrmSuggestionStore vrmSuggestions,
@@ -35,7 +34,6 @@ public sealed partial class DetailsModel(
     IGetPreCaseImagePreparations getPreparations,
     Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
     TimeProvider timeProvider,
-    IEditScopeLeases editScopes,
     GetRetainedMailPreview getRetainedMailPreview,
     IApprovedMailboxStore approvedMailboxes,
     ILogger<DetailsModel> logger) : StaffPageModel
@@ -224,7 +222,6 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
 
-        CaseLinkAuthorityClaim? lease = null;
         try
         {
             var context = await getContext.ExecuteAsync(actor, id, cancellationToken);
@@ -235,26 +232,24 @@ public sealed partial class DetailsModel(
 
             var destination = await destinations.GetAsync(receipt, caseId, actor, cancellationToken)
                 ?? throw new InvalidOperationException("The selected Case is not available for this material.");
-            lease = await CaseLinkAuthority.ClaimAsync(
-                destination,
+            await oneCommandEdit.RunAsync(
+                destination.CaseId,
+                destination.IsTriageCase,
                 destination.Version,
                 actor,
                 NewOperationKey(),
-                acquireLease,
-                editScopes,
+                lease => linkIntake.ExecuteAsync(
+                    new LinkIntakeRequest(
+                        receipt.Id,
+                        caseId,
+                        receipt.Version,
+                        lease.Version,
+                        lease.Token,
+                        actor,
+                        operationKey,
+                        $"Linked from {context.Item.Reference}."),
+                    cancellationToken),
                 cancellationToken);
-            await linkIntake.ExecuteAsync(
-                new LinkIntakeRequest(
-                    receipt.Id,
-                    caseId,
-                    receipt.Version,
-                    lease.Version,
-                    lease.Token,
-                    actor,
-                    operationKey,
-                    $"Linked from {context.Item.Reference}."),
-                cancellationToken);
-            lease = null;
             // The link commits the association and resolves this item; the
             // Worker files the material on the Case (LinkIntake).
             StatusMessage = $"{context.Item.Reference} was linked to {destination.Reference}. {OperatorLabels.Upload.AppearUnderFiles}";
@@ -262,13 +257,11 @@ public sealed partial class DetailsModel(
         }
         catch (StaffAuthorizationException)
         {
-            await ReleaseQuietlyAsync(caseId, actor, lease);
             return Forbid();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             LogCommandFailed(logger, "link_case", id, exception);
-            await ReleaseQuietlyAsync(caseId, actor, lease);
             ErrorMessage = "The material was not linked because the Case or the item changed, someone is editing the Case, or the link is not permitted.";
             return RedirectToPage(new { id, dialog = LinkDialog, caseQuery = CaseQuery });
         }
@@ -551,34 +544,6 @@ public sealed partial class DetailsModel(
                 _ => OperatorLabels.ActionNotApplied
             };
             return dialog is null ? RedirectToPage(new { id }) : RedirectToPage(new { id, dialog });
-        }
-    }
-
-    private async Task ReleaseQuietlyAsync(Guid caseId, Pegasus.Core.Identity.ActionActor actor, CaseLinkAuthorityClaim? lease)
-    {
-        if (lease is null)
-        {
-            return;
-        }
-
-        try
-        {
-            if (lease.IsTriageCase)
-            {
-                await editScopes.ReleaseAsync(
-                    new ReleaseEditScopeRequest(EditScopeKind.Triage, caseId, actor, NewOperationKey(), lease.Token),
-                    CancellationToken.None);
-            }
-            else
-            {
-                await releaseLease.ExecuteAsync(
-                    new ReleaseCaseEditLeaseRequest(caseId, actor, NewOperationKey(), lease.Token),
-                    CancellationToken.None);
-            }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCommandFailed(logger, "release_lease", caseId, exception);
         }
     }
 

@@ -718,9 +718,9 @@ public sealed class CaseReportDeliveryPersistenceTests
                 var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
                 var caseId = await SeedCaseAsync(factory, rules ?? PrincipalReportSendingRules.Default);
                 var artifact = await SeedConfirmedGenerationAsync(factory, caseId);
-                var lease = await new AcquireCaseEditLease(
+                var lease = await new CaseEditLeases(
                         new EfCaseWorkflowStore(factory, new FixedTimeProvider(StartUtc)))
-                    .ExecuteAsync(new(caseId, 1, staff, "lease-send-report"), CancellationToken.None);
+                    .ClaimAsync(new(caseId, 1, staff, "lease-send-report"), CancellationToken.None);
                 return new(database, factory, caseId, staff, lease, artifact);
             }
             catch

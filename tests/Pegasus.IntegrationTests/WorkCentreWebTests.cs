@@ -445,8 +445,7 @@ public sealed class WorkCentreWebTests
             configure: services =>
             {
                 CaseWebTestSupport.Substitute<IGetCaseEditBasis>(services, store);
-                CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.IAcquireCaseEditLease>(services, store);
-                CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.IReleaseCaseEditLease>(services, store);
+                CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.ILeaseCaseForEdit>(services, store);
                 CaseWebTestSupport.Substitute<Pegasus.Core.Workflow.IAssignCaseEngineer>(services, store);
             });
         using var client = Client(host);
@@ -472,8 +471,9 @@ public sealed class WorkCentreWebTests
             [("take-from-the-row", (Guid?)viewer), ("hand-to-unassigned", null)],
             store.EngineerAssignments.Select(request => (request.OperationKey, request.EngineerId)).ToArray());
         Assert.All(store.EngineerAssignments, request => Assert.Equal(string.Empty, request.Reason));
-        // The refused post claimed a lease and released it.
-        Assert.Single(store.LeaseReleases);
+        // Each post claimed a lease and released it after the assignment,
+        // whatever the assignment answered (R523).
+        Assert.Equal(3, store.LeaseReleases.Count);
     }
 
     /// <summary>

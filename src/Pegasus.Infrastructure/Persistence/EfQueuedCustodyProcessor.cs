@@ -768,7 +768,7 @@ internal sealed class EfQueuedCustodyProcessor(
 
         // A Triage Case has no workflow: its Triage is the authority, and
         // custody completing neither moves its state nor its version.
-        var authority = await CaseMutationAuthority.LoadAsync(
+        var authority = await CaseMutationGuard.LoadAsync(
             context,
             work.CaseId ?? throw new InvalidDataException("The case custody work item has no owning case."),
             cancellationToken)
@@ -837,7 +837,7 @@ internal sealed class EfQueuedCustodyProcessor(
             return;
         }
 
-        var authority = await CaseMutationAuthority.LoadAsync(
+        var authority = await CaseMutationGuard.LoadAsync(
             context,
             work.CaseId ?? throw new InvalidDataException("The case custody work item has no owning case."),
             cancellationToken)
@@ -1587,14 +1587,14 @@ internal sealed class EfQueuedCustodyProcessor(
         var intake = await context.ImageIntakes
             .SingleAsync(value => value.Id == imageIntakeId, cancellationToken);
         var alreadyMerged = string.Equals(intake.CustodyState, ImageCustodyStates.Merged, StringComparison.Ordinal);
-        CaseMutationAuthority? authority = null;
+        CaseMutationGuard? authority = null;
         if (folded && !alreadyMerged)
         {
             // A Triage Case has no workflow: its Triage is the authority, and
             // the fold leaves its version alone. A staff link reaches a Case in
             // any lifecycle state (operator, 24 September 2026), so the fold
             // that completes it does too; the recorded association decides.
-            authority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
+            authority = await CaseMutationGuard.LoadAsync(context, caseId, cancellationToken)
                 ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
             var staffDecision = await context.IntakeManualAssociations.AsNoTracking().AnyAsync(
                 association => association.IntakeReceiptId == intake.OriginReceiptId

@@ -831,6 +831,9 @@ builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadOutcomeQueries,
 // (see Pegasus.Web.Presentation.UploadCaseDecision).
 builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadCaseDecision,
     Pegasus.Web.Presentation.UploadCaseDecision>();
+// The one helper a command that holds a Case's edit authority for itself
+// claims, runs and releases through, staff page or Automation tool (R523).
+builder.Services.AddScoped<Pegasus.Web.Presentation.OneCommandEdit>();
 // A Triage Case's record on /Cases/{id}: its ports, taken by the Case record's
 // Triage handlers, and the filter that keeps the Case workflow sub-routes from
 // answering for it.

@@ -21,14 +21,14 @@ public sealed class TasksModel(
     IUnlinkReportEvidence unlinkReportEvidence,
     TimeProvider timeProvider,
     ICaseWorkflowQueries workflows,
-    IAcquireCaseEditLease acquireLease,
+    CaseEditLeases leases,
     ILogger<TasksModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// Linking report evidence inside the edit session keeps it (operator,
     /// 9 October 2026).
     /// </summary>
-    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
+    protected override (ICaseWorkflowQueries Workflows, CaseEditLeases Leases)? LeaseReclaim => (workflows, leases);
 
     public IActionResult OnGet() => NotFound();
 

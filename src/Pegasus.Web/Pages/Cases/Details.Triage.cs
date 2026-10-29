@@ -17,8 +17,8 @@ namespace Pegasus.Web.Pages.Cases;
 /// sheet): the ribbon with its Actions menu, the finding, and the Images,
 /// Files (Documents and Correspondence) and Notes tabs, with the Record
 /// finding dialog and the reply composer. There is no Edit step: every action
-/// claims and releases the Triage edit scope inside its own save
-/// (<see cref="TriageWriteAuthority"/>).
+/// claims and releases the Triage edit scope for its own save
+/// (<see cref="OneCommandEdit"/>).
 /// </summary>
 public sealed class TriageCaseView(TriageDetail triage)
 {
@@ -397,13 +397,11 @@ public sealed partial class DetailsModel
             {
                 try
                 {
-                    message = await TriageWriteAuthority.ExecuteAsync(
-                        ports.EditScopes,
+                    message = await ports.OneCommandEdit.RunTriageSaveAsync(
                         id,
                         version,
                         actionActor,
-                        key,
-                        logger,
+                        TriageWriteOperationKey(key),
                         token => RunAsync(token),
                         cancellationToken);
                 }
@@ -436,9 +434,8 @@ public sealed partial class DetailsModel
             }
             catch (EditScopeConflictException)
             {
-                message = await TriageWriteAuthority.DescribeHeldAsync(
-                    ports.EditScopes,
-                    ports.DescribeEditAuthorityHolder,
+                message = await DescribeTriageHeldAsync(
+                    ports,
                     id,
                     actionActor,
                     cancellationToken);
@@ -1076,13 +1073,11 @@ public sealed partial class DetailsModel
                 return RedirectToPage(new { id = triageCaseId });
             }
 
-            await TriageWriteAuthority.ExecuteAsync(
-                ports.EditScopes,
+            await ports.OneCommandEdit.RunTriageSaveAsync(
                 triageCaseId,
                 expectedTriageVersion,
                 actor,
-                operationKey,
-                logger,
+                TriageWriteOperationKey(operationKey),
                 async token =>
                 {
                     CaseEditLease? lease = null;
@@ -1150,9 +1145,8 @@ public sealed partial class DetailsModel
         }
         catch (EditScopeConflictException)
         {
-            TempData["TriageStatus"] = await TriageWriteAuthority.DescribeHeldAsync(
-                ports.EditScopes,
-                ports.DescribeEditAuthorityHolder,
+            TempData["TriageStatus"] = await DescribeTriageHeldAsync(
+                ports,
                 triageCaseId,
                 actor,
                 cancellationToken);
@@ -1234,6 +1228,40 @@ public sealed partial class DetailsModel
                 actor,
                 cancellationToken);
         return EditModeDisplay.CaseHeldBy(holder, isSelf);
+    }
+
+    /// <summary>The Triage record as the operator reading an ownership sentence names it.</summary>
+    private const string TriageRecordName = "Triage record";
+
+    /// <summary>The Triage edit scope claim one staff Triage save makes, keyed from the save's own key.</summary>
+    private static string TriageWriteOperationKey(string operationKey) => $"triage-write-claim:{operationKey}";
+
+    /// <summary>
+    /// Who holds the Triage record while a save could not claim it: an Automation session, or a
+    /// colleague's save in flight. One wording for every surface that posts a Triage write.
+    /// </summary>
+    private static async Task<string> DescribeTriageHeldAsync(
+        TriageCasePorts ports,
+        Guid triageCaseId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var active = await ports.EditScopes.GetActiveAsync(
+            EditScopeKind.Triage, triageCaseId, actor, cancellationToken);
+        if (active is null)
+        {
+            return $"Another member of staff is editing this {TriageRecordName}. Reload to try again.";
+        }
+
+        var isSelf = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
+        var holder = isSelf
+            ? CaseEditAuthorityHolder.Unnamed
+            : await ports.DescribeEditAuthorityHolder.ExecuteAsync(
+                active.HolderKind,
+                active.Holder,
+                actor,
+                cancellationToken);
+        return EditModeDisplay.HeldBy(TriageRecordName, holder, isSelf);
     }
 
     /// <summary>

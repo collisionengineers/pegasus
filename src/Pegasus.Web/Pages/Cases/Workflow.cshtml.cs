@@ -24,14 +24,14 @@ public sealed class WorkflowModel(
     IAssignCaseEngineer assignEngineer,
     ICreateLinkedReplacement createLinkedReplacement,
     ICaseWorkflowQueries workflows,
-    IAcquireCaseEditLease acquireLease,
+    CaseEditLeases leases,
     ILogger<WorkflowModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
     /// <summary>
     /// An action taken inside the edit session keeps it: after one succeeds
     /// the session carries on (operator, 9 October 2026).
     /// </summary>
-    protected override (ICaseWorkflowQueries Workflows, IAcquireCaseEditLease Leases)? LeaseReclaim => (workflows, acquireLease);
+    protected override (ICaseWorkflowQueries Workflows, CaseEditLeases Leases)? LeaseReclaim => (workflows, leases);
 
     public IActionResult OnGet() => NotFound();
 
