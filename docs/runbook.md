@@ -914,8 +914,15 @@ and Error lines for these categories:
 `Pegasus.Worker` stays at Information. In the seven days to 30 September 2026,
 the trace categories in that list were 83% of the Worker's trace bytes.
 
-Nothing reads the dropped lines. The one alert, `pegasus-prod-application-exceptions`,
-reads `AppExceptions` and `AppRequests`, not `AppTraces`. `Host.Results` is not
+Nothing reads the dropped lines. Since 29 October 2026 ([R447](rulings.md)), the
+alerts read `AppExceptions`, `AppRequests` and the worker process's own lines in
+`AppTraces`. `pegasus-prod-application-exceptions` reads the first two.
+`pegasus-prod-matching-failures` (Sev2, three or more in 15 minutes) counts the
+`The {Step} step failed` line of the image and Triage pairing steps.
+`pegasus-prod-chasing-failures` (Sev2, one or more in an hour) counts the due-work
+sweep's `The {Job} job failed` and `passed its 60 second budget` lines.
+`pegasus-prod-web-readiness` (Sev1, three or more in 15 minutes) counts failed
+`/health/ready` requests. None of these lines is filtered. `Host.Results` is not
 filtered, because it writes the `AppRequests` rows. Every function run, its
 duration and its failure are still in `AppRequests`. A failed run is still an
 Error line. To see a dropped category again, set it back in `host.json` and
