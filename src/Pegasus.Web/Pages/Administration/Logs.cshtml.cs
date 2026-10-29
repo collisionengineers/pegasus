@@ -21,7 +21,7 @@ namespace Pegasus.Web.Pages.Administration;
 public sealed class LogsModel(
     ListActionLogs listActionLogs,
     TimeProvider timeProvider,
-    IListCaseReferences listCaseReferences,
+    ListCaseReferences listCaseReferences,
     ISearchCases searchCases,
     IStaffAccountQueries staffAccounts,
     IAiJobStore aiJobs,
