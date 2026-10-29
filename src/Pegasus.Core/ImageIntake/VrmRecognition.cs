@@ -93,6 +93,16 @@ public static class VrmRecognitionProvisionalBar
             suggestion.SuggestedRegistration,
             suggestion.Confidence)));
 
+    /// <summary>
+    /// The one registration a set of recorded reads agrees on, or null when
+    /// they read none or disagree: what a filed file's photographs offer the
+    /// Upload page (R473) and mail linking (R474).
+    /// </summary>
+    public static string? SingleAcceptedRegistration(IEnumerable<ImageVrmSuggestion> suggestions) =>
+        DistinctAcceptedRegistrations(suggestions) is { Length: RequiredDistinctRegistrations } registrations
+            ? registrations[0]
+            : null;
+
     /// <summary>The distinct accepted registrations across an image group's member reads.</summary>
     public static string[] DistinctAcceptedRegistrations(IEnumerable<ImageIntakeGroupMemberRecognition> members) =>
         DistinctAccepted(members.Select(member => AcceptedRegistration(

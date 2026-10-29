@@ -1319,9 +1319,15 @@ public sealed class ProcessQueuedIntake(
             return false;
         }
 
+        // The plate the photographs inside its PDF read is a mail-linking
+        // signal (operator, 28 October 2026, R474), so they are read first.
+        var photographRegistration = imageIntakeAutomation is null
+            ? null
+            : await imageIntakeAutomation.ReadMailedPdfPhotographsAsync(receipt, cancellationToken);
         var outcome = await automaticMailCaseAssociation.ExecuteAsync(
             receipt.Id,
             receipt.CaseMatchDecision,
+            photographRegistration,
             cancellationToken);
         return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
     }
