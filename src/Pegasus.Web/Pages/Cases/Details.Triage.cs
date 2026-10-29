@@ -397,13 +397,12 @@ public sealed partial class DetailsModel
             {
                 try
                 {
-                    message = await ports.OneCommandEdit.RunAsync(
+                    message = await ports.OneCommandEdit.RunTriageSaveAsync(
                         id,
-                        isTriageCase: true,
                         version,
                         actionActor,
                         TriageWriteOperationKey(key),
-                        claim => RunAsync(claim.Token),
+                        token => RunAsync(token),
                         cancellationToken);
                 }
                 catch (EditScopeVersionConflictException)
@@ -1074,15 +1073,13 @@ public sealed partial class DetailsModel
                 return RedirectToPage(new { id = triageCaseId });
             }
 
-            await ports.OneCommandEdit.RunAsync(
+            await ports.OneCommandEdit.RunTriageSaveAsync(
                 triageCaseId,
-                isTriageCase: true,
                 expectedTriageVersion,
                 actor,
                 TriageWriteOperationKey(operationKey),
-                async scope =>
+                async token =>
                 {
-                    var token = scope.Token;
                     CaseEditLease? lease = null;
                     var leaseConsumed = false;
                     try

@@ -66,6 +66,51 @@ public sealed partial class OneCommandEdit(
             cancellationToken);
     }
 
+    /// <summary>
+    /// One staff Triage save: claims the Triage edit scope, refuses a record that moved past the
+    /// posted version as changed before the save runs
+    /// (<see cref="OneCommandEditAuthority.RequireTriageSaveAtPostedVersion"/>), runs the save
+    /// with the scope's token and releases the scope.
+    /// </summary>
+    public async Task<T> RunTriageSaveAsync<T>(
+        Guid triageCaseId,
+        long postedVersion,
+        ActionActor actor,
+        string operationKey,
+        Func<string, Task<T>> save,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(save);
+        var claim = await ClaimAsync(triageCaseId, true, postedVersion, actor, operationKey, cancellationToken);
+        return await RunClaimedAsync(claim, actor, () =>
+        {
+            OneCommandEditAuthority.RequireTriageSaveAtPostedVersion(claim, postedVersion);
+            return save(claim.Token);
+        });
+    }
+
+    public Task RunTriageSaveAsync(
+        Guid triageCaseId,
+        long postedVersion,
+        ActionActor actor,
+        string operationKey,
+        Func<string, Task> save,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(save);
+        return RunTriageSaveAsync(
+            triageCaseId,
+            postedVersion,
+            actor,
+            operationKey,
+            async token =>
+            {
+                await save(token);
+                return true;
+            },
+            cancellationToken);
+    }
+
     /// <summary>Runs <paramref name="action"/> under an authority already claimed, then releases it.</summary>
     public async Task<T> RunClaimedAsync<T>(
         OneCommandEditClaim claim,

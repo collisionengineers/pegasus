@@ -3457,6 +3457,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("RecordId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ClaimRequestHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
                     b.Property<long>("ExpectedVersion")
                         .HasColumnType("bigint");
 
@@ -3475,6 +3480,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Token")
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
 
                     b.Property<string>("TokenHash")
                         .IsRequired()

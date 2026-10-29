@@ -51,6 +51,22 @@ public sealed class OneCommandEditAuthorityTests
     }
 
     [Fact]
+    public void ATriageSaveIsRefusedAsChangedWhenTheRecordMovedPastThePostedVersion()
+    {
+        var caseId = Guid.NewGuid();
+
+        var refused = Assert.Throws<EditScopeVersionConflictException>(() =>
+            OneCommandEditAuthority.RequireTriageSaveAtPostedVersion(
+                new OneCommandEditClaim(caseId, true, 5, "scope-token", "k"), 4));
+
+        Assert.Equal((4L, 5L), (refused.ExpectedVersion, refused.ActualVersion));
+        OneCommandEditAuthority.RequireTriageSaveAtPostedVersion(
+            new OneCommandEditClaim(caseId, true, 4, "scope-token", "k"), 4);
+        OneCommandEditAuthority.RequireTriageSaveAtPostedVersion(
+            new OneCommandEditClaim(caseId, false, 5, "lease-token", "k"), 4);
+    }
+
+    [Fact]
     public void ADerivedOperationKeyKeepsItsSuffixWithinCoresKeyLength()
     {
         var derived = OneCommandEditAuthority.DeriveOperationKey(new string('k', 120), ":release");

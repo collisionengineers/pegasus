@@ -64,6 +64,21 @@ public sealed class OneCommandEditAuthority(CaseEditLeases caseLeases, IEditScop
     }
 
     /// <summary>
+    /// The scope is claimed at the record's current version (R516), but a Triage save has no
+    /// Edit step that draws the record again at it: a record that moved past the posted version
+    /// makes the save a stale post, refused as changed before the command runs.
+    /// </summary>
+    public static void RequireTriageSaveAtPostedVersion(OneCommandEditClaim claim, long postedVersion)
+    {
+        ArgumentNullException.ThrowIfNull(claim);
+        if (claim.IsTriageCase && claim.Version != postedVersion)
+        {
+            throw new EditScopeVersionConflictException(
+                EditScopeKind.Triage, claim.CaseId, postedVersion, claim.Version);
+        }
+    }
+
+    /// <summary>
     /// An operation key derived from another, so a replay of the command replays its claim and
     /// release, within <see cref="MaximumOperationKeyLength"/>.
     /// </summary>
