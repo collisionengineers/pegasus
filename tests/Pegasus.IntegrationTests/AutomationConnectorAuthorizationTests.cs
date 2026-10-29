@@ -95,7 +95,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
                 }));
             using var json = JsonDocument.Parse(await tokens.Content.ReadAsStringAsync());
             var accessToken = json.RootElement.GetProperty("access_token").GetString()!;
-            using var call = await PostMcpAsync(connector, McpServer, accessToken, ToolCallPayload(
+            using var call = await PostMcpAsync(connector, accessToken, ToolCallPayload(
                 90 + index, "pegasus_case_search", new { query = $"no-match-{index}" }));
             Assert.Equal(HttpStatusCode.OK, call.StatusCode);
         }
@@ -157,7 +157,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         var document = Encoding.UTF8.GetBytes(new string('p', 70_000));
         const string operationKey = "mcp:upload-across-grants";
         var uploadId = await StageUploadAsync(connector, tokens[0], document, operationKey);
-        using (var begin = await PostMcpAsync(connector, McpServer, tokens[1], ToolCallPayload(
+        using (var begin = await PostMcpAsync(connector, tokens[1], ToolCallPayload(
             30,
             "pegasus_upload_begin",
             new { totalBytes = document.Length, sha256 = Sha256Hex(document), operationKey })))
@@ -168,7 +168,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
             Assert.Equal(2, ticket.GetProperty("receivedParts").GetArrayLength());
         }
 
-        using var add = await PostMcpAsync(connector, McpServer, tokens[1], ToolCallPayload(
+        using var add = await PostMcpAsync(connector, tokens[1], ToolCallPayload(
             31,
             "pegasus_document_add",
             new
@@ -261,7 +261,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
             "pegasus_vocabulary_get",
             "pegasus_work_centre_dismiss"
         ];
-        using (var list = await PostMcpAsync(connector, McpServer, accessToken, ToolsListPayload(1)))
+        using (var list = await PostMcpAsync(connector, accessToken, ToolsListPayload(1)))
         {
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
             using var document = await ReadJsonRpcAsync(list);
@@ -289,7 +289,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         Assert.True(refreshed.IsSuccessStatusCode, refreshedBody);
         using var refreshedJson = JsonDocument.Parse(refreshedBody);
         var refreshedAccess = refreshedJson.RootElement.GetProperty("access_token").GetString()!;
-        using (var list = await PostMcpAsync(connector, McpServer, refreshedAccess, ToolsListPayload(3)))
+        using (var list = await PostMcpAsync(connector, refreshedAccess, ToolsListPayload(3)))
         {
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         }
@@ -362,7 +362,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         }
 
         // The list holds the cases tools and no send tool.
-        using (var list = await PostMcpAsync(connector, McpServer, accessToken, ToolsListPayload(1)))
+        using (var list = await PostMcpAsync(connector, accessToken, ToolsListPayload(1)))
         {
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
             using var document = await ReadJsonRpcAsync(list);
@@ -376,7 +376,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         }
 
         // A send is refused by scope before anything runs.
-        using (var send = await PostMcpAsync(connector, McpServer, accessToken, ToolCallPayload(2, "pegasus_report_send", new
+        using (var send = await PostMcpAsync(connector, accessToken, ToolCallPayload(2, "pegasus_report_send", new
         {
             caseId = Guid.NewGuid(),
             expectedVersion = 0,
@@ -468,7 +468,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         using var tokens = JsonDocument.Parse(exchangeBody);
         var accessToken = tokens.RootElement.GetProperty("access_token").GetString()!;
         var refreshToken = tokens.RootElement.GetProperty("refresh_token").GetString()!;
-        using (var list = await PostMcpAsync(connector, McpServer, accessToken, ToolsListPayload(1)))
+        using (var list = await PostMcpAsync(connector, accessToken, ToolsListPayload(1)))
         {
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         }
@@ -492,7 +492,6 @@ public sealed partial class AutomationConnectorAuthorizationTests
             refreshToken = refreshedTokens.RootElement.GetProperty("refresh_token").GetString() ?? refreshToken;
             using var list = await PostMcpAsync(
                 connector,
-                McpServer,
                 refreshedTokens.RootElement.GetProperty("access_token").GetString()!,
                 ToolsListPayload(rpcId++));
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
@@ -545,7 +544,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         using var secondHost = WithPersistentOAuthCredentials(baseFactory, signing, encryption);
         using var secondConnector = CreateConnector(secondHost);
         using (var originalAccess = await PostMcpAsync(
-            secondConnector, McpServer, accessToken, ToolsListPayload(401)))
+            secondConnector, accessToken, ToolsListPayload(401)))
         {
             Assert.Equal(HttpStatusCode.OK, originalAccess.StatusCode);
         }
@@ -579,7 +578,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         using var rotatedTokens = JsonDocument.Parse(rotatedRefreshBody);
         var rotatedAccessToken = rotatedTokens.RootElement.GetProperty("access_token").GetString()!;
         using var rotatedAccess = await PostMcpAsync(
-            secondConnector, McpServer, rotatedAccessToken, ToolsListPayload(402));
+            secondConnector, rotatedAccessToken, ToolsListPayload(402));
         Assert.Equal(HttpStatusCode.OK, rotatedAccess.StatusCode);
     }
 

@@ -137,7 +137,6 @@ public sealed class InspectionAddressChoicesPersistenceTests
 
         using var response = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.McpServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 42,

@@ -142,7 +142,7 @@ public sealed class AutomationMcpIngressTests
         // actor: the DevelopmentOffline profile signs staff requests in
         // automatically, yet the server still refuses the call without a
         // bearer token and points at its RFC 9728 resource metadata.
-        using (var unauthenticated = await PostMcpAsync(client, McpServer, accessToken: null, ToolsListPayload(1)))
+        using (var unauthenticated = await PostMcpAsync(client, accessToken: null, ToolsListPayload(1)))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
             Assert.Equal(
@@ -182,7 +182,7 @@ public sealed class AutomationMcpIngressTests
         // A token holding all seven scopes lists the whole inventory.
         var accessToken = await RequestTokenAsync(client, string.Join(' ', AutomationMcp.Scopes));
         var rpcId = 2;
-        using var toolsResponse = await PostMcpAsync(client, McpServer, accessToken, ToolsListPayload(rpcId));
+        using var toolsResponse = await PostMcpAsync(client, accessToken, ToolsListPayload(rpcId));
         Assert.Equal(HttpStatusCode.OK, toolsResponse.StatusCode);
         Assert.Equal(ExpectedTools, await ToolNamesAsync(toolsResponse));
         using var toolsDocument = await ReadJsonRpcAsync(toolsResponse);
@@ -199,7 +199,7 @@ public sealed class AutomationMcpIngressTests
         // takes no trade value; its arguments are exactly these. It is listed
         // (ADR-0087), and the findings document comes as
         // contentBase64 or a staged uploadId (R203).
-        using var jobsResponse = await PostMcpAsync(client, McpServer, accessToken, ToolsListPayload(rpcId + 1));
+        using var jobsResponse = await PostMcpAsync(client, accessToken, ToolsListPayload(rpcId + 1));
         using var jobsDocument = await ReadJsonRpcAsync(jobsResponse);
         var marketResearch = jobsDocument.RootElement
             .GetProperty("result")
@@ -240,7 +240,7 @@ public sealed class AutomationMcpIngressTests
         // The second list is served from the one built for the scope set.
         foreach (var rpcId in new[] { 1, 2 })
         {
-            using var response = await PostMcpAsync(client, McpServer, mailToken, ToolsListPayload(rpcId));
+            using var response = await PostMcpAsync(client, mailToken, ToolsListPayload(rpcId));
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var document = await ReadJsonRpcAsync(response);
             var result = document.RootElement.GetProperty("result");
@@ -266,7 +266,7 @@ public sealed class AutomationMcpIngressTests
         // carries the one instructions text. A client attaching it spends
         // four requests of the 120 a minute: initialize, the initialized
         // notification, tools/list and the stream GET (a 405).
-        using (var initialize = await PostMcpAsync(client, McpServer, accessToken, InitializePayload(1)))
+        using (var initialize = await PostMcpAsync(client, accessToken, InitializePayload(1)))
         {
             Assert.Equal(HttpStatusCode.OK, initialize.StatusCode);
             using var document = await ReadJsonRpcAsync(initialize);
@@ -277,14 +277,13 @@ public sealed class AutomationMcpIngressTests
 
         using (var initialized = await PostMcpAsync(
             client,
-            McpServer,
             accessToken,
             JsonSerializer.Serialize(new { jsonrpc = "2.0", method = "notifications/initialized" })))
         {
             Assert.Equal(HttpStatusCode.Accepted, initialized.StatusCode);
         }
 
-        using (var list = await PostMcpAsync(client, McpServer, accessToken, ToolsListPayload(2)))
+        using (var list = await PostMcpAsync(client, accessToken, ToolsListPayload(2)))
         {
             Assert.Equal(ExpectedTools, await ToolNamesAsync(list));
         }
@@ -374,7 +373,6 @@ public sealed class AutomationMcpIngressTests
         var fullToken = await RequestTokenAsync(client, AllScopes);
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             fullToken,
             ToolCallPayload(3, "pegasus_intake_queue_list", new { limit = 10 })))
         {
@@ -405,7 +403,6 @@ public sealed class AutomationMcpIngressTests
         // refusal message is content-safe.
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             fullToken,
             ToolCallPayload(
                 4,
@@ -434,7 +431,6 @@ public sealed class AutomationMcpIngressTests
         var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             casesOnlyToken,
             ToolCallPayload(5, "pegasus_intake_queue_list", new { limit = 10 })))
         {
@@ -445,7 +441,6 @@ public sealed class AutomationMcpIngressTests
         // whatever the token's cases scope allows on a Case.
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             casesOnlyToken,
             ToolCallPayload(
                 9,
@@ -476,7 +471,6 @@ public sealed class AutomationMcpIngressTests
 
         using var response = await PostMcpAsync(
             client,
-            McpServer,
             token,
             ToolCallPayload(6, "pegasus_case_get", new { caseId, limit = 1 }));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -510,7 +504,6 @@ public sealed class AutomationMcpIngressTests
         var accessToken = await RequestTokenAsync(client, AllScopes);
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             accessToken,
             ToolCallPayload(6, "pegasus_intake_queue_list", new { limit = 10 })))
         {
@@ -543,7 +536,6 @@ public sealed class AutomationMcpIngressTests
 
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             accessToken,
             ToolCallPayload(7, "pegasus_intake_queue_list", new { limit = 10 })))
         {
@@ -618,7 +610,6 @@ public sealed class AutomationMcpIngressTests
         var restoredToken = await RequestTokenAsync(client, AllScopes);
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             restoredToken,
             ToolCallPayload(8, "pegasus_intake_queue_list", new { limit = 10 })))
         {
@@ -657,7 +648,6 @@ public sealed class AutomationMcpIngressTests
         // control calls, and the tool returns the begin-shaped result.
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             accessToken,
             ToolCallPayload(
                 20,
@@ -692,7 +682,6 @@ public sealed class AutomationMcpIngressTests
         // and the version the case now stands at, with no token disclosed.
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             accessToken,
             ToolCallPayload(
                 21,
@@ -753,7 +742,6 @@ public sealed class AutomationMcpIngressTests
         // refused and the version the case now stands at, with no token.
         using (var response = await PostMcpAsync(
             client,
-            McpServer,
             accessToken,
             ToolCallPayload(
                 30,

@@ -34,20 +34,18 @@
                     }
                     else
                     {
-                        <ul class="plain">
+                        <div class="stack">
                             @* The description alone (v41 S5): the scope identifier is the tick
                                box's value, never printed. Ticked by default; the grant holds the
                                ticked scopes (ADR-0087). The boxes post with the consent form below. *@
                             @foreach (var access in Model.RequestedAccess)
                             {
-                                <li>
-                                    <label class="choice">
-                                        <input type="checkbox" name="ApprovedScopes" value="@access.Key" form="consent-form" checked />
-                                        <span>@access.Value</span>
-                                    </label>
-                                </li>
+                                <label class="choice">
+                                    <input type="checkbox" name="ApprovedScopes" value="@access.Key" form="consent-form" checked />
+                                    <span>@access.Value</span>
+                                </label>
                             }
-                        </ul>
+                        </div>
                     }
                 </dd>
             </div>

@@ -68,11 +68,10 @@ internal static class AutomationMcpTestSupport
 
     public static async Task<HttpResponseMessage> PostMcpAsync(
         HttpClient client,
-        string server,
         string? accessToken,
         string payload)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, server);
+        using var request = new HttpRequestMessage(HttpMethod.Post, McpServer);
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Accept.ParseAdd("text/event-stream");
@@ -178,7 +177,7 @@ internal static class AutomationMcpTestSupport
     public static string Sha256Hex(byte[] content) => Convert.ToHexString(SHA256.HashData(content));
 
     /// <summary>
-    /// Stages a document in parts on the documents server (R203): begins the
+    /// Stages a document in parts (R203): begins the
     /// upload under the key, then sends every part with its own SHA-256.
     /// </summary>
     public static async Task<Guid> StageUploadAsync(
@@ -192,7 +191,6 @@ internal static class AutomationMcpTestSupport
         int partCount;
         using (var begin = await PostMcpAsync(
             client,
-            McpServer,
             token,
             ToolCallPayload(
                 1,
@@ -211,7 +209,6 @@ internal static class AutomationMcpTestSupport
             var part = document[offset..Math.Min(document.Length, offset + partBytes)];
             using var sent = await PostMcpAsync(
                 client,
-                McpServer,
                 token,
                 ToolCallPayload(
                     1 + partNumber,
@@ -260,7 +257,6 @@ internal static class AutomationMcpTestSupport
     {
         using var response = await PostMcpAsync(
             client,
-            McpServer,
             token,
             ToolCallPayload(
                 rpcId,
