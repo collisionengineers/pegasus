@@ -192,8 +192,9 @@ public sealed class ReadUploadedImageTests
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken)
         {
             Reads.Add(storageKey);
-            return Task.FromResult<ReadOnlyMemory<byte>?>(
-                Content.TryGetValue(storageKey, out var bytes) ? bytes : null);
+            // A missing key answers null, never an empty buffer: the store holds nothing.
+            return Task.FromResult(
+                Content.TryGetValue(storageKey, out var bytes) ? new ReadOnlyMemory<byte>(bytes) : (ReadOnlyMemory<byte>?)null);
         }
     }
 }
