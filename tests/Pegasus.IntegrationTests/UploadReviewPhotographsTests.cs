@@ -4,11 +4,11 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The upload review draws an uploaded image, or lists a photograph pulled out
-/// of a document, only once custody can serve it, and asks the page to look
-/// again while one is still waiting. Drawing it earlier drew a broken image:
-/// the image and asset addresses answer 409 until custody has confirmed the
-/// bytes.
+/// The upload review draws an uploaded image at once, from the bytes intake
+/// holds (operator, 28 October 2026, R463). A photograph pulled out of a
+/// document is listed only once custody can serve it, and the page looks again
+/// while one is still waiting: the asset address answers 409 until custody has
+/// confirmed the bytes.
 /// </summary>
 public sealed class UploadReviewPhotographsTests
 {
@@ -30,42 +30,24 @@ public sealed class UploadReviewPhotographsTests
             only.Url);
     }
 
-    [Fact]
-    public void AnImageFileIsAddressedByItsSourceHashAndAnOutcomeImageByItsOwn()
-    {
-        var image = Receipt("image/png", "A", IncomingArtifactCustodyState.Confirmed);
-        var outcomeReceiptId = Guid.NewGuid();
-        var outcome = new UploadOutcomeView(
-            UploadOutcomeKind.Working,
-            "Processing",
-            "The file is being processed.",
-            null,
-            null,
-            ThumbnailReceiptId: outcomeReceiptId,
-            ThumbnailContentHash: new string('B', 64));
-
-        Assert.Equal(
-            $"/Received/{image.Id:D}/Image?v={new string('A', 64)}",
-            UploadReviewFile.ImageUrlOf(null, image));
-        Assert.Equal(
-            $"/Received/{outcomeReceiptId:D}/Image?v={new string('B', 64)}",
-            UploadReviewFile.ImageUrlOf(outcome, image));
-        Assert.Null(UploadReviewFile.ImageUrlOf(null, Receipt("application/pdf", "C", IncomingArtifactCustodyState.Confirmed)));
-        Assert.Null(UploadReviewFile.ImageUrlOf(null, null));
-    }
-
     /// <summary>
-    /// An uploaded image is drawn only once custody can serve it: the image
-    /// address answers 409 until then, which drew a broken image in the review.
+    /// An uploaded image is addressed from the first render by its staged
+    /// receipt and content hash, whatever custody says; a document is not drawn.
     /// </summary>
-    [Theory]
-    [InlineData(IncomingArtifactCustodyState.Pending)]
-    [InlineData(IncomingArtifactCustodyState.Failed)]
-    [InlineData(IncomingArtifactCustodyState.Unknown)]
-    public void AnImageFileHasNoReviewImageUntilCustodyConfirmsIt(IncomingArtifactCustodyState state)
+    [Fact]
+    public void AnUploadedImageIsAddressedFromTheFirstRenderByItsHash()
     {
-        Assert.Null(UploadReviewFile.ImageUrlOf(null, Receipt("image/jpeg", "A", state)));
-        Assert.Null(UploadReviewFile.ImageUrlOf(null, Receipt("image/jpeg", "A")));
+        var stagedReceiptId = Guid.NewGuid();
+        var hash = new string('A', 64);
+
+        Assert.Equal(
+            $"/Upload/Image/{stagedReceiptId:D}?v={hash}",
+            UploadReviewFile.ImageUrlOf(stagedReceiptId, "image/png", hash));
+        Assert.Equal(
+            $"/Upload/Image/{stagedReceiptId:D}",
+            UploadReviewFile.ImageUrlOf(stagedReceiptId, "image/jpeg", null));
+        Assert.Null(UploadReviewFile.ImageUrlOf(stagedReceiptId, "application/pdf", hash));
+        Assert.Null(UploadReviewFile.ImageUrlOf(stagedReceiptId, null, hash));
     }
 
     [Theory]
@@ -82,17 +64,15 @@ public sealed class UploadReviewPhotographsTests
         Assert.Equal(expected, UploadReviewFile.AwaitsCustody(receipt));
     }
 
+    /// <summary>An uploaded image file is drawn from intake bytes, so its custody holds nothing back.</summary>
     [Theory]
-    [InlineData(IncomingArtifactCustodyState.Pending, true)]
-    [InlineData(IncomingArtifactCustodyState.Confirmed, false)]
-    [InlineData(IncomingArtifactCustodyState.Failed, false)]
-    [InlineData(IncomingArtifactCustodyState.Unknown, false)]
-    public void PageLooksAgainOnlyWhileImageFileCustodyIsPending(
-        IncomingArtifactCustodyState state,
-        bool expected)
+    [InlineData(IncomingArtifactCustodyState.Pending)]
+    [InlineData(IncomingArtifactCustodyState.Confirmed)]
+    [InlineData(IncomingArtifactCustodyState.Failed)]
+    [InlineData(IncomingArtifactCustodyState.Unknown)]
+    public void ASourceFileNeverHoldsThePageBack(IncomingArtifactCustodyState state)
     {
-        Assert.Equal(expected, UploadReviewFile.AwaitsCustody(Receipt("image/png", "A", state)));
-        // A document's own source is downloaded, never drawn, so it holds nothing back.
+        Assert.False(UploadReviewFile.AwaitsCustody(Receipt("image/png", "A", state)));
         Assert.False(UploadReviewFile.AwaitsCustody(Receipt("application/pdf", "B", state)));
     }
 
@@ -122,9 +102,6 @@ public sealed class UploadReviewPhotographsTests
 
     private static IntakeReceipt Receipt(params IntakeAssetRecord[] assets) =>
         Receipt("application/pdf", "hash", assets);
-
-    private static IntakeReceipt Receipt(string mediaType, string hashDigit) =>
-        Receipt(mediaType, new string(hashDigit[0], 64), []);
 
     private static IntakeReceipt Receipt(string mediaType, string hashDigit, IncomingArtifactCustodyState sourceCustody)
     {

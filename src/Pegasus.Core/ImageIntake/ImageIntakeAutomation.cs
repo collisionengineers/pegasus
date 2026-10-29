@@ -69,6 +69,14 @@ public sealed record ImageIntakeGroupReading(
 public interface IImageIntakeAutomation
 {
     Task<ImageIntakeAutomationOutcome> ApplyAsync(IntakeReceipt receipt, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The one registration the photographs inside an e-mail's PDF read, text
+    /// layer or images only, for mail linking (operator, 28 October 2026,
+    /// R474); null when the e-mail is not filed as a file, or its PDF's
+    /// photographs read none or disagree.
+    /// </summary>
+    Task<string?> ReadMailedPdfPhotographsAsync(IntakeReceipt receipt, CancellationToken cancellationToken);
 }
 
 public sealed class ImageIntakeAutomation(
@@ -99,7 +107,10 @@ public sealed class ImageIntakeAutomation(
         ArgumentNullException.ThrowIfNull(receipt);
         if (ImageIntakeLifecycleRules.IsPhotographReadEligible(receipt))
         {
-            return await ReadFiledUploadPhotographsAsync(receipt, cancellationToken);
+            // An e-mail's PDF photographs were read before mail linking (R474).
+            return receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+                ? await ReadFiledUploadPhotographsAsync(receipt, cancellationToken)
+                : new(receipt);
         }
 
         if (!ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt)
@@ -206,6 +217,33 @@ public sealed class ImageIntakeAutomation(
 
         await ScanAsync(receipt, cancellationToken);
         return new(receipt);
+    }
+
+    /// <summary>
+    /// An e-mail filed as a file has the photographs inside its PDF read, and
+    /// every one gets its durable recognition outcome; the one registration
+    /// they agree on is a mail-linking signal (operator, 28 October 2026,
+    /// R474). Only the PDF's photographs are read: R474 names them, and a
+    /// photograph attached beside the PDF is filed with it, never read. The
+    /// read itself registers, links and holds nothing.
+    /// </summary>
+    public async Task<string?> ReadMailedPdfPhotographsAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        if (receipt.SourceIdentity.Channel != IntakeSourceChannel.Mailbox
+            || !ImageIntakeLifecycleRules.IsPhotographReadEligible(receipt))
+        {
+            return null;
+        }
+
+        // An image the reader took from a PDF page.
+        var suggestions = await ScanAsync(
+            receipt,
+            receipt.AssetRecords.Where(asset => asset is { Kind: IntakeAssetKind.EmbeddedImage, PageNumber: not null }),
+            cancellationToken);
+        return VrmRecognitionProvisionalBar.SingleAcceptedRegistration(suggestions);
     }
 
     private static RegisterUnidentifiedRequest BuildTechnicalFailureRegistrationRequest(
@@ -552,8 +590,18 @@ public sealed class ImageIntakeAutomation(
         }
     }
 
+    private Task<IReadOnlyList<ImageVrmSuggestion>> ScanAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken) =>
+        ScanAsync(receipt, receipt.AssetRecords, cancellationToken);
+
+    /// <summary>
+    /// Reads the photographs selected from <paramref name="assets"/>, a subset
+    /// of the receipt's retained assets.
+    /// </summary>
     private async Task<IReadOnlyList<ImageVrmSuggestion>> ScanAsync(
         IntakeReceipt receipt,
+        IEnumerable<IntakeAssetRecord> assets,
         CancellationToken cancellationToken)
     {
         // Recognition is re-triggered by every group event (a sibling member
@@ -564,7 +612,7 @@ public sealed class ImageIntakeAutomation(
         // reused rather than recomputed.
         var recordedByAsset = (await suggestionStore.ListForReceiptAsync(receipt.Id, cancellationToken))
             .ToDictionary(suggestion => suggestion.IntakeAssetId);
-        var selectedAssets = InstructionEvidenceImages.Select(receipt.AssetRecords);
+        var selectedAssets = InstructionEvidenceImages.Select(assets);
         var results = new List<ImageVrmSuggestion>(selectedAssets.Count);
         foreach (var asset in selectedAssets)
         {
@@ -653,11 +701,17 @@ public sealed class ImageIntakeAutomation(
             reason);
     }
 
+    /// <summary>
+    /// Whether a plate read may be recorded as a registration. A read that is
+    /// digits alone, such as a taxi licence plate, never is (operator,
+    /// 28 October 2026, R461).
+    /// </summary>
     private static bool IsUsableRegistration(string registration) =>
         !string.IsNullOrWhiteSpace(registration)
         && registration.Length <= 20
         && registration.All(character =>
-            char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character));
+            char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character))
+        && !registration.All(char.IsAsciiDigit);
 
     /// <summary>
     /// Whether a manual upload's matched Cases are still waiting for staff:

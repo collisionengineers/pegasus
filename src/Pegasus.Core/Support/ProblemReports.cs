@@ -148,6 +148,9 @@ public interface IProblemReportStore
 public interface IProblemReportSink
 {
     Task<ProblemReportDelivery> SendAsync(ProblemReport report, CancellationToken cancellationToken);
+
+    /// <summary>Where an issue the sink already holds lives, by its number: what an Administrator confirms an unknown report became.</summary>
+    ProblemReportDelivery IssueFor(int issueNumber);
 }
 
 public static class ProblemReportPolicy
@@ -158,6 +161,12 @@ public static class ProblemReportPolicy
     public static readonly TimeSpan RecentActionWindow = TimeSpan.FromDays(7);
     public static readonly TimeSpan DispatchClaimLease = TimeSpan.FromMinutes(2);
 
+    /// <summary>
+    /// The reason a report confirmed as no issue keeps beside its Not sent
+    /// status (FRD-17 "Not sent with the reason"; R538).
+    /// </summary>
+    public const string NoIssueConfirmed = "No issue was created; confirmed by an administrator.";
+
     public static string ValidateDescription(string? description)
     {
         var value = (description ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
@@ -165,7 +174,7 @@ public static class ProblemReportPolicy
             || value.Any(character => char.IsControl(character) && character != '\n'))
         {
             throw new ArgumentException(
-                $"A problem report says what happened, in 1 to {MaximumDescriptionLength} characters.", nameof(description));
+                $"A problem report says what happened, in 1 to {MaximumDescriptionLength} characters.");
         }
 
         return value;
@@ -174,7 +183,7 @@ public static class ProblemReportPolicy
     public static string NormalizeOperationKey(string? operationKey) =>
         Guid.TryParse(operationKey, out var value) && value != Guid.Empty
             ? value.ToString("N")
-            : throw new ArgumentException("The problem report form has expired. Open it again.", nameof(operationKey));
+            : throw new ArgumentException("The problem report form has expired. Open it again.");
 
     public static string RequestHash(Guid staffId, string description, ProblemReportRequest request) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
@@ -386,20 +395,26 @@ public sealed class RetryProblemReport(
     }
 }
 
-/// <summary>An Administrator resolves an unknown GitHub outcome after checking the report ID.</summary>
-public sealed class ReconcileProblemReport(IProblemReportStore store, TimeProvider timeProvider)
+/// <summary>
+/// An Administrator resolves an unknown GitHub outcome after checking the
+/// report ID. The issue's address comes from the sink, the one owner of where
+/// reports go; the caller gives only its number.
+/// </summary>
+public sealed class ReconcileProblemReport(
+    IProblemReportStore store,
+    IProblemReportSink sink,
+    TimeProvider timeProvider)
 {
     public Task<ProblemReport> ConfirmIssueAsync(
-        ActionActor actor, Guid id, ProblemReportDelivery delivery, CancellationToken cancellationToken)
+        ActionActor actor, Guid id, int issueNumber, CancellationToken cancellationToken)
     {
         ProblemReportPolicy.RequireStaff(actor, StaffAccessRight.ViewOperationalReports);
-        if (id == Guid.Empty || delivery.IssueNumber <= 0
-            || string.IsNullOrWhiteSpace(delivery.IssueUrl))
+        if (id == Guid.Empty || issueNumber <= 0)
         {
             throw new ArgumentException("A matching issue is required to reconcile this report.");
         }
 
-        return store.ConfirmIssueAsync(id, delivery, timeProvider.GetUtcNow(), cancellationToken);
+        return store.ConfirmIssueAsync(id, sink.IssueFor(issueNumber), timeProvider.GetUtcNow(), cancellationToken);
     }
 
     public Task<ProblemReport> ConfirmNoIssueAsync(

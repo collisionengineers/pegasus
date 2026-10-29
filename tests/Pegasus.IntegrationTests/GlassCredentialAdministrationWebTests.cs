@@ -300,7 +300,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
 
         var settings = await GetHtmlAsync(
             client,
-            $"{Route}?editStaffId={StaffId:D}&expectedVersion={accountVersion}");
+            $"{Route}?editStaffId={StaffId:D}");
         Assert.Equal(StaffId.ToString("D"), InputValue(FormOf(settings, "Settings"), "staffId"));
     }
 

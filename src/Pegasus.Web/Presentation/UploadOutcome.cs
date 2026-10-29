@@ -69,9 +69,8 @@ public sealed record UploadOutcomeView(
     UploadOutcomeAction? PrimaryAction,
     UploadOutcomeAction? SecondaryAction,
     UploadOutcomeAttach? Attach = null,
-    Guid? ThumbnailReceiptId = null,
     UploadOutcomeRecord? Record = null,
-    string? ThumbnailContentHash = null)
+    Guid? UnidentifiedItemId = null)
 {
     /// <summary>Whether this state is worth polling again — mirrors the existing Received/Processing refresh rule.</summary>
     public bool IsStillWorking => Kind == UploadOutcomeKind.Working;
@@ -175,10 +174,7 @@ public sealed class UploadOutcomeQueries(
             return new(UploadOutcomeKind.Working, "Processing", "The file is being processed.", null, null);
         }
 
-        var view = await BuildForReceiptAsync(receipt, submissionGroupId, actor, cancellationToken);
-        return receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
-            ? view with { ThumbnailReceiptId = receipt.Id, ThumbnailContentHash = receipt.SourceHash }
-            : view;
+        return await BuildForReceiptAsync(receipt, submissionGroupId, actor, cancellationToken);
     }
 
     private async Task<UploadOutcomeView> BuildForReceiptAsync(
@@ -330,7 +326,8 @@ public sealed class UploadOutcomeQueries(
                 "This could not be matched automatically and needs a staff decision.",
                 new("Review", $"/Unidentified/{unidentified.Id:D}"),
                 null,
-                attach);
+                attach,
+                UnidentifiedItemId: unidentified.Id);
         }
 
         if (isImageOnlyMaterial

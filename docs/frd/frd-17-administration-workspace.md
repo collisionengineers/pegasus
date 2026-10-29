@@ -22,7 +22,10 @@ This document says how the Administration areas behave for an
 Administrator. The rules those settings control are owned elsewhere:
 accounts and contacts by [FRD-04](frd-04-parties-accounts-and-access.md),
 completeness and chasing by
-[FRD-13](frd-13-case-lifecycle-and-workflow.md), valuations by
+[FRD-13](frd-13-case-lifecycle-and-workflow.md), the approved mailbox
+allowlist by
+[FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md),
+valuations by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md) and
 estimates by
 [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md).
@@ -162,6 +165,11 @@ settings or one card with its rendered expected version; a stale save is
 refused and asks the Administrator to reload. Labour-rate cards stay inside
 this area; they are not an area of their own.
 
+### Mail settings
+
+**Mail settings** (`/Administration/Mailboxes`) follows
+[FRD-26 §Mailbox allowlist, activation and wipe](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe).
+
 ### E-mail templates
 
 **E-mail templates** (`/Administration/EmailTemplates`) holds the text of
@@ -214,6 +222,35 @@ and asks the Administrator to reload.
 the list and out of new selection. A valuation already recorded against it
 keeps its own snapshot
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+
+### Service health
+
+**Service health** (`/Administration/Health`) is Administration only and
+states the external-work queue
+([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). This section
+describes the page as built on 29 October 2026 (R527). It is one table with
+the columns Service, State, Last recorded and Dependency. Every row comes
+from something the system has already recorded (a poll cursor, a queued
+item, a job or a switch) and names when that was recorded. The page probes
+no dependency, and a service with no recorded source has no row.
+
+The rows, in order, are: each approved mailbox's poll and each mailbox's
+Sent-items evidence poll (Microsoft Graph); Receiving dispatch (Worker);
+External work, as one row per failed item that can be retried, named by its
+kind, or one row for the whole queue when nothing has failed (Box or
+Worker); AI jobs (AI); and Automation clients (Automation client). A row's
+State reads **Working**, **Needs attention** or **No recorded activity**,
+and a failed mail poll shows its reason under the chip. A completed poll
+older than the Inbox's stale threshold
+([FRD-20](frd-20-mailbox-workspace.md#refresh-and-staleness)) needs
+attention. A mailbox address is shown as it was saved; only an
+external-work kind code is put into words.
+
+When any of its reads fails, the page shows its unavailable notice in place
+of the table, never an empty or partial table, answers 200 and logs a
+warning (operator, 22 October 2026; R414). It carries no notice that the
+external-work queue is cut short (operator, 16 and 22 October 2026; R159,
+R415).
 
 ### Logs
 
@@ -423,5 +460,6 @@ separate evidence tiers
   [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md),
   [FRD-12](frd-12-operator-experience.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
-  [FRD-14](frd-14-record-edit-leases.md).
+  [FRD-14](frd-14-record-edit-leases.md),
+  [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
 - Design: [design](../design/README.md).

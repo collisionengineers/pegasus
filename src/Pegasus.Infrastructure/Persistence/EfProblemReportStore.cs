@@ -226,7 +226,7 @@ internal sealed class EfProblemReportStore(IDbContextFactory<PegasusDbContext> c
             .Where(item => item.Id == id && item.Status == nameof(ProblemReportStatus.Unknown))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(item => item.Status, nameof(ProblemReportStatus.NotSent))
-                .SetProperty(item => item.Failure, (string?)null), cancellationToken);
+                .SetProperty(item => item.Failure, ProblemReportPolicy.NoIssueConfirmed), cancellationToken);
         if (changed != 1)
         {
             throw new ProblemReportClaimConflictException();

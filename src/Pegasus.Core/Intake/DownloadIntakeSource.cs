@@ -124,7 +124,7 @@ public sealed class DownloadIntakeSource(
         }
     }
 
-    private static string SafeFileName(string value)
+    internal static string SafeFileName(string value)
     {
         var normalised = value.Replace('\\', '/');
         var leaf = normalised[(normalised.LastIndexOf('/') + 1)..];

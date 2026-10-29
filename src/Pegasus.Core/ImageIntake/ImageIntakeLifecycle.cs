@@ -129,18 +129,20 @@ public static class ImageIntakeLifecycleRules
     }
 
     /// <summary>
-    /// A manual upload that is filed as a file and still carries photographs:
-    /// a PDF with a text layer, or a recognised report, whose selected
-    /// photographs are vehicle images all the same (operator, 28 October
-    /// 2026, R472). Its photographs are read for a registration so the upload
-    /// can offer the Cases the read matches (R473); the file itself never
-    /// registers an Image intake or an Unidentified item (R296). A declared
-    /// destination needs no identification, and the mail route is R474.
+    /// A manual upload or an e-mail that is filed as a file and still carries
+    /// photographs: a PDF with a text layer or images only, or a recognised
+    /// report, whose selected photographs are vehicle images all the same
+    /// (operator, 28 October 2026, R472). Its photographs are read for a
+    /// registration: the upload offers the Cases the read matches (R473), and
+    /// on mail the plate a PDF's photographs read is a mail-linking signal
+    /// (R474). The file itself never registers an Image intake or an
+    /// Unidentified item (R296). A declared destination needs no
+    /// identification.
     /// </summary>
     public static bool IsPhotographReadEligible(IntakeReceipt receipt)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        return receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+        return receipt.SourceIdentity.Channel is IntakeSourceChannel.ManualUpload or IntakeSourceChannel.Mailbox
             && receipt.CurrentCaseId is null
             && !receipt.HasDeclaredDestination
             && receipt.Decision == IntakeDecision.NeedsSorting

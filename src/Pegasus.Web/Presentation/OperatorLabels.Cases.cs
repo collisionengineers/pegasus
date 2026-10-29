@@ -90,6 +90,48 @@ public static partial class OperatorLabels
     }
 
     /// <summary>
+    /// Management Reports' own words, the ones no CSV or workbook carries; the
+    /// headings and column titles the files share are
+    /// <see cref="Pegasus.Core.Reports.AdministrationReportHeadings"/>.
+    /// </summary>
+    public static class Reports
+    {
+        public const string Period = "Period";
+        public const string From = "From";
+        public const string To = "To";
+        public const string Apply = "Apply";
+        public const string InvalidPeriod = "Choose a valid date range.";
+        public const string ThisMonth = "This month";
+        public const string LastMonth = "Last month";
+        public const string ThisQuarter = "This quarter";
+        public const string Last12Months = "Last 12 months";
+        public const string Custom = "Custom";
+
+        public const string Work = "Work";
+
+        /// <summary>The Work choice for every report; Inspection and Audit read <see cref="OperatorLabels.CaseTypeName(CaseType)"/>.</summary>
+        public const string AllWork = "All";
+
+        public const string Person = "Person";
+        public const string AllPeople = "All people";
+        public const string DownloadCsv = "Download CSV";
+        public const string DownloadWorkbook = "Download workbook";
+        public const string PreviousPeriod = "Previous period";
+        public const string Unavailable = "Unavailable";
+        public const string Now = "Now";
+        public const string EngineerActivityTotals = "Engineer activity totals";
+        public const string ReportsByPrincipalTotals = "Reports by Principal totals";
+        public const string QueuesTotals = "Queues totals";
+        public const string CasesCurrentlyHeld = "Cases currently held";
+        public const string Unidentified = "Unidentified";
+        public const string OldestSince = "Oldest since";
+        public const string NoEngineerActivity = "No engineer activity was recorded for this period.";
+        public const string NoReports = "No reports were recorded for this period.";
+        public const string NoTurnaround = "No holding or turnaround activity was recorded for this period.";
+        public const string NothingHeld = "Nothing is currently held.";
+    }
+
+    /// <summary>
     /// The Case workspace's Vehicle, Inspection address and Case Files
     /// sections — one list. Appended inside its own nested class; no member
     /// above is reordered or edited.

@@ -256,10 +256,12 @@ internal sealed class EfIntakeMutationStore(
 
     public async Task<AutomaticMailCaseAssociationEvidence?> GetAsync(
         Guid intakeReceiptId,
+        string? photographRegistration,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await LoadMailAssociationEvidenceAsync(context, intakeReceiptId, cancellationToken);
+        return await LoadMailAssociationEvidenceAsync(
+            context, intakeReceiptId, photographRegistration, cancellationToken);
     }
 
     public async Task<AutomaticCaseAssociationOutcome> AssociateFromMatchAsync(
@@ -326,6 +328,7 @@ internal sealed class EfIntakeMutationStore(
             var currentEvidence = await LoadMailAssociationEvidenceAsync(
                 context,
                 request.IntakeReceiptId,
+                request.PhotographRegistration,
                 cancellationToken);
             if (currentEvidence is null
                 || !FixedTimeHashEquals(currentEvidence.Fingerprint, expectedFingerprint))
@@ -1461,6 +1464,7 @@ internal sealed class EfIntakeMutationStore(
     private static async Task<AutomaticMailCaseAssociationEvidence?> LoadMailAssociationEvidenceAsync(
         PegasusDbContext context,
         Guid intakeReceiptId,
+        string? photographRegistration,
         CancellationToken cancellationToken)
     {
         var receipt = await context.IntakeReceipts
@@ -1501,8 +1505,10 @@ internal sealed class EfIntakeMutationStore(
             return null;
         }
 
+        // A message that names no registration has the one its PDF's
+        // photographs read (operator, 28 October 2026, R474).
         var normalizedRegistration = Pegasus.Core.Cases.CaseRegistration.Normalize(
-            receipt.VehicleRegistration);
+            receipt.VehicleRegistration ?? photographRegistration);
         var registrationCandidates = await RegistrationCandidatesAsync(
             context,
             normalizedRegistration,

@@ -116,11 +116,7 @@ public sealed class EfIntakeAssociationDestinations(
         var suggestions = (await vrmSuggestions.ListForReceiptsAsync(receiptIds, cancellationToken))
             .Values
             .SelectMany(readings => readings);
-
-        var registrations = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(suggestions);
-        return registrations.Length == VrmRecognitionProvisionalBar.RequiredDistinctRegistrations
-            ? registrations[0]
-            : null;
+        return VrmRecognitionProvisionalBar.SingleAcceptedRegistration(suggestions);
     }
 
     public Task<IReadOnlyList<IntakeAssociationDestination>> SearchAsync(

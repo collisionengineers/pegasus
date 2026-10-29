@@ -7,7 +7,7 @@
     ViewData["AdminArea"] = "reports";
     if (!Model.PeriodInvalid)
     {
-        ViewData["SecondaryActionText"] = "Download workbook";
+        ViewData["SecondaryActionText"] = OperatorLabels.Reports.DownloadWorkbook;
         ViewData["SecondaryActionUrl"] = Url.Page("/Administration/Reports", "Workbook", Model.State());
         ViewData["SecondaryActionIcon"] = "icon-file-spreadsheet";
     }
@@ -37,12 +37,12 @@
 
     void Download(string handler)
     {
-        <a class="btn btn--small" href="@Url.Page("/Administration/Reports", handler, Model.State())" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg><span>Download CSV</span></a>
+        <a class="btn btn--small" href="@Url.Page("/Administration/Reports", handler, Model.State())" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg><span>@OperatorLabels.Reports.DownloadCsv</span></a>
     }
 
     void Metric(string label, string value, string? previous)
     {
-        <div class="metric"><span class="metric-label">@label</span><span class="metric-value">@value</span>@if (previous is not null) { <span class="metric-meta">Previous period @previous</span> }</div>
+        <div class="metric"><span class="metric-label">@label</span><span class="metric-value">@value</span>@if (previous is not null) { <span class="metric-meta">@OperatorLabels.Reports.PreviousPeriod @previous</span> }</div>
     }
 
     void SortHeader(string label, string column, bool numeric, bool principal)
@@ -58,14 +58,14 @@
     {
         <form method="get" class="admin-report-head-field" data-auto-submit>
             @{ Hidden(name); }
-            <label for="report-@name">Work</label>
+            <label for="report-@name">@OperatorLabels.Reports.Work</label>
             <select id="report-@name" name="@name">
                 @foreach (var (value, label) in ReportsModel.Works)
                 {
                     <option value="@value" selected="@(value == current)">@label</option>
                 }
             </select>
-            <noscript><button type="submit" class="btn btn--small">Apply</button></noscript>
+            <noscript><button type="submit" class="btn btn--small">@OperatorLabels.Reports.Apply</button></noscript>
         </form>
     }
 }
@@ -73,12 +73,12 @@
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
-        <form method="get" class="panel admin-report-period" aria-label="Period">
+        <form method="get" class="panel admin-report-period" aria-label="@OperatorLabels.Reports.Period">
             <div class="panel-body">
                 @{ Hidden("period", "from", "to"); }
                 <div class="form-grid form-grid--auto admin-report-filter">
                     <div class="field">
-                        <label for="report-period">Period</label>
+                        <label for="report-period">@OperatorLabels.Reports.Period</label>
                         <select id="report-period" name="period" data-period-preset>
                             @foreach (var (value, _, label) in ReportsModel.Periods)
                             {
@@ -89,13 +89,13 @@
                     @* Minutes are the smallest unit a report is bounded by; the default
                        tag-helper format writes seconds and milliseconds into the value,
                        which the picker then shows. *@
-                    <div class="field"><label for="report-from">From</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" data-period-custom /></div>
-                    <div class="field"><label for="report-to">To</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" data-period-custom /></div>
-                    <div class="cluster"><button class="btn btn--primary" type="submit">Apply</button></div>
+                    <div class="field"><label for="report-from">@OperatorLabels.Reports.From</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" data-period-custom /></div>
+                    <div class="field"><label for="report-to">@OperatorLabels.Reports.To</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" data-period-custom /></div>
+                    <div class="cluster"><button class="btn btn--primary" type="submit">@OperatorLabels.Reports.Apply</button></div>
                 </div>
                 @if (Model.PeriodInvalid)
                 {
-                    <div class="validation-summary validation-summary-errors" role="alert"><ul><li>Choose a valid date range.</li></ul></div>
+                    <div class="validation-summary validation-summary-errors" role="alert"><ul><li>@OperatorLabels.Reports.InvalidPeriod</li></ul></div>
                 }
             </div>
         </form>
@@ -114,51 +114,51 @@
             var previousEngineer = Model.PreviousEngineer?.Rows;
             <section class="panel" aria-labelledby="mi01-title">
                 <div class="panel-head">
-                    <h2 id="mi01-title">Engineer activity</h2>
+                    <h2 id="mi01-title">@AdministrationReportHeadings.EngineerActivity</h2>
                     <div class="panel-actions">
                         <form method="get" class="admin-report-head-field" data-auto-submit>
                             @{ Hidden("engineerId"); }
-                            <label for="report-engineer">Person</label>
+                            <label for="report-engineer">@OperatorLabels.Reports.Person</label>
                             <select id="report-engineer" name="engineerId">
-                                <option value="">All people</option>
+                                <option value="">@OperatorLabels.Reports.AllPeople</option>
                                 @foreach (var person in Model.People)
                                 {
                                     <option value="@person.Id.ToString("D")" selected="@(person.Id == Model.EngineerId)">@person.Name</option>
                                 }
                             </select>
-                            <noscript><button type="submit" class="btn btn--small">Apply</button></noscript>
+                            <noscript><button type="submit" class="btn btn--small">@OperatorLabels.Reports.Apply</button></noscript>
                         </form>
                         @{ Download("Csv"); }
                     </div>
                 </div>
                 <div class="panel-body">
-                    <div class="metric-strip metric-strip--3" aria-label="Engineer activity totals">
+                    <div class="metric-strip metric-strip--3" aria-label="@OperatorLabels.Reports.EngineerActivityTotals">
                         @{
                             var unavailable = Model.EngineerActivityUnavailable;
-                            Metric("Queries received", unavailable ? "Unavailable" : engineerRows.Sum(row => row.QueriesReceived).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.QueriesReceived).ToString(invariant));
-                            Metric("Reports sent", unavailable ? "Unavailable" : engineerRows.Sum(row => row.ReportsSent).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.ReportsSent).ToString(invariant));
-                            Metric("Audit reports sent", unavailable ? "Unavailable" : engineerRows.Sum(row => row.AuditReportsSent).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.AuditReportsSent).ToString(invariant));
+                            Metric(AdministrationReportHeadings.QueriesReceived, unavailable ? OperatorLabels.Reports.Unavailable : engineerRows.Sum(row => row.QueriesReceived).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.QueriesReceived).ToString(invariant));
+                            Metric(AdministrationReportHeadings.ReportsSent, unavailable ? OperatorLabels.Reports.Unavailable : engineerRows.Sum(row => row.ReportsSent).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.ReportsSent).ToString(invariant));
+                            Metric(AdministrationReportHeadings.AuditReportsSent, unavailable ? OperatorLabels.Reports.Unavailable : engineerRows.Sum(row => row.AuditReportsSent).ToString(invariant), unavailable ? null : previousEngineer?.Sum(row => row.AuditReportsSent).ToString(invariant));
                         }
                     </div>
                     <div class="table-wrap section-gap">
                         <table class="table table--compact">
                             <thead>
                                 <tr>
-                                    @{ SortHeader("Person", "person", numeric: false, principal: false); }
-                                    @{ SortHeader("Queries received", "queries", numeric: true, principal: false); }
-                                    @{ SortHeader("Reports sent", "reports", numeric: true, principal: false); }
-                                    <th scope="col" class="num">Audit reports sent</th>
-                                    <th scope="col">Received to sent</th>
+                                    @{ SortHeader(AdministrationReportHeadings.Person, "person", numeric: false, principal: false); }
+                                    @{ SortHeader(AdministrationReportHeadings.QueriesReceived, "queries", numeric: true, principal: false); }
+                                    @{ SortHeader(AdministrationReportHeadings.ReportsSent, "reports", numeric: true, principal: false); }
+                                    <th scope="col" class="num">@AdministrationReportHeadings.AuditReportsSent</th>
+                                    <th scope="col">@AdministrationReportHeadings.ReceivedToSent</th>
                                 </tr>
                             </thead>
                             <tbody>
                             @if (Model.EngineerActivityUnavailable)
                             {
-                                <tr><td colspan="5" class="muted">Unavailable</td></tr>
+                                <tr><td colspan="5" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
                             }
                             else if (engineerRows.Count == 0)
                             {
-                                <tr><td colspan="5" class="muted">No engineer activity was recorded for this period.</td></tr>
+                                <tr><td colspan="5" class="muted">@OperatorLabels.Reports.NoEngineerActivity</td></tr>
                             }
                             else
                             {
@@ -189,38 +189,38 @@
             var principalRows = Model.PrincipalRows;
             <section class="panel" aria-labelledby="mi02-title">
                 <div class="panel-head">
-                    <h2 id="mi02-title">Reports by Principal</h2>
+                    <h2 id="mi02-title">@AdministrationReportHeadings.ReportsByPrincipal</h2>
                     <div class="panel-actions">
                         @{ await WorkChoice("work", Model.WorkValue); }
                         @{ Download("PrincipalCsv"); }
                     </div>
                 </div>
                 <div class="panel-body">
-                    <div class="metric-strip metric-strip--3" aria-label="Reports by Principal totals">
+                    <div class="metric-strip metric-strip--3" aria-label="@OperatorLabels.Reports.ReportsByPrincipalTotals">
                         @{
-                            Metric("Reports produced", principal is null ? "Unavailable" : principal.Rows.Sum(row => row.ReportsProduced).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.ReportsProduced).ToString(invariant));
-                            Metric("Reports sent", principal is null ? "Unavailable" : principal.Rows.Sum(row => row.Sent).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.Sent).ToString(invariant));
-                            Metric("Agreed fees", principal is null ? "Unavailable" : Money(principal.Rows.Sum(row => row.AgreedFeeTotal)), principal is null || previousPrincipal is null ? null : Money(previousPrincipal.Sum(row => row.AgreedFeeTotal)));
+                            Metric(AdministrationReportHeadings.ReportsProduced, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => row.ReportsProduced).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.ReportsProduced).ToString(invariant));
+                            Metric(AdministrationReportHeadings.ReportsSent, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => row.Sent).ToString(invariant), principal is null ? null : previousPrincipal?.Sum(row => row.Sent).ToString(invariant));
+                            Metric(AdministrationReportHeadings.AgreedFees, principal is null ? OperatorLabels.Reports.Unavailable : Money(principal.Rows.Sum(row => row.AgreedFeeTotal)), principal is null || previousPrincipal is null ? null : Money(previousPrincipal.Sum(row => row.AgreedFeeTotal)));
                         }
                     </div>
                     <div class="table-wrap section-gap">
                         <table class="table table--compact">
                             <thead>
                                 <tr>
-                                    @{ SortHeader("Principal", "code", numeric: false, principal: true); }
-                                    @{ SortHeader("Reports produced", "produced", numeric: true, principal: true); }
-                                    @{ SortHeader("Reports sent", "sent", numeric: true, principal: true); }
-                                    @{ SortHeader("Agreed fees", "fees", numeric: true, principal: true); }
+                                    @{ SortHeader(AdministrationReportHeadings.Principal, "code", numeric: false, principal: true); }
+                                    @{ SortHeader(AdministrationReportHeadings.ReportsProduced, "produced", numeric: true, principal: true); }
+                                    @{ SortHeader(AdministrationReportHeadings.ReportsSent, "sent", numeric: true, principal: true); }
+                                    @{ SortHeader(AdministrationReportHeadings.AgreedFees, "fees", numeric: true, principal: true); }
                                 </tr>
                             </thead>
                             <tbody>
                             @if (principal is null)
                             {
-                                <tr><td colspan="4" class="muted">Unavailable</td></tr>
+                                <tr><td colspan="4" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
                             }
                             else if (principalRows.Count == 0)
                             {
-                                <tr><td colspan="4" class="muted">No reports were recorded for this period.</td></tr>
+                                <tr><td colspan="4" class="muted">@OperatorLabels.Reports.NoReports</td></tr>
                             }
                             else
                             {
@@ -244,7 +244,7 @@
 
             <section class="panel" aria-labelledby="months-title">
                 <div class="panel-head">
-                    <h2 id="months-title">By month</h2>
+                    <h2 id="months-title">@AdministrationReportHeadings.ByMonth</h2>
                     <div class="panel-actions">
                         @{ await WorkChoice("workm", Model.MonthWorkValue); }
                         @{ Download("MonthsCsv"); }
@@ -253,15 +253,15 @@
                 <div class="panel-body">
                     <div class="table-wrap">
                         <table class="table table--compact" aria-labelledby="months-title" data-reports-by-month>
-                            <thead><tr><th scope="col">Month</th><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">Fee notes produced</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">Agreed fees</th></tr></thead>
+                            <thead><tr><th scope="col">@AdministrationReportHeadings.Month</th><th scope="col">@AdministrationReportHeadings.Principal</th><th scope="col" class="num">@AdministrationReportHeadings.ReportsProduced</th><th scope="col" class="num">@AdministrationReportHeadings.FeeNotesProduced</th><th scope="col" class="num">@AdministrationReportHeadings.ReportsSent</th><th scope="col" class="num">@AdministrationReportHeadings.AgreedFees</th></tr></thead>
                             <tbody>
                             @if (Model.Monthly is not { } months)
                             {
-                                <tr><td colspan="6" class="muted">Unavailable</td></tr>
+                                <tr><td colspan="6" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
                             }
                             else if (months.Count == 0)
                             {
-                                <tr><td colspan="6" class="muted">No reports were recorded for this period.</td></tr>
+                                <tr><td colspan="6" class="muted">@OperatorLabels.Reports.NoReports</td></tr>
                             }
                             else
                             {
@@ -286,7 +286,7 @@
 
             <section class="panel" aria-labelledby="outcomes-title">
                 <div class="panel-head">
-                    <h2 id="outcomes-title">Outcomes</h2>
+                    <h2 id="outcomes-title">@AdministrationReportHeadings.Outcomes</h2>
                     <div class="panel-actions">@{ Download("OutcomesCsv"); }</div>
                 </div>
                 <div class="panel-body">
@@ -294,7 +294,7 @@
                         <table class="table table--compact">
                             <thead>
                                 <tr>
-                                    <th scope="col">Principal</th>
+                                    <th scope="col">@AdministrationReportHeadings.Principal</th>
                                     @foreach (var outcome in GetReportOutcomes.Order)
                                     {
                                         <th scope="col" class="num">@CaseReportDeliveryNaming.OutcomeWords(outcome)</th>
@@ -306,11 +306,11 @@
                             <tbody>
                             @if (Model.Outcomes is not { } outcomes)
                             {
-                                <tr><td colspan="7" class="muted">Unavailable</td></tr>
+                                <tr><td colspan="7" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
                             }
                             else if (outcomes.Rows.Count == 0)
                             {
-                                <tr><td colspan="7" class="muted">No reports were recorded for this period.</td></tr>
+                                <tr><td colspan="7" class="muted">@OperatorLabels.Reports.NoReports</td></tr>
                             }
                             else
                             {
@@ -335,17 +335,17 @@
 
             <section class="panel" aria-labelledby="mi03-title">
                 <div class="panel-head">
-                    <h2 id="mi03-title">Turnaround</h2>
+                    <h2 id="mi03-title">@AdministrationReportHeadings.Turnaround</h2>
                     <div class="panel-actions">@{ Download("TurnaroundCsv"); }</div>
                 </div>
                 <div class="panel-body">
                     <div class="table-wrap">
                         <table class="table table--compact">
-                            <thead><tr><th scope="col">Principal</th><th scope="col">Time to produce</th><th scope="col">Time to ready</th><th scope="col">Time to send</th></tr></thead>
+                            <thead><tr><th scope="col">@AdministrationReportHeadings.Principal</th><th scope="col">@AdministrationReportHeadings.TimeToProduce</th><th scope="col">@AdministrationReportHeadings.TimeToReady</th><th scope="col">@AdministrationReportHeadings.TimeToSend</th></tr></thead>
                             <tbody>
                             @if (principal is null)
                             {
-                                <tr><td colspan="4" class="muted">Unavailable</td></tr>
+                                <tr><td colspan="4" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
                             }
                             else
                             {
@@ -359,7 +359,7 @@
                                         <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
                                     </tr>
                                 }
-                                @if (turnaroundRows.Length == 0) { <tr><td colspan="4" class="muted">No holding or turnaround activity was recorded for this period.</td></tr> }
+                                @if (turnaroundRows.Length == 0) { <tr><td colspan="4" class="muted">@OperatorLabels.Reports.NoTurnaround</td></tr> }
                             }
                             </tbody>
                         </table>
@@ -374,32 +374,32 @@
             var queueRows = principal is null ? Array.Empty<PrincipalReportActivity>() : AdministrationReportTables.QueueRows(principal).ToArray();
             <section class="panel" aria-labelledby="queues-title">
                 <div class="panel-head">
-                    <h2 id="queues-title">Queues</h2>
-                    <span class="meta">Now</span>
+                    <h2 id="queues-title">@AdministrationReportHeadings.Queues</h2>
+                    <span class="meta">@OperatorLabels.Reports.Now</span>
                     <div class="panel-actions">@{ Download("QueuesCsv"); }</div>
                 </div>
                 <div class="panel-body">
-                    <div class="metric-strip metric-strip--3" aria-label="Queues totals">
+                    <div class="metric-strip metric-strip--3" aria-label="@OperatorLabels.Reports.QueuesTotals">
                         @{
-                            Metric("Cases currently held", principal is null ? "Unavailable" : principal.Rows.Sum(row => row.CurrentHeldCases).ToString(invariant), null);
-                            Metric("Triages", principal is null ? "Unavailable" : principal.Rows.Sum(row => row.CurrentTriage).ToString(invariant), null);
+                            Metric(OperatorLabels.Reports.CasesCurrentlyHeld, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => row.CurrentHeldCases).ToString(invariant), null);
+                            Metric(AdministrationReportHeadings.Triages, principal is null ? OperatorLabels.Reports.Unavailable : principal.Rows.Sum(row => row.CurrentTriage).ToString(invariant), null);
                         }
                         <div class="metric">
-                            <span class="metric-label">Unidentified</span>
-                            <span class="metric-value">@(Model.Unidentified is { } unidentified ? unidentified.Count.ToString(invariant) : "Unavailable")</span>
+                            <span class="metric-label">@OperatorLabels.Reports.Unidentified</span>
+                            <span class="metric-value">@(Model.Unidentified is { } unidentified ? unidentified.Count.ToString(invariant) : OperatorLabels.Reports.Unavailable)</span>
                             @if (Model.Unidentified is { OldestReceivedAtUtc: { } oldestUnidentified })
                             {
-                                <span class="metric-meta">Oldest since @OperatorLabels.OfficeTime(oldestUnidentified)</span>
+                                <span class="metric-meta">@OperatorLabels.Reports.OldestSince @OperatorLabels.OfficeTime(oldestUnidentified)</span>
                             }
                         </div>
                     </div>
                     <div class="table-wrap section-gap">
                         <table class="table table--compact">
-                            <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Currently held</th><th scope="col">Oldest held since</th><th scope="col" class="num">Triages</th><th scope="col">Oldest Triage since</th></tr></thead>
+                            <thead><tr><th scope="col">@AdministrationReportHeadings.Principal</th><th scope="col" class="num">@AdministrationReportHeadings.CurrentlyHeld</th><th scope="col">@AdministrationReportHeadings.OldestHeldSince</th><th scope="col" class="num">@AdministrationReportHeadings.Triages</th><th scope="col">@AdministrationReportHeadings.OldestTriageSince</th></tr></thead>
                             <tbody>
                             @if (principal is null)
                             {
-                                <tr><td colspan="5" class="muted">Unavailable</td></tr>
+                                <tr><td colspan="5" class="muted">@OperatorLabels.Reports.Unavailable</td></tr>
                             }
                             else
                             {
@@ -413,7 +413,7 @@
                                         <td>@OperatorLabels.OfficeTime(row.OldestCurrentTriageCreatedAtUtc, "—")</td>
                                     </tr>
                                 }
-                                @if (queueRows.Length == 0) { <tr><td colspan="5" class="muted">Nothing is currently held.</td></tr> }
+                                @if (queueRows.Length == 0) { <tr><td colspan="5" class="muted">@OperatorLabels.Reports.NothingHeld</td></tr> }
                             }
                             </tbody>
                         </table>
@@ -456,6 +456,7 @@
                     <p class="muted">@OperatorLabels.CaseList.PresetsUnavailable</p>
                 }
                 <form method="post" class="stack" aria-label="@OperatorLabels.CaseList.Title">
+                    @{ Hidden(); }
                     <input type="hidden" name="PresetId" value="@caseList.PresetId?.ToString("D")" />
                     <input type="hidden" name="ExpectedVersion" value="@caseList.ExpectedVersion" />
                     <input type="hidden" name="NewPresetId" value="@caseList.NewPresetId.ToString("D")" />
@@ -479,8 +480,8 @@
                         </fieldset>
                     }
                     <div class="button-row">
-                        <button class="btn btn--dark" type="submit" asp-page-handler="CaseListCsv" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg><span>Download CSV</span></button>
-                        <button class="btn" type="submit" asp-page-handler="CaseListWorkbook" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-spreadsheet")" /></svg><span>Download workbook</span></button>
+                        <button class="btn btn--dark" type="submit" asp-page-handler="CaseListCsv" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg><span>@OperatorLabels.Reports.DownloadCsv</span></button>
+                        <button class="btn" type="submit" asp-page-handler="CaseListWorkbook" data-busy-download data-busy-label="@OperatorLabels.Busy.Downloading" data-busy-done="@OperatorLabels.Busy.Done.Downloaded" data-busy-download-failed="@OperatorLabels.Busy.DownloadFailed"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-spreadsheet")" /></svg><span>@OperatorLabels.Reports.DownloadWorkbook</span></button>
                     </div>
                     @if (Model.CaseListPresets is not null)
                     {

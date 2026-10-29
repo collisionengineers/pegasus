@@ -7,11 +7,12 @@ using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Reports;
 using Pegasus.Web.Presentation;
 using System.Text;
+using IntakeExceptionPolicy = Pegasus.Core.Intake.IntakeExceptionPolicy;
 
 namespace Pegasus.Web.Pages.Administration;
 
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class ReportsModel(
+public sealed partial class ReportsModel(
     GetEngineerActivityReport engineerReport,
     GetV1ActivityReport principalActivityReport,
     GetMonthlyReportActivity monthlyActivity,
@@ -24,23 +25,28 @@ public sealed class ReportsModel(
     ListCaseListPresets listCaseListPresets,
     SaveCaseListPreset saveCaseListPreset,
     RemoveCaseListPreset removeCaseListPreset,
-    TimeProvider timeProvider) : AdministrationPageModel
+    TimeProvider timeProvider,
+    ILogger<ReportsModel> logger) : AdministrationPageModel
 {
     public const string WorkbookMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     /// <summary>The Period choices (item H) by their query value.</summary>
     public static IReadOnlyList<(string Value, ReportPeriod Period, string Label)> Periods { get; } =
     [
-        ("this-month", ReportPeriod.ThisMonth, "This month"),
-        ("last-month", ReportPeriod.LastMonth, "Last month"),
-        ("this-quarter", ReportPeriod.ThisQuarter, "This quarter"),
-        ("last-12-months", ReportPeriod.Last12Months, "Last 12 months"),
-        ("custom", ReportPeriod.Custom, "Custom")
+        ("this-month", ReportPeriod.ThisMonth, OperatorLabels.Reports.ThisMonth),
+        ("last-month", ReportPeriod.LastMonth, OperatorLabels.Reports.LastMonth),
+        ("this-quarter", ReportPeriod.ThisQuarter, OperatorLabels.Reports.ThisQuarter),
+        ("last-12-months", ReportPeriod.Last12Months, OperatorLabels.Reports.Last12Months),
+        ("custom", ReportPeriod.Custom, OperatorLabels.Reports.Custom)
     ];
 
     /// <summary>The Work choices (item D): every report, or one work's.</summary>
     public static IReadOnlyList<(string Value, string Label)> Works { get; } =
-        [("all", "All"), ("inspection", "Inspection"), ("audit", "Audit")];
+    [
+        ("all", OperatorLabels.Reports.AllWork),
+        ("inspection", OperatorLabels.CaseTypeName(CaseType.Inspection)),
+        ("audit", OperatorLabels.CaseTypeName(CaseType.Audit))
+    ];
 
     public const string EngineersTab = "engineers";
     public const string PrincipalsTab = "principals";
@@ -294,8 +300,9 @@ public sealed class ReportsModel(
         {
             return Forbid();
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
+            LogUnavailable("case_list", exception);
             message = OperatorLabels.CaseList.Unavailable;
         }
 
@@ -328,7 +335,7 @@ public sealed class ReportsModel(
         {
             var (confirmation, presetId) = await operation(actor);
             TempData["Confirmation"] = confirmation;
-            return RedirectToPage(new { tab = CaseListTab, preset = presetId });
+            return RedirectToPage(State(("tab", CaseListTab), ("preset", presetId?.ToString("D"))));
         }
         catch (CaseListPresetException exception)
         {
@@ -379,9 +386,10 @@ public sealed class ReportsModel(
             CaseListPresets = await listCaseListPresets.ExecuteAsync(actor, cancellationToken);
         }
         catch (Exception exception) when (
-            exception is not OperationCanceledException
-            && exception is not StaffAuthorizationException)
+            exception is not StaffAuthorizationException
+            && IntakeExceptionPolicy.IsRecoverable(exception))
         {
+            LogUnavailable("case_list_presets", exception);
             CaseListPresets = null;
         }
 
@@ -516,22 +524,22 @@ public sealed class ReportsModel(
         // and independent. The account list and Engineer report share the
         // scoped staff context, so they remain serial while those are in flight.
         var (previousFrom, previousTo) = ReportPeriods.Previous(from, to);
-        var principalTask = Read(reads.HasFlag(Reads.Principal), () => principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken));
-        var monthlyTask = Read(reads.HasFlag(Reads.Monthly), () => monthlyActivity.ExecuteAsync(actor, from, to, cancellationToken));
-        var outcomesTask = Read(reads.HasFlag(Reads.Outcomes), () => reportOutcomes.ExecuteAsync(actor, from, to, cancellationToken));
-        var unidentifiedTask = Read(reads.HasFlag(Reads.Unidentified), async () =>
+        var principalTask = Read(reads.HasFlag(Reads.Principal), "reports_by_principal", () => principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken));
+        var monthlyTask = Read(reads.HasFlag(Reads.Monthly), "by_month", () => monthlyActivity.ExecuteAsync(actor, from, to, cancellationToken));
+        var outcomesTask = Read(reads.HasFlag(Reads.Outcomes), "outcomes", () => reportOutcomes.ExecuteAsync(actor, from, to, cancellationToken));
+        var unidentifiedTask = Read(reads.HasFlag(Reads.Unidentified), "unidentified", async () =>
         {
             var count = unidentifiedStore.CountOpenAsync(cancellationToken);
             var oldest = unidentifiedStore.OldestOpenReceivedAtUtcAsync(cancellationToken);
             await Task.WhenAll(count, oldest);
             return new UnidentifiedFigures(await count, await oldest);
         });
-        var previousPrincipalTask = Read(reads.HasFlag(Reads.PreviousPrincipal), () => principalActivityReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken));
+        var previousPrincipalTask = Read(reads.HasFlag(Reads.PreviousPrincipal), "reports_by_principal_previous", () => principalActivityReport.ExecuteAsync(actor, previousFrom, previousTo, cancellationToken));
 
         // Only the Engineers tab draws the Person choices, from the unfiltered
         // read; every other read of the report needs just the chosen Person's row.
         var chosenOnly = reads.HasFlag(Reads.People) ? null : EngineerId;
-        var all = await Read(reads.HasFlag(Reads.Engineer), () => engineerReport.ExecuteAsync(actor, from, to, chosenOnly, cancellationToken));
+        var all = await Read(reads.HasFlag(Reads.Engineer), "engineer_activity", () => engineerReport.ExecuteAsync(actor, from, to, chosenOnly, cancellationToken));
         EngineerActivityUnavailable = reads.HasFlag(Reads.Engineer) && all is null;
         if (all is not null)
         {
@@ -554,7 +562,7 @@ public sealed class ReportsModel(
             People = [.. people.OrderBy(person => person.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(person => person.EngineerId)];
         }
 
-        PreviousEngineer = (await Read(reads.HasFlag(Reads.PreviousEngineer) && all is not null, () => engineerReport.ExecuteAsync(actor, previousFrom, previousTo, EngineerId, cancellationToken)))?.For(EngineerId);
+        PreviousEngineer = (await Read(reads.HasFlag(Reads.PreviousEngineer) && all is not null, "engineer_activity_previous", () => engineerReport.ExecuteAsync(actor, previousFrom, previousTo, EngineerId, cancellationToken)))?.For(EngineerId);
         PrincipalActivity = await principalTask;
         Monthly = await monthlyTask;
         Outcomes = await outcomesTask;
@@ -567,7 +575,7 @@ public sealed class ReportsModel(
     /// A read the handler asked for. One that fails or returns invalid data
     /// is unavailable, never a zero; one it did not ask for is not run.
     /// </summary>
-    private static async Task<T?> Read<T>(bool wanted, Func<Task<T>> read) where T : class
+    private async Task<T?> Read<T>(bool wanted, string name, Func<Task<T>> read) where T : class
     {
         if (!wanted) return null;
         try
@@ -575,12 +583,31 @@ public sealed class ReportsModel(
             return await read();
         }
         catch (Exception exception) when (
-            exception is not OperationCanceledException
-            && exception is not StaffAuthorizationException)
+            exception is not StaffAuthorizationException
+            && IntakeExceptionPolicy.IsRecoverable(exception))
         {
+            LogUnavailable(name, exception);
             return null;
         }
     }
+
+    /// <summary>
+    /// A read the page shows as unavailable is logged with the refusal shape
+    /// (engineering.md, fault handling): a Warning naming the read and the
+    /// fault's type and message, without the exception object. Nothing is
+    /// logged when the read succeeds.
+    /// </summary>
+    private void LogUnavailable(string read, Exception exception) =>
+        LogReadUnavailable(logger, read, exception.GetType().Name, exception.Message);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Management Reports read {Read} is unavailable: {FailureType}: {FailureMessage}")]
+    private static partial void LogReadUnavailable(
+        ILogger logger,
+        string read,
+        string failureType,
+        string failureMessage);
 
     private EngineerActivityReport Sorted(EngineerActivityReport report)
     {

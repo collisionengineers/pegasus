@@ -390,8 +390,8 @@ public sealed class AutomaticImageIntakeTests
     [InlineData(IntakeSourceChannel.ManualUpload, true)]
     public async Task AFiledPdfIsReadOnlyAsAnUndeclaredManualUpload(IntakeSourceChannel channel, bool declared)
     {
-        // The mail route is a later change (R474, issue 1716), and a declared
-        // destination needs no identification (FRD-18).
+        // Mail reads its PDF's photographs before mail linking, not here
+        // (R474), and a declared destination needs no identification (FRD-18).
         var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
         var photograph = Asset(
             "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
@@ -408,6 +408,86 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(0, harness.Engine.Calls);
         Assert.Empty(harness.SuggestionStore.Records);
         Assert.Empty(harness.Register.Requests);
+    }
+
+    [Fact]
+    public async Task AMailedPdfsPhotographsAreReadForMailLinkingAndItsLoosePhotographIsNot()
+    {
+        // An e-mail carrying a PDF is filed as a file; the plate the
+        // photographs inside the PDF read is a mail-linking signal (operator,
+        // 28 October 2026, R474). R474 names the PDF's photographs, so the
+        // photograph attached beside it is not read. The read itself
+        // registers, links and holds nothing.
+        var email = Asset("vehicle-images.eml", "message/rfc822", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment);
+        var photograph = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768, pageNumber: 1);
+        var loose = Asset(
+            "vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment,
+            IntakeAssetDisposition.Attachment, width: 800, height: 600);
+        var harness = new Harness(
+            sourceChannel: IntakeSourceChannel.Mailbox,
+            retainedAssets: [email, pdf, photograph, loose],
+            evidence: [FiledDocument()]);
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+
+        var registration = await harness.ReadMailedPdfPhotographsAsync();
+
+        Assert.Equal("SH65HTL", registration);
+        Assert.Equal(1, harness.Engine.Calls);
+        Assert.Equal(photograph.Id, Assert.Single(harness.SuggestionStore.Records).IntakeAssetId);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+
+        // Image automation does not read the e-mail a second time.
+        var outcome = await harness.ApplyAsync();
+        Assert.Equal(1, harness.Engine.Calls);
+        Assert.False(outcome.AssociatedCase);
+        Assert.Null(outcome.UnidentifiedGroup);
+    }
+
+    private static readonly string[] TwoPdfPhotographs = ["page-1-image-1.jpg", "page-1-image-2.jpg"];
+
+    [Theory]
+    [InlineData("no-plate", IntakeSourceChannel.Mailbox, true, null, null, 2)]
+    [InlineData("disagree", IntakeSourceChannel.Mailbox, true, "SH65HTL", "AB12CDE", 2)]
+    [InlineData("upload", IntakeSourceChannel.ManualUpload, true, "SH65HTL", "SH65HTL", 0)]
+    [InlineData("image-only", IntakeSourceChannel.Mailbox, false, "SH65HTL", "SH65HTL", 0)]
+    public async Task AMailedPdfReadGivesNoRegistrationUnlessItsPhotographsAgreeOnOne(
+        string row,
+        IntakeSourceChannel channel,
+        bool filed,
+        string? first,
+        string? second,
+        int expectedReads)
+    {
+        // No readable plate, or plates that disagree, give mail linking no
+        // registration, so the e-mail waits in No Case Found as before. The
+        // Upload page reads in image automation (R473), and an e-mail that is
+        // not filed as a file is image automation's own route.
+        var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var photographs = TwoPdfPhotographs
+            .Select(fileName => Asset(
+                fileName, "image/jpeg", IntakeAssetKind.EmbeddedImage,
+                IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768, pageNumber: 1))
+            .ToArray();
+        var harness = new Harness(
+            sourceChannel: channel,
+            retainedAssets: [pdf, .. photographs],
+            evidence: filed ? [FiledDocument()] : []);
+        foreach (var read in new[] { first, second }.OfType<string>())
+        {
+            harness.Engine.Enqueue(Suggested(read, 0.95));
+        }
+
+        var registration = await harness.ReadMailedPdfPhotographsAsync();
+
+        Assert.True(registration is null, $"{row}: read {registration}.");
+        Assert.Equal(expectedReads, harness.Engine.Calls);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
     }
 
     /// <summary>The whole-source signal a PDF with a readable text layer carries (R296).</summary>
@@ -473,6 +553,77 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedOrigin.Receipt(harness.Receipt.Id), request.Origin);
         Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedReasonCode.ConflictingIdentification, request.ReasonCode);
         Assert.Equal("conflicting_vrms", request.SafeDetail);
+    }
+
+    [Fact]
+    public async Task PdfWithATaxiPlateReadBesideTheRegistrationRegistersTheRegistration()
+    {
+        // Issue 1681 (operator, 28 October 2026, R461): a read that is digits
+        // alone is never a registration, so the taxi plate does not conflict.
+        var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var firstPhoto = Asset(
+            "page-1-image-1.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 547, height: 650);
+        var secondPhoto = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 552, height: 650);
+        var harness = new Harness(retainedAssets: [pdf, firstPhoto, secondPhoto]);
+        harness.Engine.Enqueue(Suggested("KY14DJE", 0.95));
+        harness.Engine.Enqueue(Suggested("35016", 0.95));
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Equal(2, harness.Engine.Calls);
+        Assert.Null(outcome.UnidentifiedGroup);
+        Assert.Equal("KY14DJE", Assert.Single(harness.Register.Requests).NormalizedVehicleRegistration);
+        var taxiPlate = Assert.Single(harness.SuggestionStore.Records, record => record.IntakeAssetId == secondPhoto.Id);
+        Assert.Equal(VrmRecognitionOutcomeKind.NoReadableResult, taxiPlate.Outcome);
+        Assert.Null(taxiPlate.SuggestedRegistration);
+    }
+
+    [Fact]
+    public async Task AConfidentReadOfDigitsAloneIsNeverARegistration()
+    {
+        var harness = new Harness();
+        harness.Engine.Enqueue(Suggested("35016", 0.95));
+
+        await harness.ApplyAsync();
+
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+        var suggestion = Assert.Single(harness.SuggestionStore.Records);
+        Assert.Equal(VrmRecognitionOutcomeKind.NoReadableResult, suggestion.Outcome);
+        Assert.Null(suggestion.SuggestedRegistration);
+    }
+
+    [Fact]
+    public async Task ImageGroupWithATaxiPlateReadBesideTheRegistrationRegistersTheRegistration()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("35016", 0.95));
+        harness.Engine.Enqueue(Suggested("KY14DJE", 0.95));
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.Null(outcome.UnidentifiedGroup);
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("KY14DJE", registration.NormalizedVehicleRegistration);
+        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
+    }
+
+    [Fact]
+    public async Task AnImageShowingATaxiPlateAndTheRegistrationRecordsTheRegistration()
+    {
+        // The taxi plate is the larger and more confident read in the photograph.
+        var harness = new Harness();
+        harness.Engine.Enqueue(Plates(Plate("35016", 0.97, 200, 80), Plate("KY14DJE", 0.90, 100, 40)));
+
+        await harness.ApplyAsync();
+
+        var suggestion = Assert.Single(harness.SuggestionStore.Records);
+        Assert.Equal(VrmRecognitionOutcomeKind.Suggested, suggestion.Outcome);
+        Assert.Equal("KY14DJE", suggestion.SuggestedRegistration);
+        Assert.Equal("KY14DJE", Assert.Single(harness.Register.Requests).NormalizedVehicleRegistration);
     }
 
     [Fact]
@@ -995,7 +1146,8 @@ public sealed class AutomaticImageIntakeTests
         IntakeAssetDisposition disposition,
         long contentLength = -1,
         int? width = null,
-        int? height = null)
+        int? height = null,
+        int? pageNumber = null)
     {
         var length = contentLength < 0 ? DefaultImageContentLength : contentLength;
         return new(
@@ -1008,7 +1160,7 @@ public sealed class AutomaticImageIntakeTests
             length,
             HashFor(fileName, length),
             $"storage/{Guid.NewGuid():N}",
-            null,
+            pageNumber,
             null,
             width,
             height);
@@ -1219,6 +1371,9 @@ public sealed class AutomaticImageIntakeTests
             ReceiptQueries.Receipt = Receipt;
             return Automation.ApplyAsync(Receipt, CancellationToken.None);
         }
+
+        public Task<string?> ReadMailedPdfPhotographsAsync() =>
+            Automation.ReadMailedPdfPhotographsAsync(Receipt, CancellationToken.None);
     }
 
     private sealed class FakeEngine : IVrmRecognitionEngine

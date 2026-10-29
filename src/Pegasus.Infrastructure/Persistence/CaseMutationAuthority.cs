@@ -92,11 +92,11 @@ internal sealed class CaseMutationAuthority
 
         if (anyLifecycleState)
         {
-            ArchivedCaseGuard.RequireNotArchived(Workflow);
+            CaseMutationGuard.RequireNotArchived(Workflow);
         }
         else
         {
-            ArchivedCaseGuard.RequireMutable(Workflow);
+            CaseMutationGuard.RequireMutable(Workflow);
         }
     }
 
@@ -159,7 +159,7 @@ internal sealed class CaseMutationAuthority
         {
             if (anyLifecycleState)
             {
-                ArchivedCaseGuard.RequireNotArchived(Workflow);
+                CaseMutationGuard.RequireNotArchived(Workflow);
                 CaseMutationGuard.RequireLease(Workflow, actor, leaseToken ?? string.Empty, nowUtc);
                 CaseMutationGuard.RequireVersionUnderLease(Workflow, expectedVersion);
             }

@@ -103,10 +103,13 @@ public sealed class MailboxesModel(
             ? null
             : Mailboxes.SingleOrDefault(mailbox => mailbox.Id == input.MailboxId);
         ApprovedMailboxIdentityResolution? resolution = null;
-        var requiresIdentityCheck = isNewMailbox
-            || existingMailbox is { State: ApprovedMailboxState.Disabled }
-                && (state == ApprovedMailboxState.Approved
-                    || !string.Equals(input.Address, existingMailbox.Address, StringComparison.OrdinalIgnoreCase));
+        // A Disabled row saves with no address check; the address and read-access
+        // checks run when the saved state is Approved (R528).
+        var requiresIdentityCheck = state == ApprovedMailboxState.Approved
+            && (isNewMailbox || existingMailbox is { State: ApprovedMailboxState.Disabled });
+        // Approving needs the stored identities in the request. A Disabled save
+        // leaves them to the store, which drops them when the address changes.
+        var storedIdentities = state == ApprovedMailboxState.Approved ? existingMailbox : null;
         if (ModelState.IsValid && requiresIdentityCheck)
         {
             string normalizedAddress;
@@ -171,9 +174,9 @@ public sealed class MailboxesModel(
                         input.ExpectedVersion,
                         actor,
                         input.OperationKey,
-                        resolution?.MailboxIdentity ?? existingMailbox?.MailboxIdentity,
-                        resolution?.InboxFolderIdentity ?? existingMailbox?.InboxFolderIdentity,
-                        resolution?.SentFolderIdentity ?? existingMailbox?.SentFolderIdentity),
+                        resolution?.MailboxIdentity ?? storedIdentities?.MailboxIdentity,
+                        resolution?.InboxFolderIdentity ?? storedIdentities?.InboxFolderIdentity,
+                        resolution?.SentFolderIdentity ?? storedIdentities?.SentFolderIdentity),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"The mailbox policy for {updated.Address} was saved.";
@@ -238,7 +241,9 @@ public sealed class MailboxesModel(
             string.Equals(item.MailboxAddress, mailbox.Address, StringComparison.OrdinalIgnoreCase));
 
     public string PollFreshnessFor(ApprovedMailboxPollStatus status) =>
-        status.IsFresh(timeProvider.GetUtcNow()) ? "Fresh" : "Stale";
+        status.IsFresh(timeProvider.GetUtcNow())
+            ? Presentation.OperatorLabels.MailSettings.Fresh
+            : Presentation.OperatorLabels.MailSettings.Stale;
 
     public bool IsNewRouteSelected(ApprovedMailboxRouteScope routeScope) =>
         MailboxForm is { ExpectedVersion: 0 } input

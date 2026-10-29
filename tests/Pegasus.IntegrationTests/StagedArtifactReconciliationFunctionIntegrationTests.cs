@@ -928,6 +928,11 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             IntakeSourceIdentity sourceIdentity,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<QueuedIntakeStatus?>(null);
+
+        public Task<IntakeStagedReceipt?> GetStagedReceiptAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IntakeStagedReceipt?>(null);
     }
 
     private sealed class UnreachableRegisterUnidentified : IRegisterUnidentified

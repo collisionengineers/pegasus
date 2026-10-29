@@ -287,21 +287,9 @@ public sealed partial class DetailsModel(
             RegisterDialog,
             async (actor, context) =>
             {
-                if (context.SubmissionGroup is not null)
-                {
-                    var groupRecord = await intakeActions.RegisterGroupImagesAsync(
-                        actor, context, vehicleRegistration, reason, operationKey, cancellationToken);
-                    return $"Registered as vehicle images {groupRecord.ImageIntakeReference}.";
-                }
-
-                if (!context.CanRegisterImages || context.Receipt is not { } receipt)
-                {
-                    throw new InvalidOperationException("Images cannot be registered from this item.");
-                }
-
-                var record = await intakeActions.RegisterImagesAsync(
-                    actor, receipt, vehicleRegistration, reason, operationKey, cancellationToken);
-                return $"Registered as vehicle images {record.ImageIntakeReference}.";
+                var record = await intakeActions.RegisterItemImagesAsync(
+                    actor, context, vehicleRegistration, reason, operationKey, cancellationToken);
+                return OperatorLabels.RegisterImages.Registered(record.ImageIntakeReference);
             },
             cancellationToken);
 
@@ -560,7 +548,7 @@ public sealed partial class DetailsModel(
             {
                 ArgumentException argument => argument.Message,
                 SendToAiRefusedException refused => refused.Message,
-                _ => "The action was not applied because the item changed or the action is not permitted. Reload and try again."
+                _ => OperatorLabels.ActionNotApplied
             };
             return dialog is null ? RedirectToPage(new { id }) : RedirectToPage(new { id, dialog });
         }

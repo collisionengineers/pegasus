@@ -23,14 +23,14 @@
                 <table class="table table--compact" data-problem-reports>
                     <thead>
                         <tr>
-                            <th scope="col">When</th>
-                            <th scope="col">Who</th>
-                            <th scope="col">Page</th>
-                            <th scope="col">Case</th>
-                            <th scope="col">What happened</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Issue</th>
-                            <th scope="col"><span class="sr-only">Actions</span></th>
+                            <th scope="col">@OperatorLabels.ProblemReports.When</th>
+                            <th scope="col">@OperatorLabels.ProblemReports.Who</th>
+                            <th scope="col">@OperatorLabels.ProblemReports.Page</th>
+                            <th scope="col">@OperatorLabels.ProblemReports.Case</th>
+                            <th scope="col">@OperatorLabels.ProblemReports.WhatHappened</th>
+                            <th scope="col">@OperatorLabels.ProblemReports.Status</th>
+                            <th scope="col">@OperatorLabels.ProblemReports.Issue</th>
+                            <th scope="col"><span class="sr-only">@OperatorLabels.ProblemReports.Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -69,7 +69,6 @@
                                 @if (report.Status == Pegasus.Core.Support.ProblemReportStatus.NotSent)
                                 {
                                     <form method="post" asp-page-handler="Retry" asp-route-id="@report.Id">
-                                        <input type="hidden" name="operationKey" value="@ProblemReportsModel.NewOperationKey()" />
                                         <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Retrying">@OperatorLabels.ProblemReports.Retry</button>
                                     </form>
                                 }
@@ -77,16 +76,13 @@
                                 {
                                     <div class="cluster">
                                         <form method="post" asp-page-handler="ConfirmIssue" asp-route-id="@report.Id">
-                                            <input type="hidden" name="operationKey" value="@ProblemReportsModel.NewOperationKey()" />
-                                            <label for="issue-@report.Id">Matching issue number</label>
+                                            <label for="issue-@report.Id">@OperatorLabels.ProblemReports.MatchingIssueNumber</label>
                                             <input id="issue-@report.Id" name="issueNumber" type="number" min="1" required />
-                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Confirming">Confirm issue</button>
+                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Confirming">@OperatorLabels.ProblemReports.ConfirmIssue</button>
                                         </form>
                                         <form method="post" asp-page-handler="ConfirmNoIssue" asp-route-id="@report.Id">
-                                            <input type="hidden" name="operationKey" value="@ProblemReportsModel.NewOperationKey()" />
-                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Confirming">Confirm no issue</button>
+                                            <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Confirming">@OperatorLabels.ProblemReports.ConfirmNoIssue</button>
                                         </form>
-                                        <p class="muted">Search the approved GitHub repository for this report ID before choosing an outcome.</p>
                                     </div>
                                 }
                             </td>

@@ -308,6 +308,18 @@ public static partial class OperatorLabels
         public const string NotYetPolled = "Not yet polled";
         public const string NoCompletedPoll = "No completed poll yet";
         public const string NoError = "None";
+        public const string LastChecked = "Last checked";
+        public const string Settings = "Settings";
+        public const string MailboxSettings = "Mailbox settings";
+        public const string CloseDialog = "Close dialog";
+        public const string Cancel = "Cancel";
+        public const string AccessAndPolling = "Access and polling";
+        public const string Activation = "Activation";
+        public const string LastSuccess = "Last success";
+        public const string Freshness = "Freshness";
+        public const string LastErrorTerm = "Last error";
+        public const string Fresh = "Fresh";
+        public const string Stale = "Stale";
 
         public static string MailboxState(ApprovedMailboxState state) =>
             Humanise(state.ToString());

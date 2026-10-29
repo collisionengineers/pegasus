@@ -60,7 +60,7 @@
                                 </td>
                                 <td class="right">
                                     <span class="cluster">
-                                        <a class="btn btn--small" asp-page="Index" asp-route-editStaffId="@account.Id" asp-route-expectedVersion="@account.Version">@OperatorLabels.StaffAccounts.Settings</a>
+                                        <a class="btn btn--small" asp-page="Index" asp-route-editStaffId="@account.Id">@OperatorLabels.StaffAccounts.Settings</a>
                                     </span>
                                 </td>
                             </tr>
@@ -179,7 +179,7 @@
             <div class="dialog-head">
                 <h2 id="glass-credential-title">Glass's login</h2>
                 <partial name="Shared/_StatusChip" model="@Model.GlassStateName" />
-                <form id="glass-close-form" method="get" asp-page="Index"><input type="hidden" name="editStaffId" value="@glassAccount.Id" /><input type="hidden" name="expectedVersion" value="@glassAccount.Version" /></form>
+                <form id="glass-close-form" method="get" asp-page="Index"><input type="hidden" name="editStaffId" value="@glassAccount.Id" /></form>
                 <button type="submit" form="glass-close-form" class="dialog-close" aria-label="Back to account"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
             </div>
             <div class="dialog-body stack">

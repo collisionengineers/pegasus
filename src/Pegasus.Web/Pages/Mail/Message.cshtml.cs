@@ -1290,7 +1290,7 @@ public sealed class MessageModel(
             {
                 var record = await intakeActions.RegisterImagesAsync(
                     actor, receipt, vehicleRegistration, reason, operationKey, cancellationToken);
-                return $"Registered as vehicle images {record.ImageIntakeReference}.";
+                return OperatorLabels.RegisterImages.Registered(record.ImageIntakeReference);
             },
             cancellationToken);
 
@@ -1331,7 +1331,7 @@ public sealed class MessageModel(
                 string.Empty,
                 exception is ArgumentException argument
                     ? argument.Message
-                    : "The action was not applied because the item changed or the action is not permitted. Reload and try again.");
+                    : OperatorLabels.ActionNotApplied);
             return await ReloadAsync(actor, id, cancellationToken);
         }
     }

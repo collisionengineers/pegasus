@@ -82,7 +82,9 @@ Until it does, polling that mailbox fails and says so. An approved intake
 mailbox becomes pollable only after an address check has stored its mailbox
 identity and activation time. Before that, the administration list reports
 it as not activated, not as awaiting a first poll, because no poll is
-pending.
+pending. A Disabled row saves with no address check; the address and
+read-access checks run when the saved state is Approved (operator,
+29 October 2026, R528).
 
 A mailbox has no purpose. Which approved mailbox received a message is
 never classification evidence; every mailbox feeds the one classification in
