@@ -408,8 +408,8 @@ public static partial class OperatorLabels
 
     public static string ReleaseNoteStatus(Pegasus.Core.ReleaseNotes.ReleaseNoteStatus status) => status switch
     {
-        Pegasus.Core.ReleaseNotes.ReleaseNoteStatus.Published => "Published",
-        _ => "Draft"
+        Pegasus.Core.ReleaseNotes.ReleaseNoteStatus.Published => ReleaseNotes.Published,
+        _ => ReleaseNotes.Draft
     };
 
     /// <summary>
