@@ -16,14 +16,9 @@ public sealed record StartQueryResponseCommand(
 /// The one owner of starting a Query response job, called by the message
 /// record, the Case's Queries row and the Automation Actor's create tool.
 /// </summary>
-public interface IStartQueryResponse
-{
-    Task<AiJobRecord> ExecuteAsync(StartQueryResponseCommand command, CancellationToken cancellationToken);
-}
-
 public sealed class StartQueryResponse(
     Intake.GetRetainedMail mail,
-    ICreateAiJob create) : IStartQueryResponse
+    ICreateAiJob create)
 {
     public const string NotASource = "This message is not a linked post-report message.";
 

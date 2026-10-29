@@ -99,7 +99,7 @@ internal enum IntakeAction
 [McpServerToolType]
 internal sealed class IntakeActionMcpTools(
     IGetIntake getIntake,
-    IResolveIntake resolveIntake,
+    ResolveIntake resolveIntake,
     IAllocateIntake allocateIntake,
     IStandaloneAuditEvidenceQueries standaloneAuditEvidence,
     IInspectionAddressResolutionStore addressResolutions,

@@ -13,7 +13,6 @@ var host = new HostBuilder()
             .AddApplicationInsightsTelemetryWorkerService()
             .ConfigureFunctionsApplicationInsights()
             .AddApplicationInsightsTelemetryProcessor<SqlDependencyTelemetryFilter>();
-        services.AddWorkerSpanTelemetry();
 
         // Ingestion is configured for Entra, so the telemetry client needs the
         // Worker's managed-identity credential. WorkerAzureClientFactory defines
@@ -23,9 +22,5 @@ var host = new HostBuilder()
         services.AddPegasusWorker(context.Configuration, context.HostingEnvironment);
     })
     .Build();
-
-// The singleton owns the span listener for the process's lifetime. Resolving it
-// here starts the export before the first function runs.
-_ = host.Services.GetRequiredService<WorkerSpanTelemetryBridge>();
 
 host.Run();

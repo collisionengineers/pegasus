@@ -20,9 +20,11 @@ ADR — IDs are never renumbered or reused.
 
 ## Decisions
 
+Records whose status is superseded live in `superseded/` with their IDs unchanged.
+
 | ID | Title | Status | Superseded-by | Owner capability |
 | --- | --- | --- | --- | --- |
-| [ADR-0001](0001-hybrid-pdf-extraction.md) | Hybrid PDF extraction | superseded | ADR-0040 | — |
+| [ADR-0001](superseded/0001-hybrid-pdf-extraction.md) | Hybrid PDF extraction | superseded | ADR-0040 | — |
 | [ADR-0002](0002-dotnet-modular-monolith-on-azure.md) | .NET modular monolith on Azure App Service | accepted | ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032, ADR-0043, ADR-0049, ADR-0051, ADR-0056 | — |
 | [ADR-0003](0003-pdfpig-for-first-qdos-slice.md) | PdfPig for the first QDOS embedded-text slice | accepted | — | — |
 | [ADR-0004](0004-provider-api-and-staff-mcp-authentication.md) | Provider API and staff MCP authentication | accepted | ADR-0011 | — |
@@ -31,34 +33,34 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0007](0007-direct-terminal-azure-deployment.md) | Direct authorised-terminal Azure deployment | accepted | ADR-0014, ADR-0015, ADR-0037 | — |
 | [ADR-0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | accepted | ADR-0078 (intermediary identities clause) | — |
 | [ADR-0009](0009-adopt-pegasus-monorepo-workspaces.md) | Adopt Pegasus monorepo source workspaces | accepted | ADR-0025 | — |
-| [ADR-0010](0010-adopt-single-context-domain-documentation.md) | Adopt single-context domain documentation | superseded | — | — |
+| [ADR-0010](superseded/0010-adopt-single-context-domain-documentation.md) | Adopt single-context domain documentation | superseded | — | — |
 | [ADR-0011](0011-restrict-mcp-to-automation-actor.md) | Restrict MCP to a vendor-neutral Automation Actor | accepted | — | — |
-| [ADR-0012](0012-conservative-mot-mileage-estimation.md) | Conservative MOT mileage estimation | superseded | — | — |
+| [ADR-0012](superseded/0012-conservative-mot-mileage-estimation.md) | Conservative MOT mileage estimation | superseded | — | — |
 | [ADR-0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract | accepted | ADR-0029 | — |
 | [ADR-0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | accepted | — | — |
-| [ADR-0015](0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | superseded | ADR-0049 | — |
-| [ADR-0016](0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | superseded | — | — |
+| [ADR-0015](superseded/0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | superseded | ADR-0049 | — |
+| [ADR-0016](superseded/0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | superseded | — | — |
 | [ADR-0018](0018-provider-inspection-mode-database-setting.md) | Provider-determined inspection mode as a database setting | accepted | ADR-0076 (DATA-02 deferral; decision 5) | — |
 | [ADR-0019](0019-in-process-onnx-vrm-recognition.md) | In-process ONNX VRM recognition engine | accepted | — | — |
-| [ADR-0020](0020-accepted-qdos-case-association-predicates.md) | Accepted QDOS automatic case-association predicates | superseded | — | — |
-| [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md) | Automation Actor direct-write assessment contract and the Send to AI transport slice | superseded | ADR-0031, ADR-0064 | — |
-| [ADR-0022](0022-approved-mailbox-identity-and-enablement-database-setting.md) | Approved-mailbox identity and enablement as an administrator-editable database setting | superseded | ADR-0024 | — |
-| [ADR-0023](0023-restructure-repository-documentation-and-reference-evidence.md) | Restructure repository documentation and reference evidence | superseded | — | — |
+| [ADR-0020](superseded/0020-accepted-qdos-case-association-predicates.md) | Accepted QDOS automatic case-association predicates | superseded | — | — |
+| [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md) | Automation Actor direct-write assessment contract and the Send to AI transport slice | superseded | ADR-0031, ADR-0064 | — |
+| [ADR-0022](superseded/0022-approved-mailbox-identity-and-enablement-database-setting.md) | Approved-mailbox identity and enablement as an administrator-editable database setting | superseded | ADR-0024 | — |
+| [ADR-0023](superseded/0023-restructure-repository-documentation-and-reference-evidence.md) | Restructure repository documentation and reference evidence | superseded | — | — |
 | [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) | Stable approved-mailbox identity and per-mailbox fresh start | accepted | ADR-0044, ADR-0068 (separate Sent-evidence activation) | — |
 | [ADR-0025](0025-integrate-renderer-and-extractor-into-the-application.md) | Integrate the report renderer and document extractor into the application, not into standalone packages | accepted | — | RPT-01, RPT-02, RPT-03, RPT-04, RPT-05, INT-10, INT-11, INT-12 |
 | [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md) | Enable Automation MCP by explicit deployment configuration | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | accepted | ADR-0041 | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
-| [ADR-0028](0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | superseded | ADR-0049, ADR-0050 | EXT-08, RPT-01, RPT-02 |
+| [ADR-0028](superseded/0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | superseded | ADR-0049, ADR-0050 | EXT-08, RPT-01, RPT-02 |
 | [ADR-0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | accepted | ADR-0045 | INT-17, INT-28 |
 | [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted | ADR-0046 (partial) | — |
 | [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | accepted | ADR-0064 (professional findings) | MCP-06, AI-09 |
-| [ADR-0032](0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | superseded | ADR-0033 | INT-33 |
+| [ADR-0032](superseded/0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | superseded | ADR-0033 | INT-33 |
 | [ADR-0033](0033-warm-unified-work-queue-for-five-second-intake.md) | Warm unified work queue for five-second intake | accepted | — | INT-33 |
-| [ADR-0034](0034-per-principal-eva-api-submission-settings.md) | Per-Principal EVA API submission settings | superseded | ADR-0038 | EXT-04 |
+| [ADR-0034](superseded/0034-per-principal-eva-api-submission-settings.md) | Per-Principal EVA API submission settings | superseded | ADR-0038 | EXT-04 |
 | [ADR-0035](0035-ai-job-ledger.md) | AI job ledger | accepted | ADR-0073 (AI-09 hand-off record) | AI-10, AI-09, MCP-06, MCP-01 |
 | [ADR-0036](0036-outbound-mail-via-approved-mailbox.md) | Outbound mail via the approved mailbox | accepted | ADR-0042, ADR-0052, ADR-0068 (Compose and the default mailbox), ADR-0069 (folder move) | — |
-| [ADR-0037](0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | superseded | ADR-0039 | OPS-10, OPS-24 |
-| [ADR-0038](0038-manual-only-eva-api-submission.md) | Manual-only EVA API submission | superseded | ADR-0048 | EXT-04 |
+| [ADR-0037](superseded/0037-linux-authorised-release-workstation.md) | Linux authorised release workstation | superseded | ADR-0039 | OPS-10, OPS-24 |
+| [ADR-0038](superseded/0038-manual-only-eva-api-submission.md) | Manual-only EVA API submission | superseded | ADR-0048 | EXT-04 |
 | [ADR-0039](0039-windows-and-linux-release-workstations.md) | Windows and Linux release workstations | accepted | — | OPS-10, OPS-24 |
 | [ADR-0040](0040-qualified-document-intelligence-ocr.md) | Qualified Document Intelligence OCR | accepted | ADR-0047 | INT-16, EXT-12 |
 | [ADR-0041](0041-persistent-automation-keys-and-grant-attribution.md) | Persistent Automation keys and grant attribution | accepted | — | — |
@@ -67,11 +69,11 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0044](0044-mail-occurrence-and-business-identity.md) | Mail occurrence and business identity | accepted | — | — |
 | [ADR-0045](0045-document-custody-and-derived-caches.md) | Document custody and derived caches | accepted | — | — |
 | [ADR-0046](0046-destructive-migration-runtime-shutdown.md) | Destructive migration runtime shutdown | accepted | — | — |
-| [ADR-0047](0047-scanned-instruction-ocr-only.md) | OCR only for incoming scanned instructions | superseded | ADR-0061 | INT-16 |
+| [ADR-0047](superseded/0047-scanned-instruction-ocr-only.md) | OCR only for incoming scanned instructions | superseded | ADR-0061 | INT-16 |
 | [ADR-0048](0048-principal-report-generation-policies.md) | Principal report-generation policies | accepted | ADR-0065 (all but recipient settings) | EXT-04 |
 | [ADR-0049](0049-host-web-on-app-service-code-deploy.md) | Host Pegasus Web on an App Service Web App by code deployment | accepted | — | EXT-08 |
 | [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02, RPT-07 |
-| [ADR-0051](0051-linked-audit-case-identity-and-custody.md) | Linked Audit Case identity and custody | superseded | ADR-0056 | — |
+| [ADR-0051](superseded/0051-linked-audit-case-identity-and-custody.md) | Linked Audit Case identity and custody | superseded | ADR-0056 | — |
 | [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | ADR-0069 (logical folder), ADR-0071 (clause 3) | — |
 | [ADR-0053](0053-personal-staff-notification-store.md) | Personal staff notification store | accepted | — | — |
 | [ADR-0054](0054-release-notes-authored-in-the-application.md) | Release notes are authored in the application by an Administrator | accepted | — | — |
@@ -86,7 +88,7 @@ ADR — IDs are never renumbered or reused.
 | [ADR-0063](0063-glass-estimate-belongs-to-its-repair-spec.md) | A Glass's estimate belongs to its repair spec, by its stock vehicle | accepted | — | EXT-06, ENG-01 |
 | [ADR-0064](0064-automation-actor-staff-casework-parity.md) | The Automation Actor has staff casework parity | accepted | ADR-0068 (`pegasus_mail_send` new mode), ADR-0069 (mail folder move), ADR-0075 (decision 7: staff Take over of an Automation lease) | MCP-01, MCP-02, MCP-06 |
 | [ADR-0065](0065-case-export-replaces-eva-routes.md) | The Case export replaces the EVA routes | accepted | — | CASE-21, CASE-30, EXT-03, EXT-04, UI-04 |
-| [ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md) | Cazana valuation through a Key Vault-held API key | superseded | ADR-0079 | EXT-07, EXT-13 |
+| [ADR-0066](superseded/0066-cazana-valuation-through-a-key-vault-held-api-key.md) | Cazana valuation through a Key Vault-held API key | superseded | ADR-0079 | EXT-07, EXT-13 |
 | [ADR-0067](0067-report-sent-replaces-completed-and-queries-are-case-records.md) | Report sent replaces Completed, and queries are Case records | accepted | ADR-0085 (per-query Mark done, Reopen and Assign) | CASE-16, CASE-23 |
 | [ADR-0068](0068-incoming-and-outgoing-mailboxes-and-case-mail-replies.md) | Incoming and Outgoing mailboxes, and Case mail replies to its instruction | accepted | — | MAIL-12, MAIL-14, MAIL-18, INT-05, INT-06, INT-07 |
 | [ADR-0069](0069-one-flat-mail-category.md) | One flat mail category | accepted | ADR-0072 (Inbox scope rail; Unidentified as undecided mail) | MAIL-02, MAIL-21, MAIL-22, UI-14 |

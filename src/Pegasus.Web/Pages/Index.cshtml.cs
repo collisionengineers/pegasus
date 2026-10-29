@@ -40,10 +40,10 @@ public partial class IndexModel(
     IAssignCaseEngineer assignEngineer,
     IAssignCaseQuery assignQuery,
     IConfirmAiJob confirmAiJob,
-    IListWorkCentreAiJobs listAiJobs,
+    ListWorkCentreAiJobs listAiJobs,
     IListSystemActions listSystemActions,
     IWorkCentreDismissalStore dismissalStore,
-    IDismissWorkCentreItem dismissItem,
+    DismissWorkCentreItem dismissItem,
     IGetWorkCentreActivity getActivity,
     TimeProvider timeProvider,
     ILogger<IndexModel> logger) : StaffPageModel

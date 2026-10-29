@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -112,52 +111,24 @@ public sealed class TriageReplayTests
 
     /// <summary>
     /// The Worker asks for Triage pairing every minute and usually nothing is
-    /// waiting. Such a pass opens no span; a pass with a candidate opens one. A
-    /// candidate read that fails opens none and is still counted as a failure.
+    /// waiting. Such a pass reports nothing; a candidate read that fails is
+    /// counted as a failure, and a pass with a candidate links it.
     /// </summary>
     [Fact]
-    public async Task APairingPassOpensItsSpanOnlyWhenThereIsACandidate()
+    public async Task APairingPassCountsWhatItFoundLinkedAndFailedToRead()
     {
-        var spans = new List<Activity>();
-        // An ActivitySource and its listeners are process-wide and this assembly
-        // runs its classes in parallel, so only this test's trace is collected.
-        using var scope = new Activity(nameof(APairingPassOpensItsSpanOnlyWhenThereIsACandidate))
-            .SetIdFormat(ActivityIdFormat.W3C)
-            .Start();
-        using var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == "Pegasus.Core.Triage",
-            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-            ActivityStopped = activity =>
-            {
-                if (activity.TraceId == scope.TraceId)
-                {
-                    lock (spans)
-                    {
-                        spans.Add(activity);
-                    }
-                }
-            }
-        };
-        ActivitySource.AddActivityListener(listener);
         var store = new ReplayStore();
         var pairing = new TriageCasePairing(store);
 
         Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(50, CancellationToken.None));
-        Assert.Empty(spans);
 
         store.CandidateReadFailure = new InvalidOperationException("Injected candidate read failure.");
         Assert.Equal(new TriageCasePairingResult(0, 0, 1, nameof(InvalidOperationException)),
             await pairing.ReconcileAsync(50, CancellationToken.None));
-        Assert.Empty(spans);
 
         store.CandidateReadFailure = null;
         store.PairingCandidates.Add(new TriageCaseLinkCandidate(Guid.NewGuid(), 0, Guid.NewGuid(), 0, "fixture-match", 1));
         Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(50, CancellationToken.None));
-        var span = Assert.Single(spans);
-        Assert.Equal("triage_case_pairing", span.OperationName);
-        Assert.Same(scope, span.Parent);
-        Assert.Equal(0, span.GetTagItem("triage.pairing_failures"));
     }
 
     private static readonly Guid TriageCaseId = Guid.NewGuid();

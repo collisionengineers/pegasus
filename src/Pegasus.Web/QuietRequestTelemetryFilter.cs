@@ -42,8 +42,8 @@ public sealed class QuietRequestTelemetryFilter(
     }
 
     /// <summary>
-    /// Whether a request path is one of the quiet ones. The per-request
-    /// runtime stamps skip the same paths.
+    /// Whether a request path is one of the quiet ones. The keep-warm
+    /// page signal skips the same paths.
     /// </summary>
     internal static bool IsQuietPath(PathString path)
     {

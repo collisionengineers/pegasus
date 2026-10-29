@@ -73,6 +73,6 @@ and fixed addresses are set there
 
 ## Links
 
-- [ADR-0038 — Manual-only EVA API submission](0038-manual-only-eva-api-submission.md)
+- [ADR-0038 — Manual-only EVA API submission](superseded/0038-manual-only-eva-api-submission.md)
 - [FRD-04 — Parties, accounts, and access](../frd/frd-04-parties-accounts-and-access.md#contacts-administration)
 - [FRD-07 — EVA and external engineering handoff](../frd/frd-07-case-export.md#external-boundary)

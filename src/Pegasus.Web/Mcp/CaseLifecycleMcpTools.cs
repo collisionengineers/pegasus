@@ -42,7 +42,7 @@ internal sealed class CaseLifecycleMcpTools(
     ICreateLinkedReplacement createLinkedReplacement,
     ICloseCase closeCase,
     IReopenCase reopenCase,
-    IReturnCaseToEngineer returnToEngineer,
+    ReturnCaseToEngineer returnToEngineer,
     IArchiveCase archiveCase,
     ICreateAudit createAudit,
     IRequestVehicleLookup requestVehicleLookup,

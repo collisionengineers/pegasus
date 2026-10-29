@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -93,8 +92,6 @@ public sealed class ImageIntakeAutomation(
     public const int MatchPolicyVersion = 1;
     private const string SystemActor = "system-worker:" + ActorId;
 
-    private static readonly ActivitySource Telemetry = new("Pegasus.Core.ImageIntake");
-
     public async Task<ImageIntakeAutomationOutcome> ApplyAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
@@ -111,13 +108,9 @@ public sealed class ImageIntakeAutomation(
             return new(receipt);
         }
 
-        using var activity = Telemetry.StartActivity("image_intake_automation");
-        activity?.SetTag("intake.receipt_id", receipt.Id);
-
         var existing = await imageIntakeStore.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
         if (existing is not null)
         {
-            activity?.SetTag("image_intake.outcome", "already_registered");
             try
             {
                 // A policy re-evaluation recomputes the decision without
@@ -125,37 +118,32 @@ public sealed class ImageIntakeAutomation(
                 await imageIntakeStore.EnsureRegisteredReceiptDecisionAsync(
                     receipt.Id,
                     cancellationToken);
-                RecordPairingOutcome(activity,
-                    await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken, existing));
+                await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken, existing);
                 return new(await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt);
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {
-                activity?.SetTag("image_intake.failure_type", exception.GetType().Name);
-                activity?.SetStatus(ActivityStatusCode.Error, "registered_replay_failed");
                 return new(receipt);
             }
         }
 
         if (groupStore is not null)
         {
-            var groupOutcome = await TryApplyGroupAsync(receipt, activity, cancellationToken);
+            var groupOutcome = await TryApplyGroupAsync(receipt, cancellationToken);
             if (groupOutcome is not null)
             {
                 return groupOutcome;
             }
         }
 
-        if (await PrintedRegistrationAsync(receipt, activity, cancellationToken) is { } printed)
+        if (await PrintedRegistrationAsync(receipt, cancellationToken) is { } printed)
         {
             // A capture PDF prints the vehicle's registration; its photographs
             // pair on that, never on plate reads (FRD-02 EXT-17).
-            activity?.SetTag("image_intake.registration_source", "document");
             return await TryRegisterAndAssociateAsync(
                 receipt,
                 printed,
                 [],
-                activity,
                 cancellationToken,
                 isPrinted: true) ?? new(receipt);
         }
@@ -169,25 +157,21 @@ public sealed class ImageIntakeAutomation(
             // on one does not make a failed recognition on another harmless:
             // the whole evidence set remains technically incomplete and is
             // handed to staff with that explicit reason.
-            activity?.SetTag("image_intake.outcome", "recognition_failure");
             return new(receipt, UnidentifiedGroup:
                 BuildTechnicalFailureRegistrationRequest(receipt));
         }
         var confidentRegistrations = VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(suggestions);
-        activity?.SetTag("image_intake.distinct_confident_registrations", confidentRegistrations.Length);
         if (confidentRegistrations.Length > VrmRecognitionProvisionalBar.RequiredDistinctRegistrations)
         {
             // A standalone PDF is still a set of photographs. Conflicting
             // confident reads must be visible as an identification conflict,
             // not collapsed to the generic no-readable-identification route.
-            activity?.SetTag("image_intake.outcome", "conflicting_vrms");
             return new(receipt, UnidentifiedGroup:
                 BuildConflictingRegistrationRequest(receipt));
         }
         if (confidentRegistrations.Length
             != VrmRecognitionProvisionalBar.RequiredDistinctRegistrations)
         {
-            activity?.SetTag("image_intake.outcome", "below_bar");
             return new(receipt);
         }
 
@@ -196,7 +180,6 @@ public sealed class ImageIntakeAutomation(
             receipt,
             registration,
             suggestions,
-            activity,
             cancellationToken);
         return updated ?? new(receipt);
     }
@@ -214,21 +197,14 @@ public sealed class ImageIntakeAutomation(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
-        using var activity = Telemetry.StartActivity("image_intake_automation");
-        activity?.SetTag("intake.receipt_id", receipt.Id);
         if (groupStore is not null
             && await groupStore.FindForMemberSourceAsync(receipt.SourceIdentity, cancellationToken)
                 is { HasSiblingMembers: true })
         {
-            activity?.SetTag("image_intake.outcome", "filed_upload_in_batch");
             return new(receipt);
         }
 
-        var suggestions = await ScanAsync(receipt, cancellationToken);
-        activity?.SetTag("image_intake.outcome", "filed_upload_photographs_read");
-        activity?.SetTag(
-            "image_intake.distinct_confident_registrations",
-            VrmRecognitionProvisionalBar.DistinctAcceptedRegistrations(suggestions).Length);
+        await ScanAsync(receipt, cancellationToken);
         return new(receipt);
     }
 
@@ -258,7 +234,6 @@ public sealed class ImageIntakeAutomation(
 
     private async Task<ImageIntakeAutomationOutcome?> TryApplyGroupAsync(
         IntakeReceipt receipt,
-        Activity? activity,
         CancellationToken cancellationToken)
     {
         var group = await groupStore!.FindForMemberSourceAsync(
@@ -269,7 +244,6 @@ public sealed class ImageIntakeAutomation(
             // The durable manual discard terminalizes the submission without
             // deleting custody. It also shuts this route before a completed
             // queue replay can register or associate its retained images.
-            activity?.SetTag("image_intake.group_outcome", "discarded");
             return new(receipt);
         }
         if (group is null || !group.HasSiblingMembers)
@@ -291,7 +265,6 @@ public sealed class ImageIntakeAutomation(
             // staged. This is distinct from the per-row check below, which
             // can only see rows that already exist. Retriable, not terminal:
             // the caller must defer rather than fall back to Unidentified.
-            activity?.SetTag("image_intake.group_outcome", "waiting_for_members");
             return new(receipt, GroupPending: true, GroupReading: new(group, [], members));
         }
 
@@ -305,7 +278,6 @@ public sealed class ImageIntakeAutomation(
                 cancellationToken);
             if (memberReceipt is null)
             {
-                activity?.SetTag("image_intake.group_outcome", "waiting_for_members");
                 return new(receipt, GroupPending: true, GroupReading: new(group, receipts, members[(index + 1)..]));
             }
 
@@ -372,9 +344,6 @@ public sealed class ImageIntakeAutomation(
             recognitions,
             imageReceipts.Length,
             eligibleCases.Count);
-        activity?.SetTag("image_intake.group_id", group.Id);
-        activity?.SetTag("image_intake.group_outcome", routing.Decision.ToString());
-        activity?.SetTag("image_intake.group_reason", routing.ReasonCode);
         if (routing.Decision is ImageIntakeGroupRoutingDecision.WaitingForMembers
             or ImageIntakeGroupRoutingDecision.WaitingForRecognition)
         {
@@ -408,11 +377,9 @@ public sealed class ImageIntakeAutomation(
             // decision is theirs to finish, so it neither waits nor registers.
             if (receipts.Any(HasStaffAssociation))
             {
-                activity?.SetTag("image_intake.group_outcome", "staff_started");
                 return new(receipt);
             }
 
-            activity?.SetTag("image_intake.group_outcome", "awaiting_staff_decision");
             return new(receipt, AwaitingStaffDecision: true);
         }
 
@@ -431,7 +398,6 @@ public sealed class ImageIntakeAutomation(
             scans,
             routing,
             eligibleCases,
-            activity,
             cancellationToken);
 
         var finalReceipt = await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
@@ -468,7 +434,6 @@ public sealed class ImageIntakeAutomation(
         IReadOnlyList<(IntakeReceipt Receipt, IReadOnlyList<ImageVrmSuggestion> Suggestions)> scans,
         ImageIntakeGroupRoutingResult routing,
         IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases,
-        Activity? activity,
         CancellationToken cancellationToken)
     {
         var actor = ActionActor.SystemWorker(ActorId);
@@ -482,7 +447,6 @@ public sealed class ImageIntakeAutomation(
             var origin = await originResolver.ResolveOriginAsync(primary.Id, cancellationToken);
             if (origin is null)
             {
-                activity?.SetTag("image_intake.outcome", "origin_unresolved");
                 return false;
             }
 
@@ -507,12 +471,6 @@ public sealed class ImageIntakeAutomation(
                     reason,
                     SubmissionGroupId: group.Id),
                 cancellationToken);
-            activity?.SetTag("image_intake.reference", record.ImageIntakeReference);
-            if (!associationAllowed)
-            {
-                activity?.SetTag("image_intake.association", "handed_off_to_image_intake");
-            }
-
             foreach (var (memberReceipt, suggestions) in scans)
             {
                 await ConfirmUsedSuggestionsAsync(
@@ -530,17 +488,13 @@ public sealed class ImageIntakeAutomation(
 
             if (target is not null)
             {
-                RecordPairingOutcome(activity,
-                    await casePairing.PairRegisteredReceiptAsync(primary.Id, cancellationToken));
+                await casePairing.PairRegisteredReceiptAsync(primary.Id, cancellationToken);
             }
 
             return true;
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            activity?.SetTag("image_intake.outcome", "registration_failed");
-            activity?.SetTag("image_intake.failure_type", exception.GetType().Name);
-            activity?.SetStatus(ActivityStatusCode.Error, "registration_failed");
             return false;
         }
     }
@@ -581,7 +535,6 @@ public sealed class ImageIntakeAutomation(
     /// </summary>
     private async Task<string?> PrintedRegistrationAsync(
         IntakeReceipt receipt,
-        Activity? activity,
         CancellationToken cancellationToken)
     {
         if (captureReadings is null)
@@ -595,7 +548,6 @@ public sealed class ImageIntakeAutomation(
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            activity?.SetTag("image_intake.capture_reading_failure", exception.GetType().Name);
             return null;
         }
     }
@@ -729,7 +681,6 @@ public sealed class ImageIntakeAutomation(
         IntakeReceipt receipt,
         string read,
         IReadOnlyList<ImageVrmSuggestion> suggestions,
-        Activity? activity,
         CancellationToken cancellationToken,
         bool isPrinted = false)
     {
@@ -741,7 +692,6 @@ public sealed class ImageIntakeAutomation(
             ? CaseAssociationEligibility.FormalCases(
                 await caseCandidates.FindEligibleByRegistrationAsync(read, cancellationToken))
             : [];
-        activity?.SetTag("image_intake.case_candidates", candidates.Count);
         var isManual = receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload;
         var target = isManual
             ? null
@@ -772,7 +722,6 @@ public sealed class ImageIntakeAutomation(
             }
 
             await ConfirmUsedSuggestionsAsync(suggestions, target.ConfirmedRegistration, actor, cancellationToken);
-            activity?.SetTag("image_intake.association", "filed_on_case");
             return new(
                 await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt,
                 AssociatedCase: true);
@@ -784,14 +733,12 @@ public sealed class ImageIntakeAutomation(
             && MatchWaitIsOpen(group)
             && !HasStaffAssociation(receipt))
         {
-            activity?.SetTag("image_intake.association", "awaiting_staff_decision");
             return new(receipt, AwaitingStaffDecision: true);
         }
 
         var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken);
         if (origin is null)
         {
-            activity?.SetTag("image_intake.outcome", "origin_unresolved");
             return null;
         }
 
@@ -805,23 +752,11 @@ public sealed class ImageIntakeAutomation(
                     ? "Automatic registration from the registration printed on the capture document."
                     : "Automatic registration from a confident vehicle-registration read on the retained image evidence."),
             cancellationToken);
-        activity?.SetTag("image_intake.reference", record.ImageIntakeReference);
         await ConfirmUsedSuggestionsAsync(
             suggestions,
             record.NormalizedVehicleRegistration,
             actor,
             cancellationToken);
-        if (receipt.CurrentCaseId is not null)
-        {
-            activity?.SetTag("image_intake.association", "already_associated");
-        }
-        else
-        {
-            activity?.SetTag(
-                "image_intake.association",
-                candidates.Count == 0 ? "no_candidate" : "ambiguous");
-        }
-
         return new(await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt);
     }
 
@@ -858,17 +793,6 @@ public sealed class ImageIntakeAutomation(
                 // Disposition is bookkeeping over an already-recorded
                 // suggestion; a failure never blocks the registration.
             }
-        }
-    }
-
-    private static void RecordPairingOutcome(Activity? activity, ImageIntakePairingResult result)
-    {
-        activity?.SetTag("image_intake.pairing_merged", result.Merged);
-        activity?.SetTag("image_intake.pairing_failures", result.Failures);
-        if (result.Failures > 0)
-        {
-            activity?.SetTag("image_intake.failure_type", result.FirstFailure);
-            activity?.SetStatus(ActivityStatusCode.Error, "association_failed");
         }
     }
 }

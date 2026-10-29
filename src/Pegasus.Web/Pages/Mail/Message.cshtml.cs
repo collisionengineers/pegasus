@@ -34,7 +34,7 @@ public enum MessageOffer
 
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
-    IStartQueryResponse startQueryResponse,
+    StartQueryResponse startQueryResponse,
     IAiJobQueries aiJobQueries,
     IAiJobStore aiJobStore,
     ISendToAiControl sendToAiControl,
@@ -55,10 +55,10 @@ public sealed class MessageModel(
     IReverseIntakeLink reverseIntakeLink,
     IOpenCaseQuery openCaseQuery,
     IMarkCaseQueryDone markCaseQueryDone,
-    IDismissRetainedMail dismissRetainedMail,
-    IRestoreRetainedMail restoreRetainedMail,
+    DismissRetainedMail dismissRetainedMail,
+    RestoreRetainedMail restoreRetainedMail,
     IGetRetainedMailAttachmentOutcomes attachmentOutcomes,
-    IGetIntakeOfferedActions offeredActions,
+    GetIntakeOfferedActions offeredActions,
     Pegasus.Web.Intake.StaffIntakeActions intakeActions,
     ILogger<MessageModel> logger) : StaffPageModel
 {

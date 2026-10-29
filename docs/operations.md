@@ -50,6 +50,46 @@ Release 124 are one line each in [operations history](operations-history.md).
   resumed and read back `Running` at 09:26:12Z after verification. The
   Web App read back `Running` at 09:26:15Z.
 
+## Page p95 baseline - 28 October 2026 (read-only observation)
+
+The first recorded page baseline for the budgets in
+[engineering](engineering.md#page-budgets) (operator, 28 October 2026, R507).
+Read at 21:35Z from `pegasus-prod-appi-252ow37gij` through its workspace
+`pegasus-prod-logs-252ow37gij`, over the seven days to the reading: the
+operator's test use only, with Releases 124 to 128 and their restarts inside
+the window, so every figure includes cold starts (the Work Centre maximum is
+a 74 s request after a restart). Server time is `AppRequests.DurationMs`;
+the request timing filter's phases are `AppEvents` named
+`Pegasus.Document.Read` with `Properties.phase` and `Measurements.durationMs`.
+
+```kusto
+AppRequests | where TimeGenerated > ago(7d)
+| extend Page = tostring(split(Name, '?')[0])
+| summarize Count = count(), P95 = round(percentile(DurationMs, 95)) by Page
+```
+
+| Budget line | Page | Requests | p50 ms | p95 ms | Budget |
+| --- | --- | --- | --- | --- | --- |
+| Work Centre | `GET /Index` | 239 | 741 | 3,431 | 500 ms |
+| Inbox list | `GET /Mail/Index` | 376 | 129 | 1,391 | 500 ms |
+| Cases list | `GET /Cases/Index` | 174 | 258 | 1,965 | 500 ms |
+| Case page open | `GET /Cases/Details` | 530 | 291 | 2,043 | 500 ms |
+| Save and handler fetches | `POST /Cases/Details` | 493 | 70 | 2,238 | 300 ms |
+| Dialog loads | `GET /Mail/Message` | 51 | 339 | 4,140 | 300 ms |
+| Everything else | `GET /Administration/*` (6 to 28 requests each) | | 52 to 330 | 676 to 3,468 | 1 s |
+| Report PDF render | phase `report.pdf.generate` | 6 | 59 | 1,416 | 3 s |
+
+Timing-filter phases over the same window (p95 ms): `web.case.resource`
+3,026 (921 requests), `web.case.main` 2,165, `web.case.section.resource`
+1,169 (427), `web.workcentre.resource` 3,013 (211), `web.workcentre.main`
+2,534, `web.workcentre.refresh.resource` 6,330 (62), `web.auth.validation`
+54 (2,886); `report.renderer.initialize` 22,092 over 12 cold initialisations.
+
+Every hot page is over its budget on this reading. The reading is a test-use
+week with restarts in it, not the week of real use the budget rule names; it
+is recorded so the next reading has a comparison, and no efficiency change is
+built from it alone.
+
 ## Operations record corrections - 22 October 2026 (addendum)
 
 This section adds dated observations to three statements below that lean on

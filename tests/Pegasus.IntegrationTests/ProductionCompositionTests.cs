@@ -507,7 +507,7 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void ProductionWebTelemetryCollectsTheTwelveRuntimeCountersAndNoOthers()
+    public void ProductionWebTelemetryCollectsNoEventCounters()
     {
         using var factory = new ConfiguredWebApplicationFactory(
             "Production",
@@ -518,18 +518,14 @@ public sealed class ProductionCompositionTests
             });
 
         // The module is configured when the telemetry configuration is built.
+        // Metrics are never sampled, so a counter would be an unsampled row
+        // every collection interval; the stock module asks for none.
         _ = factory.Services.GetRequiredService<TelemetryConfiguration>();
         var module = factory.Services.GetServices<ITelemetryModule>()
             .OfType<Microsoft.ApplicationInsights.Extensibility.EventCounterCollector.EventCounterCollectionModule>()
             .Single();
 
-        Assert.Equal(
-            Pegasus.Web.Health.RuntimeCounters.Requested
-                .Select(counter => $"{counter.Source}/{counter.Counter}")
-                .Order(StringComparer.Ordinal),
-            module.Counters
-                .Select(counter => $"{counter.EventSourceName}/{counter.EventCounterName}")
-                .Order(StringComparer.Ordinal));
+        Assert.Empty(module.Counters);
     }
 
     [Fact]

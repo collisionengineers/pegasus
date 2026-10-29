@@ -649,7 +649,7 @@ public sealed class WorkAiJob(
     }
 }
 
-public sealed class CancelAiJob(IAiJobStore store) : ICancelAiJob
+public sealed class CancelAiJob(IAiJobStore store)
 {
     public Task<AiJobRecord> ExecuteAsync(
         CancelAiJobCommand command,

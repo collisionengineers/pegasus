@@ -30,15 +30,7 @@ public interface IStaffPasswordChangeStore
         CancellationToken cancellationToken);
 }
 
-public interface IChangeStaffPassword
-{
-    Task<ChangeStaffPasswordResult> ExecuteAsync(
-        ChangeStaffPasswordRequest request,
-        CancellationToken cancellationToken);
-}
-
 public sealed class ChangeStaffPassword(IStaffPasswordChangeStore store)
-    : IChangeStaffPassword
 {
     private readonly IStaffPasswordChangeStore _store =
         store ?? throw new ArgumentNullException(nameof(store));

@@ -9,7 +9,7 @@ namespace Pegasus.Web.Pages.Administration;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class AiJobsModel(
     GetAdministrationAiJobs getJobs,
-    ICancelAiJob cancelJob) : AdministrationPageModel
+    CancelAiJob cancelJob) : AdministrationPageModel
 {
     public AdministrationAiJobPage Result { get; private set; } = new([], new(0, 0), false, false);
     public int CurrentPage { get; private set; } = 1;

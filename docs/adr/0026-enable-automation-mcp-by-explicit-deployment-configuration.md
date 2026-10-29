@@ -71,4 +71,4 @@ ownership of the external MCP client's client-selection or tool-access policy.
 ## Links
 
 - [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
-- [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md)
+- [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md)
