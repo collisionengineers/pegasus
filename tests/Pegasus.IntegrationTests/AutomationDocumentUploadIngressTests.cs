@@ -8,7 +8,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// R203 over real HTTP: a document too large for one argument is staged in
-/// parts on the documents server and added by <c>pegasus_document_add</c>
+/// parts and added by <c>pegasus_document_add</c>
 /// with its <c>uploadId</c>. Custody is written only by the add, with the
 /// declared SHA-256; staging writes no history row; a missing, short or
 /// damaged part leaves the Case's documents unchanged; a refused add leaves
@@ -253,7 +253,6 @@ public sealed class AutomationDocumentUploadIngressTests
     {
         using var response = await PostMcpAsync(
             client,
-            DocumentsServer,
             token,
             ToolCallPayload(1, tool, arguments));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -264,7 +263,6 @@ public sealed class AutomationDocumentUploadIngressTests
     {
         using var response = await PostMcpAsync(
             client,
-            DocumentsServer,
             token,
             ToolCallPayload(1, tool, arguments));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

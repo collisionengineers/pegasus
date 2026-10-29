@@ -95,7 +95,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
                 }));
             using var json = JsonDocument.Parse(await tokens.Content.ReadAsStringAsync());
             var accessToken = json.RootElement.GetProperty("access_token").GetString()!;
-            using var call = await PostMcpAsync(connector, CasesServer, accessToken, ToolCallPayload(
+            using var call = await PostMcpAsync(connector, accessToken, ToolCallPayload(
                 90 + index, "pegasus_case_search", new { query = $"no-match-{index}" }));
             Assert.Equal(HttpStatusCode.OK, call.StatusCode);
         }
@@ -135,7 +135,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         {
             var (verifier, challenge) = Pkce();
             using var consent = await browser.GetAsync(
-                AuthorizeUrl(challenge, "automation.documents", server: DocumentsServer));
+                AuthorizeUrl(challenge, "automation.documents"));
             var html = await consent.Content.ReadAsStringAsync();
             using var approval = await browser.PostAsync(AuthorizeHandlerUrl("Accept"), ConsentForm(html));
             var code = ParseQuery(approval.Headers.Location!)["code"]!;
@@ -157,7 +157,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         var document = Encoding.UTF8.GetBytes(new string('p', 70_000));
         const string operationKey = "mcp:upload-across-grants";
         var uploadId = await StageUploadAsync(connector, tokens[0], document, operationKey);
-        using (var begin = await PostMcpAsync(connector, DocumentsServer, tokens[1], ToolCallPayload(
+        using (var begin = await PostMcpAsync(connector, tokens[1], ToolCallPayload(
             30,
             "pegasus_upload_begin",
             new { totalBytes = document.Length, sha256 = Sha256Hex(document), operationKey })))
@@ -168,7 +168,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
             Assert.Equal(2, ticket.GetProperty("receivedParts").GetArrayLength());
         }
 
-        using var add = await PostMcpAsync(connector, DocumentsServer, tokens[1], ToolCallPayload(
+        using var add = await PostMcpAsync(connector, tokens[1], ToolCallPayload(
             31,
             "pegasus_document_add",
             new
@@ -199,9 +199,9 @@ public sealed partial class AutomationConnectorAuthorizationTests
         var html = await consent.Content.ReadAsStringAsync();
         Assert.True(consent.StatusCode == HttpStatusCode.OK, $"{(int)consent.StatusCode}: {html}");
         Assert.Contains("connector.example", html, StringComparison.Ordinal);
-        // Each requested scope reads as its description alone (v41 S5).
-        Assert.Contains($"<li>{AuthorizeModel.ScopeDescriptions[AutomationMcp.CasesScope]}</li>", html, StringComparison.Ordinal);
-        Assert.Contains($"<li>{AuthorizeModel.ScopeDescriptions[AutomationMcp.DocumentsScope]}</li>", html, StringComparison.Ordinal);
+        // Each requested scope reads as its description alone (v41 S5), ticked.
+        Assert.Contains($"<span>{AuthorizeModel.ScopeDescriptions[AutomationMcp.CasesScope]}</span>", html, StringComparison.Ordinal);
+        Assert.Contains($"<span>{AuthorizeModel.ScopeDescriptions[AutomationMcp.DocumentsScope]}</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(AuthorizeModel.ScopeDescriptions[AutomationMcp.IntakeScope], html, StringComparison.Ordinal);
 
         // Approve: OpenIddict redirects back to the exact registered URI with the code.
@@ -232,8 +232,9 @@ public sealed partial class AutomationConnectorAuthorizationTests
         var refreshToken = tokenJson.RootElement.GetProperty("refresh_token").GetString();
         Assert.False(string.IsNullOrEmpty(refreshToken));
 
-        // The cases tools with the edit-lease tools, and the documents tools.
-        string[] casesTools =
+        // The token lists the tools of its two consented scopes and no other:
+        // the cases tools with the edit-lease tools, and the documents tools.
+        string[] expected =
         [
             "pegasus_case_action",
             "pegasus_case_get",
@@ -242,18 +243,13 @@ public sealed partial class AutomationConnectorAuthorizationTests
             "pegasus_case_search",
             "pegasus_case_update_details",
             "pegasus_directory_search",
-            "pegasus_edit_begin",
-            "pegasus_edit_end",
-            "pegasus_edit_renew",
-            "pegasus_vocabulary_get",
-            "pegasus_work_centre_dismiss"
-        ];
-        string[] documentsTools =
-        [
             "pegasus_document_action",
             "pegasus_document_add",
             "pegasus_document_download",
             "pegasus_document_download_batch",
+            "pegasus_edit_begin",
+            "pegasus_edit_end",
+            "pegasus_edit_renew",
             "pegasus_image_preparation_get",
             "pegasus_image_prepare",
             "pegasus_report_action",
@@ -261,14 +257,12 @@ public sealed partial class AutomationConnectorAuthorizationTests
             "pegasus_report_wording_get",
             "pegasus_report_wording_save",
             "pegasus_upload_begin",
-            "pegasus_upload_part"
+            "pegasus_upload_part",
+            "pegasus_vocabulary_get",
+            "pegasus_work_centre_dismiss"
         ];
-
-        // The connector token reaches the server of each consented scope and
-        // lists that server's tools; the intake server refuses it.
-        foreach (var (server, expected, rpcId) in new[] { (CasesServer, casesTools, 1), (DocumentsServer, documentsTools, 2) })
+        using (var list = await PostMcpAsync(connector, accessToken, ToolsListPayload(1)))
         {
-            using var list = await PostMcpAsync(connector, server, accessToken, ToolsListPayload(rpcId));
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
             using var document = await ReadJsonRpcAsync(list);
             Assert.Equal(
@@ -279,14 +273,6 @@ public sealed partial class AutomationConnectorAuthorizationTests
                     .Select(tool => tool.GetProperty("name").GetString())
                     .OrderBy(name => name, StringComparer.Ordinal)
                     .ToArray());
-        }
-        using (var denied = await PostMcpAsync(
-            connector,
-            IntakeServer,
-            accessToken,
-            ToolCallPayload(2, "pegasus_intake_queue_list", new { page = 1, pageSize = 10 })))
-        {
-            Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
         }
 
         // Refresh: a new access token without a new consent.
@@ -303,7 +289,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         Assert.True(refreshed.IsSuccessStatusCode, refreshedBody);
         using var refreshedJson = JsonDocument.Parse(refreshedBody);
         var refreshedAccess = refreshedJson.RootElement.GetProperty("access_token").GetString()!;
-        using (var list = await PostMcpAsync(connector, CasesServer, refreshedAccess, ToolsListPayload(3)))
+        using (var list = await PostMcpAsync(connector, refreshedAccess, ToolsListPayload(3)))
         {
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         }
@@ -320,25 +306,148 @@ public sealed partial class AutomationConnectorAuthorizationTests
     }
 
     /// <summary>
-    /// ADR-0080 decision 6, stated from the code. A token carries the shared
-    /// audience, its scopes and its grant, never the server its connector
-    /// named, and the split changes none of these: an access or refresh token
-    /// issued before it is accepted by each server whose scope it holds until
-    /// it expires, and a refresh naming no resource still works. The old
-    /// resource does not survive: a refresh naming it is refused, so an
-    /// Administrator re-adds each connector at its server's URL and consents
-    /// once per server.
+    /// ADR-0087 decision 4: the grant holds the scopes the Administrator left
+    /// ticked. With Sending unticked the token lists no send tool, a send is
+    /// refused by scope, and the decision records the granted scope alone.
     /// </summary>
     [Fact]
-    public async Task ATokenFromBeforeTheSplitServesItsScopesButItsConnectorIsReAddedPerServer()
+    public async Task TheGrantHoldsOnlyTheScopesLeftTicked()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var browser = CreateBrowser(mcpFactory);
+        using var connector = CreateConnector(mcpFactory);
+        var (verifier, challenge) = Pkce();
+
+        using var consent = await browser.GetAsync(AuthorizeUrl(challenge, "automation.cases automation.send"));
+        var html = await consent.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, consent.StatusCode);
+        // Each requested scope is a ticked box carrying the identifier as its
+        // value and posting with the consent form; the words stay the description.
+        foreach (var scope in new[] { AutomationMcp.CasesScope, AutomationMcp.SendScope })
+        {
+            Assert.Contains(
+                $"name=\"ApprovedScopes\" value=\"{scope}\" form=\"consent-form\" checked",
+                html,
+                StringComparison.Ordinal);
+        }
+
+        using var approve = await browser.PostAsync(
+            AuthorizeHandlerUrl("Accept"),
+            ConsentForm(html, [AutomationMcp.CasesScope]));
+        Assert.Equal(HttpStatusCode.Redirect, approve.StatusCode);
+        using var tokens = await connector.PostAsync(
+            AutomationMcp.TokenEndpointPath,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "authorization_code",
+                ["code"] = ParseQuery(approve.Headers.Location!)["code"]!,
+                ["code_verifier"] = verifier,
+                ["redirect_uri"] = ConnectorRedirectUri,
+                ["client_id"] = ClientId,
+                ["client_secret"] = ClientSecret
+            }));
+        var tokenBody = await tokens.Content.ReadAsStringAsync();
+        Assert.True(tokens.IsSuccessStatusCode, tokenBody);
+        using var tokenJson = JsonDocument.Parse(tokenBody);
+        var accessToken = tokenJson.RootElement.GetProperty("access_token").GetString()!;
+
+        // A token response naming its scopes names the narrower grant
+        // (RFC 6749 section 3.3).
+        if (tokenJson.RootElement.TryGetProperty("scope", out var scopeParameter))
+        {
+            var granted = (scopeParameter.GetString() ?? string.Empty).Split(' ');
+            Assert.Contains(AutomationMcp.CasesScope, granted);
+            Assert.DoesNotContain(AutomationMcp.SendScope, granted);
+        }
+
+        // The list holds the cases tools and no send tool.
+        using (var list = await PostMcpAsync(connector, accessToken, ToolsListPayload(1)))
+        {
+            Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+            using var document = await ReadJsonRpcAsync(list);
+            var names = document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
+                .Select(tool => tool.GetProperty("name").GetString())
+                .ToArray();
+            Assert.Equal(12, names.Length);
+            Assert.Contains("pegasus_case_search", names);
+            Assert.DoesNotContain("pegasus_mail_send", names);
+            Assert.DoesNotContain("pegasus_report_send", names);
+        }
+
+        // A send is refused by scope before anything runs.
+        using (var send = await PostMcpAsync(connector, accessToken, ToolCallPayload(2, "pegasus_report_send", new
+        {
+            caseId = Guid.NewGuid(),
+            expectedVersion = 0,
+            operationKey = "mcp:unticked-send",
+            coveringMessage = "Please find our report attached."
+        })))
+        {
+            await AssertScopeDeniedAsync(send, AutomationMcp.SendScope);
+        }
+
+        // The decision records the granted scope alone.
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE EventKind = N'automation_connector_authorized'
+              AND AggregateId LIKE N'grant:%'
+              AND Outcome = N'Succeeded'
+              AND Reason LIKE N'Connector https://connector.example%automation.cases%'
+              AND Reason NOT LIKE N'%automation.send%'
+            """));
+    }
+
+    /// <summary>
+    /// ADR-0087 decision 4: approving with no scope ticked is the refusal the
+    /// Refuse button records, and the connector receives access_denied.
+    /// </summary>
+    [Fact]
+    public async Task ApprovingWithNoScopeTickedIsARefusal()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var browser = CreateBrowser(mcpFactory);
+        var (_, challenge) = Pkce();
+
+        using var consent = await browser.GetAsync(AuthorizeUrl(challenge, "automation.cases"));
+        var html = await consent.Content.ReadAsStringAsync();
+        using var approve = await browser.PostAsync(AuthorizeHandlerUrl("Accept"), ConsentForm(html, []));
+        Assert.Equal(HttpStatusCode.Redirect, approve.StatusCode);
+        var callback = ParseQuery(approve.Headers.Location!);
+        Assert.Equal("access_denied", callback["error"]);
+        Assert.Equal(State, callback["state"]);
+        Assert.False(callback.ContainsKey("code"));
+
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE EventKind = N'automation_connector_denied' AND Outcome = N'Denied'
+            """));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE EventKind = N'automation_connector_authorized'
+            """));
+    }
+
+    /// <summary>
+    /// ADR-0087 decision 6, stated from the code. A token carries the shared
+    /// audience, its scopes and its grant, never a path, so the one server
+    /// takes a token whose consent predates it and a refresh naming /mcp or
+    /// no resource. A per-scope server's resource does not survive: a refresh
+    /// naming one is refused, so an Administrator adds the one connector at
+    /// /mcp and consents once.
+    /// </summary>
+    [Fact]
+    public async Task ARefreshNamingAPerScopeServerIsRefusedAndTheOneResourceIsMcp()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
         using var browser = CreateBrowser(mcpFactory);
         using var connector = CreateConnector(mcpFactory);
 
-        // The consent and the code exchange are unchanged by the split, so this
-        // token has the shape a consent before it gave.
         var (verifier, challenge) = Pkce();
         using var consent = await browser.GetAsync(AuthorizeUrl(challenge, "automation.cases automation.documents"));
         var html = await consent.Content.ReadAsStringAsync();
@@ -359,48 +468,33 @@ public sealed partial class AutomationConnectorAuthorizationTests
         using var tokens = JsonDocument.Parse(exchangeBody);
         var accessToken = tokens.RootElement.GetProperty("access_token").GetString()!;
         var refreshToken = tokens.RootElement.GetProperty("refresh_token").GetString()!;
-
-        // Named for the cases server, the token serves the documents server too.
-        foreach (var (server, rpcId) in new[] { (CasesServer, 1), (DocumentsServer, 2) })
+        using (var list = await PostMcpAsync(connector, accessToken, ToolsListPayload(1)))
         {
-            using var list = await PostMcpAsync(connector, server, accessToken, ToolsListPayload(rpcId));
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         }
 
-        // A refresh naming the resource a connector added before the split held is refused.
-        using (var oldResource = await RefreshAsync(connector, refreshToken, "http://localhost/mcp"))
+        // A refresh naming the resource a per-scope connector held is refused.
+        using (var oldResource = await RefreshAsync(connector, refreshToken, "http://localhost/mcp/cases"))
         {
             Assert.Equal(HttpStatusCode.BadRequest, oldResource.StatusCode);
             using var error = JsonDocument.Parse(await oldResource.Content.ReadAsStringAsync());
             Assert.Equal("invalid_target", error.RootElement.GetProperty("error").GetString());
         }
 
-        // One naming no resource still works, and its token serves both servers.
-        using var refreshed = await RefreshAsync(connector, refreshToken, resource: null);
-        var refreshedBody = await refreshed.Content.ReadAsStringAsync();
-        Assert.True(refreshed.IsSuccessStatusCode, refreshedBody);
-        using var refreshedTokens = JsonDocument.Parse(refreshedBody);
-        using (var list = await PostMcpAsync(
-            connector,
-            DocumentsServer,
-            refreshedTokens.RootElement.GetProperty("access_token").GetString()!,
-            ToolsListPayload(3)))
+        // One naming /mcp works, and so does one naming no resource.
+        var rpcId = 2;
+        foreach (var resource in new[] { "http://localhost/mcp", null })
         {
+            using var refreshed = await RefreshAsync(connector, refreshToken, resource);
+            var refreshedBody = await refreshed.Content.ReadAsStringAsync();
+            Assert.True(refreshed.IsSuccessStatusCode, refreshedBody);
+            using var refreshedTokens = JsonDocument.Parse(refreshedBody);
+            refreshToken = refreshedTokens.RootElement.GetProperty("refresh_token").GetString() ?? refreshToken;
+            using var list = await PostMcpAsync(
+                connector,
+                refreshedTokens.RootElement.GetProperty("access_token").GetString()!,
+                ToolsListPayload(rpcId++));
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
-        }
-
-        // Re-adding: each server's own resource reaches the consent page.
-        foreach (var server in new[]
-        {
-            CasesServer, IntakeServer, DocumentsServer, AssessmentServer, MailServer, JobsServer, SendServer
-        })
-        {
-            var (_, serverChallenge) = Pkce();
-            using var serverConsent = await browser.GetAsync(
-                AuthorizeUrl(serverChallenge, "automation." + server["/mcp/".Length..], server: server));
-            var serverHtml = await serverConsent.Content.ReadAsStringAsync();
-            Assert.True(serverConsent.StatusCode == HttpStatusCode.OK, $"{server}: {(int)serverConsent.StatusCode}");
-            Assert.Contains("connector.example", serverHtml, StringComparison.Ordinal);
         }
     }
 
@@ -450,7 +544,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         using var secondHost = WithPersistentOAuthCredentials(baseFactory, signing, encryption);
         using var secondConnector = CreateConnector(secondHost);
         using (var originalAccess = await PostMcpAsync(
-            secondConnector, CasesServer, accessToken, ToolsListPayload(401)))
+            secondConnector, accessToken, ToolsListPayload(401)))
         {
             Assert.Equal(HttpStatusCode.OK, originalAccess.StatusCode);
         }
@@ -484,7 +578,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         using var rotatedTokens = JsonDocument.Parse(rotatedRefreshBody);
         var rotatedAccessToken = rotatedTokens.RootElement.GetProperty("access_token").GetString()!;
         using var rotatedAccess = await PostMcpAsync(
-            secondConnector, CasesServer, rotatedAccessToken, ToolsListPayload(402));
+            secondConnector, rotatedAccessToken, ToolsListPayload(402));
         Assert.Equal(HttpStatusCode.OK, rotatedAccess.StatusCode);
     }
 
@@ -653,8 +747,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
     private static string AuthorizeUrl(
         string? challenge,
         string scope,
-        string redirectUri = ConnectorRedirectUri,
-        string server = CasesServer)
+        string redirectUri = ConnectorRedirectUri)
     {
         var query = new List<string>
         {
@@ -663,7 +756,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
             $"redirect_uri={Uri.EscapeDataString(redirectUri)}",
             $"scope={Uri.EscapeDataString(scope)}",
             $"state={State}",
-            $"resource={Uri.EscapeDataString("http://localhost" + server)}"
+            $"resource={Uri.EscapeDataString("http://localhost" + McpServer)}"
         };
         if (challenge is not null)
         {
@@ -694,10 +787,11 @@ public sealed partial class AutomationConnectorAuthorizationTests
     private static string AuthorizeHandlerUrl(string handler) =>
         AutomationMcp.AuthorizationEndpointPath + "?handler=" + handler;
 
-    private static FormUrlEncodedContent ConsentForm(string html)
+    private static FormUrlEncodedContent ConsentForm(string html, IReadOnlyCollection<string>? tickedScopes = null)
     {
         // Re-post exactly what the page rendered: the echoed OAuth parameters,
-        // the operation key and the antiforgery token.
+        // the operation key, the antiforgery token and the scope tick boxes,
+        // every one as rendered (ticked) unless the test unticks some.
         // Only the consent panel's form: the shell has its own sign-out form
         // with its own antiforgery token.
         var start = html.IndexOf("aria-labelledby=\"connector-heading\"", StringComparison.Ordinal);
@@ -708,17 +802,31 @@ public sealed partial class AutomationConnectorAuthorizationTests
         foreach (Match input in InputTag().Matches(panel))
         {
             var tag = input.Value;
-            if (!tag.Contains("type=\"hidden\"", StringComparison.Ordinal))
+            var hidden = tag.Contains("type=\"hidden\"", StringComparison.Ordinal);
+            var tickBox = tag.Contains("type=\"checkbox\"", StringComparison.Ordinal);
+            if (!hidden && !tickBox)
             {
                 continue;
             }
 
             var name = Attribute().Match(tag);
             var value = ValueAttribute().Match(tag);
-            if (name.Success && value.Success)
+            if (!name.Success || !value.Success)
             {
-                fields.Add(new(WebUtilityDecode(name.Groups["v"].Value), WebUtilityDecode(value.Groups["v"].Value)));
+                continue;
             }
+
+            var decodedValue = WebUtilityDecode(value.Groups["v"].Value);
+            if (tickBox)
+            {
+                Assert.Contains(" checked", tag, StringComparison.Ordinal);
+                if (tickedScopes is not null && !tickedScopes.Contains(decodedValue, StringComparer.Ordinal))
+                {
+                    continue;
+                }
+            }
+
+            fields.Add(new(WebUtilityDecode(name.Groups["v"].Value), decodedValue));
         }
 
         Assert.Contains(fields, field => field.Key == "__RequestVerificationToken");

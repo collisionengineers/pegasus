@@ -43,7 +43,6 @@ public sealed class AutomationDocumentIngressTests
         Guid versionId;
         using (var response = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AddPayload(41, caseId, content, "Other", caseVersion, leaseToken, operationKey)))
         {
@@ -67,7 +66,6 @@ public sealed class AutomationDocumentIngressTests
 
         using (var replay = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AddPayload(42, caseId, content, "Other", caseVersion, leaseToken, operationKey)))
         {
@@ -81,7 +79,6 @@ public sealed class AutomationDocumentIngressTests
         // its model; the structured half carries identity, size, hash and URL.
         using (var download = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 43,
@@ -103,7 +100,6 @@ public sealed class AutomationDocumentIngressTests
 
         using (var oversize = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 44,
@@ -181,7 +177,6 @@ public sealed class AutomationDocumentIngressTests
 
         using (var download = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 3,
@@ -210,7 +205,6 @@ public sealed class AutomationDocumentIngressTests
 
         using (var download = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 4,
@@ -240,7 +234,6 @@ public sealed class AutomationDocumentIngressTests
         var renderer = mcpFactory.Services.GetRequiredService<IRenderImageForDelivery>();
         using (var batchDownload = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 5,
@@ -341,7 +334,6 @@ public sealed class AutomationDocumentIngressTests
         int utf8Bytes;
         using (var single = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 6,
@@ -389,7 +381,6 @@ public sealed class AutomationDocumentIngressTests
         {
             using var batch = await AutomationMcpTestSupport.PostMcpAsync(
                 client,
-                AutomationMcpTestSupport.DocumentsServer,
                 token,
                 AutomationMcpTestSupport.ToolCallPayload(
                     7,
@@ -440,7 +431,6 @@ public sealed class AutomationDocumentIngressTests
 
         using var batch = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 9,
@@ -574,7 +564,6 @@ public sealed class AutomationDocumentIngressTests
         {
             using var response = await AutomationMcpTestSupport.PostMcpAsync(
                 client,
-                AutomationMcpTestSupport.DocumentsServer,
                 token,
                 AutomationMcpTestSupport.ToolCallPayload(
                     20 + index,
@@ -611,7 +600,6 @@ public sealed class AutomationDocumentIngressTests
 
         using (var badRole = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AddPayload(70, Guid.NewGuid(), "x"u8.ToArray(), "NotARole", 0, leaked, "mcp:document-bad-role")))
         {
@@ -624,7 +612,6 @@ public sealed class AutomationDocumentIngressTests
         // does not exist the claim is refused and nothing is written.
         using (var unknownCase = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AddPayload(71, Guid.NewGuid(), "x"u8.ToArray(), "Other", 0, "", "mcp:document-unknown-case")))
         {
@@ -634,7 +621,6 @@ public sealed class AutomationDocumentIngressTests
 
         using (var emptyVersion = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 73,
@@ -647,7 +633,6 @@ public sealed class AutomationDocumentIngressTests
 
         using (var emptyBatch = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 74,
@@ -660,7 +645,6 @@ public sealed class AutomationDocumentIngressTests
 
         using (var oversizeBatch = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 75,
@@ -681,7 +665,6 @@ public sealed class AutomationDocumentIngressTests
         var duplicateVersion = Guid.NewGuid();
         using (var duplicateBatch = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 76,
@@ -749,15 +732,15 @@ public sealed class AutomationDocumentIngressTests
                 new { uploadId = Guid.NewGuid(), partNumber = 1, contentBase64 = "eA==", sha256 = new string('a', 64) })
         };
 
-        // The documents server refuses a token without its scope before any tool runs.
+        // Each tool refuses a token without automation.documents before it runs.
         foreach (var payload in payloads)
         {
             using var response = await AutomationMcpTestSupport.PostMcpAsync(
-                client, AutomationMcpTestSupport.DocumentsServer, casesOnlyToken, payload);
-            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+                client, casesOnlyToken, payload);
+            await AutomationMcpTestSupport.AssertScopeDeniedAsync(response, AutomationMcp.DocumentsScope);
         }
 
-        Assert.Equal(payloads.Length, await AutomationMcpTestSupport.CountServerRefusalsAsync(factory));
+        Assert.Equal(payloads.Length, await AutomationMcpTestSupport.CountScopeDenialsAsync(factory));
     }
 
     private static async Task<(Guid OccurrenceId, Guid VersionId)> AddWithoutLeaseAsync(
@@ -773,7 +756,6 @@ public sealed class AutomationDocumentIngressTests
     {
         using var response = await AutomationMcpTestSupport.PostMcpAsync(
             client,
-            AutomationMcpTestSupport.DocumentsServer,
             token,
             AutomationMcpTestSupport.ToolCallPayload(
                 1,

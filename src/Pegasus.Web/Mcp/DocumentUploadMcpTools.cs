@@ -28,8 +28,8 @@ internal sealed record UploadPartToolResult(
 /// <c>pegasus_document_add</c> or <c>pegasus_ai_job_complete_market_research</c>
 /// (operator, 22 October 2026, R203): staging is adapter mechanics, so a
 /// success writes no history row and only a refusal is appended. The upload
-/// belongs to the Automation client, not the grant, so a part staged on the
-/// documents server is used on the jobs server by the same client. Results
+/// belongs to the Automation client, not the grant, so a part staged under
+/// one grant is used under another of the same client. Results
 /// carry counters and identifiers, never content.
 /// </summary>
 [McpServerToolType]

@@ -20,8 +20,13 @@ complete; custody written only by the consuming call; a damaged part refused
 by its own hash before storing); the two tools wait for the server split".
 R301 places them after the split, and R448 accepts the 49,152-byte part, the
 24-hour staging life, the scopes and no `uploadId` on
-`pegasus_intake_submit`. This record refines ADR-0080 (the two tools are on
-the documents server) and leaves ADR-0059 as filed.
+`pegasus_intake_submit`. This record refined
+[ADR-0080](superseded/0080-automation-mcp-one-server-per-scope.md) (the two
+tools were on its documents server) and leaves ADR-0059 as filed. Since
+[ADR-0087](0087-one-automation-mcp-server-with-per-scope-consent.md)
+(29 October 2026, R547) the one server at `/mcp` serves them; the inventory
+and server figures in the consequences below describe the state at
+acceptance.
 
 ## Context
 
@@ -71,5 +76,6 @@ re-typed base64 PDF, and neither tool checked a declared SHA-256.
 
 - [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
 - [ADR-0059](0059-native-mcp-file-content-and-consolidated-tool-inventory.md)
-- [ADR-0080](0080-automation-mcp-one-server-per-scope.md)
+- [ADR-0080](superseded/0080-automation-mcp-one-server-per-scope.md) (superseded),
+  [ADR-0087](0087-one-automation-mcp-server-with-per-scope-consent.md)
 - Issue [#1474](https://github.com/collisionengineers/pegasus/issues/1474)

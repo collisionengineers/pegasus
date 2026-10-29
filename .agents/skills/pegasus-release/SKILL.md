@@ -674,13 +674,13 @@ changes data access or telemetry, snapshot Query Store before and after as the
 [runbook](../../../docs/runbook.md#statement-level-evidence-from-query-store) says
 and name the saved files in the record.
 
-A release that moves an Automation MCP server path
-([ADR-0080](../../../docs/adr/0080-automation-mcp-one-server-per-scope.md))
-has an Administrator re-add each connector at `<origin>/mcp/<scope word>`, one
-per row of `AutomationMcp.Servers`, and consent once per server; the old path
-has no alias. The classifier's `PEGASUS_MCP_URL` changes at `azd provision`,
-not with `classifier.zip`. Record the classifier's read-back URL and one tick
-that connects on the new path.
+A release that moves the Automation MCP server path
+([ADR-0087](../../../docs/adr/0087-one-automation-mcp-server-with-per-scope-consent.md))
+has an Administrator re-add the one connector at `<origin>/mcp` and consent
+once, ticking the scopes its grant holds; the old paths have no alias. The
+classifier's `PEGASUS_MCP_URL` changes at `azd provision`, not with
+`classifier.zip`. Record the classifier's read-back URL and one tick that
+connects on the new path.
 
 Copy `artifacts/releases/$version` outside the disposable worktree before
 removing it. The release is unfinished until operations records the deployed observation

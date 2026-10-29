@@ -22,7 +22,7 @@ public sealed class AutomationDocumentStreamingTests
         using var client = factory.CreateClient();
         var token = await RequestTokenAsync(client, AutomationMcp.DocumentsScope);
 
-        using var response = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(
+        using var response = await PostMcpAsync(client, token, ToolCallPayload(
             1, "pegasus_document_download", new
             {
                 caseId = DocumentBoundary.CaseId,

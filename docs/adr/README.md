@@ -102,13 +102,14 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0077](0077-compress-json-responses.md) | Compress JSON responses over HTTPS | accepted | — | — |
 | [ADR-0078](0078-intermediaries-are-linked-claim-sources.md) | Intermediaries are linked Claim Sources | accepted | — | INT-04 |
 | [ADR-0079](0079-cazana-companion-account-and-companion-report.md) | Cazana Companion account and Companion Report | accepted | — | EXT-07, EXT-13 |
-| [ADR-0080](0080-automation-mcp-one-server-per-scope.md) | One Automation MCP server per scope | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06 |
+| [ADR-0080](superseded/0080-automation-mcp-one-server-per-scope.md) | One Automation MCP server per scope | superseded | ADR-0087 | MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06 |
 | [ADR-0081](0081-render-a-refused-full-page-raster-with-pdfium.md) | Render a refused full-page raster's page with PDFtoImage over PDFium | accepted | — | INT-16, AI-04 |
 | [ADR-0082](0082-the-deployment-plan-check-does-not-read-the-app-service-quota.md) | The deployment plan check does not read the App Service quota | accepted | — | OPS-13 |
 | [ADR-0083](0083-stage-large-automation-documents-in-parts.md) | Stage large Automation documents in parts | accepted | — | MCP-04 |
 | [ADR-0084](0084-brego-valuation-account-and-valuation-report.md) | Brego valuation account and Valuation Report | accepted | — | EXT-07, EXT-13 |
 | [ADR-0085](0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md) | Mail is instructions or Case correspondence, and queries are assignable records | accepted | — | CASE-16, CASE-23, MAIL-02 |
 | [ADR-0086](0086-work-centre-views-are-computed-on-read.md) | Work Centre views are computed on read | accepted | — | UI-04, UI-05 |
+| [ADR-0087](0087-one-automation-mcp-server-with-per-scope-consent.md) | One Automation MCP server with per-scope consent | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

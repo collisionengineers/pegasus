@@ -199,11 +199,8 @@ public sealed class AutomationClientRegistry(
                 OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode);
             descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.RefreshToken);
             descriptor.Permissions.Add(OpenIddictConstants.Permissions.ResponseTypes.Code);
-            foreach (var server in AutomationMcp.Servers)
-            {
-                descriptor.Permissions.Add(
-                    OpenIddictConstants.Permissions.Prefixes.Resource + options.ResourceUri(server).AbsoluteUri);
-            }
+            descriptor.Permissions.Add(
+                OpenIddictConstants.Permissions.Prefixes.Resource + options.ResourceUri.AbsoluteUri);
             descriptor.Requirements.Add(
                 OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange);
             foreach (var redirectUri in options.RedirectUris)

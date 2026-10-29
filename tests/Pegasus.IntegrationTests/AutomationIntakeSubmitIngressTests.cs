@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -25,7 +26,7 @@ public sealed class AutomationIntakeSubmitIngressTests
         const string receiptToken = "network-drive:scan-0001";
 
         Guid stagedReceiptId;
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(1, "pegasus_intake_submit", new
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_intake_submit", new
         {
             fileName = "scan-0001.jpg",
             mediaType = "image/jpeg",
@@ -41,7 +42,7 @@ public sealed class AutomationIntakeSubmitIngressTests
         }
 
         // The same token with the same bytes is the same submission.
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(2, "pegasus_intake_submit", new
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_intake_submit", new
         {
             fileName = "scan-0001.jpg",
             mediaType = "image/jpeg",
@@ -54,7 +55,7 @@ public sealed class AutomationIntakeSubmitIngressTests
         }
 
         // Different bytes under the same token fail closed.
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(3, "pegasus_intake_submit", new
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_intake_submit", new
         {
             fileName = "scan-0001.jpg",
             mediaType = "image/jpeg",
@@ -80,7 +81,7 @@ public sealed class AutomationIntakeSubmitIngressTests
             _ = await IntakeWebDriver.DrainStagedAsync(scope.ServiceProvider, stagedReceiptId);
         }
 
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(4, "pegasus_intake_queue_list", new { })))
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_intake_queue_list", new { })))
         {
             var queue = await ReadStructuredContentAsync(response);
             Assert.NotEmpty(queue.GetProperty("items").EnumerateArray());
@@ -88,12 +89,12 @@ public sealed class AutomationIntakeSubmitIngressTests
 
         string reference;
         long version;
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(5, "pegasus_unidentified_list", new { })))
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_unidentified_list", new { })))
         {
             var list = await ReadStructuredContentAsync(response);
             reference = Assert.Single(list.GetProperty("items").EnumerateArray()).GetProperty("reference").GetString()!;
         }
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(6, "pegasus_unidentified_get", new { reference })))
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(6, "pegasus_unidentified_get", new { reference })))
         {
             var detail = await ReadStructuredContentAsync(response);
             version = detail.GetProperty("item").GetProperty("version").GetInt64();
@@ -101,7 +102,7 @@ public sealed class AutomationIntakeSubmitIngressTests
         }
 
         // A stale version is refused before anything moves.
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(7, "pegasus_unidentified_resolve", new
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(7, "pegasus_unidentified_resolve", new
         {
             reference,
             expectedVersion = version + 5,
@@ -115,7 +116,7 @@ public sealed class AutomationIntakeSubmitIngressTests
             _ = await ReadErrorTextAsync(response);
         }
 
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(8, "pegasus_unidentified_resolve", new
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_unidentified_resolve", new
         {
             reference,
             expectedVersion = version,
@@ -131,18 +132,18 @@ public sealed class AutomationIntakeSubmitIngressTests
             Assert.True(resolved.GetProperty("version").GetInt64() > version);
         }
 
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(9, "pegasus_unidentified_list", new { })))
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(9, "pegasus_unidentified_list", new { })))
         {
             var list = await ReadStructuredContentAsync(response);
             Assert.Empty(list.GetProperty("items").EnumerateArray());
         }
 
         // Reopen and Close with reason are the staff acts too (ADR-0064).
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(10, "pegasus_unidentified_get", new { reference })))
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(10, "pegasus_unidentified_get", new { reference })))
         {
             version = (await ReadStructuredContentAsync(response)).GetProperty("item").GetProperty("version").GetInt64();
         }
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(11, "pegasus_unidentified_reopen", new
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(11, "pegasus_unidentified_reopen", new
         {
             reference,
             expectedVersion = version,
@@ -156,7 +157,7 @@ public sealed class AutomationIntakeSubmitIngressTests
         }
 
         // Closed names no destination.
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(12, "pegasus_unidentified_resolve", new
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(12, "pegasus_unidentified_resolve", new
         {
             reference,
             expectedVersion = version,
@@ -169,7 +170,7 @@ public sealed class AutomationIntakeSubmitIngressTests
             Assert.Contains("no destination", await ReadErrorTextAsync(response), StringComparison.Ordinal);
         }
 
-        using (var response = await PostMcpAsync(client, IntakeServer, token, ToolCallPayload(13, "pegasus_unidentified_resolve", new
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(13, "pegasus_unidentified_resolve", new
         {
             reference,
             expectedVersion = version,
@@ -236,8 +237,8 @@ public sealed class AutomationIntakeSubmitIngressTests
         };
         foreach (var payload in payloads)
         {
-            using var response = await PostMcpAsync(client, IntakeServer, casesOnlyToken, payload);
-            Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.StatusCode);
+            using var response = await PostMcpAsync(client, casesOnlyToken, payload);
+            await AssertScopeDeniedAsync(response, AutomationMcp.IntakeScope);
         }
     }
 }

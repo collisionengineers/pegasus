@@ -10,10 +10,10 @@ namespace Pegasus.Web.Mcp;
 
 /// <summary>
 /// The one declaration of the scope each Automation MCP tool's call requires
-/// (ADR-0080 decision 3): <see cref="AutomationActorResolver"/> gates a call on
-/// it and <see cref="AutomationToolListing"/> filters tools/list by it. The
-/// three edit-lease tools are in the cases and the intake rows; their call
-/// takes the scope of the record kind.
+/// (ADR-0080 decision 3, carried by ADR-0087): <see cref="AutomationActorResolver"/>
+/// gates a call on it and <see cref="AutomationToolListing"/> filters tools/list
+/// by it. The three edit-lease tools are in the cases and the intake rows; their
+/// call takes the scope of the record kind.
 /// </summary>
 internal static class AutomationToolScopes
 {
@@ -170,65 +170,19 @@ internal static class AutomationToolScopes
     /// </summary>
     internal static bool IsListed(string toolName, int held) =>
         ToolScopes.TryGetValue(toolName, out var bits) && (bits & held) != 0;
-
-    /// <summary>
-    /// Whether the server serves the tool: the tool's scope is one of the
-    /// server's (ADR-0080 decision 1). A tool the table does not declare is on
-    /// no server.
-    /// </summary>
-    internal static bool IsOn(string toolName, AutomationMcpServer server) =>
-        IsListed(toolName, server.Scopes.Aggregate(0, (bits, scope) => bits | ScopeBits[scope]));
 }
 
 /// <summary>
-/// Picks the server a request reached (ADR-0080 decision 1): its name, its
-/// instructions and the tools of its scopes, so a tool of another server is
-/// unknown here. In stateless mode the SDK builds a server's options on every
-/// request; each server's tool set is built once from the registered tools and
-/// then served as built.
-/// </summary>
-internal sealed class AutomationMcpSessions(string productVersion)
-{
-    private readonly ConcurrentDictionary<AutomationMcpServer, (Implementation Info, McpServerPrimitiveCollection<McpServerTool> Tools)> servers = new();
-
-    public Task Configure(HttpContext context, McpServerOptions options, CancellationToken cancellationToken)
-    {
-        var server = context.GetEndpoint()?.Metadata.GetMetadata<AutomationMcpServer>()
-            ?? throw new InvalidOperationException("The MCP endpoint names no Automation MCP server.");
-        var (info, tools) = servers.GetOrAdd(
-            server,
-            static (row, state) =>
-            {
-                var served = new McpServerPrimitiveCollection<McpServerTool>();
-                foreach (var tool in state.All ?? Enumerable.Empty<McpServerTool>())
-                {
-                    if (AutomationToolScopes.IsOn(tool.ProtocolTool.Name, row))
-                    {
-                        served.Add(tool);
-                    }
-                }
-
-                return (new Implementation { Name = row.Name, Version = state.Version }, served);
-            },
-            (All: options.ToolCollection, Version: productVersion));
-        options.ServerInfo = info;
-        options.ServerInstructions = server.Instructions;
-        options.ToolCollection = tools;
-        return Task.CompletedTask;
-    }
-}
-
-/// <summary>
-/// tools/list filtered by the token's scopes (ADR-0080 decision 3). The list
-/// is disclosure: <see cref="AutomationActorResolver"/> still gates every
-/// call. A filtered list is built once per server, scope set and protocol
-/// version (the SDK shapes a tool's output schema by version) from the
-/// server's list, then served as built. It varies by token, so it is marked
-/// private to the caller.
+/// tools/list filtered by the token's scopes (ADR-0080 decision 3, carried by
+/// ADR-0087). The list is disclosure: <see cref="AutomationActorResolver"/>
+/// still gates every call. A filtered list is built once per scope set and
+/// protocol version (the SDK shapes a tool's output schema by version) from
+/// the SDK's full list, then served as built. It varies by token, so it is
+/// marked private to the caller.
 /// </summary>
 internal sealed class AutomationToolListing
 {
-    private readonly ConcurrentDictionary<(string? Server, int Held, string? ProtocolVersion), Tool[]> lists = new();
+    private readonly ConcurrentDictionary<(int Held, string? ProtocolVersion), Tool[]> lists = new();
 
     public McpRequestHandler<ListToolsRequestParams, ListToolsResult> Filter(
         McpRequestHandler<ListToolsRequestParams, ListToolsResult> next) =>
@@ -241,10 +195,8 @@ internal sealed class AutomationToolListing
                 return await next(request, cancellationToken);
             }
 
-            (string? Server, int Held, string? ProtocolVersion) key = (
-                request.Server.ServerOptions.ServerInfo?.Name,
-                AutomationToolScopes.Held(request.User),
-                request.Server.NegotiatedProtocolVersion);
+            (int Held, string? ProtocolVersion) key =
+                (AutomationToolScopes.Held(request.User), request.Server.NegotiatedProtocolVersion);
             if (!lists.TryGetValue(key, out var tools))
             {
                 var all = await next(request, cancellationToken);

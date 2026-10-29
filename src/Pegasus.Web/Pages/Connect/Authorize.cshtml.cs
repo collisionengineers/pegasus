@@ -16,9 +16,11 @@ namespace Pegasus.Web.Pages.Connect;
 /// MCP connectors. OpenIddict has already validated the request (client,
 /// exact redirect URI, PKCE challenge, scopes) before this page runs. A signed
 /// in Administrator with the manage-automation-clients right sees who is
-/// asking and for which scopes; approving issues a code for the Automation
-/// Actor principal — never for the staff member — and the decision is
-/// permanent history. Denying returns <c>access_denied</c> to the connector.
+/// asking and for which scopes, each with a tick box ticked by default;
+/// approving issues a code for the Automation Actor principal — never for the
+/// staff member — holding the ticked scopes (ADR-0087), and the decision is
+/// permanent history. Denying, or approving with no scope ticked, returns
+/// <c>access_denied</c> to the connector.
 /// </summary>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presentation.IShellFreeGet
@@ -39,8 +41,15 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
 
     public string ConnectorOrigin { get; private set; } = string.Empty;
 
-    /// <summary>The words for each requested scope; the identifier is not printed (v41 S5).</summary>
-    public IReadOnlyList<string> RequestedAccess { get; private set; } = [];
+    /// <summary>
+    /// Each requested scope with its words. The identifier is not printed
+    /// (v41 S5): it travels only as the value of the scope's tick box.
+    /// </summary>
+    public IReadOnlyList<KeyValuePair<string, string>> RequestedAccess { get; private set; } = [];
+
+    /// <summary>The scopes the Administrator left ticked; the grant holds these.</summary>
+    [BindProperty]
+    public string[] ApprovedScopes { get; set; } = [];
 
     public IReadOnlyList<KeyValuePair<string, string>> RequestParameters { get; private set; } = [];
 
@@ -71,7 +80,7 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
         ClientDisplayName = status.DisplayName ?? status.ClientId;
         ConnectorOrigin = RedirectUri(request).GetLeftPart(UriPartial.Authority);
         RequestedAccess = GrantedScopes(request, status)
-            .Select(scope => ScopeDescriptions.GetValueOrDefault(scope, scope))
+            .Select(scope => new KeyValuePair<string, string>(scope, ScopeDescriptions.GetValueOrDefault(scope, scope)))
             .ToArray();
         RequestParameters = request.GetParameters()
             .Where(parameter => !string.Equals(parameter.Key, "__RequestVerificationToken", StringComparison.Ordinal)
@@ -107,12 +116,22 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
         }
 
         var status = await registry.GetStatusAsync(actor, cancellationToken);
-        var scopes = GrantedScopes(request, status);
-        if (scopes.Length == 0)
+        var requested = GrantedScopes(request, status);
+        if (requested.Length == 0)
         {
             // A code without any granted scope could never call a tool; refuse
             // it here rather than issue a token /mcp will reject.
             return Refuse(Errors.InvalidScope, "The connector requested no granted scope.");
+        }
+
+        // The grant holds the scopes left ticked (ADR-0087). Approving none
+        // is the refusal the Refuse button records.
+        var scopes = requested
+            .Where(scope => ApprovedScopes.Contains(scope, StringComparer.Ordinal))
+            .ToArray();
+        if (scopes.Length == 0)
+        {
+            return await DenyAsync(registry, actor, request, requested, cancellationToken);
         }
 
         var grantId = $"grant:{Guid.NewGuid():N}";
@@ -152,11 +171,21 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
 
         var request = OpenIddictRequest();
         var status = await registry.GetStatusAsync(actor, cancellationToken);
+        return await DenyAsync(registry, actor, request, GrantedScopes(request, status), cancellationToken);
+    }
+
+    private async Task<IActionResult> DenyAsync(
+        AutomationClientRegistry registry,
+        ActionActor actor,
+        OpenIddictRequest request,
+        string[] requestedScopes,
+        CancellationToken cancellationToken)
+    {
         await registry.RecordConnectorDecisionAsync(
             actor,
             $"denied:{Guid.NewGuid():N}",
             RedirectUri(request),
-            GrantedScopes(request, status),
+            requestedScopes,
             approved: false,
             IsOperationKeyValid(OperationKey) ? OperationKey : NewOperationKey(),
             cancellationToken);

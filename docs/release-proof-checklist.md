@@ -35,10 +35,10 @@ Run on the next release with a signed-in staff session or the named observation;
 
 - [ ] No snapshot was taken for this release; none is retained under `artifacts/performance`. Combine B changes data access across the Web, Worker and Infrastructure, so the before and after measurements are owed.
   Reason: No after snapshot is recorded; the change is in the current release and a Query Store read over retained intervals measures it (Releases 105 and 126 read windows after the fact); not verified.
-- [ ] The Administrator re-adds every Automation MCP connector at `<origin>/mcp/<scope word>` (`cases`, `intake`, `documents`, `assessment`, `mail`, `jobs`, `send`), consenting once per server, including the claude.ai connector. There is no `/mcp` alias (...
-  Reason: ADR-0080 per-scope servers (PR 1658) are at the tip; the proof is the Administrator re-adding each connector; no later record says it was done.
-- [ ] One classifier tick that connects on `/mcp/mail`.
-  Reason: The classifier reads PEGASUS_MCP_URL /mcp/mail (Release 123 stage D and Release 126 smoke read-backs); one tick trace in App Insights proves the connect; not recorded.
+- [ ] The Administrator removes the seven per-scope connectors and adds the one Automation MCP connector at `<origin>/mcp`, consenting once and ticking the scopes its grant holds, including the claude.ai connector. There is no alias for `/mcp/<scope word>`.
+  Reason: ADR-0087 (PR 1789) replaces the seven servers of ADR-0080 (PR 1658) with one at `/mcp`; the seven connectors were never re-added (R509); the proof is the one connector added at the release that ships ADR-0087, and no later record says it was done.
+- [ ] One classifier tick that connects on `/mcp`.
+  Reason: The classifier's `PEGASUS_MCP_URL` moves from `/mcp/mail` to `/mcp` at the `azd provision` of the release that ships ADR-0087; one tick trace in App Insights proves the connect; not recorded.
 
 ### Release 122
 
@@ -297,7 +297,7 @@ Run on the next release with a signed-in staff session or the named observation;
 - [ ] PR 1097 and PR 1099: a signed-in walk of the Valuation section in both views, in Scroll and Tabs, with a real save: cards, a card click, Selected, Retail and Trade following the card, the two-column increases with Add 20 % VAT, the previous total loss switch, and Get valuation on Glass's hiding its noti...
   Reason: The Inspection and Audit views (CaseWorkspaceLabels) and the guide cards are at the tip; the Scroll and Tabs clause is superseded by PR 1145 (switch removed), per R174(a).
 - [ ] PR 1098: a live MCP walk from Claude Desktop: `edit_begin`, several writes under one token, `edit_end`; an impacts write in the published format; `pegasus_valuation_get` on a test Case with the figures matching the card and the Values Only PDF filed.
-  Reason: edit_begin/edit_end and pegasus_valuation_get are at the tip on per-scope servers (ADR-0080), so the connector is re-added first.
+  Reason: edit_begin/edit_end and pegasus_valuation_get are at the tip on the one server at `/mcp` (ADR-0087), so the connector is re-added first.
 
 ### Release 91
 
@@ -308,7 +308,7 @@ Run on the next release with a signed-in staff session or the named observation;
 - [ ] PR 1087: a new QDOS Triage → instruction pair: claimant on the Triage ribbon, Linked cases card on the Case, findings filled with the Triage tag, and a finding recorded after the link.
   Reason: Triage claimant, Linked cases card and finding fill are at the tip; the finding-after-the-link clause changed with PR 1689 (Release 128: a link now closes the Triage).
 - [ ] PRs 1089–1092: a live MCP walk: findings, a note, a details edit that keeps unnamed facts, an estimate without a job, a priced To-be-confirmed line, a lease take-over, the vocabulary read, a Case action, a report generation and approval, a document tag, an intake accept with a supplied address, a re...
-  Reason: The parity tools are at the tip on per-scope MCP servers (ADR-0080); a live MCP walk after the connector re-add proves them.
+  Reason: The parity tools are at the tip on the one MCP server at `/mcp` (ADR-0087); a live MCP walk after the connector re-add proves them.
 - [ ] PR 1091: Export case on a standard Case in each state downloads `{reference}.zip` with the JSON and `Images/`; one `case_exported` history row; Work Centre "Sent to Engineer" counts once.
   Reason: Export case (case_exported) and the Sent to Engineer figure are at the tip.
 
@@ -587,7 +587,7 @@ A later PR or ruling changed or removed the behaviour, so the proof no longer ap
 ### Release 91
 
 - Re-add the MCP connector's consent for the new `automation.send` scope where the connector needs it.
-  Reason: The Release 123 one server per scope (ADR-0080, PR 1658) requires every connector re-added with per-server consent (Release 123 L300), replacing the single automation.send consent.
+  Reason: Release 123's one server per scope (ADR-0080, PR 1658) required every connector re-added with per-server consent (Release 123 L300), replacing the single automation.send consent; ADR-0087 (PR 1789) replaces the seven with one connector at `/mcp`, consented per scope, so the re-add is the Release 123 row above.
 
 ### Release 90
 
