@@ -109,17 +109,17 @@ public static partial class SenderContactFill
     }
 
     [GeneratedRegex(
-        "(?i)^\s*(?:kind regards|regards|best regards|many thanks|thanks|thank you|yours faithfully|yours sincerely)\s*[,.!]?\s*$",
+        @"(?i)^\s*(?:kind regards|regards|best regards|many thanks|thanks|thank you|yours faithfully|yours sincerely)\s*[,.!]?\s*$",
         RegexOptions.CultureInvariant)]
     private static partial Regex SignOffRegex();
 
     // A UK number: +44 (optionally "(0)") or 0, then a non-zero digit and
     // nine or ten digits in all, spaced or hyphenated within one line.
     [GeneratedRegex(
-        "(?<![\d+])(?:\+44[ \t]?(?:\(0\)[ \t]?)?|0)[1-9](?:[ \t-]?\d){8,9}(?!\d)",
+        @"(?<![\d+])(?:\+44[ \t]?(?:\(0\)[ \t]?)?|0)[1-9](?:[ \t-]?\d){8,9}(?!\d)",
         RegexOptions.CultureInvariant)]
     private static partial Regex TelephoneRegex();
 
-    [GeneratedRegex("<[^<>]*>|\[[^\[\]]*\]", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"<[^<>]*>|\[[^\[\]]*\]", RegexOptions.CultureInvariant)]
     private static partial Regex DecorationRegex();
 }
