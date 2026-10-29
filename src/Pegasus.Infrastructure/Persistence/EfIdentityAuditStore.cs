@@ -72,7 +72,7 @@ public sealed class EfIdentityAuditStore(IDbContextFactory<PegasusDbContext> con
         }
     }
 
-    private static ActionHistoryEntity ToEntity(ActionHistoryEntry entry)
+    internal static ActionHistoryEntity ToEntity(ActionHistoryEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
         ValidateId(entry.Id, nameof(entry));

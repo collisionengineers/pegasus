@@ -6,8 +6,9 @@
 
 - `/Administration` has twelve areas: Accounts, Contacts, Workflow
   configuration, Mail settings, E-mail templates, Valuation presets, Service
-  health, Logs, Management Reports, Release notes, Problem reports and AI
-  jobs. Automation appears only when composed.
+  health, Logs, Management Reports, Release notes, Problem reports and
+  Automation & AI, which holds the AI jobs list. Its Automation panels
+  appear only when composed.
 - Administration buttons act on the click. There is no confirmation dialog,
   except Delete access
   ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
@@ -37,11 +38,15 @@ estimates by
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
 configuration**, **Mail settings**, **E-mail templates**, **Valuation
 presets**, **Service
-health**, **Logs**, **Management Reports**, **Release notes**, **Problem reports** and **AI
-jobs**. Automation appears only when
-its capability is composed. Its Automation & AI page carries the Send to AI
-switch
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)).
+health**, **Logs**, **Management Reports**, **Release notes**, **Problem reports** and
+**Automation & AI**. Automation & AI is one page (operator, 28 October 2026;
+R467): the Automation panel and the AI settings panel, which carries the Send
+to AI switch
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)),
+appear only when the Automation capability is composed; the AI jobs list
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list))
+is on it in every deployment, so the page is always listed. The former
+`/Administration/AiJobs` address redirects to it.
 There are no separate Principal or Claim Source areas. The hub's cards are its
 navigation, so it shows no side navigation and its cards carry no description
 ([v41 A1](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
@@ -49,6 +54,10 @@ navigation, so it shows no side navigation and its cards carry no description
 Every consequential change (role, account state, principal credential,
 automation stop or start) enters permanent history
 ([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Stop or Start automation is one transaction: the client's grant, Stop's
+release of every lease Automation holds and the history row commit together,
+so a failure changes nothing and the page says the change was not accepted
+(29 October 2026; R527).
 Administration pages perform Save, Enable, Disable, Delete, Remove, Clear and
 Stop on the click, with no confirmation dialog; Delete access alone confirms
 first (operator, 15 October 2026,
@@ -63,10 +72,13 @@ asks the Administrator to reload.
 
 Where Automation is composed, each of its scopes (`automation.cases`,
 `automation.intake`, `automation.documents`, `automation.assessment`,
-`automation.mail`, `automation.jobs`) renders as a plain label (Cases,
-Received files, Documents, Assessment, Mail, AI jobs). The underlying key is
-kept only as a hover title
+`automation.mail`, `automation.jobs`, `automation.send`) renders as a plain
+label (Cases, Received files, Documents, Assessment, Mail, AI jobs, Sending).
+The underlying key is kept only as a hover title
 ([v41 A23](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+`automation.send` is the sending scope
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)); its label
+Sending stands as it is (29 October 2026; R531).
 
 ### Accounts
 

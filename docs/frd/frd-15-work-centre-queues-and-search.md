@@ -237,7 +237,7 @@ defined per kind in
 job still reads "Taken until HH:MM" (v32 item K) when nobody has adopted the
 draft. A failed job shows its reason with Open Case. Sub-filters are All,
 Estimate done, Draft to a query and Failed. There is no Cancel
-here; an Administrator stops a job on Administration AI jobs.
+here; an Administrator stops a job on Administration → Automation & AI.
 
 **Dismiss** (2 October 2026) takes a row off the Work Centre without
 changing its record. A dismissal belongs to the record behind the row (the

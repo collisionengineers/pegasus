@@ -602,14 +602,29 @@ public interface ILeaseCaseForEdit
 }
 
 /// <summary>
-/// Stopping the Automation client releases every Case lease and Triage or Image Intake scope
-/// Automation holds, live or lapsed, so staff need not wait for the expiry. One transaction; the
-/// Stop's own history entry records what was released.
+/// The Automation kill switch (FRD-17): the client registration's grant change, Stop's release of
+/// every Case lease and Triage or Image Intake scope Automation holds, live or lapsed, and the
+/// permanent history row commit together or not at all. The store locks the registration row and
+/// reads its enabled state under that lock; <c>changeGrant</c> is the caller's change to the
+/// registration, made on the same unit of work, and runs only when the state differs.
 /// </summary>
-public interface IReleaseAutomationLeases
+public interface IAutomationSwitchStore
 {
-    Task<AutomationLeasesReleased> ReleaseAllAsync(CancellationToken cancellationToken);
+    Task<AutomationSwitchOutcome> SetAsync(
+        AutomationSwitchCommand command,
+        Func<CancellationToken, Task> changeGrant,
+        CancellationToken cancellationToken);
 }
+
+public sealed record AutomationSwitchCommand(
+    string ClientId,
+    bool Enabled,
+    ActionActor Actor,
+    string? Reason,
+    string OperationKey);
+
+/// <summary>Whether the switch changed, and on Stop what was released.</summary>
+public sealed record AutomationSwitchOutcome(bool Changed, AutomationLeasesReleased? Released);
 
 public sealed record AutomationLeasesReleased(IReadOnlyList<Guid> CaseIds, int EditScopes);
 

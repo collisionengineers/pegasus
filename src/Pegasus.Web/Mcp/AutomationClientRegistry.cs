@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using OpenIddict.Abstractions;
 using Pegasus.Core.Identity;
@@ -26,7 +25,7 @@ public sealed class AutomationClientRegistry(
     IOpenIddictApplicationManager applications,
     IMemoryCache cache,
     IActionHistoryWriter actionHistory,
-    IReleaseAutomationLeases automationLeases,
+    IAutomationSwitchStore automationSwitch,
     TimeProvider timeProvider,
     AutomationMcpOptions options)
 {
@@ -140,7 +139,9 @@ public sealed class AutomationClientRegistry(
     /// history is written for every request and the cached enabled state is
     /// dropped so the change takes effect on the next automation request.
     /// Stop also releases every lease Automation holds; the history entry
-    /// records what was released.
+    /// records what was released. The grant change, the release and the
+    /// history row are one transaction (<see cref="IAutomationSwitchStore"/>),
+    /// and the cache drops only once it has committed.
     /// </summary>
     public async Task<AutomationClientStatus> SetEnabledAsync(
         bool enabled,
@@ -153,40 +154,17 @@ public sealed class AutomationClientRegistry(
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
 
         await EnsureRegisteredAsync(cancellationToken);
-        var application = await applications.FindByClientIdAsync(
-            options.ClientId,
-            cancellationToken)
-            ?? throw new InvalidOperationException(
-                "The Automation client registration is unavailable.");
-        var currentlyEnabled = await applications.HasPermissionAsync(
-            application,
-            OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+        await automationSwitch.SetAsync(
+            new(options.ClientId, enabled, actor, reason, operationKey),
+            async token =>
+            {
+                var application = await applications.FindByClientIdAsync(options.ClientId, token)
+                    ?? throw new InvalidOperationException(
+                        "The Automation client registration is unavailable.");
+                await applications.UpdateAsync(application, CanonicalDescriptor(enabled), token);
+            },
             cancellationToken);
-        if (currentlyEnabled != enabled)
-        {
-            await applications.UpdateAsync(
-                application,
-                CanonicalDescriptor(enabled),
-                cancellationToken);
-        }
-
         cache.Remove(EnabledCacheKey);
-        var released = enabled
-            ? null
-            : await automationLeases.ReleaseAllAsync(cancellationToken);
-        await actionHistory.AppendAsync(
-            new ActionHistoryEntry(
-                Guid.NewGuid(),
-                "automation_client",
-                options.ClientId,
-                enabled ? "automation_client_enabled" : "automation_client_disabled",
-                actor,
-                timeProvider.GetUtcNow(),
-                currentlyEnabled == enabled ? "Unchanged" : "Succeeded",
-                operationKey.Trim(),
-                string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
-                AfterJson: released is null ? null : JsonSerializer.Serialize(released)),
-            cancellationToken);
         return await GetStatusAsync(actor, cancellationToken);
     }
 
