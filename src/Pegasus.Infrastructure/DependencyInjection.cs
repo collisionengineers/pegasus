@@ -525,6 +525,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfValuationStore>());
         services.AddScoped<IAppliedValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
+        services.AddScoped<IAutomaticGuideValuationStore, EfAutomaticGuideValuationStore>();
         services.AddScoped<EfValuationPresetStore>();
         services.AddScoped<IValuationPresetStore>(provider =>
             provider.GetRequiredService<EfValuationPresetStore>());
@@ -543,6 +544,7 @@ public static class DependencyInjection
         services.AddScoped<IGetAssessmentWorkspaceVersion, GetAssessmentWorkspaceVersion>();
         services.AddScoped<SaveAssessment>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
+        services.AddScoped<IAutomaticGuideValuationControl, EfSendToAiControlStore>();
         services.AddScoped<EfAiJobStore>();
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());

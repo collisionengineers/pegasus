@@ -179,11 +179,13 @@ internal sealed class CaseValuationEntity
 }
 
 /// <summary>
-/// Single-row Administrator switch for Send to AI, mirroring the Automation client kill-switch pattern.
+/// One Administrator switch of the Automation &amp; AI settings panel, mirroring the Automation
+/// client kill-switch pattern: Send to AI, and the automatic Glass's valuation (R546).
 /// </summary>
 internal sealed class SendToAiControlEntity
 {
     public const string SingletonId = "send-to-ai";
+    public const string AutomaticGuideValuationId = "automatic-guide-valuation";
 
     public required string Id { get; set; }
     public bool Enabled { get; set; }

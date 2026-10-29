@@ -588,8 +588,9 @@ public sealed class QdosAllocationRecoveryTests
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseWorkflows"));
         // Acceptance publishes the custody work item and, because the Case has a
-        // registration, the automatic DVLA/DVSA lookup work item.
-        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
+        // registration, the automatic DVLA/DVSA lookup work item, and records the
+        // Case's one automatic Glass's valuation request (R545).
+        Assert.Equal(3, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Triage"));
         Assert.Equal(1, await AllocationTestData.AllocationEventCountAsync(factory.Services));
     }
@@ -683,8 +684,9 @@ public sealed class QdosAllocationRecoveryTests
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseWorkflows"));
         // Acceptance publishes the custody work item and, because the Case has a
-        // registration, the automatic DVLA/DVSA lookup work item.
-        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
+        // registration, the automatic DVLA/DVSA lookup work item, and records the
+        // Case's one automatic Glass's valuation request (R545).
+        Assert.Equal(3, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
     }
 
     [Fact]
@@ -1702,9 +1704,10 @@ public sealed class QdosAllocationRecoveryTests
             Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
             Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
             Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
-            // Each accepted Case carries its custody work item and its automatic
-            // DVLA/DVSA lookup work item; a forked aggregate would add more.
-            Assert.Equal(2 * (round + 1), await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
+            // Each accepted Case carries its custody work item, its automatic
+            // DVLA/DVSA lookup work item and its one automatic Glass's valuation
+            // request; a forked aggregate would add more.
+            Assert.Equal(3 * (round + 1), await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
         }
     }
 

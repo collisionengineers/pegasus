@@ -628,6 +628,9 @@ public static partial class OperatorLabels
             "In-flight work remains visible and no result is discarded.";
 
         public const string SendToAi = "Send to AI";
+
+        /// <summary>The automatic Glass's valuation switch at Case creation (R546).</summary>
+        public const string AutomaticGlassValuation = "Automatic Glass's valuation";
         public const string Save = "Save AI settings";
 
         /// <summary>The state word for a switch an administrator holds.</summary>

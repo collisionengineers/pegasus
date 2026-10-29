@@ -16,14 +16,16 @@ namespace Pegasus.Web.Pages.Administration.Automation;
 /// The Automation client registration is gated composition, so where this
 /// deployment does not carry it the page states that Automation and AI
 /// configuration are unavailable above the AI jobs list. The AI settings
-/// panel has one Save and drives the one Core operation behind it, the Send to
-/// AI switch, which writes its own attributed history.
+/// panel has one Save and drives the two switches behind it, Send to AI and the
+/// automatic Glass's valuation at Case creation (R546), each of which writes its
+/// own attributed history.
 /// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed partial class IndexModel(
     GetAdministrationAiJobs getJobs,
     CancelAiJob cancelJob,
     ISendToAiControl sendToAi,
+    Pegasus.Core.Assessment.IAutomaticGuideValuationControl automaticValuation,
     ILogger<IndexModel> logger) : AdministrationPageModel
 {
     /// <summary>
@@ -50,6 +52,10 @@ public sealed partial class IndexModel(
     /// <summary>The AI settings panel's enabled checkbox.</summary>
     [BindProperty]
     public bool SendToAiEnabled { get; set; }
+
+    /// <summary>The AI settings panel's automatic Glass's valuation checkbox (R546).</summary>
+    [BindProperty]
+    public bool AutomaticGlassValuationEnabled { get; set; }
 
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
@@ -128,9 +134,10 @@ public sealed partial class IndexModel(
     }
 
     /// <summary>
-    /// The AI settings panel's one Save: the Send to AI switch, written only
-    /// when the checkbox differs from the stored state, so a save that
-    /// changes nothing writes no switch history.
+    /// The AI settings panel's one Save: the Send to AI switch and the
+    /// automatic Glass's valuation switch, each written only when its checkbox
+    /// differs from the stored state, so a save that changes nothing writes no
+    /// switch history.
     /// </summary>
     public async Task<IActionResult> OnPostSaveAiSettingsAsync(CancellationToken cancellationToken)
     {
@@ -155,6 +162,16 @@ public sealed partial class IndexModel(
             {
                 await sendToAi.SetEnabledAsync(
                     SendToAiEnabled,
+                    actor,
+                    reason: null,
+                    OperationKey,
+                    cancellationToken);
+            }
+
+            if (await automaticValuation.IsEnabledAsync(cancellationToken) != AutomaticGlassValuationEnabled)
+            {
+                await automaticValuation.SetEnabledAsync(
+                    AutomaticGlassValuationEnabled,
                     actor,
                     reason: null,
                     OperationKey,
@@ -225,6 +242,7 @@ public sealed partial class IndexModel(
         // from the stored state; ModelState still wins for a redisplayed AI
         // settings form.
         SendToAiEnabled = Jobs.SendToAiSwitchEnabled;
+        AutomaticGlassValuationEnabled = await automaticValuation.IsEnabledAsync(cancellationToken);
     }
 
     private AutomationClientRegistry? Registry() =>
