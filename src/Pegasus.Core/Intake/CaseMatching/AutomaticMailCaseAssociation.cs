@@ -19,9 +19,12 @@ public sealed record MailAssociationRegistrationCandidate(Guid CaseId, DateOnly?
 /// </summary>
 /// <remarks>
 /// Every candidate set holds only Cases that can take an association: the store
-/// drops a Case that has no workflow row, so a Triage — which is not an
-/// association target — never reaches the policy, and it drops an archived Case
-/// before the intersection (D16).
+/// drops an archived Case before the intersection (D16). A Triage Case is one
+/// of them: a reply links to the Triage as a reply links to a Case (operator,
+/// 28 October 2026; R469). The thread and reply-header sets name the Triage a
+/// message opened as well as the Case a message stands linked to; the claim
+/// reference and registration sets never name a Triage, which has no match
+/// index entry or Case data.
 /// </remarks>
 public sealed record AutomaticMailCaseAssociationEvidence(
     Guid IntakeReceiptId,
@@ -72,7 +75,9 @@ public interface IAutomaticMailCaseAssociationEvidenceQueries
 /// broader signal no longer vetoes a narrower one that agrees with it. The
 /// receipt's recorded case-match decision still outranks them: a Case it
 /// eliminated is never the target, and an Ambiguous decision links nothing
-/// (FRD-09 shared eliminator; FRD-22; R35, operator, 15 October 2026).
+/// (FRD-09 shared eliminator; FRD-22; R35, operator, 15 October 2026). The
+/// target may be a Triage Case: a reply links to the Triage as a reply links
+/// to a Case (operator, 28 October 2026; R469).
 /// </summary>
 public sealed class AssociateRetainedMailWithCase(
     IAutomaticMailCaseAssociationEvidenceQueries evidenceQueries,

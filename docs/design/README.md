@@ -866,7 +866,7 @@ only their cards offer Get valuation; the other guide cards are filled in by han
 ([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
 temporary section-scoped drop overlay. Cazana (9 October 2026,
-[ADR-0066](../adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md))
+[ADR-0066](../adr/superseded/0066-cazana-valuation-through-a-key-vault-held-api-key.md))
 and Brego (26 October 2026,
 [ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)) are
 connected, so neither is a disabled seam.
@@ -986,7 +986,7 @@ second caller and a recorded reason.
 | `_ShellDialogs` | Account, Notifications, command palette, What's new, Report a problem; the Account, command palette and Report a problem content is `_ShellAccountDialog`, `_ShellCommandDialog` and `_ShellProblemDialog`, fetched when each first opens |
 | `_AdminNav` | Administration panel nav |
 | `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadReview` | Retained, restyled to the vocabulary |
-| `Presentation/OperatorLabels.cs` | The one label map |
+| `Presentation/OperatorLabels*.cs` | The one label map, as the `OperatorLabels` partial class files |
 | `Presentation/ShellPageFilter.cs` | Bell and release note |
 
 

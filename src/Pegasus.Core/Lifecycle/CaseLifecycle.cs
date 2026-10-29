@@ -22,7 +22,7 @@ public sealed class PutCaseOnHold(ICaseWorkflowStore store, TimeProvider timePro
     }
 }
 
-public sealed class ReleaseCaseHold(ICaseWorkflowStore store) : IReleaseCaseHold
+public sealed class ReleaseCaseHold(ICaseWorkflowStore store)
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
@@ -33,7 +33,7 @@ public sealed class ReleaseCaseHold(ICaseWorkflowStore store) : IReleaseCaseHold
     }
 }
 
-public sealed class ReturnCaseToReview(ICaseWorkflowStore store) : IReturnCaseToReview
+public sealed class ReturnCaseToReview(ICaseWorkflowStore store)
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
@@ -174,7 +174,7 @@ public static class CaseSignOffEngineerResolver
             : profiles.FirstOrDefault(profile => profile.StaffId == staffId.Value);
 }
 
-public sealed class StartCaseWork(ICaseWorkflowStore store) : IStartCaseWork
+public sealed class StartCaseWork(ICaseWorkflowStore store)
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
@@ -390,7 +390,7 @@ public sealed class ReopenCase(ICaseWorkflowStore store) : IReopenCase
     }
 }
 
-public sealed class ReturnCaseToEngineer(ICaseWorkflowStore store) : IReturnCaseToEngineer
+public sealed class ReturnCaseToEngineer(ICaseWorkflowStore store)
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
 

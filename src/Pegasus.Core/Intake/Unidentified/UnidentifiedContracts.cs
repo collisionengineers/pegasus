@@ -695,13 +695,6 @@ public sealed record ListUnidentifiedQueueByCursorQuery(
     string? Cursor,
     int? Limit);
 
-public interface IListUnidentifiedQueueByCursor
-{
-    Task<CursorPage<UnidentifiedQueueRow>> ExecuteAsync(
-        ListUnidentifiedQueueByCursorQuery query,
-        CancellationToken cancellationToken = default);
-}
-
 /// <summary>
 /// Stable continuation over the Unidentified queue, on the shared cursor
 /// contract. The scope binds the cursor to this query, this actor, this media
@@ -710,7 +703,7 @@ public interface IListUnidentifiedQueueByCursor
 /// </summary>
 public sealed class ListUnidentifiedQueueByCursor(
     IUnidentifiedStore store,
-    ICursorProtector cursorProtector) : IListUnidentifiedQueueByCursor
+    ICursorProtector cursorProtector)
 {
     public const string QueryName = "intake.unidentified.queue";
 
@@ -816,14 +809,7 @@ public sealed class CloseUnidentified(IResolveUnidentified resolve) : ICloseUnid
 /// history. Automation reconciliation reopens through the store under its own
 /// actor; this is the casework act.
 /// </summary>
-public interface IReopenUnidentified
-{
-    Task<UnidentifiedReopenResult> ExecuteAsync(
-        ReopenUnidentifiedRequest request,
-        CancellationToken cancellationToken = default);
-}
-
-public sealed class ReopenUnidentified(IUnidentifiedStore store) : IReopenUnidentified
+public sealed class ReopenUnidentified(IUnidentifiedStore store)
 {
     private readonly IUnidentifiedStore _store = store ?? throw new ArgumentNullException(nameof(store));
 

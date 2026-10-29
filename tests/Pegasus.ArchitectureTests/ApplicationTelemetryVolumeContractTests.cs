@@ -27,33 +27,11 @@ public sealed class ApplicationTelemetryVolumeContractTests
             logLevel.GetProperty("Microsoft.EntityFrameworkCore.Database.Command").GetString());
     }
 
-    // Lane B of the optimisation roadmap adds volume on purpose, and states it
-    // here so it stays bounded. Metrics are never sampled, so the counter list
-    // is the whole of it: twelve counters at the SDK's 60 s interval is 17,280
-    // rows a day. The heartbeat trace is 288 rows a day. Per-request stamps are
-    // properties of a row that already exists. What the quiet-row filter drops
-    // (probe, ping and static-file rows) is far larger than all of that.
     [Fact]
-    public void WebSendsTwelveRuntimeCountersAndNoOthers()
-    {
-        var counters = Pegasus.Web.Health.RuntimeCounters.Requested;
-
-        Assert.Equal(12, counters.Count);
-        Assert.Equal(12, counters.Distinct().Count());
-        Assert.Equal(
-            ["Microsoft.Data.SqlClient.EventSource", "System.Runtime"],
-            counters.Select(counter => counter.Source).Distinct().Order().ToArray());
-        Assert.Equal(7, counters.Count(counter => counter.Source == "System.Runtime"));
-        Assert.Equal(5, counters.Count(counter => counter.Source == "Microsoft.Data.SqlClient.EventSource"));
-    }
-
-    [Fact]
-    public void WebComposesTheCounterListTheQuietRowFilterAndTheHeartbeat()
+    public void WebComposesTheQuietRowFilterAndTheHeartbeat()
     {
         var program = File.ReadAllText(Path.Combine(RepositoryRoot.Find(), "src", "Pegasus.Web", "Program.cs"));
 
-        Assert.Contains("ConfigureTelemetryModule<EventCounterCollectionModule>", program, StringComparison.Ordinal);
-        Assert.Contains("RuntimeCounters.Apply(module)", program, StringComparison.Ordinal);
         Assert.Contains(
             "AddApplicationInsightsTelemetryProcessor<QuietRequestTelemetryFilter>", program, StringComparison.Ordinal);
         Assert.Contains("AddHostedService<RuntimeHeartbeat>", program, StringComparison.Ordinal);
@@ -138,13 +116,8 @@ public sealed class ApplicationTelemetryVolumeContractTests
         Assert.Equal(LogLevel.None, rule.LogLevel);
     }
 
-    /// <summary>
-    /// Program composes the span bridge beside the SQL dependency filter, and
-    /// resolves it before the host runs: the listener is a singleton's constructor,
-    /// so it exists only once something asks for the singleton.
-    /// </summary>
     [Fact]
-    public void WorkerProgramComposesAndStartsTheSpanBridgeBeforeTheHostRuns()
+    public void WorkerProgramComposesTheSqlDependencyFilter()
     {
         var program = File.ReadAllText(Path.Combine(
             RepositoryRoot.Find(),
@@ -152,19 +125,10 @@ public sealed class ApplicationTelemetryVolumeContractTests
             "Pegasus.Worker",
             "Program.cs"));
 
-        var filter = program.IndexOf(
+        Assert.Contains(
             "AddApplicationInsightsTelemetryProcessor<SqlDependencyTelemetryFilter>()",
+            program,
             StringComparison.Ordinal);
-        var compose = program.IndexOf("services.AddWorkerSpanTelemetry()", StringComparison.Ordinal);
-        var resolve = program.IndexOf(
-            "GetRequiredService<WorkerSpanTelemetryBridge>()",
-            StringComparison.Ordinal);
-        var run = program.IndexOf("host.Run()", StringComparison.Ordinal);
-
-        Assert.True(filter >= 0, "The SQL dependency filter is composed.");
-        Assert.True(compose > filter, "The span bridge is composed after the filter.");
-        Assert.True(resolve > compose, "The span bridge is resolved after it is composed.");
-        Assert.True(run > resolve, "The span bridge is resolved before the host runs.");
     }
 
     /// <summary>

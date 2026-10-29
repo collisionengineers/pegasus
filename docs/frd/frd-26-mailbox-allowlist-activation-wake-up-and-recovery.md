@@ -1,6 +1,6 @@
 # FRD-26: Mailbox allowlist, activation, wake-up and recovery
 
-> Owner capabilities: INT-02, INT-05 to INT-07, INT-33 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: INT-02, INT-05 to INT-07 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -213,7 +213,7 @@ The states of a retained message are owned by
 
 ## Links
 
-- Capabilities: `INT-02`, `INT-05`–`INT-07`, `INT-33` in
+- Capabilities: `INT-02`, `INT-05`–`INT-07` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md) (intake
   receipts, source occurrence identity),

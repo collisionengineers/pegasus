@@ -335,13 +335,15 @@ internal sealed class EfIntakeMutationStore(
             }
         }
 
-        var caseWorkflow = await context.CaseWorkflows
-            .Include(item => item.Case)
-            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+        // A Triage Case has no workflow row: it answers through its Triage, as
+        // on every Case-level path, so a reply the thread links to its Triage
+        // is written rather than failing to find a workflow (R468, R469).
+        var authority = await CaseMutationAuthority.LoadAsync(context, request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException("The matched case does not exist.");
+        var caseWorkflow = authority.Workflow;
         // The accepted eliminator predicates make every lifecycle state
         // eligible, but that operator decision does not cover an archived
-        // case — that still yields.
+        // case — that still yields. A Triage Case has no archive.
         //
         // A live staff edit lease deliberately does not stop this write. What
         // follows normally touches only the receipt: the association and
@@ -351,10 +353,9 @@ internal sealed class EfIntakeMutationStore(
         // ordinary append-only receipt records outside editable Case state, so
         // waiting on an editor's lease would silently cost ordinary automatic
         // associations for the length of an editing session.
-        ArchivedCaseGuard.RequireNotArchived(caseWorkflow);
+        authority.RequireMutable(anyLifecycleState: true);
 
-        var @case = caseWorkflow.Case;
-        var beforeCaseVersion = caseWorkflow.Version;
+        var @case = authority.Case;
         var beforeVersion = receipt.Version;
         var beforeJson = Snapshot(receipt);
         var reason = request.Reason.Trim();
@@ -379,17 +380,25 @@ internal sealed class EfIntakeMutationStore(
 
         receipt.Version++;
         // A message whose classification opens a query, joining a Case whose
-        // report is sent, opens one. Recorded as the Case's own event.
-        var beforeStateJson = CaseQueryLedger.SnapshotState(caseWorkflow);
-        var queryRaised = await OpenQueryOnMailJoinedAsync(
-            context, receipt, caseWorkflow, operationKey, occurredAtUtc, cancellationToken);
-        if (queryRaised)
+        // report is sent, opens one. Recorded as the Case's own event. A
+        // Triage Case has no report to query.
+        long? beforeCaseVersion = null;
+        var queryRaised = false;
+        if (caseWorkflow is not null)
         {
-            CaseMutationGuard.Advance(caseWorkflow);
-            CaseQueryLedger.AddQueryHistory(
-                context, caseWorkflow, beforeCaseVersion, CaseQueryLedger.QueryReceivedEvent,
-                ActorKind.SystemWorker, CaseQueryLedger.QueryCriteriaActor, "[]",
-                operationKey, requestHash, CaseQueryLedger.QueryCriteriaReason, occurredAtUtc, beforeStateJson);
+            var workflowVersion = caseWorkflow.Version;
+            beforeCaseVersion = workflowVersion;
+            var beforeStateJson = CaseQueryLedger.SnapshotState(caseWorkflow);
+            queryRaised = await OpenQueryOnMailJoinedAsync(
+                context, receipt, caseWorkflow, operationKey, occurredAtUtc, cancellationToken);
+            if (queryRaised)
+            {
+                CaseMutationGuard.Advance(caseWorkflow);
+                CaseQueryLedger.AddQueryHistory(
+                    context, caseWorkflow, workflowVersion, CaseQueryLedger.QueryReceivedEvent,
+                    ActorKind.SystemWorker, CaseQueryLedger.QueryCriteriaActor, "[]",
+                    operationKey, requestHash, CaseQueryLedger.QueryCriteriaReason, occurredAtUtc, beforeStateJson);
+            }
         }
         context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
         {
@@ -411,7 +420,7 @@ internal sealed class EfIntakeMutationStore(
             AfterIntakeVersion = receipt.Version,
             ExpectedCaseVersion = queryRaised ? beforeCaseVersion : null,
             BeforeCaseVersion = queryRaised ? beforeCaseVersion : null,
-            AfterCaseVersion = queryRaised ? caseWorkflow.Version : null,
+            AfterCaseVersion = queryRaised ? caseWorkflow!.Version : null,
             BeforeJson = beforeJson,
             AfterJson = Snapshot(receipt)
         });
@@ -1505,21 +1514,12 @@ internal sealed class EfIntakeMutationStore(
             // A message is never thread evidence for itself: the association an
             // earlier attempt wrote must not join the intersection on a
             // redelivery and make the evidence look different from the write.
-            var threadReceiptIds = await CurrentIntakeAssociations
-                .ThreadReceipts(context, message.MailboxId, message.ConversationIdentity)
-                .AsNoTracking()
-                .Where(item => item.Id != receipt.Id)
-                .Select(item => item.Id)
-                .ToListAsync(cancellationToken);
-            var current = await CurrentIntakeAssociations.ReadAsync(
+            threadCaseIds = await CurrentIntakeAssociations.HeldCaseIdsAsync(
                 context,
-                threadReceiptIds,
+                CurrentIntakeAssociations
+                    .ThreadReceipts(context, message.MailboxId, message.ConversationIdentity)
+                    .Where(item => item.Id != receipt.Id),
                 cancellationToken);
-            threadCaseIds = current.Current.Values
-                .Select(item => item.CaseId)
-                .Distinct()
-                .Order()
-                .ToArray();
         }
 
         var replyIdentities = DeserializeReplyIdentities(message.InReplyToIdentitiesJson);
@@ -1533,9 +1533,11 @@ internal sealed class EfIntakeMutationStore(
 
         // Every signal's candidate set is cut to the Cases that can take an
         // association, once, because the Core policy cannot see the difference:
-        // an archived Case must never reach it (D16), and neither must a Triage,
-        // which has no workflow row and is not an association target. The
-        // registration read already filters its own rows.
+        // an archived Case must never reach it (D16). A Triage Case can take
+        // one: a reply links to the Triage as a reply links to a Case
+        // (operator, 28 October 2026; R469). The cut is the store's loader,
+        // CaseMutationAuthority: a Case with its workflow, or a Triage Case
+        // with its Triage. The registration read already filters its own rows.
         var candidates = threadCaseIds
             .Concat(replyCaseIds)
             .Concat(claimReferenceCaseIds)
@@ -1543,11 +1545,13 @@ internal sealed class EfIntakeMutationStore(
             .ToArray();
         if (candidates.Length > 0)
         {
-            var eligible = await context.CaseWorkflows
+            var eligible = await context.Cases
                 .AsNoTracking()
-                .Where(workflow => workflow.ArchivedAtUtc == null
-                    && candidates.Contains(workflow.CaseId))
-                .Select(workflow => workflow.CaseId)
+                .Where(item => candidates.Contains(item.Id)
+                    && (context.CaseWorkflows.Any(workflow => workflow.CaseId == item.Id
+                            && workflow.ArchivedAtUtc == null)
+                        || context.Triage.Any(triage => triage.CaseId == item.Id)))
+                .Select(item => item.Id)
                 .ToArrayAsync(cancellationToken);
             var eligibleIds = eligible.ToHashSet();
             threadCaseIds = threadCaseIds.Where(eligibleIds.Contains).ToArray();
@@ -1663,17 +1667,11 @@ internal sealed class EfIntakeMutationStore(
             .ToListAsync(cancellationToken);
         if (pointedAtTokens.Count > 0)
         {
-            var pointedAtReceiptIds = await context.IntakeReceipts
-                .AsNoTracking()
-                .Where(item => item.SourceChannel == "mailbox"
-                    && pointedAtTokens.Contains(item.ExternalReceiptToken))
-                .Select(item => item.Id)
-                .ToListAsync(cancellationToken);
-            var current = await CurrentIntakeAssociations.ReadAsync(
+            caseIds.AddRange(await CurrentIntakeAssociations.HeldCaseIdsAsync(
                 context,
-                pointedAtReceiptIds,
-                cancellationToken);
-            caseIds.AddRange(current.Current.Values.Select(item => item.CaseId));
+                context.IntakeReceipts.Where(item => item.SourceChannel == "mailbox"
+                    && pointedAtTokens.Contains(item.ExternalReceiptToken)),
+                cancellationToken));
         }
 
         var sentCaseIdentities = await context.ApprovedSentPollOutcomes

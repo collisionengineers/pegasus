@@ -39,7 +39,6 @@ using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Transport;
 using Microsoft.ApplicationInsights.Extensibility;
-using Microsoft.ApplicationInsights.Extensibility.EventCounterCollector;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
 const string DevelopmentOfflineProfile = "DevelopmentOffline";
@@ -272,10 +271,6 @@ if (productionProfile)
         // Probe, ping and static-file rows carry nothing and spend the daily
         // cap; the SDK runs this before adaptive sampling.
         builder.Services.AddApplicationInsightsTelemetryProcessor<QuietRequestTelemetryFilter>();
-        // The runtime and SqlClient counters, twelve and no others: metrics
-        // are never sampled, so this list is the whole added volume.
-        builder.Services.ConfigureTelemetryModule<EventCounterCollectionModule>(
-            (module, _) => RuntimeCounters.Apply(module));
         builder.Services.AddSingleton<ITelemetryInitializer, GlassCallbackTelemetryInitializer>();
         builder.Services.AddSingleton<DocumentReadTelemetryBridge>();
         builder.Services.Configure<TelemetryConfiguration>(
@@ -838,8 +833,6 @@ builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadCaseDecision,
 builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCasePorts>();
 builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCaseRouteFilter>();
 builder.Services.AddScoped<DiscardIntakeSubmissionGroup>();
-builder.Services.AddScoped<IDiscardIntakeSubmissionGroup>(serviceProvider =>
-    serviceProvider.GetRequiredService<DiscardIntakeSubmissionGroup>());
 builder.Services.AddScoped<IDeclineImageMatch, DeclineImageMatch>();
 // No Administration view reads the Automation activity use case: automation
 // activity is read in Action logs (FRD-04). GetServiceHealth reads the newest
@@ -857,7 +850,6 @@ builder.Services.AddScoped<Pegasus.Core.Support.ReconcileProblemReport>();
 // Report a problem (ADR-0055): reports become issues on one repository when
 // the token and repository are configured; otherwise every report is kept
 // as Not sent with the reason, and an Administrator retries once connected.
-builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient(Pegasus.Infrastructure.Support.GitHubIssueProblemReportSink.HttpClientName, client =>
     client.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
@@ -1075,10 +1067,6 @@ app.UseWhen(
 app.UseResponseCompression();
 
 app.UseRouting();
-if (applicationInsightsConfigured)
-{
-    app.Use(RequestRuntimeStamps.InvokeAsync);
-}
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsPost(context.Request.Method)

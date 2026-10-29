@@ -65,4 +65,4 @@ substitute.
 
 - [FRD-02](../frd/frd-02-intake-and-source-identity.md)
 - [FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md)
-- [ADR-0032](0032-near-real-time-durable-intake-triggering.md)
+- [ADR-0032](superseded/0032-near-real-time-durable-intake-triggering.md)
