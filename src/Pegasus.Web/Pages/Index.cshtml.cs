@@ -35,8 +35,7 @@ public partial class IndexModel(
     IStaffAccountQueries staffAccounts,
     IGetCaseHeader getCaseHeader,
     IGetCaseEditBasis getCaseEditBasis,
-    IAcquireCaseEditLease acquireLease,
-    IReleaseCaseEditLease releaseLease,
+    CaseEditLeases leases,
     IAssignCaseEngineer assignEngineer,
     IAssignCaseQuery assignQuery,
     IConfirmAiJob confirmAiJob,
@@ -955,7 +954,7 @@ public partial class IndexModel(
         {
             var basis = await getCaseEditBasis.ExecuteAsync(new GetCaseQuery(caseId, actor), cancellationToken)
                 ?? throw new KeyNotFoundException("The case was not found.");
-            lease = await acquireLease.ExecuteAsync(
+            lease = await leases.ClaimAsync(
                 new ClaimCaseEditLeaseRequest(caseId, basis.Workflow.Version, actor, NewOperationKey()),
                 cancellationToken);
             await execute(actor, lease);
@@ -966,14 +965,14 @@ public partial class IndexModel(
         catch (StaffAuthorizationException)
         {
             await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
-                releaseLease, logger, caseId, actor, lease);
+                leases, logger, caseId, actor, lease);
             return Forbid();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             LogCommandFailed(logger, commandName, caseId, exception);
             await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
-                releaseLease, logger, caseId, actor, lease);
+                leases, logger, caseId, actor, lease);
             ErrorMessage = Labels.AssignRefused;
         }
 

@@ -243,8 +243,6 @@ internal static partial class CaseWebTestSupport
     }
 
     internal sealed partial class RecordingCaseDetailsStore :
-        IHeartbeatCaseEditLease,
-        IReleaseCaseEditLease,
         IGetAssessmentAccess,
         IGetAssessmentWorkspace,
         ICaseReportSnapshotSource,
@@ -299,7 +297,7 @@ internal static partial class CaseWebTestSupport
         public List<HeartbeatCaseEditLeaseRequest> LeaseHeartbeats { get; } = [];
         public List<ReleaseCaseEditLeaseRequest> LeaseReleases { get; } = [];
 
-        Task<CaseEditLease> IHeartbeatCaseEditLease.ExecuteAsync(
+        Task<CaseEditLease> ILeaseCaseForEdit.HeartbeatAsync(
             HeartbeatCaseEditLeaseRequest request,
             CancellationToken cancellationToken)
         {
@@ -313,7 +311,7 @@ internal static partial class CaseWebTestSupport
                 _now.AddMinutes(5)));
         }
 
-        Task IReleaseCaseEditLease.ExecuteAsync(
+        Task ILeaseCaseForEdit.ReleaseAsync(
             ReleaseCaseEditLeaseRequest request,
             CancellationToken cancellationToken)
         {

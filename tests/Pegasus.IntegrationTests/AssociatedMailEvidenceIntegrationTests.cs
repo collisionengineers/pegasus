@@ -711,9 +711,9 @@ public sealed class AssociatedMailEvidenceIntegrationTests
 
         var actor = ActionActor.Staff(
             Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
-        var leases = services.GetRequiredService<IAcquireCaseEditLease>();
+        var leases = services.GetRequiredService<CaseEditLeases>();
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
-        var unlinkLease = await leases.ExecuteAsync(
+        var unlinkLease = await leases.ClaimAsync(
             new(caseId, await CaseVersionAsync(services, caseId), actor, $"lease:{Guid.NewGuid():N}"), default);
         await services.GetRequiredService<IReverseIntakeLink>().ExecuteAsync(
             new(
@@ -726,7 +726,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                 $"unlink:{Guid.NewGuid():N}",
                 "Unlinked to link again."),
             default);
-        var linkLease = await leases.ExecuteAsync(
+        var linkLease = await leases.ClaimAsync(
             new(caseId, await CaseVersionAsync(services, caseId), actor, $"lease:{Guid.NewGuid():N}"), default);
         await services.GetRequiredService<ILinkIntake>().ExecuteAsync(
             new(

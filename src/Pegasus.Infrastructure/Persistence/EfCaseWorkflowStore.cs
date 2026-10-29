@@ -18,7 +18,6 @@ public sealed class EfCaseWorkflowStore(
     TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore
 {
     internal const string ClaimLeaseOperationKind = "claim";
-    private const string RenewLeaseOperationKind = "renew";
     internal const string ReleaseLeaseOperationKind = "release";
 
     public async Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken)
@@ -217,93 +216,11 @@ public sealed class EfCaseWorkflowStore(
         };
     }
 
-    public async Task<CaseEditLease> RenewAsync(
-        RenewCaseEditLeaseRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
-        await AcquireWorkflowMutationLockAsync(
-            context,
-            request.CaseId,
-            cancellationToken);
-        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId,
-                cancellationToken)
-            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-
-        var operationKey = request.OperationKey.Trim();
-        var requestHash = LeaseOperationRequestHash(
-            RenewLeaseOperationKind,
-            request.CaseId,
-            request.ExpectedVersion,
-            request.Actor,
-            operationKey,
-            request.LeaseToken);
-        var now = timeProvider.GetUtcNow();
-        var replay = await FindLeaseOperationAsync(
-            context,
-            request.CaseId,
-            operationKey,
-            cancellationToken);
-        if (replay is not null)
-        {
-            EnsureLeaseReplay(
-                replay,
-                RenewLeaseOperationKind,
-                requestHash,
-                request.CaseId,
-                operationKey);
-            return ReadLeaseReplayOrThrow(
-                workflow,
-                replay,
-                request.Actor,
-                operationKey,
-                now);
-        }
-
-        CaseMutationGuard.RequireNotArchived(workflow);
-        CaseMutationGuard.RequireLease(workflow, request.Actor, request.LeaseToken, now);
-        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
-        var tokenHash = Hash(request.LeaseToken);
-        var expiresAtUtc = now + CaseEditAuthority.LeaseDuration;
-        workflow.EditLeaseToken = request.LeaseToken;
-        workflow.EditLeaseTokenHash = tokenHash;
-        workflow.EditLeaseRequestHash = requestHash;
-        workflow.EditLeaseOperationKey = operationKey;
-        workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
-        AddLeaseOperation(
-            context,
-            workflow,
-            request.Actor,
-            operationKey,
-            RenewLeaseOperationKind,
-            requestHash,
-            now,
-            workflow.Version,
-            expiresAtUtc,
-            tokenHash);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return new(
-            request.CaseId,
-            request.LeaseToken,
-            request.Actor.SubjectId,
-            workflow.Version,
-            expiresAtUtc)
-        {
-            Generation = workflow.EditLeaseGeneration
-        };
-    }
-
     /// <summary>
     /// Keeps the holder's own lease from lapsing while their editor stays open, and picks up a
-    /// staff holder's lapsed lease nobody claimed since. It is deliberately not
-    /// <see cref="RenewAsync"/>: an open page beats every minute for as long as it is open, and
-    /// renewal records one <c>CaseEditLeaseOperations</c> row per call in a table nothing prunes.
-    /// FRD-01 counts a heartbeat as telemetry, so this writes no operation row, no operation key,
+    /// staff holder's lapsed lease nobody claimed since. An open page beats every minute for as
+    /// long as it is open, and FRD-01 counts a heartbeat as telemetry, so this writes no
+    /// <c>CaseEditLeaseOperations</c> row, no operation key,
     /// and no request hash, so <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/> keeps the
     /// claim key that replays the lease. It asks for no expected version and answers the current
     /// one: system work moves the version under a lease without ending it, and the page catches

@@ -15,8 +15,7 @@ namespace Pegasus.Web.Mcp;
 /// record or the version is stale, and nothing is written.
 /// </summary>
 internal sealed class AutomationEditLease(
-    IAcquireCaseEditLease acquireCase,
-    IReleaseCaseEditLease releaseCase,
+    CaseEditLeases caseLeases,
     IEditScopeLeases editScopes)
 {
     private const int MaximumOperationKeyLength = 100;
@@ -35,7 +34,7 @@ internal sealed class AutomationEditLease(
             return await action(suppliedToken);
         }
 
-        var lease = await acquireCase.ExecuteAsync(
+        var lease = await caseLeases.ClaimAsync(
             new(caseId, expectedVersion, actor, Derive(operationKey, ":lease")),
             cancellationToken);
         try
@@ -44,7 +43,7 @@ internal sealed class AutomationEditLease(
         }
         finally
         {
-            await ReleaseQuietlyAsync(() => releaseCase.ExecuteAsync(
+            await ReleaseQuietlyAsync(() => caseLeases.ReleaseAsync(
                 new(caseId, actor, Derive(operationKey, ":release"), lease.Token),
                 CancellationToken.None));
         }

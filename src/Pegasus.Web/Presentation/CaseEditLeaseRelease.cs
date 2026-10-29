@@ -12,13 +12,13 @@ namespace Pegasus.Web.Presentation;
 public static partial class CaseEditLeaseRelease
 {
     public static async Task ReleaseQuietlyAsync(
-        IReleaseCaseEditLease releaseLease,
+        CaseEditLeases leases,
         ILogger logger,
         Guid caseId,
         ActionActor actor,
         CaseEditLease? lease)
     {
-        ArgumentNullException.ThrowIfNull(releaseLease);
+        ArgumentNullException.ThrowIfNull(leases);
         ArgumentNullException.ThrowIfNull(logger);
         if (lease is null)
         {
@@ -27,7 +27,7 @@ public static partial class CaseEditLeaseRelease
 
         try
         {
-            await releaseLease.ExecuteAsync(
+            await leases.ReleaseAsync(
                 new ReleaseCaseEditLeaseRequest(caseId, actor, Guid.NewGuid().ToString("N"), lease.Token),
                 CancellationToken.None);
         }

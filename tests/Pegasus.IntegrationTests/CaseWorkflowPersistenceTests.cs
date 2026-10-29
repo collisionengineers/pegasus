@@ -1926,7 +1926,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     }
 
     [Fact]
-    public async Task EditLeaseClaimAndRenewExpireFiveMinutesFromServerTime()
+    public async Task EditLeaseClaimAndHeartbeatExpireFiveMinutesFromServerTime()
     {
         await using var harness = await WorkflowHarness.CreateAsync(database);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -1939,23 +1939,11 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         Assert.Equal(claimedAtUtc.AddMinutes(5), lease.ExpiresAtUtc);
 
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
-        var renewRequest = new RenewCaseEditLeaseRequest(
-            harness.CaseId,
-            0,
-            actor,
-            "renew-lease",
-            lease.Token);
-        var renewed = await harness.Store.RenewAsync(renewRequest, default);
-        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
-        var replay = await harness.Store.RenewAsync(renewRequest, default);
+        var beat = await harness.Store.HeartbeatAsync(
+            new(harness.CaseId, actor, lease.Token),
+            default);
 
-        Assert.Equal(renewed, replay);
-        Assert.Equal(claimedAtUtc.AddMinutes(6), renewed.ExpiresAtUtc);
-        Assert.Equal(
-            1,
-            await harness.LeaseOperationCountAsync(
-                harness.CaseId,
-                renewRequest.OperationKey));
+        Assert.Equal(claimedAtUtc.AddMinutes(6), beat.ExpiresAtUtc);
     }
 
     [Fact]
@@ -2041,15 +2029,6 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.Store.ClaimAsync(
                 request with { OperationKey = "claim-competing" },
-                default));
-        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
-            harness.Store.RenewAsync(
-                new(
-                    harness.CaseId,
-                    0,
-                    actor,
-                    request.OperationKey,
-                    request.OperationKey),
                 default));
 
         var unrelatedCaseLease = await harness.Store.ClaimAsync(
@@ -2204,7 +2183,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
     /// <summary>
     /// A member of staff may take over a lease the Automation Actor holds (operator, 15 October
     /// 2026). A plain claim is still refused; Take over hands the lease to them under a new token
-    /// and generation, and the Actor's next heartbeat, renew, write and release are refused. The
+    /// and generation, and the Actor's next heartbeat, write and release are refused. The
     /// history line reads "Edit lease taken over from AI." (operator, 16 October 2026), never the
     /// Actor's grant id, and replaying the takeover writes no second one.
     /// </summary>
@@ -2235,10 +2214,6 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.Store.HeartbeatAsync(
                 new HeartbeatCaseEditLeaseRequest(harness.CaseId, automation, held.Token), default));
-        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
-            harness.Store.RenewAsync(
-                new RenewCaseEditLeaseRequest(harness.CaseId, 0, automation, "automation-renew", held.Token),
-                default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.Store.CloseAsync(
                 new CloseCaseRequest(
@@ -2325,13 +2300,8 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
                 releaseRequest with { LeaseToken = changedReleaseToken },
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
-            harness.Store.RenewAsync(
-                new(
-                    harness.CaseId,
-                    0,
-                    actor,
-                    "renew-released-lease",
-                    released.Token),
+            harness.Store.HeartbeatAsync(
+                new(harness.CaseId, actor, released.Token),
                 default));
 
         var replacement = await harness.Store.ClaimAsync(
@@ -2352,13 +2322,8 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
             harness.TimeProvider.GetUtcNow().AddMinutes(5),
             afterExpiry.ExpiresAtUtc);
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
-            harness.Store.RenewAsync(
-                new(
-                    harness.CaseId,
-                    0,
-                    actor,
-                    "renew-replaced-lease",
-                    replacement.Token),
+            harness.Store.HeartbeatAsync(
+                new(harness.CaseId, actor, replacement.Token),
                 default));
         Assert.True(await harness.HasLeaseReplayMaterialAsync(harness.CaseId));
     }
@@ -2542,7 +2507,7 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
 
     /// <summary>
     /// Automation holds and staff competes: the staff claim, a write presenting the
-    /// holder's own token, renew, heartbeat, and release are all refused; the retained lease is
+    /// holder's own token, heartbeat, and release are all refused; the retained lease is
     /// untouched by every refusal; and the holder then heartbeats, saves, keeps its lease
     /// through that save (operator, 8 October 2026) and ends it.
     /// </summary>
@@ -2612,10 +2577,10 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         var projected = await harness.QueryStore.GetHeaderAsync(new(harness.CaseId, automation), default);
         Assert.Equal(ActorKind.Staff, projected?.ActiveEditLease?.HolderKind);
 
-        var renewed = await harness.Store.RenewAsync(
-            new(harness.CaseId, 0, staff, "staff-renews", lease.Token),
+        var beat = await harness.Store.HeartbeatAsync(
+            new(harness.CaseId, staff, lease.Token),
             default);
-        Assert.Equal(lease.Token, renewed.Token);
+        Assert.Equal(lease.Token, beat.Token);
         await harness.Store.ReleaseAsync(
             new(harness.CaseId, staff, "staff-releases", lease.Token),
             default);
@@ -2682,10 +2647,6 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
                 new(harness.CaseId, 0, competitor, $"{operationKeyPrefix}-write", "Waiting", holdersToken),
-                default));
-        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
-            harness.Store.RenewAsync(
-                new(harness.CaseId, 0, competitor, $"{operationKeyPrefix}-renew", holdersToken),
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.Store.HeartbeatAsync(

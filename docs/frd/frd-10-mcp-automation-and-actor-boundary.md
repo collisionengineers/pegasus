@@ -157,7 +157,8 @@ write made under an Automation lease advances the record's version and keeps
 the lease, so one token from `pegasus_edit_begin` carries every write of the
 work until `pegasus_edit_end` releases it (operator, 8 October 2026).
 `pegasus_edit_end` on a lease that has already lapsed or been released answers
-`released` false. `pegasus_edit_begin` and `pegasus_edit_end` record permanent
+`released` false. `pegasus_edit_renew` is a heartbeat, for a Case as for a
+Triage Case, and takes no version (R524, 29 October 2026). `pegasus_edit_begin` and `pegasus_edit_end` record permanent
 history; a routine `pegasus_edit_renew` is telemetry only and records
 permanent history only when refused
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease); operator, 14 October

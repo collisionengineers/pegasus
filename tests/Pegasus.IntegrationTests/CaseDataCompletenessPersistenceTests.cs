@@ -333,7 +333,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         private readonly LocalDbTestDatabase database;
         private readonly CaseWorkspaceDatabase? shared;
         private readonly PooledDbContextFactory<PegasusDbContext> factory;
-        private readonly AcquireCaseEditLease acquireLease;
+        private readonly CaseEditLeases leases;
 
         private CaseDataHarness(
             LocalDbTestDatabase database,
@@ -346,7 +346,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             ActionActor staffActor,
             InspectionAddressResolutionStore addressStore,
             EfCaseDataStore dataStore,
-            AcquireCaseEditLease acquireLease,
+            CaseEditLeases leases,
             EfCaseWorkflowStore workflowStore,
             EfCaseWorkspaceStore workspaceStore)
         {
@@ -363,7 +363,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             StaffActor = staffActor;
             AddressStore = addressStore;
             DataStore = dataStore;
-            this.acquireLease = acquireLease;
+            this.leases = leases;
         }
 
         public IDbContextFactory<PegasusDbContext> Factory { get; }
@@ -476,7 +476,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                     staffActor,
                     addressStore,
                     dataStore,
-                    new AcquireCaseEditLease(workflowStore),
+                    new CaseEditLeases(workflowStore),
                     workflowStore,
                     new EfCaseWorkspaceStore(factory, timeProvider));
             }
@@ -498,7 +498,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         public Task<CaseEditLease> AcquireLeaseAsync(
             long version,
             ActionActor actor,
-            string operationKey) => acquireLease.ExecuteAsync(
+            string operationKey) => leases.ClaimAsync(
             new(CaseId, version, actor, operationKey),
             CancellationToken.None);
 

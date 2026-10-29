@@ -26,8 +26,7 @@ public sealed partial class DetailsModel(
     ICloseUnidentified closeUnidentified,
     ReopenUnidentified reopenUnidentified,
     IIntakeAssociationDestinationQueries destinations,
-    IAcquireCaseEditLease acquireLease,
-    IReleaseCaseEditLease releaseLease,
+    CaseEditLeases leases,
     ICreateAiJob createAiJob,
     ILinkIntake linkIntake,
     IVrmSuggestionStore vrmSuggestions,
@@ -240,7 +239,7 @@ public sealed partial class DetailsModel(
                 destination.Version,
                 actor,
                 NewOperationKey(),
-                acquireLease,
+                leases,
                 editScopes,
                 cancellationToken);
             await linkIntake.ExecuteAsync(
@@ -571,7 +570,7 @@ public sealed partial class DetailsModel(
             }
             else
             {
-                await releaseLease.ExecuteAsync(
+                await leases.ReleaseAsync(
                     new ReleaseCaseEditLeaseRequest(caseId, actor, NewOperationKey(), lease.Token),
                     CancellationToken.None);
             }

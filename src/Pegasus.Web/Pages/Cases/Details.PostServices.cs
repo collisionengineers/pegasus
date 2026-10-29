@@ -38,9 +38,6 @@ public sealed partial class DetailsModel
     private RemoveRepairSpecificationScaling removeRepairSpecificationScaling => field ??= PostService<RemoveRepairSpecificationScaling>();
     private RestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot => field ??= PostService<RestoreRepairSpecificationSnapshot>();
     private IAddCaseDocument addCaseDocument => field ??= PostService<IAddCaseDocument>();
-    private IAcquireCaseEditLease acquireLease => field ??= PostService<IAcquireCaseEditLease>();
-    private IHeartbeatCaseEditLease heartbeatLease => field ??= PostService<IHeartbeatCaseEditLease>();
-    private IReleaseCaseEditLease releaseLease => field ??= PostService<IReleaseCaseEditLease>();
     private ISaveCaseWorkspace saveCaseWorkspace => field ??= PostService<ISaveCaseWorkspace>();
     private ICreateAudit createAudit => field ??= PostService<ICreateAudit>();
     private IOpenCaseQuery openCaseQuery => field ??= PostService<IOpenCaseQuery>();

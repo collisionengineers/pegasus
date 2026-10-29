@@ -48,8 +48,7 @@ public sealed class MessageModel(
     IStaffMailAttachmentResolver attachmentResolver,
     IApprovedMailboxStore approvedMailboxes,
     IGetIntake getIntake,
-    IAcquireCaseEditLease acquireCaseEditLease,
-    IReleaseCaseEditLease releaseCaseEditLease,
+    CaseEditLeases caseEditLeases,
     IEditScopeLeases editScopes,
     ILinkIntake linkIntake,
     IReverseIntakeLink reverseIntakeLink,
@@ -2098,7 +2097,7 @@ public sealed class MessageModel(
                 destination.Version,
                 actor,
                 leaseOperationKey,
-                acquireCaseEditLease,
+                caseEditLeases,
                 editScopes,
                 cancellationToken);
             return (claim, null);
@@ -2162,7 +2161,7 @@ public sealed class MessageModel(
             }
             else
             {
-                await releaseCaseEditLease.ExecuteAsync(
+                await caseEditLeases.ReleaseAsync(
                     new(
                         claim.CaseId,
                         actor,

@@ -23,12 +23,12 @@ public static class CaseLinkAuthority
         long expectedVersion,
         ActionActor actor,
         string operationKey,
-        IAcquireCaseEditLease acquireCaseEditLease,
+        CaseEditLeases caseEditLeases,
         IEditScopeLeases editScopes,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        ArgumentNullException.ThrowIfNull(acquireCaseEditLease);
+        ArgumentNullException.ThrowIfNull(caseEditLeases);
         ArgumentNullException.ThrowIfNull(editScopes);
         if (destination.IsTriageCase)
         {
@@ -42,7 +42,7 @@ public static class CaseLinkAuthority
             return new(destination.CaseId, true, scope.RecordVersion, scope.Token);
         }
 
-        var lease = await acquireCaseEditLease.ExecuteAsync(
+        var lease = await caseEditLeases.ClaimAsync(
             new ClaimCaseEditLeaseRequest(destination.CaseId, expectedVersion, actor, operationKey),
             cancellationToken);
         return new(destination.CaseId, false, lease.Version, lease.Token);

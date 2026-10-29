@@ -893,7 +893,7 @@ public sealed class AutomationAssessmentIngressTests
 
         await using (var scope = mcpFactory.Services.CreateAsyncScope())
         {
-            await scope.ServiceProvider.GetRequiredService<IReleaseCaseEditLease>().ExecuteAsync(
+            await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ReleaseAsync(
                 new(caseId, staff, Guid.NewGuid().ToString("N"), staffLease.Token),
                 CancellationToken.None);
         }
@@ -1124,7 +1124,7 @@ public sealed class AutomationAssessmentIngressTests
         bool takeOver = false)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+        return await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().ClaimAsync(
             new(caseId, expectedVersion, staff, Guid.NewGuid().ToString("N")) { TakeOver = takeOver },
             CancellationToken.None);
     }
