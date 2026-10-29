@@ -474,11 +474,19 @@ public sealed class SaveCaseWorkspace(
 /// The account a Case save leaves in the history: "Case data saved by {name} —
 /// {changed fields}". The name is the actor the entry already carries; this
 /// builds the changed-fields part from what the store found different, so the
-/// line describes the save rather than asking the person to.
+/// line describes the save rather than asking the person to. A save session
+/// leaves one such line listing every field the session changed (R466,
+/// operator, 28 October 2026): <see cref="ExtendSession"/> extends the session's line
+/// by what each later save changed.
 /// </summary>
 public static class CaseWorkspaceChangeSummary
 {
     public const int MaximumLength = 2000;
+
+    private const string NoFieldChanged = "No field changed";
+    private const string PartSeparator = ", ";
+    private const string ReasonSeparator = " · ";
+    private const string ClaimSourcePrefix = "Claim source: ";
 
     public static string Describe(
         CaseEditableData before,
@@ -488,6 +496,76 @@ public static class CaseWorkspaceChangeSummary
         bool estimateChanged,
         int imagesPrepared,
         string? reason,
+        bool wordingChanged = false,
+        IReadOnlyList<ValuationDetails>? valuationsRecorded = null,
+        bool valuationAdopted = false) =>
+        Summarise(
+            Parts(
+                before,
+                after,
+                beforeFields,
+                afterFields,
+                estimateChanged,
+                imagesPrepared,
+                wordingChanged,
+                valuationsRecorded,
+                valuationAdopted),
+            reason);
+
+    /// <summary>The line for one save: its changed parts, then a typed reason when one is given.</summary>
+    public static string Summarise(IReadOnlyList<string> parts, string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(parts);
+        return Bound(WithReason(parts.Count == 0 ? NoFieldChanged : string.Join(PartSeparator, parts), reason));
+    }
+
+    /// <summary>
+    /// The session's one line (R466) once a later save of the session lands:
+    /// <paramref name="session"/> is the line the session's saves left so far,
+    /// and <paramref name="parts"/> what this save changed. A field already
+    /// listed is not listed again; the claim source is named once, by the
+    /// source it now is (<paramref name="claimSourceBefore"/> is the source the
+    /// line named until this save); prepared images are counted across the
+    /// session; and a typed reason is kept beside the ones already given.
+    /// </summary>
+    public static string ExtendSession(
+        string session,
+        IReadOnlyList<string> parts,
+        string? reason,
+        string? claimSourceBefore)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(parts);
+        var split = session.IndexOf(ReasonSeparator, StringComparison.Ordinal);
+        var fields = split < 0 ? session : session[..split];
+        var reasons = split < 0 ? string.Empty : session[(split + ReasonSeparator.Length)..];
+        if (fields == NoFieldChanged)
+        {
+            fields = string.Empty;
+        }
+
+        foreach (var part in parts)
+        {
+            fields = WithPart(fields, part, claimSourceBefore);
+        }
+
+        var typed = reason?.Trim();
+        if (!string.IsNullOrEmpty(typed) && IndexOfItem(reasons, typed, ReasonSeparator) < 0)
+        {
+            reasons = reasons.Length == 0 ? typed : reasons + ReasonSeparator + typed;
+        }
+
+        return Bound(WithReason(fields.Length == 0 ? NoFieldChanged : fields, reasons));
+    }
+
+    /// <summary>What one save changed, each part a name its history line lists.</summary>
+    public static IReadOnlyList<string> Parts(
+        CaseEditableData before,
+        CaseEditableData after,
+        IReadOnlyDictionary<string, object?> beforeFields,
+        IReadOnlyDictionary<string, object?> afterFields,
+        bool estimateChanged,
+        int imagesPrepared,
         bool wordingChanged = false,
         IReadOnlyList<ValuationDetails>? valuationsRecorded = null,
         bool valuationAdopted = false)
@@ -513,7 +591,7 @@ public static class CaseWorkspaceChangeSummary
                 if (!claimSourceNamed)
                 {
                     claimSourceNamed = true;
-                    parts.Add($"Claim source: {after.ClaimSourceName ?? "none"}");
+                    parts.Add($"{ClaimSourcePrefix}{after.ClaimSourceName ?? "none"}");
                 }
 
                 continue;
@@ -546,7 +624,7 @@ public static class CaseWorkspaceChangeSummary
 
         if (imagesPrepared > 0)
         {
-            parts.Add(imagesPrepared == 1 ? "1 image prepared" : $"{imagesPrepared} images prepared");
+            parts.Add(ImagesPrepared(imagesPrepared));
         }
 
         if (wordingChanged)
@@ -566,15 +644,86 @@ public static class CaseWorkspaceChangeSummary
             parts.Add("Engineer's Value applied");
         }
 
-        var summary = parts.Count == 0 ? "No field changed" : string.Join(", ", parts);
-        var trimmedReason = reason?.Trim();
-        if (!string.IsNullOrEmpty(trimmedReason))
+        return parts;
+    }
+
+    private static string WithPart(string fields, string part, string? claimSourceBefore)
+    {
+        if (part.StartsWith(ClaimSourcePrefix, StringComparison.Ordinal))
         {
-            summary = $"{summary} · {trimmedReason}";
+            var named = ClaimSourcePrefix + (claimSourceBefore ?? "none");
+            var at = IndexOfItem(fields, named, PartSeparator);
+            if (at >= 0)
+            {
+                return string.Concat(fields.AsSpan(0, at), part, fields.AsSpan(at + named.Length));
+            }
+        }
+        else if (ImageCount(part) is { } added)
+        {
+            // Splitting on the separator and joining on it again gives back the
+            // same text, so only the images part changes.
+            var items = fields.Split(PartSeparator);
+            for (var index = 0; index < items.Length; index++)
+            {
+                if (ImageCount(items[index]) is { } had)
+                {
+                    items[index] = ImagesPrepared(had + added);
+                    return string.Join(PartSeparator, items);
+                }
+            }
         }
 
-        return summary.Length <= MaximumLength ? summary : summary[..(MaximumLength - 1)] + "…";
+        if (IndexOfItem(fields, part, PartSeparator) >= 0)
+        {
+            return fields;
+        }
+
+        return fields.Length == 0 ? part : fields + PartSeparator + part;
     }
+
+    /// <summary>Where <paramref name="item"/> stands whole in the separated <paramref name="list"/>; -1 when it does not.</summary>
+    private static int IndexOfItem(string list, string item, string separator)
+    {
+        for (var at = list.IndexOf(item, StringComparison.Ordinal);
+             at >= 0;
+             at = list.IndexOf(item, at + 1, StringComparison.Ordinal))
+        {
+            var end = at + item.Length;
+            if ((at == 0 || list.AsSpan(0, at).EndsWith(separator, StringComparison.Ordinal))
+                && (end == list.Length || list.AsSpan(end).StartsWith(separator, StringComparison.Ordinal)))
+            {
+                return at;
+            }
+        }
+
+        return -1;
+    }
+
+    private static string ImagesPrepared(int count) =>
+        count == 1 ? "1 image prepared" : $"{count} images prepared";
+
+    private static int? ImageCount(string part)
+    {
+        if (part == "1 image prepared")
+        {
+            return 1;
+        }
+
+        const string plural = " images prepared";
+        return part.EndsWith(plural, StringComparison.Ordinal)
+            && int.TryParse(part.AsSpan(0, part.Length - plural.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var count)
+                ? count
+                : null;
+    }
+
+    private static string WithReason(string summary, string? reason)
+    {
+        var trimmed = reason?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? summary : $"{summary}{ReasonSeparator}{trimmed}";
+    }
+
+    private static string Bound(string summary) =>
+        summary.Length <= MaximumLength ? summary : summary[..(MaximumLength - 1)] + "…";
 
     private static bool IsClaimSourceSnapshot(string propertyName) =>
         propertyName.StartsWith(nameof(CaseEditableData.ClaimSourceId)[..^2], StringComparison.Ordinal)

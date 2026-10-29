@@ -450,9 +450,11 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.NotNull(replaced.LastEditedAtUtc);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
-        var line = await context.CaseHistory.AsNoTracking()
-            .Where(item => item.CaseId == harness.CaseId && item.OperationKey == "guide-save-2")
-            .Select(item => item.Reason)
+        // The save's own account; the Notes line is its session's (R466).
+        var line = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "case" && item.AggregateId == harness.CaseId.ToString("D")
+                && item.CorrelationId == "guide-save-2" && item.EventKind == "case_workspace_saved")
+            .Select(item => item.Reason ?? string.Empty)
             .SingleAsync();
         Assert.Contains("Valuation: Brego Apr 2030", line, StringComparison.Ordinal);
         Assert.DoesNotContain("Glasses", line, StringComparison.Ordinal);
@@ -1089,6 +1091,84 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.StartsWith("No field changed", line, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// One note per save session (R466, operator, 28 October 2026). Saves that
+    /// each follow the claim the Case page makes to keep editing show in Notes
+    /// as one line listing every field the session changed, once each, while
+    /// every save keeps its own workflow event and action history. A release
+    /// (Done) ends the session, and a Case note written between two saves puts
+    /// the save after it on a line of its own.
+    /// </summary>
+    [Fact]
+    public async Task TheSavesOfOneEditSessionShowAsOneNoteListingEveryFieldChanged()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var opened = (await harness.GetRequiredDataAsync()).Version;
+        var version = opened;
+        var lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-1");
+
+        async Task SaveAsync(string key, CaseWorkspaceOverview overview)
+        {
+            var saved = await harness.WorkspaceStore.SaveAsync(
+                Request(harness, version, lease.Token, key) with { Overview = overview },
+                CancellationToken.None);
+            version = saved.Version;
+        }
+
+        async Task<CaseHistoryEntry[]> SavedLinesAsync() =>
+            [.. (await new EfCaseQueryStore(harness.Factory, harness.TimeProvider)
+                    .ListHistoryAsync(harness.CaseId, CancellationToken.None))
+                .Where(entry => entry.EventType == "case_workspace_saved")];
+
+        await SaveAsync("session-save-1", Overview("Jane Example"));
+        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-2");
+        await SaveAsync("session-save-2", Overview("Jane Example") with { ClientNotes = "Photos to follow." });
+        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-3");
+        await SaveAsync("session-save-3", Overview("John Example") with { ClientNotes = "Photos to follow." });
+
+        var session = Assert.Single(await SavedLinesAsync());
+        Assert.Equal((opened, version), (session.BeforeVersion, session.AfterVersion));
+        var line = session.Reason ?? string.Empty;
+        Assert.Single(line.Split(" · ")[0].Split(", "), part => part == "Claimant name");
+        Assert.Contains("Client notes", line, StringComparison.Ordinal);
+        Assert.EndsWith(" · Recorded the Case workspace", line, StringComparison.Ordinal);
+        Assert.Single(line.Split(" · "), part => part == "Recorded the Case workspace");
+        Assert.Equal(3, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.Equal(3, await context.ActionHistory.AsNoTracking().CountAsync(item =>
+                item.AggregateType == "case"
+                && item.AggregateId == harness.CaseId.ToString("D")
+                && item.EventKind == "case_workspace_saved"));
+        }
+
+        // Done releases the lease: the next Edit opens a new session.
+        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-4");
+        await harness.WorkflowStore.ReleaseAsync(
+            new(harness.CaseId, harness.StaffActor, "session-release", lease.Token),
+            CancellationToken.None);
+        var reopened = version;
+        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-5");
+        await SaveAsync("session-save-4", Overview("John Example") with { ClientNotes = "Parked outside." });
+
+        var lines = await SavedLinesAsync();
+        Assert.Equal(2, lines.Length);
+        var latest = lines.Single(entry => entry.AfterVersion == version);
+        Assert.Equal(reopened, latest.BeforeVersion);
+        Assert.DoesNotContain("Claimant name", latest.Reason ?? string.Empty, StringComparison.Ordinal);
+        Assert.Contains("Client notes", latest.Reason ?? string.Empty, StringComparison.Ordinal);
+
+        // A Case note between two saves keeps the timeline in order.
+        lease = await harness.AcquireLeaseAsync(version, harness.StaffActor, "session-claim-6");
+        await new EfCaseNoteStore(harness.Factory).AddAsync(
+            new(harness.CaseId, harness.StaffActor, "session-note", "Called the repairer."),
+            harness.TimeProvider.GetUtcNow(),
+            CancellationToken.None);
+        await SaveAsync("session-save-5", Overview("John Example") with { ClientNotes = "Parked on the drive." });
+
+        Assert.Equal(3, (await SavedLinesAsync()).Length);
+    }
+
     [Fact]
     public async Task MissingWrongHolderWrongTokenAndExpiredLeasesNeverWriteTheWorkspace()
     {
@@ -1409,9 +1489,11 @@ public sealed class CaseWorkspacePersistenceTests(CaseWorkspaceDatabase database
         Assert.Equal(first.Version + 1, second.Version);
         Assert.Equal(spec.Lines[0].Id, Assert.Single(second.Estimate!.Lines).Id);
         await using var context = await harness.Factory.CreateDbContextAsync();
-        var line = await context.CaseHistory.AsNoTracking()
-            .Where(item => item.CaseId == harness.CaseId && item.OperationKey == "spec-save-2")
-            .Select(item => item.Reason)
+        // The save's own account; the Notes line is its session's (R466).
+        var line = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "case" && item.AggregateId == harness.CaseId.ToString("D")
+                && item.CorrelationId == "spec-save-2" && item.EventKind == "case_workspace_saved")
+            .Select(item => item.Reason ?? string.Empty)
             .SingleAsync();
         Assert.DoesNotContain("Estimate", line, StringComparison.Ordinal);
     }

@@ -196,7 +196,9 @@ never changes the Case state and records no handoff.
   records a reason from With Engineer or Report sent (operator, 11 October
   2026).
 - **A Case save** needs no reason. Its history line names the fields that
-  changed, for example "Vehicle registration, Incident date". Reasons are
+  changed, for example "Vehicle registration, Incident date", and an edit
+  session's saves share one line listing every field the session changed
+  (operator, 28 October 2026; R466). Reasons are
   required where an action's rule asks for one: holds and releases, closure,
   corrections, returns to engineering, removals.
 
