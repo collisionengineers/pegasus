@@ -359,7 +359,7 @@ internal sealed class EfApprovedInboxPollStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(leaseToken);
     }
 
-    private static string ScopeFingerprint(string graphMailboxId, string inboxFolderIdentity) =>
+    internal static string ScopeFingerprint(string graphMailboxId, string inboxFolderIdentity) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             $"{graphMailboxId.Length}:{graphMailboxId}{inboxFolderIdentity}")));
 
