@@ -522,20 +522,39 @@ public sealed class CaseEditModeWebTests
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
-            Substitute<ISaveCaseWorkspace>(services, store));
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<ILeaseCaseForEdit>(services, new NoResume(store));
+        });
         store.NextFailure = new StaffAuthorizationException(StaffAccessRight.PerformCasework);
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(DetailsModelOperationKey, "Corrected claimant spelling",
                 ("claimantName", "Rebecca Proposed")));
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Empty(store.Saves);
-        // An account refused casework is refused the resume too (CaseEditLeases checks casework
-        // before the port), which this store does not model: it holds no lease to hand back.
-        store.LeaseHolder = null;
         var refused = await workspace.GetWorkspaceAsync();
         Assert.Contains("Rebecca Proposed", ProposedValuesPanel(refused), StringComparison.Ordinal);
         Assert.DoesNotContain(store.LeaseToken, refused, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", refused, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The store's lease port with no lease to resume: an account refused casework is refused the
+    /// resume too (<see cref="CaseEditLeases"/> checks casework first), which the store does not model.
+    /// </summary>
+    private sealed class NoResume(RecordingCaseDetailsStore store) : ILeaseCaseForEdit
+    {
+        public Task<CaseEditLease> ClaimAsync(ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            ((ILeaseCaseForEdit)store).ClaimAsync(request, cancellationToken);
+
+        public Task<CaseEditLease> HeartbeatAsync(HeartbeatCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            ((ILeaseCaseForEdit)store).HeartbeatAsync(request, cancellationToken);
+
+        public Task<CaseEditLease?> ResumeAsync(ResumeCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseEditLease?>(null);
+
+        public Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken) =>
+            ((ILeaseCaseForEdit)store).ReleaseAsync(request, cancellationToken);
     }
 
     /// <summary>
