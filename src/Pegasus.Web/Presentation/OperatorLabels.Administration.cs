@@ -43,6 +43,32 @@ public static partial class OperatorLabels
         public const string Stop = "Stop";
         public const string None = "No AI jobs are recorded.";
 
+        // The Administration list's columns, pager and Stop outcomes.
+        public const string JobColumn = "Job";
+        public const string SubjectColumn = "Subject";
+        public const string CreatedColumn = "Created";
+        public const string StateColumn = "State";
+        public const string ActionColumn = "Action";
+        public const string Pages = "AI job pages";
+        public const string Previous = "Previous";
+        public const string Next = "Next";
+        public const string Stopped = "The AI job was stopped.";
+
+        /// <summary>A Stop Core refused for its input or a job it cannot find.</summary>
+        public const string NotStopped = "The AI job could not be stopped.";
+
+        /// <summary>A Stop that met a newer version or a job already settled.</summary>
+        public const string ChangedBeforeStop = "The AI job changed before it could be stopped.";
+
+        public static string Page(int page) =>
+            string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Page {page}");
+
+        /// <summary>The list's head: "2 active · 1 failed · Send to AI on".</summary>
+        public static string Counts(Pegasus.Core.AiWork.AiJobCounts counts, bool sendToAiEnabled) =>
+            string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{counts.Active} active · {counts.Failed} failed · {SendToAiState(sendToAiEnabled)}");
+
         /// <summary>The Estimate kind's reserved term (CONTEXT.md; v41 A28).</summary>
         public const string AiProposal = "AI Proposal";
 
@@ -452,7 +478,8 @@ public static partial class OperatorLabels
     /// <summary>
     /// The Automation &amp; AI administration area's words —
     /// one list. <see cref="Admin.Automation"/> above is the area's name in the
-    /// rail; these are the two panels inside it.
+    /// rail; these are the panels inside it, beside the AI jobs list
+    /// (<see cref="AiJobs"/>).
     /// </summary>
     public static class AutomationAdmin
     {
@@ -461,10 +488,22 @@ public static partial class OperatorLabels
         public const string Enabled = "Enabled";
         public const string Stopped = "Stopped";
         public const string RegisteredClients = "Registered clients";
-        public const string ActiveJobs = "Active jobs";
-        public const string FailedJobs = "Failed jobs";
         public const string Stop = "Stop automation";
         public const string Start = "Start automation";
+        public const string StartedNotice = "Automation started.";
+        public const string StoppedNotice = "Automation stopped.";
+        public const string Saved = "AI settings saved.";
+        public const string NotAvailable = "Automation is not available.";
+        public const string Unavailable = "This deployment does not have Automation or AI configuration available.";
+
+        /// <summary>The one expiry sentence Administration forms share.</summary>
+        public const string Expired = EmailTemplates.Expired;
+
+        /// <summary>
+        /// A Stop or Start whose one transaction failed and changed nothing:
+        /// the sentence Administration already gives a change it did not take.
+        /// </summary>
+        public const string NotAccepted = CaseWorkspaceLabels.GlassCredential.NotAccepted;
 
         /// <summary>
         /// The one consequence sentence on the kill switch, from the design

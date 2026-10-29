@@ -1,55 +1,16 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Pegasus.Web.Pages.Administration;
 
+/// <summary>
+/// The former AI jobs address. The list is on the Automation &amp; AI page
+/// (R467), so this route redirects there, keeping the page asked for.
+/// </summary>
 [Authorize(Policy = StaffRoleNames.Administrator)]
-public sealed class AiJobsModel(
-    GetAdministrationAiJobs getJobs,
-    CancelAiJob cancelJob) : AdministrationPageModel
+public sealed class AiJobsModel : AdministrationPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
-    public AdministrationAiJobPage Result { get; private set; } = new([], new(0, 0), false, false);
-    public int CurrentPage { get; private set; } = 1;
-    [TempData] public string? StatusMessage { get; set; }
-    [TempData] public string? ErrorMessage { get; set; }
-
-    public async Task<IActionResult> OnGetAsync(
-        [FromQuery(Name = "pageNumber")] int pageNumber,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        CurrentPage = pageNumber == 0 ? 1 : pageNumber;
-        try { Result = await getJobs.ExecuteAsync(actor, CurrentPage, cancellationToken); }
-        catch (ArgumentOutOfRangeException) { return NotFound(); }
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostStopAsync(
-        Guid jobId,
-        long expectedVersion,
-        string operationKey,
-        int pageNumber,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        var returnPage = Math.Max(pageNumber, 1);
-        if (jobId == Guid.Empty || !IsOperationKeyValid(operationKey))
-        {
-            ErrorMessage = "The AI job could not be stopped.";
-            return RedirectToPage(new { pageNumber = returnPage });
-        }
-        try
-        {
-            await cancelJob.ExecuteAsync(new(jobId, expectedVersion, actor, operationKey, Reason: null), cancellationToken);
-            StatusMessage = "The AI job was stopped.";
-        }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
-        {
-            ErrorMessage = "The AI job changed before it could be stopped.";
-        }
-        return RedirectToPage(new { pageNumber = returnPage });
-    }
+    public IActionResult OnGet([FromQuery(Name = "pageNumber")] int? pageNumber) =>
+        RedirectToPage("/Administration/Automation/Index", new { pageNumber });
 }
