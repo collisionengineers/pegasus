@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -53,8 +52,6 @@ public sealed class ImageIntakeCasePairing(
     IIntakeReceiptQueries receiptQueries,
     FillCaseFromVehicleCapture? captureFill = null) : IImageIntakeCasePairing
 {
-    private static readonly ActivitySource Telemetry = new("Pegasus.Core.ImageIntake");
-
     /// <summary>
     /// A known intake Principal is a hard scope on the candidate Cases, the
     /// way an established Principal is on the mail path
@@ -171,8 +168,6 @@ public sealed class ImageIntakeCasePairing(
         CancellationToken cancellationToken,
         ImageIntakeDetail? registered = null)
     {
-        using var activity = Telemetry.StartActivity("image_intake_pairing");
-        activity?.SetTag("intake.receipt_id", receiptId);
         try
         {
             var detail = registered
@@ -341,14 +336,11 @@ public sealed class ImageIntakeCasePairing(
                 // identity fills the Case it merged into (FRD-02 EXT-17).
                 await captureFill.ExecuteAsync(targetId.Value, detail.Record.Origin.ReceiptId, cancellationToken);
             }
-            activity?.SetTag("image_intake.pairing", "merged");
             return new(1, 1, 0);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             var failure = exception.GetType().Name;
-            activity?.SetTag("image_intake.failure_type", failure);
-            activity?.SetStatus(ActivityStatusCode.Error, "pairing_failed");
             return new(1, 0, 1, failure);
         }
     }

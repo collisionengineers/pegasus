@@ -149,7 +149,9 @@ The message may also name a claim reference as a bounded token in its subject
 or current body, matched against the Case's indexed durable claim token across
 every Principal. Neither signal stands alone: every non-empty linking signal's
 candidate set is intersected, and only one surviving Case that can take an
-association — current, not archived, and never a Triage — is linked.
+association — current and not archived — is linked. A reply into a thread
+that holds a Triage links to the Triage as a reply links to a Case
+(operator, 28 October 2026; R469).
 
 The immutable source occurrence and its evidence stay separate from the
 editable Case projection. Linking creates a versioned source-to-Case

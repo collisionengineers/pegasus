@@ -23,8 +23,8 @@ namespace Pegasus.Web.Pages.Mail;
 public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
     GetRetainedMailFreshness getFreshness,
-    IDismissRetainedMail dismissRetainedMail,
-    IRestoreRetainedMail restoreRetainedMail,
+    DismissRetainedMail dismissRetainedMail,
+    RestoreRetainedMail restoreRetainedMail,
     IApprovedMailboxStore approvedMailboxes,
     IStaffMailSend? staffMailSend = null) : StaffPageModel
 {

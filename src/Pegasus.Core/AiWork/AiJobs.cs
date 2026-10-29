@@ -317,11 +317,6 @@ public interface IWorkAiJob
     Task<AiJobRecord> FailAsync(FailAiJobCommand command, CancellationToken cancellationToken);
 }
 
-public interface ICancelAiJob
-{
-    Task<AiJobRecord> ExecuteAsync(CancelAiJobCommand command, CancellationToken cancellationToken);
-}
-
 /// <summary>
 /// The staff act that closes a Draft ready job as Completed once its result
 /// has been consumed (or needs no separate act).

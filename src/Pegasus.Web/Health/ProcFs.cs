@@ -15,19 +15,9 @@ internal static class ProcFs
 {
     private const int MajorFaultFieldAfterComm = 9;
 
-    // One sample for the whole process: every request shares it, so the file is
-    // read at most once a second however many requests there are, and through
-    // one handle opened once.
-    private static readonly SampledMajorFaults SelfStat = new(
-        new MajorFaultReader("/proc/self/stat").Read,
-        static () => Environment.TickCount64);
+    private static readonly MajorFaultReader SelfStat = new("/proc/self/stat");
 
-    /// <summary>
-    /// Major page faults of this process, or null when the file is absent. The
-    /// figure is the one sampled in the last second and shared across requests, so
-    /// a delta over a request is what the process did between two samples, and
-    /// is zero for a request that starts and ends inside one second.
-    /// </summary>
+    /// <summary>Major page faults of this process, or null when the file is absent.</summary>
     public static long? ReadMajorFaults() => SelfStat.Read();
 
     /// <summary>
@@ -162,7 +152,7 @@ internal static class ProcFs
     /// and kept for the life of the process. A file that cannot be opened is
     /// remembered as absent (Windows has none), so later reads make no call. Each
     /// read is positional at offset 0 into its own stack buffer, so concurrent
-    /// requests share the handle and never a buffer.
+    /// callers share the handle and never a buffer.
     /// </summary>
     internal sealed class MajorFaultReader(string path)
     {
@@ -200,40 +190,6 @@ internal static class ProcFs
                 return null;
             }
         }
-    }
-
-    /// <summary>
-    /// Holds the last figure a reader gave for one second, so every request in
-    /// that second shares it. Concurrent callers at the moment it expires may each
-    /// read once and none ever waits, but only one publishes, so the sample only
-    /// ever moves to the figure of the refresher that got there first.
-    /// </summary>
-    internal sealed class SampledMajorFaults(Func<long?> read, Func<long> milliseconds)
-    {
-        private const long PeriodMilliseconds = 1000;
-
-        private Sample? current;
-
-        public long? Read()
-        {
-            var now = milliseconds();
-            var held = Volatile.Read(ref current);
-            if (held is not null && now - held.At < PeriodMilliseconds)
-            {
-                return held.Faults;
-            }
-
-            // Only the caller that still finds the sample it found expired publishes
-            // its own. One that lost to another refresher returns what was
-            // published, so the figure a caller sees never goes back to an older
-            // read and a delta over a request is never negative.
-            var fresh = new Sample(now, read());
-            return ReferenceEquals(Interlocked.CompareExchange(ref current, fresh, held), held)
-                ? fresh.Faults
-                : Volatile.Read(ref current)!.Faults;
-        }
-
-        private sealed record Sample(long At, long? Faults);
     }
 
     private static string[] Lines(string? text) =>

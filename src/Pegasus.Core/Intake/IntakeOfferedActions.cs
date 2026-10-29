@@ -52,29 +52,11 @@ public sealed record GroupImageRegistrationOffers(
         null);
 }
 
-public interface IGetIntakeOfferedActions
-{
-    Task<IntakeOfferedActions> ExecuteAsync(ActionActor actor, IntakeReceipt receipt, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// The Register images part of <see cref="ExecuteAsync"/> for an upload
-    /// group's member receipts: each entry's offer and readings equal what
-    /// <see cref="ExecuteAsync"/> answers for that receipt alone. The readings of
-    /// every receipt are read in one read, each receipt's Image Intake origin
-    /// record at most once (shared between its offer and the group's first
-    /// record), and Create case and Open the Triage are not computed.
-    /// </summary>
-    Task<GroupImageRegistrationOffers> ExecuteForGroupAsync(
-        ActionActor actor,
-        IReadOnlyList<IntakeReceipt> receipts,
-        CancellationToken cancellationToken);
-}
-
 public sealed class GetIntakeOfferedActions(
     IImageIntakeQueries imageIntakes,
     ITriageQueries triages,
     ITriagePrincipalGate triagePrincipalGate,
-    IVrmSuggestionStore vrmSuggestions) : IGetIntakeOfferedActions
+    IVrmSuggestionStore vrmSuggestions)
 {
     private readonly IImageIntakeQueries _imageIntakes = imageIntakes ?? throw new ArgumentNullException(nameof(imageIntakes));
     private readonly ITriageQueries _triages = triages ?? throw new ArgumentNullException(nameof(triages));
@@ -112,6 +94,14 @@ public sealed class GetIntakeOfferedActions(
         return new(canCreateCase, canOpenTriage, canRegisterImages, readings);
     }
 
+    /// <summary>
+    /// The Register images part of <see cref="ExecuteAsync"/> for an upload
+    /// group's member receipts: each entry's offer and readings equal what
+    /// <see cref="ExecuteAsync"/> answers for that receipt alone. The readings of
+    /// every receipt are read in one read, each receipt's Image Intake origin
+    /// record at most once (shared between its offer and the group's first
+    /// record), and Create case and Open the Triage are not computed.
+    /// </summary>
     public async Task<GroupImageRegistrationOffers> ExecuteForGroupAsync(
         ActionActor actor,
         IReadOnlyList<IntakeReceipt> receipts,

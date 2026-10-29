@@ -23,7 +23,7 @@ public sealed class UploadGroupStatusModel(
     IUploadCaseDecision caseDecision,
     IGetIntake intake,
     ISearchCases searchCases,
-    IDiscardIntakeSubmissionGroup discardSubmission,
+    DiscardIntakeSubmissionGroup discardSubmission,
     IDeclineImageMatch declineImageMatch,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {

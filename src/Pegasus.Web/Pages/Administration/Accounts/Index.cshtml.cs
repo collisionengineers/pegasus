@@ -21,12 +21,12 @@ namespace Pegasus.Web.Pages.Administration.Accounts;
 /// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
-    IListStaffAccounts listStaffAccounts,
+    ListStaffAccounts listStaffAccounts,
     IGetStaffAccount getStaffAccount,
     ICreateStaffAccount createStaffAccount,
     IUpdateStaffAccountSettings updateStaffAccountSettings,
     IDisableStaffAccount disableStaffAccount,
-    IEnableStaffAccount enableStaffAccount,
+    EnableStaffAccount enableStaffAccount,
     IForceStaffLogout forceStaffLogout,
     IResetStaffPassword resetStaffPassword,
     IDeleteStaffAccount deleteStaffAccount,

@@ -176,5 +176,5 @@ they ship as one rework with one destructive migration.
 - [ADR-0002](0002-dotnet-modular-monolith-on-azure.md#case-reference-allocation)
 - [ADR-0045](0045-document-custody-and-derived-caches.md)
 - [ADR-0046](0046-destructive-migration-runtime-shutdown.md)
-- [ADR-0051](0051-linked-audit-case-identity-and-custody.md) (superseded)
+- [ADR-0051](superseded/0051-linked-audit-case-identity-and-custody.md) (superseded)
 - Provenance: [v29 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v29_planning/current/v29-notes.md)

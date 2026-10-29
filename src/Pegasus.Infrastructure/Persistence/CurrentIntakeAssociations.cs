@@ -61,6 +61,44 @@ internal static class CurrentIntakeAssociations
                     && context.CaseIntakeLinks.Any(item => item.IntakeReceiptId == receipt.Id)))
             .Select(receipt => receipt.Id);
 
+    /// <summary>
+    /// The Cases the given receipts hold, as the mail association evidence
+    /// reads a thread or the messages a reply answers: the Case each receipt
+    /// stands linked to now, and the Triage Case each one opened. A Triage's
+    /// origin message is linked by the Triage itself, not by an association
+    /// row, so both are read; a reply links to the Triage as a reply links to
+    /// a Case (operator, 28 October 2026; R469).
+    /// </summary>
+    internal static async Task<Guid[]> HeldCaseIdsAsync(
+        PegasusDbContext context,
+        IQueryable<IntakeReceiptEntity> receipts,
+        CancellationToken cancellationToken)
+    {
+        var held = await receipts
+            .AsNoTracking()
+            .Select(receipt => new
+            {
+                receipt.Id,
+                OpenedTriageCaseId = context.Triage
+                    .Where(triage => triage.OriginReceiptId == receipt.Id)
+                    .Select(triage => (Guid?)triage.CaseId)
+                    .FirstOrDefault()
+            })
+            .ToListAsync(cancellationToken);
+        var current = await ReadAsync(
+            context,
+            held.Select(item => item.Id).ToArray(),
+            cancellationToken);
+        return current.Current.Values
+            .Select(item => item.CaseId)
+            .Concat(held
+                .Where(item => item.OpenedTriageCaseId is not null)
+                .Select(item => item.OpenedTriageCaseId!.Value))
+            .Distinct()
+            .Order()
+            .ToArray();
+    }
+
     internal static async Task<IntakeAssociations> ReadAsync(
         PegasusDbContext context,
         IReadOnlyCollection<Guid> receiptIds,

@@ -15,7 +15,7 @@ internal sealed record WorkCentreDismissToolResult(
 /// </summary>
 [McpServerToolType]
 internal sealed class WorkCentreMcpTools(
-    IDismissWorkCentreItem dismissItem,
+    DismissWorkCentreItem dismissItem,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
