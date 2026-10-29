@@ -476,6 +476,77 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task PdfWithATaxiPlateReadBesideTheRegistrationRegistersTheRegistration()
+    {
+        // Issue 1681 (operator, 28 October 2026, R461): a read that is digits
+        // alone is never a registration, so the taxi plate does not conflict.
+        var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var firstPhoto = Asset(
+            "page-1-image-1.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 547, height: 650);
+        var secondPhoto = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 552, height: 650);
+        var harness = new Harness(retainedAssets: [pdf, firstPhoto, secondPhoto]);
+        harness.Engine.Enqueue(Suggested("KY14DJE", 0.95));
+        harness.Engine.Enqueue(Suggested("35016", 0.95));
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Equal(2, harness.Engine.Calls);
+        Assert.Null(outcome.UnidentifiedGroup);
+        Assert.Equal("KY14DJE", Assert.Single(harness.Register.Requests).NormalizedVehicleRegistration);
+        var taxiPlate = Assert.Single(harness.SuggestionStore.Records, record => record.IntakeAssetId == secondPhoto.Id);
+        Assert.Equal(VrmRecognitionOutcomeKind.NoReadableResult, taxiPlate.Outcome);
+        Assert.Null(taxiPlate.SuggestedRegistration);
+    }
+
+    [Fact]
+    public async Task AConfidentReadOfDigitsAloneIsNeverARegistration()
+    {
+        var harness = new Harness();
+        harness.Engine.Enqueue(Suggested("35016", 0.95));
+
+        await harness.ApplyAsync();
+
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+        var suggestion = Assert.Single(harness.SuggestionStore.Records);
+        Assert.Equal(VrmRecognitionOutcomeKind.NoReadableResult, suggestion.Outcome);
+        Assert.Null(suggestion.SuggestedRegistration);
+    }
+
+    [Fact]
+    public async Task ImageGroupWithATaxiPlateReadBesideTheRegistrationRegistersTheRegistration()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("35016", 0.95));
+        harness.Engine.Enqueue(Suggested("KY14DJE", 0.95));
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.Null(outcome.UnidentifiedGroup);
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("KY14DJE", registration.NormalizedVehicleRegistration);
+        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
+    }
+
+    [Fact]
+    public async Task AnImageShowingATaxiPlateAndTheRegistrationRecordsTheRegistration()
+    {
+        // The taxi plate is the larger and more confident read in the photograph.
+        var harness = new Harness();
+        harness.Engine.Enqueue(Plates(Plate("35016", 0.97, 200, 80), Plate("KY14DJE", 0.90, 100, 40)));
+
+        await harness.ApplyAsync();
+
+        var suggestion = Assert.Single(harness.SuggestionStore.Records);
+        Assert.Equal(VrmRecognitionOutcomeKind.Suggested, suggestion.Outcome);
+        Assert.Equal("KY14DJE", suggestion.SuggestedRegistration);
+        Assert.Equal("KY14DJE", Assert.Single(harness.Register.Requests).NormalizedVehicleRegistration);
+    }
+
+    [Fact]
     public async Task PdfWithATruncatedReadBesideTheFullReadRegistersTheFullRead()
     {
         // The incident shape (operator, 12 October 2026): one photograph read

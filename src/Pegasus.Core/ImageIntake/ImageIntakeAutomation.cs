@@ -653,11 +653,17 @@ public sealed class ImageIntakeAutomation(
             reason);
     }
 
+    /// <summary>
+    /// Whether a plate read may be recorded as a registration. A read that is
+    /// digits alone, such as a taxi licence plate, never is (operator,
+    /// 28 October 2026, R461).
+    /// </summary>
     private static bool IsUsableRegistration(string registration) =>
         !string.IsNullOrWhiteSpace(registration)
         && registration.Length <= 20
         && registration.All(character =>
-            char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character));
+            char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character))
+        && !registration.All(char.IsAsciiDigit);
 
     /// <summary>
     /// Whether a manual upload's matched Cases are still waiting for staff:
