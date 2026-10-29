@@ -142,23 +142,6 @@ public sealed record OpenDocumentUploadRequest(Guid UploadId, string Owner);
 
 public sealed record DocumentUploadContent(ReadOnlyMemory<byte> Content, string Sha256);
 
-public interface IBeginDocumentUpload
-{
-    Task<DocumentUploadTicket> ExecuteAsync(BeginDocumentUploadRequest request, CancellationToken cancellationToken);
-}
-
-public interface IAppendDocumentUploadPart
-{
-    Task<DocumentUploadPartReceipt> ExecuteAsync(
-        AppendDocumentUploadPartRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IOpenDocumentUpload
-{
-    Task<DocumentUploadContent> ExecuteAsync(OpenDocumentUploadRequest request, CancellationToken cancellationToken);
-}
-
 /// <summary>
 /// A document staged in parts (R203): begin declares its size and SHA-256,
 /// each part is checked against its own SHA-256 before it is stored, and the
@@ -168,7 +151,6 @@ public interface IOpenDocumentUpload
 /// expires.
 /// </summary>
 public sealed class DocumentUploads(IDocumentUploadStaging staging, TimeProvider timeProvider)
-    : IBeginDocumentUpload, IAppendDocumentUploadPart, IOpenDocumentUpload
 {
     /// <summary>How many parts an open reads at once.</summary>
     private const int ReadsAtOnce = 4;

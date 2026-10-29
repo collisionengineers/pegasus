@@ -20,6 +20,7 @@ the affected owner; record only the genuinely undecided portion.
 | Source structure and policy/caller locations | [Architecture](current-architecture.md) |
 | Last observed deployed estate and operational support | [Operations](operations.md) |
 | Release records before Release 124, one line each | [Operations history](operations-history.md) |
+| The owed live-proof items of Releases 81 to 128, settled once as one checklist for the next release | [Release proof checklist](release-proof-checklist.md) |
 | Engineering and verification policy | [Engineering](engineering.md) |
 | Local, verification and operational procedures | [Runbook directory](runbook.md) and existing release/wipe skills |
 | Visual assets, components and presentation | [Design](design/README.md); functional interactions remain in FRD-12 and FRD-15 to FRD-17 |
