@@ -1340,7 +1340,8 @@ public interface IIntakeMutationStore
 
     /// <summary>
     /// Records a staff OCR retry and returns the receipt's last OCR operation to
-    /// pending external work. Refuses when that last attempt did not fail
+    /// pending external work. Refuses with <see cref="IntakeOcrRetryRefusedException"/>
+    /// when there is no attempt or the last one did not fail
     /// (<see cref="IntakeOcrRetryPolicy"/>).
     /// </summary>
     Task<IntakeReceipt> ScheduleOcrRetryAsync(
@@ -1408,6 +1409,27 @@ public sealed class IntakeDependencyUnavailableException(string message, Excepti
     : Exception(message, innerException);
 
 public sealed class IntakeAssociationConflictException(string message) : Exception(message);
+
+// The store's refusals of a staff action on a received file, one type each so
+// a caller tells them apart without reading the message. Each message is the
+// sentence the Logs page shows for it, so logs and page agree (R542, R543,
+// 29 October 2026). They stay InvalidOperationException (InvalidDataException
+// for the file never evaluated) so callers that already catch those still do.
+
+public sealed class IntakeReceiptBecameCaseException()
+    : InvalidOperationException("This file has already become a Case and can no longer be changed here.");
+
+public sealed class IntakeUnidentifiedClosedException()
+    : InvalidOperationException("This file's Unidentified item is closed and can no longer be changed here.");
+
+public sealed class IntakeAlreadyEvaluatingException()
+    : InvalidOperationException("This file is already being re-evaluated.");
+
+public sealed class IntakeOcrRetryRefusedException()
+    : InvalidOperationException("OCR can be retried only after a failed attempt.");
+
+public sealed class IntakeNeverEvaluatedException()
+    : InvalidDataException("This file was never evaluated, so there is nothing to re-evaluate.");
 
 /// <summary>
 /// API-01 is create-only: a declared Principal instruction whose identity facts

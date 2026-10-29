@@ -114,7 +114,7 @@ public sealed class IntakeOcrRetryPersistenceTests
 
         // The attempt is no longer a failure: nothing to retry, and not offered.
         var current = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => retry.ExecuteAsync(
+        await Assert.ThrowsAsync<IntakeOcrRetryRefusedException>(() => retry.ExecuteAsync(
             new RetryIntakeOcrRequest(receiptId, current.Version, administrator, Guid.NewGuid().ToString("N"), "Again.")));
         Assert.False((await log.GetAsync(administrator, receiptId, CancellationToken.None))!.Actions.CanRetryOcr);
     }

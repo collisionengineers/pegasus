@@ -252,13 +252,12 @@ public sealed class LogsWebTests
         }
 
         // Retry OCR again, at the drawer's current version with a new key: the
-        // store refuses it, in the page's words rather than its own (#1566).
+        // store refuses it, in the page's own sentence for it (#1566, R543).
         var current = ActionForm(drawer, "reevaluate");
         drawer = await PostIntakeActionAsync(
             client, drawer, "RetryIntakeOcr", current, "Again.",
             operationKey: Guid.NewGuid().ToString("N"));
-        AssertDangerNotice(drawer, OperatorLabels.IntakeLog.ItemChanged);
-        Assert.DoesNotContain("OCR can be retried only when its last attempt failed.", drawer, StringComparison.Ordinal);
+        AssertDangerNotice(drawer, OperatorLabels.IntakeLog.OcrRetryNeedsFailure);
 
         var reevaluate = ActionForm(drawer, "reevaluate");
         var earlierVersion = Input(reevaluate, "expectedVersion");
@@ -327,10 +326,11 @@ public sealed class LogsWebTests
     /// <summary>
     /// Re-evaluate on the real Core and store (#1566): the form is checked
     /// before anything else, so a blank key or a negative version reads as an
-    /// expired form; an over-long reason has its own message; a store refusal
-    /// and a retained file that no longer matches read the page's words, never
-    /// the store's, and never a server error. Nothing is recorded, and a closed
-    /// Unidentified item is not offered Re-evaluate (FRD-02).
+    /// expired form; an over-long reason, a file already being evaluated, a
+    /// retained file that no longer matches and a closed Unidentified item each
+    /// read the page's own sentence (R543), never the store's, and never a
+    /// server error. Nothing is recorded, and a closed Unidentified item is not
+    /// offered Re-evaluate (FRD-02).
     /// </summary>
     [Fact]
     public async Task ReevaluateRefusalsOnTheRealStoreReadThePagesWordsAndRecordNothing()
@@ -371,7 +371,7 @@ public sealed class LogsWebTests
         page = await PostIntakeActionAsync(
             client, drawer, "ReevaluateIntake", reevaluate, "Re-read the image.",
             operationKey: Guid.NewGuid().ToString("N"));
-        AssertDangerNotice(page, OperatorLabels.IntakeLog.ItemChanged);
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.AlreadyReevaluating);
         Assert.DoesNotContain("intake receipt", page, StringComparison.OrdinalIgnoreCase);
 
         // The retained source no longer matches the evaluation work: refused, not a 500.
@@ -399,6 +399,12 @@ public sealed class LogsWebTests
             await context.SaveChangesAsync();
         }
 
+        // The form read before the item closed is refused in its own sentence (R543).
+        page = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", reevaluate, "Re-read the image.",
+            operationKey: Guid.NewGuid().ToString("N"));
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.UnidentifiedClosed);
+
         drawer = await GetHtmlAsync(client, drawerRoute);
         Assert.Contains($"data-intake-drawer=\"{receiptId:D}\"", drawer, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("data-intake-action=\"reevaluate\"", drawer, StringComparison.Ordinal);
@@ -406,8 +412,9 @@ public sealed class LogsWebTests
 
     /// <summary>
     /// A receipt stored with no evaluation work is refused Re-evaluate in the
-    /// page's words rather than a server error; once it has become a Case the
-    /// drawer no longer offers Re-evaluate (FRD-02, #1566).
+    /// page's sentence for it rather than a server error; once it has become a
+    /// Case the drawer no longer offers Re-evaluate, and a form read before is
+    /// refused in the Case sentence (FRD-02, #1566, R543).
     /// </summary>
     [Fact]
     public async Task AReceiptThatBecameACaseIsNotOfferedReevaluate()
@@ -421,9 +428,10 @@ public sealed class LogsWebTests
             principal);
         var drawerRoute = $"/Administration/Logs?tab=intake&Receipt={receipt.Id:D}";
         var drawer = await GetHtmlAsync(client, drawerRoute);
+        var reevaluate = ActionForm(drawer, "reevaluate");
         var page = await PostIntakeActionAsync(
-            client, drawer, "ReevaluateIntake", ActionForm(drawer, "reevaluate"), "Re-read the instruction.");
-        AssertDangerNotice(page, OperatorLabels.IntakeLog.ItemChanged);
+            client, drawer, "ReevaluateIntake", reevaluate, "Re-read the instruction.");
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.NeverEvaluated);
 
         await AllocationTestData.SeedPrincipalAsync(factory.Services, principal);
         await using (var scope = factory.Services.CreateAsyncScope())
@@ -433,6 +441,22 @@ public sealed class LogsWebTests
             Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
         }
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
+
+        // The form read before the Case existed, at the receipt's current
+        // version, is refused in its own sentence (R543).
+        long currentVersion;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            currentVersion = (await context.IntakeReceipts.AsNoTracking().SingleAsync(item => item.Id == receipt.Id)).Version;
+        }
+        page = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", reevaluate, "Re-read the instruction.",
+            expectedVersion: currentVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            operationKey: Guid.NewGuid().ToString("N"));
+        AssertDangerNotice(page, OperatorLabels.IntakeLog.BecameCase);
 
         drawer = await GetHtmlAsync(client, drawerRoute);
         Assert.Contains($"data-intake-drawer=\"{receipt.Id:D}\"", drawer, StringComparison.OrdinalIgnoreCase);
