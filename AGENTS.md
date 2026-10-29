@@ -110,7 +110,7 @@ and the [verification procedure](docs/runbook.md).
   `pegasus-prod-classifier-252ow37gij` alongside Web and Worker before SQL
   migration begins, and restarts it after Web is healthy.
 - The first App Service destructive cutover was Release 50
-  ([record](docs/operations.md#release-50--14-september-2026-historical-app-service-cutover)):
+  ([record](docs/operations-history.md)):
   the old Container App source and active revisions were approval-bound and
   it was inactive, ingress-disabled and unserved before SQL; the new App
   Service was provisioned only after migration.

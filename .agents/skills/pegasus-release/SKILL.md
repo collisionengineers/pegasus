@@ -43,7 +43,7 @@ affected operation.
 The Web plan and Web App sit in the platform region unless
 `PEGASUS_WEB_LOCATION` places them elsewhere (section 8). Every other resource
 stays in the platform region. Until the first App Service release (Release 50,
-[record](../../../docs/operations.md#release-50--14-september-2026-historical-app-service-cutover))
+[record](../../../docs/operations-history.md))
 completed, the retired Container App `pegasus-prod-web-252ow37gij` in the
 Container Apps environment and the registry `pegasusprodacr252ow37gij` existed;
 the [cutover section](#12-one-time-cutover-from-the-container-app) owned them.
@@ -689,7 +689,7 @@ and any source-structure change is reflected in current-architecture.
 ## 12. One-time cutover from the Container App
 
 The first App Service release, Release 50
-([record](../../../docs/operations.md#release-50--14-september-2026-historical-app-service-cutover)),
+([record](../../../docs/operations-history.md)),
 replaced the Container App with the Web App under the same public-origin
 dependencies. This section was executed once, inside that release, with the
 normal route of section 8 (or the destructive route when the candidate also
