@@ -79,6 +79,38 @@ public sealed class CaseWorkspaceTests
     }
 
     [Fact]
+    public void ASaveSessionsLineListsEveryFieldTheSessionChangedOnce()
+    {
+        // One note per save session (R466, operator, 28 October 2026): each
+        // later save adds what it changed to the line the session already has.
+        Assert.Equal(
+            "Vehicle registration, Incident date, Outcome",
+            CaseWorkspaceChangeSummary.ExtendSession("Vehicle registration, Incident date", ["Incident date", "Outcome"], null, null));
+        Assert.Equal("Retail", CaseWorkspaceChangeSummary.ExtendSession("No field changed", ["Retail"], null, null));
+        Assert.Equal("Retail", CaseWorkspaceChangeSummary.ExtendSession("Retail", [], null, null));
+        Assert.Equal("No field changed", CaseWorkspaceChangeSummary.ExtendSession("No field changed", [], null, null));
+        // The claim source is named once, by the source it now is, even when a
+        // name holds the separator.
+        Assert.Equal(
+            "Claim source: Acme, Smith Ltd, Client notes",
+            CaseWorkspaceChangeSummary.ExtendSession(
+                "Claim source: Jones, Hart & Co, Client notes", ["Claim source: Acme, Smith Ltd"], null, "Jones, Hart & Co"));
+        Assert.Equal(
+            "Client notes, Claim source: none",
+            CaseWorkspaceChangeSummary.ExtendSession("Client notes", ["Claim source: none"], null, "Acme"));
+        Assert.Equal(
+            "Estimate, 3 images prepared",
+            CaseWorkspaceChangeSummary.ExtendSession("Estimate, 1 image prepared", ["2 images prepared"], null, null));
+        Assert.Equal(
+            "Vehicle registration, Outcome · Checked with the repairer · Called back",
+            CaseWorkspaceChangeSummary.ExtendSession(
+                "Vehicle registration · Checked with the repairer", ["Outcome"], "  Called back ", null));
+        Assert.Equal(
+            "Vehicle registration · Checked",
+            CaseWorkspaceChangeSummary.ExtendSession("Vehicle registration · Checked", ["Vehicle registration"], "Checked", null));
+    }
+
+    [Fact]
     public void TheCaseSaveRecordsAndClearsTheEngineersValueAsAValuationField()
     {
         // The Engineer's Value is Valuation's own box (operator, 26 September
