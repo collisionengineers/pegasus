@@ -679,7 +679,7 @@ public sealed class CaseMatchIntegrationTests
 
         var evidence = await store.GetAsync(receipt, "AB12CDE", CancellationToken.None);
         Assert.Equal("AB12CDE", evidence!.NormalizedVehicleRegistration);
-        Assert.Equal([caseId], evidence.RegistrationCandidates.Select(candidate => candidate.CaseId));
+        Assert.Equal(caseId, Assert.Single(evidence.RegistrationCandidates).CaseId);
         Assert.Equal(
             AutomaticCaseAssociationOutcome.Associated,
             await useCase.ExecuteAsync(receipt, photographRegistration: "AB12CDE"));
