@@ -108,6 +108,8 @@ owns the engine choice. The
 keeps its dated results; no fresh evaluation is implied. Where images
 disagree, the largest accepted plate wins
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing)).
+A read that is digits alone is never a registration (operator, 28 October
+2026, R461).
 
 **Suggestion first.** Reading a registration from an ordinary vehicle photo
 produces a suggestion. Each result stays attached to one retained source
