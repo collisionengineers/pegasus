@@ -612,9 +612,9 @@ The reviewed register reaches the Contacts directory through a "one-off
 operator-run loader through `IContactDirectoryAdministration.SaveAsync` from
 reviewed CSVs under `artifacts/`", with the "prod run under separate
 authorisation" (operator, 15 October 2026). The loader is
-`scripts/reference-data-loader/`. It reads the load files in
-`artifacts/pegasus-release-readiness/entities/load/`, loads only rows whose
-`review` is `approved`, and writes through the Contacts directory and
+`scripts/reference-data-loader/`. It reads the reviewed load CSVs, which
+are operator-held outside the repository, loads only rows whose `review` is
+`approved`, and writes through the Contacts directory and
 inspection-location writers as an enabled Administrator. Its plan hash holds
 no clock: `apply` recomputes it from the stored state and the files and writes
 nothing unless it equals the approved one and `--target` names the connection
@@ -625,7 +625,7 @@ kept as it is.
 ```powershell
 $env:ConnectionStrings__Pegasus = "<connection string>"
 dotnet run --project ./scripts/reference-data-loader -- dry-run `
-  --data artifacts/pegasus-release-readiness/entities/load `
+  --data <folder holding the reviewed load CSVs> `
   --actor-staff-id <administrator staff id> --batch <batch> `
   --reviewed-at <yyyy-MM-dd> `
   --report artifacts/reference-data-load/<batch>-dry-run.json
