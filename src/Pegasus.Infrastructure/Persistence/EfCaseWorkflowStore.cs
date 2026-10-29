@@ -142,13 +142,13 @@ public sealed class EfCaseWorkflowStore(
                 now);
         }
 
-        ArchivedCaseGuard.RequireNotArchived(workflow);
+        CaseMutationGuard.RequireNotArchived(workflow);
         // A page rendered before the Case moved on still enters edit mode: the claim writes no
         // Case data, the lease is issued at the Case's current version, and the page is drawn
         // again at that version before the first edit. A system write never stops a member of
         // staff's edit session from starting (operator, 6 October 2026); only a version from the
         // future is refused, as it is for every write under the lease.
-        RequireVersionUnderLease(workflow, request.ExpectedVersion);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
         ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(workflow.EditLeaseHolderKind, out var parsedKind)
             ? parsedKind
             : null;
@@ -173,7 +173,7 @@ public sealed class EfCaseWorkflowStore(
         var previousName = previousHolder is not null
             ? await LeaseHolderNameAsync(context, previousHolderKind, previousHolder, cancellationToken)
             : null;
-        ClearLease(workflow);
+        CaseMutationGuard.ClearLease(workflow);
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var tokenHash = Hash(token);
         var expiresAtUtc = now + EditLeaseDuration;
@@ -264,9 +264,9 @@ public sealed class EfCaseWorkflowStore(
                 now);
         }
 
-        ArchivedCaseGuard.RequireNotArchived(workflow);
-        RequireLease(workflow, request.Actor, request.LeaseToken, now);
-        RequireVersionUnderLease(workflow, request.ExpectedVersion);
+        CaseMutationGuard.RequireNotArchived(workflow);
+        CaseMutationGuard.RequireLease(workflow, request.Actor, request.LeaseToken, now);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
         var tokenHash = Hash(request.LeaseToken);
         var expiresAtUtc = now + EditLeaseDuration;
         workflow.EditLeaseToken = request.LeaseToken;
@@ -325,7 +325,7 @@ public sealed class EfCaseWorkflowStore(
                 cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        ArchivedCaseGuard.RequireNotArchived(workflow);
+        CaseMutationGuard.RequireNotArchived(workflow);
 
         var now = timeProvider.GetUtcNow();
         CaseMutationGuard.RequireHeartbeat(workflow, request.Actor, request.LeaseToken, now);
@@ -435,11 +435,11 @@ public sealed class EfCaseWorkflowStore(
             return;
         }
 
-        ArchivedCaseGuard.RequireNotArchived(workflow);
+        CaseMutationGuard.RequireNotArchived(workflow);
         var now = timeProvider.GetUtcNow();
-        RequireLease(workflow, request.Actor, request.LeaseToken, now);
+        CaseMutationGuard.RequireLease(workflow, request.Actor, request.LeaseToken, now);
         var resultVersion = workflow.Version;
-        ClearLease(workflow);
+        CaseMutationGuard.ClearLease(workflow);
         AddLeaseOperation(
             context,
             workflow,
@@ -477,7 +477,7 @@ public sealed class EfCaseWorkflowStore(
             .ToListAsync(cancellationToken);
         foreach (var workflow in workflows)
         {
-            ClearLease(workflow);
+            CaseMutationGuard.ClearLease(workflow);
         }
 
         var scopes = await EfEditScopeStore.ClearForHolderKindAsync(
@@ -969,7 +969,7 @@ public sealed class EfCaseWorkflowStore(
         cancellationToken,
         refuse: workflow =>
         {
-            ArchivedCaseGuard.RequireNotArchived(workflow);
+            CaseMutationGuard.RequireNotArchived(workflow);
             CaseLifecycleRules.RequireCanUnlinkReportEvidence(StateOf(workflow));
         });
 
@@ -1191,7 +1191,7 @@ public sealed class EfCaseWorkflowStore(
         cancellationToken,
         refuse: workflow =>
         {
-            ArchivedCaseGuard.RequireNotArchived(workflow);
+            CaseMutationGuard.RequireNotArchived(workflow);
             CaseLifecycleRules.RequireCanBeArchived(StateOf(workflow));
         });
 
@@ -1237,9 +1237,9 @@ public sealed class EfCaseWorkflowStore(
                 .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        ArchivedCaseGuard.RequireMutable(workflow);
-        RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
-        RequireVersionUnderLease(workflow, request.ExpectedCaseVersion);
+        CaseMutationGuard.RequireMutable(workflow);
+        CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedCaseVersion);
         var due = workflow.DueWork
             ?? throw new InvalidOperationException("The case has no due work to chase.");
         if (due.State != nameof(CaseDueWorkState.Scheduled))
@@ -1418,15 +1418,15 @@ public sealed class EfCaseWorkflowStore(
 
         if (request is ReopenCaseRequest or ArchiveCaseRequest)
         {
-            ArchivedCaseGuard.RequireNotArchived(workflow);
+            CaseMutationGuard.RequireNotArchived(workflow);
         }
         else
         {
-            ArchivedCaseGuard.RequireMutable(workflow);
+            CaseMutationGuard.RequireMutable(workflow);
         }
         var now = timeProvider.GetUtcNow();
-        RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
-        RequireVersionUnderLease(workflow, request.ExpectedVersion);
+        CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
         var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
         var beforeVersion = workflow.Version;
         var beforeState = workflow.State;
@@ -1440,7 +1440,7 @@ public sealed class EfCaseWorkflowStore(
         // An archived Case cannot be released or edited, so no lease outlives its archive.
         if (workflow.ArchivedAtUtc is not null)
         {
-            ClearLease(workflow);
+            CaseMutationGuard.ClearLease(workflow);
         }
         else
         {
@@ -2279,15 +2279,6 @@ public sealed class EfCaseWorkflowStore(
             return false;
         }
     }
-
-    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
-
-    private static void RequireLease(CaseWorkflowEntity workflow, ActionActor actor, string token, DateTimeOffset now) =>
-        CaseMutationGuard.RequireLease(workflow, actor, token, now);
-
-    private static void ClearLease(CaseWorkflowEntity workflow) =>
-        CaseMutationGuard.ClearLease(workflow);
 
     private static void AddEvent(
         PegasusDbContext context,

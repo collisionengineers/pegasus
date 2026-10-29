@@ -33,7 +33,9 @@ internal sealed record EditLeaseReleaseToolResult(
 /// <summary>
 /// The explicit edit lease for multi-step automation work on a Case or a
 /// Triage Case: the same server-owned lease staff editing claims, through the
-/// same Core ports, so nothing here takes over, forces or merges another
+/// same Core ports. Another holder's lease is taken over only when
+/// <c>pegasus_edit_begin</c> is given <c>takeOver</c>, and the Core port
+/// decides whether that take-over is allowed; nothing here merges another
 /// holder's edit. A Case lease needs <c>automation.cases</c>, a Triage lease
 /// <c>automation.intake</c>, as the records' own tools do. The lease stands
 /// through every write made under it until <c>pegasus_edit_end</c> releases it

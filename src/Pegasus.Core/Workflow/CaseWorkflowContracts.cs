@@ -690,7 +690,7 @@ public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
 /// <summary>
 /// Transactional persistence boundary for the system-worker auto-link path. It shares the
 /// staff link's evidence and chronology guards without requiring a staff lease; a successful
-/// versioned mutation invalidates any active lease so concurrent staff work cannot overwrite it.
+/// link advances the Case version as system work, and whoever holds the edit lease keeps it.
 /// </summary>
 public interface IAutoLinkReportEvidenceStore
 {

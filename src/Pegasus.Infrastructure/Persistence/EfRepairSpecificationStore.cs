@@ -1276,7 +1276,7 @@ public sealed class EfRepairSpecificationStore(
         CaseWorkflowEntity workflow, long expectedVersion, ActionActor actor, string lease, DateTimeOffset now,
         bool keepLease = false)
     {
-        ArchivedCaseGuard.RequireMutable(workflow);
+        CaseMutationGuard.RequireMutable(workflow);
         if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
             || !AssessmentPolicy.IsWritableState(state))
         {
