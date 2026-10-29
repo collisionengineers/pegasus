@@ -219,9 +219,10 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// 30 before B3-04: the save read the whole workspace (workflow, snapshot,
     /// assessment fields, Current spec with its lines, latest observation: five
     /// statements) to keep three recorded values, and now reads those values in
-    /// one, so 30 - 5 + 1 = 26.
+    /// one, so 30 - 5 + 1 = 26. One note per save session (R466) reads, in one
+    /// statement, whether the save carries its session on: 27.
     /// </summary>
-    private const int CaseSaveCommands = 26;
+    private const int CaseSaveCommands = 27;
 
     /// <summary>
     /// What a spec tab, New repair spec or Compare switch costs in SQL commands
