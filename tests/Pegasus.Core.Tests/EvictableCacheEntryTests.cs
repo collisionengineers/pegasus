@@ -50,6 +50,29 @@ public sealed class EvictableCacheEntryTests
     }
 
     [Fact]
+    public async Task EvictingAFamilyExpiresEveryEntryOfThatFamilyAtOnce()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var family = new object();
+        var first = new object();
+        var second = new object();
+        var reads = 0;
+        Task<int> Read(CancellationToken _) => Task.FromResult(++reads);
+        Task<int> GetMember(object key) => EvictableCacheEntry.GetOrReadAsync(
+            cache, key, family, Lifetime, slidingWindow: null, Read, CancellationToken.None);
+
+        Assert.Equal(1, await GetMember(first));
+        Assert.Equal(2, await GetMember(second));
+        Assert.Equal(1, await GetMember(first));
+
+        EvictableCacheEntry.EvictFamily(cache, family);
+
+        Assert.Equal(3, await GetMember(first));
+        Assert.Equal(4, await GetMember(second));
+        Assert.Equal(4, reads);
+    }
+
+    [Fact]
     public async Task AReadThatThrowsIsNotKept()
     {
         using var cache = new MemoryCache(new MemoryCacheOptions());
