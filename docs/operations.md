@@ -5,6 +5,23 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Brego credential rotation - 29 October 2026
+
+- Brego reset the `digital@collisionengineers.co.uk` valuation account. A new
+  device-approval code was verified for the existing `deviceId`, a fresh 1-year
+  `brego-session` was minted, and
+  `pegcustody252ow37gij/authentication-ring/brego-session.json` was overwritten
+  at 09:12Z (105 bytes). Cookie value not recorded.
+- Key Vault `pegasusprodkv252ow37g` gained `brego-valuation-password` version
+  `fce005f2ba044316935c9501dd3b2bbd`; the old version `8310aab6…` is disabled.
+  `BREGO_VALUATION_PASSWORD_SECRET_URI` in `pegasus-prod` and the Web App's
+  `Brego__ValuationAccount__Password` reference name the new version (set with
+  `az webapp config appsettings set`, not a provision). The reference reads
+  `Resolved`, the Web App is Running and `/health/ready` is 200 on `3dec03615`.
+- Proof: the local helper's lookup for `SH65HTL` with the new session answered
+  Retail high £5,010 and Trade high £3,004. Get valuation in the app was not
+  pressed. Secret values are not recorded.
+
 ## Intake data wipe - 26 October 2026
 
 - Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
