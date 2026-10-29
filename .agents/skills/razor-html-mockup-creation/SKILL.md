@@ -35,7 +35,7 @@ the procedure.
   and the owning FRDs settle behaviour; [CONTEXT.md](../../../CONTEXT.md) owns
   reserved terms.
 - The live Razor sources (`src/Pegasus.Web/Pages/**/*.cshtml`, the
-  `Shared/_Case*.cshtml` partials) and `src/Pegasus.Web/Presentation/OperatorLabels.cs`
+  `Shared/_Case*.cshtml` partials) and the `OperatorLabels` partial class files under `src/Pegasus.Web/Presentation/`
   read from `origin/dev`, not the checked-out branch. In v25 the checkout was
   16 commits behind and carried defects dev had already fixed.
 - The operator's reference file when one is supplied (v24's dashboard, v27's
