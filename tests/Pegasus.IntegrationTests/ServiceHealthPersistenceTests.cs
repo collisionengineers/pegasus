@@ -1,5 +1,8 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -217,7 +220,7 @@ public sealed class ServiceHealthPersistenceTests
                 context.ApprovedSentPollStates.Add(new ApprovedSentPollStateEntity
                 {
                     MailboxId = $"health-page-{index}",
-                    MailboxAddress = $"health-page-{index}@collisionengineers.co.uk",
+                    MailboxAddress = $"health_page-{index}@collisionengineers.co.uk",
                     SentFolderIdentity = $"sent-{index}",
                     DueAtUtc = FixedUtcNow.AddMinutes(5),
                     LastCompletedAtUtc = FixedUtcNow.AddMinutes(-4),
@@ -230,16 +233,117 @@ public sealed class ServiceHealthPersistenceTests
 
         counter.Reset();
         var page = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
-        Assert.Contains("health-page-1@collisionengineers.co.uk", page, StringComparison.Ordinal);
+        // A mailbox address passes through unchanged, its "_", "-" and "." included (#1567).
+        Assert.Contains("health_page-1@collisionengineers.co.uk</strong>", page, StringComparison.Ordinal);
         // A row that needs attention shows its mapped reason under the chip (v41 A22).
         Assert.Contains($"<small class=\"admin-service-area\">{Pegasus.Web.Presentation.OperatorLabels.MailSettings.LastError("graph_unavailable")}</small>", page, StringComparison.Ordinal);
         Assert.Equal(withNoRows, counter.Count);
         Assert.Equal(1, counter.CountContaining("[ApprovedSentPollStates]"));
     }
 
+    /// <summary>
+    /// One snapshot source faulting, as a failed SQL read does, answers 200
+    /// with the page's unavailable notice inside the Administration layout,
+    /// draws no table, and logs one Warning (FRD-17 § Service health; R414).
+    /// </summary>
+    [Fact]
+    public async Task TheHealthPageAnswersUnavailableNotAServerErrorWhenASnapshotSourceFails()
+    {
+        var logs = new RecordingLoggerProvider();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IServiceHealthQueries>();
+                services.AddScoped<IServiceHealthQueries, FailingSentPollQueries>();
+                services.AddSingleton<ILoggerProvider>(logs);
+            }));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Health");
+
+        Assert.Contains("Service health is unavailable. Refresh to try again.", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("service-health-table", page, StringComparison.Ordinal);
+        Assert.Contains("admin-layout", page, StringComparison.Ordinal);
+        var warning = Assert.Single(
+            logs.Entries,
+            entry => entry.Category == typeof(Pegasus.Web.Pages.Administration.HealthModel).FullName);
+        Assert.Equal(LogLevel.Warning, warning.Level);
+        Assert.IsType<InvalidOperationException>(warning.Exception);
+    }
+
+    /// <summary>
+    /// The row's Area decides whether its service name is humanised: only a
+    /// Custody row naming an external-work kind code is. A mailbox address
+    /// keeps every "_", "-" and "." it was saved with (#1567).
+    /// </summary>
+    [Fact]
+    public void OnlyACustodyKindCodeIsHumanisedInTheServiceColumn()
+    {
+        const string address = "first_last-x.y@collisionengineers.co.uk";
+        var sentEvidence = $"{ServiceHealthPolicy.SentEvidenceService} · {address}";
+
+        Assert.Equal(address, Pegasus.Web.Presentation.OperatorLabels.ServiceHealthServiceName(ServiceHealthArea.Mail, address));
+        Assert.Equal(sentEvidence, Pegasus.Web.Presentation.OperatorLabels.ServiceHealthServiceName(ServiceHealthArea.Mail, sentEvidence));
+        Assert.Equal(
+            "Create case custody",
+            Pegasus.Web.Presentation.OperatorLabels.ServiceHealthServiceName(ServiceHealthArea.Custody, ExternalWorkKinds.CreateCaseCustody));
+        Assert.Equal(
+            ServiceHealthPolicy.ExternalWorkService,
+            Pegasus.Web.Presentation.OperatorLabels.ServiceHealthServiceName(ServiceHealthArea.Custody, ServiceHealthPolicy.ExternalWorkService));
+    }
+
     private sealed class IngressSwitch : IAutomationIngressStatusQueries
     {
         public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) => Task.FromResult(true);
+    }
+
+    /// <summary>The Sent-items cursor read fails as the EF adapter does: a faulted task, not a synchronous throw.</summary>
+    private sealed class FailingSentPollQueries : IServiceHealthQueries
+    {
+        public async Task<IReadOnlyList<SentEvidencePollStatus>> ListSentEvidencePollStatusAsync(
+            CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("The Sent-items cursors could not be read.");
+        }
+
+        public Task<IntakeDispatchHealth> GetIntakeDispatchHealthAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new IntakeDispatchHealth(0, 0, 0, null));
+    }
+
+    private sealed record LogEntry(string Category, LogLevel Level, Exception? Exception);
+
+    /// <summary>Keeps every Warning or worse the host logs, by category.</summary>
+    private sealed class RecordingLoggerProvider : ILoggerProvider
+    {
+        private readonly ConcurrentQueue<LogEntry> entries = new();
+
+        public IReadOnlyCollection<LogEntry> Entries => entries;
+
+        public ILogger CreateLogger(string categoryName) => new Recorder(categoryName, entries);
+
+        public void Dispose() => GC.SuppressFinalize(this);
+
+        private sealed class Recorder(string category, ConcurrentQueue<LogEntry> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                if (IsEnabled(logLevel))
+                {
+                    entries.Enqueue(new(category, logLevel, exception));
+                }
+            }
+        }
     }
 
     /// <summary>Rows in the tables the snapshot and the metrics read: staged receipts in every state and Sent-items cursors, one failing.</summary>

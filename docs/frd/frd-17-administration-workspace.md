@@ -215,6 +215,35 @@ the list and out of new selection. A valuation already recorded against it
 keeps its own snapshot
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 
+### Service health
+
+**Service health** (`/Administration/Health`) is Administration only and
+states the external-work queue
+([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)). This section
+describes the page as built on 29 October 2026 (R527). It is one table with
+the columns Service, State, Last recorded and Dependency. Every row comes
+from something the system has already recorded (a poll cursor, a queued
+item, a job or a switch) and names when that was recorded. The page probes
+no dependency, and a service with no recorded source has no row.
+
+The rows, in order, are: each approved mailbox's poll and each mailbox's
+Sent-items evidence poll (Microsoft Graph); Receiving dispatch (Worker);
+External work, as one row per failed item that can be retried, named by its
+kind, or one row for the whole queue when nothing has failed (Box or
+Worker); AI jobs (AI); and Automation clients (Automation client). A row's
+State reads **Working**, **Needs attention** or **No recorded activity**,
+and a failed mail poll shows its reason under the chip. A completed poll
+older than the Inbox's stale threshold
+([FRD-20](frd-20-mailbox-workspace.md#refresh-and-staleness)) needs
+attention. A mailbox address is shown as it was saved; only an
+external-work kind code is put into words.
+
+When any of its reads fails, the page shows its unavailable notice in place
+of the table, never an empty or partial table, answers 200 and logs a
+warning (operator, 22 October 2026; R414). It carries no notice that the
+external-work queue is cut short (operator, 16 and 22 October 2026; R159,
+R415).
+
 ### Logs
 
 **Logs** (`/Administration/Logs`) has two tabs.

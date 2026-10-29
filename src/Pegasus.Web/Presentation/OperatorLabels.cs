@@ -807,15 +807,17 @@ public static partial class OperatorLabels
     /// ("Intake dispatch", "Automation ingress"); they are renamed here and
     /// only here. Everything else — mailbox addresses, "Sent evidence",
     /// "External work", "AI jobs" — is already the
-    /// operator's own word and passes through, as do external-work kind codes
-    /// via <see cref="Humanise"/>.
+    /// operator's own word and passes through. Only a Custody row that names
+    /// an external-work kind code goes through <see cref="Humanise"/>; the row's
+    /// Area decides that, not the characters in the name.
     /// </remarks>
-    public static string ServiceHealthServiceName(string? service) => service switch
+    public static string ServiceHealthServiceName(ServiceHealthArea area, string? service) => service switch
     {
         ServiceHealthPolicy.IntakeDispatchService => "Receiving dispatch",
         ServiceHealthPolicy.AutomationService => "Automation clients",
         null or "" => "Unknown",
-        _ => service.Contains('_') ? Humanise(service) : service
+        ServiceHealthPolicy.ExternalWorkService => service,
+        _ => area == ServiceHealthArea.Custody ? Humanise(service) : service
     };
 
     /// <summary>
