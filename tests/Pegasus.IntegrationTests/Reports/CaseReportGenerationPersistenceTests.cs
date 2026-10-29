@@ -549,7 +549,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                     .AddInterceptors(readerCommands)
                     .Options),
             new InMemoryCacheContainer(),
-            new BoxContentClient(BoxOptions(), boxHttp, box, Harness.Clock),
+            new BoxContentClient(BoxOptions(), boxHttp, box, Harness.Clock, TimeProviderMemoryCache.Create(Harness.Clock)),
             Harness.Clock,
             metrics);
         foreach (var image in pinned)
@@ -2279,7 +2279,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
             var store = new EfStaffAccountAdministration(context,
                 scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>(),
-                new StaffAccountReads(Clock), Clock);
+                new StaffAccountReads(TimeProviderMemoryCache.Create(Clock)), Clock);
             var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
             var account = await context.Users.SingleAsync(
                 item => item.Id == SignatoryId);

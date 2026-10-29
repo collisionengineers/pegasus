@@ -89,28 +89,23 @@ internal static class StaffPrincipalValidator
         return null;
     }
 
-    private static async Task<StaffAccountRead?> ReadAccountAsync(
+    private static Task<StaffAccountRead?> ReadAccountAsync(
         IServiceProvider services,
         UserManager<PegasusIdentityUser> userManager,
-        Guid userId)
-    {
-        var reads = services.GetRequiredService<StaffAccountReads>();
-        if (reads.TryGet(userId) is { } cached)
-        {
-            return cached;
-        }
+        Guid userId) =>
+        services.GetRequiredService<StaffAccountReads>().GetOrReadAsync(
+            userId,
+            async _ =>
+            {
+                var user = await userManager.FindByIdAsync(userId.ToString());
+                if (user is null)
+                {
+                    return null;
+                }
 
-        var generation = reads.Generation;
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-        {
-            return null;
-        }
-
-        var read = new StaffAccountRead(user.SecurityStamp, user.IsEnabled, user.MustChangePassword);
-        reads.Set(userId, read, generation);
-        return read;
-    }
+                return new StaffAccountRead(user.SecurityStamp, user.IsEnabled, user.MustChangePassword);
+            },
+            CancellationToken.None);
 
     private static bool StampMatches(string? current, string? presented) =>
         !string.IsNullOrEmpty(current)

@@ -11,6 +11,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Assessment;
@@ -86,7 +87,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 "test", "test", "test", "test", "test", "test", HoldingBox.HoldingFolderId),
             new HttpClient(new HoldingBoxHandler(box)),
             new StaticBoxAuthorizationHeaderProvider(),
-            TimeProvider.System);
+            TimeProvider.System,
+            new MemoryCache(new MemoryCacheOptions()));
         var publisher = new RecordingCachePublisher();
         var custody = new EfCaseArtifactCustody(
             factory,
@@ -399,7 +401,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 "test", "test", "test", "test", "test", "test", HoldingBox.HoldingFolderId),
             new HttpClient(new HoldingBoxHandler(box)),
             new StaticBoxAuthorizationHeaderProvider(),
-            TimeProvider.System);
+            TimeProvider.System,
+            new MemoryCache(new MemoryCacheOptions()));
         return new EfCaseArtifactCustody(
             services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
             new BoxDocumentContentStore(client),
@@ -1647,7 +1650,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 "test", "test", "test", "test", "test", "test", HoldingBox.HoldingFolderId),
             new HttpClient(new HoldingBoxHandler(new HoldingBox())),
             new StaticBoxAuthorizationHeaderProvider(),
-            TimeProvider.System);
+            TimeProvider.System,
+            new MemoryCache(new MemoryCacheOptions()));
         var cache = new CachedDocumentContentStore(
             factory, new UnavailableCacheContainer(), box, TimeProvider.System);
         var custody = new EfCaseArtifactCustody(

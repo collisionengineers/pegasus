@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
@@ -844,7 +845,8 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                 "test", "test", "test", "test", "test", "test", "holding-folder"),
             new HttpClient(box),
             new StaticBoxAuthorizationHeaderProvider(),
-            TimeProvider.System);
+            TimeProvider.System,
+            new MemoryCache(new MemoryCacheOptions()));
         return new PromoteAssociatedIntakeCaseEvidence(
             services.GetRequiredService<IIntakeArtifactStore>(),
             new EfCaseArtifactCustody(
