@@ -543,10 +543,11 @@ public sealed class ReportsModel(
             var people = all.People.Select(row => (row.EngineerId, row.DisplayName)).ToList();
             if (EngineerId is { } chosen && people.All(person => person.EngineerId != chosen))
             {
-                var accounts = await staffAccounts.ListAsync(0, 100, cancellationToken);
-                if (accounts.Accounts.FirstOrDefault(account => account.Id == chosen) is { } account)
+                // The chosen account's name alone, wherever it sorts (#1542, FRD-17).
+                var names = await staffAccounts.GetNamesAsync([chosen], cancellationToken);
+                if (names.TryGetValue(chosen, out var name))
                 {
-                    people.Add((account.Id, account.UserName));
+                    people.Add((chosen, name));
                 }
             }
 

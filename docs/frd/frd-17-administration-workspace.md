@@ -350,8 +350,10 @@ keeps the form as it was.
 
 ### Release notes
 
-**Release notes** lists every note, newest change first, with its status
-(Draft or Published), version and who published it. **New release note**
+**Release notes** lists every note across its pages, 50 a page with
+Previous and Next, newest change first, with its status
+(Draft or Published), version and who published it (operator, 22 October
+2026; R418, R420; built 29 October 2026, R527). **New release note**
 opens a form with Title and Body; **Save draft** keeps it editable and
 **Publish** freezes it, stamping the running build's version and source
 SHA. A published note opens read-only. Only a signed-in Administrator can
@@ -365,7 +367,9 @@ A stale save is refused without overwriting the newer draft.
 
 ### Problem reports
 
-**Problem reports** lists every report kept, newest first: when, who, the
+**Problem reports** lists every report kept across its pages, 50 a page
+with Previous and Next (operator, 22 October 2026; R242, R418, R420; built
+29 October 2026, R527), newest first: when, who, the
 page, the Case, what the person wrote, its status (Sent with a link to the
 issue, or Not sent with the reason) and **Retry** on a report that was not
 sent. Retry raises the same report again; a sent report is never raised

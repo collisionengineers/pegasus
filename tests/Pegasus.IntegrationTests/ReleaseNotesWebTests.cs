@@ -275,6 +275,71 @@ public sealed partial class ReleaseNotesWebTests
         Assert.Equal(0, ReleaseNoteReads(recorder));
     }
 
+    /// <summary>
+    /// The Administrator's list pages its notes at 50, newest change first,
+    /// with Previous and Next; no page reads a note's body or more than a page
+    /// and one row (#1542, R418).
+    /// </summary>
+    [Fact]
+    public async Task TheAdministratorsListPagesTheNotesAndReadsNoBody()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            commandInterceptor: counter);
+        using var administrator = CreateClient(factory);
+        var start = DateTimeOffset.UtcNow.AddDays(-1);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            for (var index = 0; index <= 50; index++)
+            {
+                var at = start.AddMinutes(index);
+                context.Set<ReleaseNoteEntity>().Add(new ReleaseNoteEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Title = $"Paged note {index:D2}",
+                    Body = "A release note body.",
+                    Status = "Draft",
+                    CreatedByStaffId = Reader,
+                    CreatedAtUtc = at,
+                    UpdatedAtUtc = at,
+                    RowVersion = 1,
+                    OperationKey = Guid.NewGuid().ToString("N"),
+                    RequestHash = new string('0', 64)
+                });
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        counter.Reset();
+        var first = await GetHtmlAsync(administrator, AdministrationPage);
+        var firstReads = counter.Reads.ToArray();
+        var firstBodyReads = counter.CountContaining("[ReleaseNotes]", "[Body]");
+        counter.Reset();
+        var second = await GetHtmlAsync(administrator, $"{AdministrationPage}?pageNumber=2");
+        var secondBodyReads = counter.CountContaining("[ReleaseNotes]", "[Body]");
+
+        Assert.Equal(50, Regex.Matches(first, "<tr data-release-note=").Count);
+        Assert.Contains(">Paged note 50</a>", first, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Release note pages\"", first, StringComparison.Ordinal);
+        Assert.Contains("pageNumber=2\">Next</a>", first, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Previous</a>", first, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Matches(second, "<tr data-release-note=").Count);
+        Assert.Contains(">Paged note 00</a>", second, StringComparison.Ordinal);
+        Assert.Contains("pageNumber=1\">Previous</a>", second, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Next</a>", second, StringComparison.Ordinal);
+        Assert.True(firstBodyReads == 0 && secondBodyReads == 0, "A list page read a note's body.");
+        Assert.All(
+            firstReads.Where(read => read.CommandText.Contains("FROM [ReleaseNotes]", StringComparison.Ordinal)),
+            read => Assert.True(read.Rows <= 51, $"A list read took {read.Rows} rows."));
+    }
+
     [Fact]
     public async Task AnAcknowledgementPersistenceFailureIsNotReportedAsSuccess()
     {

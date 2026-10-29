@@ -68,7 +68,7 @@ public sealed class LogsModel(
     public bool OldestFirst { get; private set; }
     public ActionLogPage Result { get; private set; } = new([], false);
     public int CurrentPage { get; private set; } = 1;
-    public IReadOnlyList<StaffAccountSummary> People { get; private set; } = [];
+    public IReadOnlyList<(Guid Id, string UserName)> People { get; private set; } = [];
     public string? AutomationActorSubjectId { get; private set; }
 
     public string AutomationActorLabel => OperatorLabels.AutomationActorLabel(
@@ -297,10 +297,12 @@ public sealed class LogsModel(
 
     private async Task LoadPeopleAsync(CancellationToken cancellationToken)
     {
-        var people = await staffAccounts.ListAsync(0, 100, cancellationToken);
-        People = people.Accounts
-            .OrderBy(account => account.UserName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(account => account.Id)
+        // Every account's name, so the Person filter offers one past the hundredth (#1542).
+        var people = await staffAccounts.ListNamesAsync(cancellationToken);
+        People = people
+            .Select(person => (Id: person.Key, UserName: person.Value))
+            .OrderBy(person => person.UserName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(person => person.Id)
             .ToArray();
         AutomationActorSubjectId = HttpContext.RequestServices
             .GetService<AutomationMcpOptions>()?

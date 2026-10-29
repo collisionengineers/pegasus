@@ -40,6 +40,18 @@ public sealed record ReleaseNote(
     public bool IsPublished => Status == ReleaseNoteStatus.Published;
 }
 
+/// <summary>A note as the Administrator's list draws it: never its body (#1542).</summary>
+public sealed record ReleaseNoteListItem(
+    Guid Id,
+    string Title,
+    ReleaseNoteStatus Status,
+    string? Version,
+    Guid? PublishedByStaffId,
+    DateTimeOffset? PublishedAtUtc);
+
+/// <summary>One page of the list and whether an older page follows.</summary>
+public sealed record ReleaseNoteListPage(IReadOnlyList<ReleaseNoteListItem> Notes, bool HasMore);
+
 public sealed record NewReleaseNote(
     string Title, string Body, Guid CreatedByStaffId, DateTimeOffset AtUtc,
     string OperationKey, string RequestHash);
@@ -52,8 +64,12 @@ public interface IReleaseNoteStore
 {
     Task<ReleaseNote?> GetAsync(Guid id, CancellationToken cancellationToken);
 
-    /// <summary>Every note, newest first by its last change.</summary>
-    Task<IReadOnlyList<ReleaseNote>> ListAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Up to <paramref name="limit"/> notes after the first
+    /// <paramref name="offset"/>, newest first by their last change, as the
+    /// Administrator's list draws them.
+    /// </summary>
+    Task<IReadOnlyList<ReleaseNoteListItem>> ListAsync(int offset, int limit, CancellationToken cancellationToken);
 
     /// <summary>Published notes, newest published first.</summary>
     Task<IReadOnlyList<ReleaseNote>> ListPublishedAsync(CancellationToken cancellationToken);
@@ -155,10 +171,21 @@ public sealed class ReleaseNoteAdministration(
     private readonly ApplicationBuild _build = build ?? throw new ArgumentNullException(nameof(build));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
-    public Task<IReadOnlyList<ReleaseNote>> ListAsync(ActionActor actor, CancellationToken cancellationToken)
+    /// <summary>The list's page: 50 notes (R418).</summary>
+    public const int PageSize = 50;
+
+    /// <summary>
+    /// Page <paramref name="page"/> of the notes, newest change first, read
+    /// one row past the page to know whether another follows. A page below 1,
+    /// or one whose offset does not fit an <see cref="int"/>, is refused.
+    /// </summary>
+    public async Task<ReleaseNoteListPage> ListAsync(ActionActor actor, int page, CancellationToken cancellationToken)
     {
         ReleaseNotePolicy.RequireStaff(actor, StaffAccessRight.PublishReleaseNotes);
-        return _store.ListAsync(cancellationToken);
+        ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(page, int.MaxValue / PageSize);
+        var rows = await _store.ListAsync((page - 1) * PageSize, PageSize + 1, cancellationToken);
+        return new(rows.Take(PageSize).ToArray(), rows.Count > PageSize);
     }
 
     public Task<ReleaseNote?> GetAsync(ActionActor actor, Guid id, CancellationToken cancellationToken)

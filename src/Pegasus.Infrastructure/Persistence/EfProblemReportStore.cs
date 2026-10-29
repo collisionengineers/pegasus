@@ -56,14 +56,45 @@ internal sealed class EfProblemReportStore(IDbContextFactory<PegasusDbContext> c
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<IReadOnlyList<ProblemReport>> ListAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// One window of the list, selecting only the columns it draws: never
+    /// <c>SnapshotJson</c> (R242). The status is parsed once the rows are read,
+    /// because <c>Enum.Parse</c> does not translate to SQL.
+    /// </summary>
+    public async Task<IReadOnlyList<ProblemReportListItem>> ListAsync(int offset, int limit, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await context.Set<ProblemReportEntity>().AsNoTracking()
             .OrderByDescending(item => item.CreatedAtUtc)
             .ThenByDescending(item => item.Id)
+            .Skip(offset)
+            .Take(limit)
+            .Select(item => new
+            {
+                item.Id,
+                item.StaffId,
+                item.Description,
+                item.Route,
+                item.CaseReference,
+                item.CreatedAtUtc,
+                item.Status,
+                item.IssueNumber,
+                item.IssueUrl,
+                item.Failure
+            })
             .ToArrayAsync(cancellationToken);
-        return rows.Select(Map).ToArray();
+        return rows.Select(row => new ProblemReportListItem(
+                row.Id,
+                row.StaffId,
+                row.Description,
+                row.Route ?? string.Empty,
+                row.CaseReference,
+                row.CreatedAtUtc,
+                Enum.Parse<ProblemReportStatus>(row.Status),
+                row.IssueNumber,
+                row.IssueUrl,
+                row.Failure))
+            .ToArray();
     }
 
     public async Task<ProblemReport?> TryClaimAsync(

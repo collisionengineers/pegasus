@@ -486,6 +486,47 @@ internal static partial class IntakeWebDriver
             BaseAddress = new Uri("https://localhost:7139")
         });
 
+    /// <summary>
+    /// Enabled User-role accounts <c>bulk-000</c> onwards, written straight to
+    /// the store, one row and one role each, with no password to hash. They
+    /// sort before the seeded administrator.
+    /// </summary>
+    public static async Task SeedUserAccountsAsync(IntakeWebApplicationFactory factory, int count)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var role = await context.Roles.SingleAsync(item => item.Name == StaffRoleNames.User);
+        for (var index = 0; index < count; index++)
+        {
+            var userName = $"bulk-{index:D3}";
+            var user = new PegasusIdentityUser
+            {
+                Id = Guid.NewGuid(),
+                UserName = userName,
+                NormalizedUserName = userName.ToUpperInvariant(),
+                IsEnabled = true,
+                MustChangePassword = false,
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                ConcurrencyStamp = Guid.NewGuid().ToString("N"),
+            };
+            context.Users.Add(user);
+            context.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<Guid> { UserId = user.Id, RoleId = role.Id });
+        }
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>The id of the account <paramref name="userName"/> names.</summary>
+    public static async Task<Guid> StaffIdAsync(IntakeWebApplicationFactory factory, string userName)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        return await context.Users.Where(user => user.UserName == userName).Select(user => user.Id).SingleAsync();
+    }
+
     public static async Task<UploadResult> UploadAsync(
         HttpClient client,
         GenuineCorpusSample sample,

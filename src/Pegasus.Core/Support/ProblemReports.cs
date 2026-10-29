@@ -67,6 +67,26 @@ public sealed record ProblemReport(
     string OperationKey = "",
     string RequestHash = "");
 
+/// <summary>
+/// A report as the Administrator's list draws it: its own columns, never the
+/// captured snapshot, whose route and Case reference it carries from their
+/// columns (R242).
+/// </summary>
+public sealed record ProblemReportListItem(
+    Guid Id,
+    Guid StaffId,
+    string Description,
+    string Route,
+    string? CaseReference,
+    DateTimeOffset CreatedAtUtc,
+    ProblemReportStatus Status,
+    int? IssueNumber,
+    string? IssueUrl,
+    string? Failure);
+
+/// <summary>One page of the list and whether an older page follows.</summary>
+public sealed record ProblemReportListPage(IReadOnlyList<ProblemReportListItem> Reports, bool HasMore);
+
 public sealed record NewProblemReport(
     Guid StaffId,
     string Description,
@@ -99,8 +119,11 @@ public interface IProblemReportStore
 
     Task<ProblemReport?> GetAsync(Guid id, CancellationToken cancellationToken);
 
-    /// <summary>Every retained report, newest first.</summary>
-    Task<IReadOnlyList<ProblemReport>> ListAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Up to <paramref name="limit"/> retained reports after the first
+    /// <paramref name="offset"/>, newest first, as the list draws them.
+    /// </summary>
+    Task<IReadOnlyList<ProblemReportListItem>> ListAsync(int offset, int limit, CancellationToken cancellationToken);
 
     /// <summary>Atomically claims an unsent report for one dispatch attempt.</summary>
     Task<ProblemReport?> TryClaimAsync(
@@ -396,10 +419,22 @@ public sealed class ListProblemReports(IProblemReportStore store)
 {
     private readonly IProblemReportStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
-    public Task<IReadOnlyList<ProblemReport>> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken)
+    /// <summary>The list's page: 50 reports (R242, R418).</summary>
+    public const int PageSize = 50;
+
+    /// <summary>
+    /// Page <paramref name="page"/> of the retained reports, newest first,
+    /// read one row past the page to know whether another follows. A page
+    /// below 1, or one whose offset does not fit an <see cref="int"/>, is
+    /// refused.
+    /// </summary>
+    public async Task<ProblemReportListPage> ExecuteAsync(ActionActor actor, int page, CancellationToken cancellationToken)
     {
         ProblemReportPolicy.RequireStaff(actor, StaffAccessRight.ViewOperationalReports);
-        return _store.ListAsync(cancellationToken);
+        ArgumentOutOfRangeException.ThrowIfLessThan(page, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(page, int.MaxValue / PageSize);
+        var rows = await _store.ListAsync((page - 1) * PageSize, PageSize + 1, cancellationToken);
+        return new(rows.Take(PageSize).ToArray(), rows.Count > PageSize);
     }
 }
 

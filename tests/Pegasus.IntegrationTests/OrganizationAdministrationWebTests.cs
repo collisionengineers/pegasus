@@ -630,6 +630,61 @@ public sealed partial class OrganizationAdministrationWebTests
         }
     }
 
+    /// <summary>
+    /// Each Contacts edit tab reads only the choices it draws (#1542): the
+    /// Claim Source and Repairer lists (and the mailboxes, read beside them)
+    /// only for an active Principal's Report sending tab, and the Principal
+    /// choices only for a contact that is not a Principal. The lists are
+    /// recognised by their query parameters, <c>roleCode</c> and
+    /// <c>contactId</c>.
+    /// </summary>
+    [Fact]
+    public async Task EachContactTabReadsOnlyTheChoicesItDraws()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var principalContact = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
+            "SELECT OrganizationId FROM Principals WHERE Code = 'QDOS';");
+        var repairer = Guid.NewGuid();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            context.Organizations.Add(new OrganizationEntity
+            {
+                Id = repairer,
+                Name = "Tab Reads Repairer",
+                Role = "repairer",
+                Active = true,
+                Version = 0
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var path = $"/Administration/Contacts/Edit/{principalContact:D}";
+        counter.Reset();
+        _ = await EditContactAsync(client, path, "report-sending");
+        Assert.True(counter.CountMentioning("roleCode") > 0, "The Report sending tab read no contact list." + Environment.NewLine + counter.Describe());
+        Assert.True(counter.CountMentioning("contactId") == 0, "A Principal read the Principal choices." + Environment.NewLine + counter.Describe());
+
+        foreach (var tab in new string?[] { null, "report-generation", "salvage-matrix", "default-inspection-location", "principal-api" })
+        {
+            counter.Reset();
+            _ = await EditContactAsync(client, path, tab);
+            Assert.True(
+                counter.CountMentioning("roleCode") + counter.CountMentioning("contactId") == 0,
+                $"The {tab ?? "contact"} tab read a choice list it does not draw." + Environment.NewLine + counter.Describe());
+        }
+
+        counter.Reset();
+        var repairerPage = await EditContactAsync(client, $"/Administration/Contacts/Edit/{repairer:D}");
+        Assert.Contains("name=\"LinkedPrincipalIds\"", repairerPage, StringComparison.Ordinal);
+        Assert.True(counter.CountMentioning("contactId") > 0, "The Repairer read no Principal choices." + Environment.NewLine + counter.Describe());
+        Assert.True(counter.CountMentioning("roleCode") == 0, "The Repairer read a Report sending list." + Environment.NewLine + counter.Describe());
+    }
+
     private static Dictionary<string, string> CredentialForm(string html) => new()
     {
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
