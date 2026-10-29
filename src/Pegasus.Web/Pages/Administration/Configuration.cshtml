@@ -22,12 +22,12 @@
                         <label class="choice"><input type="checkbox" name="RequireImages" value="true" checked="@Model.RequireImages" /> Images</label>
                     </div>
                     <div class="form-grid form-grid--3" data-workflow-settings-edit>
-                        @foreach (var setting in Model.WorkflowSettings)
+                        @foreach (var (setting, posted) in Model.WorkflowSettings)
                         {
                             var inputId = $"setting-{setting.Field}";
                             <div class="field">
                                 <label for="@inputId">@setting.Label (days)</label>
-                                <input id="@inputId" name="@setting.Field" type="number" min="@setting.Minimum" max="@setting.Maximum" step="1" value="@Model.WorkflowInputValue(setting.Field, setting.Posted)" required class="@(setting.Field == nameof(ConfigurationModel.ChaseIntervalDays) ? "chase-interval-input" : null)" />
+                                <input id="@inputId" name="@setting.Field" type="number" min="@setting.Minimum" max="@setting.Maximum" step="1" value="@Model.WorkflowInputValue(setting.Field, posted)" required class="@(setting.Field == nameof(ConfigurationModel.ChaseIntervalDays) ? "chase-interval-input" : null)" />
                                 <span asp-validation-for="@setting.Field" class="field-error"></span>
                             </div>
                         }

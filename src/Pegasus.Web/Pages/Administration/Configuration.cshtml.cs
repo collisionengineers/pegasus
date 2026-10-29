@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -21,48 +22,47 @@ public sealed class ConfigurationModel(
     [BindProperty] public string WorkflowOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public bool RequireInstructions { get; set; }
     [BindProperty] public bool RequireImages { get; set; }
-    [BindProperty] public int ChaseIntervalDays { get; set; } = 7;
-    [BindProperty] public int UnidentifiedTargetDays { get; set; }
-    [BindProperty] public int TriageTargetDays { get; set; } = 1;
-    [BindProperty] public int HeldTargetDays { get; set; } = 7;
-    [BindProperty] public int ReviewTargetDays { get; set; } = 1;
-    [BindProperty] public int AiDraftTargetDays { get; set; } = 1;
+    [BindProperty] public int? ChaseIntervalDays { get; set; }
+    [BindProperty] public int? UnidentifiedTargetDays { get; set; }
+    [BindProperty] public int? TriageTargetDays { get; set; }
+    [BindProperty] public int? HeldTargetDays { get; set; }
+    [BindProperty] public int? ReviewTargetDays { get; set; }
+    [BindProperty] public int? AiDraftTargetDays { get; set; }
 
     [BindProperty] public Guid CardId { get; set; }
     [BindProperty] public long CardExpectedVersion { get; set; }
     [BindProperty] public string CardOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public decimal HourlyRate { get; set; }
 
-    /// <summary>One workflow setting: its posted field, label, range, the saved value and the value the form carries.</summary>
-    public sealed record WorkflowSetting(string Field, string Label, int Minimum, int Maximum, int Current, int Posted);
-
-    /// <summary>The chase interval and five Work Centre due targets.</summary>
-    public IReadOnlyList<WorkflowSetting> WorkflowSettings => Configuration is null ? [] :
+    /// <summary>
+    /// The chase interval and five Work Centre due targets, each with the value
+    /// the form carries; Core owns every label and range.
+    /// </summary>
+    public IReadOnlyList<(WorkflowDaySetting Setting, int? Posted)> WorkflowSettings =>
     [
-        new(nameof(ChaseIntervalDays), "Chase interval", 1, 365, Configuration.ChaseIntervalDays, ChaseIntervalDays),
-        new(nameof(UnidentifiedTargetDays), "Unidentified target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.UnidentifiedTargetDays, UnidentifiedTargetDays),
-        new(nameof(TriageTargetDays), "Triage target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.TriageTargetDays, TriageTargetDays),
-        new(nameof(HeldTargetDays), "Held decision target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.HeldTargetDays, HeldTargetDays),
-        new(nameof(ReviewTargetDays), "Review target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.ReviewTargetDays, ReviewTargetDays),
-        new(nameof(AiDraftTargetDays), "AI draft target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.AiDraftTargetDays, AiDraftTargetDays)
+        (WorkflowDaySetting.ChaseInterval, ChaseIntervalDays),
+        (WorkflowDaySetting.UnidentifiedTarget, UnidentifiedTargetDays),
+        (WorkflowDaySetting.TriageTarget, TriageTargetDays),
+        (WorkflowDaySetting.HeldTarget, HeldTargetDays),
+        (WorkflowDaySetting.ReviewTarget, ReviewTargetDays),
+        (WorkflowDaySetting.AiDraftTarget, AiDraftTargetDays)
     ];
 
-    public string WorkflowInputValue(string field, int posted) =>
+    public string WorkflowInputValue(string field, int? posted) =>
         ModelState.TryGetValue(field, out var entry) && entry.AttemptedValue is { } attempted
             ? attempted
-            : posted.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            : posted?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
 
-    private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
-
+    // A value the binder could not read keeps the binder's own refusal; an
+    // omitted or out-of-range value is refused with the setting's range.
     private void ValidateWorkflowRanges()
     {
-        foreach (var setting in WorkflowSettings)
+        foreach (var (setting, posted) in WorkflowSettings)
         {
-            if (setting.Posted < setting.Minimum || setting.Posted > setting.Maximum)
+            if (!setting.Accepts(posted)
+                && ModelState.GetFieldValidationState(setting.Field) != ModelValidationState.Invalid)
             {
-                ModelState.AddModelError(
-                    setting.Field,
-                    $"{setting.Label} must be between {setting.Minimum} and {setting.Maximum} days.");
+                ModelState.AddModelError(setting.Field, setting.RangeMessage);
             }
         }
     }
@@ -89,18 +89,18 @@ public sealed class ConfigurationModel(
         {
             try
             {
-                var current = Configuration;
+                // ValidateWorkflowRanges refused every missing value above.
                 await updateWorkflowConfiguration.ExecuteAsync(
                     new(checked((int)WorkflowExpectedVersion), actor, WorkflowOperationKey)
                     {
                         RequireInstructions = RequireInstructions,
                         RequireImages = RequireImages,
-                        ChaseIntervalDays = ChaseIntervalDays,
-                        UnidentifiedTargetDays = Posted(nameof(UnidentifiedTargetDays)) ? UnidentifiedTargetDays : current.UnidentifiedTargetDays,
-                        TriageTargetDays = Posted(nameof(TriageTargetDays)) ? TriageTargetDays : current.TriageTargetDays,
-                        HeldTargetDays = Posted(nameof(HeldTargetDays)) ? HeldTargetDays : current.HeldTargetDays,
-                        ReviewTargetDays = Posted(nameof(ReviewTargetDays)) ? ReviewTargetDays : current.ReviewTargetDays,
-                        AiDraftTargetDays = Posted(nameof(AiDraftTargetDays)) ? AiDraftTargetDays : current.AiDraftTargetDays
+                        ChaseIntervalDays = ChaseIntervalDays!.Value,
+                        UnidentifiedTargetDays = UnidentifiedTargetDays!.Value,
+                        TriageTargetDays = TriageTargetDays!.Value,
+                        HeldTargetDays = HeldTargetDays!.Value,
+                        ReviewTargetDays = ReviewTargetDays!.Value,
+                        AiDraftTargetDays = AiDraftTargetDays!.Value
                     },
                     cancellationToken);
                 TempData["Confirmation"] = "Workflow settings saved.";
