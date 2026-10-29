@@ -112,6 +112,14 @@ public sealed record CaseMatchEvaluationResult(
     string PolicyKey,
     int PolicyVersion);
 
+/// <param name="ExpectedEvidenceFingerprint">
+/// Retained mail only: the fingerprint of the evidence the decision read; the
+/// write re-reads the evidence and yields when it differs.
+/// </param>
+/// <param name="PhotographRegistration">
+/// Retained mail only: the registration the photographs inside the message's
+/// PDF read (R474), which the evidence is re-read with.
+/// </param>
 public sealed record AutomaticCaseAssociationRequest(
     Guid IntakeReceiptId,
     Guid CaseId,
@@ -120,7 +128,8 @@ public sealed record AutomaticCaseAssociationRequest(
     string Actor,
     string OperationKey,
     string Reason,
-    string? ExpectedEvidenceFingerprint = null);
+    string? ExpectedEvidenceFingerprint = null,
+    string? PhotographRegistration = null);
 
 public enum AutomaticCaseAssociationOutcome
 {

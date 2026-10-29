@@ -390,8 +390,8 @@ public sealed class AutomaticImageIntakeTests
     [InlineData(IntakeSourceChannel.ManualUpload, true)]
     public async Task AFiledPdfIsReadOnlyAsAnUndeclaredManualUpload(IntakeSourceChannel channel, bool declared)
     {
-        // The mail route is a later change (R474, issue 1716), and a declared
-        // destination needs no identification (FRD-18).
+        // Mail reads its PDF's photographs before mail linking, not here
+        // (R474), and a declared destination needs no identification (FRD-18).
         var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
         var photograph = Asset(
             "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
@@ -408,6 +408,84 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(0, harness.Engine.Calls);
         Assert.Empty(harness.SuggestionStore.Records);
         Assert.Empty(harness.Register.Requests);
+    }
+
+    [Fact]
+    public async Task AMailedPdfsPhotographsAreReadForMailLinkingAndItsLoosePhotographIsNot()
+    {
+        // An e-mail carrying a PDF is filed as a file; the plate the
+        // photographs inside the PDF read is a mail-linking signal (operator,
+        // 28 October 2026, R474). R474 names the PDF's photographs, so the
+        // photograph attached beside it is not read. The read itself
+        // registers, links and holds nothing.
+        var email = Asset("vehicle-images.eml", "message/rfc822", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment);
+        var photograph = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768, pageNumber: 1);
+        var loose = Asset(
+            "vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment,
+            IntakeAssetDisposition.Attachment, width: 800, height: 600);
+        var harness = new Harness(
+            sourceChannel: IntakeSourceChannel.Mailbox,
+            retainedAssets: [email, pdf, photograph, loose],
+            evidence: [FiledDocument()]);
+        harness.Engine.Enqueue(Suggested("SH65HTL", 0.95));
+
+        var registration = await harness.ReadMailedPdfPhotographsAsync();
+
+        Assert.Equal("SH65HTL", registration);
+        Assert.Equal(1, harness.Engine.Calls);
+        Assert.Equal(photograph.Id, Assert.Single(harness.SuggestionStore.Records).IntakeAssetId);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+
+        // Image automation does not read the e-mail a second time.
+        var outcome = await harness.ApplyAsync();
+        Assert.Equal(1, harness.Engine.Calls);
+        Assert.False(outcome.AssociatedCase);
+        Assert.Null(outcome.UnidentifiedGroup);
+    }
+
+    [Theory]
+    [InlineData("no-plate", IntakeSourceChannel.Mailbox, true, null, null, 2)]
+    [InlineData("disagree", IntakeSourceChannel.Mailbox, true, "SH65HTL", "AB12CDE", 2)]
+    [InlineData("upload", IntakeSourceChannel.ManualUpload, true, "SH65HTL", "SH65HTL", 0)]
+    [InlineData("image-only", IntakeSourceChannel.Mailbox, false, "SH65HTL", "SH65HTL", 0)]
+    public async Task AMailedPdfReadGivesNoRegistrationUnlessItsPhotographsAgreeOnOne(
+        string row,
+        IntakeSourceChannel channel,
+        bool filed,
+        string? first,
+        string? second,
+        int expectedReads)
+    {
+        // No readable plate, or plates that disagree, give mail linking no
+        // registration, so the e-mail waits in No Case Found as before. The
+        // Upload page reads in image automation (R473), and an e-mail that is
+        // not filed as a file is image automation's own route.
+        var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var photographs = new[] { "page-1-image-1.jpg", "page-1-image-2.jpg" }
+            .Select(fileName => Asset(
+                fileName, "image/jpeg", IntakeAssetKind.EmbeddedImage,
+                IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768, pageNumber: 1))
+            .ToArray();
+        var harness = new Harness(
+            sourceChannel: channel,
+            retainedAssets: [pdf, .. photographs],
+            evidence: filed ? [FiledDocument()] : []);
+        foreach (var read in new[] { first, second }.OfType<string>())
+        {
+            harness.Engine.Enqueue(Suggested(read, 0.95));
+        }
+
+        var registration = await harness.ReadMailedPdfPhotographsAsync();
+
+        Assert.True(registration is null, $"{row}: read {registration}.");
+        Assert.Equal(expectedReads, harness.Engine.Calls);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Empty(harness.AssociationStore.Requests);
     }
 
     /// <summary>The whole-source signal a PDF with a readable text layer carries (R296).</summary>
@@ -995,7 +1073,8 @@ public sealed class AutomaticImageIntakeTests
         IntakeAssetDisposition disposition,
         long contentLength = -1,
         int? width = null,
-        int? height = null)
+        int? height = null,
+        int? pageNumber = null)
     {
         var length = contentLength < 0 ? DefaultImageContentLength : contentLength;
         return new(
@@ -1008,7 +1087,7 @@ public sealed class AutomaticImageIntakeTests
             length,
             HashFor(fileName, length),
             $"storage/{Guid.NewGuid():N}",
-            null,
+            pageNumber,
             null,
             width,
             height);
@@ -1219,6 +1298,9 @@ public sealed class AutomaticImageIntakeTests
             ReceiptQueries.Receipt = Receipt;
             return Automation.ApplyAsync(Receipt, CancellationToken.None);
         }
+
+        public Task<string?> ReadMailedPdfPhotographsAsync() =>
+            Automation.ReadMailedPdfPhotographsAsync(Receipt, CancellationToken.None);
     }
 
     private sealed class FakeEngine : IVrmRecognitionEngine

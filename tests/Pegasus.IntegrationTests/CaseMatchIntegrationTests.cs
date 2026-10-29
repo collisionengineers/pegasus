@@ -474,7 +474,7 @@ public sealed class CaseMatchIntegrationTests
             "AB12 CDE",
             "thread-1");
         var store = new EfIntakeMutationStore(harness.Factory);
-        var evidence = await store.GetAsync(receiptId, CancellationToken.None);
+        var evidence = await store.GetAsync(receiptId, null, CancellationToken.None);
         Assert.Equal(
             [accepted.Identity.CaseId],
             Assert.IsType<AutomaticMailCaseAssociationEvidence>(evidence)
@@ -532,8 +532,8 @@ public sealed class CaseMatchIntegrationTests
             "mailbox-2");
         Assert.Equal(
             [accepted.Identity.CaseId],
-            (await store.GetAsync(sameThreadId, CancellationToken.None))!.ThreadCaseIds);
-        Assert.Empty((await store.GetAsync(otherMailboxId, CancellationToken.None))!.ThreadCaseIds);
+            (await store.GetAsync(sameThreadId, null, CancellationToken.None))!.ThreadCaseIds);
+        Assert.Empty((await store.GetAsync(otherMailboxId, null, CancellationToken.None))!.ThreadCaseIds);
     }
 
     /// <summary>
@@ -562,7 +562,7 @@ public sealed class CaseMatchIntegrationTests
             messageIdentity: "<reply@example.test>",
             replyIdentities: ["original@example.test"]);
 
-        var evidence = await store.GetAsync(reply, CancellationToken.None);
+        var evidence = await store.GetAsync(reply, null, CancellationToken.None);
         Assert.Equal([caseId], evidence!.ReplyCaseIds);
         Assert.Equal(
             AutomaticCaseAssociationOutcome.Associated,
@@ -591,7 +591,7 @@ public sealed class CaseMatchIntegrationTests
             messageIdentity: "<sent-reply@example.test>",
             replyIdentities: ["sent-item@example.test"]);
 
-        var evidence = await store.GetAsync(reply, CancellationToken.None);
+        var evidence = await store.GetAsync(reply, null, CancellationToken.None);
         Assert.Equal([caseId], evidence!.ReplyCaseIds);
         Assert.Equal(
             AutomaticCaseAssociationOutcome.Associated,
@@ -619,7 +619,7 @@ public sealed class CaseMatchIntegrationTests
             messageIdentity: "<report-reply@example.test>",
             replyIdentities: ["report-sent@example.test"]);
 
-        var evidence = await store.GetAsync(reply, CancellationToken.None);
+        var evidence = await store.GetAsync(reply, null, CancellationToken.None);
         Assert.Equal([caseId], evidence!.ReplyCaseIds);
     }
 
@@ -646,7 +646,7 @@ public sealed class CaseMatchIntegrationTests
             subject: subject,
             body: body);
 
-        var evidence = await store.GetAsync(receipt, CancellationToken.None);
+        var evidence = await store.GetAsync(receipt, null, CancellationToken.None);
         Assert.Equal([caseId], evidence!.ClaimReferenceCaseIds);
         Assert.Empty(evidence.ThreadCaseIds);
         Assert.Empty(evidence.ReplyCaseIds);
@@ -654,6 +654,35 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(
             AutomaticCaseAssociationOutcome.Associated,
             await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(receipt));
+    }
+
+    /// <summary>
+    /// A message that names no registration of its own has the one the
+    /// photographs inside its PDF read (operator, 28 October 2026, R474): it
+    /// links to the Case carrying that registration, and the write re-reads
+    /// the evidence with the same read. With no read it links nothing and
+    /// waits in No Case Found.
+    /// </summary>
+    [Fact]
+    public async Task APdfPhotographReadLinksAMessageThatNamesNoRegistration()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("mail-photograph-accept")).Identity.CaseId;
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var receipt = await harness.SeedRetainedMailReceiptAsync("photograph-read-token", null, null);
+        var useCase = new AssociateRetainedMailWithCase(store, store, TimeProvider.System);
+
+        var unread = await store.GetAsync(receipt, null, CancellationToken.None);
+        Assert.Null(unread!.NormalizedVehicleRegistration);
+        Assert.Empty(unread.RegistrationCandidates);
+        Assert.Null(await useCase.ExecuteAsync(receipt));
+
+        var evidence = await store.GetAsync(receipt, "AB12CDE", CancellationToken.None);
+        Assert.Equal("AB12CDE", evidence!.NormalizedVehicleRegistration);
+        Assert.Equal([caseId], evidence.RegistrationCandidates.Select(candidate => candidate.CaseId));
+        Assert.Equal(
+            AutomaticCaseAssociationOutcome.Associated,
+            await useCase.ExecuteAsync(receipt, photographRegistration: "AB12CDE"));
     }
 
     /// <summary>
@@ -678,7 +707,7 @@ public sealed class CaseMatchIntegrationTests
             null,
             incidentDate: new DateOnly(2031, 5, 1));
 
-        var evidence = await store.GetAsync(receipt, CancellationToken.None);
+        var evidence = await store.GetAsync(receipt, null, CancellationToken.None);
         Assert.Equal(2, evidence!.RegistrationCandidates.Count);
         Assert.Equal(
             new DateOnly(2031, 4, 1),
@@ -721,7 +750,7 @@ public sealed class CaseMatchIntegrationTests
             messageIdentity: "<archived-reply@example.test>",
             replyIdentities: ["archived-original@example.test"]);
 
-        var evidence = await store.GetAsync(reply, CancellationToken.None);
+        var evidence = await store.GetAsync(reply, null, CancellationToken.None);
         Assert.Empty(evidence!.ReplyCaseIds);
         Assert.Null(await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(reply));
     }
@@ -757,7 +786,7 @@ public sealed class CaseMatchIntegrationTests
             null,
             "triage-thread");
 
-        var evidence = await store.GetAsync(later, CancellationToken.None);
+        var evidence = await store.GetAsync(later, null, CancellationToken.None);
         Assert.Equal([triageCaseId], evidence!.ThreadCaseIds);
         Assert.Equal(
             AutomaticCaseAssociationOutcome.Associated,

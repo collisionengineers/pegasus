@@ -60,8 +60,14 @@ public sealed record AutomaticMailCaseAssociationEvidence(
 
 public interface IAutomaticMailCaseAssociationEvidenceQueries
 {
+    /// <param name="photographRegistration">
+    /// The registration the photographs inside the message's PDF read
+    /// (operator, 28 October 2026, R474): the message's registration when it
+    /// names none of its own.
+    /// </param>
     Task<AutomaticMailCaseAssociationEvidence?> GetAsync(
         Guid intakeReceiptId,
+        string? photographRegistration,
         CancellationToken cancellationToken);
 }
 
@@ -77,7 +83,9 @@ public interface IAutomaticMailCaseAssociationEvidenceQueries
 /// eliminated is never the target, and an Ambiguous decision links nothing
 /// (FRD-09 shared eliminator; FRD-22; R35, operator, 15 October 2026). The
 /// target may be a Triage Case: a reply links to the Triage as a reply links
-/// to a Case (operator, 28 October 2026; R469).
+/// to a Case (operator, 28 October 2026; R469). The plate the photographs
+/// inside the message's PDF read is its registration when it names none
+/// (operator, 28 October 2026; R474).
 /// </summary>
 public sealed class AssociateRetainedMailWithCase(
     IAutomaticMailCaseAssociationEvidenceQueries evidenceQueries,
@@ -105,6 +113,7 @@ public sealed class AssociateRetainedMailWithCase(
     public async Task<AutomaticCaseAssociationOutcome?> ExecuteAsync(
         Guid intakeReceiptId,
         CaseMatchEvaluationResult? caseMatchDecision = null,
+        string? photographRegistration = null,
         CancellationToken cancellationToken = default)
     {
         if (intakeReceiptId == Guid.Empty)
@@ -119,7 +128,7 @@ public sealed class AssociateRetainedMailWithCase(
             return null;
         }
 
-        var evidence = await evidenceQueries.GetAsync(intakeReceiptId, cancellationToken);
+        var evidence = await evidenceQueries.GetAsync(intakeReceiptId, photographRegistration, cancellationToken);
         if (evidence is null || SelectTarget(evidence, caseMatchDecision) is not { } target)
         {
             return null;
@@ -134,7 +143,8 @@ public sealed class AssociateRetainedMailWithCase(
                 SystemActor,
                 $"mail-case-association:{intakeReceiptId:N}",
                 $"Automatic association from {DescribeSignals(target.Signals)}.",
-                evidence.Fingerprint),
+                evidence.Fingerprint,
+                photographRegistration),
             timeProvider.GetUtcNow(),
             cancellationToken);
         if (outcome == AutomaticCaseAssociationOutcome.Associated && caseNotifier is not null)
