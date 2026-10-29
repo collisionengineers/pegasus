@@ -448,6 +448,8 @@ public sealed class AutomaticImageIntakeTests
         Assert.Null(outcome.UnidentifiedGroup);
     }
 
+    private static readonly string[] TwoPdfPhotographs = ["page-1-image-1.jpg", "page-1-image-2.jpg"];
+
     [Theory]
     [InlineData("no-plate", IntakeSourceChannel.Mailbox, true, null, null, 2)]
     [InlineData("disagree", IntakeSourceChannel.Mailbox, true, "SH65HTL", "AB12CDE", 2)]
@@ -466,7 +468,7 @@ public sealed class AutomaticImageIntakeTests
         // Upload page reads in image automation (R473), and an e-mail that is
         // not filed as a file is image automation's own route.
         var pdf = Asset("1_Images-V1.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
-        var photographs = new[] { "page-1-image-1.jpg", "page-1-image-2.jpg" }
+        var photographs = TwoPdfPhotographs
             .Select(fileName => Asset(
                 fileName, "image/jpeg", IntakeAssetKind.EmbeddedImage,
                 IntakeAssetDisposition.Embedded, contentLength: 26_700, width: 576, height: 768, pageNumber: 1))
