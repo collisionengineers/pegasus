@@ -291,7 +291,7 @@ public sealed class ProblemReportsWebTests
         {
             counter.Reset();
             list = await GetHtmlAsync(administrator, $"{ListPage}?pageNumber={page}");
-            Assert.Equal(page == 5 ? 1 : ListProblemReports.PageSize, Regex.Matches(list, "<tr data-problem-report=").Count);
+            Assert.Equal(page == 5 ? 1 : ListProblemReports.PageSize, Regex.Count(list, "<tr data-problem-report="));
             Assert.Equal(page > 1, list.Contains($"pageNumber={page - 1}\">Previous</a>", StringComparison.Ordinal));
             Assert.Equal(page < 5, list.Contains($"pageNumber={page + 1}\">Next</a>", StringComparison.Ordinal));
             Assert.True(

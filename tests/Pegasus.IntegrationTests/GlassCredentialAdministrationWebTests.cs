@@ -242,7 +242,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
             Assert.Contains("aria-label=\"Staff account pages\"", html, StringComparison.Ordinal);
             Assert.Equal(page > 1, html.Contains($"pageNumber={page - 1}\">Previous</a>", StringComparison.Ordinal));
             Assert.Equal(page < lastPage, html.Contains($"pageNumber={page + 1}\">Next</a>", StringComparison.Ordinal));
-            var shown = Regex.Matches(html, ">Manage login</a>").Count;
+            var shown = Regex.Count(html, ">Manage login</a>");
             Assert.InRange(shown, 1, ListStaffAccounts.DefaultPageSize);
             drawn += shown;
             Assert.NotEmpty(accountReads);

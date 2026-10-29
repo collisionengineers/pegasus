@@ -325,12 +325,12 @@ public sealed partial class ReleaseNotesWebTests
         var second = await GetHtmlAsync(administrator, $"{AdministrationPage}?pageNumber=2");
         var secondBodyReads = counter.CountContaining("[ReleaseNotes]", "[Body]");
 
-        Assert.Equal(50, Regex.Matches(first, "<tr data-release-note=").Count);
+        Assert.Equal(50, Regex.Count(first, "<tr data-release-note="));
         Assert.Contains(">Paged note 50</a>", first, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Release note pages\"", first, StringComparison.Ordinal);
         Assert.Contains("pageNumber=2\">Next</a>", first, StringComparison.Ordinal);
         Assert.DoesNotContain(">Previous</a>", first, StringComparison.Ordinal);
-        Assert.Equal(1, Regex.Matches(second, "<tr data-release-note=").Count);
+        Assert.Equal(1, Regex.Count(second, "<tr data-release-note="));
         Assert.Contains(">Paged note 00</a>", second, StringComparison.Ordinal);
         Assert.Contains("pageNumber=1\">Previous</a>", second, StringComparison.Ordinal);
         Assert.DoesNotContain(">Next</a>", second, StringComparison.Ordinal);
