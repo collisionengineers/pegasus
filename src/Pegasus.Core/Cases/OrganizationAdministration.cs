@@ -257,7 +257,7 @@ public static class OrganizationAdministrationPolicy
         }
 
         RequireUniquePrincipalCode(codeAlreadyExists);
-        var normalizedCode = NormalizePrincipalCode(successorCode);
+        var normalizedCode = NormalizePrincipalCode(successorCode, nameof(successorCode));
         return new(
             predecessor with
             {
@@ -511,7 +511,7 @@ public static class OrganizationAdministrationPolicy
         RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
         return request with
         {
-            SuccessorCode = NormalizePrincipalCode(request.SuccessorCode),
+            SuccessorCode = NormalizePrincipalCode(request.SuccessorCode, nameof(request.SuccessorCode)),
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
@@ -523,17 +523,22 @@ public static class OrganizationAdministrationPolicy
         };
     }
 
-    public static string NormalizePrincipalCode(string value)
+    /// <summary>
+    /// A principal code: required, at most <see cref="MaximumPrincipalCodeLength"/>
+    /// characters, ASCII letters and digits only, upper-cased. A refusal names
+    /// <paramref name="parameterName"/>, the field the caller read the code from.
+    /// </summary>
+    public static string NormalizePrincipalCode(string value, string parameterName)
     {
         var normalized = NormalizeRequiredText(
             value,
             MaximumPrincipalCodeLength,
-            nameof(value)).ToUpperInvariant();
+            parameterName).ToUpperInvariant();
         if (normalized.Any(character => !char.IsAsciiLetterOrDigit(character)))
         {
             throw new ArgumentException(
                 "A principal code can contain only ASCII letters and digits.",
-                nameof(value));
+                parameterName);
         }
 
         return normalized;

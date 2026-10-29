@@ -20,7 +20,7 @@
         <section class="panel" aria-label="Contacts">
             <div class="panel-head">
                 <form method="get" class="contact-toolbar" data-auto-submit>
-                    <div class="field"><label asp-for="Search">Name or contact</label><input asp-for="Search" type="search" autocomplete="off" autofocus="@(string.IsNullOrEmpty(Model.Search) ? null : "autofocus")" /></div>
+                    <div class="field"><label asp-for="Search">@OperatorLabels.Contacts.SearchLabel</label><input asp-for="Search" type="search" autocomplete="off" autofocus="@(string.IsNullOrEmpty(Model.Search) ? null : "autofocus")" /></div>
                     <div class="field"><label asp-for="Type">Type</label><select asp-for="Type"><option value="">All types</option>@foreach (var role in Enum.GetValues<ContactRole>()) { <option value="@role">@OperatorLabels.Contacts.Type(role)</option> }</select></div>
                     <noscript><button class="btn" type="submit">Apply</button></noscript>
                 </form>
@@ -28,7 +28,7 @@
             </div>
             @if (Model.Contacts.Count == 0)
             {
-                <div class="empty"><p>No contacts found.</p></div>
+                <div class="empty"><p>@OperatorLabels.Contacts.NoneFound</p></div>
             }
         </section>
         @* One panel per type, in this order, each sorted by name; a type with no matching contact is absent (operator, 13 October 2026). *@
@@ -110,6 +110,11 @@
                 @if (Model.PossibleMatches.Count > 0)
                 {
                     <section class="panel" aria-labelledby="possible-matches-title"><div class="panel-head"><h3 id="possible-matches-title">Possible existing contacts</h3></div><div class="panel-body stack">@foreach (var contact in Model.PossibleMatches) { <div class="button-row"><span>@contact.Name · @OperatorLabels.Contacts.Type(contact.Role)</span><a class="btn btn--small" asp-page="Edit" asp-route-id="@contact.OrganizationId">Open</a></div> }</div></section>
+                }
+                else if (Model.MatchesChecked)
+                {
+                    @* A check that finds nothing says so (operator, 29 October 2026, R537). *@
+                    <div class="empty" data-possible-matches-none><p>@OperatorLabels.Contacts.NoneFound</p></div>
                 }
             </div>
             <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button><button class="btn btn--primary" type="submit" data-busy-label="@OperatorLabels.Busy.Saving">Save @OperatorLabels.Contacts.Type(role)</button></div>

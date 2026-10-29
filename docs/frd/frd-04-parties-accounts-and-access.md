@@ -111,8 +111,9 @@ access.
 
 **Contacts** lists the external organisations in one panel per type, in the
 order Principals, Claim Sources, Repairers, Storage, Third Party Engineers,
-each sorted by name; a type with no matching contact is absent. Search runs
-across every panel, and the Type filter narrows the list to one panel. Each
+each sorted by name; a type with no matching contact is absent. Search, labelled
+Name, matches the start of a contact's name and runs across every panel
+(operator, 29 October 2026, R535), and the Type filter narrows the list to one panel. Each
 panel shows 50 contacts at a time; where a type has more, Previous and Next
 open that type's list one page at a time. A panel's columns follow its type:
 Principals show Principal code, name,
@@ -128,6 +129,8 @@ characters are rejected in the field and on the server.
 **Add contact** first asks for the type: Principal, Claim Source, Repairer,
 Storage or Third Party Engineer. It then creates a new Contact of that type.
 Matching names are suggestions only, each opening the existing Contact.
+Check existing contacts checks any name of one character or more; when none
+matches, the dialog says No contacts found. (operator, 29 October 2026, R537).
 Pegasus never merges records by itself, and a Contact's type never changes.
 
 Principal policy lives on its Principal Contact. A Principal code is created

@@ -197,6 +197,23 @@ public static partial class OperatorLabels
             _ => "The contact could not be saved."
         };
 
+        /// <summary>The list's search box: it matches the start of a name (operator, 29 October 2026, R535).</summary>
+        public const string SearchLabel = "Name";
+        /// <summary>The list with no contact to show, and Check existing contacts with no match (R537).</summary>
+        public const string NoneFound = "No contacts found.";
+
+        /// <summary>An empty organisation name (operator, 29 October 2026, R539).</summary>
+        public const string NameRequired = "An organisation name is required.";
+
+        // The form's own field words, as an over-long field's refusal names them (R539).
+        public const string OrganisationNameField = "organisation name";
+        public const string ContactPersonField = "contact person";
+        public const string EmailField = "email";
+        public const string PhoneField = "phone";
+        public const string AddressField = "address";
+        public const string PostcodeField = "postcode";
+        public const string NotesOnEveryCaseField = "notes on every Case";
+
         public const string Saved = "The contact was saved.";
         public const string ChooseType = "Choose a contact type.";
         public const string PhoneMustBeDigits = "Phone must be digits.";
@@ -294,6 +311,16 @@ public static partial class OperatorLabels
         public const string DefaultLocationUpdated = "The principal's default inspection location was updated.";
         public const string DefaultLocationNotAccepted = "The default location was not accepted.";
         public const string NewCodeRequired = "A new principal code is required.";
+        // The form's own field words, as a refusal names them (R539).
+        public const string CodeField = "principal code";
+        public const string NewCodeField = "new principal code";
+        public const string LocationLabelField = "location label";
+
+        /// <summary>
+        /// A code the principal code rule refuses: ASCII letters and digits only
+        /// (<c>OrganizationAdministrationPolicy.NormalizePrincipalCode</c>; R539).
+        /// </summary>
+        public static string CodeLettersAndDigitsOnly(string field) => $"The {field} must use letters and digits only.";
         public const string Replaced = "The predecessor was disabled and its linked successor was created.";
         public const string ReplacementNotAccepted = "The replacement details were not accepted.";
         public const string CredentialUpdated = "The principal credential was updated.";

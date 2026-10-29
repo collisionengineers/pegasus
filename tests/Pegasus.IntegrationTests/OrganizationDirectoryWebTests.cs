@@ -364,6 +364,84 @@ public sealed partial class OrganizationDirectoryWebTests
             $"SELECT COUNT(*) FROM Principals WHERE PredecessorId = '{principalId:D}';"));
     }
 
+    /// <summary>
+    /// #1547 (R539): Replace code with a code the principal code rule refuses
+    /// names the rule, not the general notice; nothing is replaced.
+    /// </summary>
+    [Fact]
+    public async Task ASuccessorCodeOutsideTheCodeRuleIsRefusedWithTheRule()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (principalId, contactId) = await CreatePrincipalContactAsync(
+            client, factory, "Hyphenated successor provider", "HYPHSUC");
+        var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
+        var settingsHtml = await GetContactSettingsAsync(client, settingsPath);
+
+        using var post = await client.PostAsync(
+            $"{settingsPath}?handler=Replace",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(settingsHtml, "__RequestVerificationToken"),
+                ["ReplacementOperationKey"] = InputValue(settingsHtml, "ReplacementOperationKey"),
+                ["ReplacementExpectedVersion"] = InputValue(settingsHtml, "ReplacementExpectedVersion"),
+                ["ExpectedVersion"] = InputValue(settingsHtml, "ExpectedVersion"),
+                ["SuccessorCode"] = "ACME-2"
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        var body = await post.Content.ReadAsStringAsync();
+        Assert.Equal(1, Shown(body, "The new principal code must use letters and digits only."));
+        Assert.DoesNotContain(OperatorLabels.PrincipalAdministration.ReplacementNotAccepted, body, StringComparison.Ordinal);
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM Principals WHERE PredecessorId = '{principalId:D}';"));
+    }
+
+    /// <summary>
+    /// #1551 (R539): the contact's Save refuses an empty and a 301-character
+    /// Organisation name with the label-owned sentences, each once.
+    /// </summary>
+    [Fact]
+    public async Task ContactSaveRefusesAnEmptyOrOverLongNameWithItsOwnWords()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (_, contactId) = await CreatePrincipalContactAsync(
+            client, factory, "Save name words provider", "SAVENAME");
+        var path = $"/Administration/Contacts/Edit/{contactId:D}";
+
+        async Task<string> SaveAsync(string name)
+        {
+            var editor = await GetContactSettingsAsync(client, path);
+            using var saved = await client.PostAsync(
+                $"{path}?handler=Save",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["__RequestVerificationToken"] = InputValue(editor, "__RequestVerificationToken"),
+                    ["ContactId"] = InputValue(editor, "ContactId"),
+                    ["ExpectedVersion"] = InputValue(editor, "ExpectedVersion"),
+                    ["OperationKey"] = InputValue(editor, "OperationKey"),
+                    ["Name"] = name,
+                    ["PrincipalCode"] = InputValue(editor, "PrincipalCode"),
+                    ["PrincipalInspectionMode"] = InputValue(editor, "PrincipalInspectionMode"),
+                    ["Active"] = bool.TrueString
+                }));
+            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+            return await saved.Content.ReadAsStringAsync();
+        }
+
+        var empty = await SaveAsync(string.Empty);
+        Assert.Equal(1, Shown(empty, OperatorLabels.Contacts.NameRequired));
+        Assert.DoesNotContain("The Name field is required.", empty, StringComparison.Ordinal);
+
+        var overLong = await SaveAsync(new string('n', Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumNameLength + 1));
+        Assert.Equal(1, Shown(overLong, "The organisation name must be 300 characters or fewer."));
+        Assert.DoesNotContain("must be a string with a maximum length", overLong, StringComparison.Ordinal);
+
+        Assert.Equal("Save name words provider", await (await factory.DatabaseAsync).ScalarAsync<string>(
+            $"SELECT Name FROM Organizations WHERE Id = '{contactId:D}';"));
+    }
+
     /// <summary>How often a sentence is shown as text; an attribute that carries it is not shown.</summary>
     private static int Shown(string html, string text) =>
         Regex.Count(html, ">" + Regex.Escape(text) + "<", RegexOptions.CultureInvariant);

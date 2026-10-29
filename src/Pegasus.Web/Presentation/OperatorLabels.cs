@@ -39,6 +39,19 @@ public static partial class OperatorLabels
     public const string MarkAsOriginalReport = "Mark as original report";
 
     /// <summary>
+    /// An over-long field's refusal: the form's own field word and the stored
+    /// limit (operator, 29 October 2026, R539). <c>{0}</c> is the field word and
+    /// <c>{1}</c> the limit, the places a <c>StringLength</c> message fills.
+    /// </summary>
+    public const string TooLongFormat = "The {0} must be {1} characters or fewer.";
+
+    private static readonly CompositeFormat TooLongComposite = CompositeFormat.Parse(TooLongFormat);
+
+    /// <summary><see cref="TooLongFormat"/> for a check made outside an attribute.</summary>
+    public static string TooLong(string field, int maximum) =>
+        string.Format(CultureInfo.InvariantCulture, TooLongComposite, field, maximum);
+
+    /// <summary>
     /// The Case requirement an Audit lists first until its original report is
     /// filed (FRD-01): the Case page's aside and the Cases quick detail name it.
     /// </summary>

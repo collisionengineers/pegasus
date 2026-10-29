@@ -550,6 +550,19 @@ public sealed class OrganizationAdministrationTests
     }
 
     /// <summary>
+    /// R539: a code outside the principal code rule is refused against the
+    /// field the caller names, so the page can say which rule it failed.
+    /// </summary>
+    [Fact]
+    public void APrincipalCodeRefusalNamesTheCallersField()
+    {
+        Assert.Equal("ACME2", OrganizationAdministrationPolicy.NormalizePrincipalCode(" acme2 ", "SuccessorCode"));
+        var error = Assert.Throws<ArgumentException>(() =>
+            OrganizationAdministrationPolicy.NormalizePrincipalCode("ACME-2", "SuccessorCode"));
+        Assert.Equal("SuccessorCode", error.ParamName);
+    }
+
+    /// <summary>
     /// #1552: the contact's Save is the one writer of Notes on every Case, so a
     /// report settings change keeps the notes the Principal has.
     /// </summary>

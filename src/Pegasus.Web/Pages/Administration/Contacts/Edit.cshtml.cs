@@ -66,15 +66,15 @@ public sealed class EditModel(
 
     [BindProperty] public Guid ContactId { get; set; }
     [BindProperty] public long ExpectedVersion { get; set; }
-    [BindProperty, Required, StringLength(ContactDirectoryPolicy.MaximumNameLength)] public string Name { get; set; } = string.Empty;
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumContactPersonLength)] public string? ContactPerson { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumEmailLength)] public string? Email { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumTelephoneLength)] public string? Telephone { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumAddressLength)] public string? Address { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumPostcodeLength)] public string? Postcode { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength)] public string? NotesOnEveryCase { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.OrganisationNameField), Required(ErrorMessage = OperatorLabels.Contacts.NameRequired), StringLength(ContactDirectoryPolicy.MaximumNameLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string Name { get; set; } = string.Empty;
+    [BindProperty, Display(Name = OperatorLabels.Contacts.ContactPersonField), StringLength(ContactDirectoryPolicy.MaximumContactPersonLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? ContactPerson { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.EmailField), StringLength(ContactDirectoryPolicy.MaximumEmailLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Email { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.PhoneField), StringLength(ContactDirectoryPolicy.MaximumTelephoneLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Telephone { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.AddressField), StringLength(ContactDirectoryPolicy.MaximumAddressLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Address { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.PostcodeField), StringLength(ContactDirectoryPolicy.MaximumPostcodeLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Postcode { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.NotesOnEveryCaseField), StringLength(ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? NotesOnEveryCase { get; set; }
     [BindProperty] public bool Active { get; set; } = true;
-    [BindProperty, StringLength(20)] public string? PrincipalCode { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.PrincipalAdministration.CodeField), StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? PrincipalCode { get; set; }
     [BindProperty] public CaseInspectionMode PrincipalInspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
     [BindProperty] public Guid[] LinkedPrincipalIds { get; set; } = [];
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
@@ -94,14 +94,14 @@ public sealed class EditModel(
     public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
     public IReadOnlyList<ContactChoice> RepairerChoices { get; private set; } = [];
     [BindProperty] public bool LocationIsImageBasedAssessment { get; set; }
-    [BindProperty, StringLength(200)] public string? LocationLabel { get; set; }
-    [BindProperty, StringLength(500)] public string? LocationAddress { get; set; }
-    [BindProperty, StringLength(20)] public string? LocationPostcode { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.PrincipalAdministration.LocationLabelField), StringLength(200, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationLabel { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.AddressField), StringLength(500, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationAddress { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.PostcodeField), StringLength(20, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationPostcode { get; set; }
     [BindProperty] public string? LocationOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public long CredentialVersion { get; set; }
     [BindProperty] public string? CredentialOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public long ReplacementExpectedVersion { get; set; }
-    [BindProperty, Required(ErrorMessage = OperatorLabels.PrincipalAdministration.NewCodeRequired), StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength)] public string SuccessorCode { get; set; } = string.Empty;
+    [BindProperty, Display(Name = OperatorLabels.PrincipalAdministration.NewCodeField), Required(ErrorMessage = OperatorLabels.PrincipalAdministration.NewCodeRequired), StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string SuccessorCode { get; set; } = string.Empty;
     [BindProperty] public string? ReplacementOperationKey { get; set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -333,6 +333,8 @@ public sealed class EditModel(
                 return RedirectToPage("Index");
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
+            // The rule a typed code fails is named; anything else keeps the general notice (R539).
+            catch (ArgumentException exception) when (exception.ParamName == nameof(SuccessorCode)) { ModelState.AddModelError(nameof(SuccessorCode), OperatorLabels.PrincipalAdministration.CodeLettersAndDigitsOnly(OperatorLabels.PrincipalAdministration.NewCodeField)); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.ReplacementNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }

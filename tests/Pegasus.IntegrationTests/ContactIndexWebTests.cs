@@ -86,39 +86,152 @@ public sealed partial class ContactIndexWebTests
     }
 
     /// <summary>
-    /// #1550: a New dialog saved with no Organisation name shows its one
-    /// refusal once, in the dialog's summary, and creates nothing.
+    /// #1550 and #1551 (R539): a New dialog saved with no Organisation name
+    /// shows the label-owned refusal once, in the dialog's summary, and
+    /// creates nothing.
     /// </summary>
     [Fact]
     public async Task ABlankNameIsRefusedOnceInTheNewDialog()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        using var get = await client.GetAsync("/Administration/Contacts?createType=ClaimSource");
-        var html = await get.Content.ReadAsStringAsync();
-        get.EnsureSuccessStatusCode();
         var organizationsBefore = await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations;");
 
-        using var post = await client.PostAsync(
-            "/Administration/Contacts?handler=Create",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
-                ["CreateType"] = "ClaimSource",
-                ["ContactId"] = InputValue(html, "ContactId"),
-                ["OperationKey"] = InputValue(html, "OperationKey"),
-                ["Name"] = string.Empty
-            }));
+        var body = await PostNewContactAsync(client, "Create", "ClaimSource", new() { ["Name"] = string.Empty });
 
-        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
-        var body = await post.Content.ReadAsStringAsync();
         var summary = Assert.Single(SummaryListRegex().Matches(body)).Groups["items"].Value;
         var refusal = Assert.Single(SummaryItemRegex().Matches(summary)).Groups["text"].Value;
+        Assert.Equal(OperatorLabels.Contacts.NameRequired, refusal);
         Assert.Equal(1, Occurrences(body, refusal));
         Assert.DoesNotContain("field-validation-error", body, StringComparison.Ordinal);
         Assert.Equal(organizationsBefore, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations;"));
+    }
+
+    /// <summary>
+    /// #1551 (R539): an over-long field is refused with the form's own field
+    /// word and the stored limit, never the framework's wording.
+    /// </summary>
+    [Fact]
+    public async Task OverLongFieldsAreRefusedWithTheirFieldWordAndLimit()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var body = await PostNewContactAsync(client, "Create", "ClaimSource", new()
+        {
+            ["Name"] = new string('n', ContactDirectoryPolicy.MaximumNameLength + 1),
+            ["Telephone"] = new string('1', ContactDirectoryPolicy.MaximumTelephoneLength + 1)
+        });
+
+        Assert.Equal(1, Occurrences(body, "The organisation name must be 300 characters or fewer."));
+        Assert.Equal(1, Occurrences(body, "The phone must be 50 characters or fewer."));
+        Assert.DoesNotContain("must be a string with a maximum length", body, StringComparison.Ordinal);
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM Organizations WHERE Name = '{new string('n', ContactDirectoryPolicy.MaximumNameLength)}';"));
+    }
+
+    /// <summary>
+    /// #1547 and #1551 (R539): a new Principal's code is refused with the
+    /// rule it fails: the stored length, or letters and digits only.
+    /// </summary>
+    [Fact]
+    public async Task ANewPrincipalCodeIsRefusedWithTheRuleItFails()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var tooLong = await PostNewContactAsync(client, "Create", "Principal", new()
+        {
+            ["Name"] = "Long code principal",
+            ["PrincipalCode"] = new string('L', OrganizationAdministrationPolicy.MaximumPrincipalCodeLength + 1),
+            ["PrincipalInspectionMode"] = "PhysicalAddress"
+        });
+        Assert.Equal(1, Occurrences(tooLong, "The principal code must be 20 characters or fewer."));
+
+        var hyphenated = await PostNewContactAsync(client, "Create", "Principal", new()
+        {
+            ["Name"] = "Hyphenated code principal",
+            ["PrincipalCode"] = "ACME-2",
+            ["PrincipalInspectionMode"] = "PhysicalAddress"
+        });
+        Assert.Equal(1, Occurrences(hyphenated, "The principal code must use letters and digits only."));
+        Assert.DoesNotContain(OperatorLabels.Contacts.DetailsNotAccepted, hyphenated, StringComparison.Ordinal);
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            "SELECT COUNT(*) FROM Organizations WHERE Name IN ('Long code principal', 'Hyphenated code principal');"));
+    }
+
+    /// <summary>#1548 (R535): the search box is labelled Name, the field it matches.</summary>
+    [Fact]
+    public async Task TheSearchBoxIsLabelledName()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts");
+
+        Assert.Contains($"<label for=\"Search\">{OperatorLabels.Contacts.SearchLabel}</label>", ToolbarForm(html), StringComparison.Ordinal);
+        Assert.DoesNotContain("Name or contact", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// #1549 (R537): Check existing contacts with a name nothing starts with
+    /// says No contacts found. inside the dialog.
+    /// </summary>
+    [Fact]
+    public async Task ACheckThatFindsNothingSaysSo()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var body = await PostNewContactAsync(client, "FindMatches", "Repairer", new() { ["Name"] = "Zzz no such organisation" });
+
+        Assert.Contains($"<div class=\"empty\" data-possible-matches-none><p>{OperatorLabels.Contacts.NoneFound}</p></div>", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("possible-matches-title", body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// #1549 (R537): a one-character name is checked like any other: it finds
+    /// the contact that starts with it, and says No contacts found. when none does.
+    /// </summary>
+    [Fact]
+    public async Task AOneCharacterNameIsChecked()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
+        await administration.SaveAsync(new(
+            Administrator, Guid.NewGuid(), 0, "9 one letter contact", null, null, null, null, null, true,
+            ContactRole.Storage, null, CaseInspectionMode.PhysicalAddress, [], "contact-index:one-letter"), default);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var found = await PostNewContactAsync(client, "FindMatches", "Repairer", new() { ["Name"] = "9" });
+        Assert.Contains("9 one letter contact · Storage", found, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-possible-matches-none", found, StringComparison.Ordinal);
+
+        var none = await PostNewContactAsync(client, "FindMatches", "Repairer", new() { ["Name"] = "8" });
+        Assert.Contains("data-possible-matches-none", none, StringComparison.Ordinal);
+        Assert.DoesNotContain("possible-matches-title", none, StringComparison.Ordinal);
+    }
+
+    // Opens the New dialog for a type and posts it to a handler with the given fields.
+    private static async Task<string> PostNewContactAsync(
+        HttpClient client, string handler, string createType, Dictionary<string, string> fields)
+    {
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Administration/Contacts?createType={createType}");
+        var form = new Dictionary<string, string>(fields)
+        {
+            ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+            ["CreateType"] = createType,
+            ["ContactId"] = InputValue(html, "ContactId"),
+            ["OperationKey"] = InputValue(html, "OperationKey")
+        };
+        using var post = await client.PostAsync(
+            $"/Administration/Contacts?handler={handler}",
+            new FormUrlEncodedContent(form));
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        return await post.Content.ReadAsStringAsync();
     }
 
     /// <summary>How often a sentence is shown as text; an attribute that carries it is not shown.</summary>
