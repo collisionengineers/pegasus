@@ -18,20 +18,27 @@ public sealed class ProblemReportsModel(
     ReconcileProblemReport reconcileReport,
     IStaffAccountQueries staffAccounts) : AdministrationPageModel
 {
-    public IReadOnlyList<ProblemReport> Reports { get; private set; } = [];
+    public IReadOnlyList<ProblemReportListItem> Reports { get; private set; } = [];
+    public bool HasMore { get; private set; }
+    public int CurrentPage { get; private set; } = 1;
     private IReadOnlyDictionary<Guid, string> _staffNames = new Dictionary<Guid, string>();
 
-    public string ReportedBy(ProblemReport report) =>
+    public string ReportedBy(ProblemReportListItem report) =>
         ActorDisplayNames.Resolve(ActorKind.Staff, report.StaffId.ToString("D"), _staffNames);
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(
+        [FromQuery(Name = "pageNumber")] int pageNumber,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
 
-        await LoadAsync(actor, cancellationToken);
+        // One page of 50 with a pager (#1542, R242); a page Core refuses is not found, as AI jobs.
+        CurrentPage = pageNumber == 0 ? 1 : pageNumber;
+        try { await LoadAsync(actor, cancellationToken); }
+        catch (ArgumentOutOfRangeException) { return NotFound(); }
         return Page();
     }
 
@@ -116,7 +123,9 @@ public sealed class ProblemReportsModel(
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        Reports = await listReports.ExecuteAsync(actor, cancellationToken);
+        var page = await listReports.ExecuteAsync(actor, CurrentPage, cancellationToken);
+        Reports = page.Reports;
+        HasMore = page.HasMore;
         _staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
             Reports.Select(report => report.StaffId),

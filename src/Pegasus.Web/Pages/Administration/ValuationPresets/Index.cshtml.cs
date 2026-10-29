@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
+using Labels = Pegasus.Web.Presentation.OperatorLabels.ValuationPresets;
 
 namespace Pegasus.Web.Pages.Administration.ValuationPresets;
 
@@ -60,7 +61,7 @@ public sealed class IndexModel(
                 await saveValuationPreset.ExecuteAsync(
                     new(CreatePresetId, label!, amount!.Value, active, ExpectedVersion: 0, actor, operationKey!),
                     cancellationToken);
-                return ValuationPresetLabels.Created;
+                return Labels.Created;
             },
             cancellationToken);
     }
@@ -89,7 +90,7 @@ public sealed class IndexModel(
                 await saveValuationPreset.ExecuteAsync(
                     new(presetId, label!, amount!.Value, active, expectedVersion, actor, operationKey!),
                     cancellationToken);
-                return active ? ValuationPresetLabels.Saved : ValuationPresetLabels.Disabled;
+                return active ? Labels.Saved : Labels.Disabled;
             },
             cancellationToken);
     }
@@ -111,7 +112,7 @@ public sealed class IndexModel(
                 await removeValuationPreset.ExecuteAsync(
                     new(presetId, expectedVersion, actor, operationKey!, Reason: null),
                     cancellationToken);
-                return ValuationPresetLabels.Removed;
+                return Labels.Removed;
             },
             cancellationToken);
     }
@@ -135,7 +136,7 @@ public sealed class IndexModel(
         }
         catch (ArgumentException)
         {
-            ModelState.AddModelError(string.Empty, ValuationPresetLabels.NotAccepted);
+            ModelState.AddModelError(string.Empty, Labels.NotAccepted);
         }
         catch (StaffAuthorizationException)
         {
@@ -156,14 +157,16 @@ public sealed class IndexModel(
     private bool Validate(string? operationKey, string? label, decimal? amount)
     {
         var valid = RequireOperationKey(operationKey);
-        if (string.IsNullOrWhiteSpace(label))
+        // The label and amount ranges are Core's; a refused value is answered
+        // here, typed values kept, before anything reaches the store.
+        if (string.IsNullOrWhiteSpace(label) || !ValuationCalculationPolicy.IsAdditionLabelInRange(label))
         {
-            ModelState.AddModelError(string.Empty, ValuationPresetLabels.LabelRequired);
+            ModelState.AddModelError(string.Empty, Labels.LabelRequired);
             valid = false;
         }
-        if (amount is not { } value || value < 0m || decimal.Round(value, 2) != value)
+        if (amount is not { } value || !ValuationCalculationPolicy.IsPresetAmountInRange(value))
         {
-            ModelState.AddModelError(string.Empty, ValuationPresetLabels.AmountRequired);
+            ModelState.AddModelError(string.Empty, Labels.AmountRequired);
             valid = false;
         }
 
@@ -173,53 +176,29 @@ public sealed class IndexModel(
     private bool RequireOperationKey(string? operationKey)
     {
         if (IsOperationKeyValid(operationKey)) return true;
-        ModelState.AddModelError(string.Empty, ValuationPresetLabels.Expired);
+        ModelState.AddModelError(string.Empty, Labels.Expired);
         return false;
     }
 
     private bool RequirePreset(Guid presetId)
     {
         if (presetId != Guid.Empty) return true;
-        ModelState.AddModelError(string.Empty, ValuationPresetLabels.Expired);
+        ModelState.AddModelError(string.Empty, Labels.Expired);
         return false;
     }
 
     private static string MutationErrorMessage(ValuationPresetError error) => error switch
     {
-        ValuationPresetError.NotFound => ValuationPresetLabels.NotFound,
-        ValuationPresetError.Removed => ValuationPresetLabels.AlreadyRemoved,
-        ValuationPresetError.DuplicateLabel => ValuationPresetLabels.DuplicateLabel,
-        ValuationPresetError.VersionConflict => ValuationPresetLabels.StaleVersion,
-        ValuationPresetError.OperationConflict => ValuationPresetLabels.OperationConflict,
-        _ => ValuationPresetLabels.NotAccepted
+        ValuationPresetError.NotFound => Labels.NotFound,
+        ValuationPresetError.Removed => Labels.AlreadyRemoved,
+        ValuationPresetError.DuplicateLabel => Labels.DuplicateLabel,
+        ValuationPresetError.VersionConflict => Labels.StaleVersion,
+        ValuationPresetError.OperationConflict => Labels.OperationConflict,
+        _ => Labels.NotAccepted
     };
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         Presets = await listValuationPresets.ExecuteAsync(actor, cancellationToken);
     }
-}
-
-internal static class ValuationPresetLabels
-{
-    public const string Title = "Valuation presets";
-    public const string Presets = "Presets";
-    public const string PresetLabel = "Label";
-    public const string Amount = "Amount";
-    public const string Save = "Save";
-    public const string Enabled = "Enabled";
-    public const string Remove = "Remove";
-    public const string Created = "The valuation preset was created.";
-    public const string Saved = "The valuation preset was saved.";
-    public const string Disabled = "The valuation preset was disabled.";
-    public const string Removed = "The valuation preset was removed.";
-    public const string AlreadyRemoved = "That valuation preset was removed.";
-    public const string Expired = "The form has expired. Retry the operation.";
-    public const string LabelRequired = "Enter a label.";
-    public const string AmountRequired = "Enter an amount of £0.00 or more.";
-    public const string NotFound = "The valuation preset no longer exists.";
-    public const string DuplicateLabel = "That label is already assigned to a valuation preset.";
-    public const string StaleVersion = "The preset changed after this page was loaded. Reload it and try again.";
-    public const string OperationConflict = "The form was already used for a different operation. Retry from the current page.";
-    public const string NotAccepted = "The change was not accepted.";
 }

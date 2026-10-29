@@ -252,7 +252,9 @@ the Vehicle section's edit state, not on Overview.
 
 While editing, a refused save shows the current and proposed values as a
 non-destructive conflict. A Case save needs
-no reason; its history line names the changed fields. Holds, releases,
+no reason; its history line names the changed fields. An edit session
+leaves one such line in Notes, listing the fields the session changed
+(operator, 28 October 2026; R466). Holds, releases,
 corrections and a return to engineering record a reason.
 
 **Sections**, in order: **Case details**, **Claim**, **Original report** (an

@@ -353,6 +353,23 @@ public sealed class AdministrationReportsWebTests
     }
 
     /// <summary>
+    /// A chosen Person with no activity is kept in the Engineers picker
+    /// wherever the account sorts, past the hundredth included (#1542, FRD-17).
+    /// </summary>
+    [Fact]
+    public async Task TheEngineerPickerKeepsAChosenAccountBeyondTheHundredth()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        await IntakeWebDriver.SeedUserAccountsAsync(factory, 101);
+        var beyond = await IntakeWebDriver.StaffIdAsync(factory, "bulk-100");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"{Page}?engineerId={beyond:D}");
+
+        Assert.Contains($"<option value=\"{beyond:D}\" selected=\"selected\">bulk-100</option>", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// PERF-WEB-08: a tab runs its own reports' reads and no other tab's. The
     /// Engineers and Principals tabs also read the period just before for the
     /// totals that show it (R156); Queues and Case list read none.

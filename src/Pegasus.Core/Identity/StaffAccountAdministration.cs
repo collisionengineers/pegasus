@@ -44,14 +44,19 @@ public sealed record SignOffSignature(byte[] Content, string ContentType);
 public sealed record ListStaffAccountsRequest(
     ActionActor Actor,
     int PageNumber = 1,
-    int PageSize = 50);
+    int PageSize = ListStaffAccounts.DefaultPageSize);
 
+/// <summary>
+/// One page of the staff accounts and the count of every account, which the
+/// list's heading shows on each page (R421).
+/// </summary>
 public sealed record ListStaffAccountsResult(
     IReadOnlyList<StaffAccountSummary> Accounts,
     int PageNumber,
     int PageSize,
     bool HasPreviousPage,
-    bool HasMoreAccounts);
+    bool HasMoreAccounts,
+    int TotalAccounts);
 
 public sealed record GetStaffAccountRequest(
     ActionActor Actor,
@@ -190,6 +195,34 @@ public interface IStaffAccountQueries
         (await GetManyAsync(staffIds, cancellationToken))
             .ToDictionary(account => account.Id, account => account.UserName);
 
+    /// <summary>
+    /// The username of every account, disabled ones included: what a person
+    /// picker offers, with no cap, so an account past the hundredth is still
+    /// offered and kept (#1542). This form walks <see cref="ListAsync"/>; the
+    /// SQL store reads the two columns in one statement.
+    /// </summary>
+    async Task<IReadOnlyDictionary<Guid, string>> ListNamesAsync(CancellationToken cancellationToken)
+    {
+        var names = new Dictionary<Guid, string>();
+        for (var offset = 0; ; offset += ListStaffAccounts.MaximumPageSize)
+        {
+            var slice = await ListAsync(offset, ListStaffAccounts.MaximumPageSize, cancellationToken);
+            foreach (var account in slice.Accounts)
+            {
+                names[account.Id] = account.UserName;
+            }
+
+            if (!slice.HasMoreAccounts)
+            {
+                return names;
+            }
+        }
+    }
+
+    /// <summary>How many accounts there are; the SQL store counts them in one statement.</summary>
+    async Task<int> CountAsync(CancellationToken cancellationToken) =>
+        (await ListNamesAsync(cancellationToken)).Count;
+
     Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
         CancellationToken cancellationToken);
 
@@ -301,6 +334,12 @@ public sealed class ListStaffAccounts(IStaffAccountQueries queries)
 {
     public const int MaximumPageSize = 100;
 
+    /// <summary>The Staff accounts list's page: 50 accounts (R233, R418).</summary>
+    public const int DefaultPageSize = 50;
+
+    /// <summary>The last page of <see cref="DefaultPageSize"/> whose first row's offset fits an <see cref="int"/>.</summary>
+    public const int MaximumPageNumber = int.MaxValue / DefaultPageSize;
+
     private readonly IStaffAccountQueries _queries =
         queries ?? throw new ArgumentNullException(nameof(queries));
 
@@ -321,16 +360,20 @@ public sealed class ListStaffAccounts(IStaffAccountQueries queries)
                 "The requested staff-account page is outside the supported range.");
         }
 
-        var slice = await _queries.ListAsync(
+        var sliceRead = _queries.ListAsync(
             (int)offset,
             request.PageSize,
             cancellationToken);
+        var countRead = _queries.CountAsync(cancellationToken);
+        await Task.WhenAll(sliceRead, countRead);
+        var slice = await sliceRead;
         return new(
             slice.Accounts,
             request.PageNumber,
             request.PageSize,
             request.PageNumber > 1,
-            slice.HasMoreAccounts);
+            slice.HasMoreAccounts,
+            await countRead);
     }
 
     internal static void ValidateMaximumResults(int maximumResults, string parameterName)

@@ -37,6 +37,10 @@ public sealed class IndexModel(
 
     public IReadOnlyList<StaffAccountRow> Rows { get; private set; } = [];
     public bool HasMoreAccounts { get; private set; }
+    public int TotalAccounts { get; private set; }
+
+    /// <summary>The list's page; below 1 reads 1, as the Contacts list does.</summary>
+    [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
     public string NewUserName { get; private set; } = string.Empty;
     public string CreateOperationKey { get; private set; } = NewOperationKey();
     public bool CreatePostSubmitted { get; private set; }
@@ -456,8 +460,11 @@ public sealed class IndexModel(
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        var accounts = await listStaffAccounts.ExecuteAsync(new(actor, PageSize: ListStaffAccounts.MaximumPageSize), cancellationToken);
+        // One page of 50 with a pager (#1542, R233, R418); a POST redisplays page 1.
+        PageNumber = Math.Clamp(PageNumber, 1, ListStaffAccounts.MaximumPageNumber);
+        var accounts = await listStaffAccounts.ExecuteAsync(new(actor, PageNumber), cancellationToken);
         HasMoreAccounts = accounts.HasMoreAccounts;
+        TotalAccounts = accounts.TotalAccounts;
         var currentOperatorId = CurrentOperatorId(actor);
         var glassByAccount = await externalCredentials.GetManyAsync(
             actor,
@@ -479,7 +486,7 @@ public sealed class IndexModel(
 
     /// <summary>
     /// One account by id, read directly rather than found in <see cref="Rows"/>:
-    /// the list holds only its first page, and a dialog must open for any
+    /// the list holds only the page shown, and a dialog must open for any
     /// account. An empty id is no account; so is an unknown one.
     /// </summary>
     private async Task<StaffAccountRow?> ResolveRowAsync(

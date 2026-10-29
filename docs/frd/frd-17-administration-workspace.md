@@ -231,7 +231,8 @@ rows editable immediately, with no separate creation or edit dialog. Save and
 Remove use each row's rendered expected version. A stale change is refused
 and asks the Administrator to reload.
 **Remove** is a soft removal that acts on the click. The preset drops out of
-the list and out of new selection. A valuation already recorded against it
+the list and out of new selection. A removed preset frees its label
+(operator, 29 October 2026; R432, R530). A valuation already recorded against it
 keeps its own snapshot
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 
@@ -278,6 +279,8 @@ type** filter (Staff / AI / Pegasus) narrows the list by this kind. An AI job
 row links through to the Case or Unidentified record it acted on. Time values
 and the From/To period pickers show and accept whole minutes only; storage
 keeps its sub-second precision.
+The From/To pickers read and show London office time, as the Time column
+does (operator, 29 October 2026; R532).
 
 **Intake log** lists one row per received file: received, source, item
 (opening the original), outcome with its reason, what it became, and
@@ -399,8 +402,10 @@ keeps the form as it was.
 
 ### Release notes
 
-**Release notes** lists every note, newest change first, with its status
-(Draft or Published), version and who published it. **New release note**
+**Release notes** lists every note across its pages, 50 a page with
+Previous and Next, newest change first, with its status
+(Draft or Published), version and who published it (operator, 22 October
+2026; R418, R420; built 29 October 2026, R527). **New release note**
 opens a form with Title and Body; **Save draft** keeps it editable and
 **Publish** freezes it, stamping the running build's version and source
 SHA. A published note opens read-only. Only a signed-in Administrator can
@@ -414,7 +419,9 @@ A stale save is refused without overwriting the newer draft.
 
 ### Problem reports
 
-**Problem reports** lists every report kept, newest first: when, who, the
+**Problem reports** lists every report kept across its pages, 50 a page
+with Previous and Next (operator, 22 October 2026; R242, R418, R420; built
+29 October 2026, R527), newest first: when, who, the
 page, the Case, what the person wrote, its status (Sent with a link to the
 issue, or Not sent with the reason) and **Retry** on a report that was not
 sent. Retry raises the same report again; a sent report is never raised

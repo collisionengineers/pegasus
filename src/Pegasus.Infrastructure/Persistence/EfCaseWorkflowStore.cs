@@ -17,9 +17,9 @@ public sealed class EfCaseWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore
 {
-    private const string ClaimLeaseOperationKind = "claim";
+    internal const string ClaimLeaseOperationKind = "claim";
     private const string RenewLeaseOperationKind = "renew";
-    private const string ReleaseLeaseOperationKind = "release";
+    internal const string ReleaseLeaseOperationKind = "release";
 
     public async Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {

@@ -528,6 +528,49 @@ public sealed class ValuationCalculationTests
     }
 
     /// <summary>
+    /// A suggested amount above the most a preset keeps is refused before the
+    /// store sees it; the maximum itself is saved.
+    /// </summary>
+    [Fact]
+    public async Task APresetAmountAboveTheMaximumIsRefusedAndTheMaximumIsSaved()
+    {
+        var store = new RecordingPresetStore();
+        var save = new SaveValuationPreset(store);
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() =>
+            save.ExecuteAsync(
+                PresetRequest(Administrator) with
+                {
+                    SuggestedAmount = ValuationCalculationPolicy.MaximumPresetAmount + 0.01m
+                },
+                CancellationToken.None));
+        Assert.Empty(store.Saves);
+
+        var saved = await save.ExecuteAsync(
+            PresetRequest(Administrator) with
+            {
+                SuggestedAmount = ValuationCalculationPolicy.MaximumPresetAmount
+            },
+            CancellationToken.None);
+        Assert.Equal(ValuationCalculationPolicy.MaximumPresetAmount, saved.SuggestedAmount);
+        Assert.False(ValuationCalculationPolicy.IsPresetAmountInRange(10_000_000_000_000_000m));
+        Assert.True(ValuationCalculationPolicy.IsPresetAmountInRange(0m));
+    }
+
+    /// <summary>
+    /// A label is in range at Core's maximum once trimmed and out of range one
+    /// character over it or holding a control character.
+    /// </summary>
+    [Fact]
+    public void AnAdditionLabelIsInRangeUpToItsMaximumWithNoControlCharacter()
+    {
+        var longest = new string('a', ValuationCalculationPolicy.MaximumAdditionLabelLength);
+        Assert.True(ValuationCalculationPolicy.IsAdditionLabelInRange($"  {longest}  "));
+        Assert.False(ValuationCalculationPolicy.IsAdditionLabelInRange(longest + "a"));
+        Assert.False(ValuationCalculationPolicy.IsAdditionLabelInRange("Tow\tbar"));
+    }
+
+    /// <summary>
     /// Removing a preset is Administrator configuration like maintaining one,
     /// and it is a reasoned change to a known version rather than a silent
     /// disappearance.

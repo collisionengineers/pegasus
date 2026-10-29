@@ -341,6 +341,12 @@ internal static class CaseMutationHistory
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// <paramref name="noteReason"/> is the line the Case's timeline rows carry
+    /// when it is not the action's own: a save session's one note lists every
+    /// field the session changed (R466), while the action-history row keeps
+    /// the account of this save alone.
+    /// </summary>
     public static void Add(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
@@ -354,11 +360,13 @@ internal static class CaseMutationHistory
         string beforeJson,
         string afterJson,
         string policyVersion,
-        DateTimeOffset occurredAtUtc)
+        DateTimeOffset occurredAtUtc,
+        string? noteReason = null)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(actor);
+        var timelineReason = noteReason ?? reason;
         var rolesJson = JsonSerializer.Serialize(
             actor.Roles.OrderBy(role => role),
             JsonOptions);
@@ -373,7 +381,7 @@ internal static class CaseMutationHistory
             ActorKind = actor.Kind.ToString(),
             ActorSubjectId = actor.SubjectId,
             ActorRolesJson = rolesJson,
-            Reason = reason,
+            Reason = timelineReason,
             OccurredAtUtc = occurredAtUtc,
             BeforeVersion = beforeVersion,
             AfterVersion = afterVersion
@@ -402,7 +410,7 @@ internal static class CaseMutationHistory
             Case = workflow.Case,
             EventType = eventType,
             Actor = actor.SubjectId,
-            Reason = reason,
+            Reason = timelineReason,
             OccurredAtUtc = occurredAtUtc,
             OperationKey = operationKey,
             BeforeVersion = beforeVersion,

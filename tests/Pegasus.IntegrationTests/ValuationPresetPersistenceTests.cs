@@ -225,6 +225,79 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
+    /// A removed preset frees its label (FRD-17, R530): a new preset takes the
+    /// label under its own Id, both Ids keep their history, and the label is
+    /// still unique among the presets kept. The database's unique index is
+    /// filtered the same way, so the save reaches it and is not refused there.
+    /// </summary>
+    [Fact]
+    public async Task ARemovedPresetFreesItsLabelForANewPreset()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var store = new EfValuationPresetStore(harness.Factory, harness.Clock);
+        var save = new SaveValuationPreset(store);
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        await new RemoveValuationPreset(store).ExecuteAsync(
+            new(TowBarPresetId, ExpectedVersion: 1, administrator, "valuation-preset-remove-tow-bar", Reason: null),
+            CancellationToken.None);
+
+        var newPresetId = Guid.NewGuid();
+        var readded = await save.ExecuteAsync(
+            new(
+                newPresetId,
+                "Tow bar",
+                325m,
+                Active: true,
+                ExpectedVersion: 0,
+                administrator,
+                "valuation-preset-readd-tow-bar"),
+            CancellationToken.None);
+        Assert.Equal(newPresetId, readded.Id);
+        Assert.Equal(1, readded.Version);
+
+        var listed = Assert.Single(
+            await store.ListAsync(CancellationToken.None),
+            preset => preset.Label == "Tow bar");
+        Assert.Equal(newPresetId, listed.Id);
+        Assert.Equal(325m, listed.SuggestedAmount);
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var history = await context.ActionHistory
+                .Where(item => item.AggregateType == "valuation_preset")
+                .Select(item => new { item.AggregateId, item.EventKind })
+                .ToArrayAsync();
+            Assert.Contains(
+                history,
+                item => item.AggregateId == TowBarPresetId.ToString("D")
+                    && item.EventKind == "valuation_preset_removed");
+            Assert.Contains(
+                history,
+                item => item.AggregateId == newPresetId.ToString("D")
+                    && item.EventKind == "valuation_preset_saved");
+
+            var removed = await context.Set<ValuationPresetEntity>()
+                .SingleAsync(item => item.Id == TowBarPresetId);
+            Assert.Equal("Tow bar", removed.Label);
+            Assert.NotNull(removed.RemovedAtUtc);
+        }
+
+        var duplicate = await Assert.ThrowsAsync<ValuationPresetException>(() =>
+            save.ExecuteAsync(
+                new(
+                    Guid.NewGuid(),
+                    "tow BAR",
+                    100m,
+                    Active: true,
+                    ExpectedVersion: 0,
+                    administrator,
+                    "valuation-preset-second-tow-bar"),
+                CancellationToken.None));
+        Assert.Equal(ValuationPresetError.DuplicateLabel, duplicate.Error);
+    }
+
+    /// <summary>
     /// A retried post replays its own recorded result; the same key carrying a
     /// different request is a conflict, not a second edit.
     /// </summary>

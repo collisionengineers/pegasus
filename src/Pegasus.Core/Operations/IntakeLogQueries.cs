@@ -95,7 +95,8 @@ public sealed record IntakeLogCounts(int FailedIntake, DateTimeOffset? OldestPen
 /// <summary>
 /// The technical actions the row drawer offers, each true only when it applies:
 /// Retry allocation when the last allocation attempt failed, Retry OCR when OCR
-/// failed, Re-evaluate with current policy on any processed receipt.
+/// failed, Re-evaluate with current policy on a processed receipt that has not
+/// become a Case and whose Unidentified item is not closed (FRD-02).
 /// </summary>
 public sealed record IntakeLogActions(bool CanReevaluate, bool CanRetryAllocation, bool CanRetryOcr);
 

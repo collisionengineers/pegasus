@@ -318,6 +318,12 @@ public static class ValuationCalculationPolicy
     public const int MaximumReasonLength = 500;
 
     /// <summary>
+    /// The largest suggested amount a valuation preset keeps, the labour-rate
+    /// card's maximum (R431).
+    /// </summary>
+    public const decimal MaximumPresetAmount = 999_999m;
+
+    /// <summary>
     /// The two prior-total-loss reductions the business applies. There is no
     /// free percentage: an unrecognized value is refused rather than rounded
     /// into one of these.
@@ -590,7 +596,7 @@ public static class ValuationCalculationPolicy
         }
 
         var normalized = value.Trim();
-        if (normalized.Length > MaximumAdditionLabelLength || normalized.Any(char.IsControl))
+        if (!IsAdditionLabelInRange(normalized))
         {
             throw new ArgumentOutOfRangeException(
                 parameterName,
@@ -600,6 +606,25 @@ public static class ValuationCalculationPolicy
 
         return normalized;
     }
+
+    /// <summary>
+    /// Whether a typed addition label is in range once trimmed: at most
+    /// <see cref="MaximumAdditionLabelLength"/> characters and no control
+    /// character. A blank label is a separate refusal.
+    /// </summary>
+    public static bool IsAdditionLabelInRange(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var normalized = value.Trim();
+        return normalized.Length <= MaximumAdditionLabelLength && !normalized.Any(char.IsControl);
+    }
+
+    /// <summary>
+    /// Whether a suggested preset amount is in range: £0.00 to
+    /// <see cref="MaximumPresetAmount"/>, in whole pence.
+    /// </summary>
+    public static bool IsPresetAmountInRange(decimal value) =>
+        value >= 0m && value <= MaximumPresetAmount && decimal.Round(value, 2) == value;
 
     private static decimal? ValidatePriorTotalLossPercentage(
         decimal? percentage,
@@ -703,6 +728,12 @@ public sealed class SaveValuationPreset(IValuationPresetStore store) : ISaveValu
             request.SuggestedAmount,
             "suggested amount",
             nameof(request));
+        if (!ValuationCalculationPolicy.IsPresetAmountInRange(request.SuggestedAmount))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "A suggested amount runs from 0 to 999999.");
+        }
 
         return store.SaveAsync(
             request with

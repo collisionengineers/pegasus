@@ -199,7 +199,7 @@ public sealed class ProblemReportTests
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => report.ExecuteAsync(Request(ActionActor.Automation("automation-client")), default));
         Assert.Empty(store.Reports);
 
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => new ListProblemReports(store).ExecuteAsync(User(), default));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => new ListProblemReports(store).ExecuteAsync(User(), 1, default));
     }
 
     [Fact]
@@ -213,8 +213,12 @@ public sealed class ProblemReportTests
         Assert.Empty(report.Snapshot.RecentActions);
     }
 
+    /// <summary>
+    /// The list reads every retained report across its pages of 50, newest
+    /// first, and says whether another page follows (#1542, R242).
+    /// </summary>
     [Fact]
-    public async Task ListReturnsEveryRetainedReportInNewestFirstOrder()
+    public async Task ListPagesEveryRetainedReportInNewestFirstOrder()
     {
         var store = new FakeStore();
         for (var index = 0; index < 201; index++)
@@ -222,11 +226,30 @@ public sealed class ProblemReportTests
             store.Reports.Add(RetainedReport(index));
         }
 
-        var reports = await new ListProblemReports(store).ExecuteAsync(Administrator(), default);
+        var list = new ListProblemReports(store);
+        var pages = new List<ProblemReportListPage>();
+        for (var page = 1; page <= 5; page++)
+        {
+            pages.Add(await list.ExecuteAsync(Administrator(), page, default));
+        }
 
-        Assert.Equal(201, reports.Count);
-        Assert.Equal("Report 200", reports[0].Description);
-        Assert.Equal("Report 0", reports[^1].Description);
+        Assert.Equal([50, 50, 50, 50, 1], pages.Select(page => page.Reports.Count));
+        Assert.Equal([true, true, true, true, false], pages.Select(page => page.HasMore));
+        Assert.Equal("Report 200", pages[0].Reports[0].Description);
+        Assert.Equal("Report 0", Assert.Single(pages[4].Reports).Description);
+        Assert.Equal(201, pages.SelectMany(page => page.Reports).Select(report => report.Id).Distinct().Count());
+    }
+
+    /// <summary>A page below 1, or one whose first row's offset does not fit an int, is refused.</summary>
+    [Fact]
+    public async Task ListRefusesAPageOutsideItsRange()
+    {
+        var list = new ListProblemReports(new FakeStore());
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => list.ExecuteAsync(Administrator(), 0, default));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => list.ExecuteAsync(Administrator(), -3, default));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            list.ExecuteAsync(Administrator(), int.MaxValue / ListProblemReports.PageSize + 1, default));
     }
 
     private static ProblemReport RetainedReport(int index)
@@ -395,8 +418,15 @@ public sealed class ProblemReportTests
         public Task<ProblemReport?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Reports.SingleOrDefault(report => report.Id == id));
 
-        public Task<IReadOnlyList<ProblemReport>> ListAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ProblemReport>>(Reports.OrderByDescending(report => report.CreatedAtUtc).ToArray());
+        public Task<IReadOnlyList<ProblemReportListItem>> ListAsync(int offset, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProblemReportListItem>>(Reports
+                .OrderByDescending(report => report.CreatedAtUtc)
+                .Skip(offset)
+                .Take(limit)
+                .Select(report => new ProblemReportListItem(
+                    report.Id, report.StaffId, report.Description, report.Snapshot.Route, report.Snapshot.CaseReference,
+                    report.CreatedAtUtc, report.Status, report.IssueNumber, report.IssueUrl, report.Failure))
+                .ToArray());
 
         public Task<ProblemReport?> TryClaimAsync(
             Guid id,

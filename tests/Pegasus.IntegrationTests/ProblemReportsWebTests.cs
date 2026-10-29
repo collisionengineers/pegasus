@@ -252,11 +252,18 @@ public sealed class ProblemReportsWebTests
         Assert.Contains("The inner cause.", request.ExceptionDetails, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The list pages its 201 reports at 50 across five pages, and the oldest,
+    /// Not sent, is on one of them with its Retry; no page reads more than a page and one
+    /// row, and none reads a snapshot (#1542, R242).
+    /// </summary>
     [Fact]
     public async Task TheAdministrationListKeepsTheOldestFailedReportBeyondTwoHundredRows()
     {
         var sink = new RecordingSink { Failure = new HttpRequestException("first report failed") };
-        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, useIntegrationTestAuthentication: true, commandInterceptor: counter);
         using var client = CreateClient(factory, sink, "Engineer");
         var home = await GetHtmlAsync(client, ProblemDialog);
 
@@ -279,7 +286,29 @@ public sealed class ProblemReportsWebTests
         }
 
         using var administrator = CreateClient(factory, sink);
-        var list = await GetHtmlAsync(administrator, ListPage);
+        // The fixed test clock gives every report the same time, so the order
+        // falls to the id and the oldest can be on any page: it is looked for
+        // on each one.
+        var list = string.Empty;
+        for (var page = 1; page <= 5; page++)
+        {
+            counter.Reset();
+            var html = await GetHtmlAsync(administrator, $"{ListPage}?pageNumber={page}");
+            if (html.Contains("Oldest retained report", StringComparison.Ordinal))
+            {
+                list = html;
+            }
+            Assert.Equal(page == 5 ? 1 : ListProblemReports.PageSize, Regex.Count(html, "<tr data-problem-report="));
+            Assert.Equal(page > 1, html.Contains($"pageNumber={page - 1}\">Previous</a>", StringComparison.Ordinal));
+            Assert.Equal(page < 5, html.Contains($"pageNumber={page + 1}\">Next</a>", StringComparison.Ordinal));
+            Assert.True(
+                counter.CountMentioning("[SnapshotJson]") == 0,
+                $"Page {page} read a snapshot." + Environment.NewLine + counter.Describe());
+            Assert.All(
+                counter.Reads.Where(read => read.CommandText.Contains("FROM [ProblemReports]", StringComparison.Ordinal)),
+                read => Assert.True(read.Rows <= ListProblemReports.PageSize + 1, $"A list read took {read.Rows} rows."));
+        }
+
         var descriptionIndex = list.IndexOf("Oldest retained report", StringComparison.Ordinal);
         Assert.True(descriptionIndex >= 0);
         var reportStart = list.LastIndexOf("<tr", descriptionIndex, StringComparison.Ordinal);

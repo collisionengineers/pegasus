@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -214,7 +213,50 @@ public sealed partial class GlassCredentialAdministrationWebTests
     }
 
     /// <summary>
-    /// The list behind the dialogs shows its first page only. An account
+    /// The Staff accounts list shows 50 accounts a page with Previous and Next
+    /// (R233, R417, R418), its heading counts every account on every page
+    /// (R421), and the 101st account's row and its Settings are on the last
+    /// page (#1542). No page reads more than a page and one row of accounts.
+    /// </summary>
+    [Fact]
+    public async Task TheAccountsListPagesAtFiftyAndReachesEveryAccount()
+    {
+        var counter = new SqlStatementCounter();
+        using var factory = new IntakeWebApplicationFactory("Development", true, commandInterceptor: counter);
+        using var client = CreateClient(factory, new RecordingCredentialAdministration());
+        await IntakeWebDriver.SeedUserAccountsAsync(factory, ListStaffAccounts.MaximumPageSize);
+        var total = await CountAccountsAsync(factory);
+        var lastPage = (total + ListStaffAccounts.DefaultPageSize - 1) / ListStaffAccounts.DefaultPageSize;
+        Assert.True(lastPage >= 3, $"{total} accounts fill fewer than three pages.");
+
+        var drawn = 0;
+        for (var page = 1; page <= lastPage; page++)
+        {
+            counter.Reset();
+            var html = await GetHtmlAsync(client, $"{Route}?pageNumber={page}");
+            var accountReads = counter.Reads
+                .Where(read => read.CommandText.Contains("FROM [AspNetUsers]", StringComparison.Ordinal))
+                .ToArray();
+
+            Assert.Contains($"{total} accounts", html, StringComparison.Ordinal);
+            Assert.Contains("aria-label=\"Staff account pages\"", html, StringComparison.Ordinal);
+            Assert.Equal(page > 1, html.Contains($"pageNumber={page - 1}\">Previous</a>", StringComparison.Ordinal));
+            Assert.Equal(page < lastPage, html.Contains($"pageNumber={page + 1}\">Next</a>", StringComparison.Ordinal));
+            var shown = Regex.Count(html, ">Manage login</a>");
+            Assert.InRange(shown, 1, ListStaffAccounts.DefaultPageSize);
+            drawn += shown;
+            Assert.NotEmpty(accountReads);
+            Assert.True(
+                accountReads.All(read => read.Rows <= ListStaffAccounts.DefaultPageSize + 1),
+                $"Page {page} read more than a page of accounts." + Environment.NewLine + counter.Describe());
+            Assert.Equal(page == lastPage, html.Contains($"editStaffId={StaffId:D}", StringComparison.Ordinal));
+        }
+
+        Assert.Equal(total, drawn);
+    }
+
+    /// <summary>
+    /// The list behind the dialogs shows its first page. An account
     /// beyond that page still opens the credential dialog from its deep link,
     /// a save still lands back on that dialog, and the dialog's own exit still
     /// opens the account's settings: each dialog resolves its account directly
@@ -229,13 +271,13 @@ public sealed partial class GlassCredentialAdministrationWebTests
         };
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory, store);
-        // Sorted before the seeded administrator, these fill the first page
-        // and leave the administrator as the 101st account.
-        await SeedUserAccountsAsync(factory, ListStaffAccounts.MaximumPageSize);
+        // Sorted before the seeded administrator, these fill the first two
+        // pages and leave the administrator as the 101st account.
+        await IntakeWebDriver.SeedUserAccountsAsync(factory, ListStaffAccounts.MaximumPageSize);
 
         var html = await GetHtmlAsync(client, PageFor(StaffId));
-        // Razor encodes the plus sign, so the meta is read decoded.
-        Assert.Contains($"{ListStaffAccounts.MaximumPageSize}+ accounts", WebUtility.HtmlDecode(html), StringComparison.Ordinal);
+        // The heading counts every account, not the page's rows (R421).
+        Assert.Contains($"{await CountAccountsAsync(factory)} accounts", html, StringComparison.Ordinal);
         Assert.DoesNotContain($"glassStaffId={StaffId:D}", html, StringComparison.Ordinal);
         var save = FormOf(DialogOf(html), "SaveGlass");
         var accountVersion = InputValue(save, "ExpectedStaffAccountVersion");
@@ -520,34 +562,14 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    /// <summary>
-    /// Enabled User-role accounts written straight to the store, one row and
-    /// one role each, with no password to hash.
-    /// </summary>
-    private static async Task SeedUserAccountsAsync(IntakeWebApplicationFactory factory, int count)
+    /// <summary>Every staff account in the store, as the list's heading counts them.</summary>
+    private static async Task<int> CountAccountsAsync(IntakeWebApplicationFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
-        var role = await context.Roles.SingleAsync(item => item.Name == StaffRoleNames.User);
-        for (var index = 0; index < count; index++)
-        {
-            var userName = $"bulk-{index:D3}";
-            var user = new PegasusIdentityUser
-            {
-                Id = Guid.NewGuid(),
-                UserName = userName,
-                NormalizedUserName = userName.ToUpperInvariant(),
-                IsEnabled = true,
-                MustChangePassword = false,
-                SecurityStamp = Guid.NewGuid().ToString("N"),
-                ConcurrencyStamp = Guid.NewGuid().ToString("N"),
-            };
-            context.Users.Add(user);
-            context.UserRoles.Add(new IdentityUserRole<Guid> { UserId = user.Id, RoleId = role.Id });
-        }
-        await context.SaveChangesAsync();
+        return await context.Users.CountAsync();
     }
 
     private static PerUserExternalCredentialStatus Configured(long version, long generation) =>

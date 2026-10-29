@@ -51,6 +51,22 @@
                 </table>
             </div>
             }
+            @if (Model.CurrentPage > 1 || Model.HasMore)
+            {
+                <div class="panel-foot">
+                    <nav class="pagination" aria-label="Release note pages">
+                        @if (Model.CurrentPage > 1)
+                        {
+                            <a class="btn btn--small" asp-page="/Administration/ReleaseNotes/Index" asp-route-pageNumber="@(Model.CurrentPage - 1)">Previous</a>
+                        }
+                        <span>Page @Model.CurrentPage</span>
+                        @if (Model.HasMore)
+                        {
+                            <a class="btn btn--small" asp-page="/Administration/ReleaseNotes/Index" asp-route-pageNumber="@(Model.CurrentPage + 1)">Next</a>
+                        }
+                    </nav>
+                </div>
+            }
         </section>
     </div>
 </div>

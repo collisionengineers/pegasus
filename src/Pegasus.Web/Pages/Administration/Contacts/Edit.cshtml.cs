@@ -66,15 +66,15 @@ public sealed class EditModel(
 
     [BindProperty] public Guid ContactId { get; set; }
     [BindProperty] public long ExpectedVersion { get; set; }
-    [BindProperty, Required, StringLength(ContactDirectoryPolicy.MaximumNameLength)] public string Name { get; set; } = string.Empty;
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumContactPersonLength)] public string? ContactPerson { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumEmailLength)] public string? Email { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumTelephoneLength)] public string? Telephone { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumAddressLength)] public string? Address { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumPostcodeLength)] public string? Postcode { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength)] public string? NotesOnEveryCase { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.OrganisationNameField), Required(ErrorMessage = OperatorLabels.Contacts.NameRequired), StringLength(ContactDirectoryPolicy.MaximumNameLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string Name { get; set; } = string.Empty;
+    [BindProperty, Display(Name = OperatorLabels.Contacts.ContactPersonField), StringLength(ContactDirectoryPolicy.MaximumContactPersonLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? ContactPerson { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.EmailField), StringLength(ContactDirectoryPolicy.MaximumEmailLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Email { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.PhoneField), StringLength(ContactDirectoryPolicy.MaximumTelephoneLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Telephone { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.AddressField), StringLength(ContactDirectoryPolicy.MaximumAddressLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Address { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.PostcodeField), StringLength(ContactDirectoryPolicy.MaximumPostcodeLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? Postcode { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.NotesOnEveryCaseField), StringLength(ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? NotesOnEveryCase { get; set; }
     [BindProperty] public bool Active { get; set; } = true;
-    [BindProperty, StringLength(20)] public string? PrincipalCode { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.PrincipalAdministration.CodeField), StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? PrincipalCode { get; set; }
     [BindProperty] public CaseInspectionMode PrincipalInspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
     [BindProperty] public Guid[] LinkedPrincipalIds { get; set; } = [];
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
@@ -94,14 +94,14 @@ public sealed class EditModel(
     public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
     public IReadOnlyList<ContactChoice> RepairerChoices { get; private set; } = [];
     [BindProperty] public bool LocationIsImageBasedAssessment { get; set; }
-    [BindProperty, StringLength(200)] public string? LocationLabel { get; set; }
-    [BindProperty, StringLength(500)] public string? LocationAddress { get; set; }
-    [BindProperty, StringLength(20)] public string? LocationPostcode { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.PrincipalAdministration.LocationLabelField), StringLength(200, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationLabel { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.AddressField), StringLength(500, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationAddress { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.PostcodeField), StringLength(20, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationPostcode { get; set; }
     [BindProperty] public string? LocationOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public long CredentialVersion { get; set; }
     [BindProperty] public string? CredentialOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public long ReplacementExpectedVersion { get; set; }
-    [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength)] public string SuccessorCode { get; set; } = string.Empty;
+    [BindProperty, Display(Name = OperatorLabels.PrincipalAdministration.NewCodeField), Required(ErrorMessage = OperatorLabels.PrincipalAdministration.NewCodeRequired), StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string SuccessorCode { get; set; } = string.Empty;
     [BindProperty] public string? ReplacementOperationKey { get; set; } = NewOperationKey();
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -115,7 +115,7 @@ public sealed class EditModel(
         await LoadPrincipalAsync(actor, cancellationToken, readCredential: CurrentTab == ApiTab);
         InitializePrincipalSettings();
         await LoadReportSendingChoicesAsync(actor, cancellationToken);
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
+        await LoadPrincipalChoicesAsync(actor, cancellationToken);
         return Page();
     }
 
@@ -129,8 +129,8 @@ public sealed class EditModel(
         if (Contact is null) return NotFound();
         // These fields belong to separate consequential Principal actions.
         ModelState.Remove(nameof(SuccessorCode));
-        if (!IsOperationKeyValid(OperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Open the contact again.");
-        if (!Enum.IsDefined(PrincipalInspectionMode)) ModelState.AddModelError(nameof(PrincipalInspectionMode), "Select an inspection mode.");
+        if (!IsOperationKeyValid(OperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.EditFormExpired);
+        if (!Enum.IsDefined(PrincipalInspectionMode)) ModelState.AddModelError(nameof(PrincipalInspectionMode), OperatorLabels.Contacts.SelectInspectionMode);
         if (ModelState.IsValid)
         {
             try
@@ -138,21 +138,21 @@ public sealed class EditModel(
                 var isPrincipal = Contact.Role == ContactRole.Principal;
                 await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Contact.Role, isPrincipal ? PrincipalCode : null, PrincipalInspectionMode, isPrincipal ? [] : LinkedPrincipalIds, OperationKey,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Contact.NotesOnEveryCase), cancellationToken);
-                TempData["AdministrationStatus"] = "The contact was saved.";
+                TempData["AdministrationStatus"] = OperatorLabels.Contacts.Saved;
                 return RedirectToPage("Index");
             }
             catch (ContactDirectoryException exception) { ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.ErrorMessage(exception.Error)); }
             catch (ArgumentException exception)
             {
-                // A named field error is shown against its own control; every
-                // other refusal keeps the general notice.
+                // A named field error is keyed to its own control; every other
+                // refusal keeps the general notice.
                 if (exception.ParamName == nameof(Telephone))
                 {
-                    ModelState.AddModelError(nameof(Telephone), "Phone must be digits.");
+                    ModelState.AddModelError(nameof(Telephone), OperatorLabels.Contacts.PhoneMustBeDigits);
                 }
                 else
                 {
-                    ModelState.AddModelError(string.Empty, "The contact details were not accepted.");
+                    ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.DetailsNotAccepted);
                 }
             }
         }
@@ -173,7 +173,7 @@ public sealed class EditModel(
             nameof(ReportSettingsOperationKey));
         var expectedVersion = PrincipalExpectedVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
-        if (!IsOperationKeyValid(ReportSettingsOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        if (!IsOperationKeyValid(ReportSettingsOperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.FormExpired);
         if (ModelState.IsValid)
         {
             try
@@ -182,13 +182,12 @@ public sealed class EditModel(
                     Principal!.Id, expectedVersion, actor, ReportSettingsOperationKey!,
                     "Updated report settings",
                     DefaultFee ?? 0m,
-                    ExpectedVersion,
-                    Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Principal.NotesOnEveryCase), cancellationToken);
-                TempData["AdministrationStatus"] = "The principal's report settings were updated.";
+                    ExpectedVersion), cancellationToken);
+                TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.ReportSettingsUpdated;
                 return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The settings were not accepted."); }
+            catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.SettingsNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
         var typedFee = DefaultFee;
@@ -211,7 +210,7 @@ public sealed class EditModel(
         var expectedVersion = PrincipalExpectedVersion;
         var posted = PostedSalvageRows();
         if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
-        if (!IsOperationKeyValid(SalvageMatrixOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        if (!IsOperationKeyValid(SalvageMatrixOperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.FormExpired);
         if (ModelState.IsValid)
         {
             try
@@ -219,12 +218,12 @@ public sealed class EditModel(
                 await updatePrincipalSalvageMatrix.ExecuteAsync(new(
                     Principal!.Id, expectedVersion, actor, SalvageMatrixOperationKey!,
                     SalvageMatrix.FromEntries(posted), ExpectedVersion), cancellationToken);
-                TempData["AdministrationStatus"] = "The principal's salvage matrix was updated.";
+                TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.SalvageMatrixUpdated;
                 return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (SalvageMatrixException exception) { ModelState.AddModelError(string.Empty, SalvageMatrixErrorMessage(exception)); }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The settings were not accepted."); }
+            catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.SettingsNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
         await PopulateAsync(actor, cancellationToken);
@@ -246,7 +245,7 @@ public sealed class EditModel(
         var expectedVersion = PrincipalExpectedVersion;
         var posted = PostedReportSending();
         if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
-        if (!IsOperationKeyValid(ReportSendingOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        if (!IsOperationKeyValid(ReportSendingOperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.FormExpired);
         if (ModelState.IsValid)
         {
             try
@@ -254,12 +253,12 @@ public sealed class EditModel(
                 await updatePrincipalReportSending.ExecuteAsync(new(
                     Principal!.Id, expectedVersion, actor, ReportSendingOperationKey!,
                     posted, ExpectedVersion), cancellationToken);
-                TempData["AdministrationStatus"] = "The principal's report sending rules were updated.";
+                TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.ReportSendingUpdated;
                 return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (ReportSendingRulesException exception) { ModelState.AddModelError(string.Empty, ReportSendingRulesErrorMessage(exception)); }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The settings were not accepted."); }
+            catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.SettingsNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
         await PopulateAsync(actor, cancellationToken);
@@ -284,19 +283,19 @@ public sealed class EditModel(
             nameof(LocationOperationKey));
         var expectedVersion = PrincipalExpectedVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
-        if (!IsOperationKeyValid(LocationOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        if (!LocationIsImageBasedAssessment && string.IsNullOrWhiteSpace(LocationAddress)) ModelState.AddModelError(nameof(LocationAddress), "An address is required.");
+        if (!IsOperationKeyValid(LocationOperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.FormExpired);
+        if (!LocationIsImageBasedAssessment && string.IsNullOrWhiteSpace(LocationAddress)) ModelState.AddModelError(nameof(LocationAddress), OperatorLabels.PrincipalAdministration.AddressRequired);
         if (ModelState.IsValid)
         {
             try
             {
                 await updatePrincipalDefaultInspectionLocation.ExecuteAsync(new(actor, Principal!.Id, expectedVersion, LocationOperationKey!, LocationIsImageBasedAssessment ? InspectionAddressEvidenceKind.ImageBasedAssessment : InspectionAddressEvidenceKind.PhysicalAddress, LocationLabel, LocationAddress, LocationPostcode, "manual", null, null,
                     ExpectedVersion), cancellationToken);
-                TempData["AdministrationStatus"] = "The principal's default inspection location was updated.";
+                TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.DefaultLocationUpdated;
                 return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The default location was not accepted."); }
+            catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.DefaultLocationNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
         var (imageBased, label, address, postcode) = (LocationIsImageBasedAssessment, LocationLabel, LocationAddress, LocationPostcode);
@@ -323,19 +322,20 @@ public sealed class EditModel(
             nameof(ReplacementOperationKey));
         var expectedVersion = ReplacementExpectedVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
-        if (!IsOperationKeyValid(ReplacementOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        if (string.IsNullOrWhiteSpace(SuccessorCode)) ModelState.AddModelError(nameof(SuccessorCode), "A new principal code is required.");
+        if (!IsOperationKeyValid(ReplacementOperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.FormExpired);
         if (ModelState.IsValid)
         {
             try
             {
                 await replacePrincipal.ExecuteAsync(new(Principal!.Id, expectedVersion, SuccessorCode, actor, ReplacementOperationKey!, Reason: null,
                     ExpectedVersion), cancellationToken);
-                TempData["AdministrationStatus"] = "The predecessor was disabled and its linked successor was created.";
+                TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.Replaced;
                 return RedirectToPage("Index");
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The replacement details were not accepted."); }
+            // The rule a typed code fails is named; anything else keeps the general notice (R539).
+            catch (ArgumentException exception) when (exception.ParamName == nameof(SuccessorCode)) { ModelState.AddModelError(nameof(SuccessorCode), OperatorLabels.PrincipalAdministration.CodeLettersAndDigitsOnly(OperatorLabels.PrincipalAdministration.NewCodeField)); }
+            catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.ReplacementNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
         ReplaceRefused = true;
@@ -355,7 +355,7 @@ public sealed class EditModel(
             nameof(CredentialOperationKey));
         var submittedVersion = CredentialVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
-        if (!IsOperationKeyValid(CredentialOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        if (!IsOperationKeyValid(CredentialOperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.FormExpired);
         if (ModelState.IsValid)
         {
             try
@@ -381,21 +381,15 @@ public sealed class EditModel(
                     "revoke" => await revokeCredential.ExecuteAsync(request, cancellationToken),
                     _ => throw new InvalidOperationException("Unknown credential action.")
                 };
-                TempData["AdministrationStatus"] = "The principal credential was updated.";
+                TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.CredentialUpdated;
                 return RedirectToPage(new { id = ContactId, tab = Tab });
             }
             catch (PrincipalCredentialException exception)
             {
-                ModelState.AddModelError(string.Empty, exception.Error switch
-                {
-                    PrincipalCredentialError.StaleVersion => "The API key changed. Retry from the current settings.",
-                    PrincipalCredentialError.OperationConflict => "The form was already used for a different operation.",
-                    PrincipalCredentialError.PrincipalInactive => "The principal is disabled.",
-                    _ => "The API key change was not accepted."
-                });
+                ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.CredentialErrorMessage(exception.Error));
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The API key change was not accepted."); }
+            catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.CredentialNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
         await PopulateAsync(actor, cancellationToken);
@@ -411,15 +405,16 @@ public sealed class EditModel(
             await LoadPrincipalAsync(actor, cancellationToken, readCredential: readCredential && CurrentTab == ApiTab);
             InitializePrincipalSettings();
             await LoadReportSendingChoicesAsync(actor, cancellationToken);
+            await LoadPrincipalChoicesAsync(actor, cancellationToken);
         }
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
     }
 
     // The mailboxes a new message may leave from (the Outgoing ones that can
-    // send, as the report send form offers them) and the contacts a rule may name.
+    // send, as the report send form offers them) and the contacts a rule may name,
+    // read only for the Report sending tab, the one tab that draws them (#1542).
     private async Task LoadReportSendingChoicesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        if (Principal is not { IsActive: true }) return;
+        if (Principal is not { IsActive: true } || CurrentTab != ReportSendingTab) return;
         SendFromChoices = (await approvedMailboxes.ListAsync(cancellationToken))
             .Where(mailbox => mailbox.CanSend)
             .Select(mailbox => mailbox.Address)
@@ -427,6 +422,14 @@ public sealed class EditModel(
             .ToArray();
         ClaimSourceChoices = await contacts.ListByRoleAsync(actor, ContactRole.ClaimSource, cancellationToken);
         RepairerChoices = await contacts.ListByRoleAsync(actor, ContactRole.Repairer, cancellationToken);
+    }
+
+    // The Principals a contact may link to: drawn only on the one panel of a
+    // contact that is not a Principal (#1542).
+    private async Task LoadPrincipalChoicesAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (Contact is not { Role: not ContactRole.Principal }) return;
+        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
     }
 
     private void ClearModelStatePreservingErrors(params string[] fieldNames)
@@ -438,7 +441,7 @@ public sealed class EditModel(
             {
                 item.Name,
                 Message = string.IsNullOrWhiteSpace(error.ErrorMessage)
-                    ? "The submitted value is not valid."
+                    ? OperatorLabels.PrincipalAdministration.SubmittedValueInvalid
                     : error.ErrorMessage
             }))
             .ToArray();
@@ -604,7 +607,7 @@ public sealed class EditModel(
             SalvageMatrixRule.InvalidAmount => $"{category}: amounts must be £0.00 or more.",
             SalvageMatrixRule.InvalidPercentage => $"{category}: Percentage paid must be 0 to 100.",
             SalvageMatrixRule.Overlap => $"{category}: bands overlap ({BandRange(exception.Band!)} and {BandRange(exception.OtherBand!)}).",
-            _ => "The settings were not accepted."
+            _ => OperatorLabels.PrincipalAdministration.SettingsNotAccepted
         };
     }
 
@@ -636,7 +639,7 @@ public sealed class EditModel(
             ReportSendingRulesRule.EmptyCondition => $"{where}: a condition needs a value.",
             ReportSendingRulesRule.EmptyActions => $"{where}: add at least one action.",
             ReportSendingRulesRule.UnknownNameToken => "Attachment name: use only {ref}, {reg} and {outcome}.",
-            _ => "The settings were not accepted."
+            _ => OperatorLabels.PrincipalAdministration.SettingsNotAccepted
         };
     }
 
@@ -647,17 +650,6 @@ public sealed class EditModel(
         exception.Error == OrganizationAdministrationError.StaleVersion
             && Contact is { } contact
             && ExpectedVersion != contact.Version
-                ? "This contact changed. Reload it before making further changes."
-                : PrincipalErrorMessage(exception.Error);
-
-    private static string PrincipalErrorMessage(OrganizationAdministrationError error) => error switch
-    {
-        OrganizationAdministrationError.PrincipalNotFound => "The principal no longer exists.",
-        OrganizationAdministrationError.PrincipalInactive => "The principal is disabled. Change the settings on its successor instead.",
-        OrganizationAdministrationError.PrincipalAlreadyReplaced => "The predecessor already has a linked successor.",
-        OrganizationAdministrationError.DuplicatePrincipalCode => "That normalized successor code already exists.",
-        OrganizationAdministrationError.StaleVersion => "The principal changed after this page was loaded. Review the current settings and retry.",
-        OrganizationAdministrationError.OperationConflict => "The form was already used for a different operation. Retry from the current page.",
-        _ => "The settings change was not accepted."
-    };
+                ? OperatorLabels.PrincipalAdministration.ContactChanged
+                : OperatorLabels.PrincipalAdministration.ErrorMessage(exception.Error);
 }

@@ -54,8 +54,9 @@ public sealed class LogsModel(
     private readonly Dictionary<Guid, string> _caseReferences = [];
     private readonly Dictionary<Guid, AiJobReference> _aiJobReferences = [];
     private IReadOnlyDictionary<Guid, string> _staffNames = new Dictionary<Guid, string>();
-    [BindProperty(SupportsGet = true)] public DateTimeOffset? From { get; set; }
-    [BindProperty(SupportsGet = true)] public DateTimeOffset? To { get; set; }
+    /// <summary>The period pickers, in London office time (R532), as on Management Reports.</summary>
+    [BindProperty(SupportsGet = true)] public DateTime? From { get; set; }
+    [BindProperty(SupportsGet = true)] public DateTime? To { get; set; }
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public string? Area { get; set; }
     [BindProperty(SupportsGet = true)] public string? Actor { get; set; }
@@ -68,7 +69,7 @@ public sealed class LogsModel(
     public bool OldestFirst { get; private set; }
     public ActionLogPage Result { get; private set; } = new([], false);
     public int CurrentPage { get; private set; } = 1;
-    public IReadOnlyList<StaffAccountSummary> People { get; private set; } = [];
+    public IReadOnlyList<(Guid Id, string UserName)> People { get; private set; } = [];
     public string? AutomationActorSubjectId { get; private set; }
 
     public string AutomationActorLabel => OperatorLabels.AutomationActorLabel(
@@ -105,10 +106,10 @@ public sealed class LogsModel(
         }
 
         await LoadPeopleAsync(cancellationToken);
-        var to = To ?? timeProvider.GetUtcNow();
-        var from = From ?? to.AddDays(-31);
-        From = from;
-        To = to;
+        var to = To is { } localTo ? Pegasus.Core.LondonCalendar.ToUtc(localTo) : timeProvider.GetUtcNow();
+        var from = From is { } localFrom ? Pegasus.Core.LondonCalendar.ToUtc(localFrom) : to.AddDays(-31);
+        From = Pegasus.Core.LondonCalendar.TimeAt(from);
+        To = Pegasus.Core.LondonCalendar.TimeAt(to);
         CurrentPage = page < 1 ? 1 : page;
         OldestFirst = string.Equals(Sort, "oldest", StringComparison.Ordinal);
         if (page < 1)
@@ -118,7 +119,7 @@ public sealed class LogsModel(
         }
         if (from >= to || to - from > ListActionLogs.MaximumPeriod)
         {
-            ModelState.AddModelError(string.Empty, "Choose a valid UTC period.");
+            ModelState.AddModelError(string.Empty, OperatorLabels.IntakeLog.PeriodInvalid);
             return Page();
         }
         try
@@ -181,11 +182,17 @@ public sealed class LogsModel(
         CancellationToken cancellationToken) =>
         ExecuteIntakeActionAsync(
             receiptId,
+            expectedVersion,
+            operationKey,
             returnUrl,
             reason,
-            actor => reevaluateIntake.ExecuteAsync(
-                new(receiptId, expectedVersion, actor, operationKey, reason!.Trim()),
-                cancellationToken),
+            async actor =>
+            {
+                await reevaluateIntake.ExecuteAsync(
+                    new(receiptId, expectedVersion, actor, operationKey, reason!.Trim()),
+                    cancellationToken);
+                return null;
+            },
             "Re-evaluation with current policy was queued.");
 
     /// <summary>Retry OCR: Core records the retry and the Worker runs the OCR again.</summary>
@@ -198,11 +205,17 @@ public sealed class LogsModel(
         CancellationToken cancellationToken) =>
         ExecuteIntakeActionAsync(
             receiptId,
+            expectedVersion,
+            operationKey,
             returnUrl,
             reason,
-            actor => retryIntakeOcr.ExecuteAsync(
-                new(receiptId, expectedVersion, actor, operationKey, reason!.Trim()),
-                cancellationToken),
+            async actor =>
+            {
+                await retryIntakeOcr.ExecuteAsync(
+                    new(receiptId, expectedVersion, actor, operationKey, reason!.Trim()),
+                    cancellationToken);
+                return null;
+            },
             "OCR will be retried.");
 
     public Task<IActionResult> OnPostRetryIntakeAllocationAsync(
@@ -215,6 +228,8 @@ public sealed class LogsModel(
         CancellationToken cancellationToken) =>
         ExecuteIntakeActionAsync(
             receiptId,
+            expectedVersion,
+            operationKey,
             returnUrl,
             reason,
             async actor =>
@@ -222,53 +237,80 @@ public sealed class LogsModel(
                 var result = await allocateIntake.RetryAsync(
                     new(receiptId, expectedVersion, expectedAttemptId, actor, operationKey, reason!.Trim()),
                     cancellationToken);
-                if (result.State.Status != IntakeAllocationProjectionStatus.Succeeded)
-                {
-                    throw new InvalidOperationException(
-                        result.State.SafeReason ?? "The case could not be created. No reference was allocated.");
-                }
+                return result.State.Status == IntakeAllocationProjectionStatus.Succeeded
+                    ? null
+                    : result.State.SafeReason ?? "The case could not be created. No reference was allocated.";
             },
             "Allocation was retried and the case was created.");
 
+    /// <summary>
+    /// Runs one drawer action. The form is checked first: a missing key or
+    /// version is an expired form, never a changed item (FRD-17 keeps
+    /// validation and conflict distinct). The action answers null when it ran,
+    /// or the sentence to show when it ran and did not succeed.
+    /// </summary>
     private async Task<IActionResult> ExecuteIntakeActionAsync(
         Guid receiptId,
+        long expectedVersion,
+        string? operationKey,
         string? returnUrl,
         string? reason,
-        Func<ActionActor, Task> action,
+        Func<ActionActor, Task<string?>> action,
         string confirmation)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        if (receiptId == Guid.Empty || string.IsNullOrWhiteSpace(reason))
+        if (receiptId == Guid.Empty || expectedVersion < 0 || !IsOperationKeyValid(operationKey))
         {
-            LogsError = "Give a reason for this action.";
+            LogsError = OperatorLabels.IntakeLog.Expired;
+            return ReturnFromIntakeAction(receiptId, returnUrl);
+        }
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            LogsError = OperatorLabels.IntakeLog.ReasonRequired;
             return ReturnFromIntakeAction(receiptId, returnUrl);
         }
 
         try
         {
-            await action(actor);
-            TempData["Confirmation"] = confirmation;
+            if (await action(actor) is { } failure)
+            {
+                LogsError = failure;
+            }
+            else
+            {
+                TempData["Confirmation"] = confirmation;
+            }
         }
         catch (StaffAuthorizationException)
         {
             return Forbid();
         }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or IntakeVersionConflictException
-            or IntakeOperationConflictException
-            or IntakeAllocationConcurrencyException
-            or IntakeAllocationOperationConflictException
-            or KeyNotFoundException)
+        catch (Exception exception) when (IntakeActionRefusal(exception) is { } refusal)
         {
-            LogsError = exception is InvalidOperationException { Message: { Length: > 0 } message }
-                && exception.GetType() == typeof(InvalidOperationException)
-                ? message
-                : "The received item changed. Reload it before trying again.";
+            LogsError = refusal;
         }
 
         return ReturnFromIntakeAction(receiptId, returnUrl);
     }
+
+    /// <summary>
+    /// The page's sentence for a refused drawer action, or null for a fault
+    /// that is not a refusal. The store's own text never reaches the page.
+    /// </summary>
+    private static string? IntakeActionRefusal(Exception exception) => exception switch
+    {
+        ArgumentException { ParamName: "reason" } => OperatorLabels.IntakeLog.ReasonTooLong,
+        ArgumentException => OperatorLabels.IntakeLog.Expired,
+        IntakeArtifactIntegrityException => OperatorLabels.IntakeLog.RetainedFileMismatch,
+        InvalidOperationException
+            or InvalidDataException
+            or IntakeVersionConflictException
+            or IntakeOperationConflictException
+            or IntakeAllocationConcurrencyException
+            or IntakeAllocationOperationConflictException
+            or KeyNotFoundException => OperatorLabels.IntakeLog.ItemChanged,
+        _ => null
+    };
 
     private IActionResult ReturnFromIntakeAction(Guid receiptId, string? returnUrl) =>
         !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)
@@ -297,10 +339,12 @@ public sealed class LogsModel(
 
     private async Task LoadPeopleAsync(CancellationToken cancellationToken)
     {
-        var people = await staffAccounts.ListAsync(0, 100, cancellationToken);
-        People = people.Accounts
-            .OrderBy(account => account.UserName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(account => account.Id)
+        // Every account's name, so the Person filter offers one past the hundredth (#1542).
+        var people = await staffAccounts.ListNamesAsync(cancellationToken);
+        People = people
+            .Select(person => (Id: person.Key, UserName: person.Value))
+            .OrderBy(person => person.UserName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(person => person.Id)
             .ToArray();
         AutomationActorSubjectId = HttpContext.RequestServices
             .GetService<AutomationMcpOptions>()?
@@ -534,8 +578,12 @@ public sealed class LogsModel(
         }
     }
 
-    private static string Query(DateTimeOffset? value) =>
-        value is { } present ? Uri.EscapeDataString(present.ToString("O")) : string.Empty;
+    // The London wall clock at full precision and with no offset, so Next,
+    // Previous and Sort keep the first page's exact window.
+    private static string Query(DateTime? value) =>
+        value is { } present
+            ? Uri.EscapeDataString(present.ToString("yyyy-MM-ddTHH:mm:ss.FFFFFFF", System.Globalization.CultureInfo.InvariantCulture))
+            : string.Empty;
 
     private static string Query(string? value) => Uri.EscapeDataString(value ?? string.Empty);
 }

@@ -45,8 +45,8 @@
                                 }
                             </td>
                             <td>@Model.ReportedBy(report)</td>
-                            <td>@OperatorLabels.ProblemReports.PageName(report.Snapshot.Route)</td>
-                            <td class="mono">@(report.Snapshot.CaseReference ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                            <td>@OperatorLabels.ProblemReports.PageName(report.Route)</td>
+                            <td class="mono">@(report.CaseReference ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
                             <td>@report.Description</td>
                             <td>
                                 <partial name="Shared/_StatusChip" model="@OperatorLabels.ProblemReportStatus(report.Status)" />
@@ -91,6 +91,22 @@
                     </tbody>
                 </table>
             </div>
+            }
+            @if (Model.CurrentPage > 1 || Model.HasMore)
+            {
+                <div class="panel-foot">
+                    <nav class="pagination" aria-label="Problem report pages">
+                        @if (Model.CurrentPage > 1)
+                        {
+                            <a class="btn btn--small" asp-page="/Administration/ProblemReports" asp-route-pageNumber="@(Model.CurrentPage - 1)">Previous</a>
+                        }
+                        <span>Page @Model.CurrentPage</span>
+                        @if (Model.HasMore)
+                        {
+                            <a class="btn btn--small" asp-page="/Administration/ProblemReports" asp-route-pageNumber="@(Model.CurrentPage + 1)">Next</a>
+                        }
+                    </nav>
+                </div>
             }
         </section>
     </div>
