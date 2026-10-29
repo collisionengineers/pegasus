@@ -529,6 +529,9 @@ public sealed class CaseEditModeWebTests
                 ("claimantName", "Rebecca Proposed")));
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Empty(store.Saves);
+        // An account refused casework is refused the resume too (CaseEditLeases checks casework
+        // before the port), which this store does not model: it holds no lease to hand back.
+        store.LeaseHolder = null;
         var refused = await workspace.GetWorkspaceAsync();
         Assert.Contains("Rebecca Proposed", ProposedValuesPanel(refused), StringComparison.Ordinal);
         Assert.DoesNotContain(store.LeaseToken, refused, StringComparison.Ordinal);
