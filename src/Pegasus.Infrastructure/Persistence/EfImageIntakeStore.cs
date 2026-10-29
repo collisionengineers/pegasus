@@ -729,12 +729,12 @@ public sealed class EfImageIntakeStore(
         ImageIntakeLifecycleRules.RequireTransitionable(ParseState(entity.LifecycleState));
 
         string? caseReference = null;
-        CaseMutationAuthority? mergeAuthority = null;
+        CaseMutationGuard? mergeAuthority = null;
         if (caseId is { } targetCaseId)
         {
             // A Case answers through its workflow; a Triage Case, which has
             // none, through its Triage. Only an archived Case is refused here.
-            var caseAuthority = await CaseMutationAuthority.LoadAsync(context, targetCaseId, cancellationToken)
+            var caseAuthority = await CaseMutationGuard.LoadAsync(context, targetCaseId, cancellationToken)
                 ?? throw new KeyNotFoundException($"Case '{targetCaseId}' does not exist.");
             caseAuthority.RequireMutable(anyLifecycleState: true);
 
@@ -1720,7 +1720,7 @@ public sealed class EfImageIntakeStore(
             .Select(item => item.Reference)
             .SingleAsync(cancellationToken);
         // A Triage Case is linked to as every Case is; its version is its Triage's.
-        var version = await CaseMutationAuthority.ReadVersionAsync(context, caseId.Value, cancellationToken)
+        var version = await CaseMutationGuard.ReadVersionAsync(context, caseId.Value, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{caseId.Value}' does not exist.");
         return (caseId.Value, reference, version);
     }
