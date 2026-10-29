@@ -77,6 +77,8 @@ public sealed record CaseWorkflowConfiguration(
     string PolicyKey,
     int PolicyVersion)
 {
+    public const int MinimumChaseIntervalDays = 1;
+    public const int MaximumChaseIntervalDays = 365;
     public const int MinimumTargetDays = 0;
     public const int MaximumTargetDays = 365;
 

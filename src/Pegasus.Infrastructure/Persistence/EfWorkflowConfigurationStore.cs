@@ -58,10 +58,6 @@ public sealed class EfWorkflowConfigurationStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageWorkflowConfiguration);
-        if (request.ChaseIntervalDays is < 1 or > 365)
-            throw new ArgumentOutOfRangeException(nameof(request));
-        if (request.TargetDays().Any(target => target.Days is < CaseWorkflowConfiguration.MinimumTargetDays or > CaseWorkflowConfiguration.MaximumTargetDays))
-            throw new ArgumentOutOfRangeException(nameof(request));
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
 
