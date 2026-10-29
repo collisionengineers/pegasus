@@ -165,7 +165,7 @@ public sealed class AssignTriage(ITriageStore store) : IAssignTriage
 /// than recording the note twice. A note is never editable and never replaces
 /// an earlier one; correcting a note means writing another.
 /// </remarks>
-public sealed class AddTriageNote(ITriageStore store) : IAddTriageNote
+public sealed class AddTriageNote(ITriageStore store)
 {
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
@@ -188,7 +188,7 @@ public sealed class AddTriageNote(ITriageStore store) : IAddTriageNote
     }
 }
 
-public sealed class UnassignTriage(ITriageStore store) : IUnassignTriage
+public sealed class UnassignTriage(ITriageStore store)
 {
     /// <summary>The fixed history text: removing the assignee needs no reason.</summary>
     public const string Reason = "Unassigned.";

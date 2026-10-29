@@ -83,9 +83,9 @@ public sealed class HoldCase(IPutCaseOnHold hold) : IHoldCase
         _hold.ExecuteAsync(request, cancellationToken);
 }
 
-public sealed class ReleaseCase(IReleaseCaseHold release) : IReleaseCase
+public sealed class ReleaseCase(ReleaseCaseHold release) : IReleaseCase
 {
-    private readonly IReleaseCaseHold _release =
+    private readonly ReleaseCaseHold _release =
         release ?? throw new ArgumentNullException(nameof(release));
 
     public Task<CaseWorkflowRecord> ExecuteAsync(
@@ -95,12 +95,12 @@ public sealed class ReleaseCase(IReleaseCaseHold release) : IReleaseCase
 }
 
 public sealed class TransitionCase(
-    IReturnCaseToReview returnToReview,
-    IStartCaseWork startCaseWork) : ITransitionCase
+    ReturnCaseToReview returnToReview,
+    StartCaseWork startCaseWork) : ITransitionCase
 {
-    private readonly IReturnCaseToReview _returnToReview =
+    private readonly ReturnCaseToReview _returnToReview =
         returnToReview ?? throw new ArgumentNullException(nameof(returnToReview));
-    private readonly IStartCaseWork _startCaseWork =
+    private readonly StartCaseWork _startCaseWork =
         startCaseWork ?? throw new ArgumentNullException(nameof(startCaseWork));
 
     public Task<CaseWorkflowRecord> ExecuteAsync(

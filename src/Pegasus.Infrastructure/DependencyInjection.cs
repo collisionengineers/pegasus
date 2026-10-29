@@ -204,13 +204,13 @@ public static class DependencyInjection
         services.AddScoped<ITriageResponseEvidenceCandidateQueries>(
             provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<IListTriage, ListTriage>();
-        services.AddScoped<IListTriagePage, ListTriagePage>();
+        services.AddScoped<ListTriagePage>();
         services.AddScoped<IGetTriage, GetTriage>();
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
         services.AddScoped<ITriageCasePairing, TriageCasePairing>();
         services.AddScoped<IAssignTriage, AssignTriage>();
-        services.AddScoped<IAddTriageNote, AddTriageNote>();
-        services.AddScoped<IUnassignTriage, UnassignTriage>();
+        services.AddScoped<AddTriageNote>();
+        services.AddScoped<UnassignTriage>();
         services.AddScoped<IAwaitTriageInformation, AwaitTriageInformation>();
         services.AddScoped<IRecordTriageFinding, RecordTriageFinding>();
         services.AddScoped<ISupersedeTriageFinding, SupersedeTriageFinding>();
@@ -591,10 +591,10 @@ public static class DependencyInjection
         services.AddScoped<ICreateAuditStore, EfCreateAuditStore>();
         services.AddScoped<ICreateAudit, CreateAudit>();
         services.AddScoped<IPutCaseOnHold, PutCaseOnHold>();
-        services.AddScoped<IReleaseCaseHold, ReleaseCaseHold>();
-        services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
+        services.AddScoped<ReleaseCaseHold>();
+        services.AddScoped<ReturnCaseToReview>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
-        services.AddScoped<IStartCaseWork, StartCaseWork>();
+        services.AddScoped<StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();
         services.AddScoped<IReleaseCase, ReleaseCase>();
         services.AddScoped<ITransitionCase, TransitionCase>();
@@ -604,7 +604,7 @@ public static class DependencyInjection
         services.AddScoped<IUnlinkReportEvidence, UnlinkReportEvidence>();
         services.AddScoped<ICloseCase, CloseCase>();
         services.AddScoped<IReopenCase, ReopenCase>();
-        services.AddScoped<IReturnCaseToEngineer, ReturnCaseToEngineer>();
+        services.AddScoped<ReturnCaseToEngineer>();
         services.AddScoped<IOpenCaseQuery, OpenCaseQuery>();
         services.AddScoped<IMarkCaseQueryDone, MarkCaseQueryDone>();
         services.AddScoped<IReopenCaseQuery, ReopenCaseQuery>();
