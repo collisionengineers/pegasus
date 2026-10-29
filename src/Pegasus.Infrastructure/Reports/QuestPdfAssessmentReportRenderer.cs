@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Microsoft.Extensions.Caching.Memory;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Custody;
@@ -13,13 +14,23 @@ namespace Pegasus.Infrastructure.Reports;
 /// bytes with their SHA-256, page count, template and engine versions, and
 /// fails closed on anything the snapshot does not supply in a printable form.
 /// </summary>
-internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : IAssessmentReportRenderer
+internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IMemoryCache cache) : IAssessmentReportRenderer
 {
-    private const int SignatureCapacity = 16;
-
-    private static readonly PreparedSignatureCache Signatures = new(SignatureCapacity);
+    /// <summary>How many prepared signatures are kept: the most recently prepared.</summary>
+    internal const int SignatureCapacity = 16;
 
     private readonly ReportRenderGate gate = gate ?? throw new ArgumentNullException(nameof(gate));
+
+    private readonly IMemoryCache cache = cache ?? throw new ArgumentNullException(nameof(cache));
+
+    // The process has one IMemoryCache and it has no size limit, so the
+    // renderer bounds its own entries: the keys it kept, oldest first.
+    private readonly Lock signatureGate = new();
+
+    private readonly Queue<SignatureKey> keptSignatures = new();
+
+    // A private key type, so no other IMemoryCache user can collide with an entry.
+    private readonly record struct SignatureKey(string Sha256);
 
     public string EngineVersion { get; } =
         $"QuestPDF/{typeof(QuestPDF.Settings).Assembly.GetName().Version}";
@@ -51,7 +62,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
     /// stops waiting, and checked between images so an abandoned render stops
     /// instead of running on.
     /// </summary>
-    private static async Task<byte[]> RenderPdfAsync(
+    private async Task<byte[]> RenderPdfAsync(
         AssessmentReportSnapshot snapshot,
         CaseReportArtifactKind kind,
         PageCountProbe pageCount,
@@ -78,7 +89,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
     /// it has no lead and no image pages, and its image pack still prints
     /// every image.
     /// </summary>
-    private static async Task<PreparedReportImages> PrepareAsync(
+    private async Task<PreparedReportImages> PrepareAsync(
         AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
     {
         if (kind == CaseReportArtifactKind.FeeNote)
@@ -128,12 +139,51 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
             AssessmentReportContract.TemplateVersion,
             EngineVersion);
 
-    private static byte[] SignatureFor(ReportSignatory signatory) =>
-        Signatures.GetOrPrepare(signatory.SignatureContent, PrepareSignature);
+    private byte[] SignatureFor(ReportSignatory signatory) =>
+        GetOrPrepareSignature(signatory.SignatureContent, PrepareSignature);
+
+    /// <summary>
+    /// The prepared signature PNG, kept by the SHA-256 of the stored signature
+    /// it was prepared from, so a signatory's signature is decoded and
+    /// re-encoded once rather than for every artifact rendered. A changed
+    /// signature has a new hash and so a new entry; the oldest entry goes when
+    /// <see cref="SignatureCapacity"/> are kept. A preparation that fails is
+    /// never kept: the next render prepares it again and fails the same way.
+    /// The preparation runs outside the lock; two renders that miss together
+    /// both prepare it and the first result stays.
+    /// </summary>
+    internal byte[] GetOrPrepareSignature(byte[] stored, Func<byte[], byte[]> prepare)
+    {
+        ArgumentNullException.ThrowIfNull(stored);
+        ArgumentNullException.ThrowIfNull(prepare);
+        var key = new SignatureKey(Convert.ToHexStringLower(SHA256.HashData(stored)));
+        if (cache.TryGetValue(key, out byte[]? kept) && kept is not null)
+        {
+            return kept;
+        }
+
+        var fresh = prepare(stored);
+        lock (signatureGate)
+        {
+            if (cache.TryGetValue(key, out byte[]? raced) && raced is not null)
+            {
+                return raced;
+            }
+
+            if (keptSignatures.Count >= SignatureCapacity)
+            {
+                cache.Remove(keptSignatures.Dequeue());
+            }
+
+            cache.Set(key, fresh);
+            keptSignatures.Enqueue(key);
+            return fresh;
+        }
+    }
 
     /// <summary>
     /// The signature as the page prints it, prepared once per stored signature
-    /// (<see cref="PreparedSignatureCache"/>): decoded once, EXIF orientation
+    /// (<see cref="GetOrPrepareSignature"/>): decoded once, EXIF orientation
     /// applied, re-encoded losslessly so any accepted source format prints
     /// the same way and undecodable bytes fail closed.
     /// </summary>

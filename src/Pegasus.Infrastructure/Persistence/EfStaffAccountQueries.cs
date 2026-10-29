@@ -149,40 +149,16 @@ public sealed class EfStaffAccountQueries(
     /// change made outside it (direct SQL, the intake wipe) is seen once the
     /// name expires. An id with no account is never kept.
     /// </summary>
-    public async Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(
+    public Task<IReadOnlyDictionary<Guid, string>> GetNamesAsync(
         IReadOnlyCollection<Guid> staffIds,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(staffIds);
-        var names = new Dictionary<Guid, string>();
-        var unkept = new List<Guid>();
-        foreach (var staffId in staffIds.Distinct())
-        {
-            if (accountReads.TryGetName(staffId) is { } kept)
-            {
-                names[staffId] = kept;
-            }
-            else
-            {
-                unkept.Add(staffId);
-            }
-        }
+        CancellationToken cancellationToken) =>
+        accountReads.GetOrReadNamesAsync(staffIds, ReadNamesAsync, cancellationToken);
 
-        if (unkept.Count == 0)
-        {
-            return names;
-        }
-
-        // Taken before the read: a commit that evicts meanwhile refuses the names.
-        var generation = accountReads.Generation;
-        foreach (var account in await GetManyAsync(unkept, cancellationToken))
-        {
-            names[account.Id] = account.UserName;
-            accountReads.SetName(account.Id, account.UserName, generation);
-        }
-
-        return names;
-    }
+    private async Task<IReadOnlyDictionary<Guid, string>> ReadNamesAsync(
+        IReadOnlyCollection<Guid> staffIds,
+        CancellationToken cancellationToken) =>
+        (await GetManyAsync(staffIds, cancellationToken))
+            .ToDictionary(account => account.Id, account => account.UserName);
 
     public async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
         CancellationToken cancellationToken)
