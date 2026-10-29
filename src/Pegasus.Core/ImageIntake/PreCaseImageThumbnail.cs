@@ -37,7 +37,10 @@ public sealed record PreCaseImageRead(PreCaseImageThumbnail? Tile, IntakeSourceD
 /// original is unchanged: Open file and the viewer still read the retained
 /// bytes.
 /// </summary>
-public interface IReadPreCaseImageThumbnail
+public sealed class ReadPreCaseImageThumbnail(
+    IDownloadIntakeAsset downloadAsset,
+    IPreCaseImagePreparationStore preparations,
+    IRenderImageThumbnail renderer)
 {
     /// <summary>
     /// The rendering, or no <see cref="PreCaseImageRead.Tile"/> when the image
@@ -46,16 +49,6 @@ public interface IReadPreCaseImageThumbnail
     /// with nothing recorded renders whole and reports
     /// <see cref="PreCaseImagePreparation.NoPreparationVersion"/>.
     /// </summary>
-    Task<PreCaseImageRead> OpenAsync(
-        PreCaseImageThumbnailQuery query,
-        CancellationToken cancellationToken = default);
-}
-
-public sealed class ReadPreCaseImageThumbnail(
-    IDownloadIntakeAsset downloadAsset,
-    IPreCaseImagePreparationStore preparations,
-    IRenderImageThumbnail renderer) : IReadPreCaseImageThumbnail
-{
     public async Task<PreCaseImageRead> OpenAsync(
         PreCaseImageThumbnailQuery query,
         CancellationToken cancellationToken = default)
