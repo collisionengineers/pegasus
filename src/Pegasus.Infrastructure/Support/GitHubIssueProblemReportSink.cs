@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -17,6 +18,11 @@ public sealed record GitHubProblemReportOptions(string Token, string Repository,
     public const string TokenKey = "GitHub:ProblemReports:Token";
     public const string RepositoryKey = "GitHub:ProblemReports:Repository";
     public const string LabelsKey = "GitHub:ProblemReports:Labels";
+
+    /// <summary>One issue in a repository, as GitHub addresses it.</summary>
+    public static ProblemReportDelivery Issue(string repository, int issueNumber) =>
+        new(issueNumber, string.Create(
+            CultureInfo.InvariantCulture, $"https://github.com/{repository}/issues/{issueNumber}"));
 
     /// <summary>Both settings, or null when the sink is not configured; a half configuration is refused.</summary>
     public static GitHubProblemReportOptions? FromConfiguration(string? token, string? repository, string? labels)
@@ -122,6 +128,9 @@ public sealed class GitHubIssueProblemReportSink(GitHubProblemReportOptions opti
         return new ProblemReportDelivery(issue.Number, issue.HtmlUrl);
     }
 
+    public ProblemReportDelivery IssueFor(int issueNumber) =>
+        GitHubProblemReportOptions.Issue(_options.Repository, issueNumber);
+
     private async Task VerifyRepositoryAsync(ProblemReport report, CancellationToken cancellationToken)
     {
         using var repositoryRequest = CreateRequest(HttpMethod.Get, $"https://api.github.com/repos/{_options.Repository}", report);
@@ -163,11 +172,17 @@ public sealed class GitHubIssueProblemReportSink(GitHubProblemReportOptions opti
         [property: JsonPropertyName("full_name")] string? FullName);
 }
 
-/// <summary>The sink when no repository is configured: every report stays Not sent, with the reason.</summary>
+/// <summary>
+/// The sink when no repository is configured: every report stays Not sent, with
+/// the reason. An issue confirmed by number is in the approved repository.
+/// </summary>
 public sealed class UnconfiguredProblemReportSink : IProblemReportSink
 {
     public const string Reason = "Problem reports are not connected to a repository.";
 
     public Task<ProblemReportDelivery> SendAsync(ProblemReport report, CancellationToken cancellationToken) =>
         Task.FromException<ProblemReportDelivery>(new InvalidOperationException(Reason));
+
+    public ProblemReportDelivery IssueFor(int issueNumber) =>
+        GitHubProblemReportOptions.Issue(GitHubProblemReportOptions.ApprovedRepository, issueNumber);
 }

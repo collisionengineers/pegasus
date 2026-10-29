@@ -99,7 +99,7 @@ public static class ReleaseNotePolicy
     public static string NormalizeOperationKey(string? key) =>
         Guid.TryParse(key, out var value) && value != Guid.Empty
             ? value.ToString("N")
-            : throw new ArgumentException("The release note form has expired. Open it again.", nameof(key));
+            : throw new ArgumentException("The release note form has expired. Open it again.");
 
     public static string RequestHash(Guid staffId, string title, string body) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
@@ -111,7 +111,7 @@ public static class ReleaseNotePolicy
         if (value.Length == 0 || value.Length > MaximumTitleLength || value.Any(char.IsControl))
         {
             throw new ArgumentException(
-                $"A release note title is 1 to {MaximumTitleLength} characters on one line.", nameof(title));
+                $"A release note title is 1 to {MaximumTitleLength} characters on one line.");
         }
 
         return value;
@@ -124,7 +124,7 @@ public static class ReleaseNotePolicy
             || value.Any(character => char.IsControl(character) && character != '\n'))
         {
             throw new ArgumentException(
-                $"A release note body is 1 to {MaximumBodyLength} characters.", nameof(body));
+                $"A release note body is 1 to {MaximumBodyLength} characters.");
         }
 
         return value;

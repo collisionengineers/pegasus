@@ -335,12 +335,14 @@ public sealed class ProblemReportsWebTests
 
         sink.Failure = null;
         sink.BlockSuccessfulSends();
-        var first = RetryAsync(administrator, list, id, Guid.NewGuid().ToString("N"));
+        var first = RetryAsync(administrator, list, id);
         await sink.Entered.Task;
 
-        using var second = await RetryAsync(administrator, list, id, Guid.NewGuid().ToString("N"));
+        using var second = await RetryAsync(administrator, list, id);
         Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
         Assert.Equal(1, sink.SuccessfulCalls);
+        // A Retry that finds another still sending says nothing (R423).
+        Assert.DoesNotContain("data-problem-notice", await GetHtmlAsync(administrator, ListPage), StringComparison.Ordinal);
 
         sink.Release.TrySetResult(true);
         using var firstResponse = await first;
@@ -382,24 +384,23 @@ public sealed class ProblemReportsWebTests
         }
 
         sink.Failure = null;
-        using var retried = await administrator.PostAsync($"{ListPage}?handler=Retry&id={id}", Form(list, new()
-        {
-            ["operationKey"] = Guid.NewGuid().ToString("N")
-        }));
+        using var retried = await RetryAsync(administrator, list, id.ToString("D"));
 
         Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
         Assert.Empty(sink.Sent);
         list = await GetHtmlAsync(administrator, ListPage);
         Assert.Contains($">{OperatorLabels.ProblemReports.DeliveryUnknown}<", list, StringComparison.Ordinal);
+        AssertProblemNotice(list, OperatorLabels.ProblemReports.Unknown);
         // Only the row that needs reconciling prints its report ID (v41 A12).
         Assert.Contains($"<small class=\"mono\">{id:D}</small>", list, StringComparison.Ordinal);
-        Assert.Contains("Confirm no issue", list, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.ProblemReports.ConfirmNoIssue}</button>", list, StringComparison.Ordinal);
         using var reconciled = await administrator.PostAsync(
-            $"{ListPage}?handler=ConfirmNoIssue&id={id}", Form(list, new()));
+            $"{ListPage}?handler=ConfirmNoIssue&id={id}", AdminForm(list));
         Assert.Equal(HttpStatusCode.Redirect, reconciled.StatusCode);
         list = await GetHtmlAsync(administrator, ListPage);
         Assert.Contains(">Not sent<", list, StringComparison.Ordinal);
-        using var sent = await RetryAsync(administrator, list, id.ToString("D"), Guid.NewGuid().ToString("N"));
+        Assert.Contains(OperatorLabels.ProblemReports.CanBeRetried, list, StringComparison.Ordinal);
+        using var sent = await RetryAsync(administrator, list, id.ToString("D"));
         Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
         Assert.Single(sink.Sent);
     }
@@ -431,16 +432,129 @@ public sealed class ProblemReportsWebTests
         Assert.Contains("GitHub refused the issue with 401 Unauthorized.", list, StringComparison.Ordinal);
         var id = Regex.Match(list, "data-problem-report=\"(?<id>[^\"]+)\"").Groups["id"].Value;
 
+        // A Retry while the raise still fails says so, and the report stays Not sent.
+        using var failedRetry = await RetryAsync(administrator, list, id);
+        Assert.Equal(HttpStatusCode.Redirect, failedRetry.StatusCode);
+        list = await GetHtmlAsync(administrator, ListPage);
+        AssertProblemNotice(list, OperatorLabels.ProblemReports.Kept);
+        Assert.Contains(">Not sent<", list, StringComparison.Ordinal);
+        Assert.Empty(sink.Sent);
+
         sink.Failure = null;
-        using var retried = await administrator.PostAsync($"{ListPage}?handler=Retry&id={id}", Form(list, new()
-        {
-            ["operationKey"] = Guid.NewGuid().ToString("N")
-        }));
+        using var retried = await RetryAsync(administrator, list, id);
         Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
         list = await GetHtmlAsync(administrator, ListPage);
         Assert.Contains(">Sent<", list, StringComparison.Ordinal);
         Assert.Contains("Reported as #7.", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-problem-notice", list, StringComparison.Ordinal);
         Assert.Single(sink.Sent);
+    }
+
+    /// <summary>
+    /// A Retry whose dispatch claim is lost while the raise fails asks for a
+    /// reload in the page's own words; it is not a server error.
+    /// </summary>
+    [Fact]
+    public async Task ARetryWhoseClaimWasLostAsksForAReload()
+    {
+        var sink = new RecordingSink { Failure = new HttpRequestException("temporary failure") };
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory, sink, "User");
+        var home = await GetHtmlAsync(client, ProblemDialog);
+        using var created = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
+        {
+            ["returnUrl"] = "/",
+            ["description"] = "Nothing loads."
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+
+        using var administrator = CreateClient(factory, sink);
+        var list = await GetHtmlAsync(administrator, ListPage);
+        var id = Guid.Parse(Regex.Match(list, "data-problem-report=\"(?<id>[^\"]+)\"").Groups["id"].Value);
+        sink.OnSend = async () =>
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            Assert.Equal(1, await context.Set<ProblemReportEntity>()
+                .Where(item => item.Id == id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.DispatchClaimToken, (string?)null)
+                    .SetProperty(item => item.DispatchClaimExpiresAtUtc, (DateTimeOffset?)null)));
+        };
+
+        using var retried = await RetryAsync(administrator, list, id.ToString("D"));
+
+        Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
+        list = await GetHtmlAsync(administrator, ListPage);
+        AssertProblemNotice(list, OperatorLabels.ProblemReports.StatusChanged);
+        Assert.Contains(">Not sent<", list, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Confirm issue takes the number alone: the sink gives the issue's
+    /// address, a number that is not one is refused in the page's words, and a
+    /// report that is no longer Delivery unknown asks for a reload. The row's
+    /// words are the label owner's, and its forms carry no operation key.
+    /// </summary>
+    [Fact]
+    public async Task AnUnknownReportConfirmedByIssueNumberLinksTheSinksIssue()
+    {
+        var sink = new RecordingSink { Failure = new ProblemReportDeliveryUnknownException("The GitHub issue POST outcome is unknown.") };
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory, sink, "User");
+        var home = await GetHtmlAsync(client, ProblemDialog);
+        using var created = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
+        {
+            ["returnUrl"] = "/",
+            ["description"] = "Nothing loads."
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+
+        using var administrator = CreateClient(factory, sink);
+        var list = await GetHtmlAsync(administrator, ListPage);
+        var id = Regex.Match(list, "data-problem-report=\"(?<id>[^\"]+)\"").Groups["id"].Value;
+        foreach (var heading in new[]
+        {
+            OperatorLabels.ProblemReports.When, OperatorLabels.ProblemReports.Who, OperatorLabels.ProblemReports.Page,
+            OperatorLabels.ProblemReports.Case, OperatorLabels.ProblemReports.WhatHappened,
+            OperatorLabels.ProblemReports.Status, OperatorLabels.ProblemReports.Issue
+        })
+        {
+            Assert.Contains($"<th scope=\"col\">{heading}</th>", list, StringComparison.Ordinal);
+        }
+
+        Assert.Contains($"<span class=\"sr-only\">{OperatorLabels.ProblemReports.Actions}</span>", list, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.ProblemReports.MatchingIssueNumber}</label>", list, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.ProblemReports.ConfirmIssue}</button>", list, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.ProblemReports.ConfirmNoIssue}</button>", list, StringComparison.Ordinal);
+        // R533: the unruled guidance sentence is gone; the row posts no key (#1579).
+        Assert.DoesNotContain("Search the approved GitHub repository", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"operationKey\"", list, StringComparison.Ordinal);
+
+        using var refused = await administrator.PostAsync(
+            $"{ListPage}?handler=ConfirmIssue&id={id}", AdminForm(list, new() { ["issueNumber"] = "0" }));
+        Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
+        list = await GetHtmlAsync(administrator, ListPage);
+        AssertProblemNotice(list, OperatorLabels.ProblemReports.IssueNumberRequired);
+        Assert.Contains($">{OperatorLabels.ProblemReports.DeliveryUnknown}<", list, StringComparison.Ordinal);
+
+        using var confirmed = await administrator.PostAsync(
+            $"{ListPage}?handler=ConfirmIssue&id={id}", AdminForm(list, new() { ["issueNumber"] = "12" }));
+        Assert.Equal(HttpStatusCode.Redirect, confirmed.StatusCode);
+        list = await GetHtmlAsync(administrator, ListPage);
+        Assert.Contains("Reported as #12.", list, StringComparison.Ordinal);
+        Assert.Contains(">Sent<", list, StringComparison.Ordinal);
+        Assert.Contains($"href=\"{sink.IssueFor(12).IssueUrl}\"", list, StringComparison.Ordinal);
+        Assert.Empty(sink.Sent);
+
+        using var stale = await administrator.PostAsync(
+            $"{ListPage}?handler=ConfirmIssue&id={id}", AdminForm(list, new() { ["issueNumber"] = "13" }));
+        Assert.Equal(HttpStatusCode.Redirect, stale.StatusCode);
+        list = await GetHtmlAsync(administrator, ListPage);
+        AssertProblemNotice(list, OperatorLabels.ProblemReports.StatusChanged);
+        Assert.Contains($"href=\"{sink.IssueFor(12).IssueUrl}\"", list, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -459,6 +573,10 @@ public sealed class ProblemReportsWebTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Empty(sink.Sent);
+        // The refusal shows its reason and no internal parameter name (#1581).
+        var after = await GetHtmlAsync(client, "/");
+        AssertProblemNotice(after, $"A problem report says what happened, in 1 to {ProblemReportPolicy.MaximumDescriptionLength} characters.");
+        Assert.DoesNotContain("(Parameter", after, StringComparison.Ordinal);
         using var administrator = CreateClient(factory, sink);
         Assert.Contains("No problem reports", await GetHtmlAsync(administrator, ListPage), StringComparison.Ordinal);
     }
@@ -484,26 +602,49 @@ public sealed class ProblemReportsWebTests
         return client;
     }
 
+    /// <summary>The staff Send's form: the antiforgery token and the form's operation key.</summary>
     private static FormUrlEncodedContent Form(string page, Dictionary<string, string> fields)
     {
-        var token = Regex.Match(page, "<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase);
-        Assert.True(token.Success, "The page carries no antiforgery token.");
-        fields["__RequestVerificationToken"] = WebUtility.HtmlDecode(
-            Regex.Match(token.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase).Groups["value"].Value);
+        fields["__RequestVerificationToken"] = AntiforgeryToken(page);
         fields.TryAdd("operationKey", Guid.NewGuid().ToString("N"));
         return new FormUrlEncodedContent(fields);
     }
 
-    private static Task<HttpResponseMessage> RetryAsync(HttpClient client, string page, string id, string key) =>
-        client.PostAsync($"{ListPage}?handler=Retry&id={id}", Form(page, new()
-        {
-            ["operationKey"] = key
-        }));
+    /// <summary>An Administrator's row action: the antiforgery token and no key; the dispatch claim is the replay guard (#1579).</summary>
+    private static FormUrlEncodedContent AdminForm(string page, Dictionary<string, string>? fields = null)
+    {
+        fields ??= [];
+        fields["__RequestVerificationToken"] = AntiforgeryToken(page);
+        return new FormUrlEncodedContent(fields);
+    }
+
+    private static string AntiforgeryToken(string page)
+    {
+        var token = Regex.Match(page, "<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase);
+        Assert.True(token.Success, "The page carries no antiforgery token.");
+        return WebUtility.HtmlDecode(
+            Regex.Match(token.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase).Groups["value"].Value);
+    }
+
+    private static Task<HttpResponseMessage> RetryAsync(HttpClient client, string page, string id) =>
+        client.PostAsync($"{ListPage}?handler=Retry&id={id}", AdminForm(page));
+
+    /// <summary>The layout's warning notice (data-problem-notice) carries exactly these words.</summary>
+    private static void AssertProblemNotice(string page, string words)
+    {
+        var notice = Regex.Match(page, "<div[^>]*data-problem-notice[^>]*>[\\s\\S]*?</div>");
+        Assert.True(notice.Success, "The page shows no problem notice.");
+        Assert.Contains($"<span>{words}</span>", notice.Value, StringComparison.Ordinal);
+    }
 
     private sealed class RecordingSink : IProblemReportSink
     {
         public List<ProblemReport> Sent { get; } = [];
         public Exception? Failure { get; set; }
+
+        /// <summary>Runs before the raise, as another dispatcher would.</summary>
+        public Func<Task>? OnSend { get; set; }
+
         public TaskCompletionSource<bool> Entered { get; private set; } = NewSignal();
         public TaskCompletionSource<bool> Release { get; private set; } = NewSignal();
         public bool Block { get; private set; }
@@ -518,6 +659,11 @@ public sealed class ProblemReportsWebTests
 
         public async Task<ProblemReportDelivery> SendAsync(ProblemReport report, CancellationToken cancellationToken)
         {
+            if (OnSend is { } onSend)
+            {
+                await onSend();
+            }
+
             if (Failure is not null)
             {
                 throw Failure;
@@ -531,8 +677,11 @@ public sealed class ProblemReportsWebTests
             }
 
             Sent.Add(report);
-            return new ProblemReportDelivery(7, "https://github.com/collisionengineers/pegasus/issues/7");
+            return IssueFor(7);
         }
+
+        public ProblemReportDelivery IssueFor(int issueNumber) =>
+            new(issueNumber, $"https://github.com/collisionengineers/pegasus/issues/{issueNumber}");
 
         private static TaskCompletionSource<bool> NewSignal() =>
             new(TaskCreationOptions.RunContinuationsAsynchronously);
