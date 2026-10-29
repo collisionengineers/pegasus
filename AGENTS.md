@@ -36,9 +36,9 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
 
 ## Verification
 
-If you are running subagents, do not have all the subagents running builds and tests simultaneously. Have them pass back to the lead, combine the work back together if needed, and run ONE single build process. We don't want to run 4 builds for 4 worktrees when we could just run one.
+If you are running subagents, do not have all the subagents running builds and tests simultaneously. Have them pass back to the lead, combine the work back together if needed, and run ONE single build process. We don't want to run 4 builds for 4 worktrees when we could just run one. Subagents run on Haiku, Sonnet or Opus, never on Fable (operator, 15 and 28 October 2026; R495).
 
-If GitHub CI already runs a test, DO NOT RUN THE TEST LOCALLY unless SPECIFICALLY requested to do so by the user. DO NOT waste time running resource intensive local tests that could have been done on GitHub CIs.
+If GitHub CI already runs a test, DO NOT RUN THE TEST LOCALLY unless SPECIFICALLY requested to do so by the user. DO NOT waste time running resource intensive local tests that could have been done on GitHub CIs. The same applies to a compile-check build before a push: CI builds the head.
 
 CI on the exact head is the evidence: `.github/workflows/ci.yml` decides which
 lanes a change set needs from the paths it touches, and nothing CI runs is
@@ -110,7 +110,7 @@ and the [verification procedure](docs/runbook.md).
   `pegasus-prod-classifier-252ow37gij` alongside Web and Worker before SQL
   migration begins, and restarts it after Web is healthy.
 - The first App Service destructive cutover was Release 50
-  ([record](docs/operations.md#release-50--14-september-2026-historical-app-service-cutover)):
+  ([record](docs/operations-history.md)):
   the old Container App source and active revisions were approval-bound and
   it was inactive, ingress-disabled and unserved before SQL; the new App
   Service was provisioned only after migration.
@@ -118,6 +118,20 @@ and the [verification procedure](docs/runbook.md).
   and `--track-status false`; activation is a separate release step.
 - A closed feature or composition gate is not delivery. An inert UI preview may
   exist only where its accepted interface contract permits it.
+
+## Working with the operator
+
+- Never invent a business rule, a default or operator-facing copy. A sentence
+  the application will show, or a rule the code will enforce, that no FRD,
+  ruling or operator message states is a question, not a draft to build on.
+- Every contradiction between documents, code, tests or rulings is a question
+  to the operator, never a choice the agent makes.
+- Questions go to the operator in rounds of at most four, each with a plain
+  paragraph of explanation and the recommended option first. The answer is
+  recorded in the operator's words as a row in [docs/rulings.md](docs/rulings.md).
+- Agents do not merge pull requests, close issues, push to `dev` or `main`,
+  force-push or rebase unless the operator says so for that case.
+- The operator's decision of 28 October 2026 placing these rules here: R495.
 
 ## Documentation and work context
 
