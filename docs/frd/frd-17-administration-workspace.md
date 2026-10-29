@@ -22,7 +22,10 @@ This document says how the Administration areas behave for an
 Administrator. The rules those settings control are owned elsewhere:
 accounts and contacts by [FRD-04](frd-04-parties-accounts-and-access.md),
 completeness and chasing by
-[FRD-13](frd-13-case-lifecycle-and-workflow.md), valuations by
+[FRD-13](frd-13-case-lifecycle-and-workflow.md), the approved mailbox
+allowlist by
+[FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md),
+valuations by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md) and
 estimates by
 [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md).
@@ -161,6 +164,11 @@ staff instruction-review or image-review settings. Save submits the workflow
 settings or one card with its rendered expected version; a stale save is
 refused and asks the Administrator to reload. Labour-rate cards stay inside
 this area; they are not an area of their own.
+
+### Mail settings
+
+**Mail settings** (`/Administration/Mailboxes`) follows
+[FRD-26 §Mailbox allowlist, activation and wipe](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe).
 
 ### E-mail templates
 
@@ -419,5 +427,6 @@ separate evidence tiers
   [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md),
   [FRD-12](frd-12-operator-experience.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
-  [FRD-14](frd-14-record-edit-leases.md).
+  [FRD-14](frd-14-record-edit-leases.md),
+  [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
 - Design: [design](../design/README.md).
