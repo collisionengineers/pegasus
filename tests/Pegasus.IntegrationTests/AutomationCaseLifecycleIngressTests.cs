@@ -35,19 +35,19 @@ public sealed class AutomationCaseLifecycleIngressTests
         var before = await StateAsync(mcpFactory, caseId);
 
         // A malformed call is refused before any lease is claimed.
-        using (var noReason = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(1, "pegasus_case_action",
+        using (var noReason = await PostMcpAsync(client, McpServer, token, ToolCallPayload(1, "pegasus_case_action",
             new { caseId, expectedVersion = version, operationKey = "mcp:hold-no-reason", action = "hold" })))
         {
             Assert.Contains("needs a reason", await ReadErrorTextAsync(noReason), StringComparison.Ordinal);
         }
-        using (var unknown = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(2, "pegasus_case_action",
+        using (var unknown = await PostMcpAsync(client, McpServer, token, ToolCallPayload(2, "pegasus_case_action",
             new { caseId, expectedVersion = version, operationKey = "mcp:delete", action = "delete", reason = "No." })))
         {
             Assert.Contains("The action must be one of", await ReadErrorTextAsync(unknown), StringComparison.Ordinal);
         }
         Assert.Equal(version, await GetWorkflowVersionAsync(mcpFactory, caseId));
 
-        using var held = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(3, "pegasus_case_action", new
+        using var held = await PostMcpAsync(client, McpServer, token, ToolCallPayload(3, "pegasus_case_action", new
         {
             caseId,
             expectedVersion = version,
@@ -62,7 +62,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         Assert.True(heldVersion > version);
         Assert.Equal(CaseLifecycleState.Held, await StateAsync(mcpFactory, caseId));
 
-        using var released = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(4, "pegasus_case_action", new
+        using var released = await PostMcpAsync(client, McpServer, token, ToolCallPayload(4, "pegasus_case_action", new
         {
             caseId,
             expectedVersion = heldVersion,
@@ -108,7 +108,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         var token = await RequestTokenAsync(client, AllScopes);
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using (var noReason = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(40, "pegasus_case_action", new
+        using (var noReason = await PostMcpAsync(client, McpServer, token, ToolCallPayload(40, "pegasus_case_action", new
         {
             caseId,
             expectedVersion = version,
@@ -121,7 +121,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         }
         Assert.Equal(version, await GetWorkflowVersionAsync(mcpFactory, caseId));
 
-        using var closed = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(41, "pegasus_case_action", new
+        using var closed = await PostMcpAsync(client, McpServer, token, ToolCallPayload(41, "pegasus_case_action", new
         {
             caseId,
             expectedVersion = version,
@@ -170,14 +170,14 @@ public sealed class AutomationCaseLifecycleIngressTests
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
         // A malformed log_query claims nothing.
-        using (var noChannel = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(31, "pegasus_case_query",
+        using (var noChannel = await PostMcpAsync(client, McpServer, token, ToolCallPayload(31, "pegasus_case_query",
             new { caseId, operationKey = "mcp:log-no-channel", action = "open" })))
         {
             Assert.Contains("open needs channel", await ReadErrorTextAsync(noChannel), StringComparison.Ordinal);
         }
         Assert.Equal(version, await GetWorkflowVersionAsync(mcpFactory, caseId));
 
-        using var logged = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(32, "pegasus_case_query", new
+        using var logged = await PostMcpAsync(client, McpServer, token, ToolCallPayload(32, "pegasus_case_query", new
         {
             caseId,
             operationKey = "mcp:log-query",
@@ -205,7 +205,7 @@ public sealed class AutomationCaseLifecycleIngressTests
             Assert.True((await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).HasOpenQuery);
         }
 
-        using var resolved = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(33, "pegasus_case_query", new
+        using var resolved = await PostMcpAsync(client, McpServer, token, ToolCallPayload(33, "pegasus_case_query", new
         {
             queryId = loggedResult.GetProperty("queryId").GetGuid(),
             operationKey = "mcp:mark-query-done",
@@ -255,7 +255,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        using var logged = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(51, "pegasus_case_query", new
+        using var logged = await PostMcpAsync(client, McpServer, token, ToolCallPayload(51, "pegasus_case_query", new
         {
             caseId,
             operationKey = "mcp:reopen-open",
@@ -264,7 +264,7 @@ public sealed class AutomationCaseLifecycleIngressTests
             details = "Asked for the labour rate."
         }));
         var queryId = (await ReadStructuredContentAsync(logged)).GetProperty("queryId").GetGuid();
-        using var done = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(52, "pegasus_case_query", new
+        using var done = await PostMcpAsync(client, McpServer, token, ToolCallPayload(52, "pegasus_case_query", new
         {
             queryId,
             operationKey = "mcp:reopen-done",
@@ -272,7 +272,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         }));
         Assert.False((await ReadStructuredContentAsync(done)).GetProperty("hasOpenQuery").GetBoolean());
 
-        using var reopened = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(53, "pegasus_case_query", new
+        using var reopened = await PostMcpAsync(client, McpServer, token, ToolCallPayload(53, "pegasus_case_query", new
         {
             queryId,
             operationKey = "mcp:reopen",
@@ -321,7 +321,7 @@ public sealed class AutomationCaseLifecycleIngressTests
             await db.SaveChangesAsync();
         }
 
-        using var refused = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(54, "pegasus_case_query", new
+        using var refused = await PostMcpAsync(client, McpServer, token, ToolCallPayload(54, "pegasus_case_query", new
         {
             queryId = withdrawnId,
             operationKey = "mcp:reopen-withdrawn",
@@ -350,7 +350,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        using var logged = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(61, "pegasus_case_query", new
+        using var logged = await PostMcpAsync(client, McpServer, token, ToolCallPayload(61, "pegasus_case_query", new
         {
             caseId,
             operationKey = "mcp:assign-open",
@@ -360,7 +360,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         }));
         var queryId = (await ReadStructuredContentAsync(logged)).GetProperty("queryId").GetGuid();
 
-        using var assigned = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(62, "pegasus_case_query", new
+        using var assigned = await PostMcpAsync(client, McpServer, token, ToolCallPayload(62, "pegasus_case_query", new
         {
             queryId,
             operationKey = "mcp:assign",
@@ -384,7 +384,7 @@ public sealed class AutomationCaseLifecycleIngressTests
                     .SingleAsync(row => row.CaseId == caseId && row.EventType == "case_query_assigned")).Reason);
         }
 
-        using var cleared = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(63, "pegasus_case_query", new
+        using var cleared = await PostMcpAsync(client, McpServer, token, ToolCallPayload(63, "pegasus_case_query", new
         {
             queryId,
             operationKey = "mcp:assign-unassigned",
@@ -423,12 +423,12 @@ public sealed class AutomationCaseLifecycleIngressTests
         var engineerId = await SeedEngineerAsync(mcpFactory, "lifecycle-engineer");
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using var unassigned = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(10, "pegasus_case_action",
+        using var unassigned = await PostMcpAsync(client, McpServer, token, ToolCallPayload(10, "pegasus_case_action",
             new { caseId, expectedVersion = version, operationKey = "mcp:assign-none", action = "assign_engineer" }));
         var unassignedResult = await ReadStructuredContentAsync(unassigned);
         Assert.Equal(nameof(CaseLifecycleState.ReportPreparation), unassignedResult.GetProperty("state").GetString());
 
-        using var assigned = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(11, "pegasus_case_action", new
+        using var assigned = await PostMcpAsync(client, McpServer, token, ToolCallPayload(11, "pegasus_case_action", new
         {
             caseId,
             expectedVersion = unassignedResult.GetProperty("caseVersion").GetInt64(),
@@ -470,7 +470,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         var token = await RequestTokenAsync(client, AllScopes);
         await EnsureInReviewAsync(mcpFactory, client, token, caseId);
         var engineerId = await SeedEngineerAsync(mcpFactory, "approval-engineer");
-        using (var assigned = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(20, "pegasus_case_action", new
+        using (var assigned = await PostMcpAsync(client, McpServer, token, ToolCallPayload(20, "pegasus_case_action", new
         {
             caseId,
             expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
@@ -483,7 +483,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         }
 
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
-        using (var unknownArtifact = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(21, "pegasus_report_action", new
+        using (var unknownArtifact = await PostMcpAsync(client, McpServer, token, ToolCallPayload(21, "pegasus_report_action", new
         {
             caseId,
             expectedVersion = version,
@@ -523,7 +523,7 @@ public sealed class AutomationCaseLifecycleIngressTests
             Assert.Equal(ActorKind.Automation, headerApproval.ApprovedBy.Kind);
         }
 
-        using var listed = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(23, "pegasus_report_list", new { caseId }));
+        using var listed = await PostMcpAsync(client, McpServer, token, ToolCallPayload(23, "pegasus_report_list", new { caseId }));
         var list = await ReadStructuredContentAsync(listed);
         var approval = list.GetProperty("approval");
         Assert.Equal(JsonValueKind.Object, approval.ValueKind);
@@ -542,7 +542,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        using (var vocabulary = await PostMcpAsync(client, CasesServer, token, ToolCallPayload(30, "pegasus_vocabulary_get", new { })))
+        using (var vocabulary = await PostMcpAsync(client, McpServer, token, ToolCallPayload(30, "pegasus_vocabulary_get", new { })))
         {
             var tags = (await ReadStructuredContentAsync(vocabulary)).GetProperty("imageTags");
             Assert.Contains(
@@ -551,13 +551,13 @@ public sealed class AutomationCaseLifecycleIngressTests
         }
 
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
-        using (var noTag = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(31, "pegasus_document_action",
+        using (var noTag = await PostMcpAsync(client, McpServer, token, ToolCallPayload(31, "pegasus_document_action",
             new { caseId, expectedVersion = version, operationKey = "mcp:tag-none", action = "tag", occurrenceId })))
         {
             Assert.Contains("needs tagId", await ReadErrorTextAsync(noTag), StringComparison.Ordinal);
         }
 
-        using var tagged = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(32, "pegasus_document_action", new
+        using var tagged = await PostMcpAsync(client, McpServer, token, ToolCallPayload(32, "pegasus_document_action", new
         {
             caseId,
             expectedVersion = version,
@@ -580,7 +580,7 @@ public sealed class AutomationCaseLifecycleIngressTests
             Assert.Equal(ClientId, assignment.AppliedBySubjectId);
         }
 
-        using var untagged = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(33, "pegasus_document_action", new
+        using var untagged = await PostMcpAsync(client, McpServer, token, ToolCallPayload(33, "pegasus_document_action", new
         {
             caseId,
             expectedVersion = taggedVersion,
@@ -617,7 +617,7 @@ public sealed class AutomationCaseLifecycleIngressTests
 
         var choosable = DocumentTypePolicy.StaffMayChoose.Select(role => role.ToString()).ToArray();
         var listed = string.Join(", ", choosable[..^1]) + " or " + choosable[^1];
-        using (var toolsResponse = await PostMcpAsync(client, DocumentsServer, token, ToolsListPayload(50)))
+        using (var toolsResponse = await PostMcpAsync(client, McpServer, token, ToolsListPayload(50)))
         {
             using var tools = await ReadJsonRpcAsync(toolsResponse);
             var documentAction = tools.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
@@ -644,12 +644,12 @@ public sealed class AutomationCaseLifecycleIngressTests
                 occurrenceId, semanticRole = "Other", reason }, "The set_type action needs versionId."),
         })
         {
-            using var refused = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(rpcId, "pegasus_document_action", arguments));
+            using var refused = await PostMcpAsync(client, McpServer, token, ToolCallPayload(rpcId, "pegasus_document_action", arguments));
             Assert.Contains(refusal, await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
         Assert.Equal(version, await GetWorkflowVersionAsync(mcpFactory, caseId));
 
-        using var set = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(55, "pegasus_document_action", new
+        using var set = await PostMcpAsync(client, McpServer, token, ToolCallPayload(55, "pegasus_document_action", new
         {
             caseId,
             expectedVersion = version,

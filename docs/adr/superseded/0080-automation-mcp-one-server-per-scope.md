@@ -1,9 +1,9 @@
 ---
 id: ADR-0080
-status: accepted
+status: superseded
 date: 2026-10-22
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0087]
 related_capabilities: [MCP-01, MCP-02, MCP-03, MCP-04, MCP-05, MCP-06]
 related_frd: [frd-10]
 tags: [mcp, automation, oauth]
@@ -12,6 +12,16 @@ tags: [mcp, automation, oauth]
 # ADR-0080: One Automation MCP server per scope
 
 ## Status
+
+Superseded by
+[ADR-0087](../0087-one-automation-mcp-server-with-per-scope-consent.md) on
+29 October 2026 (operator ruling R547): the seven servers and their per-server
+paths, names, instructions, policies, resources and metadata (decisions 1, 4
+and 6) and the no-new-tool order (decision 7) end, replaced by one server at
+`/mcp`. Decisions 2 (instructions restate FRD-10's cross-tool rules and make
+none), 3 (`tools/list` holds only the tools whose scope the token carries; the
+resolver stays the gate) and 5 (no Administration or read-only server) stand
+and are owned by ADR-0087.
 
 Accepted on 22 October 2026 (operator ruling R301, round 66: accepted as
 proposed). Proposed the same day. Issue #1487 asks for a new ADR
@@ -29,7 +39,7 @@ Observed at `95a607711`. Pegasus hosts one MCP server, `pegasus-automation`,
 which `AddPegasusAutomationMcp` registers as stateless streamable HTTP and
 `MapPegasusAutomationMcp` maps at `AutomationMcp.McpEndpointPath` (`/mcp`).
 Its 17 tool classes register 65 tools;
-[FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)
+[FRD-10](../../frd/frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)
 owns the inventory. By the scope each tool's call requires: cases 8, intake
 22, documents 10, assessment 10, mail 6, jobs 4 and send 2, plus the three
 edit-lease tools, whose scope follows `recordKind` (cases for a Case, intake
@@ -53,7 +63,7 @@ seven scopes; one feature gate and kill switch; one rate-limit policy, 120
 requests a minute per IP address. Consent is per scope on the Administrator
 consent page, and each approval is a new grant whose refresh token lasts
 fourteen days without sliding
-([ADR-0027](0027-authorization-code-for-external-mcp-connectors.md)).
+([ADR-0027](../0027-authorization-code-for-external-mcp-connectors.md)).
 `Program.cs` keys three behaviours on a path that starts with `/mcp`: the
 rate-limit reason code, the ingress middleware that records transport
 denials, and machine-surface error handling. A server path under `/mcp/`
@@ -85,19 +95,19 @@ results and adds a call-tool authorization checkpoint;
 path. That one host serves more than one server configuration is not proved.
 
 The boundary the split keeps.
-[FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)
+[FRD-10](../../frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)
 names one Automation Actor and no number of servers; ADR-0021 and ADR-0077
 name `/mcp` only to say what is gated and what is compressed. The Actor has
 "no Administrator, configuration, credential, cloud, release, deletion, or
 other management authority", and "Any future expansion of MCP access to
 people or another automation identity requires a new accepted decision and
 explicit Core authorization contract"
-([ADR-0011](0011-restrict-mcp-to-automation-actor.md)). Pegasus "does not
+([ADR-0011](../0011-restrict-mcp-to-automation-actor.md)). Pegasus "does not
 create a new Pegasus-side tool-permission policy or take ownership of the
 external MCP client's client-selection or tool-access policy"
-([ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)).
+([ADR-0026](../0026-enable-automation-mcp-by-explicit-deployment-configuration.md)).
 `automation.send` exists "so a grant can hold casework without sending"
-([ADR-0064](0064-automation-actor-staff-casework-parity.md) decision 9).
+([ADR-0064](../0064-automation-actor-staff-casework-parity.md) decision 9).
 
 ## Decision
 
@@ -145,7 +155,7 @@ Each clause is accepted as proposed (R301).
    tools by the scope their call already requires.
 6. **Migration (proposed).** `/mcp` is replaced, not aliased, in the release
    that updates its consumers
-   ([project principles](../../AGENTS.md#project-principles)). In the
+   ([project principles](../../../AGENTS.md#project-principles)). In the
    repository: the classifier's `PEGASUS_MCP_URL` (its Bicep setting,
    `config.ts` and `.env.example`), the release skill's connector step and
    the tests that name `/mcp`. Outside it: the claude.ai connector, which an
@@ -251,10 +261,10 @@ tool-permission policy (decision 5).
 
 ## Links
 
-- [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
-- [ADR-0011](0011-restrict-mcp-to-automation-actor.md),
-  [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
-  [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md),
-  [ADR-0059](0059-native-mcp-file-content-and-consolidated-tool-inventory.md),
-  [ADR-0064](0064-automation-actor-staff-casework-parity.md)
-- [Current architecture](../current-architecture.md)
+- [FRD-10](../../frd/frd-10-mcp-automation-and-actor-boundary.md)
+- [ADR-0011](../0011-restrict-mcp-to-automation-actor.md),
+  [ADR-0026](../0026-enable-automation-mcp-by-explicit-deployment-configuration.md),
+  [ADR-0027](../0027-authorization-code-for-external-mcp-connectors.md),
+  [ADR-0059](../0059-native-mcp-file-content-and-consolidated-tool-inventory.md),
+  [ADR-0064](../0064-automation-actor-staff-casework-parity.md)
+- [Current architecture](../../current-architecture.md)

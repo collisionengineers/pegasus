@@ -35,10 +35,17 @@
                     else
                     {
                         <ul class="plain">
-                            @* The description alone (v41 S5): the scope identifier is not printed. *@
-                            @foreach (var description in Model.RequestedAccess)
+                            @* The description alone (v41 S5): the scope identifier is the tick
+                               box's value, never printed. Ticked by default; the grant holds the
+                               ticked scopes (ADR-0087). The boxes post with the consent form below. *@
+                            @foreach (var access in Model.RequestedAccess)
                             {
-                                <li>@description</li>
+                                <li>
+                                    <label class="choice">
+                                        <input type="checkbox" name="ApprovedScopes" value="@access.Key" form="consent-form" checked />
+                                        <span>@access.Value</span>
+                                    </label>
+                                </li>
                             }
                         </ul>
                     }
@@ -46,7 +53,7 @@
             </div>
         </dl>
 
-        <form method="post" class="cluster mt-2">
+        <form method="post" id="consent-form" class="cluster mt-2">
             @foreach (var parameter in Model.RequestParameters)
             {
                 <input type="hidden" name="@parameter.Key" value="@parameter.Value" />

@@ -253,7 +253,7 @@ public sealed class AutomationDocumentUploadIngressTests
     {
         using var response = await PostMcpAsync(
             client,
-            DocumentsServer,
+            McpServer,
             token,
             ToolCallPayload(1, tool, arguments));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -264,7 +264,7 @@ public sealed class AutomationDocumentUploadIngressTests
     {
         using var response = await PostMcpAsync(
             client,
-            DocumentsServer,
+            McpServer,
             token,
             ToolCallPayload(1, tool, arguments));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

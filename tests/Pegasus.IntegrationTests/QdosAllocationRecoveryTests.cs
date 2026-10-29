@@ -1948,7 +1948,7 @@ public sealed class IntakeAllocationConsumerTests
         string payload)
     {
         // The intake server: this file's token and tools are intake's.
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp/intake");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp");
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         request.Headers.Accept.ParseAdd("application/json");
         request.Headers.Accept.ParseAdd("text/event-stream");

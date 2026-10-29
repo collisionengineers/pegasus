@@ -30,7 +30,7 @@ public sealed class AutomationReportPreparationIngressTests
 
         long preparationVersion;
         long caseVersion;
-        using (var response = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(1, "pegasus_image_preparation_get", new { caseId })))
+        using (var response = await PostMcpAsync(client, McpServer, token, ToolCallPayload(1, "pegasus_image_preparation_get", new { caseId })))
         {
             var read = await ReadStructuredContentAsync(response);
             caseVersion = read.GetProperty("caseVersion").GetInt64();
@@ -42,7 +42,7 @@ public sealed class AutomationReportPreparationIngressTests
         }
 
         // Malformed calls are refused before any lease is claimed.
-        using (var refused = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(2, "pegasus_image_prepare", new
+        using (var refused = await PostMcpAsync(client, McpServer, token, ToolCallPayload(2, "pegasus_image_prepare", new
         {
             caseId,
             expectedVersion = caseVersion,
@@ -52,7 +52,7 @@ public sealed class AutomationReportPreparationIngressTests
         {
             Assert.Contains("0, 90, 180 or 270", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
-        using (var refused = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(3, "pegasus_image_prepare", new
+        using (var refused = await PostMcpAsync(client, McpServer, token, ToolCallPayload(3, "pegasus_image_prepare", new
         {
             caseId,
             expectedVersion = caseVersion,
@@ -64,7 +64,7 @@ public sealed class AutomationReportPreparationIngressTests
         }
         Assert.Equal(caseVersion, await GetWorkflowVersionAsync(mcpFactory, caseId));
 
-        using (var response = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(4, "pegasus_image_prepare", new
+        using (var response = await PostMcpAsync(client, McpServer, token, ToolCallPayload(4, "pegasus_image_prepare", new
         {
             caseId,
             expectedVersion = caseVersion,
@@ -94,7 +94,7 @@ public sealed class AutomationReportPreparationIngressTests
         }
 
         // The preparation version moved, so a call that read the old one is stale.
-        using (var stale = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(5, "pegasus_image_prepare", new
+        using (var stale = await PostMcpAsync(client, McpServer, token, ToolCallPayload(5, "pegasus_image_prepare", new
         {
             caseId,
             expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
@@ -127,7 +127,7 @@ public sealed class AutomationReportPreparationIngressTests
         var token = await RequestTokenAsync(client, AllScopes);
         var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
 
-        using (var response = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(1, "pegasus_report_wording_get", new { caseId })))
+        using (var response = await PostMcpAsync(client, McpServer, token, ToolCallPayload(1, "pegasus_report_wording_get", new { caseId })))
         {
             var read = await ReadStructuredContentAsync(response);
             Assert.False(read.GetProperty("available").GetBoolean());
@@ -138,7 +138,7 @@ public sealed class AutomationReportPreparationIngressTests
         }
 
         // An unknown key and a key named twice are refused before any lease.
-        using (var refused = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(2, "pegasus_report_wording_save", new
+        using (var refused = await PostMcpAsync(client, McpServer, token, ToolCallPayload(2, "pegasus_report_wording_save", new
         {
             caseId,
             expectedVersion = version,
@@ -148,7 +148,7 @@ public sealed class AutomationReportPreparationIngressTests
         {
             Assert.Contains("is not a report wording block", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
         }
-        using (var refused = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(3, "pegasus_report_wording_save", new
+        using (var refused = await PostMcpAsync(client, McpServer, token, ToolCallPayload(3, "pegasus_report_wording_save", new
         {
             caseId,
             expectedVersion = version,
@@ -161,7 +161,7 @@ public sealed class AutomationReportPreparationIngressTests
 
         // With no projected report there is no composed sentence to compare
         // with, so nothing is saved, as on the Case page.
-        using (var refused = await PostMcpAsync(client, DocumentsServer, token, ToolCallPayload(4, "pegasus_report_wording_save", new
+        using (var refused = await PostMcpAsync(client, McpServer, token, ToolCallPayload(4, "pegasus_report_wording_save", new
         {
             caseId,
             expectedVersion = version,
@@ -209,8 +209,8 @@ public sealed class AutomationReportPreparationIngressTests
         };
         foreach (var payload in payloads)
         {
-            using var response = await PostMcpAsync(client, DocumentsServer, casesOnly, payload);
-            Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.StatusCode);
+            using var response = await PostMcpAsync(client, McpServer, casesOnly, payload);
+            await AssertScopeDeniedAsync(response, AutomationMcp.DocumentsScope);
         }
     }
 

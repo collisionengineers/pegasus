@@ -71,5 +71,5 @@ re-typed base64 PDF, and neither tool checked a declared SHA-256.
 
 - [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
 - [ADR-0059](0059-native-mcp-file-content-and-consolidated-tool-inventory.md)
-- [ADR-0080](0080-automation-mcp-one-server-per-scope.md)
+- [ADR-0087](0087-one-automation-mcp-server-with-per-scope-consent.md)
 - Issue [#1474](https://github.com/collisionengineers/pegasus/issues/1474)

@@ -28,14 +28,8 @@ internal static class AutomationMcpTestSupport
     public const string AllScopes =
         "automation.cases automation.intake automation.documents automation.assessment automation.mail";
 
-    // One server per scope (ADR-0080), each at its own path.
-    public const string CasesServer = "/mcp/cases";
-    public const string IntakeServer = "/mcp/intake";
-    public const string DocumentsServer = "/mcp/documents";
-    public const string AssessmentServer = "/mcp/assessment";
-    public const string MailServer = "/mcp/mail";
-    public const string JobsServer = "/mcp/jobs";
-    public const string SendServer = "/mcp/send";
+    // The one server (ADR-0087), every tool at its path.
+    public const string McpServer = "/mcp";
 
     public static readonly DateTimeOffset SeedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
@@ -91,15 +85,25 @@ internal static class AutomationMcpTestSupport
     }
 
     /// <summary>
-    /// A server refuses a token without one of its scopes in its endpoint
-    /// policy, with 403 before any tool runs (ADR-0080 decision 4): the
-    /// transport denial is recorded, and no refusal names the missing scope.
+    /// A tool refuses a token without its scope before anything runs
+    /// (ADR-0087 decision 3): 200 with an error naming the scope, and an
+    /// attributable security event, which <see cref="CountScopeDenialsAsync"/>
+    /// counts.
     /// </summary>
-    public static Task<int> CountServerRefusalsAsync(IntakeWebApplicationFactory factory) =>
+    public static async Task AssertScopeDeniedAsync(HttpResponseMessage response, string scope)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = await ReadJsonRpcAsync(response);
+        Assert.Contains(scope, document.RootElement.ToString(), StringComparison.Ordinal);
+    }
+
+    public static Task<int> CountScopeDenialsAsync(IntakeWebApplicationFactory factory) =>
         factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'automation_access_denied' AND Outcome = N'Denied'
+            WHERE ReasonCode = N'automation_scope_denied'
+              AND Outcome = N'Denied'
+              AND SubjectId = N'pegasus-automation'
             """);
 
     public static async Task<JsonDocument> ReadJsonRpcAsync(HttpResponseMessage response)
@@ -188,7 +192,7 @@ internal static class AutomationMcpTestSupport
         int partCount;
         using (var begin = await PostMcpAsync(
             client,
-            DocumentsServer,
+            McpServer,
             token,
             ToolCallPayload(
                 1,
@@ -207,7 +211,7 @@ internal static class AutomationMcpTestSupport
             var part = document[offset..Math.Min(document.Length, offset + partBytes)];
             using var sent = await PostMcpAsync(
                 client,
-                DocumentsServer,
+                McpServer,
                 token,
                 ToolCallPayload(
                     1 + partNumber,
@@ -256,7 +260,7 @@ internal static class AutomationMcpTestSupport
     {
         using var response = await PostMcpAsync(
             client,
-            CasesServer,
+            McpServer,
             token,
             ToolCallPayload(
                 rpcId,

@@ -33,24 +33,24 @@ public sealed class AutomationMailIngressTests
         await SeedClassificationAsync(mcpFactory, $"{MailboxId}-1");
         using var client = mcpFactory.CreateClient();
 
-        // Out-of-scope first: the mail server refuses a token without
+        // Out-of-scope first: the tool refuses a token without
         // automation.mail, and the denial writes a security event.
         var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
         using (var denied = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             casesOnlyToken,
             ToolCallPayload(1, "pegasus_mail_list", new { })))
         {
-            Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+            await AssertScopeDeniedAsync(denied, AutomationMcp.MailScope);
         }
 
-        Assert.Equal(1, await CountServerRefusalsAsync(factory));
+        Assert.Equal(1, await CountScopeDenialsAsync(factory));
 
         var token = await RequestTokenAsync(client, AllScopes);
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(2, "pegasus_mail_list", new { })))
         {
@@ -79,7 +79,7 @@ public sealed class AutomationMailIngressTests
 
         Guid firstPageId;
         string continuation;
-        using (var firstPage = await PostMcpAsync(client, MailServer, token,
+        using (var firstPage = await PostMcpAsync(client, McpServer, token,
             ToolCallPayload(20, "pegasus_mail_list", new { pageSize = 1 })))
         {
             var structured = await ReadStructuredContentAsync(firstPage);
@@ -88,7 +88,7 @@ public sealed class AutomationMailIngressTests
             continuation = structured.GetProperty("continuation").GetString()!;
             Assert.False(string.IsNullOrWhiteSpace(continuation));
         }
-        using (var secondPage = await PostMcpAsync(client, MailServer, token,
+        using (var secondPage = await PostMcpAsync(client, McpServer, token,
             ToolCallPayload(21, "pegasus_mail_list", new { pageSize = 1, continuation })))
         {
             var structured = await ReadStructuredContentAsync(secondPage);
@@ -98,7 +98,7 @@ public sealed class AutomationMailIngressTests
             Assert.True(!structured.TryGetProperty("continuation", out var terminal)
                 || terminal.ValueKind == System.Text.Json.JsonValueKind.Null);
         }
-        using (var foreignFilter = await PostMcpAsync(client, MailServer, token,
+        using (var foreignFilter = await PostMcpAsync(client, McpServer, token,
             ToolCallPayload(22, "pegasus_mail_list", new { folder = "sent", continuation })))
         {
             using var document = await ReadJsonRpcAsync(foreignFilter);
@@ -111,7 +111,7 @@ public sealed class AutomationMailIngressTests
         // refusal from the same Core validation the staff page relies on.
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(3, "pegasus_mail_list", new { folder = "junk" })))
         {
@@ -124,7 +124,7 @@ public sealed class AutomationMailIngressTests
 
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(4, "pegasus_mail_get", new { messageId = ids[0] })))
         {
@@ -156,7 +156,7 @@ public sealed class AutomationMailIngressTests
         // An unknown message is a content-safe not-found, recorded as failed.
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(5, "pegasus_mail_get", new { messageId = Guid.NewGuid() })))
         {
@@ -204,7 +204,7 @@ public sealed class AutomationMailIngressTests
         // The offered options are Correspondence and the three categories.
         using (var read = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(20, "pegasus_mail_get", new { messageId = ids[0] })))
         {
@@ -222,7 +222,7 @@ public sealed class AutomationMailIngressTests
         // allocation reads.
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(
                 21,
@@ -244,7 +244,7 @@ public sealed class AutomationMailIngressTests
 
         using (var combined = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(
                 22,
@@ -267,7 +267,7 @@ public sealed class AutomationMailIngressTests
         // A New instruction without its case type is refused and writes nothing.
         using (var noWorkType = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(
                 23,
@@ -290,7 +290,7 @@ public sealed class AutomationMailIngressTests
 
         using (var final = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(24, "pegasus_mail_get", new { messageId = ids[0] })))
         {
@@ -314,7 +314,7 @@ public sealed class AutomationMailIngressTests
         // history, next version.
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(
                 11,
@@ -347,7 +347,7 @@ public sealed class AutomationMailIngressTests
         // nothing further is appended.
         using (var stale = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(
                 12,
@@ -371,7 +371,7 @@ public sealed class AutomationMailIngressTests
         // A key outside the correction options is refused before the command.
         using (var invalid = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(
                 13,
@@ -395,7 +395,7 @@ public sealed class AutomationMailIngressTests
         // A message with no classification decision cannot be corrected.
         using (var unclassified = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(
                 14,
@@ -419,7 +419,7 @@ public sealed class AutomationMailIngressTests
         // Mutations demand the mcp:-prefixed caller idempotency key.
         using (var missingKey = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(
                 15,
@@ -461,7 +461,7 @@ public sealed class AutomationMailIngressTests
         // one permanent history entry, prior decision preserved.
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(16, "pegasus_mail_get", new { messageId = ids[0] })))
         {
@@ -499,18 +499,18 @@ public sealed class AutomationMailIngressTests
         var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
         using (var denied = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             casesOnlyToken,
             ToolCallPayload(30, "pegasus_mail_link_destinations", new { messageId = ids[0] })))
         {
-            Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+            await AssertScopeDeniedAsync(denied, AutomationMcp.MailScope);
         }
 
         var token = await RequestTokenAsync(client, AllScopes);
         long intakeVersion;
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(31, "pegasus_mail_get", new { messageId = ids[0] })))
         {
@@ -522,7 +522,7 @@ public sealed class AutomationMailIngressTests
         long caseVersion;
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(32, "pegasus_mail_link_destinations", new { messageId = ids[0], query = "MAIL41001" })))
         {
@@ -538,7 +538,7 @@ public sealed class AutomationMailIngressTests
         // nothing is linked.
         using (var stale = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(33, "pegasus_mail_link_case", new
             {
@@ -558,7 +558,7 @@ public sealed class AutomationMailIngressTests
 
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(34, "pegasus_mail_link_case", new
             {
@@ -580,7 +580,7 @@ public sealed class AutomationMailIngressTests
         // is refused and changes nothing.
         using (var again = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(35, "pegasus_mail_link_case", new
             {
@@ -630,7 +630,7 @@ public sealed class AutomationMailIngressTests
 
         using (var refused = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(2, "pegasus_mail_action", new
             {
@@ -644,7 +644,7 @@ public sealed class AutomationMailIngressTests
 
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(3, "pegasus_mail_action", new
             {
@@ -659,7 +659,7 @@ public sealed class AutomationMailIngressTests
 
         using (var response = await PostMcpAsync(
             client,
-            MailServer,
+            McpServer,
             token,
             ToolCallPayload(4, "pegasus_mail_action", new
             {

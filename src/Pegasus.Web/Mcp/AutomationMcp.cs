@@ -19,6 +19,10 @@ public static class AutomationMcp
     /// (the Automation activity view).
     /// </summary>
     public const string ClientDisplayName = "Pegasus Automation Actor";
+
+    /// <summary>The one server's <c>ServerInfo.Name</c> (ADR-0087).</summary>
+    public const string ServerName = "pegasus-automation";
+    public const string EndpointPolicy = "AutomationMcpEndpoint";
     public const string DocumentsEndpointPolicy = "AutomationMcpDocumentsEndpoint";
     public const string IntakeEndpointPolicy = "AutomationMcpIntakeEndpoint";
     public const string RateLimitPolicy = "AutomationMcp";
@@ -26,11 +30,11 @@ public static class AutomationMcp
     public const string TokenEndpointPath = "/connect/token";
     public const string AuthorizationEndpointPath = "/authorize";
 
-    /// <summary>The prefix of every server's path; no server answers on it alone.</summary>
-    public const string McpPathPrefix = "/mcp";
+    /// <summary>The one server's path (ADR-0087): every tool is served here.</summary>
+    public const string McpEndpointPath = "/mcp";
 
-    /// <summary>RFC 9728: a server's metadata document is this prefix and the server's path.</summary>
-    public const string ResourceMetadataPathPrefix = "/.well-known/oauth-protected-resource";
+    /// <summary>RFC 9728: the server's metadata document, which lists every scope.</summary>
+    public const string ResourceMetadataPath = "/.well-known/oauth-protected-resource/mcp";
     public const string CasesScope = "automation.cases";
     public const string IntakeScope = "automation.intake";
     public const string DocumentsScope = "automation.documents";
@@ -52,8 +56,9 @@ public static class AutomationMcp
     public static IReadOnlyList<string> Scopes { get; } =
         [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope, JobsScope, SendScope];
 
-    // The cross-tool rules FRD-10 states, as the servers' instructions restate
-    // them (ADR-0080 decision 2): agent-facing copy, waiting for the operator.
+    // The cross-tool rules FRD-10 states, as the server's instructions restate
+    // them (ADR-0080 decision 2, carried by ADR-0087): agent-facing copy the
+    // operator approved as built (R526).
     private const string Paging = "Lists page by cursor, 50 by default and 100 at most.";
     private const string OneCommandLease =
         "A write takes expectedVersion and operationKey and accepts an editLeaseToken from "
@@ -66,52 +71,10 @@ public static class AutomationMcp
         + "the original bytes.";
 
     /// <summary>
-    /// The servers (ADR-0080 decision 1), one per scope. A server serves the
-    /// tools of its scopes and nothing else; the client, audience, token
-    /// endpoint, kill switch, rate limit, consent page and content routes are
-    /// shared by all of them.
+    /// The one server's <c>ServerInstructions</c>: the four approved sentences,
+    /// restating FRD-10's cross-tool rules and making none.
     /// </summary>
-    public static IReadOnlyList<AutomationMcpServer> Servers { get; } =
-    [
-        new("cases", $"{Paging} {OneCommandLease} {ExplicitLease}", [CasesScope]),
-        new("intake", $"{Paging} {OneCommandLease} {ExplicitLease} {NativeContent}", [IntakeScope]),
-        new("documents", $"{NativeContent} {OneCommandLease}", [DocumentsScope]),
-        new("assessment", OneCommandLease, [AssessmentScope]),
-        new("mail", $"{Paging} {OneCommandLease}", [MailScope]),
-        new("jobs", Paging, [JobsScope]),
-        new("send", OneCommandLease, [SendScope])
-    ];
-}
-
-/// <summary>
-/// One Automation MCP server: a row of <see cref="AutomationMcp.Servers"/>
-/// with its own path, name, instructions, endpoint policy, registered resource
-/// and protected-resource metadata, serving the tools of its scopes.
-/// </summary>
-public sealed class AutomationMcpServer
-{
-    internal AutomationMcpServer(string word, string instructions, IReadOnlyList<string> scopes)
-    {
-        Word = word;
-        Instructions = instructions;
-        Scopes = scopes;
-        Name = "pegasus-" + word;
-        Path = AutomationMcp.McpPathPrefix + "/" + word;
-        EndpointPolicy = "AutomationMcp:" + word;
-    }
-
-    public string Word { get; }
-
-    /// <summary>The server's <c>ServerInstructions</c>.</summary>
-    public string Instructions { get; }
-
-    /// <summary>The scopes whose tools the server serves; a token needs one of them.</summary>
-    public IReadOnlyList<string> Scopes { get; }
-
-    /// <summary>The server's <c>ServerInfo.Name</c>.</summary>
-    public string Name { get; }
-    public string Path { get; }
-    public string EndpointPolicy { get; }
+    public const string Instructions = $"{Paging} {OneCommandLease} {ExplicitLease} {NativeContent}";
 }
 
 /// <summary>
@@ -131,8 +94,8 @@ public sealed record AutomationMcpOptions(
     IReadOnlyList<Uri> SigningCertificateSecretUris,
     IReadOnlyList<Uri> EncryptionCertificateSecretUris)
 {
-    /// <summary>The server's RFC 8707 resource: its path on the public origin.</summary>
-    public Uri ResourceUri(AutomationMcpServer server) => new(PublicOrigin, server.Path);
+    /// <summary>The server's RFC 8707 resource: <c>/mcp</c> on the public origin.</summary>
+    public Uri ResourceUri => new(PublicOrigin, AutomationMcp.McpEndpointPath);
 
     /// <summary>
     /// The authorization-code flow for external connectors exists only when

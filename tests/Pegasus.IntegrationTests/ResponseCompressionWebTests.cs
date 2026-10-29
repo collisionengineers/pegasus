@@ -70,7 +70,7 @@ public sealed class ResponseCompressionWebTests : IClassFixture<IntakeWebApplica
         using var mcpFactory = WithAutomationMcp(factory);
         using var client = CreateClient(mcpFactory);
         using var request = new HttpRequestMessage(
-            HttpMethod.Get, "/.well-known/oauth-protected-resource/mcp/cases");
+            HttpMethod.Get, "/.well-known/oauth-protected-resource/mcp");
         request.Headers.TryAddWithoutValidation("Accept-Encoding", offered);
 
         using var response = await client.SendAsync(request);

@@ -8,9 +8,9 @@ using Pegasus.Web.Mcp;
 namespace Pegasus.ArchitectureTests;
 
 /// <summary>
-/// ADR-0080 decision 3: <see cref="AutomationToolScopes"/> is the one
-/// declaration of a tool's scope, read by the call gate and the tools/list
-/// filter. Every registered tool has a row, every row is a registered tool,
+/// ADR-0080 decision 3, carried by ADR-0087: <see cref="AutomationToolScopes"/>
+/// is the one declaration of a tool's scope, read by the call gate and the
+/// tools/list filter. Every registered tool has a row, every row is a registered tool,
 /// every gate names the tool it guards, and a token lists exactly the tools
 /// of the scopes it carries.
 /// </summary>
@@ -98,43 +98,6 @@ public sealed partial class AutomationToolScopeTableTests
         Assert.Throws<InvalidOperationException>(
             () => AutomationToolScopes.RequiredScope("pegasus_no_such_tool"));
     }
-
-    [Fact]
-    public void EachServerHoldsTheToolsOfItsOwnScope()
-    {
-        // ADR-0080 decision 1: one server per scope, named and pathed by its word.
-        string[] words = ["cases", "intake", "documents", "assessment", "mail", "jobs", "send"];
-        int[] toolCounts = [12, 25, 12, 10, 7, 4, 2];
-        Assert.Equal(words, AutomationMcp.Servers.Select(server => server.Word).ToArray());
-        foreach (var server in AutomationMcp.Servers)
-        {
-            Assert.Equal("pegasus-" + server.Word, server.Name);
-            Assert.Equal("/mcp/" + server.Word, server.Path);
-            Assert.Equal("automation." + server.Word, Assert.Single(server.Scopes));
-            Assert.Equal(Listed([.. server.Scopes]), OnServer(server));
-        }
-
-        Assert.Equal(toolCounts, AutomationMcp.Servers.Select(server => OnServer(server).Length).ToArray());
-        Assert.All(AutomationToolScopes.Tools, tool => Assert.Contains(
-            AutomationMcp.Servers, server => AutomationToolScopes.IsOn(tool, server)));
-
-        // The shared reads are not duplicated; the edit trio is on cases and intake.
-        string[] cases = ["cases"];
-        string[] casesAndIntake = ["cases", "intake"];
-        Assert.Equal(cases, Servers("pegasus_case_get"));
-        Assert.Equal(cases, Servers("pegasus_vocabulary_get"));
-        Assert.Equal(casesAndIntake, Servers("pegasus_edit_begin"));
-    }
-
-    private static string[] OnServer(AutomationMcpServer server) =>
-        [.. AutomationToolScopes.Tools
-            .Where(tool => AutomationToolScopes.IsOn(tool, server))
-            .Order(StringComparer.Ordinal)];
-
-    private static string[] Servers(string tool) =>
-        [.. AutomationMcp.Servers
-            .Where(server => AutomationToolScopes.IsOn(tool, server))
-            .Select(server => server.Word)];
 
     private static string[] Listed(params string[] scopes)
     {
