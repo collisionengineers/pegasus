@@ -1,6 +1,6 @@
 # FRD-18: Manual upload
 
-> Owner capabilities: INT-19, UI-08 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: UI-08 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -266,7 +266,7 @@ are separate tiers
 
 ## Links
 
-- Capabilities: `INT-19`, `UI-08` in
+- Capabilities: `UI-08` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
