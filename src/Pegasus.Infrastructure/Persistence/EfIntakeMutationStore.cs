@@ -502,8 +502,7 @@ internal sealed class EfIntakeMutationStore(
                         item.StagedReceipt.SourceChannel == receipt.SourceChannel
                         && item.StagedReceipt.ExternalReceiptToken == receipt.ExternalReceiptToken,
                         token)
-                    ?? throw new InvalidDataException(
-                        "The intake receipt does not have durable evaluation work.");
+                    ?? throw new IntakeNeverEvaluatedException();
                 if (workItem.StagedReceipt.SourceHash != receipt.SourceHash
                     || workItem.StagedReceipt.SourceLength != receipt.SourceLength
                     || workItem.ProcessedReceiptId is { } processedId && processedId != receipt.Id)
@@ -514,8 +513,7 @@ internal sealed class EfIntakeMutationStore(
                     && workItem.LeaseExpiresAtUtc is { } leaseExpiresAtUtc
                     && leaseExpiresAtUtc > occurredAtUtc)
                 {
-                    throw new InvalidOperationException(
-                        "The intake receipt is already being evaluated.");
+                    throw new IntakeAlreadyEvaluatingException();
                 }
 
                 workItem.State = "pending";
@@ -551,11 +549,11 @@ internal sealed class EfIntakeMutationStore(
             async (context, receipt, _, _, token) =>
             {
                 var last = await EfIntakeOcrOperationStore.FindLastForReceiptAsync(context, receipt.Id, token)
-                    ?? throw new InvalidOperationException("This received item has no OCR attempt to retry.");
+                    ?? throw new IntakeOcrRetryRefusedException();
                 if (!IntakeOcrRetryPolicy.CanRetry(
                         EfIntakeOcrOperationStore.EffectiveState(last.Operation.State, last.WorkItem.State)))
                 {
-                    throw new InvalidOperationException("OCR can be retried only when its last attempt failed.");
+                    throw new IntakeOcrRetryRefusedException();
                 }
 
                 // Web re-queues the work only; the Worker resumes the operation.
@@ -1007,8 +1005,7 @@ internal sealed class EfIntakeMutationStore(
             "intake_case_linked" or "intake_case_link_reversed";
         if (acceptedCaseId is not null && !isAssociationMutation)
         {
-            throw new InvalidOperationException(
-                "An accepted intake receipt cannot be changed through the pre-case intake workflow.");
+            throw new IntakeReceiptBecameCaseException();
         }
         if (await context.UnidentifiedItems.AsNoTracking().AnyAsync(item =>
                 item.OriginKind == nameof(UnidentifiedOriginKind.Receipt)
@@ -1017,8 +1014,7 @@ internal sealed class EfIntakeMutationStore(
                 && item.ResolutionTargetKind == nameof(UnidentifiedResolutionTargetKind.Closed),
                 cancellationToken))
         {
-            throw new InvalidOperationException(
-                "Reopen the closed Unidentified item before changing its source.");
+            throw new IntakeUnidentifiedClosedException();
         }
         if (eventType == "intake_case_linked"
             && acceptedCaseId is not null

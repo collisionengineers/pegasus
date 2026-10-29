@@ -269,20 +269,30 @@ public static partial class OperatorLabels
 
         public const string ReasonRequired = "Give a reason for this action.";
 
-        /// <summary>
-        /// A reason over Core's 500-character limit. Its own words wait for the
-        /// operator (R437); until then it reads as a missing reason.
-        /// </summary>
-        public const string ReasonTooLong = ReasonRequired;
+        /// <summary>A reason over Core's 500-character limit (R543).</summary>
+        public const string ReasonTooLong = "The reason must be 500 characters or fewer.";
 
-        /// <summary>
-        /// A stale or refused drawer action. The store's refusals (already being
-        /// evaluated, OCR no longer retryable, a closed Unidentified item, no
-        /// evaluation work) read this until the operator gives their words (R437).
-        /// </summary>
+        /// <summary>A drawer action posted at a version or with a key that no longer holds.</summary>
         public const string ItemChanged = "The received item changed. Reload it before trying again.";
 
-        /// <summary>Re-evaluate refused because the retained file no longer matches what was received.</summary>
+        // The store's refusals, one sentence each (R542, R543, 29 October 2026).
+
+        /// <summary>Re-evaluate while the file is already being evaluated.</summary>
+        public const string AlreadyReevaluating = "This file is already being re-evaluated.";
+
+        /// <summary>Retry OCR when the last attempt did not fail, or there is none.</summary>
+        public const string OcrRetryNeedsFailure = "OCR can be retried only after a failed attempt.";
+
+        /// <summary>Re-evaluate on a file with no evaluation work.</summary>
+        public const string NeverEvaluated = "This file was never evaluated, so there is nothing to re-evaluate.";
+
+        /// <summary>An action on a file that has become a Case.</summary>
+        public const string BecameCase = "This file has already become a Case and can no longer be changed here.";
+
+        /// <summary>An action on a file whose Unidentified item is closed.</summary>
+        public const string UnidentifiedClosed = "This file's Unidentified item is closed and can no longer be changed here.";
+
+        /// <summary>Re-evaluate refused because the retained file no longer matches what was received; the sentence stands (R543).</summary>
         public static string RetainedFileMismatch => IntakeFailure("artifact_integrity_failure");
 
         public static string Outcome(IntakeLogOutcome outcome) => outcome switch

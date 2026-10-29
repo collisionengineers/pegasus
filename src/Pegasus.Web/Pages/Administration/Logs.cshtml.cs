@@ -295,13 +295,19 @@ public sealed class LogsModel(
 
     /// <summary>
     /// The page's sentence for a refused drawer action, or null for a fault
-    /// that is not a refusal. The store's own text never reaches the page.
+    /// that is not a refusal. Each store refusal has its own sentence, chosen
+    /// by its type; the store's own text never reaches the page (R542, R543).
     /// </summary>
     private static string? IntakeActionRefusal(Exception exception) => exception switch
     {
         ArgumentException { ParamName: "reason" } => OperatorLabels.IntakeLog.ReasonTooLong,
         ArgumentException => OperatorLabels.IntakeLog.Expired,
         IntakeArtifactIntegrityException => OperatorLabels.IntakeLog.RetainedFileMismatch,
+        IntakeAlreadyEvaluatingException => OperatorLabels.IntakeLog.AlreadyReevaluating,
+        IntakeOcrRetryRefusedException => OperatorLabels.IntakeLog.OcrRetryNeedsFailure,
+        IntakeNeverEvaluatedException => OperatorLabels.IntakeLog.NeverEvaluated,
+        IntakeReceiptBecameCaseException => OperatorLabels.IntakeLog.BecameCase,
+        IntakeUnidentifiedClosedException => OperatorLabels.IntakeLog.UnidentifiedClosed,
         InvalidOperationException
             or InvalidDataException
             or IntakeVersionConflictException
