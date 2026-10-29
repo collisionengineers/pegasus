@@ -1049,7 +1049,7 @@ public sealed class StaffMailSendPersistenceTests
             new(fixture.CaseId, fixture.WorkflowVersion, actor, "claim-received-query"),
             CancellationToken.None);
         var mutationStore = new EfIntakeMutationStore(factory);
-        var receipt = await mutationStore.GetAsync(fixture.ReceiptId, CancellationToken.None);
+        var receipt = await mutationStore.GetAsync(fixture.ReceiptId, null, CancellationToken.None);
         Assert.NotNull(receipt);
 
         await mutationStore.LinkAsync(
@@ -1113,7 +1113,7 @@ public sealed class StaffMailSendPersistenceTests
             new(fixture.CaseId, fixture.WorkflowVersion, actor, "claim-unlink-query"),
             CancellationToken.None);
         var mutationStore = new EfIntakeMutationStore(factory);
-        var receipt = await mutationStore.GetAsync(fixture.ReceiptId, CancellationToken.None);
+        var receipt = await mutationStore.GetAsync(fixture.ReceiptId, null, CancellationToken.None);
         Assert.NotNull(receipt);
 
         await mutationStore.ReverseLinkAsync(
@@ -1172,7 +1172,7 @@ public sealed class StaffMailSendPersistenceTests
             new(fixture.CaseId, fixture.WorkflowVersion, actor, "claim-unlink-one-query"),
             CancellationToken.None);
         var mutationStore = new EfIntakeMutationStore(factory);
-        var receipt = await mutationStore.GetAsync(fixture.ReceiptId, CancellationToken.None);
+        var receipt = await mutationStore.GetAsync(fixture.ReceiptId, null, CancellationToken.None);
 
         await mutationStore.ReverseLinkAsync(
             new(

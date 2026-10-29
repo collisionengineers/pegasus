@@ -13,9 +13,10 @@ public sealed class AdministrationPolicyTests
     {
         var store = new WorkflowStore();
         var command = new UpdateWorkflowConfiguration(store);
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => command.ExecuteAsync(
+        var refused = await Assert.ThrowsAsync<ArgumentException>(() => command.ExecuteAsync(
             new(1, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), "schedule")
             { ChaseIntervalDays = interval }, default));
+        Assert.Equal("Chase interval must be between 1 and 365 days.", refused.Message);
         Assert.Null(store.UpdateRequest);
     }
     [Theory]
@@ -27,16 +28,18 @@ public sealed class AdministrationPolicyTests
         var command = new UpdateWorkflowConfiguration(store);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
-        foreach (var request in new UpdateWorkflowConfigurationRequest[]
+        foreach (var (request, label) in new (UpdateWorkflowConfigurationRequest, string)[]
         {
-            new(1, actor, "targets") { UnidentifiedTargetDays = days },
-            new(1, actor, "targets") { TriageTargetDays = days },
-            new(1, actor, "targets") { HeldTargetDays = days },
-            new(1, actor, "targets") { ReviewTargetDays = days },
-            new(1, actor, "targets") { AiDraftTargetDays = days }
+            (new(1, actor, "targets") { UnidentifiedTargetDays = days }, "Unidentified target"),
+            (new(1, actor, "targets") { TriageTargetDays = days }, "Triage target"),
+            (new(1, actor, "targets") { HeldTargetDays = days }, "Held decision target"),
+            (new(1, actor, "targets") { ReviewTargetDays = days }, "Review target"),
+            (new(1, actor, "targets") { AiDraftTargetDays = days }, "AI draft target")
         })
         {
-            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => command.ExecuteAsync(request, default));
+            // The refusal names the setting and its range, with no parameter suffix.
+            var refused = await Assert.ThrowsAsync<ArgumentException>(() => command.ExecuteAsync(request, default));
+            Assert.Equal($"{label} must be between 0 and 365 days.", refused.Message);
         }
 
         Assert.Null(store.UpdateRequest);

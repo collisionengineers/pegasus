@@ -50,20 +50,15 @@ public sealed record UploadReviewFile(
     public IReadOnlyList<UploadReviewPhotograph> Photographs { get; init; } = [];
 
     /// <summary>
-    /// The review image of an upload's file: the image itself, or the image its
-    /// outcome names. The address names the image's content hash, so the browser
-    /// keeps the image while the page looks again every few seconds. An image
-    /// whose source custody has not confirmed has no readable copy yet (the
-    /// address answers 409), so it has no review image until it has.
+    /// The review image of an uploaded image file: its own bytes, read from what
+    /// intake holds, so the tile shows at once, independent of processing and
+    /// custody (operator, 28 October 2026, R463). The address names the image's
+    /// content hash, so the browser keeps the image while the page looks again.
     /// </summary>
-    public static string? ImageUrlOf(UploadOutcomeView? outcome, IntakeReceipt? receipt) =>
-        outcome?.ThumbnailReceiptId is { } thumbnailReceiptId
-            ? IntakeImageAddress.Image(thumbnailReceiptId, outcome.ThumbnailContentHash)
-            : receipt is not null
-                && IsImageSource(receipt)
-                && SourceCustodyIs(receipt, IncomingArtifactCustodyState.Confirmed)
-                ? IntakeImageAddress.Image(receipt.Id, receipt.SourceHash)
-                : null;
+    public static string? ImageUrlOf(Guid stagedReceiptId, string? mediaType, string? contentHash) =>
+        InstructionEvidenceImages.IsImage(mediaType)
+            ? IntakeImageAddress.Upload(stagedReceiptId, contentHash)
+            : null;
 
     /// <summary>
     /// The retained photographs of a processed receipt whose bytes can be read
@@ -82,21 +77,15 @@ public sealed record UploadReviewFile(
                 .ToArray();
 
     /// <summary>
-    /// Whether an image this receipt will show, its own or a photograph pulled
-    /// out of it, is still waiting on custody, so the page should look again.
+    /// Whether a photograph pulled out of this receipt is still waiting on
+    /// custody, so the page should look again. An uploaded image file itself
+    /// never waits: it is drawn from the bytes intake holds.
     /// </summary>
     public static bool AwaitsCustody(IntakeReceipt? receipt) =>
         receipt is not null
-        && ((IsImageSource(receipt) && SourceCustodyIs(receipt, IncomingArtifactCustodyState.Pending))
-            || InstructionEvidenceImages.Select(receipt.AssetRecords).Any(asset =>
-                asset.Kind == IntakeAssetKind.EmbeddedImage
-                && asset.CustodyState == IncomingArtifactCustodyState.Pending));
-
-    private static bool IsImageSource(IntakeReceipt receipt) =>
-        receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
-
-    private static bool SourceCustodyIs(IntakeReceipt receipt, IncomingArtifactCustodyState state) =>
-        IntakeFileIdentity.SourceAsset(receipt)?.CustodyState == state;
+        && InstructionEvidenceImages.Select(receipt.AssetRecords).Any(asset =>
+            asset.Kind == IntakeAssetKind.EmbeddedImage
+            && asset.CustodyState == IncomingArtifactCustodyState.Pending);
 }
 
 /// <summary>One photograph pulled out of an uploaded document.</summary>
@@ -137,6 +126,13 @@ public sealed record UploadReviewRecord(string Reference, string Detail, string 
 
 /// <summary>A settled outcome's words: what happened, one sentence, and where it lives.</summary>
 public sealed record UploadReviewReport(string Eyebrow, string Title, string? Sentence, UploadOutcomeAction? Action, bool OfferRefresh = false);
+
+/// <summary>
+/// Register images on the upload review, for images the upload left in one
+/// Unidentified item that can register (operator, 28 October 2026, R463): the
+/// item's one agreeing reading prefills the registration, as on its record.
+/// </summary>
+public sealed record UploadReviewRegistration(string? SuggestedRegistration);
 
 /// <summary>The exact target the confirmation dialog repeats before the write.</summary>
 public sealed record UploadReviewConfirmation(
@@ -203,6 +199,12 @@ public sealed record UploadReviewView(
     public IReadOnlyDictionary<Guid, long> DiscardVersions { get; init; } = new Dictionary<Guid, long>();
 
     public bool OpenDiscard { get; init; }
+
+    /// <summary>Register images, when the upload left its images in an Unidentified item that can register them.</summary>
+    public UploadReviewRegistration? Registration { get; init; }
+
+    /// <summary>Opens the Register images dialog on load, for a browser without script.</summary>
+    public bool OpenRegister { get; init; }
 
     public bool SearchOpen => Candidates.Count == 0 || SearchTerm is not null || SearchFailed;
 

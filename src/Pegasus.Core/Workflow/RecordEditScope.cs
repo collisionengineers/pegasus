@@ -128,6 +128,58 @@ public static class EditScopeAuthority
         string? retainedHolder,
         ActionActor actor) =>
         CaseEditAuthority.IsHolder(retainedHolderKind, retainedHolder, actor);
+
+    /// <summary>
+    /// A scope is claimed, and a write made under it, only at the version the record or the
+    /// scope stands at; any difference is refused.
+    /// </summary>
+    public static void RequireVersion(
+        EditScopeKind scopeKind,
+        Guid recordId,
+        long currentVersion,
+        long expectedVersion)
+    {
+        if (currentVersion != expectedVersion)
+        {
+            throw new EditScopeVersionConflictException(
+                scopeKind, recordId, expectedVersion, currentVersion);
+        }
+    }
+
+    /// <summary>
+    /// Refuses a heartbeat, release or write that does not present the live scope its actor
+    /// holds. No live scope, or a presented token that is missing or not an issued token's
+    /// length, is expired; a live scope held by another actor, or whose retained hash the
+    /// presented token does not match, is a conflict. Infrastructure supplies the retained
+    /// material and the fixed-time comparison, which is asked only once every other check has
+    /// passed; the refusal order is business policy and lives here.
+    /// </summary>
+    public static void RequireScope(
+        EditScopeKind scopeKind,
+        Guid recordId,
+        ActionActor actor,
+        string? presentedLeaseToken,
+        ActorKind? retainedHolderKind,
+        string? retainedHolder,
+        DateTimeOffset? expiresAtUtc,
+        Func<string, bool> presentedTokenMatchesRetainedHash,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(presentedTokenMatchesRetainedHash);
+        if (!IsHeld(expiresAtUtc, nowUtc)
+            || string.IsNullOrWhiteSpace(presentedLeaseToken)
+            || presentedLeaseToken.Length != CaseEditAuthority.LeaseTokenLength)
+        {
+            throw new EditScopeExpiredException(scopeKind, recordId);
+        }
+
+        if (!IsHolder(retainedHolderKind, retainedHolder, actor)
+            || !presentedTokenMatchesRetainedHash(presentedLeaseToken))
+        {
+            throw new EditScopeConflictException(scopeKind, recordId);
+        }
+    }
 }
 
 public interface IEditScopeLeases

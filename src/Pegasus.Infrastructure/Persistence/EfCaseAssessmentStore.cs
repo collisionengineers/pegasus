@@ -87,13 +87,13 @@ public sealed class EfCaseAssessmentStore(
             .ThenInclude(item => item.Principal)
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        RequireVersionUnderLease(workflow, request.ExpectedVersion);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
         AssessmentPolicy.RequireOriginalReportScope(
             request.Fields.Keys,
             CaseTypeCodes.Parse(workflow.Case.Type));
         var now = UtcNow();
-        RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
-        ArchivedCaseGuard.RequireMutable(workflow);
+        CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
+        CaseMutationGuard.RequireMutable(workflow);
         if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
             || !AssessmentPolicy.IsWritableState(state))
         {
@@ -326,16 +326,6 @@ public sealed class EfCaseAssessmentStore(
         Enum.TryParse<ActorKind>(value, out var kind)
             ? kind
             : throw new InvalidDataException($"Unknown persisted actor kind '{value}'.");
-
-    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
-
-    private static void RequireLease(
-        CaseWorkflowEntity workflow,
-        ActionActor actor,
-        string token,
-        DateTimeOffset now) =>
-        CaseMutationGuard.RequireLease(workflow, actor, token, now);
 
     private DateTimeOffset UtcNow()
     {

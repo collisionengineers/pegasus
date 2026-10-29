@@ -38,6 +38,9 @@ public static partial class OperatorLabels
 {
     public const string MarkAsOriginalReport = "Mark as original report";
 
+    /// <summary>A pre-Case record's act that was refused or raced, on whichever page ran it.</summary>
+    public const string ActionNotApplied = "The action was not applied because the item changed or the action is not permitted. Reload and try again.";
+
     /// <summary>
     /// The Case requirement an Audit lists first until its original report is
     /// filed (FRD-01): the Case page's aside and the Cases quick detail name it.
@@ -408,8 +411,8 @@ public static partial class OperatorLabels
 
     public static string ReleaseNoteStatus(Pegasus.Core.ReleaseNotes.ReleaseNoteStatus status) => status switch
     {
-        Pegasus.Core.ReleaseNotes.ReleaseNoteStatus.Published => "Published",
-        _ => "Draft"
+        Pegasus.Core.ReleaseNotes.ReleaseNoteStatus.Published => ReleaseNotes.Published,
+        _ => ReleaseNotes.Draft
     };
 
     /// <summary>
@@ -807,15 +810,17 @@ public static partial class OperatorLabels
     /// ("Intake dispatch", "Automation ingress"); they are renamed here and
     /// only here. Everything else — mailbox addresses, "Sent evidence",
     /// "External work", "AI jobs" — is already the
-    /// operator's own word and passes through, as do external-work kind codes
-    /// via <see cref="Humanise"/>.
+    /// operator's own word and passes through. Only a Custody row that names
+    /// an external-work kind code goes through <see cref="Humanise"/>; the row's
+    /// Area decides that, not the characters in the name.
     /// </remarks>
-    public static string ServiceHealthServiceName(string? service) => service switch
+    public static string ServiceHealthServiceName(ServiceHealthArea area, string? service) => service switch
     {
         ServiceHealthPolicy.IntakeDispatchService => "Receiving dispatch",
         ServiceHealthPolicy.AutomationService => "Automation clients",
         null or "" => "Unknown",
-        _ => service.Contains('_') ? Humanise(service) : service
+        ServiceHealthPolicy.ExternalWorkService => ServiceHealthPolicy.ExternalWorkService,
+        _ => area == ServiceHealthArea.Custody ? Humanise(service) : service
     };
 
     /// <summary>

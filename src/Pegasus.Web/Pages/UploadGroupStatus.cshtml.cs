@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Web.Presentation;
 using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload;
 
@@ -25,7 +26,8 @@ public sealed class UploadGroupStatusModel(
     ISearchCases searchCases,
     DiscardIntakeSubmissionGroup discardSubmission,
     IDeclineImageMatch declineImageMatch,
-    TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
+    GetUnidentifiedItemContext unidentifiedContexts,
+    TimeProvider timeProvider) : UploadReviewPageModel(caseDecision, unidentifiedContexts)
 {
     private readonly IUploadCaseDecision _caseDecision = caseDecision;
 
@@ -142,6 +144,12 @@ public sealed class UploadGroupStatusModel(
 
     public SubmissionDecision? Decision { get; private set; }
 
+    /// <summary>
+    /// The one Unidentified item the members' outcomes name, where they name
+    /// exactly one: a group kept intact under one item, or a sole member's own.
+    /// </summary>
+    public Guid? UnidentifiedItemId { get; private set; }
+
     /// <summary>Members processing could not read; each travels with the group to its destination.</summary>
     public int CouldNotBeReadCount => Group.Members.Count(member => member.CouldNotBeRead == true);
 
@@ -193,11 +201,13 @@ public sealed class UploadGroupStatusModel(
     /// <param name="q">The Find term.</param>
     /// <param name="inspect">The file inspected on the left, one-based; the first when absent.</param>
     /// <param name="discard">Opens the discard confirmation, for a browser without script.</param>
+    /// <param name="register">Opens Register images, for a browser without script.</param>
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         string? q,
         int? inspect,
         bool discard,
+        bool register,
         CancellationToken cancellationToken)
     {
         if (await LoadAsync(id, cancellationToken) is { } notFound)
@@ -210,7 +220,7 @@ public sealed class UploadGroupStatusModel(
             await SearchAsync(q, actor, cancellationToken);
         }
 
-        await BuildReviewAsync(id, inspect, discard, cancellationToken);
+        await BuildReviewAsync(id, inspect, discard, register, cancellationToken);
         return Page();
     }
 
@@ -432,6 +442,11 @@ public sealed class UploadGroupStatusModel(
         Receipts = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.receipt);
         var outcomes = memberResults.Select(result => result.outcome).ToArray();
         Decision = DecideSubmission(outcomes);
+        UnidentifiedItemId = outcomes
+            .Select(outcome => outcome?.UnidentifiedItemId)
+            .OfType<Guid>()
+            .Distinct()
+            .ToArray() is [var item] ? item : null;
         if (outcomes.Length > 1
             && outcomes.All(outcome => outcome is { Kind: UploadOutcomeKind.ImageCaseRegistered })
             && outcomes.Select(outcome => outcome!.PrimaryAction?.Url).Distinct().Count() == 1)
@@ -488,7 +503,7 @@ public sealed class UploadGroupStatusModel(
         return null;
     }
 
-    private async Task BuildReviewAsync(Guid id, int? inspect, bool discard, CancellationToken cancellationToken)
+    private async Task BuildReviewAsync(Guid id, int? inspect, bool discard, bool register, CancellationToken cancellationToken)
     {
         var haveActor = TryGetActor(out var actor);
         // The poll never draws the suggestions, so only a page that is drawn reads them.
@@ -564,6 +579,9 @@ public sealed class UploadGroupStatusModel(
             }).ToArray();
         }
 
+        var registration = haveActor && phase is UploadReviewPhase.Decision or UploadReviewPhase.Report
+            ? await RegistrationOfferAsync(UnidentifiedItemId, actor!, cancellationToken)
+            : null;
         var receiptVersions = GroupConfirmationReceiptVersions ?? OpenMemberReceiptVersions;
         var known = GroupSuggestedDestinations.Concat(SearchResults);
         var proposal = OpenGroupDecision
@@ -600,7 +618,9 @@ public sealed class UploadGroupStatusModel(
                     && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)),
             GroupVersion = Group.Version,
             DiscardVersions = GroupMemberReceiptVersions,
-            OpenDiscard = discard && CanDiscard
+            OpenDiscard = discard && CanDiscard,
+            Registration = registration,
+            OpenRegister = register && registration is not null
         };
     }
 
@@ -610,6 +630,8 @@ public sealed class UploadGroupStatusModel(
         var outcome = Outcomes.GetValueOrDefault(member.StagedReceiptId);
         var receipt = Receipts.GetValueOrDefault(member.StagedReceiptId);
         var unreadable = member.CouldNotBeRead == true;
+        // The staged file's media type is known before processing has read it.
+        var mediaType = receipt?.MediaType ?? status?.MediaType;
         var (label, tone) = (Group.Discard, status?.Status, outcome?.Kind) switch
         {
             (not null, _, _) => (Labels.StateDiscarded, string.Empty),
@@ -626,8 +648,8 @@ public sealed class UploadGroupStatusModel(
             member.StagedReceiptId,
             member.SourceFileName,
             receipt?.SourceLength,
-            Labels.Kind(receipt?.MediaType, member.SourceFileName),
-            UploadReviewFile.ImageUrlOf(outcome, receipt),
+            Labels.Kind(mediaType, member.SourceFileName),
+            UploadReviewFile.ImageUrlOf(member.StagedReceiptId, mediaType, member.SourceHash),
             receipt is null ? null : $"/Received/{receipt.Id:D}/Source",
             label,
             tone,
@@ -649,9 +671,15 @@ public sealed class UploadGroupStatusModel(
             return notFound;
         }
 
-        await BuildReviewAsync(surfaceId, null, false, cancellationToken);
+        await BuildReviewAsync(surfaceId, null, false, false, cancellationToken);
         return Page();
     }
+
+    protected override async Task<Guid?> FindSurfaceUnidentifiedItemAsync(
+        Guid surfaceId,
+        ActionActor actor,
+        CancellationToken cancellationToken) =>
+        await LoadAsync(surfaceId, cancellationToken) is null ? UnidentifiedItemId : null;
 
     private bool TryGetPostedRoster(
         Dictionary<Guid, long>? receiptVersions,

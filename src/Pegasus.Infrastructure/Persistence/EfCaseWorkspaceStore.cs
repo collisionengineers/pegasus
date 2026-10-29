@@ -90,7 +90,7 @@ public sealed class EfCaseWorkspaceStore(
         AssessmentPolicy.RequireOriginalReportScope(
             CaseWorkspacePolicy.AssessmentFields(request).Keys,
             CaseTypeCodes.Parse(workflow.Case.Type));
-        ArchivedCaseGuard.RequireMutable(workflow);
+        CaseMutationGuard.RequireMutable(workflow);
         // Read the persisted configuration under the same transaction as the
         // guarded Case so the readiness written below is never based on a
         // configuration snapshot from before this edit began.

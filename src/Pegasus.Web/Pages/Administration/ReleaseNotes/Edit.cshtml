@@ -19,8 +19,8 @@
                 </div>
                 <div class="panel-body stack">
                     <div class="definition-list">
-                        <dl class="definition"><dt>Published</dt><dd>@OperatorLabels.OfficeTime(published.PublishedAtUtc, OperatorLabels.CaseWorkspace.AbsentValue)</dd></dl>
-                        <dl class="definition"><dt>Version</dt><dd class="mono">@(published.Version ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></dl>
+                        <dl class="definition"><dt>@OperatorLabels.ReleaseNotes.Published</dt><dd>@OperatorLabels.OfficeTime(published.PublishedAtUtc, OperatorLabels.CaseWorkspace.AbsentValue)</dd></dl>
+                        <dl class="definition"><dt>@OperatorLabels.ReleaseNotes.Version</dt><dd class="mono">@(published.Version ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></dl>
                     </div>
                     <div class="release-note__body">
                         <partial name="Shared/_ReleaseNoteBody" model="@published.Body" />
@@ -42,15 +42,15 @@
                     <input type="hidden" name="ExpectedRowVersion" value="@Model.ExpectedRowVersion" />
                     <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
                     <div class="field">
-                        <label for="release-note-title-input">Title</label>
+                        <label for="release-note-title-input">@OperatorLabels.ReleaseNotes.Title</label>
                         <input id="release-note-title-input" name="Title" value="@Model.Title" maxlength="@Pegasus.Core.ReleaseNotes.ReleaseNotePolicy.MaximumTitleLength" required />
                     </div>
                     <div class="field">
-                        <label for="release-note-body-input">Body</label>
+                        <label for="release-note-body-input">@OperatorLabels.ReleaseNotes.Body</label>
                         <textarea id="release-note-body-input" name="Body" rows="14" maxlength="@Pegasus.Core.ReleaseNotes.ReleaseNotePolicy.MaximumBodyLength" required>@Model.Body</textarea>
                     </div>
                     <div class="button-row">
-                        <a class="btn" asp-page="/Administration/ReleaseNotes/Index">Cancel</a>
+                        <a class="btn" asp-page="/Administration/ReleaseNotes/Index">@OperatorLabels.ReleaseNotes.Cancel</a>
                         <button type="submit" class="btn" asp-page-handler="Save" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.ReleaseNotes.SaveDraft</button>
                         @if (Model.Note is not null)
                         {

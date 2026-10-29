@@ -201,6 +201,59 @@ public sealed record CaseEditAuthorityHolder(string? DisplayName, bool IsAutomat
 
     public static readonly CaseEditAuthorityHolder Automation =
         new(DisplayName: null, IsAutomation: true);
+
+    /// <summary>
+    /// The words for an <see cref="Unnamed"/> holder in the takeover history line: the holder
+    /// chip's words for a holder it cannot name.
+    /// </summary>
+    public const string UnnamedName = "another member of staff";
+
+    /// <summary>
+    /// The one rule for naming a retained holder, for the holder chip and the takeover history
+    /// line alike. The Automation Actor is named by its retained kind. Only a staff holder whose
+    /// subject is a staff identifier has an account to name, read through
+    /// <paramref name="accountName"/>; a holder whose kind was never recorded, whose subject is
+    /// not a staff identifier, or whose account name cannot be read is <see cref="Unnamed"/>, never
+    /// its identifier (R520, 29 October 2026).
+    /// </summary>
+    public static async Task<CaseEditAuthorityHolder> ResolveAsync(
+        ActorKind? holderKind,
+        string? holderSubjectId,
+        Func<Guid, CancellationToken, Task<string?>> accountName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(accountName);
+        if (holderKind == ActorKind.Automation)
+        {
+            return Automation;
+        }
+
+        if (holderKind != ActorKind.Staff
+            || !Guid.TryParse(holderSubjectId, out var staffId)
+            || staffId == Guid.Empty)
+        {
+            return Unnamed;
+        }
+
+        var userName = await accountName(staffId, cancellationToken);
+        return string.IsNullOrWhiteSpace(userName) ? Unnamed : new(userName);
+    }
+
+    /// <summary>
+    /// The takeover history line naming this holder as the one the lease was taken over from:
+    /// "Edit lease taken over from AI." for the Automation Actor (operator, 15 and 16 October
+    /// 2026), the staff account name, or <see cref="UnnamedName"/> (R520, 29 October 2026).
+    /// </summary>
+    public string TakeOverHistoryReason
+    {
+        get
+        {
+            var name = IsAutomation
+                ? AutomationName
+                : string.IsNullOrWhiteSpace(DisplayName) ? UnnamedName : DisplayName;
+            return $"Edit lease taken over from {name}.";
+        }
+    }
 }
 
 public interface IDescribeCaseEditAuthorityHolder
@@ -231,24 +284,11 @@ public sealed class DescribeCaseEditAuthorityHolder(IStaffAccountQueries account
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-
-        if (holderKind == ActorKind.Automation)
-        {
-            return CaseEditAuthorityHolder.Automation;
-        }
-
-        // Only a staff holder has an account to name. A holder whose kind was never recorded, or
-        // whose subject is not a staff identifier, is described without one.
-        if (holderKind != ActorKind.Staff
-            || !Guid.TryParse(holderSubjectId, out var staffId)
-            || staffId == Guid.Empty)
-        {
-            return CaseEditAuthorityHolder.Unnamed;
-        }
-
-        var names = await _accounts.GetNamesAsync([staffId], cancellationToken);
-        return !names.TryGetValue(staffId, out var userName) || string.IsNullOrWhiteSpace(userName)
-            ? CaseEditAuthorityHolder.Unnamed
-            : new(userName);
+        return await CaseEditAuthorityHolder.ResolveAsync(
+            holderKind,
+            holderSubjectId,
+            async (staffId, token) =>
+                (await _accounts.GetNamesAsync([staffId], token)).GetValueOrDefault(staffId),
+            cancellationToken);
     }
 }

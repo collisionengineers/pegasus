@@ -177,10 +177,14 @@ public sealed class ProblemReportTests
         Assert.Equal(ProblemReportStatus.Unknown,
             (await retry.ExecuteAsync(Administrator(), report.Id, default))!.Status);
         Assert.Empty(sink.Sent);
-        var delivery = new ProblemReportDelivery(123, "https://github.com/collisionengineers/pegasus/issues/123");
-        var reconciled = await new ReconcileProblemReport(store, clock)
-            .ConfirmIssueAsync(Administrator(), report.Id, delivery, default);
+        var reconcile = new ReconcileProblemReport(store, sink, clock);
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            reconcile.ConfirmIssueAsync(Administrator(), report.Id, 0, default));
+        // The caller gives the number; the sink, the one owner of where
+        // reports go, gives the issue's address.
+        var reconciled = await reconcile.ConfirmIssueAsync(Administrator(), report.Id, 123, default);
         Assert.Equal(123, reconciled.IssueNumber);
+        Assert.Equal("https://github.com/collisionengineers/pegasus/issues/123", reconciled.IssueUrl);
         Assert.Equal(ProblemReportStatus.Sent, reconciled.Status);
     }
 
@@ -296,8 +300,10 @@ public sealed class ProblemReportTests
 
         Assert.Equal(ProblemReportStatus.Unknown, unresolved!.Status);
         Assert.Empty(sink.Sent);
-        await new ReconcileProblemReport(store, new FixedClock(Now))
+        var confirmed = await new ReconcileProblemReport(store, sink, new FixedClock(Now))
             .ConfirmNoIssueAsync(Administrator(), failed.Id, default);
+        Assert.Equal(ProblemReportStatus.NotSent, confirmed.Status);
+        Assert.Equal(ProblemReportPolicy.NoIssueConfirmed, confirmed.Failure);
         var recovered = await new RetryProblemReport(store, sink, new FixedClock(Now)).ExecuteAsync(Administrator(), failed.Id, default);
         Assert.Equal(ProblemReportStatus.Sent, recovered!.Status);
         Assert.Single(sink.Sent);
@@ -339,8 +345,11 @@ public sealed class ProblemReportTests
             }
 
             Sent.Add(report);
-            return Task.FromResult(new ProblemReportDelivery(42, "https://github.com/collisionengineers/pegasus/issues/42"));
+            return Task.FromResult(IssueFor(42));
         }
+
+        public ProblemReportDelivery IssueFor(int issueNumber) =>
+            new(issueNumber, $"https://github.com/collisionengineers/pegasus/issues/{issueNumber}");
     }
 
     private sealed class BlockingSink : IProblemReportSink
@@ -358,6 +367,8 @@ public sealed class ProblemReportTests
             Sent.Add(report);
             return new ProblemReportDelivery(42, "https://github.com/collisionengineers/pegasus/issues/42");
         }
+
+        public ProblemReportDelivery IssueFor(int issueNumber) => throw new NotSupportedException();
     }
 
     private sealed class FakeStore : IProblemReportStore
@@ -466,7 +477,7 @@ public sealed class ProblemReportTests
 
         public Task<ProblemReport> ConfirmNoIssueAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Replace(id, report => report.Status == ProblemReportStatus.Unknown
-                ? report with { Status = ProblemReportStatus.NotSent, Failure = null }
+                ? report with { Status = ProblemReportStatus.NotSent, Failure = ProblemReportPolicy.NoIssueConfirmed }
                 : throw new ProblemReportClaimConflictException()));
 
         private ProblemReport Replace(Guid id, Func<ProblemReport, ProblemReport> change)

@@ -907,7 +907,7 @@ internal sealed class EfQueuedCustodyProcessor(
             .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
         var workflow = await context.CaseWorkflows
             .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
-        ArchivedCaseGuard.RequireMutable(workflow);
+        CaseMutationGuard.RequireMutable(workflow);
         if (string.IsNullOrWhiteSpace(caseEntity.AuditReference))
         {
             throw new InvalidDataException(

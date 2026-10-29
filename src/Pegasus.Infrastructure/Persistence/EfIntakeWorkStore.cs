@@ -630,7 +630,7 @@ public sealed class EfIntakeWorkStore(
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    private static IntakeStagedReceipt Map(IntakeStagedReceiptEntity entity) => new(
+    internal static IntakeStagedReceipt Map(IntakeStagedReceiptEntity entity) => new(
         entity.Id,
         entity.SourceFileName,
         entity.MediaType,

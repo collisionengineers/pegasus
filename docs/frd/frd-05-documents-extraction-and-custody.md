@@ -289,7 +289,10 @@ retained request source and staff uploads
 
 An inline image preview is served through this same cached content path,
 never as an audited download. Every read re-verifies the source content hash
-and serves only confirmed custody. A cache entry is addressed by content
+and serves only confirmed custody. The one exception is the upload review,
+which shows an uploaded image from its intake bytes, staged or retained,
+before custody confirms it, re-verifying the hash the same way (operator, 28
+October 2026, R463; [FRD-18](frd-18-manual-upload.md#the-reviews-shape)). A cache entry is addressed by content
 hash, so it is immutable and safe to share. A smaller thumbnail serves
 galleries and tiles; the full image serves the viewer and crop. No gallery
 omits an image whose custody is still in flight or has failed. It shows a

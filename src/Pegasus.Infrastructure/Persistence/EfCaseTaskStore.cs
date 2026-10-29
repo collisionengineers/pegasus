@@ -159,10 +159,10 @@ public sealed class EfCaseTaskStore(
         }
 
         var workflow = await LoadWorkflowAsync(context, request.CaseId, cancellationToken);
-        RequireCaseVersion(workflow, request.ExpectedCaseVersion);
-        ArchivedCaseGuard.RequireMutable(workflow);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedCaseVersion);
+        CaseMutationGuard.RequireMutable(workflow);
         CaseTaskRules.RequireNonTerminal(ParseLifecycleState(workflow.State));
-        RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
+        CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
         if (await context.CaseTasks.AnyAsync(item => item.Id == request.TaskId, cancellationToken))
         {
             throw new InvalidOperationException("The case-task identifier is already in use.");
@@ -392,10 +392,10 @@ public sealed class EfCaseTaskStore(
         }
 
         var workflow = await LoadWorkflowAsync(context, request.CaseId, cancellationToken);
-        RequireCaseVersion(workflow, request.ExpectedCaseVersion);
-        ArchivedCaseGuard.RequireMutable(workflow);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedCaseVersion);
+        CaseMutationGuard.RequireMutable(workflow);
         CaseTaskRules.RequireNonTerminal(ParseLifecycleState(workflow.State));
-        RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
+        CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
         var task = await context.CaseTasks.SingleOrDefaultAsync(
             item => item.Id == request.TaskId && item.CaseId == request.CaseId,
             cancellationToken)
@@ -492,9 +492,6 @@ public sealed class EfCaseTaskStore(
                 : new(true, staff.IsEnabled));
     }
 
-    private static void RequireCaseVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
-
     private static void RequireTaskVersion(CaseTaskEntity task, long expectedVersion)
     {
         if (task.Version != expectedVersion)
@@ -502,13 +499,6 @@ public sealed class EfCaseTaskStore(
             throw new CaseTaskVersionConflictException(task.Id, expectedVersion, task.Version);
         }
     }
-
-    private static void RequireLease(
-        CaseWorkflowEntity workflow,
-        ActionActor actor,
-        string token,
-        DateTimeOffset now) =>
-        CaseMutationGuard.RequireLease(workflow, actor, token, now);
 
     private static void AddHistory(
         PegasusDbContext context,

@@ -444,7 +444,7 @@ internal sealed class EfSentEvidencePollStore(
         }
     }
 
-    private static string ScopeFingerprint(string mailboxId, string sentFolderIdentity) =>
+    internal static string ScopeFingerprint(string mailboxId, string sentFolderIdentity) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             $"{mailboxId}\n{sentFolderIdentity}")));
 }

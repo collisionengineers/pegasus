@@ -141,7 +141,10 @@ graphics left out (operator, 28 October 2026, R477). A PDF with a readable
 text layer never itself becomes an Image Intake or Unidentified item,
 whatever its issuer; on a manual upload with no declared Case its photographs
 are still read for a registration that offers the matched Cases for staff to
-confirm (R472, R473; the mail route is R474). An image-only PDF attached to an
+confirm (R472, R473). On an e-mail, the plate the photographs inside its PDF
+read, text layer or images only, is a mail-linking signal
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail);
+operator, 28 October 2026, R474). An image-only PDF attached to an
 e-mail is treated as a document too, never Unidentified. An e-mail carrying a
 PDF is a document carrier: its loose photograph attachments open no Image
 Intake or Unidentified item and are filed with it once the Case is matched;

@@ -1,0 +1,13 @@
+@*
+    Register images on the upload review (operator, 28 October 2026, R463):
+    opens the dialog the review draws, or without script the same page with
+    ?register=true, which opens it on load.
+
+    Model: Pegasus.Web.Presentation.UploadReviewView
+*@
+@model Pegasus.Web.Presentation.UploadReviewView
+@using Register = Pegasus.Web.Presentation.OperatorLabels.RegisterImages
+<a class="btn" href="@Model.PageUrl?register=true" data-upload-dialog="upload-register" data-upload-register-open>
+    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-image")" /></svg>
+    <span>@Register.Action</span>
+</a>

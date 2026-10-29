@@ -180,6 +180,28 @@ public sealed class AutomaticMailCaseAssociationTests
         Assert.Equal("Automatic association from reply headers.", store.Request!.Reason);
     }
 
+    /// <summary>
+    /// The plate the photographs inside the message's PDF read is its
+    /// registration when it names none (operator, 28 October 2026, R474): the
+    /// evidence is read with it, and the write re-reads the evidence with it.
+    /// </summary>
+    [Fact]
+    public async Task APhotographReadIsTheRegistrationSignal()
+    {
+        var queries = new EvidenceQueries(Evidence(
+            "SH65HTL", [CaseA], null, [null], null, [], [], []));
+        var store = new RecordingStore();
+        var sut = new AssociateRetainedMailWithCase(queries, store, new FixedTimeProvider());
+
+        var outcome = await sut.ExecuteAsync(ReceiptId, photographRegistration: "SH65HTL");
+
+        Assert.Equal(AutomaticCaseAssociationOutcome.Associated, outcome);
+        Assert.Equal("SH65HTL", queries.PhotographRegistration);
+        Assert.Equal(CaseA, store.Request!.CaseId);
+        Assert.Equal("SH65HTL", store.Request.PhotographRegistration);
+        Assert.Equal("Automatic association from vehicle registration.", store.Request.Reason);
+    }
+
     // #1470: a Case the recorded principal_case_match eliminated, or an
     // Ambiguous decision, never becomes the mail association target. The
     // intersection runs first, so an eliminated Case still counts.
@@ -282,11 +304,15 @@ public sealed class AutomaticMailCaseAssociationTests
     {
         public int Calls { get; private set; }
 
+        public string? PhotographRegistration { get; private set; }
+
         public Task<AutomaticMailCaseAssociationEvidence?> GetAsync(
             Guid intakeReceiptId,
+            string? photographRegistration,
             CancellationToken cancellationToken)
         {
             Calls++;
+            PhotographRegistration = photographRegistration;
             return Task.FromResult<AutomaticMailCaseAssociationEvidence?>(evidence);
         }
     }

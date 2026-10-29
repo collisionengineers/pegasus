@@ -17,17 +17,53 @@ public sealed record UpdateWorkflowConfigurationRequest(
     public int AiDraftTargetDays { get; init; } = 1;
 
     /// <summary>
-    /// The five due targets with the name each validation message uses, so the
-    /// shared 0–365 range rule is stated once.
+    /// The chase interval and the five due targets, each with its value, so the
+    /// range rule is stated once and checked once.
     /// </summary>
-    public IEnumerable<(string Name, int Days)> TargetDays()
-    {
-        yield return ("Unidentified target", UnidentifiedTargetDays);
-        yield return ("Triage target", TriageTargetDays);
-        yield return ("Held decision target", HeldTargetDays);
-        yield return ("Review target", ReviewTargetDays);
-        yield return ("AI draft target", AiDraftTargetDays);
-    }
+    public IReadOnlyList<(WorkflowDaySetting Setting, int Days)> DaySettings() =>
+    [
+        (WorkflowDaySetting.ChaseInterval, ChaseIntervalDays),
+        (WorkflowDaySetting.UnidentifiedTarget, UnidentifiedTargetDays),
+        (WorkflowDaySetting.TriageTarget, TriageTargetDays),
+        (WorkflowDaySetting.HeldTarget, HeldTargetDays),
+        (WorkflowDaySetting.ReviewTarget, ReviewTargetDays),
+        (WorkflowDaySetting.AiDraftTarget, AiDraftTargetDays)
+    ];
+}
+
+/// <summary>
+/// One whole-day workflow setting: the request field that carries it, the name
+/// its refusal uses and its allowed range (FRD-13 chase interval, FRD-17 due targets).
+/// </summary>
+public sealed record WorkflowDaySetting(string Field, string Label, int Minimum, int Maximum)
+{
+    public static WorkflowDaySetting ChaseInterval { get; } = new(
+        nameof(UpdateWorkflowConfigurationRequest.ChaseIntervalDays), "Chase interval",
+        CaseWorkflowConfiguration.MinimumChaseIntervalDays, CaseWorkflowConfiguration.MaximumChaseIntervalDays);
+
+    public static WorkflowDaySetting UnidentifiedTarget { get; } = Target(
+        nameof(UpdateWorkflowConfigurationRequest.UnidentifiedTargetDays), "Unidentified target");
+
+    public static WorkflowDaySetting TriageTarget { get; } = Target(
+        nameof(UpdateWorkflowConfigurationRequest.TriageTargetDays), "Triage target");
+
+    public static WorkflowDaySetting HeldTarget { get; } = Target(
+        nameof(UpdateWorkflowConfigurationRequest.HeldTargetDays), "Held decision target");
+
+    public static WorkflowDaySetting ReviewTarget { get; } = Target(
+        nameof(UpdateWorkflowConfigurationRequest.ReviewTargetDays), "Review target");
+
+    public static WorkflowDaySetting AiDraftTarget { get; } = Target(
+        nameof(UpdateWorkflowConfigurationRequest.AiDraftTargetDays), "AI draft target");
+
+    /// <summary>The refusal for a value outside the range, or for no value at all.</summary>
+    public string RangeMessage => $"{Label} must be between {Minimum} and {Maximum} days.";
+
+    /// <summary>Whether a value is present and inside the range.</summary>
+    public bool Accepts(int? days) => days >= Minimum && days <= Maximum;
+
+    private static WorkflowDaySetting Target(string field, string label) => new(
+        field, label, CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays);
 }
 
 public interface IWorkflowConfigurationStore : ICaseWorkflowConfiguration
@@ -65,16 +101,10 @@ public sealed class UpdateWorkflowConfiguration(IWorkflowConfigurationStore stor
         StaffAuthorization.Require(
             request.Actor,
             StaffAccessRight.ManageWorkflowConfiguration);
-        if (request.ChaseIntervalDays is < 1 or > 365)
-            throw new ArgumentOutOfRangeException(nameof(request), "Chase interval must be between 1 and 365 days.");
-        foreach (var (name, days) in request.TargetDays())
+        foreach (var (setting, days) in request.DaySettings())
         {
-            if (days is < CaseWorkflowConfiguration.MinimumTargetDays or > CaseWorkflowConfiguration.MaximumTargetDays)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(request),
-                    $"{name} must be between {CaseWorkflowConfiguration.MinimumTargetDays} and {CaseWorkflowConfiguration.MaximumTargetDays} days.");
-            }
+            if (!setting.Accepts(days))
+                throw new ArgumentException(setting.RangeMessage);
         }
 
         if (request.ExpectedVersion < 1)

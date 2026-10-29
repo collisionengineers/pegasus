@@ -144,6 +144,9 @@ the system never invalidates it.
 - On an Image Intake record, Cancel releases the scope and changes nothing.
 - A new record that has not been saved has no scope.
 - The holder is shown by staff account name, never by an internal identifier.
+  A takeover history line names the previous holder the same way: one whose
+  name cannot be resolved is Unnamed, never an identifier (R520, 29 October
+  2026).
 - A command that touches both a Triage Case and an instruction Case checks
   both: the Triage edit scope and the Case edit lease.
 - On a Vehicle images record, a Principal change, staff closure or

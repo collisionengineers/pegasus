@@ -56,9 +56,9 @@ public sealed class EfLinkedCaseReplacementStore(
             .Include(item => item.DueWork)
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        ArchivedCaseGuard.RequireMutable(original);
-        RequireVersionUnderLease(original, request.ExpectedVersion);
-        RequireLease(original, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
+        CaseMutationGuard.RequireMutable(original);
+        CaseMutationGuard.RequireVersionUnderLease(original, request.ExpectedVersion);
+        CaseMutationGuard.RequireLease(original, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
         if (IsTerminal(original.State))
         {
             throw new InvalidOperationException(
@@ -433,16 +433,6 @@ public sealed class EfLinkedCaseReplacementStore(
             BeforeVersion = beforeVersion,
             AfterVersion = afterVersion
         });
-
-    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
-
-    private static void RequireLease(
-        CaseWorkflowEntity workflow,
-        ActionActor actor,
-        string token,
-        DateTimeOffset now) =>
-        CaseMutationGuard.RequireLease(workflow, actor, token, now);
 
     private static bool IsTerminal(string state) => state is
         nameof(CaseLifecycleState.PrincipalCancelled) or

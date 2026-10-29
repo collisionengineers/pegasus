@@ -573,6 +573,11 @@ public sealed class QdosIntakeWebTests
             IntakeSourceIdentity sourceIdentity,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<IntakeStagedReceipt?> GetStagedReceiptAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class RemoveNameIdentifierClaimsTransformation : IClaimsTransformation
