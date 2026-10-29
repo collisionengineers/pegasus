@@ -816,7 +816,7 @@ public static partial class OperatorLabels
         ServiceHealthPolicy.IntakeDispatchService => "Receiving dispatch",
         ServiceHealthPolicy.AutomationService => "Automation clients",
         null or "" => "Unknown",
-        ServiceHealthPolicy.ExternalWorkService => service,
+        ServiceHealthPolicy.ExternalWorkService => ServiceHealthPolicy.ExternalWorkService,
         _ => area == ServiceHealthArea.Custody ? Humanise(service) : service
     };
 
