@@ -10,8 +10,8 @@ namespace Pegasus.Web.Presentation;
 /// command under its token and always gives it back afterwards, whatever the command answered.
 /// A failed release never changes the command's outcome: it is logged as a Warning with its
 /// type and message and no exception object, and an unreleased authority lapses by itself
-/// (FRD-14; R523, 29 October 2026). A staff write consumes the authority it was made under, so
-/// the release after it finds nothing to give back and is logged the same way.
+/// (FRD-14; R523, 29 October 2026). A staff write ends the authority it was made under, so the
+/// release after it finding nothing to give back is not a failure and logs nothing.
 /// </summary>
 public sealed partial class OneCommandEdit(
     OneCommandEditAuthority authority,
@@ -119,13 +119,16 @@ public sealed partial class OneCommandEdit(
     {
         ArgumentNullException.ThrowIfNull(claim);
         ArgumentNullException.ThrowIfNull(action);
+        var completed = false;
         try
         {
-            return await action();
+            var result = await action();
+            completed = true;
+            return result;
         }
         finally
         {
-            await ReleaseAsync(claim, actor);
+            await ReleaseAsync(claim, actor, completed);
         }
     }
 
@@ -180,7 +183,13 @@ public sealed partial class OneCommandEdit(
                 cancellationToken);
     }
 
-    private async Task ReleaseAsync(OneCommandEditClaim claim, ActionActor actor)
+    /// <summary>
+    /// Releases the claimed authority. After a command that completed, a release the port
+    /// refuses because the write already ended the authority is the expected outcome and logs
+    /// nothing (<see cref="OneCommandEditAuthority.WriteEndedIt"/>); every other refusal or
+    /// fault is a release that was due and did not happen, and is logged.
+    /// </summary>
+    private async Task ReleaseAsync(OneCommandEditClaim claim, ActionActor actor, bool commandCompleted)
     {
         try
         {
@@ -189,6 +198,10 @@ public sealed partial class OneCommandEdit(
                 actor,
                 OneCommandEditAuthority.DeriveOperationKey(claim.OperationKey, ":release"),
                 CancellationToken.None);
+        }
+        catch (Exception exception) when (commandCompleted && OneCommandEditAuthority.WriteEndedIt(actor, exception))
+        {
+            // The write ended the authority itself; there was nothing left to release.
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {

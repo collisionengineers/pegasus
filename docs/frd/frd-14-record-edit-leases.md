@@ -131,9 +131,11 @@ cannot change it around the version check.
 command, from a staff page or an Automation write given no lease token,
 claims the Case edit lease, or for a Triage Case its Triage edit scope, runs
 the command, and always releases the authority afterwards, whatever the
-command answered. A failed release never changes the command's outcome: it
-is logged as a Warning without the exception, and an authority still held
-lapses by itself (R523, 29 October 2026).
+command answered. A release that finds the authority already ended by the
+command's own staff write is the expected outcome and is not a failure. Any
+other failed release never changes the command's outcome: it is logged as a
+Warning without the exception, and an authority still held lapses by itself
+(R523, 29 October 2026).
 
 **What goes in history.** A takeover, a deliberate recovery, and a refused or
 failed save that matters are permanent, attributable history. Routine

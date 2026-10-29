@@ -64,6 +64,25 @@ public sealed class OneCommandEditAuthority(CaseEditLeases caseLeases, IEditScop
     }
 
     /// <summary>
+    /// Whether a refused release after a command that completed is only the write having ended
+    /// the authority itself: the writer's write ends its lease or scope
+    /// (<see cref="CaseEditAuthority.WriteEndsLease"/>), so the port then answers that this holder
+    /// and token hold nothing (expired), or that the record has moved to another claim since
+    /// (conflict). That is the expected outcome of a successful write, not a release that was due
+    /// and did not happen.
+    /// </summary>
+    public static bool WriteEndedIt(ActionActor actor, Exception releaseRefusal)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(releaseRefusal);
+        return CaseEditAuthority.WriteEndsLease(actor.Kind, keepsLease: false)
+            && releaseRefusal is CaseEditLeaseExpiredException
+                or CaseEditLeaseConflictException
+                or EditScopeExpiredException
+                or EditScopeConflictException;
+    }
+
+    /// <summary>
     /// The scope is claimed at the record's current version (R516), but a Triage save has no
     /// Edit step that draws the record again at it: a record that moved past the posted version
     /// makes the save a stale post, refused as changed before the command runs.

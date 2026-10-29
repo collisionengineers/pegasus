@@ -67,6 +67,20 @@ public sealed class OneCommandEditAuthorityTests
     }
 
     [Fact]
+    public void AReleaseRefusedBecauseAStaffWriteEndedTheAuthorityIsNotAFailure()
+    {
+        var caseId = Guid.NewGuid();
+        var automation = ActionActor.Automation(Guid.NewGuid().ToString("N"));
+
+        Assert.True(OneCommandEditAuthority.WriteEndedIt(Actor, new CaseEditLeaseExpiredException(caseId, 3)));
+        Assert.True(OneCommandEditAuthority.WriteEndedIt(Actor, new EditScopeExpiredException(EditScopeKind.Triage, caseId)));
+        Assert.True(OneCommandEditAuthority.WriteEndedIt(Actor, new CaseEditLeaseConflictException(caseId, 3)));
+        Assert.False(OneCommandEditAuthority.WriteEndedIt(Actor, new InvalidOperationException("store fault")));
+        // An Automation write keeps its lease, so its release was due.
+        Assert.False(OneCommandEditAuthority.WriteEndedIt(automation, new CaseEditLeaseExpiredException(caseId, 3)));
+    }
+
+    [Fact]
     public void ADerivedOperationKeyKeepsItsSuffixWithinCoresKeyLength()
     {
         var derived = OneCommandEditAuthority.DeriveOperationKey(new string('k', 120), ":release");
