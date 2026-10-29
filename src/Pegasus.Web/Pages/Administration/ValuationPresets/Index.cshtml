@@ -1,13 +1,14 @@
 @page
 @using System.Globalization
 @using Pegasus.Core.Assessment
-@using Pegasus.Web.Pages.Administration.ValuationPresets
 @model Pegasus.Web.Pages.Administration.ValuationPresets.IndexModel
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.ValuationPresets
 @{
-    ViewData["Title"] = ValuationPresetLabels.Title;
+    ViewData["Title"] = OperatorLabels.Admin.ValuationPresets;
     ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
     ViewData["AdminArea"] = "valuation-presets";
     var labelLimit = ValuationCalculationPolicy.MaximumAdditionLabelLength;
+    var amountLimit = ValuationCalculationPolicy.MaximumPresetAmount.ToString("0.00", CultureInfo.InvariantCulture);
 }
 
 <partial name="Shared/_PageHeader" />
@@ -20,25 +21,25 @@
         <section class="panel" aria-labelledby="valuation-presets-title">
             <div class="panel-head">
                 <div>
-                    <h2 id="valuation-presets-title">@ValuationPresetLabels.Presets</h2>
-                    <p class="panel-title-meta">@Model.Presets.Count preset@(Model.Presets.Count == 1 ? string.Empty : "s")</p>
+                    <h2 id="valuation-presets-title">@Labels.Presets</h2>
+                    <p class="panel-title-meta">@Labels.PresetCount(Model.Presets.Count)</p>
                 </div>
             </div>
             <div class="table-wrap no-border">
                 <table class="table table--compact preset-table">
-                    <caption class="sr-only">@ValuationPresetLabels.Title</caption>
+                    <caption class="sr-only">@OperatorLabels.Admin.ValuationPresets</caption>
                     <thead>
                         <tr>
-                            <th scope="col">@ValuationPresetLabels.PresetLabel</th>
-                            <th scope="col" class="num">@ValuationPresetLabels.Amount</th>
-                            <th scope="col">@ValuationPresetLabels.Enabled</th>
-                            <th scope="col" class="preset-actions"><span class="sr-only">Actions</span></th>
+                            <th scope="col">@Labels.PresetLabel</th>
+                            <th scope="col" class="num">@Labels.Amount</th>
+                            <th scope="col">@Labels.Enabled</th>
+                            <th scope="col" class="preset-actions"><span class="sr-only">@Labels.Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>
                     @if (Model.Presets.Count == 0)
                     {
-                        <tr><td colspan="4" class="muted">No valuation presets are recorded.</td></tr>
+                        <tr><td colspan="4" class="muted">@Labels.NoPresets</td></tr>
                     }
                     @foreach (var preset in Model.Presets)
                     {
@@ -53,17 +54,17 @@
                         var rowOperationKey = showingPostedValues ? Model.RowOperationKey : IndexModel.NewOperationKey();
                         <tr>
                             <td>
-                                <label class="sr-only" for="preset-label-@presetId">@ValuationPresetLabels.PresetLabel</label>
+                                <label class="sr-only" for="preset-label-@presetId">@Labels.PresetLabel</label>
                                 <input id="preset-label-@presetId" class="input" name="label" form="@saveFormId" required maxlength="@labelLimit" value="@rowLabel" />
                             </td>
                             <td>
-                                <label class="sr-only" for="preset-amount-@presetId">@ValuationPresetLabels.Amount</label>
-                                <div class="input-money"><input id="preset-amount-@presetId" name="amount" type="number" inputmode="decimal" form="@saveFormId" min="0" step="0.01" required value="@rowAmount" /></div>
+                                <label class="sr-only" for="preset-amount-@presetId">@Labels.Amount</label>
+                                <div class="input-money"><input id="preset-amount-@presetId" name="amount" type="number" inputmode="decimal" form="@saveFormId" min="0" max="@amountLimit" step="0.01" required value="@rowAmount" /></div>
                             </td>
                             <td>
                                 <label class="choice">
                                     <input name="active" type="checkbox" value="true" form="@saveFormId" checked="@(rowActive ? "checked" : null)" />
-                                    <span>@ValuationPresetLabels.Enabled</span>
+                                    <span>@Labels.Enabled</span>
                                 </label>
                             </td>
                             <td class="preset-actions">
@@ -72,13 +73,13 @@
                                         <input type="hidden" name="presetId" value="@presetId" />
                                         <input type="hidden" name="expectedVersion" value="@rowVersion" />
                                         <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                        <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@ValuationPresetLabels.Remove</button>
+                                        <button type="submit" class="btn btn--small btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@Labels.Remove</button>
                                     </form>
                                     <form id="@saveFormId" method="post" asp-page-handler="Save">
                                         <input type="hidden" name="presetId" value="@presetId" />
                                         <input type="hidden" name="expectedVersion" value="@rowVersion" />
                                         <input type="hidden" name="operationKey" value="@rowOperationKey" />
-                                        <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@ValuationPresetLabels.Save</button>
+                                        <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@Labels.Save</button>
                                     </form>
                                 </div>
                             </td>
@@ -86,17 +87,17 @@
                     }
                     <tr>
                         <td>
-                            <label class="sr-only" for="create-label">@ValuationPresetLabels.PresetLabel</label>
+                            <label class="sr-only" for="create-label">@Labels.PresetLabel</label>
                             <input id="create-label" class="input" name="label" form="preset-create" required maxlength="@labelLimit" value="@Model.CreateLabel" />
                         </td>
                         <td>
-                            <label class="sr-only" for="create-amount">@ValuationPresetLabels.Amount</label>
-                            <div class="input-money"><input id="create-amount" name="amount" type="number" inputmode="decimal" form="preset-create" min="0" step="0.01" required value="@Model.CreateAmountInput" /></div>
+                            <label class="sr-only" for="create-amount">@Labels.Amount</label>
+                            <div class="input-money"><input id="create-amount" name="amount" type="number" inputmode="decimal" form="preset-create" min="0" max="@amountLimit" step="0.01" required value="@Model.CreateAmountInput" /></div>
                         </td>
                         <td>
                             <label class="choice">
                                 <input name="active" type="checkbox" value="true" form="preset-create" checked="@(Model.CreateActive ? "checked" : null)" />
-                                <span>@ValuationPresetLabels.Enabled</span>
+                                <span>@Labels.Enabled</span>
                             </label>
                         </td>
                         <td class="preset-actions">
@@ -104,7 +105,7 @@
                                 <form id="preset-create" method="post" asp-page-handler="Create">
                                     <input type="hidden" name="presetId" value="@Model.CreatePresetId.ToString("D")" />
                                     <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
-                                    <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">Add</button>
+                                    <button type="submit" class="btn btn--small btn--primary" data-busy-label="@OperatorLabels.Busy.Adding">@Labels.Add</button>
                                 </form>
                             </div>
                         </td>

@@ -7590,7 +7590,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Label")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[RemovedAtUtc] IS NULL");
 
                     b.ToTable("ValuationPresets", (string)null);
 
