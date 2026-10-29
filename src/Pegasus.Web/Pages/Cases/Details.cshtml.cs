@@ -46,7 +46,7 @@ public sealed partial class DetailsModel(
     ICaseEngineerChoices caseEngineerChoices,
     IGetCaseFilesSection getCaseFilesSection,
     IGetCaseQueriesSection getCaseQueriesSection,
-    IListCaseReferences listCaseReferences,
+    ListCaseReferences listCaseReferences,
     IGetAssessmentAccess getAssessmentAccess,
     IGetAssessmentWorkspace getAssessmentWorkspace,
     ICaseReportSnapshotSource reportSnapshotSource,

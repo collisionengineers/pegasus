@@ -69,7 +69,7 @@ public static class PrincipalApiEndpoints
     private static async Task<IResult> SubmitAsync(
         HttpContext context,
         ClaimsPrincipal user,
-        ISubmitPrincipalInstruction submit,
+        SubmitPrincipalInstruction submit,
         ISecurityEventWriter securityEvents,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
@@ -201,7 +201,7 @@ public static class PrincipalApiEndpoints
     private static async Task<IResult> GetAsync(
         Guid id,
         ClaimsPrincipal user,
-        IGetPrincipalSubmissionResult getResult,
+        GetPrincipalSubmissionResult getResult,
         CancellationToken cancellationToken)
     {
         var result = await getResult.ExecuteAsync(

@@ -55,12 +55,7 @@ public interface ICaseWorkQueries
     Task<bool> HasAuditWorkAsync(Guid caseId, CancellationToken cancellationToken);
 }
 
-public interface IGetCaseHasAuditWork
-{
-    Task<bool> ExecuteAsync(Guid caseId, CancellationToken cancellationToken);
-}
-
-public sealed class GetCaseHasAuditWork(ICaseWorkQueries queries) : IGetCaseHasAuditWork
+public sealed class GetCaseHasAuditWork(ICaseWorkQueries queries)
 {
     private readonly ICaseWorkQueries _queries = queries ?? throw new ArgumentNullException(nameof(queries));
 

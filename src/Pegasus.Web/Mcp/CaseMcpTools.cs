@@ -72,7 +72,7 @@ internal sealed record CaseGetToolResult(
 /// </summary>
 [McpServerToolType]
 internal sealed class CaseMcpTools(
-    ISearchCasesByCursor searchCases,
+    SearchCasesByCursor searchCases,
     IGetCaseHeader getCaseHeader,
     IListCaseDocumentsByCursor listDocuments,
     IListCaseHistoryByCursor listHistory,
