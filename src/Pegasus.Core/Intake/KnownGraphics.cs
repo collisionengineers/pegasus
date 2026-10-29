@@ -28,7 +28,8 @@ public sealed record KnownGraphic(
 /// The graphics that pass the photograph size rule but recur across the
 /// corpus, named so the photograph rule (<see cref="InstructionEvidenceImages"/>)
 /// leaves them out (operator, 26 October 2026). Each one recurs in three or
-/// more corpus documents. An exact byte hash cannot name them, because every
+/// more corpus documents, except the bar chart with the right bar the
+/// taller, a second layout of a listed chart (R540). An exact byte hash cannot name them, because every
 /// sender re-encodes them; the corpus holds 33 byte-different copies of the
 /// Collision Engineers logo alone. A difference-hash fingerprint survives
 /// re-encoding and resizing.
@@ -69,15 +70,35 @@ public static class KnownGraphics
         // nearer than 37 to the pie chart, so the two entries never share an
         // image. Over the corpus (issue 1718) the chart is 13 encodings in 14
         // documents: the 12 with the left bar the taller sit within 8, and the
-        // one with the right bar the taller sits at 19, outside this entry;
-        // whether it gets its own entry is the operator's call. That report's
-        // chart is the fixture KnownGraphicsTests reads.
+        // one with the right bar the taller sits at 19, outside this entry and
+        // listed next. That report's chart is the fixture KnownGraphicsTests
+        // reads.
         new("Bodyshop bar chart", 0xc0c6e6e6e6e6e6e6UL, 16, 300, 300),
+        // The same chart with the right bar the taller, from the one corpus
+        // copy, "1_Bodyshopreport-V1.pdf" (operator, R540). It sits 19 from the
+        // entry above and 32 from the pie chart, so 2 is the largest distance
+        // that cannot share an image with the entry above (19 > 16 + 2).
+        new("Bodyshop bar chart, right bar taller", 0x0c0e0e0e0ee6e6e6UL, 2, 300, 300),
         // 14 Bodyshop reports, 13 encodings; spread 16. No other corpus image
         // is 450x282.
         new("Bodyshop damage diagram", 0x00f0ccccccccf000UL, 20, 450, 282),
         // 8 QDOS instruction e-mails. No other corpus image is 696x564.
         new("Engineer signature", 0x0000e0c00c000000UL, 4, 696, 564),
+        // 19 engineer reports, e.g. PCH's "Report 00077570.pdf" and "CNX 01.pdf";
+        // spread 0, nearest other image 9; no other corpus image is 744x405
+        // (operator, R540).
+        new("PCH engineer signature", 0x000000c8a8b02000UL, 4, 744, 405),
+        // 5 instruction letters, "KMR 01.pdf" to "KMR 05.pdf"; spread 0, nearest
+        // other image 6; no other corpus image is 501x501 (operator, R540).
+        new("KMR Law logo", 0x0000d4d4d4d40000UL, 4, 501, 501),
+        // Mirrored text, in two sizes 11 bits apart, so each has its own sized
+        // entry. 15 engineer reports, e.g. "BV64HYJ.pdf"; spread 0, nearest
+        // other image 5; no other corpus image is 376x234 (operator, R540).
+        new("Mirrored text strip 376x234", 0x00000000000b9adcUL, 4, 376, 234),
+        // 10 reports and fee notes, e.g. "BV64HYJ.pdf" and "DK66LRL fee.pdf";
+        // spread 0, nearest other image 5; no other corpus image is 360x243
+        // (operator, R540).
+        new("Mirrored text strip 360x243", 0x000000000095aef9UL, 4, 360, 243),
         // 4 e-mails; nearest other 16.
         new("Text disclaimer image", 0xc0b4ca9e943aa2b0UL, 4, 882, 369)
     ];

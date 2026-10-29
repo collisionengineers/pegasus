@@ -65,6 +65,20 @@ public sealed class KnownGraphicsTests
         Assert.False(InstructionEvidenceImages.IsRetentionCandidate(chart));
     }
 
+    /// <summary>
+    /// The right-bar-taller copy from "1_Bodyshopreport-V1.pdf" sits 19 from
+    /// the first bar chart entry, outside its 16, and only its own entry
+    /// matches it (R540).
+    /// </summary>
+    [Fact]
+    public void TheRightBarTallerChartIsOnlyItsOwnEntry()
+    {
+        var copy = Image(0x0c0e0e0e0ee6e6e6UL, 300, 300);
+
+        Assert.Equal("Bodyshop bar chart, right bar taller", Assert.Single(KnownGraphics.Entries, entry => entry.Matches(copy)).Name);
+        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(copy));
+    }
+
     [Fact]
     public void AnImageWithoutAFingerprintMatchesNothing()
     {
