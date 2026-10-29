@@ -53,7 +53,7 @@ Run on the next release with a signed-in staff session or the named observation;
 
 ### Release 121
 
-- [ ] The sc-02 live Companion press from [Release 120](#release-120---22-october-2026-deployment-live).
+- [ ] The sc-02 live Companion press from Release 120.
   Reason: Cazana Companion is still at the tip beside Brego; no record shows the Companion press.
 
 ### Release 120
@@ -412,7 +412,7 @@ Run on the next release with a signed-in staff session or the named observation;
 
 ### Operations note `Classifier-status-21Oct`
 
-- [ ] The Function App has never called Anthropic. No mail has been eligible since [Release 116](#release-116---19-october-2026-classifier-activation-live), so the app's own egress and the app's own copy of the key are untested, and Release 116's owed tick with eligible mail still stands
+- [ ] The Function App has never called Anthropic. No mail has been eligible since Release 116, so the app's own egress and the app's own copy of the key are untested, and Release 116's owed tick with eligible mail still stands
   Reason: The 22 October addendum (L65) shows the never-called statement leans on wiped ActionHistory rows; the classifier and its Classifier agent: prefix (tools.ts:27) are at the tip, so a tick with eligible mail proves egress.
 
 ### Operations note `REF-04-17Oct`
