@@ -28,6 +28,12 @@ public static class CaseEditAuthority
     public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(60);
 
     /// <summary>
+    /// How long an edit lease lasts from the claim, resume or heartbeat that last extended it
+    /// (FRD-14). The stores apply it; nothing else holds a second copy of it.
+    /// </summary>
+    public static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(5);
+
+    /// <summary>
     /// True when a retained expiry is still in the future by server time. An abandoned lease
     /// expires without a sweeper, so every projection and guard asks this one question.
     /// </summary>
@@ -107,6 +113,19 @@ public static class CaseEditAuthority
             throw new CaseVersionConflictException(caseId, expectedVersion, caseVersion);
         }
     }
+
+    /// <summary>
+    /// Whether the lease a write was made under ends once the write is made. A staff lease ends,
+    /// so the holder's next write presents the lease claimed again after it. The Automation
+    /// Actor's lease stands until pegasus_edit_end releases it, so one token from
+    /// pegasus_edit_begin carries every write of its multi-step work (operator, 8 October 2026).
+    /// A write the staff member's session continues past keeps the lease too: a Glass's return
+    /// landing its estimate under the staff member's own session
+    /// (<paramref name="keepsLease"/>; operator, 6 October 2026). A write proves the lease first,
+    /// so the retained holder is the writer.
+    /// </summary>
+    public static bool WriteEndsLease(ActorKind? retainedLeaseHolderKind, bool keepsLease) =>
+        !keepsLease && retainedLeaseHolderKind != ActorKind.Automation;
 
     /// <summary>
     /// Refuses a mutation that does not present the lease its actor holds. The caller has
