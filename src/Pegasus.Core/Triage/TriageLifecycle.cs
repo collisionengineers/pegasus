@@ -45,7 +45,6 @@ public sealed class CreateTriageFromIntake(
 public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
 {
     public const string ActorId = "triage-case-pairing";
-    private static readonly ActivitySource Telemetry = new("Pegasus.Core.Triage");
 
     public Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken) =>
         PairAsync(triageCaseId, null, 1, cancellationToken);
@@ -70,14 +69,7 @@ public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
         {
             return new(0, 0, 1, exception.GetType().Name);
         }
-        if (candidates.Count == 0)
-        {
-            // The Worker asks every minute and usually nothing is waiting.
-            // A span is opened only for a pass that has something to link.
-            return new(0, 0, 0);
-        }
 
-        using var activity = Telemetry.StartActivity("triage_case_pairing");
         var linked = 0;
         var failures = 0;
         string? firstFailure = null;
@@ -99,12 +91,6 @@ public sealed class TriageCasePairing(ITriageStore store) : ITriageCasePairing
             }
         }
 
-        activity?.SetTag("triage.pairing_failures", failures);
-        activity?.SetTag("triage.failure_type", firstFailure);
-        if (failures > 0)
-        {
-            activity?.SetStatus(ActivityStatusCode.Error, "triage_pairing_failed");
-        }
         return new(candidates.Count, linked, failures, firstFailure);
     }
 

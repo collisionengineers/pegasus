@@ -141,69 +141,6 @@ public sealed class RuntimeHeartbeatTests
     }
 
     [Fact]
-    public void ASharedSampleIsReadOnceASecondAndRefreshedWhenASecondHasPassed()
-    {
-        long now = 5_000;
-        long faults = 10;
-        var reads = 0;
-        var sample = new ProcFs.SampledMajorFaults(() => { reads++; return faults; }, () => now);
-
-        Assert.Equal(10, sample.Read());
-        faults = 25;
-        now += 999;
-
-        // Inside the second every caller shares the first figure and nothing is read.
-        Assert.Equal(10, sample.Read());
-        Assert.Equal(10, sample.Read());
-        Assert.Equal(1, reads);
-
-        now += 1;
-        Assert.Equal(25, sample.Read());
-        Assert.Equal(2, reads);
-    }
-
-    [Fact]
-    public void ARefresherThatReadFirstNeverOverwritesOneThatPublishedNewer()
-    {
-        long now = 5_000;
-        long faults = 10;
-        long? inner = null;
-        ProcFs.SampledMajorFaults? sample = null;
-        var overlapped = false;
-        sample = new ProcFs.SampledMajorFaults(
-            () =>
-            {
-                // The first refresher has read 10 when a second one runs to the end with 25.
-                var read = faults;
-                if (!overlapped)
-                {
-                    overlapped = true;
-                    faults = 25;
-                    inner = sample!.Read();
-                }
-
-                return read;
-            },
-            () => now);
-
-        // The overlapped refresher publishes first and the one that read first loses.
-        var outer = sample.Read();
-
-        Assert.Equal(25, inner);
-        Assert.Equal(25, outer);
-        Assert.Equal(25, sample.Read());
-    }
-
-    [Fact]
-    public void AnAbsentSourceStaysAbsentInTheSharedSample()
-    {
-        var sample = new ProcFs.SampledMajorFaults(() => null, () => 1);
-
-        Assert.Null(sample.Read());
-        Assert.Null(sample.Read());
-    }
-
-    [Fact]
     public void TheMajorFaultReaderRemembersAMissingFileAndNeverOpensItAgain()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "stat");

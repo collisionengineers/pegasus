@@ -27,8 +27,6 @@ public sealed class ProcessIntake(
     RetainIncomingArtifact? retainIncomingArtifact = null,
     IRetainedMailboxMessageStore? retainedMessages = null)
 {
-    private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
-
     public async Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
         CancellationToken cancellationToken = default)
@@ -90,10 +88,6 @@ public sealed class ProcessIntake(
         ArgumentException.ThrowIfNullOrWhiteSpace(source.FileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceIdentity.ExternalReceiptToken);
 
-        using var activity = Telemetry.StartActivity("process_intake");
-        activity?.SetTag("intake.source_channel", ChannelCode(source.SourceIdentity.Channel));
-        var started = timeProvider.GetTimestamp();
-
         var safeSource = source with { FileName = Path.GetFileName(source.FileName) };
         var sourceHash = Convert.ToHexString(SHA256.HashData(source.Content.Span));
         var existing = await receiptStore.FindBySourceIdentityAsync(
@@ -112,9 +106,6 @@ public sealed class ProcessIntake(
                     existing,
                     existing.MailClassificationDecision,
                     cancellationToken);
-                activity?.SetTag("intake.reader_result", "not_read_replay");
-                activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
-                RecordTelemetry(activity, existing, "replay", started);
                 return recordedExisting with { IsDuplicate = true };
             }
         }
@@ -129,25 +120,16 @@ public sealed class ProcessIntake(
         IntakeAssetRecord sourceAsset;
         if (retainedSourceStorageKey is null)
         {
-            try
-            {
-                IntakeAssetCandidate sourceCandidate = new(
-                    "uploaded source",
-                    safeSource.FileName,
-                    safeSource.MediaType,
-                    safeSource.Content,
-                    IntakeAssetKind.Source,
-                    IntakeAssetDisposition.Source);
-                sourceAsset = AssetRecord(
-                    sourceCandidate,
-                    await StoreAsync(sourceCandidate.Content, cancellationToken));
-            }
-            catch (IntakeArtifactRetentionException)
-            {
-                activity?.SetTag("intake.reader_result", "not_run_retention_failure");
-                RecordFailureTelemetry(activity, "artifact_retention_failure", started);
-                throw;
-            }
+            IntakeAssetCandidate sourceCandidate = new(
+                "uploaded source",
+                safeSource.FileName,
+                safeSource.MediaType,
+                safeSource.Content,
+                IntakeAssetKind.Source,
+                IntakeAssetDisposition.Source);
+            sourceAsset = AssetRecord(
+                sourceCandidate,
+                await StoreAsync(sourceCandidate.Content, cancellationToken));
         }
         else
         {
@@ -194,34 +176,23 @@ public sealed class ProcessIntake(
                 ReaderVersion: "1");
         }
 
-        activity?.SetTag("intake.reader_result", ReadStatusCode(readResult.Status));
-        activity?.SetTag("intake.reader_key", readResult.ReaderKey);
-
         // One capture designation per reading: retention keeps its photographs
         // and the assessment reads from it that a capture PDF is no document.
         var capture = VehicleCaptureImages.Designate(readResult);
         var assets = new List<IntakeAssetRecord> { sourceAsset };
-        try
-        {
-            // Storage is by content hash and a retry presents the same bytes,
-            // so a candidate stored before a sibling fails is harmless. Bytes
-            // carried by several placements are hashed and stored once, and
-            // each placement keeps its own row (operator, 22 October 2026).
-            var candidates = InstructionEvidenceImages.RetentionCandidates(readResult, capture).ToArray();
-            var stored = (await RunRetentionsAsync(
-                    candidates.Select(candidate => candidate.Content)
-                        .Distinct(InstructionEvidenceImages.SameBytes)
-                        .ToArray(),
-                    content => StoreAsync(content, cancellationToken),
-                    cancellationToken))
-                .ToDictionary(item => item.Content, InstructionEvidenceImages.SameBytes);
-            assets.AddRange(candidates.Select(candidate => AssetRecord(candidate, stored[candidate.Content])));
-        }
-        catch (IntakeArtifactRetentionException)
-        {
-            RecordFailureTelemetry(activity, "artifact_retention_failure", started);
-            throw;
-        }
+        // Storage is by content hash and a retry presents the same bytes,
+        // so a candidate stored before a sibling fails is harmless. Bytes
+        // carried by several placements are hashed and stored once, and
+        // each placement keeps its own row (operator, 22 October 2026).
+        var candidates = InstructionEvidenceImages.RetentionCandidates(readResult, capture).ToArray();
+        var stored = (await RunRetentionsAsync(
+                candidates.Select(candidate => candidate.Content)
+                    .Distinct(InstructionEvidenceImages.SameBytes)
+                    .ToArray(),
+                content => StoreAsync(content, cancellationToken),
+                cancellationToken))
+            .ToDictionary(item => item.Content, InstructionEvidenceImages.SameBytes);
+        assets.AddRange(candidates.Select(candidate => AssetRecord(candidate, stored[candidate.Content])));
 
         var processedAtUtc = timeProvider.GetUtcNow();
         // A file whose Case the uploading member of staff chose first has
@@ -236,36 +207,6 @@ public sealed class ProcessIntake(
                 retainedClassification,
                 cancellationToken)
             : DeclaredDestinationAssessment(readResult);
-        activity?.SetTag("intake.declared_destination", safeSource.DeclaredCaseId is not null);
-        activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
-        activity?.SetTag("intake.policy_version", assessment.ExtractionPolicyVersion);
-        activity?.SetTag(
-            "intake.mail_route_disposition",
-            assessment.MailRouteDecision?.Disposition.ToString());
-        activity?.SetTag(
-            "intake.mail_route_policy_key",
-            assessment.MailRouteDecision?.PolicyKey);
-        activity?.SetTag(
-            "intake.mail_route_policy_version",
-            assessment.MailRouteDecision?.PolicyVersion);
-        activity?.SetTag(
-            "intake.mail_classification_outcome",
-            assessment.MailClassificationDecision?.Outcome.ToString());
-        activity?.SetTag(
-            "intake.mail_classification_policy_key",
-            assessment.MailClassificationDecision?.PolicyKey);
-        activity?.SetTag(
-            "intake.mail_classification_policy_version",
-            assessment.MailClassificationDecision?.PolicyVersion);
-        activity?.SetTag(
-            "intake.case_match_outcome",
-            assessment.CaseMatchDecision?.Outcome.ToString());
-        activity?.SetTag(
-            "intake.case_match_policy_key",
-            assessment.CaseMatchDecision?.PolicyKey);
-        activity?.SetTag(
-            "intake.case_match_policy_version",
-            assessment.CaseMatchDecision?.PolicyVersion);
         var draft = new IntakeReceiptDraft(
             safeSource.FileName,
             safeSource.MediaType,
@@ -300,18 +241,9 @@ public sealed class ProcessIntake(
                 : [],
             safeSource.DeclaredCaseId);
 
-        IntakeReceipt receipt;
-        try
-        {
-            receipt = replaceExisting
-                ? await receiptStore.ReplaceEvaluationAsync(draft, cancellationToken)
-                : await receiptStore.StoreAsync(draft, cancellationToken);
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            RecordFailureTelemetry(activity, "persistence_failure", started);
-            throw;
-        }
+        var receipt = replaceExisting
+            ? await receiptStore.ReplaceEvaluationAsync(draft, cancellationToken)
+            : await receiptStore.StoreAsync(draft, cancellationToken);
         await RetainUploadedCorrespondenceAsync(safeSource, sourceHash, readResult, cancellationToken);
         // Holding custody waits for the destination: only a receipt that no
         // automatic destination files is held (RequiresHolding).
@@ -319,9 +251,8 @@ public sealed class ProcessIntake(
             receipt,
             assessment.MailClassificationDecision,
             cancellationToken);
-        await RecordThirdPartyReportSourceAsync(receipt, readResult, activity, cancellationToken);
+        await RecordThirdPartyReportSourceAsync(receipt, readResult, cancellationToken);
         await RegisterUnidentifiedIfTerminalAsync(receipt, cancellationToken);
-        RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return recorded;
     }
 
@@ -550,12 +481,10 @@ public sealed class ProcessIntake(
     private async Task RecordThirdPartyReportSourceAsync(
         IntakeReceipt receipt,
         IntakeSourceReadResult readResult,
-        Activity? activity,
         CancellationToken cancellationToken)
     {
         if (recordThirdPartyReportReading is null)
         {
-            activity?.SetTag(RecordThirdPartyReportReading.OutcomeTag, "not_composed");
             return;
         }
 
@@ -563,8 +492,7 @@ public sealed class ProcessIntake(
         {
             // The reader failed or refused the format. The report reading never
             // began, which is a different fact from "this document carries no
-            // report signature", and only the tag can tell them apart.
-            activity?.SetTag(RecordThirdPartyReportReading.OutcomeTag, "source_not_readable");
+            // report signature".
             return;
         }
 
@@ -576,7 +504,6 @@ public sealed class ProcessIntake(
             .ToArray();
         if (documents.Length == 0)
         {
-            activity?.SetTag(RecordThirdPartyReportReading.OutcomeTag, "no_document");
             return;
         }
 
@@ -589,7 +516,7 @@ public sealed class ProcessIntake(
                     readResult,
                     IntakeOcrOperations.DocumentLabel(receipt, asset)),
                 RecordThirdPartyReportReading.OperationKey(asset),
-                activity,
+                activity: null,
                 cancellationToken);
         }
     }
@@ -1655,58 +1582,6 @@ public sealed class ProcessIntake(
         ReadOnlyMemory<byte> Content,
         string ContentHash,
         string StorageKey);
-
-    private void RecordTelemetry(
-        Activity? activity,
-        IntakeReceipt receipt,
-        string outcome,
-        long started)
-    {
-        activity?.SetTag("intake.receipt_id", receipt.Id);
-        activity?.SetTag("intake.policy_key", receipt.ExtractionPolicyKey);
-        activity?.SetTag("intake.policy_version", receipt.ExtractionPolicyVersion);
-        activity?.SetTag("intake.outcome", outcome);
-        activity?.SetTag(
-            "intake.duration_ms",
-            timeProvider.GetElapsedTime(started, timeProvider.GetTimestamp()).TotalMilliseconds);
-    }
-
-    private void RecordFailureTelemetry(Activity? activity, string failureCategory, long started)
-    {
-        activity?.SetTag("intake.outcome", "technical_error");
-        activity?.SetTag("intake.failure_category", failureCategory);
-        activity?.SetTag(
-            "intake.duration_ms",
-            timeProvider.GetElapsedTime(started, timeProvider.GetTimestamp()).TotalMilliseconds);
-    }
-
-    private static string ChannelCode(IntakeSourceChannel channel) => channel switch
-    {
-        IntakeSourceChannel.ManualUpload => "manual_upload",
-        IntakeSourceChannel.Mailbox => "mailbox",
-        IntakeSourceChannel.Automation => "automation",
-        IntakeSourceChannel.PrincipalApi => "principal_api",
-        _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
-    };
-
-    private static string ReadStatusCode(IntakeSourceReadStatus status) => status switch
-    {
-        IntakeSourceReadStatus.Readable => "readable",
-        IntakeSourceReadStatus.Unsupported => "unsupported",
-        IntakeSourceReadStatus.TechnicalFailure => "technical_failure",
-        _ => throw new InvalidOperationException($"Unknown intake reader result value '{(int)status}'.")
-    };
-
-    private static string DecisionCode(IntakeDecision decision) => decision switch
-    {
-        IntakeDecision.CaseCreated => "case_created",
-        IntakeDecision.NeedsSorting => "needs_sorting",
-        IntakeDecision.Unsupported => "unsupported",
-        IntakeDecision.OcrRequired => "ocr_required",
-        IntakeDecision.TechnicalFailure => "technical_failure",
-        IntakeDecision.ImageIntakeRegistered => "image_intake_registered",
-        _ => throw new InvalidOperationException($"Unknown intake decision value '{(int)decision}'.")
-    };
 
     private sealed record IntakeAssessment(
         IntakeDecision Decision,
