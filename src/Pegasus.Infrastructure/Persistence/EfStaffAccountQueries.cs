@@ -154,6 +154,26 @@ public sealed class EfStaffAccountQueries(
         CancellationToken cancellationToken) =>
         accountReads.GetOrReadNamesAsync(staffIds, ReadNamesAsync, cancellationToken);
 
+    /// <summary>
+    /// Every account's id and username in one statement: no roles, no
+    /// signature length and no cap, for the person pickers (#1542).
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, string>> ListNamesAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var names = await context.Users.AsNoTracking()
+            .Where(user => user.UserName != null)
+            .Select(user => new { user.Id, UserName = user.UserName! })
+            .ToListAsync(cancellationToken);
+        return names.ToDictionary(user => user.Id, user => user.UserName);
+    }
+
+    public async Task<int> CountAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Users.CountAsync(cancellationToken);
+    }
+
     private async Task<IReadOnlyDictionary<Guid, string>> ReadNamesAsync(
         IReadOnlyCollection<Guid> staffIds,
         CancellationToken cancellationToken) =>

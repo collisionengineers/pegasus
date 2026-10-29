@@ -23,7 +23,7 @@
         <section class="panel" aria-label="Staff accounts">
             <div class="panel-head">
                 <div>
-                    <p class="panel-title-meta">@Model.Rows.Count@(Model.HasMoreAccounts ? "+" : string.Empty) accounts</p>
+                    <p class="panel-title-meta">@Model.TotalAccounts accounts</p>
                 </div>
                 <button type="button" class="btn btn--primary" data-dialog-open="create-account-dialog">
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>Create staff account</span>
@@ -67,6 +67,22 @@
                         }
                         </tbody>
                     </table>
+                </div>
+            }
+            @if (Model.PageNumber > 1 || Model.HasMoreAccounts)
+            {
+                <div class="panel-foot">
+                    <nav class="pagination" aria-label="Staff account pages">
+                        @if (Model.PageNumber > 1)
+                        {
+                            <a class="btn btn--small" asp-page="Index" asp-route-pageNumber="@(Model.PageNumber - 1)">Previous</a>
+                        }
+                        <span>Page @Model.PageNumber</span>
+                        @if (Model.HasMoreAccounts)
+                        {
+                            <a class="btn btn--small" asp-page="Index" asp-route-pageNumber="@(Model.PageNumber + 1)">Next</a>
+                        }
+                    </nav>
                 </div>
             }
         </section>

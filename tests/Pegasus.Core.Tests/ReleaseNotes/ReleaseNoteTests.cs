@@ -80,7 +80,7 @@ public sealed class ReleaseNoteTests
             await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
                 administration.PublishAsync(actor, Guid.NewGuid(), 1, "Title", "Body", default));
             await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-                administration.ListAsync(actor, default));
+                administration.ListAsync(actor, 1, default));
         }
 
         Assert.Empty(store.Notes);
@@ -151,6 +151,36 @@ public sealed class ReleaseNoteTests
         Assert.Equal([second.Id, first.Id], (await mine.ListPublishedAsync(User(), default)).Select(note => note.Id));
     }
 
+    /// <summary>
+    /// The Administrator's list reads its notes 50 a page, newest change first,
+    /// says whether another page follows, and refuses a page outside its range
+    /// (#1542, R418).
+    /// </summary>
+    [Fact]
+    public async Task TheAdministratorsListPagesTheNotesNewestChangeFirst()
+    {
+        var store = new FakeStore();
+        var clock = new TestClock(Clock.GetUtcNow());
+        var administration = new ReleaseNoteAdministration(store, Build, clock);
+        for (var index = 0; index < ReleaseNoteAdministration.PageSize + 1; index++)
+        {
+            await administration.SaveDraftAsync(Administrator(), null, null, $"Note {index}", "Body", Key(), default);
+            clock.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        var first = await administration.ListAsync(Administrator(), 1, default);
+        var second = await administration.ListAsync(Administrator(), 2, default);
+
+        Assert.Equal(ReleaseNoteAdministration.PageSize, first.Notes.Count);
+        Assert.True(first.HasMore);
+        Assert.Equal($"Note {ReleaseNoteAdministration.PageSize}", first.Notes[0].Title);
+        Assert.Equal("Note 0", Assert.Single(second.Notes).Title);
+        Assert.False(second.HasMore);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => administration.ListAsync(Administrator(), 0, default));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            administration.ListAsync(Administrator(), int.MaxValue / ReleaseNoteAdministration.PageSize + 1, default));
+    }
+
     [Fact]
     public async Task TheAutomationActorCannotReadOrAcknowledgeNotes()
     {
@@ -178,8 +208,14 @@ public sealed class ReleaseNoteTests
         public Task<ReleaseNote?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Notes.SingleOrDefault(note => note.Id == id));
 
-        public Task<IReadOnlyList<ReleaseNote>> ListAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ReleaseNote>>(Notes.OrderByDescending(note => note.UpdatedAtUtc).ToArray());
+        public Task<IReadOnlyList<ReleaseNoteListItem>> ListAsync(int offset, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ReleaseNoteListItem>>(Notes
+                .OrderByDescending(note => note.UpdatedAtUtc)
+                .Skip(offset)
+                .Take(limit)
+                .Select(note => new ReleaseNoteListItem(
+                    note.Id, note.Title, note.Status, note.Version, note.PublishedByStaffId, note.PublishedAtUtc))
+                .ToArray());
 
         public Task<IReadOnlyList<ReleaseNote>> ListPublishedAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReleaseNote>>(Published().ToArray());

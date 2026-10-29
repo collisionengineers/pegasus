@@ -145,6 +145,44 @@ public sealed class IdentityUseCaseTests
         Assert.Equal(nameof(ResetStaffPasswordResult), result.ToString());
     }
 
+    /// <summary>
+    /// The Staff accounts list reads 50 a page and counts every account for
+    /// its heading (#1542, R418, R421).
+    /// </summary>
+    [Fact]
+    public async Task TheStaffAccountListReadsOnePageAndCountsEveryAccount()
+    {
+        var queries = new PagedStaffAccountQueries(101);
+        var list = new ListStaffAccounts(queries);
+
+        var first = await list.ExecuteAsync(new(Administrator), default);
+        var last = await list.ExecuteAsync(new(Administrator, 3), default);
+
+        Assert.Equal(ListStaffAccounts.DefaultPageSize, first.Accounts.Count);
+        Assert.True(first.HasMoreAccounts);
+        Assert.Equal(101, first.TotalAccounts);
+        Assert.Equal("staff-100", Assert.Single(last.Accounts).UserName);
+        Assert.False(last.HasMoreAccounts);
+        Assert.Equal(101, last.TotalAccounts);
+        Assert.All(queries.Limits, limit => Assert.True(limit <= ListStaffAccounts.MaximumPageSize));
+    }
+
+    /// <summary>
+    /// A person picker's names are every account's, read past the hundredth;
+    /// a store without its own one-statement read walks the pages (#1542).
+    /// </summary>
+    [Fact]
+    public async Task TheDefaultNameListAndCountWalkEveryPage()
+    {
+        IStaffAccountQueries queries = new PagedStaffAccountQueries(250);
+
+        var names = await queries.ListNamesAsync(default);
+
+        Assert.Equal(250, names.Count);
+        Assert.Contains("staff-249", names.Values);
+        Assert.Equal(250, await queries.CountAsync(default));
+    }
+
     private static UpdateStaffAccountSettingsRequest SettingsRequest(Guid staffId) =>
         new(Administrator, staffId, StaffRole.Engineer, true, "A Engineer", null, Png(), true,
             "settings-operation", 2);
@@ -181,5 +219,49 @@ public sealed class IdentityUseCaseTests
             Task.FromResult(new ResetStaffPasswordResult(request.StaffId, "temporary", 0, 0, false));
         public Task<DeleteStaffAccountResult> DeleteAsync(DeleteStaffAccountRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(new DeleteStaffAccountResult(request.StaffId, 0, 0, true, false));
+    }
+
+    /// <summary>
+    /// Accounts staff-000 onwards, listed in that order; it keeps only the
+    /// list read, so the name list and the count take the interface's forms.
+    /// </summary>
+    private sealed class PagedStaffAccountQueries(int count) : IStaffAccountQueries
+    {
+        private readonly StaffAccountSummary[] _accounts = [.. Enumerable.Range(0, count)
+            .Select(index => new StaffAccountSummary(
+                Guid.NewGuid(),
+                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"staff-{index:D3}"),
+                true,
+                false,
+                StaffRole.User))];
+
+        public List<int> Limits { get; } = [];
+
+        public Task<StaffAccountQuerySlice> ListAsync(int offset, int limit, CancellationToken cancellationToken)
+        {
+            ListStaffAccounts.ValidateMaximumResults(limit, nameof(limit));
+            lock (Limits)
+            {
+                Limits.Add(limit);
+            }
+
+            return Task.FromResult(new StaffAccountQuerySlice(
+                [.. _accounts.Skip(offset).Take(limit)],
+                _accounts.Length > offset + limit));
+        }
+
+        public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<SignOffSignature?> GetSignOffSignatureAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 }

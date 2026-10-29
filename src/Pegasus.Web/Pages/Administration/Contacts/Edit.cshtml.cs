@@ -115,7 +115,7 @@ public sealed class EditModel(
         await LoadPrincipalAsync(actor, cancellationToken, readCredential: CurrentTab == ApiTab);
         InitializePrincipalSettings();
         await LoadReportSendingChoicesAsync(actor, cancellationToken);
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
+        await LoadPrincipalChoicesAsync(actor, cancellationToken);
         return Page();
     }
 
@@ -405,15 +405,16 @@ public sealed class EditModel(
             await LoadPrincipalAsync(actor, cancellationToken, readCredential: readCredential && CurrentTab == ApiTab);
             InitializePrincipalSettings();
             await LoadReportSendingChoicesAsync(actor, cancellationToken);
+            await LoadPrincipalChoicesAsync(actor, cancellationToken);
         }
-        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
     }
 
     // The mailboxes a new message may leave from (the Outgoing ones that can
-    // send, as the report send form offers them) and the contacts a rule may name.
+    // send, as the report send form offers them) and the contacts a rule may name,
+    // read only for the Report sending tab, the one tab that draws them (#1542).
     private async Task LoadReportSendingChoicesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        if (Principal is not { IsActive: true }) return;
+        if (Principal is not { IsActive: true } || CurrentTab != ReportSendingTab) return;
         SendFromChoices = (await approvedMailboxes.ListAsync(cancellationToken))
             .Where(mailbox => mailbox.CanSend)
             .Select(mailbox => mailbox.Address)
@@ -421,6 +422,14 @@ public sealed class EditModel(
             .ToArray();
         ClaimSourceChoices = await contacts.ListByRoleAsync(actor, ContactRole.ClaimSource, cancellationToken);
         RepairerChoices = await contacts.ListByRoleAsync(actor, ContactRole.Repairer, cancellationToken);
+    }
+
+    // The Principals a contact may link to: drawn only on the one panel of a
+    // contact that is not a Principal (#1542).
+    private async Task LoadPrincipalChoicesAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (Contact is not { Role: not ContactRole.Principal }) return;
+        PrincipalChoices = await contacts.ListPrincipalChoicesAsync(actor, ContactId, cancellationToken);
     }
 
     private void ClearModelStatePreservingErrors(params string[] fieldNames)

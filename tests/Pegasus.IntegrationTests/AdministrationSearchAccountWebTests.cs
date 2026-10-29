@@ -262,6 +262,25 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Contains(">Succeeded</td>", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The Person filter offers every account, so one past the hundredth can
+    /// be chosen and stays chosen (#1542).
+    /// </summary>
+    [Fact]
+    public async Task ThePersonFilterOffersAnAccountBeyondTheHundredth()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await IntakeWebDriver.SeedUserAccountsAsync(factory, 101);
+        var beyond = await IntakeWebDriver.StaffIdAsync(factory, "bulk-100");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await client.GetStringAsync($"/Administration/Logs?Actor={beyond:D}");
+
+        Assert.Matches(
+            $"<option(?=[^>]*value=\"{beyond:D}\")(?=[^>]*selected=\"selected\")[^>]*>bulk-100</option>",
+            html);
+    }
+
     [Fact]
     public async Task ActionLogsBatchLinkAiJobRowsAndLeaveMissingJobsUnlabelled()
     {

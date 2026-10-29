@@ -32,14 +32,37 @@ internal sealed class EfReleaseNoteStore(
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<IReadOnlyList<ReleaseNote>> ListAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// One window of the Administrator's list, selecting only the columns it
+    /// draws: never <c>Body</c> (#1542). The status is parsed once the rows are
+    /// read, because <c>Enum.Parse</c> does not translate to SQL.
+    /// </summary>
+    public async Task<IReadOnlyList<ReleaseNoteListItem>> ListAsync(int offset, int limit, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await context.Set<ReleaseNoteEntity>().AsNoTracking()
             .OrderByDescending(item => item.UpdatedAtUtc)
             .ThenByDescending(item => item.Id)
+            .Skip(offset)
+            .Take(limit)
+            .Select(item => new
+            {
+                item.Id,
+                item.Title,
+                item.Status,
+                item.Version,
+                item.PublishedByStaffId,
+                item.PublishedAtUtc
+            })
             .ToArrayAsync(cancellationToken);
-        return rows.Select(Map).ToArray();
+        return rows.Select(row => new ReleaseNoteListItem(
+                row.Id,
+                row.Title,
+                Enum.Parse<ReleaseNoteStatus>(row.Status),
+                row.Version,
+                row.PublishedByStaffId,
+                row.PublishedAtUtc))
+            .ToArray();
     }
 
     public async Task<IReadOnlyList<ReleaseNote>> ListPublishedAsync(CancellationToken cancellationToken)
