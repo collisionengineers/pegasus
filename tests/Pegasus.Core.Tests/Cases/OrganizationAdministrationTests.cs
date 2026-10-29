@@ -549,40 +549,35 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(3, updated.Version);
     }
 
+    /// <summary>
+    /// R539: a code outside the principal code rule is refused against the
+    /// field the caller names, so the page can say which rule it failed.
+    /// </summary>
     [Fact]
-    public void NotesOnEveryCaseChangeInPlaceWithTheSettings()
+    public void APrincipalCodeRefusalNamesTheCallersField()
     {
-        var current = Principal(version: 3);
+        Assert.Equal("ACME2", OrganizationAdministrationPolicy.NormalizePrincipalCode(" acme2 ", "SuccessorCode"));
+        var error = Assert.Throws<ArgumentException>(() =>
+            OrganizationAdministrationPolicy.NormalizePrincipalCode("ACME-2", "SuccessorCode"));
+        Assert.Equal("SuccessorCode", error.ParamName);
+    }
+
+    /// <summary>
+    /// #1552: the contact's Save is the one writer of Notes on every Case, so a
+    /// report settings change keeps the notes the Principal has.
+    /// </summary>
+    [Fact]
+    public void ReportSettingsKeepTheNotesOnEveryCase()
+    {
+        var current = Principal(version: 3) with { NotesOnEveryCase = "Always copy the fleet manager." };
 
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: PrincipalDefaultFeePolicy.Standard,
-            notesOnEveryCase: "Always copy the fleet manager.");
+            defaultFee: 215.00m);
 
         Assert.Equal("Always copy the fleet manager.", updated.NotesOnEveryCase);
         Assert.Equal(4, updated.Version);
-
-        var unchanged = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
-            updated,
-            expectedVersion: 4,
-            defaultFee: PrincipalDefaultFeePolicy.Standard,
-            notesOnEveryCase: "Always copy the fleet manager.");
-        Assert.Equal(4, unchanged.Version);
-    }
-
-    [Fact]
-    public void NotesOnEveryCaseAreTrimmedAndBounded()
-    {
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        var request = new UpdatePrincipalReportSettingsRequest(
-            Guid.NewGuid(), 1, actor, "notes-op", null,
-            PrincipalDefaultFeePolicy.Standard, 1, "  Always copy the fleet manager.  ");
-
-        Assert.Equal("Always copy the fleet manager.", OrganizationAdministrationPolicy.Normalize(request).NotesOnEveryCase);
-        Assert.Null(OrganizationAdministrationPolicy.Normalize(request with { NotesOnEveryCase = "   " }).NotesOnEveryCase);
-        Assert.ThrowsAny<ArgumentException>(() =>
-            OrganizationAdministrationPolicy.Normalize(request with { NotesOnEveryCase = new string('x', 2001) }));
     }
 
     [Fact]

@@ -250,6 +250,202 @@ public sealed partial class OrganizationDirectoryWebTests
                 $"SELECT InspectionMode FROM Principals WHERE Id = '{principalId:D}';"));
     }
 
+    /// <summary>
+    /// #1552: Notes on every Case have one writer, the contact's Save. Report
+    /// generation saves the Default fee and leaves the notes as they are, even
+    /// when a hand-built post carries a notes field.
+    /// </summary>
+    [Fact]
+    public async Task ReportSettingsLeaveTheNotesOnEveryCaseAlone()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (principalId, contactId) = await CreatePrincipalContactAsync(
+            client, factory, "Report settings notes provider", "RSNOTE");
+        await (await factory.DatabaseAsync).ExecuteAsync(
+            $"UPDATE Organizations SET NotesOnEveryCase = N'Ring the claimant before inspection.' WHERE Id = '{contactId:D}';");
+        var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
+        var settingsHtml = await GetContactSettingsAsync(client, $"{settingsPath}?tab=report-generation");
+
+        using var post = await client.PostAsync(
+            $"{settingsPath}?handler=UpdateReportSettings",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(settingsHtml, "__RequestVerificationToken"),
+                ["ReportSettingsOperationKey"] = InputValue(settingsHtml, "ReportSettingsOperationKey"),
+                ["PrincipalExpectedVersion"] = InputValue(settingsHtml, "PrincipalExpectedVersion"),
+                ["ExpectedVersion"] = InputValue(settingsHtml, "ExpectedVersion"),
+                ["DefaultFee"] = "199.00",
+                ["NotesOnEveryCase"] = "Notes from the report settings form."
+            }));
+
+        Assert.True(
+            post.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {post.StatusCode}. " +
+                $"Validation errors: {await DescribeValidationErrorsAsync(post)}");
+        Assert.Equal(199.00m, await (await factory.DatabaseAsync).ScalarAsync<decimal>(
+            $"SELECT DefaultFee FROM Principals WHERE Id = '{principalId:D}';"));
+        Assert.Equal(
+            "Ring the claimant before inspection.",
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT NotesOnEveryCase FROM Organizations WHERE Id = '{contactId:D}';"));
+    }
+
+    /// <summary>
+    /// #1550: the Default inspection location panel shows a refused save's
+    /// sentence once, at the top of the panel, and keeps what was typed.
+    /// </summary>
+    [Fact]
+    public async Task ABlankDefaultLocationAddressIsRefusedOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (_, contactId) = await CreatePrincipalContactAsync(
+            client, factory, "Blank location address provider", "BLANKLOC");
+        var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
+        var settingsHtml = await GetContactSettingsAsync(client, $"{settingsPath}?tab=default-inspection-location");
+
+        using var post = await client.PostAsync(
+            $"{settingsPath}?handler=UpdateLocation",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(settingsHtml, "__RequestVerificationToken"),
+                ["LocationOperationKey"] = InputValue(settingsHtml, "LocationOperationKey"),
+                ["PrincipalExpectedVersion"] = InputValue(settingsHtml, "PrincipalExpectedVersion"),
+                ["ExpectedVersion"] = InputValue(settingsHtml, "ExpectedVersion"),
+                ["LocationIsImageBasedAssessment"] = bool.FalseString,
+                ["LocationLabel"] = "Blank address yard",
+                ["LocationAddress"] = string.Empty
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        var body = await post.Content.ReadAsStringAsync();
+        Assert.Equal(1, Shown(body, OperatorLabels.PrincipalAdministration.AddressRequired));
+        var refusal = body.IndexOf(">" + OperatorLabels.PrincipalAdministration.AddressRequired + "<", StringComparison.Ordinal);
+        Assert.True(
+            refusal > body.IndexOf("id=\"principal-location-title\"", StringComparison.Ordinal)
+                && refusal < body.IndexOf("name=\"LocationLabel\"", StringComparison.Ordinal),
+            "The refusal must show at the top of the Default inspection location panel.");
+        Assert.Equal("Blank address yard", InputValue(body, "LocationLabel"));
+    }
+
+    /// <summary>
+    /// #1550 and #1551: Replace code with no new code shows the label-owned
+    /// sentence once and never the framework's wording; nothing is replaced.
+    /// </summary>
+    [Fact]
+    public async Task ABlankSuccessorCodeIsRefusedOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (principalId, contactId) = await CreatePrincipalContactAsync(
+            client, factory, "Blank successor code provider", "BLANKSUC");
+        var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
+        var settingsHtml = await GetContactSettingsAsync(client, settingsPath);
+
+        using var post = await client.PostAsync(
+            $"{settingsPath}?handler=Replace",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(settingsHtml, "__RequestVerificationToken"),
+                ["ReplacementOperationKey"] = InputValue(settingsHtml, "ReplacementOperationKey"),
+                ["ReplacementExpectedVersion"] = InputValue(settingsHtml, "ReplacementExpectedVersion"),
+                ["ExpectedVersion"] = InputValue(settingsHtml, "ExpectedVersion"),
+                ["SuccessorCode"] = string.Empty
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        var body = await post.Content.ReadAsStringAsync();
+        Assert.Equal(1, Shown(body, OperatorLabels.PrincipalAdministration.NewCodeRequired));
+        Assert.DoesNotContain("The SuccessorCode field is required.", body, StringComparison.Ordinal);
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND IsActive = 1;"));
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM Principals WHERE PredecessorId = '{principalId:D}';"));
+    }
+
+    /// <summary>
+    /// #1547 (R539): Replace code with a code the principal code rule refuses
+    /// names the rule, not the general notice; nothing is replaced.
+    /// </summary>
+    [Fact]
+    public async Task ASuccessorCodeOutsideTheCodeRuleIsRefusedWithTheRule()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (principalId, contactId) = await CreatePrincipalContactAsync(
+            client, factory, "Hyphenated successor provider", "HYPHSUC");
+        var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
+        var settingsHtml = await GetContactSettingsAsync(client, settingsPath);
+
+        using var post = await client.PostAsync(
+            $"{settingsPath}?handler=Replace",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(settingsHtml, "__RequestVerificationToken"),
+                ["ReplacementOperationKey"] = InputValue(settingsHtml, "ReplacementOperationKey"),
+                ["ReplacementExpectedVersion"] = InputValue(settingsHtml, "ReplacementExpectedVersion"),
+                ["ExpectedVersion"] = InputValue(settingsHtml, "ExpectedVersion"),
+                ["SuccessorCode"] = "ACME-2"
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        var body = await post.Content.ReadAsStringAsync();
+        Assert.Equal(1, Shown(body, "The new principal code must use letters and digits only."));
+        Assert.DoesNotContain(OperatorLabels.PrincipalAdministration.ReplacementNotAccepted, body, StringComparison.Ordinal);
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM Principals WHERE PredecessorId = '{principalId:D}';"));
+    }
+
+    /// <summary>
+    /// #1551 (R539): the contact's Save refuses an empty and a 301-character
+    /// Organisation name with the label-owned sentences, each once.
+    /// </summary>
+    [Fact]
+    public async Task ContactSaveRefusesAnEmptyOrOverLongNameWithItsOwnWords()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (_, contactId) = await CreatePrincipalContactAsync(
+            client, factory, "Save name words provider", "SAVENAME");
+        var path = $"/Administration/Contacts/Edit/{contactId:D}";
+
+        async Task<string> SaveAsync(string name)
+        {
+            var editor = await GetContactSettingsAsync(client, path);
+            using var saved = await client.PostAsync(
+                $"{path}?handler=Save",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["__RequestVerificationToken"] = InputValue(editor, "__RequestVerificationToken"),
+                    ["ContactId"] = InputValue(editor, "ContactId"),
+                    ["ExpectedVersion"] = InputValue(editor, "ExpectedVersion"),
+                    ["OperationKey"] = InputValue(editor, "OperationKey"),
+                    ["Name"] = name,
+                    ["PrincipalCode"] = InputValue(editor, "PrincipalCode"),
+                    ["PrincipalInspectionMode"] = InputValue(editor, "PrincipalInspectionMode"),
+                    ["Active"] = bool.TrueString
+                }));
+            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+            return await saved.Content.ReadAsStringAsync();
+        }
+
+        var empty = await SaveAsync(string.Empty);
+        Assert.Equal(1, Shown(empty, OperatorLabels.Contacts.NameRequired));
+        Assert.DoesNotContain("The Name field is required.", empty, StringComparison.Ordinal);
+
+        var overLong = await SaveAsync(new string('n', Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumNameLength + 1));
+        Assert.Equal(1, Shown(overLong, "The organisation name must be 300 characters or fewer."));
+        Assert.DoesNotContain("must be a string with a maximum length", overLong, StringComparison.Ordinal);
+
+        Assert.Equal("Save name words provider", await (await factory.DatabaseAsync).ScalarAsync<string>(
+            $"SELECT Name FROM Organizations WHERE Id = '{contactId:D}';"));
+    }
+
+    /// <summary>How often a sentence is shown as text; an attribute that carries it is not shown.</summary>
+    private static int Shown(string html, string text) =>
+        Regex.Count(html, ">" + Regex.Escape(text) + "<", RegexOptions.CultureInvariant);
+
     [Fact]
     public async Task YmlSettingsShowTheExactMailboxNotASharedDomain()
     {
