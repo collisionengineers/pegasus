@@ -2103,9 +2103,12 @@ public sealed class EfCaseWorkflowStore(
                         || (item.Kind == ExternalWorkKinds.VehicleLookup
                             && item.State != "completed"
                             && item.State != "failed")
+                        // The automatic Glass's valuation settles itself on a
+                        // closed Case and never holds up its archive.
                         || (item.Kind != ExternalWorkKinds.CreateCaseCustody
                             && item.Kind != ExternalWorkKinds.CreateAuditReferenceCustody
-                            && item.Kind != ExternalWorkKinds.VehicleLookup)),
+                            && item.Kind != ExternalWorkKinds.VehicleLookup
+                            && item.Kind != ExternalWorkKinds.GuideValuation)),
                 cancellationToken);
         return new(isCustodyConfirmed, hasBlockingExternalWork);
     }

@@ -773,6 +773,10 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     Pegasus.Core.Assessment.IFetchGuideValuation,
     Pegasus.Core.Assessment.FetchGuideValuation>();
+// A Case's one automatic Glass's valuation, recorded at its creation (R545,
+// R546), is run here, where the valuation account is, beside Get valuation.
+builder.Services.AddScoped<Pegasus.Core.Assessment.RunAutomaticGuideValuation>();
+builder.Services.AddHostedService<Pegasus.Web.Background.AutomaticGuideValuationService>();
 builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
 builder.Services.AddScoped<Pegasus.Web.Intake.StaffIntakeActions>();
 if (developmentOfflineProfile)

@@ -848,9 +848,12 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
+        // A Case's automatic Glass's valuation is the Web host's own work
+        // (EfAutomaticGuideValuationStore), never dispatched to the Worker.
         var pending = await context.ExternalWorkItems
             .AsNoTracking()
             .Where(item => item.State == ExternalWorkStatePersistence.Pending
+                && item.Kind != ExternalWorkKinds.GuideValuation
                 && item.DueAtUtc <= nowUtc)
             .OrderBy(item => item.DueAtUtc)
             .ThenBy(item => item.Id)

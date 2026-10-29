@@ -42,7 +42,8 @@ health**, **Logs**, **Management Reports**, **Release notes**, **Problem reports
 **Automation & AI**. Automation & AI is one page (operator, 28 October 2026;
 R467): the Automation panel and the AI settings panel, which carries the Send
 to AI switch
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)),
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch))
+and the Automatic Glass's valuation switch (R546),
 appear only when the Automation capability is composed; the AI jobs list
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list))
 is on it in every deployment, so the page is always listed. The former
