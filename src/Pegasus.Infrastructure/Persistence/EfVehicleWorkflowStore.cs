@@ -71,10 +71,10 @@ internal sealed class EfVehicleWorkflowStore(
             throw new VehicleOperationConflictException(command.CaseId, command.OperationKey);
         }
 
-        var workflow = await ArchivedCaseGuard.RequireMutableAsync(context, command.CaseId, cancellationToken);
-        RequireVersionUnderLease(workflow, command.ExpectedCaseVersion);
+        var workflow = await CaseMutationGuard.RequireMutableAsync(context, command.CaseId, cancellationToken);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, command.ExpectedCaseVersion);
         RequireVehicleDataWritable(workflow);
-        RequireLease(workflow, command.Actor, command.EditLeaseToken, UtcNow());
+        CaseMutationGuard.RequireLease(workflow, command.Actor, command.EditLeaseToken, UtcNow());
 
         var confirmedRegistrations = await context.CaseDataFields
             .AsNoTracking()
@@ -686,16 +686,6 @@ internal sealed class EfVehicleWorkflowStore(
                 "Vehicle evidence is read-only in the current case state.");
         }
     }
-
-    private static void RequireVersionUnderLease(CaseWorkflowEntity workflow, long expectedVersion) =>
-        CaseMutationGuard.RequireVersionUnderLease(workflow, expectedVersion);
-
-    private static void RequireLease(
-        CaseWorkflowEntity workflow,
-        ActionActor actor,
-        string leaseToken,
-        DateTimeOffset nowUtc) =>
-        CaseMutationGuard.RequireLease(workflow, actor, leaseToken, nowUtc);
 
     private static void AddWorkflowEvent(
         PegasusDbContext context,

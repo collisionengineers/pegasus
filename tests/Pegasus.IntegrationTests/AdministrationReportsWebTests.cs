@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Net;
 using DocumentFormat.OpenXml.Packaging;
@@ -5,6 +6,7 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Reports;
 using OperatorLabels = Pegasus.Web.Presentation.OperatorLabels;
 using ReportsModel = Pegasus.Web.Pages.Administration.ReportsModel;
@@ -191,15 +193,22 @@ public sealed class AdministrationReportsWebTests
         await AssertCsvsAsync(client, refused: ["MonthsCsv"]);
     }
 
+    /// <summary>
+    /// #1575: a failed read still renders Unavailable, and the page logs it
+    /// once, as a Warning naming the read and the fault without the exception
+    /// object (engineering.md, fault handling shape).
+    /// </summary>
     [Fact]
     public async Task OperationalMonthlyFailureRendersUnavailableWithoutFailingThePage()
     {
+        var logs = new CapturingLoggerProvider();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IMonthlyReportActivityQueries>();
                 services.AddSingleton<IMonthlyReportActivityQueries, UnavailableMonthlyReportQueries>();
+                services.AddSingleton<ILoggerProvider>(logs);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -212,6 +221,11 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        var logged = Assert.Single(logs.Entries, entry => entry.Category == typeof(ReportsModel).FullName);
+        Assert.Equal(LogLevel.Warning, logged.Level);
+        Assert.Null(logged.Exception);
+        Assert.Contains("by_month", logged.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(SyntheticDbException), logged.Message, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
@@ -496,6 +510,58 @@ public sealed class AdministrationReportsWebTests
         Assert.Contains("value=\"case.reference\" checked=\"checked\"", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// #1573 (FRD-17): the Case list form carries the page's period, sorts,
+    /// Work choices and Person, so a refused download redraws the page with
+    /// them; its buttons post to a handler address without the query string.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedCaseListDownloadKeepsThePeriodSortWorkAndPerson()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var state = PageState(Guid.NewGuid());
+        var html = await client.GetStringAsync($"{Page}?{string.Join('&', state.Select(field => $"{field.Name}={field.Value}"))}");
+        AssertCarries(CaseListFormOf(html), state);
+
+        using var refused = await client.PostAsync($"{Page}?handler=CaseListCsv", CaseListForm(
+            CaseWebTestSupport.AntiforgeryValue(html), [.. state, ("AllTime", "true")]));
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        var redrawn = await refused.Content.ReadAsStringAsync();
+        Assert.Contains(OperatorLabels.CaseList.ChooseColumns, redrawn, StringComparison.Ordinal);
+        Assert.Contains($"<option value=\"last-month\" selected=\"selected\">{OperatorLabels.Reports.LastMonth}</option>", redrawn, StringComparison.Ordinal);
+        AssertCarries(CaseListFormOf(redrawn), state);
+    }
+
+    /// <summary>#1573: a saved preset's redirect keeps the page's state beside the preset.</summary>
+    [Fact]
+    public async Task APresetSaveRedirectKeepsThePeriodSortWorkAndPerson()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var token = CaseWebTestSupport.AntiforgeryValue(await client.GetStringAsync($"{Page}?tab=case-list"));
+        var state = PageState(Guid.NewGuid());
+        var presetId = Guid.NewGuid();
+
+        using var created = await client.PostAsync($"{Page}?handler=CaseListPresetCreate", CaseListForm(
+            token,
+            [
+                .. state,
+                ("PresetName", $"Kept state {presetId:N}"),
+                ("NewPresetId", presetId.ToString("D")),
+                ("OperationKey", Guid.NewGuid().ToString("N")),
+                ("Columns", "case.reference")
+            ]));
+
+        Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
+        var location = created.Headers.Location!.OriginalString;
+        foreach (var (name, value) in state.Append(("preset", presetId.ToString("D"))))
+        {
+            Assert.Contains($"{name}={value}", location, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public async Task APresetIsSavedChosenUpdatedAndRemoved()
     {
@@ -569,6 +635,35 @@ public sealed class AdministrationReportsWebTests
     private static FormUrlEncodedContent CaseListForm(string token, params (string Name, string Value)[] fields) =>
         new([new("__RequestVerificationToken", token), .. fields.Select(field => new KeyValuePair<string, string>(field.Name, field.Value))]);
 
+    /// <summary>The Case list tab with a period, an Engineer activity sort, a Work choice and a Person, as query fields.</summary>
+    private static (string Name, string Value)[] PageState(Guid person) =>
+    [
+        ("tab", ReportsModel.CaseListTab),
+        ("period", "last-month"),
+        ("engineerId", person.ToString("D")),
+        ("sort", "queries"),
+        ("dir", "desc"),
+        ("work", "audit")
+    ];
+
+    /// <summary>The Case list's own post form, found by its preset field rather than its attributes.</summary>
+    private static string CaseListFormOf(string html)
+    {
+        var field = html.IndexOf("name=\"NewPresetId\"", StringComparison.Ordinal);
+        Assert.True(field >= 0, "The page has no Case list form.");
+        var start = html.LastIndexOf("<form", field, StringComparison.Ordinal);
+        var end = html.IndexOf("</form>", field, StringComparison.Ordinal);
+        return html[start..end];
+    }
+
+    private static void AssertCarries(string form, IEnumerable<(string Name, string Value)> state)
+    {
+        foreach (var (name, value) in state)
+        {
+            Assert.Contains($"<input type=\"hidden\" name=\"{name}\" value=\"{value}\" />", form, StringComparison.Ordinal);
+        }
+    }
+
     /// <summary>Item L: a report's CSV refuses only when its own read failed.</summary>
     private static async Task AssertCsvsAsync(HttpClient client, string[] refused)
     {
@@ -614,6 +709,38 @@ public sealed class AdministrationReportsWebTests
     private sealed class SyntheticDbException : DbException
     {
         public SyntheticDbException() : base("The monthly report database is unavailable.") { }
+    }
+
+    private sealed record LogEntry(string Category, LogLevel Level, string Message, Exception? Exception);
+
+    /// <summary>Every log entry the host writes, by category.</summary>
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        private readonly ConcurrentQueue<LogEntry> entries = new();
+
+        public IReadOnlyList<LogEntry> Entries => [.. entries];
+
+        public ILogger CreateLogger(string categoryName) => new CapturingLogger(categoryName, entries);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class CapturingLogger(string category, ConcurrentQueue<LogEntry> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter) =>
+                entries.Enqueue(new(category, logLevel, formatter(state, exception), exception));
+        }
     }
 
     private sealed class RecordingReportQueries : IEngineerActivityQueries, IMonthlyReportActivityQueries, IReportOutcomeQueries, IV1ActivityReportQueries

@@ -206,7 +206,9 @@ holds a Triage links to the Triage as a reply links to a Case (operator,
   message's incident date first: candidates with a different date are dropped,
   and an equal date wins when exactly one remains. A date that leaves no
   candidate removes the registration from the decision; it never vetoes
-  another agreeing signal.
+  another agreeing signal. A message that names no registration of its own
+  has the one the photographs inside its PDF read, text layer or images
+  only (operator, 28 October 2026, R474).
 
 Pegasus abstains when no signal has a candidate, when the intersection is not
 exactly one Case — signals that disagree, or a set that stays several — or when

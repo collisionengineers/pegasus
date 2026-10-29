@@ -153,10 +153,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("The address could not be found in the mail system.", html, StringComparison.Ordinal);
         Assert.Equal(1, ErrorSummaryCount(html));
-        Assert.DoesNotContain(
-            $"<td>{NewAddress}</td>",
-            await GetPageAsync(client),
-            StringComparison.Ordinal);
+        Assert.Null(await StoredMailboxAsync(factory, NewAddress));
     }
 
     [Fact]
@@ -182,7 +179,57 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(1, resolver.AccessChecks);
         Assert.Contains("could not verify read access", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        Assert.DoesNotContain($"<td>{NewAddress}</td>", await GetPageAsync(client), StringComparison.Ordinal);
+        Assert.Null(await StoredMailboxAsync(factory, NewAddress));
+    }
+
+    /// <summary>
+    /// A Disabled row saves before the tenant grant: the address and read-access
+    /// checks run only when the saved state is Approved (R528).
+    /// </summary>
+    [Fact]
+    public async Task ANewDisabledMailboxSavesWithoutResolvingItsAddress()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, approvedMailboxIdentityResolver: new StubResolver(resolution: null));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var mailboxId = await AddDisabledMailboxAsync(client);
+
+        var stored = await StoredMailboxAsync(factory, NewAddress);
+        Assert.NotNull(stored);
+        Assert.Equal(ApprovedMailboxState.Disabled.ToString(), stored.State);
+        Assert.Null(stored.MailboxIdentity);
+        Assert.Null(stored.ActivatedAtUtc);
+        Assert.Equal(0, stored.MailboxGeneration);
+        var page = await GetPageAsync(client);
+        var editing = BetweenTagsWhitespaceRegex().Replace(
+            await OpenMailboxEditAsync(client, mailboxId, 1, page),
+            "><");
+        Assert.Contains(
+            $"<dt>{OperatorLabels.MailSettings.Activation}</dt><dd>{OperatorLabels.MailSettings.NotActivated}</dd>",
+            editing,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ANewDisabledMailboxSavesWithoutCheckingReadAccess()
+    {
+        var resolver = new AccessResolver(
+            new("resolved-mailbox-id", "resolved-inbox-id", "resolved-sent-id"),
+            canRead: false);
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, approvedMailboxIdentityResolver: resolver);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        await AddDisabledMailboxAsync(client);
+
+        Assert.Equal(0, resolver.Resolutions);
+        Assert.Equal(0, resolver.AccessChecks);
+        var stored = await StoredMailboxAsync(factory, NewAddress);
+        Assert.NotNull(stored);
+        Assert.Equal(ApprovedMailboxState.Disabled.ToString(), stored.State);
+        Assert.Null(stored.MailboxIdentity);
+        Assert.Null(stored.ActivatedAtUtc);
     }
 
     [Fact]
@@ -191,7 +238,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var replacementAddress = "replacement@collisionengineers.co.uk";
         var resolver = new SequencedResolver(
             new("first-mailbox-id", "first-inbox-id", "first-sent-id"),
-            new("replacement-mailbox-id", "replacement-inbox-id", "replacement-sent-id"),
             new("replacement-mailbox-id", "replacement-inbox-id", "replacement-sent-id"));
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, approvedMailboxIdentityResolver: resolver);
@@ -206,17 +252,31 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.OperationKey"] = OperationKey(page),
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "Incoming",
-            ["MailboxForm.SelectedState"] = "Disabled",
+            ["MailboxForm.SelectedState"] = "Approved",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
 
-        var disabled = await GetPageAsync(client);
-        var disabledEdit = await OpenMailboxEditAsync(client, mailboxId, 1, disabled);
-        var replaced = await PostAsync(client, new()
+        var approved = await GetPageAsync(client);
+        var approvedEdit = await OpenMailboxEditAsync(client, mailboxId, 1, approved);
+        var disabled = await PostAsync(client, new()
         {
             ["MailboxForm.MailboxId"] = mailboxId,
             ["MailboxForm.ExpectedVersion"] = "1",
+            ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "Incoming",
+            ["MailboxForm.SelectedState"] = "Disabled",
+            ["__RequestVerificationToken"] = AntiforgeryToken(approvedEdit)
+        });
+        Assert.Equal(HttpStatusCode.Found, disabled.StatusCode);
+
+        var disabledPage = await GetPageAsync(client);
+        var disabledEdit = await OpenMailboxEditAsync(client, mailboxId, 2, disabledPage);
+        var replaced = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "2",
             ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
             ["MailboxForm.Address"] = replacementAddress,
             ["MailboxForm.SelectedRouteScopes"] = "Incoming",
@@ -224,13 +284,21 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["__RequestVerificationToken"] = AntiforgeryToken(disabledEdit)
         });
         Assert.Equal(HttpStatusCode.Found, replaced.StatusCode);
+        // Saved Disabled, the new address is not checked, and the old address's
+        // identities do not follow it.
+        Assert.Equal(1, resolver.Resolutions);
+        var awaitingCheck = await StoredMailboxAsync(factory, replacementAddress);
+        Assert.NotNull(awaitingCheck);
+        Assert.Null(awaitingCheck.MailboxIdentity);
+        Assert.Null(awaitingCheck.InboxFolderIdentity);
+        Assert.Null(awaitingCheck.SentFolderIdentity);
 
         var replacement = await GetPageAsync(client);
-        var replacementEdit = await OpenMailboxEditAsync(client, mailboxId, 2, replacement);
+        var replacementEdit = await OpenMailboxEditAsync(client, mailboxId, 3, replacement);
         var reenabled = await PostAsync(client, new()
         {
             ["MailboxForm.MailboxId"] = mailboxId,
-            ["MailboxForm.ExpectedVersion"] = "2",
+            ["MailboxForm.ExpectedVersion"] = "3",
             ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
             ["MailboxForm.Address"] = replacementAddress,
             ["MailboxForm.SelectedRouteScopes"] = "Incoming",
@@ -239,14 +307,11 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         });
         Assert.Equal(HttpStatusCode.Found, reenabled.StatusCode);
 
-        await using var scope = factory.Services.CreateAsyncScope();
-        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var stored = await context.ApprovedMailboxes.SingleAsync(item =>
-            item.Id == Guid.Parse(mailboxId));
-        Assert.Equal(replacementAddress, stored.Address);
+        var stored = await StoredMailboxAsync(factory, replacementAddress);
+        Assert.NotNull(stored);
+        Assert.Equal(Guid.Parse(mailboxId), stored.Id);
         Assert.Equal("replacement-mailbox-id", stored.MailboxIdentity);
-        Assert.Equal(1, stored.MailboxGeneration);
+        Assert.Equal(3, stored.MailboxGeneration);
         Assert.Equal(ApprovedMailboxState.Approved.ToString(), stored.State);
         Assert.Equal(2, resolver.Resolutions);
     }
@@ -357,18 +422,32 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.OperationKey"] = OperationKey(page),
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "Incoming",
-            ["MailboxForm.SelectedState"] = "Disabled",
+            ["MailboxForm.SelectedState"] = "Approved",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
 
-        resolver.CanRead = false;
-        var disabled = await GetPageAsync(client);
-        var editing = await OpenMailboxEditAsync(client, mailboxId, 1, disabled);
-        var reenabled = await PostAsync(client, new()
+        var approved = await GetPageAsync(client);
+        var approvedEditing = await OpenMailboxEditAsync(client, mailboxId, 1, approved);
+        var disabling = await PostAsync(client, new()
         {
             ["MailboxForm.MailboxId"] = mailboxId,
             ["MailboxForm.ExpectedVersion"] = "1",
+            ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "Incoming",
+            ["MailboxForm.SelectedState"] = "Disabled",
+            ["__RequestVerificationToken"] = AntiforgeryToken(approvedEditing)
+        });
+        Assert.Equal(HttpStatusCode.Found, disabling.StatusCode);
+
+        resolver.CanRead = false;
+        var disabled = await GetPageAsync(client);
+        var editing = await OpenMailboxEditAsync(client, mailboxId, 2, disabled);
+        var reenabled = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "2",
             ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "Incoming",
@@ -394,8 +473,9 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var stored = await context.ApprovedMailboxes.SingleAsync(item =>
             item.Id == Guid.Parse(mailboxId));
         Assert.Equal(ApprovedMailboxState.Disabled.ToString(), stored.State);
-        Assert.Equal(0, stored.MailboxGeneration);
-        Assert.Null(stored.ActivatedAtUtc);
+        // The refused re-enable left the row as the Disable saved it.
+        Assert.Equal(2, stored.MailboxGeneration);
+        Assert.Equal(2, stored.Version);
     }
 
     [Fact]
@@ -598,6 +678,37 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         using var response = await client.GetAsync("/Administration/Mailboxes");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>The stored row for <paramref name="address"/>, read back from the database.</summary>
+    private static async Task<ApprovedMailboxEntity?> StoredMailboxAsync(
+        IntakeWebApplicationFactory factory,
+        string address)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        return await context.ApprovedMailboxes.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Address == address);
+    }
+
+    /// <summary>Adds <see cref="NewAddress"/> as a Disabled Incoming row and returns its id.</summary>
+    private static async Task<string> AddDisabledMailboxAsync(HttpClient client)
+    {
+        var page = await GetPageAsync(client);
+        var mailboxId = NewMailboxId(page);
+        var response = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "Incoming",
+            ["MailboxForm.SelectedState"] = "Disabled",
+            ["__RequestVerificationToken"] = AntiforgeryToken(page)
+        });
+        Assert.Equal(HttpStatusCode.Found, response.StatusCode);
+        return mailboxId;
     }
 
     /// <summary>A refused post names its errors in one summary, in the dialog that was posted.</summary>

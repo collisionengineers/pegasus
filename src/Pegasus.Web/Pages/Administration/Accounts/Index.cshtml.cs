@@ -44,7 +44,14 @@ public sealed class IndexModel(
 
     /// <summary>The account whose settings dialog is open, resolved on its own.</summary>
     public StaffAccountRow? SettingsRow { get; private set; }
-    public StaffRole SettingsPostRole { get; private set; } = StaffRole.User;
+
+    /// <summary>
+    /// The Role the dialog selects: the one a refused post carried when it
+    /// names a defined Role, otherwise the stored one (FRD-04: a refused
+    /// settings change keeps the entered values).
+    /// </summary>
+    public StaffRole? SettingsPostRole => postedRole ?? SettingsRow?.Account.Role;
+    private StaffRole? postedRole;
     public bool SettingsPostIsSignOffEngineer { get; private set; }
     public string SettingsPostPrintedName { get; private set; } = string.Empty;
     public string SettingsPostQualifications { get; private set; } = string.Empty;
@@ -74,7 +81,6 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnGetAsync(
         Guid? editStaffId,
-        long? expectedVersion,
         Guid? glassStaffId,
         CancellationToken cancellationToken)
     {
@@ -86,18 +92,14 @@ public sealed class IndexModel(
         }
         if (editStaffId is not { } staffId) return Page();
 
+        // Opening Settings changes nothing, so it loads the current version
+        // itself; each change the dialog posts carries that version and a
+        // stale one is refused there (FRD-17 §Accounts).
         var row = await ResolveRowAsync(actor, staffId, cancellationToken);
         if (row is null) return NotFound();
         var account = row.Account;
-        if (expectedVersion != account.Version)
-        {
-            ModelState.AddModelError(string.Empty, "The account changed. Reload and try again.");
-            return Page();
-        }
-
         SettingsRow = row;
         SettingsPostStaffId = staffId;
-        SettingsPostRole = account.Role;
         SettingsPostIsSignOffEngineer = account.SignOff.IsSignOffEngineer;
         SettingsPostPrintedName = account.SignOff.PrintedName ?? string.Empty;
         SettingsPostQualifications = account.SignOff.Qualifications ?? string.Empty;
@@ -292,19 +294,22 @@ public sealed class IndexModel(
         SettingsPostQualifications = qualifications ?? string.Empty;
         SettingsPostIsDefault = isDefaultSignOffEngineer;
         SettingsPostVersion = expectedVersion;
+        if (Enum.TryParse<StaffRole>(role, ignoreCase: false, out var selectedRole)
+            && Enum.IsDefined(selectedRole))
+        {
+            postedRole = selectedRole;
+        }
         return RunAsync(async actor =>
         {
             if (!RequireStaffId(staffId) || !ValidateOperationKey(operationKey))
             {
                 return null;
             }
-            if (!Enum.TryParse<StaffRole>(role, ignoreCase: false, out var selectedRole)
-                || !Enum.IsDefined(selectedRole))
+            if (postedRole is not { } chosenRole)
             {
                 ModelState.AddModelError(string.Empty, "Select a supported staff role.");
                 return null;
             }
-            SettingsPostRole = selectedRole;
             if (isSignOffEngineer && !Require(printedName, OperatorLabels.StaffAccounts.PrintedNameRequired))
             {
                 return null;
@@ -312,11 +317,22 @@ public sealed class IndexModel(
 
             var signatureBytes = await ReadSignatureAsync(signature, cancellationToken);
             if (!ModelState.IsValid) return null;
-            await updateStaffAccountSettings.ExecuteAsync(
-                new(
-                    actor, staffId, selectedRole, isSignOffEngineer, printedName, qualifications,
-                    signatureBytes, isDefaultSignOffEngineer, operationKey!, expectedVersion),
-                cancellationToken);
+            try
+            {
+                await updateStaffAccountSettings.ExecuteAsync(
+                    new(
+                        actor, staffId, chosenRole, isSignOffEngineer, printedName, qualifications,
+                        signatureBytes, isDefaultSignOffEngineer, operationKey!, expectedVersion),
+                    cancellationToken);
+            }
+            catch (ArgumentException exception)
+                when (exception.ParamName == nameof(UpdateStaffAccountSettingsRequest.Signature))
+            {
+                // Core reads the bytes (SignOffSignaturePolicy); the browser's
+                // content type alone does not make a file a PNG.
+                ModelState.AddModelError(string.Empty, OperatorLabels.StaffAccounts.SignatureInvalid);
+                return null;
+            }
             return "Account settings saved.";
         }, cancellationToken);
     }

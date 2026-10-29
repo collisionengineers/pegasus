@@ -432,4 +432,19 @@ public static partial class OperatorLabels
         public const string VehicleImages = "Registered as vehicle images";
         public const string Unidentified = "Unidentified";
     }
+
+    /// <summary>
+    /// Register images: the staff registration that makes Unidentified image
+    /// material an Image-initiated Case, the same act on the Unidentified record
+    /// and on the upload review (operator, 28 October 2026, R463).
+    /// </summary>
+    public static class RegisterImages
+    {
+        public const string Action = "Register images";
+        public const string VehicleRegistration = "Vehicle registration";
+        public const string Reason = "Reason";
+        public const string Cancel = "Cancel";
+
+        public static string Registered(string reference) => $"Registered as vehicle images {reference}.";
+    }
 }

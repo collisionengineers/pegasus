@@ -91,6 +91,35 @@ public sealed partial class StaffIntakeActions(
         return record;
     }
 
+    /// <summary>
+    /// Register images for an Unidentified item, on its record or on the upload
+    /// review that left it (R463): a group item registers its whole group, any
+    /// other item its receipt.
+    /// </summary>
+    public Task<ImageIntakeRecord> RegisterItemImagesAsync(
+        ActionActor actor,
+        UnidentifiedItemContext context,
+        string? vehicleRegistration,
+        string reason,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.SubmissionGroup is not null)
+        {
+            return RegisterGroupImagesAsync(
+                actor, context, vehicleRegistration, reason, operationKey, cancellationToken);
+        }
+
+        if (!context.CanRegisterImages || context.Receipt is not { } receipt)
+        {
+            throw new InvalidOperationException("Images cannot be registered from this item.");
+        }
+
+        return RegisterImagesAsync(
+            actor, receipt, vehicleRegistration, reason, operationKey, cancellationToken);
+    }
+
     /// <summary>The Triage creation's operation key for the caller's own key.</summary>
     public static string OpenTriageOperationKey(string operationKey) => $"triage-from-staff:{operationKey}";
 

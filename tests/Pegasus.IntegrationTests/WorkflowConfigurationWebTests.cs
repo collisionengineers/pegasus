@@ -69,6 +69,33 @@ public sealed partial class WorkflowConfigurationWebTests
         Assert.Matches("name=\"AiDraftTargetDays\"[^>]*value=\"6\"", after);
     }
 
+    [Fact]
+    public async Task AnOmittedWorkflowSettingIsRefusedWithItsRangeAndNothingIsSaved()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var html = await GetPageAsync(client);
+        var storedVersion = Field(html, "WorkflowExpectedVersion");
+        var storedTriage = Field(html, "TriageTargetDays");
+        var fields = new Dictionary<string, string>
+        {
+            ["WorkflowExpectedVersion"] = storedVersion,
+            ["WorkflowOperationKey"] = Field(html, "WorkflowOperationKey"),
+            ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken"),
+            ["RequireInstructions"] = "true", ["RequireImages"] = "true",
+            ["ChaseIntervalDays"] = "7", ["UnidentifiedTargetDays"] = "0",
+            ["HeldTargetDays"] = "7", ["ReviewTargetDays"] = "1", ["AiDraftTargetDays"] = "1"
+        };
+
+        using var refused = await client.PostAsync(Route + "?handler=SaveWorkflow", new FormUrlEncodedContent(fields));
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("Triage target must be between 0 and 365 days.", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        var after = await GetPageAsync(client);
+        Assert.Equal(storedVersion, Field(after, "WorkflowExpectedVersion"));
+        Assert.Equal(storedTriage, Field(after, "TriageTargetDays"));
+    }
+
     /// <summary>
     /// Configuration (13 September): the page renders the workflow's six
     /// editable settings and carries versioned form metadata directly on load.

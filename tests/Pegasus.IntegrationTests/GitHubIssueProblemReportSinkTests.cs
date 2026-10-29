@@ -49,6 +49,21 @@ public sealed class GitHubIssueProblemReportSinkTests
         Assert.Equal(["problem-report", "triage"], body.RootElement.GetProperty("labels").EnumerateArray().Select(label => label.GetString()));
     }
 
+    /// <summary>An issue an Administrator confirms by number is addressed by the sink, as GitHub addresses the issues it raises; nothing is sent.</summary>
+    [Fact]
+    public void AConfirmedIssueNumberIsAddressedByTheSink()
+    {
+        var handler = new FakeHandler(HttpStatusCode.Created, "{}");
+        var sink = new GitHubIssueProblemReportSink(
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", null)!,
+            new HttpClient(handler));
+
+        var expected = new ProblemReportDelivery(12, "https://github.com/collisionengineers/pegasus/issues/12");
+        Assert.Equal(expected, sink.IssueFor(12));
+        Assert.Equal(expected, new UnconfiguredProblemReportSink().IssueFor(12));
+        Assert.Empty(handler.Requests);
+    }
+
     [Fact]
     public async Task ARefusalNamesTheStatusAndNothingElse()
     {

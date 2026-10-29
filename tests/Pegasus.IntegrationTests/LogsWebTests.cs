@@ -12,6 +12,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
 using OperatorLabels = Pegasus.Web.Presentation.OperatorLabels;
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
@@ -204,6 +205,123 @@ public sealed class LogsWebTests
             Assert.Equal(HttpStatusCode.Redirect, refusedOcr.StatusCode);
         }
         Assert.Single(log.OcrRetries);
+    }
+
+    /// <summary>
+    /// Retry OCR and Re-evaluate posted from the drawer run through the real
+    /// Core and store (FRD-17 §Acceptance evidence): each records one action
+    /// with its reason and the Administrator, the drawer stops offering a
+    /// queued OCR retry, and a refusal shows the page's words.
+    /// </summary>
+    [Fact]
+    public async Task TheIntakeLogActionsRunThroughTheRealCoreAndStore()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "scan.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        Guid operationId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            operationId = await IntakeOcrRetryPersistenceTests.SeedFailedOcrAttemptAsync(
+                scope.ServiceProvider, receiptId, DateTimeOffset.UtcNow.AddMinutes(-5));
+        }
+
+        var drawer = await GetHtmlAsync(client, $"/Administration/Logs?tab=intake&Receipt={receiptId:D}");
+        drawer = await PostIntakeActionAsync(
+            client, drawer, "RetryIntakeOcr", ActionForm(drawer, "retry-ocr"), "The OCR provider was unavailable.");
+        Assert.Contains("OCR will be retried.", drawer, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-intake-action=\"retry-ocr\"", drawer, StringComparison.Ordinal);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var work = await context.Set<ExternalWorkItemEntity>().AsNoTracking().SingleAsync(item => item.Id == operationId);
+            Assert.Equal(ExternalWorkStatePersistence.Pending, work.State);
+            Assert.Equal(0, work.AttemptCount);
+            var recorded = Assert.Single(await HistoryAsync(context, receiptId, "intake_ocr_retry_queued"));
+            Assert.Equal("The OCR provider was unavailable.", recorded.Reason);
+            Assert.Equal(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), recorded.ActorSubjectId);
+        }
+
+        // Retry OCR again, at the drawer's current version with a new key: the
+        // store refuses it, in the page's words rather than its own (#1566).
+        var current = ActionForm(drawer, "reevaluate");
+        drawer = await PostIntakeActionAsync(
+            client, drawer, "RetryIntakeOcr", current, "Again.",
+            operationKey: Guid.NewGuid().ToString("N"));
+        AssertDangerNotice(drawer, OperatorLabels.IntakeLog.ItemChanged);
+        Assert.DoesNotContain("OCR can be retried only when its last attempt failed.", drawer, StringComparison.Ordinal);
+
+        var reevaluate = ActionForm(drawer, "reevaluate");
+        var earlierVersion = Input(reevaluate, "expectedVersion");
+        drawer = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", reevaluate, "The sender re-sent a readable copy.");
+        Assert.Contains("Re-evaluation with current policy was queued.", drawer, StringComparison.Ordinal);
+
+        // A repeat with a new key and the version it was read at is refused.
+        drawer = await PostIntakeActionAsync(
+            client, drawer, "ReevaluateIntake", ActionForm(drawer, "reevaluate"), "Once more.",
+            expectedVersion: earlierVersion,
+            operationKey: Guid.NewGuid().ToString("N"));
+        Assert.Contains(
+            "<div class=\"notice notice--danger\" role=\"alert\"><span>The received item changed. Reload it before trying again.</span></div>",
+            drawer,
+            StringComparison.Ordinal);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var recorded = Assert.Single(await HistoryAsync(context, receiptId, "intake_reevaluation_queued"));
+            Assert.Equal("The sender re-sent a readable copy.", recorded.Reason);
+            Assert.Equal(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), recorded.ActorSubjectId);
+            Assert.Single(await HistoryAsync(context, receiptId, "intake_ocr_retry_queued"));
+        }
+    }
+
+    /// <summary>
+    /// Retry allocation posted from the drawer on the real Core and store: with
+    /// the Principal absent it shows why and creates nothing; once the
+    /// Principal exists it creates the Case once.
+    /// </summary>
+    [Fact]
+    public async Task RetryAllocationFromTheIntakeLogCreatesTheCaseOnceAndAFailedRetryShowsItsReason()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "RECOVER");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var first = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                .AttemptAutomaticAsync(scope.ServiceProvider, receipt.Id, Guid.NewGuid());
+            Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, first?.State.Status);
+        }
+
+        var drawerRoute = $"/Administration/Logs?tab=intake&Receipt={receipt.Id:D}";
+        var drawer = await GetHtmlAsync(client, drawerRoute);
+        drawer = await PostIntakeActionAsync(
+            client, drawer, "RetryIntakeAllocation", ActionForm(drawer, "retry-allocation"), "Retry before correction.");
+        Assert.Contains("<div class=\"notice notice--danger\" role=\"alert\">", drawer, StringComparison.Ordinal);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "RECOVER");
+        drawer = await GetHtmlAsync(client, drawerRoute);
+        drawer = await PostIntakeActionAsync(
+            client, drawer, "RetryIntakeAllocation", ActionForm(drawer, "retry-allocation"), "The principal was added.");
+        Assert.Contains("Allocation was retried and the case was created.", drawer, StringComparison.Ordinal);
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
     }
 
     /// <summary>

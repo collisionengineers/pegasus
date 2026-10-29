@@ -37,58 +37,10 @@ public sealed class IntakeOcrRetryPersistenceTests
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
         var receipt = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
-        var asset = Assert.IsType<IntakeAssetRecord>(IntakeFileIdentity.SourceAsset(receipt));
-        var operationId = Guid.NewGuid();
-        var earlierOperationId = Guid.NewGuid();
         var dueAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
+        var operationId = await SeedFailedOcrAttemptAsync(services, receiptId, dueAtUtc);
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
-            context.Set<IntakeOcrOperationEntity>().AddRange(
-            new()
-            {
-                Id = earlierOperationId,
-                IntakeAssetId = asset.Id,
-                SourceSha256 = asset.ContentHash,
-                QualifiedPagesJson = $$"""{"version":4,"intakeReceiptId":"{{receiptId:D}}","pages":[1],"attemptCount":5,"submitAttemptedAtUtc":null,"submittedAtUtc":null,"sourceContentLength":{{asset.ContentLength}}}""",
-                OperationKey = $"intake-ocr:{earlierOperationId:N}",
-                State = nameof(IntakeOcrState.Pending),
-                Version = 2,
-                ConcurrencyToken = Guid.NewGuid()
-            },
-            new()
-            {
-                Id = operationId,
-                IntakeAssetId = asset.Id,
-                SourceSha256 = asset.ContentHash,
-                QualifiedPagesJson = $$"""{"version":4,"intakeReceiptId":"{{receiptId:D}}","pages":[1],"attemptCount":6,"submitAttemptedAtUtc":null,"submittedAtUtc":null,"sourceContentLength":{{asset.ContentLength}}}""",
-                OperationKey = $"intake-ocr:{operationId:N}",
-                State = nameof(IntakeOcrState.Failed),
-                LastError = "ocr_pages_missing: The provider returned no output for page(s) 1.",
-                Version = 3,
-                ConcurrencyToken = Guid.NewGuid()
-            });
-            context.Set<ExternalWorkItemEntity>().AddRange(
-            new()
-            {
-                Id = earlierOperationId,
-                Kind = ExternalWorkKinds.IntakeOcr,
-                OperationKey = $"intake-ocr:{earlierOperationId:N}",
-                State = ExternalWorkStatePersistence.Completed,
-                AttemptCount = 5,
-                DueAtUtc = dueAtUtc.AddMinutes(-1),
-                CompletedAtUtc = dueAtUtc.AddMinutes(-1)
-            },
-            new()
-            {
-                Id = operationId,
-                Kind = ExternalWorkKinds.IntakeOcr,
-                OperationKey = $"intake-ocr:{operationId:N}",
-                State = ExternalWorkStatePersistence.Failed,
-                AttemptCount = 6,
-                DueAtUtc = dueAtUtc,
-                FailureCode = "ocr_pages_missing",
-                FailureReason = "The provider returned no output for page(s) 1."
-            });
             context.Set<IntakeAllocationAttemptEntity>().AddRange(
                 AllocationAttempt(receiptId, 1, "failed", null),
                 AllocationAttempt(receiptId, 2, "succeeded", null));
@@ -236,6 +188,73 @@ public sealed class IntakeOcrRetryPersistenceTests
         }
 
         Assert.Null(await store.FindCompletedBySourceAsync(new string('f', 64), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A received item's OCR history whose last attempt failed, behind an
+    /// earlier completed one: what the Intake log offers Retry OCR for. Returns
+    /// the failed operation's id. The Logs page's real-store test seeds it too.
+    /// </summary>
+    internal static async Task<Guid> SeedFailedOcrAttemptAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        DateTimeOffset dueAtUtc)
+    {
+        var receipt = Assert.IsType<IntakeReceipt>(await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None));
+        var asset = Assert.IsType<IntakeAssetRecord>(IntakeFileIdentity.SourceAsset(receipt));
+        var operationId = Guid.NewGuid();
+        var earlierOperationId = Guid.NewGuid();
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        context.Set<IntakeOcrOperationEntity>().AddRange(
+        new()
+        {
+            Id = earlierOperationId,
+            IntakeAssetId = asset.Id,
+            SourceSha256 = asset.ContentHash,
+            QualifiedPagesJson = $$"""{"version":4,"intakeReceiptId":"{{receiptId:D}}","pages":[1],"attemptCount":5,"submitAttemptedAtUtc":null,"submittedAtUtc":null,"sourceContentLength":{{asset.ContentLength}}}""",
+            OperationKey = $"intake-ocr:{earlierOperationId:N}",
+            State = nameof(IntakeOcrState.Pending),
+            Version = 2,
+            ConcurrencyToken = Guid.NewGuid()
+        },
+        new()
+        {
+            Id = operationId,
+            IntakeAssetId = asset.Id,
+            SourceSha256 = asset.ContentHash,
+            QualifiedPagesJson = $$"""{"version":4,"intakeReceiptId":"{{receiptId:D}}","pages":[1],"attemptCount":6,"submitAttemptedAtUtc":null,"submittedAtUtc":null,"sourceContentLength":{{asset.ContentLength}}}""",
+            OperationKey = $"intake-ocr:{operationId:N}",
+            State = nameof(IntakeOcrState.Failed),
+            LastError = "ocr_pages_missing: The provider returned no output for page(s) 1.",
+            Version = 3,
+            ConcurrencyToken = Guid.NewGuid()
+        });
+        context.Set<ExternalWorkItemEntity>().AddRange(
+        new()
+        {
+            Id = earlierOperationId,
+            Kind = ExternalWorkKinds.IntakeOcr,
+            OperationKey = $"intake-ocr:{earlierOperationId:N}",
+            State = ExternalWorkStatePersistence.Completed,
+            AttemptCount = 5,
+            DueAtUtc = dueAtUtc.AddMinutes(-1),
+            CompletedAtUtc = dueAtUtc.AddMinutes(-1)
+        },
+        new()
+        {
+            Id = operationId,
+            Kind = ExternalWorkKinds.IntakeOcr,
+            OperationKey = $"intake-ocr:{operationId:N}",
+            State = ExternalWorkStatePersistence.Failed,
+            AttemptCount = 6,
+            DueAtUtc = dueAtUtc,
+            FailureCode = "ocr_pages_missing",
+            FailureReason = "The provider returned no output for page(s) 1."
+        });
+        await context.SaveChangesAsync();
+        return operationId;
     }
 
     private static IntakeAllocationAttemptEntity AllocationAttempt(

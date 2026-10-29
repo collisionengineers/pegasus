@@ -56,8 +56,18 @@ public static partial class OperatorLabels
         public const string SaveDraft = "Save draft";
         public const string Publish = "Publish";
         public const string Saved = "Release note saved.";
-        public const string Published = "Release note published.";
+        public const string NotePublished = "Release note published.";
         public const string Conflict = "The release note changed before this edit was saved. Reload and try again.";
+        public const string SaveBeforePublish = "Save the draft before publishing it.";
+
+        // The list headings and the form fields (R527: the page's words, moved unchanged).
+        public const string Title = "Title";
+        public const string Body = "Body";
+        public const string Status = "Status";
+        public const string Version = "Version";
+        public const string Published = "Published";
+        public const string PublishedBy = "Published by";
+        public const string Cancel = "Cancel";
     }
 
     /// <summary>Report a problem (FRD-12; FRD-17): the dialog, the outcomes and the Administrator's list.</summary>
@@ -72,6 +82,22 @@ public static partial class OperatorLabels
         public const string NotSent = "Not sent";
         public const string DeliveryUnknown = "Delivery unknown";
         public const string Unknown = DeliveryUnknown + ". An Administrator must check GitHub for the report ID before retrying.";
+
+        // The Administrator's list: its headings, the Delivery unknown row's
+        // actions and their outcomes (R533: the page's words, moved unchanged).
+        public const string When = "When";
+        public const string Who = "Who";
+        public const string Page = "Page";
+        public const string Case = "Case";
+        public const string Status = "Status";
+        public const string Issue = "Issue";
+        public const string Actions = "Actions";
+        public const string MatchingIssueNumber = "Matching issue number";
+        public const string ConfirmIssue = "Confirm issue";
+        public const string ConfirmNoIssue = "Confirm no issue";
+        public const string IssueNumberRequired = "A valid issue number is required.";
+        public const string CanBeRetried = "The report can now be retried.";
+        public const string StatusChanged = "The report status changed. Reload and check it again.";
 
         public static string Reported(int issueNumber) =>
             string.Create(CultureInfo.InvariantCulture, $"Reported as #{issueNumber}.");

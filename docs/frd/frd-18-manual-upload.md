@@ -291,7 +291,10 @@ Case, Discarded), opened by default when a file could not be read. The
 right part carries the upload's one decision and nothing else:
 
 - **Processing** shows a progress line, the count of stored files and
-  Refresh; the page refreshes itself while any file is moving. A photograph
+  Refresh; the page refreshes itself while any file is moving. An uploaded
+  image shows its own preview at once, in its tile, the inspector and
+  **Open**, from the bytes intake holds, independent of processing and of
+  storage (operator, 28 October 2026, R463). A photograph
   pulled out of a document is listed only once storage has confirmed its
   copy, and the page keeps refreshing until every such photograph has one.
 - **Choose a destination** lists the possible Cases as cards (reference,
@@ -304,8 +307,12 @@ right part carries the upload's one decision and nothing else:
   results are further cards, and a failed search says so. Instruction
   material also offers **Review new Case proposal**. An automatic Image
   intake registration is a subordinate record link (reference and state)
-  under the decision, never a second decision; there is no manual
-  registration or reason form. **Leave undecided** returns to Upload and
+  under the decision, never a second decision. Images the upload left in an
+  Unidentified item are offered **Register images** on the review itself,
+  wherever that item's own record offers it: the same registration and
+  reason, the same act, prefilled with the item's one agreeing reading. The
+  review then reports the registration as it reports an automatic one
+  (operator, 28 October 2026, R463). **Leave undecided** returns to Upload and
   changes nothing, except that for images that matched a Case it registers
   them as an Image-initiated Case (operator, 11 October 2026); **Discard upload** opens its own confirmation with the
   acknowledgement that the source and processing record are retained, and

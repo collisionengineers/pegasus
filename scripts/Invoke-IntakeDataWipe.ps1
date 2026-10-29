@@ -19,16 +19,47 @@ $preserve = @(
     'AspNetRoleClaims', 'AspNetRoles', 'AspNetUserClaims', 'AspNetUserLogins',
     'AspNetUserRoles', 'AspNetUsers', 'AspNetUserTokens', 'UserExternalCredentials',
     'OpenIddictApplications', 'OpenIddictAuthorizations', 'OpenIddictScopes', 'OpenIddictTokens',
-    'ApprovedInboxPollStates', 'ApprovedMailboxes',
+    'ApprovedInboxPollStates', 'ApprovedMailboxes', 'ApprovedMailboxSubscriptions',
     'ApprovedOutlookCategories', 'ApprovedSentPollStates',
     'Organizations', 'OrganizationRoles', 'OrganizationAdministrationOperations',
     'ContactRoles', 'ContactPrincipalLinks',
-    'Principals', 'PrincipalSequenceLineages',
+    'Principals', 'PrincipalSequenceLineages', 'PrincipalApiCredentials',
     'PrincipalDomainEvidence', 'PrincipalDomainPackages', 'PrincipalReferences',
     'WorkflowConfigurations', 'LabourRateCards', 'ImageTags', 'SendToAiControl', 'SecurityEvents',
     'CaseSequences', 'ImageIntakeSequences', 'TriageSequences', 'UnidentifiedSequences',
     'ValuationPresets', 'EmailTemplates', 'CaseListPresets',
-    'InspectionLocations', 'InspectionLocationPrincipalLinks'
+    'InspectionLocations', 'InspectionLocationPrincipalLinks',
+    'ReleaseNotes', 'ReleaseNoteAcknowledgements', 'UnroadworthyReasons'
+)
+# Every other table the schema holds is declared here. A table on neither list
+# refuses the run, so a new table is classified before any wipe deletes it.
+$wipeTables = @(
+    'ActionHistory', 'AiJobs',
+    'AppliedValuationAdditions', 'AppliedValuationCalculations', 'AppliedValuationSnapshots',
+    'ApprovedInboxPoisonMessages', 'ApprovedSentPollOutcomes',
+    'CaseAssessmentFields', 'CaseDataFields', 'CaseDataSnapshots', 'CaseDocuments',
+    'CaseDueChasers', 'CaseDueWork', 'CaseEditLeaseOperations', 'CaseEstimateLines',
+    'CaseHistory', 'CaseIntakeLinks', 'CaseManualChases', 'CaseMatchIndex', 'CaseQueries',
+    'CaseRepairSpecificationSnapshots', 'CaseRepairSpecifications',
+    'CaseReportApprovals', 'CaseReportGenerations', 'CaseReportSentEvidence', 'CaseReportWordings',
+    'CaseTasks', 'CaseValuations', 'CaseWorkflowEvents', 'CaseWorkflows', 'CaseWorks', 'Cases',
+    'DocumentContentCacheEntries', 'DocumentOccurrenceTags', 'DocumentOccurrences', 'DocumentVersions',
+    'EditScopes', 'EmailResponseEvidence', 'ExternalWorkItems', 'GeneratedCaseArtifacts',
+    'GlassRepairEstimateSessions',
+    'ImageIntakeLifecycleEvents', 'ImageIntakes', 'ImageVrmSuggestions', 'InstructionDrafts',
+    'IntakeAllocationAttempts', 'IntakeAssetPreparations', 'IntakeAssetTags', 'IntakeAssets',
+    'IntakeCaseMatchDecisions', 'IntakeEvaluations',
+    'IntakeMailClassificationDecisions', 'IntakeMailClassificationHistory', 'IntakeMailRouteDecisions',
+    'IntakeManualAssociations', 'IntakeMutationHistory', 'IntakeOcrOperations',
+    'IntakeReceiptEvents', 'IntakeReceipts', 'IntakeSearchDocuments', 'IntakeSourceCandidates',
+    'IntakeStagedReceipts', 'IntakeSubmissionGroupHistory', 'IntakeSubmissionGroupMembers',
+    'IntakeSubmissionGroups', 'IntakeWorkItems',
+    'PrincipalSubmissions', 'ProblemReports',
+    'RetainedInstructionAnalyses', 'RetainedMailboxAttachments', 'RetainedMailboxMessages',
+    'SentEmailEvidence', 'StaffMailSendOperations', 'StaffNotifications', 'StandaloneAuditEvidence',
+    'Triage', 'TriageFindings', 'TriageHistory', 'TriageResponseEvidenceLinks',
+    'UnidentifiedHistory', 'UnidentifiedItems',
+    'VehicleLookupObservations', 'VehicleLookupRequests', 'WorkCentreDismissals'
 )
 # Preserved only where the schema has it. TriageSequences went on 24 September
 # 2026 (a Triage Case takes its reference from CaseSequences); EmailTemplates
@@ -77,17 +108,20 @@ GROUP BY s.name, t.name ORDER BY t.name"
 $all = @($tables | ForEach-Object { $_.TableName })
 $preserve = @($preserve | Where-Object { $_ -notin $optionalPreserve -or $_ -in $all })
 $hasTriageSequences = 'TriageSequences' -in $all
-$preserveEffective = @($all | Where-Object { $_ -in $preserve -or $_ -like 'ApprovedMailbox*' })
+$preserveEffective = @($all | Where-Object { $_ -in $preserve })
 $missing = @($preserve | Where-Object { $_ -notin $all })
-$wipe = @($tables | Where-Object { $_.TableName -notin $preserveEffective })
+$unlisted = @($all | Where-Object { $_ -notin $preserve -and $_ -notin $wipeTables })
+$wipe = @($tables | Where-Object { $_.TableName -in $wipeTables })
 
 Write-Output ("Tables total: {0}" -f $all.Count)
 Write-Output ("Preserve list found: {0}/{1}; missing: {2}" -f ($preserve | Where-Object { $_ -in $all }).Count, $preserve.Count, ($missing -join ','))
-Write-Output ("Preserved effective (incl. ApprovedMailbox*): {0}" -f $preserveEffective.Count)
+Write-Output ("Preserved effective: {0}" -f $preserveEffective.Count)
+Write-Output ("Tables on neither list: {0}" -f ($unlisted -join ','))
 Write-Output ("Tables to wipe: {0}; rows to delete: {1}" -f $wipe.Count, ($wipe | Measure-Object -Property Rows -Sum).Sum)
 $wipe | Where-Object { $_.Rows -gt 0 } | Format-Table TableName, Rows -AutoSize | Out-String | Write-Output
 
 if ($missing.Count -gt 0) { $connection.Close(); throw 'Preserve list has missing tables; refusing.' }
+if ($unlisted.Count -gt 0) { $connection.Close(); throw 'Tables on neither the preserve nor the wipe list; refusing.' }
 
 $triageSequenceCount = if ($hasTriageSequences) { ' (SELECT MAX(LastAllocatedSequence) FROM TriageSequences) AS TriageSeq,' } else { '' }
 $sequenceCountsSql = "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows,$triageSequenceCount (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"

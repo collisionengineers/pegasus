@@ -1518,6 +1518,11 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             IntakeSourceIdentity sourceIdentity,
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<IntakeStagedReceipt?> GetStagedReceiptAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     internal sealed class FakeSubmissionGroupStore : IIntakeSubmissionGroupStore

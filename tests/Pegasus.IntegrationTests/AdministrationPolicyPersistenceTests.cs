@@ -160,6 +160,95 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.Equal(ApprovedMailboxUpdateError.OperationConflict, replayConflict.Error);
     }
 
+    /// <summary>
+    /// A Used-for edit starts a fresh cycle only for the route it switches on; the
+    /// Inbox left switched on keeps its cursor, boundary and activation (R529).
+    /// </summary>
+    [Fact]
+    public async Task SwitchingOutgoingOnAndOffLeavesTheInboxCycleAsItWas()
+    {
+        var clock = new CaseWorkflowPersistenceTests.MutableTimeProvider(
+            new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero));
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: services => services.AddSingleton<TimeProvider>(clock));
+        await using var scope = database.CreateAsyncScope();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var list = scope.ServiceProvider.GetRequiredService<ListApprovedMailboxes>();
+        var command = scope.ServiceProvider.GetRequiredService<UpdateApprovedMailbox>();
+        var initial = Assert.Single(await list.ExecuteAsync(actor, default));
+        UpdateApprovedMailboxRequest Request(
+            IReadOnlyCollection<ApprovedMailboxRouteScope> routeScopes,
+            int expectedVersion,
+            string operationKey) => new(
+            initial.Id,
+            initial.Address,
+            routeScopes,
+            ApprovedMailboxState.Approved,
+            expectedVersion,
+            actor,
+            operationKey,
+            "instructions-mailbox",
+            "instructions-inbox",
+            "instructions-sent");
+
+        var incoming = await command.ExecuteAsync(
+            Request([ApprovedMailboxRouteScope.Incoming], initial.Version, "route-cycle-incoming"),
+            default);
+        var activatedAtUtc = incoming.ActivatedAtUtc!.Value;
+        var lastCompletedAtUtc = activatedAtUtc.AddHours(3);
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.ApprovedInboxPollStates.Add(new()
+            {
+                ApprovedMailboxId = incoming.Id,
+                MailboxAddress = incoming.Address,
+                ScopeFingerprint = new string('0', 64),
+                Generation = incoming.Generation,
+                ActivatedAtUtc = activatedAtUtc,
+                StartBoundaryUtc = activatedAtUtc,
+                Cursor = "inbox-cursor-1",
+                DueAtUtc = lastCompletedAtUtc,
+                LastCompletedAtUtc = lastCompletedAtUtc
+            });
+            await context.SaveChangesAsync();
+        }
+
+        clock.Advance(TimeSpan.FromHours(4));
+        var switchedOnAtUtc = clock.GetUtcNow();
+        var both = await command.ExecuteAsync(
+            Request(
+                [ApprovedMailboxRouteScope.Incoming, ApprovedMailboxRouteScope.Outgoing],
+                incoming.Version,
+                "route-cycle-outgoing-on"),
+            default);
+        clock.Advance(TimeSpan.FromHours(1));
+        var incomingAgain = await command.ExecuteAsync(
+            Request([ApprovedMailboxRouteScope.Incoming], both.Version, "route-cycle-outgoing-off"),
+            default);
+
+        Assert.Equal(incoming.Generation, both.Generation);
+        Assert.Equal(incoming.Generation, incomingAgain.Generation);
+        Assert.Equal(activatedAtUtc, both.ActivatedAtUtc);
+        Assert.Equal(activatedAtUtc, incomingAgain.ActivatedAtUtc);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var inbox = await context.ApprovedInboxPollStates.AsNoTracking()
+                .SingleAsync(item => item.ApprovedMailboxId == incoming.Id);
+            Assert.Equal(incoming.Generation, inbox.Generation);
+            Assert.Equal(activatedAtUtc, inbox.ActivatedAtUtc);
+            Assert.Equal(activatedAtUtc, inbox.StartBoundaryUtc);
+            Assert.Equal("inbox-cursor-1", inbox.Cursor);
+            Assert.Equal(lastCompletedAtUtc, inbox.LastCompletedAtUtc);
+
+            // The Sent route switched on starts its own cycle at the edit.
+            var sent = await context.ApprovedSentPollStates.AsNoTracking()
+                .SingleAsync(item => item.MailboxId == "instructions-mailbox");
+            Assert.Equal(switchedOnAtUtc, sent.StartBoundaryUtc);
+            Assert.Null(sent.Cursor);
+            Assert.Equal(incoming.Generation, sent.Generation);
+        }
+    }
+
     [Fact]
     public async Task AnApprovedMailboxIdentityBelongsToOneMailbox()
     {

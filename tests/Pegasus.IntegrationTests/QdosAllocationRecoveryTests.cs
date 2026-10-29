@@ -1335,10 +1335,11 @@ public sealed class QdosAllocationRecoveryTests
     {
         public Task<AutomaticMailCaseAssociationEvidence?> GetAsync(
             Guid intakeReceiptId,
+            string? photographRegistration,
             CancellationToken cancellationToken)
         {
             events.Add("mail");
-            return inner.GetAsync(intakeReceiptId, cancellationToken);
+            return inner.GetAsync(intakeReceiptId, photographRegistration, cancellationToken);
         }
     }
 
@@ -1434,6 +1435,9 @@ public sealed class QdosAllocationRecoveryTests
             CurrentCaseIds.Add(receipt.CurrentCaseId);
             return Task.FromResult(new ImageIntakeAutomationOutcome(receipt));
         }
+
+        public Task<string?> ReadMailedPdfPhotographsAsync(IntakeReceipt receipt, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
     }
 
     private sealed class AssociationCommittedBeforeResponse(IAutomaticCaseAssociationStore inner) : IAutomaticCaseAssociationStore

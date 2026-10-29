@@ -282,5 +282,10 @@ public sealed class UploadGroupStatusPollingWebTests
             IntakeSourceIdentity sourceIdentity,
             CancellationToken cancellationToken = default) =>
             inner.FindBySourceIdentityAsync(sourceIdentity, cancellationToken);
+
+        public Task<IntakeStagedReceipt?> GetStagedReceiptAsync(
+            Guid id,
+            CancellationToken cancellationToken = default) =>
+            inner.GetStagedReceiptAsync(id, cancellationToken);
     }
 }

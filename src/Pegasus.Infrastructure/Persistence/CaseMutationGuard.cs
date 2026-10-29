@@ -4,14 +4,16 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The one persistence-side adapter for the case edit guard. It reads the retained row, compares
-/// the presented token against the retained hash in fixed time, and clears the lease; the refusal
-/// decision itself belongs to <see cref="CaseEditAuthority"/> in Core.
+/// The one persistence-side answer to "is this Case writable": the edit lease token, the Case
+/// version, and whether the Case is open or archived. It reads the retained row, compares the
+/// presented token against the retained hash in fixed time, and clears the lease; the lease and
+/// version refusal decisions themselves belong to <see cref="CaseEditAuthority"/> in Core.
 /// </summary>
 internal static class CaseMutationGuard
 {
@@ -39,7 +41,23 @@ internal static class CaseMutationGuard
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        ArchivedCaseGuard.RequireNotArchived(workflow);
+        RequireMutable(workflow);
+    }
+
+    /// <summary>The Case is not archived.</summary>
+    public static void RequireNotArchived(CaseWorkflowEntity workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        if (workflow.ArchivedAtUtc is not null)
+        {
+            throw new CaseArchivedException(workflow.CaseId);
+        }
+    }
+
+    /// <summary>The Case is neither archived nor in a terminal lifecycle state.</summary>
+    public static void RequireMutable(CaseWorkflowEntity workflow)
+    {
+        RequireNotArchived(workflow);
         if (!Enum.TryParse<CaseLifecycleState>(
                 workflow.State,
                 ignoreCase: false,
@@ -48,10 +66,33 @@ internal static class CaseMutationGuard
             throw new InvalidDataException(
                 $"Case '{workflow.CaseId}' has an unrecognized lifecycle state.");
         }
+
         if (CaseLifecycleRules.IsTerminal(lifecycleState))
         {
             throw new CaseTerminalMutationException(workflow.CaseId);
         }
+    }
+
+    /// <summary>
+    /// Loads the Case's workflow tracked and requires it mutable, so a caller
+    /// that goes on to change it reads it once.
+    /// </summary>
+    public static async Task<CaseWorkflowEntity> RequireMutableAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+
+        var workflow = await context.CaseWorkflows
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
+        RequireMutable(workflow);
+        return workflow;
     }
 
     public static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion)
@@ -203,6 +244,24 @@ internal static class CaseMutationGuard
         var presented = SHA256.HashData(Encoding.UTF8.GetBytes(presentedToken));
         return retained.Length == presented.Length
             && CryptographicOperations.FixedTimeEquals(retained, presented);
+    }
+}
+
+internal static class CaseTerminalReadinessGuard
+{
+    public static async Task RequireNoOpenTasksAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (await context.CaseTasks.AnyAsync(
+                item => item.CaseId == caseId
+                    && item.State == nameof(CaseTaskState.Open),
+                cancellationToken))
+        {
+            throw new InvalidOperationException(CaseTaskRules.OpenTasksBlockTerminal);
+        }
     }
 }
 

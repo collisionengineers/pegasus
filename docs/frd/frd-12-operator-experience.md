@@ -204,6 +204,7 @@ raise failed; an Administrator retries it from
 | `/Search` | Advanced search ([FRD-15](frd-15-work-centre-queues-and-search.md#search)) | Cases list |
 | `/Unidentified/{id}`, `/VehicleImages/{id}` | Unidentified and vehicle-images records | The received-file page |
 | `/Received/{id}/Source`, `/Received/{id}/Image`, `/Received/{id}/Asset/{assetId}` | Open file: the retained original, served to authorised staff only | — |
+| `/Upload/Image/{id}` | An uploaded image on the upload review, from the bytes intake holds, before custody confirms it (operator, 28 October 2026, R463; [FRD-18](frd-18-manual-upload.md#the-reviews-shape)) | — |
 | `/Administration`, `/Administration/...` | Administration areas ([FRD-17](frd-17-administration-workspace.md#administration)) | Separate Principal and Claim Source areas |
 | `/Administration/Logs` | Action logs and Intake log tabs | Action Logs |
 

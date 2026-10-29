@@ -2078,7 +2078,10 @@ public sealed class CaseWorkflowPersistenceTests(WorkflowDatabase database)
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.Store.HeartbeatAsync(
                 new HeartbeatCaseEditLeaseRequest(harness.CaseId, first, held.Token), default));
-        Assert.Equal(1, await harness.WorkflowEventCountAsync("colleague-takeover"));
+        // The first holder has no staff account, so the history line cannot name them: they are
+        // unnamed, never their subject identifier (R520, 29 October 2026).
+        var history = Assert.Single(await harness.WorkflowEventsAsync("colleague-takeover"));
+        Assert.Equal("Edit lease taken over from another member of staff.", history.Reason);
         var replay = await harness.Store.ClaimAsync(
             new ClaimCaseEditLeaseRequest(harness.CaseId, 0, second, "colleague-takeover")
             {

@@ -32,13 +32,14 @@ touches a subset of it.
   content-addressed `sha256/*` store and in-flight `staging/*` blobs. There
   is no case/date prefix in the path, so the whole container is always the
   target.
-- **Every non-preserved SQL table reported by the fresh dry run** — everything
-  intake and case-handling writes: `Cases`, `CaseDocuments`, `CaseHistory`,
-  `IntakeReceipts`,
+- **Every SQL table on the script's declared wipe list, as reported by the
+  fresh dry run** — everything intake and case-handling writes: `Cases`,
+  `CaseDocuments`, `CaseHistory`, `IntakeReceipts`,
   `IntakeStagedReceipts`, `IntakeAssets`, `RetainedMailboxMessages`,
   `RetainedMailboxAttachments`, `DocumentVersions`/`DocumentOccurrences`,
   `Triage`/`UnidentifiedItems`, `ActionHistory`, and the rest of the
-  intake/case pipeline.
+  intake/case pipeline. The dry run and `-Execute` refuse while any table is
+  on neither the preserve list nor the wipe list.
 
 With `-ResetTestEstate`, the same transaction also removes every account except
 the single `alex` Administrator, including its Identity children, OpenIddict
@@ -63,8 +64,10 @@ zero, so the next allocation is `QDOSyy001`.
   re-enter), mailbox configuration and Graph subscriptions,
   `Organizations*`/`Principals*`, `InspectionLocation*`, `PrincipalDomain*`/
   `PrincipalReferences`, `WorkflowConfigurations`, `SendToAiControl`,
-  `SecurityEvents`, `ValuationPresets`, `EmailTemplates` and `CaseListPresets`
-  (administrator-managed configuration), `ImageTags` (the image-tag
+  `SecurityEvents`, `ValuationPresets`, `EmailTemplates`, `CaseListPresets`,
+  `ReleaseNotes`/`ReleaseNoteAcknowledgements`, `PrincipalApiCredentials` and
+  `UnroadworthyReasons` (administrator-managed configuration; R534 keeps the
+  last four), `ImageTags` (the image-tag
   vocabulary, whose built-in rows only a migration seeds),
   and the reference-sequence tables `CaseSequences`, `ImageIntakeSequences`
   and `UnidentifiedSequences`, plus `TriageSequences` only while the schema
@@ -160,9 +163,10 @@ enumerate old messages whose occurrence identities the wipe removed.
 - Run `-Execute` without a fresh dry run immediately before it — state may
   have changed since the last check.
 - Target any container/account other than `pegcustody252ow37gij/transient-intake`.
-- Skip the preserve-list self-check — if it throws ("Preserve list has
-  missing tables"), stop and investigate schema drift rather than editing
-  the list to make it pass.
+- Skip the table-list self-checks — if one throws ("Preserve list has
+  missing tables", or "Tables on neither the preserve nor the wipe list"),
+  stop and investigate schema drift rather than editing a list to make it
+  pass. Which list a new table joins is the operator's ruling.
 - Use `-ResetTestEstate` to select arbitrary retained users or principals. It
   has one bounded meaning: retain `alex` and reset current-year QDOS only.
 - Call Outlook, Graph, or Box from this process — the wipe is Azure-only by
