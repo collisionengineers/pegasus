@@ -12,6 +12,7 @@ using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Presentation;
+using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;

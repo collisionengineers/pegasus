@@ -5,6 +5,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Presentation;
+using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;

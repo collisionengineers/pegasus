@@ -1,5 +1,6 @@
 using System.Net;
 using Pegasus.Core.Cases;
+using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;

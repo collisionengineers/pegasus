@@ -119,7 +119,7 @@ public sealed class ResponseCompressionWebTests : IClassFixture<IntakeWebApplica
         var accessToken = await RequestTokenAsync(client, AllScopes);
         client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Encoding", "br, gzip");
 
-        using var response = await PostMcpAsync(client, CasesServer, accessToken, ToolsListPayload(1));
+        using var response = await PostMcpAsync(client, McpServer, accessToken, ToolsListPayload(1));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var streamed = response.Content.Headers.ContentType?.MediaType == "text/event-stream";
