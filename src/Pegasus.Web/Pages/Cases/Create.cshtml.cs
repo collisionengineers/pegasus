@@ -505,7 +505,7 @@ public sealed partial class CreateModel(
         }
         else if (PrincipalCode.Length > CasePrincipalCode.MaximumLength)
         {
-            ModelState.AddModelError(nameof(PrincipalCode), $"The principal code must be {CasePrincipalCode.MaximumLength} characters or fewer.");
+            ModelState.AddModelError(nameof(PrincipalCode), OperatorLabels.TooLong(OperatorLabels.PrincipalAdministration.CodeField, CasePrincipalCode.MaximumLength));
         }
         if (!Enum.IsDefined(CaseType))
         {
@@ -653,7 +653,7 @@ public sealed partial class CreateModel(
         {
             ModelState.AddModelError(
                 nameof(PrincipalCode),
-                $"The principal code must be {CasePrincipalCode.MaximumLength} characters or fewer.");
+                OperatorLabels.TooLong(OperatorLabels.PrincipalAdministration.CodeField, CasePrincipalCode.MaximumLength));
         }
 
         if (!Enum.IsDefined(CaseType))

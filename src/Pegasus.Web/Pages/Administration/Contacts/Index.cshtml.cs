@@ -16,6 +16,8 @@ public sealed class IndexModel(
     /// <summary>The types whose list has a page after the one shown.</summary>
     public IReadOnlySet<ContactRole> TypesWithNextPage { get; private set; } = new HashSet<ContactRole>();
     public IReadOnlyList<ContactChoice> PossibleMatches { get; private set; } = [];
+    /// <summary>Check existing contacts ran for a name, so no match is an answer (R537).</summary>
+    public bool MatchesChecked { get; private set; }
     public IReadOnlyList<PrincipalAdministrationDetails> PrincipalChoices { get; private set; } = [];
 
     [BindProperty(SupportsGet = true)] public ContactRole? Type { get; set; }
@@ -26,19 +28,19 @@ public sealed class IndexModel(
 
     [BindProperty] public Guid ContactId { get; set; }
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
-    [BindProperty, Required, StringLength(ContactDirectoryPolicy.MaximumNameLength)]
+    [BindProperty, Display(Name = OperatorLabels.Contacts.OrganisationNameField), Required(ErrorMessage = OperatorLabels.Contacts.NameRequired), StringLength(ContactDirectoryPolicy.MaximumNameLength, ErrorMessage = OperatorLabels.TooLongFormat)]
     public string Name { get; set; } = string.Empty;
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumContactPersonLength)]
+    [BindProperty, Display(Name = OperatorLabels.Contacts.ContactPersonField), StringLength(ContactDirectoryPolicy.MaximumContactPersonLength, ErrorMessage = OperatorLabels.TooLongFormat)]
     public string? ContactPerson { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumEmailLength)]
+    [BindProperty, Display(Name = OperatorLabels.Contacts.EmailField), StringLength(ContactDirectoryPolicy.MaximumEmailLength, ErrorMessage = OperatorLabels.TooLongFormat)]
     public string? Email { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumTelephoneLength)]
+    [BindProperty, Display(Name = OperatorLabels.Contacts.PhoneField), StringLength(ContactDirectoryPolicy.MaximumTelephoneLength, ErrorMessage = OperatorLabels.TooLongFormat)]
     public string? Telephone { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumAddressLength)]
+    [BindProperty, Display(Name = OperatorLabels.Contacts.AddressField), StringLength(ContactDirectoryPolicy.MaximumAddressLength, ErrorMessage = OperatorLabels.TooLongFormat)]
     public string? Address { get; set; }
-    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumPostcodeLength)]
+    [BindProperty, Display(Name = OperatorLabels.Contacts.PostcodeField), StringLength(ContactDirectoryPolicy.MaximumPostcodeLength, ErrorMessage = OperatorLabels.TooLongFormat)]
     public string? Postcode { get; set; }
-    [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength)]
+    [BindProperty, Display(Name = OperatorLabels.PrincipalAdministration.CodeField), StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength, ErrorMessage = OperatorLabels.TooLongFormat)]
     public string? PrincipalCode { get; set; }
     [BindProperty] public CaseInspectionMode PrincipalInspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
     [BindProperty] public Guid[] AssociatedPrincipalIds { get; set; } = [];
@@ -60,6 +62,7 @@ public sealed class IndexModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (!EnsureCreateType()) return await ReturnWizardAsync(actor, cancellationToken);
         PossibleMatches = await contacts.FindPossibleMatchesAsync(actor, Name, cancellationToken);
+        MatchesChecked = !string.IsNullOrWhiteSpace(Name);
         return await ReturnWizardAsync(actor, cancellationToken);
     }
 
@@ -69,11 +72,11 @@ public sealed class IndexModel(
         if (!EnsureCreateType()) return await ReturnWizardAsync(actor, cancellationToken);
         if (!IsOperationKeyValid(OperationKey))
         {
-            ModelState.AddModelError(string.Empty, "The form has expired. Start again.");
+            ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.NewFormExpired);
         }
         if (!Enum.IsDefined(PrincipalInspectionMode))
         {
-            ModelState.AddModelError(nameof(PrincipalInspectionMode), "Select an inspection type.");
+            ModelState.AddModelError(nameof(PrincipalInspectionMode), OperatorLabels.Contacts.SelectInspectionType);
         }
 
         if (ModelState.IsValid)
@@ -81,7 +84,7 @@ public sealed class IndexModel(
             try
             {
                 await administration.SaveAsync(BuildSaveRequest(actor), cancellationToken);
-                TempData["AdministrationStatus"] = "The contact was saved.";
+                TempData["AdministrationStatus"] = OperatorLabels.Contacts.Saved;
                 return RedirectToPage(new { Search, Type });
             }
             catch (ContactDirectoryException exception)
@@ -90,15 +93,20 @@ public sealed class IndexModel(
             }
             catch (ArgumentException exception)
             {
-                // A named field error is shown against its own control; every
-                // other refusal keeps the general notice.
+                // A named field error is keyed to its own control; every other
+                // refusal keeps the general notice. The dialog's summary shows
+                // each once (#1550).
                 if (exception.ParamName == nameof(Telephone))
                 {
-                    ModelState.AddModelError(nameof(Telephone), "Phone must be digits.");
+                    ModelState.AddModelError(nameof(Telephone), OperatorLabels.Contacts.PhoneMustBeDigits);
+                }
+                else if (exception.ParamName == nameof(PrincipalCode))
+                {
+                    ModelState.AddModelError(nameof(PrincipalCode), OperatorLabels.PrincipalAdministration.CodeLettersAndDigitsOnly(OperatorLabels.PrincipalAdministration.CodeField));
                 }
                 else
                 {
-                    ModelState.AddModelError(string.Empty, "The contact details were not accepted.");
+                    ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.DetailsNotAccepted);
                 }
             }
         }
@@ -132,7 +140,7 @@ public sealed class IndexModel(
     private bool EnsureCreateType()
     {
         if (CreateType is { } role && Enum.IsDefined(role)) return true;
-        ModelState.AddModelError(string.Empty, "Choose a contact type.");
+        ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.ChooseType);
         return false;
     }
 

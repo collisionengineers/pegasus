@@ -73,7 +73,9 @@ public sealed class EfContactDirectoryAdministration(
     {
         StaffAuthorization.Require(actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
         var normalized = name?.Trim() ?? string.Empty;
-        if (normalized.Length < 2) return [];
+        // Any name is checked, one character included (operator, 29 October 2026, R537);
+        // only an empty one has nothing to match.
+        if (normalized.Length == 0) return [];
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         return await ReadChoicesAsync(
             context.Organizations.AsNoTracking()

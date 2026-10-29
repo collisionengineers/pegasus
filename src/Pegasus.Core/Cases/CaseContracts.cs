@@ -251,8 +251,8 @@ public interface ILinkedCaseReplacementStore
 
 
 /// <summary>
-/// Change an existing principal's report settings: the default fee and the
-/// notes shown on every Case.
+/// Change an existing principal's report settings: the default fee. The notes
+/// shown on every Case belong to the contact and its Save.
 /// </summary>
 public sealed record UpdatePrincipalReportSettingsRequest(
     Guid PrincipalId,
@@ -261,8 +261,7 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     string OperationKey,
     string? Reason,
     decimal DefaultFee,
-    long ExpectedContactVersion,
-    string? NotesOnEveryCase = null);
+    long ExpectedContactVersion);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,

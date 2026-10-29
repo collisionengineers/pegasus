@@ -208,7 +208,7 @@ public static partial class ContactDirectoryPolicy
                 : null,
             LinkedPrincipalIds = linkedPrincipalIds,
             PrincipalCode = string.IsNullOrWhiteSpace(request.PrincipalCode)
-                ? null : OrganizationAdministrationPolicy.NormalizePrincipalCode(request.PrincipalCode),
+                ? null : OrganizationAdministrationPolicy.NormalizePrincipalCode(request.PrincipalCode, nameof(request.PrincipalCode)),
             OperationKey = Required(request.OperationKey, MaximumOperationKeyLength, nameof(request.OperationKey))
         };
     }

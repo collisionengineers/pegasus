@@ -200,7 +200,7 @@ internal sealed class LoadPlanner(ReferenceData data, LoadSettings settings, Loa
         string? code = null;
         if (isPrincipal)
         {
-            code = OrganizationAdministrationPolicy.NormalizePrincipalCode(row[ReferenceFiles.PrincipalCode]);
+            code = OrganizationAdministrationPolicy.NormalizePrincipalCode(row[ReferenceFiles.PrincipalCode], ReferenceFiles.PrincipalCode);
             if (!_codesInLoad.Add(code))
             {
                 throw new ArgumentException($"principal_code {code} is on an earlier row.");
