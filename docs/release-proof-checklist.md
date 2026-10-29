@@ -36,7 +36,7 @@ Run on the next release with a signed-in staff session or the named observation;
 - [ ] No snapshot was taken for this release; none is retained under `artifacts/performance`. Combine B changes data access across the Web, Worker and Infrastructure, so the before and after measurements are owed.
   Reason: No after snapshot is recorded; the change is in the current release and a Query Store read over retained intervals measures it (Releases 105 and 126 read windows after the fact); not verified.
 - [ ] The Administrator removes the seven per-scope connectors and adds the one Automation MCP connector at `<origin>/mcp`, consenting once and ticking the scopes its grant holds, including the claude.ai connector. There is no alias for `/mcp/<scope word>`.
-  Reason: ADR-0087 (the one-server PR for #1733) replaces the seven servers of ADR-0080 (PR 1658) with one at `/mcp`; the seven connectors were never re-added (R509); the proof is the one connector added at the release that ships ADR-0087, and no later record says it was done.
+  Reason: ADR-0087 (PR 1789) replaces the seven servers of ADR-0080 (PR 1658) with one at `/mcp`; the seven connectors were never re-added (R509); the proof is the one connector added at the release that ships ADR-0087, and no later record says it was done.
 - [ ] One classifier tick that connects on `/mcp`.
   Reason: The classifier's `PEGASUS_MCP_URL` moves from `/mcp/mail` to `/mcp` at the `azd provision` of the release that ships ADR-0087; one tick trace in App Insights proves the connect; not recorded.
 
