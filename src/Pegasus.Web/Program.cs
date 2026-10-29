@@ -838,8 +838,6 @@ builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadCaseDecision,
 builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCasePorts>();
 builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCaseRouteFilter>();
 builder.Services.AddScoped<DiscardIntakeSubmissionGroup>();
-builder.Services.AddScoped<IDiscardIntakeSubmissionGroup>(serviceProvider =>
-    serviceProvider.GetRequiredService<DiscardIntakeSubmissionGroup>());
 builder.Services.AddScoped<IDeclineImageMatch, DeclineImageMatch>();
 // No Administration view reads the Automation activity use case: automation
 // activity is read in Action logs (FRD-04). GetServiceHealth reads the newest

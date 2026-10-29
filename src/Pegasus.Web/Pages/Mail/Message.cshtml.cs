@@ -55,10 +55,10 @@ public sealed class MessageModel(
     IReverseIntakeLink reverseIntakeLink,
     IOpenCaseQuery openCaseQuery,
     IMarkCaseQueryDone markCaseQueryDone,
-    IDismissRetainedMail dismissRetainedMail,
-    IRestoreRetainedMail restoreRetainedMail,
+    DismissRetainedMail dismissRetainedMail,
+    RestoreRetainedMail restoreRetainedMail,
     IGetRetainedMailAttachmentOutcomes attachmentOutcomes,
-    IGetIntakeOfferedActions offeredActions,
+    GetIntakeOfferedActions offeredActions,
     Pegasus.Web.Intake.StaffIntakeActions intakeActions,
     ILogger<MessageModel> logger) : StaffPageModel
 {

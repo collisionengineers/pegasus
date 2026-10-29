@@ -42,7 +42,7 @@ internal enum TriageAssignAction
 internal sealed class TriageMcpTools(
     IListTriagePage listTriage,
     IGetTriage getTriage,
-    IGetIntakeSourceMetadata getSourceMetadata,
+    GetIntakeSourceMetadata getSourceMetadata,
     IDownloadIntakeSource downloadSource,
     IRenderImageForDelivery images,
     IExtractPdfPageText pdfText,

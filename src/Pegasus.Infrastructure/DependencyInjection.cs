@@ -122,9 +122,9 @@ public static class DependencyInjection
         services.AddScoped<IIntakeAllocationStore>(
             provider => provider.GetRequiredService<EfIntakeAllocationStore>());
         services.AddScoped<IAllocateIntake, AllocateIntake>();
-        services.AddScoped<IListIntakeByCursor, ListIntakeByCursor>();
+        services.AddScoped<ListIntakeByCursor>();
         services.AddScoped<IGetIntake, GetIntake>();
-        services.AddScoped<IGetIntakeSourceMetadata, GetIntakeSourceMetadata>();
+        services.AddScoped<GetIntakeSourceMetadata>();
         // The read half of retained mail only. The write port is registered by the
         // poll compositions below, so nothing in Web can add a retained message.
         services.AddScoped<EfRetainedMailboxMessageStore>();
@@ -141,8 +141,8 @@ public static class DependencyInjection
         services.AddScoped<GetRetainedMailPreview>();
         services.AddScoped<CorrectRetainedMailClassification>();
         services.AddScoped<IRetainedMailDismissalStore, EfRetainedMailDismissalStore>();
-        services.AddScoped<IDismissRetainedMail, DismissRetainedMail>();
-        services.AddScoped<IRestoreRetainedMail, RestoreRetainedMail>();
+        services.AddScoped<DismissRetainedMail>();
+        services.AddScoped<RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
@@ -157,7 +157,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeMutationStore>());
         services.AddScoped<AssociateRetainedMailWithCase>();
         services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
-        services.AddScoped<IResolveIntake, ResolveIntake>();
+        services.AddScoped<ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
         services.AddScoped<ILinkIntake, LinkIntake>();
@@ -174,11 +174,11 @@ public static class DependencyInjection
         services.AddScoped<IImageIntakeCasePairing, ImageIntakeCasePairing>();
         services.AddScoped<EfUnidentifiedStore>();
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
-        services.AddScoped<IListUnidentifiedQueueByCursor, ListUnidentifiedQueueByCursor>();
+        services.AddScoped<ListUnidentifiedQueueByCursor>();
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
         services.AddScoped<ICloseUnidentified, CloseUnidentified>();
-        services.AddScoped<IReopenUnidentified, ReopenUnidentified>();
+        services.AddScoped<ReopenUnidentified>();
         services.AddScoped<IGetRetainedMailAttachmentOutcomes, GetRetainedMailAttachmentOutcomes>();
         services.AddScoped<IPreCaseImagePreparationStore, EfPreCaseImagePreparationStore>();
         services.AddScoped<PreCaseImagePreparations>();
@@ -194,8 +194,8 @@ public static class DependencyInjection
         services.AddSingleton<IRenderImageForDelivery, ImageDeliveryRenderer>();
         services.AddSingleton<IExtractPdfPageText, PdfPigPageTextExtractor>();
         services.AddScoped<IReadPreCaseImageThumbnail, ReadPreCaseImageThumbnail>();
-        services.AddScoped<IGetUnidentifiedItemContext, GetUnidentifiedItemContext>();
-        services.AddScoped<IGetIntakeOfferedActions, GetIntakeOfferedActions>();
+        services.AddScoped<GetUnidentifiedItemContext>();
+        services.AddScoped<GetIntakeOfferedActions>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());

@@ -56,13 +56,6 @@ public sealed record IntakeSourceMetadataQuery(Guid ReceiptId, ActionActor Actor
 /// </summary>
 public sealed record AuthorizedIntakeSource(IntakeFileMetadata Metadata, IntakeReceipt Receipt);
 
-public interface IGetIntakeSourceMetadata
-{
-    Task<AuthorizedIntakeSource?> ExecuteAsync(
-        IntakeSourceMetadataQuery query,
-        CancellationToken cancellationToken = default);
-}
-
 /// <summary>
 /// The one owner of "which of a receipt's retained files is which", so the
 /// metadata boundary and the download boundary can never disagree about an
@@ -138,7 +131,6 @@ public static class IntakeFileIdentity
 /// later downloads against the hash and length it was given here.
 /// </summary>
 public sealed class GetIntakeSourceMetadata(IIntakeReceiptQueries queries)
-    : IGetIntakeSourceMetadata
 {
     public async Task<AuthorizedIntakeSource?> ExecuteAsync(
         IntakeSourceMetadataQuery query,
@@ -171,13 +163,6 @@ public sealed record ListIntakeByCursorQuery(
     string? Cursor,
     int? Limit);
 
-public interface IListIntakeByCursor
-{
-    Task<CursorPage<IntakeReceiptSummary>> ExecuteAsync(
-        ListIntakeByCursorQuery query,
-        CancellationToken cancellationToken = default);
-}
-
 /// <summary>
 /// Stable continuation over the received-items list. The opaque cursor is
 /// minted and read by the shared <see cref="ICursorProtector"/>, and it is
@@ -188,7 +173,7 @@ public interface IListIntakeByCursor
 /// </summary>
 public sealed class ListIntakeByCursor(
     IIntakeReceiptQueries queries,
-    ICursorProtector cursorProtector) : IListIntakeByCursor
+    ICursorProtector cursorProtector)
 {
     /// <summary>
     /// The query name that scopes this list's cursors. It is part of the scope

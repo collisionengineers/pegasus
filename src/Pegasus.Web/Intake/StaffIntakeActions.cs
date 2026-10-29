@@ -16,7 +16,7 @@ namespace Pegasus.Web.Intake;
 /// periodic sweep as the backstop.
 /// </summary>
 public sealed partial class StaffIntakeActions(
-    IGetIntakeOfferedActions offers,
+    GetIntakeOfferedActions offers,
     IImageIntakeOriginResolver originResolver,
     IRegisterImageIntake registerImageIntake,
     ICreateTriageFromIntake createTriage,
