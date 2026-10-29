@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Web;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -893,7 +894,8 @@ public sealed class ProductionBoxCustodyTests
             "test-holding-folder"),
         new HttpClient(handler),
         new RecordingAuthorizationHeaderProvider(),
-        TimeProvider.System);
+        TimeProvider.System,
+        new MemoryCache(new MemoryCacheOptions()));
 
     /// <summary>
     /// An upload-session Box that holds each part's answer until the test
@@ -1524,7 +1526,8 @@ public sealed class ProductionBoxCustodyTests
             "test-holding-folder"),
         new HttpClient(handler),
         new RecordingAuthorizationHeaderProvider(),
-        TimeProvider.System);
+        TimeProvider.System,
+        new MemoryCache(new MemoryCacheOptions()));
 
     private static BoxContentClient CreateClient(StatefulBox box, ILogger<BoxContentClient>? logger = null) => new(
         BoxCustodyOptions.Create(
@@ -1537,6 +1540,7 @@ public sealed class ProductionBoxCustodyTests
         new HttpClient(new StatefulBoxHandler(box)),
         new RecordingAuthorizationHeaderProvider(),
         TimeProvider.System,
+        new MemoryCache(new MemoryCacheOptions()),
         logger);
 
     /// <summary>A Case folder in a fresh Box, proved for uploads made straight through the client.</summary>

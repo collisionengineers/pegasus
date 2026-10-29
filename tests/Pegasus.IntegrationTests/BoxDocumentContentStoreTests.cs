@@ -1096,18 +1096,23 @@ public sealed class BoxDocumentContentStoreTests
         return box.RequestCount - before;
     }
 
-    private static BoxDocumentContentStore CreateStore(InMemoryBox box, TimeProvider? clock = null) => new(
-        new BoxContentClient(
-            BoxCustodyOptions.Create(
-                "https://api.box.com/2.0/",
-                "https://upload.box.com/api/2.0/",
-                ApprovedRootId,
-                BoxConfigJson,
-                "client-secret",
-                "holding-folder"),
-            new HttpClient(new InMemoryBoxHandler(box)),
-            new StaticAuthorizationHeaderProvider(),
-            clock ?? TimeProvider.System));
+    private static BoxDocumentContentStore CreateStore(InMemoryBox box, TimeProvider? clock = null)
+    {
+        var time = clock ?? TimeProvider.System;
+        return new(
+            new BoxContentClient(
+                BoxCustodyOptions.Create(
+                    "https://api.box.com/2.0/",
+                    "https://upload.box.com/api/2.0/",
+                    ApprovedRootId,
+                    BoxConfigJson,
+                    "client-secret",
+                    "holding-folder"),
+                new HttpClient(new InMemoryBoxHandler(box)),
+                new StaticAuthorizationHeaderProvider(),
+                time,
+                TimeProviderMemoryCache.Create(time)));
+    }
 
     private static ManagedDocumentContentAddress Address() =>
         Address(2, "evidence.jpg");

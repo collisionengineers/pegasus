@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Box.Sdk.Gen;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pegasus.Core.Custody;
@@ -373,6 +374,7 @@ internal sealed partial class BoxContentClient(
     HttpClient httpClient,
     IBoxAuthorizationHeaderProvider authorizationHeaderProvider,
     TimeProvider timeProvider,
+    IMemoryCache cache,
     ILogger<BoxContentClient>? logger = null)
 {
     /// <summary>
@@ -388,13 +390,9 @@ internal sealed partial class BoxContentClient(
     /// </summary>
     internal static readonly TimeSpan LiveFolderMemory = TimeSpan.FromMinutes(10);
 
-    /// <summary>
-    /// Past this many remembered folders, expired entries are dropped.
-    /// </summary>
-    private const int LiveFolderPruneThreshold = 10_000;
-
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> liveFolders =
-        new(StringComparer.Ordinal);
+    // A remembered folder, under the root it was proved under. A private key
+    // type, so no other IMemoryCache user can collide with an entry.
+    private readonly record struct LiveFolderKey(string RootFolderId, string FolderId);
 
     internal sealed record BoxItem(
         string Id,
@@ -1419,24 +1417,13 @@ internal sealed partial class BoxContentClient(
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folderId);
-        if (liveFolders.TryGetValue(folderId, out var expiresAtUtc)
-            && expiresAtUtc > timeProvider.GetUtcNow())
+        var key = new LiveFolderKey(RootFolderId, folderId);
+        if (cache.TryGetValue(key, out _))
         {
             return;
         }
         await EnsureDescendantAsync(folderId, cancellationToken);
-        var now = timeProvider.GetUtcNow();
-        if (liveFolders.Count >= LiveFolderPruneThreshold)
-        {
-            foreach (var entry in liveFolders)
-            {
-                if (entry.Value <= now)
-                {
-                    liveFolders.TryRemove(entry.Key, out _);
-                }
-            }
-        }
-        liveFolders[folderId] = now.Add(LiveFolderMemory);
+        cache.Set(key, true, LiveFolderMemory);
     }
 
     /// <summary>Drops a folder from the read memory, so its next read walks the ancestry again.</summary>
@@ -1444,7 +1431,7 @@ internal sealed partial class BoxContentClient(
     {
         if (!string.IsNullOrEmpty(folderId))
         {
-            liveFolders.TryRemove(folderId, out _);
+            cache.Remove(new LiveFolderKey(RootFolderId, folderId));
         }
     }
 
