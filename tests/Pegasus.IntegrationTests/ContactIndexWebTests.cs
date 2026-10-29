@@ -52,8 +52,9 @@ public sealed partial class ContactIndexWebTests
     }
 
     /// <summary>
-    /// D7: a telephone with a letter in it is refused as a field error against
+    /// D7: a telephone with a letter in it is refused as a field error keyed to
     /// the Telephone control, not a general notice, and no contact is created.
+    /// The dialog shows the sentence once (#1550).
     /// </summary>
     [Fact]
     public async Task ALetteredTelephoneIsRefusedWithAFieldError()
@@ -79,10 +80,58 @@ public sealed partial class ContactIndexWebTests
 
         Assert.Equal(HttpStatusCode.OK, post.StatusCode);
         var body = await post.Content.ReadAsStringAsync();
-        Assert.Contains("Phone must be digits.", body, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(body, OperatorLabels.Contacts.PhoneMustBeDigits));
         Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
             "SELECT COUNT(*) FROM Organizations WHERE Name = 'Lettered Telephone Contact';"));
     }
+
+    /// <summary>
+    /// #1550: a New dialog saved with no Organisation name shows its one
+    /// refusal once, in the dialog's summary, and creates nothing.
+    /// </summary>
+    [Fact]
+    public async Task ABlankNameIsRefusedOnceInTheNewDialog()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using var get = await client.GetAsync("/Administration/Contacts?createType=ClaimSource");
+        var html = await get.Content.ReadAsStringAsync();
+        get.EnsureSuccessStatusCode();
+        var organizationsBefore = await (await factory.DatabaseAsync).ScalarAsync<int>(
+            "SELECT COUNT(*) FROM Organizations;");
+
+        using var post = await client.PostAsync(
+            "/Administration/Contacts?handler=Create",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+                ["CreateType"] = "ClaimSource",
+                ["ContactId"] = InputValue(html, "ContactId"),
+                ["OperationKey"] = InputValue(html, "OperationKey"),
+                ["Name"] = string.Empty
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        var body = await post.Content.ReadAsStringAsync();
+        var summary = Assert.Single(SummaryListRegex().Matches(body)).Groups["items"].Value;
+        var refusal = Assert.Single(SummaryItemRegex().Matches(summary)).Groups["text"].Value;
+        Assert.Equal(1, Occurrences(body, refusal));
+        Assert.DoesNotContain("field-validation-error", body, StringComparison.Ordinal);
+        Assert.Equal(organizationsBefore, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            "SELECT COUNT(*) FROM Organizations;"));
+    }
+
+    /// <summary>How often a sentence is shown as text; an attribute that carries it is not shown.</summary>
+    private static int Occurrences(string html, string text) =>
+        Regex.Count(html, ">" + Regex.Escape(text) + "<", RegexOptions.CultureInvariant);
+
+    [GeneratedRegex(
+        "<ul class=\"validation-summary__list\">(?<items>[\\s\\S]*?)</ul>",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex SummaryListRegex();
+
+    [GeneratedRegex("<li>(?<text>[^<]*)</li>", RegexOptions.CultureInvariant)]
+    private static partial Regex SummaryItemRegex();
 
     [Fact]
     public async Task ContactEditRequiresAnExistingContactRouteId()

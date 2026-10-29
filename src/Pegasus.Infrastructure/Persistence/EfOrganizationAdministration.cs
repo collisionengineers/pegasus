@@ -113,8 +113,7 @@ public sealed class EfOrganizationAdministration(
             request.PrincipalId,
             request.ExpectedVersion,
             request.ExpectedContactVersion,
-            request.Reason,
-            request.NotesOnEveryCase
+            request.Reason
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -139,11 +138,9 @@ public sealed class EfOrganizationAdministration(
         var result = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             before,
             request.ExpectedVersion,
-            request.DefaultFee,
-            request.NotesOnEveryCase);
+            request.DefaultFee);
 
         entity.DefaultFee = result.DefaultFee;
-        entity.Organization.NotesOnEveryCase = result.NotesOnEveryCase;
         entity.Version = result.Version;
 
         var now = _timeProvider.GetUtcNow();

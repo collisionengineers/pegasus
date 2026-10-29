@@ -196,6 +196,19 @@ public static partial class OperatorLabels
             ContactDirectoryError.OperationConflict => "This form was already used for a different change.",
             _ => "The contact could not be saved."
         };
+
+        public const string Saved = "The contact was saved.";
+        public const string ChooseType = "Choose a contact type.";
+        public const string PhoneMustBeDigits = "Phone must be digits.";
+        public const string DetailsNotAccepted = "The contact details were not accepted.";
+        /// <summary>The list's New dialog with an expired form.</summary>
+        public const string NewFormExpired = "The form has expired. Start again.";
+        /// <summary>The contact page's Save with an expired form.</summary>
+        public const string EditFormExpired = "The form has expired. Open the contact again.";
+        /// <summary>The list's New dialog with an unknown inspection mode.</summary>
+        public const string SelectInspectionType = "Select an inspection type.";
+        /// <summary>The contact page's Save with an unknown inspection mode.</summary>
+        public const string SelectInspectionMode = "Select an inspection mode.";
     }
 
     /// <summary>A Principal contact's own labels (Administration → Contacts, Principal details) — one list.</summary>
@@ -269,6 +282,45 @@ public static partial class OperatorLabels
         public const string AttachOverrideOn = "Attach";
         public const string AttachOverrideOff = "Do not attach";
         public const string RefPrefixLettersOnly = "A reference prefix is letters only.";
+
+        // A Principal panel's notices and refusals on the contact page.
+        public const string FormExpired = "The form has expired. Retry the operation.";
+        public const string SubmittedValueInvalid = "The submitted value is not valid.";
+        public const string SettingsNotAccepted = "The settings were not accepted.";
+        public const string ReportSettingsUpdated = "The principal's report settings were updated.";
+        public const string SalvageMatrixUpdated = "The principal's salvage matrix was updated.";
+        public const string ReportSendingUpdated = "The principal's report sending rules were updated.";
+        public const string AddressRequired = "An address is required.";
+        public const string DefaultLocationUpdated = "The principal's default inspection location was updated.";
+        public const string DefaultLocationNotAccepted = "The default location was not accepted.";
+        public const string NewCodeRequired = "A new principal code is required.";
+        public const string Replaced = "The predecessor was disabled and its linked successor was created.";
+        public const string ReplacementNotAccepted = "The replacement details were not accepted.";
+        public const string CredentialUpdated = "The principal credential was updated.";
+        public const string CredentialNotAccepted = "The API key change was not accepted.";
+        /// <summary>A stale Principal change whose contact moved on as well.</summary>
+        public const string ContactChanged = "This contact changed. Reload it before making further changes.";
+
+        /// <summary>A refused API key change.</summary>
+        public static string CredentialErrorMessage(PrincipalCredentialError error) => error switch
+        {
+            PrincipalCredentialError.StaleVersion => "The API key changed. Retry from the current settings.",
+            PrincipalCredentialError.OperationConflict => "The form was already used for a different operation.",
+            PrincipalCredentialError.PrincipalInactive => "The principal is disabled.",
+            _ => CredentialNotAccepted
+        };
+
+        /// <summary>A refused Principal change.</summary>
+        public static string ErrorMessage(OrganizationAdministrationError error) => error switch
+        {
+            OrganizationAdministrationError.PrincipalNotFound => "The principal no longer exists.",
+            OrganizationAdministrationError.PrincipalInactive => "The principal is disabled. Change the settings on its successor instead.",
+            OrganizationAdministrationError.PrincipalAlreadyReplaced => "The predecessor already has a linked successor.",
+            OrganizationAdministrationError.DuplicatePrincipalCode => "That normalized successor code already exists.",
+            OrganizationAdministrationError.StaleVersion => "The principal changed after this page was loaded. Review the current settings and retry.",
+            OrganizationAdministrationError.OperationConflict => "The form was already used for a different operation. Retry from the current page.",
+            _ => "The settings change was not accepted."
+        };
 
         /// <summary>A report sending condition as the rule row names it.</summary>
         public static string ConditionKind(Pegasus.Core.Reports.ReportSendingConditionKind kind) => kind switch

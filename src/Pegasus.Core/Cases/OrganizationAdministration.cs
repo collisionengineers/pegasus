@@ -229,7 +229,6 @@ public static class OrganizationAdministrationPolicy
     public const int MaximumPrincipalCodeLength = 20;
     public const int MaximumOperationKeyLength = 100;
     public const int MaximumReasonLength = 500;
-    public const int MaximumNotesOnEveryCaseLength = 2000;
 
     public static PrincipalReplacementPlan PlanPrincipalReplacement(
         Principal predecessor,
@@ -300,10 +299,6 @@ public static class OrganizationAdministrationPolicy
         PrincipalDefaultFeePolicy.Require(request.DefaultFee, nameof(request.DefaultFee));
         return request with
         {
-            NotesOnEveryCase = NormalizeOptionalText(
-                request.NotesOnEveryCase,
-                MaximumNotesOnEveryCaseLength,
-                nameof(request.NotesOnEveryCase)),
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
@@ -408,15 +403,14 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// The default fee and notes change, and nothing else does. The code,
-    /// the organization, the lineage and the allocation history are
+    /// The default fee changes, and nothing else does. The code, the
+    /// organization, its notes, the lineage and the allocation history are
     /// untouched.
     /// </summary>
     public static Principal PlanPrincipalReportSettingsUpdate(
         Principal current,
         long expectedVersion,
-        decimal defaultFee,
-        string? notesOnEveryCase = null)
+        decimal defaultFee)
     {
         ArgumentNullException.ThrowIfNull(current);
         RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
@@ -436,12 +430,10 @@ public static class OrganizationAdministrationPolicy
         }
 
         PrincipalDefaultFeePolicy.Require(defaultFee, nameof(defaultFee));
-        var changed = current.DefaultFee != defaultFee
-            || !string.Equals(current.NotesOnEveryCase, notesOnEveryCase, StringComparison.Ordinal);
+        var changed = current.DefaultFee != defaultFee;
         return current with
         {
             DefaultFee = defaultFee,
-            NotesOnEveryCase = notesOnEveryCase,
             Version = changed ? checked(current.Version + 1) : current.Version
         };
     }

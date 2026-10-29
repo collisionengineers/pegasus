@@ -69,11 +69,11 @@ public sealed class IndexModel(
         if (!EnsureCreateType()) return await ReturnWizardAsync(actor, cancellationToken);
         if (!IsOperationKeyValid(OperationKey))
         {
-            ModelState.AddModelError(string.Empty, "The form has expired. Start again.");
+            ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.NewFormExpired);
         }
         if (!Enum.IsDefined(PrincipalInspectionMode))
         {
-            ModelState.AddModelError(nameof(PrincipalInspectionMode), "Select an inspection type.");
+            ModelState.AddModelError(nameof(PrincipalInspectionMode), OperatorLabels.Contacts.SelectInspectionType);
         }
 
         if (ModelState.IsValid)
@@ -81,7 +81,7 @@ public sealed class IndexModel(
             try
             {
                 await administration.SaveAsync(BuildSaveRequest(actor), cancellationToken);
-                TempData["AdministrationStatus"] = "The contact was saved.";
+                TempData["AdministrationStatus"] = OperatorLabels.Contacts.Saved;
                 return RedirectToPage(new { Search, Type });
             }
             catch (ContactDirectoryException exception)
@@ -90,15 +90,16 @@ public sealed class IndexModel(
             }
             catch (ArgumentException exception)
             {
-                // A named field error is shown against its own control; every
-                // other refusal keeps the general notice.
+                // A named field error is keyed to its own control; every other
+                // refusal keeps the general notice. The dialog's summary shows
+                // each once (#1550).
                 if (exception.ParamName == nameof(Telephone))
                 {
-                    ModelState.AddModelError(nameof(Telephone), "Phone must be digits.");
+                    ModelState.AddModelError(nameof(Telephone), OperatorLabels.Contacts.PhoneMustBeDigits);
                 }
                 else
                 {
-                    ModelState.AddModelError(string.Empty, "The contact details were not accepted.");
+                    ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.DetailsNotAccepted);
                 }
             }
         }
@@ -132,7 +133,7 @@ public sealed class IndexModel(
     private bool EnsureCreateType()
     {
         if (CreateType is { } role && Enum.IsDefined(role)) return true;
-        ModelState.AddModelError(string.Empty, "Choose a contact type.");
+        ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.ChooseType);
         return false;
     }
 
