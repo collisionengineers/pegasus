@@ -63,7 +63,7 @@ internal sealed class EfExternalWorkStore(
 
         // A Triage Case has no workflow: its Triage version and edit scope are
         // the authority for the retry.
-        var authority = await CaseMutationAuthority.LoadAsync(context, request.CaseId, cancellationToken);
+        var authority = await CaseMutationGuard.LoadAsync(context, request.CaseId, cancellationToken);
         if (authority is null)
         {
             return policy.Decide(new(
