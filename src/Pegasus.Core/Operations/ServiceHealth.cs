@@ -6,7 +6,7 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Core.Operations;
 
 /// <summary>
-/// The Service health table (FRD-12 § Operations). Every row
+/// The Service health table (FRD-17 § Service health). Every row
 /// is derived from a fact the system already recorded — a poll cursor, a
 /// work item, a job, a switch — and names the time of
 /// that evidence. Nothing here probes a dependency, and a service with no
@@ -59,16 +59,9 @@ public sealed record ServiceHealthRow(
     ServiceHealthDependency Dependency,
     string? FailureCode = null);
 
-/// <summary>
-/// <see cref="ExternalWorkLimitReached"/> is the Operations projection's own
-/// flag: when set, the Custody rows describe only the first
-/// <see cref="GetRequestOperations.MaximumItems"/> items and the page must
-/// say so rather than present the rows as the whole queue.
-/// </summary>
 public sealed record ServiceHealthSnapshot(
     DateTimeOffset AsOfUtc,
-    IReadOnlyList<ServiceHealthRow> Rows,
-    bool ExternalWorkLimitReached);
+    IReadOnlyList<ServiceHealthRow> Rows);
 
 /// <summary>
 /// What the Sent-items evidence poll has managed for one mailbox: the same
@@ -379,6 +372,6 @@ public sealed class GetServiceHealth(
             newestActivity.Records.Count == 0 ? null : newestActivity.Records[0].OccurredAtUtc,
             ServiceHealthDependency.AutomationClient));
 
-        return new(nowUtc, rows, operations.LimitReached);
+        return new(nowUtc, rows);
     }
 }

@@ -143,7 +143,6 @@ public sealed class ServiceHealthTests
             SentPolls = [new(Mailbox, FixedUtcNow.AddMinutes(5), FixedUtcNow.AddMinutes(-20), null)],
             Dispatch = new(1, 0, 0, FixedUtcNow.AddMinutes(-6)),
             Operations = [],
-            LimitReached = true,
             AiCounts = new(0, 0),
             RecentJobs = [Job(jobTime, closedAtUtc: null)],
             SendToAiEnabled = true,
@@ -155,7 +154,6 @@ public sealed class ServiceHealthTests
         var snapshot = await useCase.ExecuteAsync(StaffActor(), CancellationToken.None);
 
         Assert.Equal(FixedUtcNow, snapshot.AsOfUtc);
-        Assert.True(snapshot.ExternalWorkLimitReached);
         Assert.Collection(
             snapshot.Rows,
             row =>
@@ -213,6 +211,21 @@ public sealed class ServiceHealthTests
         // The ingress switch uses the request's scoped context, so nothing
         // else is reading while it runs.
         Assert.Equal(0, sources.InFlightWhenIngressRead);
+    }
+
+    /// <summary>
+    /// A failed source fails the whole snapshot: no partial table is built,
+    /// and the ingress switch is never read (FRD-17 § Service health).
+    /// </summary>
+    [Fact]
+    public async Task SnapshotSurfacesAFailedSourceWholeAndNeverReadsTheIngressSwitch()
+    {
+        var sources = new Sources { FailSentPolls = true };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Build(sources).ExecuteAsync(StaffActor(), CancellationToken.None));
+
+        Assert.Equal(-1, sources.InFlightWhenIngressRead);
     }
 
     [Fact]
@@ -374,8 +387,15 @@ public sealed class ServiceHealthTests
             return Overlapped(MailboxPolls);
         }
 
+        /// <summary>When set, the Sent-items cursor read faults, as a failed SQL read does.</summary>
+        public bool FailSentPolls { get; init; }
+
         public Task<IReadOnlyList<SentEvidencePollStatus>> ListSentEvidencePollStatusAsync(
-            CancellationToken cancellationToken) => Overlapped(SentPolls);
+            CancellationToken cancellationToken) =>
+            FailSentPolls
+                ? Task.FromException<IReadOnlyList<SentEvidencePollStatus>>(
+                    new InvalidOperationException("The Sent-items cursors could not be read."))
+                : Overlapped(SentPolls);
 
         public Task<IntakeDispatchHealth> GetIntakeDispatchHealthAsync(
             CancellationToken cancellationToken) => Overlapped(Dispatch);
@@ -384,9 +404,7 @@ public sealed class ServiceHealthTests
             int maximumItems,
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) =>
-            Overlapped(new RequestOperationsProjection(Operations.ToImmutableArray(), LimitReached));
-
-        public bool LimitReached { get; init; }
+            Overlapped(new RequestOperationsProjection(Operations.ToImmutableArray(), false));
 
         public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the snapshot.");
