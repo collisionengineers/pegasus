@@ -173,13 +173,6 @@ public static class TriageNotes
     internal const int TriageReasonLength = 500;
 }
 
-public interface IAddTriageNote
-{
-    Task<TriageRecord> ExecuteAsync(
-        AddTriageNoteRequest request,
-        CancellationToken cancellationToken = default);
-}
-
 public sealed record RecordTriageFindingRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -269,11 +262,6 @@ public interface ITriagePrincipalGate
 public interface IAssignTriage
 {
     Task<TriageRecord> ExecuteAsync(AssignTriageRequest request, CancellationToken cancellationToken);
-}
-
-public interface IUnassignTriage
-{
-    Task<TriageRecord> ExecuteAsync(TriageTransitionRequest request, CancellationToken cancellationToken);
 }
 
 public interface IRecordTriageFinding

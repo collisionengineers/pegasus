@@ -191,7 +191,9 @@ telemetry.
 Automatic association of inbound mail is deliberately cautious. Every linking
 signal that has any candidate contributes its whole candidate set, and the
 message is linked only when their intersection is exactly one Case that can
-take an association — current, not archived, and never a Triage:
+take an association — current and not archived. A reply into a thread that
+holds a Triage links to the Triage as a reply links to a Case (operator,
+28 October 2026; R469, superseding R455). The signals are:
 
 - the Cases the other messages of its exact mailbox-and-conversation thread
   stand linked to; a message is never thread evidence for itself, so the link
@@ -256,6 +258,9 @@ mailbox and Graph subscription states are owned by
   Unclassified with the candidates named.
 - A registration with zero or several Case candidates, or thread and
   registration disagreeing: no automatic association.
+- A reply with no registration in a thread that holds a Triage: linked to
+  the Triage as a reply links to a Case, never a processing failure
+  (operator, 28 October 2026; R469, R468).
 
 ## Acceptance evidence
 

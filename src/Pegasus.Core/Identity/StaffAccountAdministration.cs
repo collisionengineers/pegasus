@@ -248,13 +248,6 @@ public interface IDeleteStaffAccountStore
         CancellationToken cancellationToken);
 }
 
-public interface IListStaffAccounts
-{
-    Task<ListStaffAccountsResult> ExecuteAsync(
-        ListStaffAccountsRequest request,
-        CancellationToken cancellationToken);
-}
-
 public interface IGetStaffAccount
 {
     Task<GetStaffAccountResult?> ExecuteAsync(
@@ -283,13 +276,6 @@ public interface IUpdateStaffAccountSettings
         CancellationToken cancellationToken);
 }
 
-public interface IEnableStaffAccount
-{
-    Task<EnableStaffAccountResult> ExecuteAsync(
-        EnableStaffAccountRequest request,
-        CancellationToken cancellationToken);
-}
-
 public interface IForceStaffLogout
 {
     Task<ForceStaffLogoutResult> ExecuteAsync(
@@ -312,7 +298,6 @@ public interface IDeleteStaffAccount
 }
 
 public sealed class ListStaffAccounts(IStaffAccountQueries queries)
-    : IListStaffAccounts
 {
     public const int MaximumPageSize = 100;
 
@@ -434,7 +419,6 @@ public sealed class UpdateStaffAccountSettings(IUpdateStaffAccountSettingsStore 
 }
 
 public sealed class EnableStaffAccount(IEnableStaffAccountStore store)
-    : IEnableStaffAccount
 {
     private readonly IEnableStaffAccountStore _store =
         store ?? throw new ArgumentNullException(nameof(store));

@@ -55,12 +55,12 @@ internal sealed record UnidentifiedSourceToolItem(
 [McpServerToolType]
 internal sealed class UnidentifiedMcpTools(
     IUnidentifiedStore store,
-    IListUnidentifiedQueueByCursor listQueue,
+    ListUnidentifiedQueueByCursor listQueue,
     IResolveUnidentified resolve,
     ICloseUnidentified close,
-    IReopenUnidentified reopen,
+    ReopenUnidentified reopen,
     IGetIntake getIntake,
-    IGetIntakeSourceMetadata getSourceMetadata,
+    GetIntakeSourceMetadata getSourceMetadata,
     IDownloadIntakeSource downloadSource,
     IRenderImageForDelivery images,
     IExtractPdfPageText pdfText,

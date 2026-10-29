@@ -39,20 +39,6 @@ public interface IRetainedMailDismissalStore
         CancellationToken cancellationToken);
 }
 
-public interface IDismissRetainedMail
-{
-    Task<RetainedMailDismissal?> ExecuteAsync(
-        DismissRetainedMailRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IRestoreRetainedMail
-{
-    Task<RetainedMailDismissal?> ExecuteAsync(
-        RestoreRetainedMailRequest request,
-        CancellationToken cancellationToken);
-}
-
 public static class RetainedMailDismissalPolicy
 {
     public const int MaximumOperationKeyLength = 100;
@@ -77,7 +63,7 @@ public static class RetainedMailDismissalPolicy
     }
 }
 
-public sealed class DismissRetainedMail(IRetainedMailDismissalStore store) : IDismissRetainedMail
+public sealed class DismissRetainedMail(IRetainedMailDismissalStore store)
 {
     private readonly IRetainedMailDismissalStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
@@ -91,7 +77,7 @@ public sealed class DismissRetainedMail(IRetainedMailDismissalStore store) : IDi
     }
 }
 
-public sealed class RestoreRetainedMail(IRetainedMailDismissalStore store) : IRestoreRetainedMail
+public sealed class RestoreRetainedMail(IRetainedMailDismissalStore store)
 {
     private readonly IRetainedMailDismissalStore _store = store ?? throw new ArgumentNullException(nameof(store));
 

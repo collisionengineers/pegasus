@@ -19,13 +19,6 @@ public sealed record DiscardIntakeSubmissionGroupResult(
         new(false, false, message);
 }
 
-public interface IDiscardIntakeSubmissionGroup
-{
-    Task<DiscardIntakeSubmissionGroupResult> ExecuteAsync(
-        DiscardIntakeSubmissionGroupRequest request,
-        CancellationToken cancellationToken = default);
-}
-
 /// <summary>
 /// Validates the staff command before the durable group store atomically
 /// rechecks and records the terminal decision. It deliberately owns no source
@@ -33,7 +26,7 @@ public interface IDiscardIntakeSubmissionGroup
 /// </summary>
 public sealed class DiscardIntakeSubmissionGroup(
     IIntakeSubmissionGroupStore groups,
-    TimeProvider timeProvider) : IDiscardIntakeSubmissionGroup
+    TimeProvider timeProvider)
 {
     public Task<DiscardIntakeSubmissionGroupResult> ExecuteAsync(
         DiscardIntakeSubmissionGroupRequest request,

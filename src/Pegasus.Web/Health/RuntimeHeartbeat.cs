@@ -117,8 +117,8 @@ internal sealed partial class RuntimeHeartbeat(
     /// <summary>
     /// The figures as <c>name=value</c> pairs, memory in whole MiB. <paramref name="read"/>
     /// returns a file's text, or null when it does not exist. <paramref name="majorFaults"/>
-    /// gives the process's major faults from the shared sample on the kept handle, so
-    /// the stat file is not read again as text.
+    /// gives the process's major faults through the kept handle, so the stat file is
+    /// not read again as text.
     /// </summary>
     internal static string Describe(Func<string, string?> read, Func<long?> majorFaults)
     {

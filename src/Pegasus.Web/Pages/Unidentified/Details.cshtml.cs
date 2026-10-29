@@ -21,10 +21,10 @@ namespace Pegasus.Web.Pages.Unidentified;
 [Authorize(Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class DetailsModel(
-    IGetUnidentifiedItemContext getContext,
+    GetUnidentifiedItemContext getContext,
     IUnidentifiedStore store,
     ICloseUnidentified closeUnidentified,
-    IReopenUnidentified reopenUnidentified,
+    ReopenUnidentified reopenUnidentified,
     IIntakeAssociationDestinationQueries destinations,
     IAcquireCaseEditLease acquireLease,
     IReleaseCaseEditLease releaseLease,

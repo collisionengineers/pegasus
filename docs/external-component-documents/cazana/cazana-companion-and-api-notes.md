@@ -7,7 +7,7 @@ alongside the supplied [OpenAPI specification](cazana-api-spec.json) (version
 Pegasus's Companion cutover and background Companion Report filing are
 recorded in
 [ADR-0079](../../adr/0079-cazana-companion-account-and-companion-report.md)
-(superseding [ADR-0066](../../adr/0066-cazana-valuation-through-a-key-vault-held-api-key.md))
+(superseding [ADR-0066](../../adr/superseded/0066-cazana-valuation-through-a-key-vault-held-api-key.md))
 and implemented in
 [`CazanaGuideValuationProvider`](../../../src/Pegasus.Infrastructure/Cazana/CazanaGuideValuationProvider.cs),
 [`CazanaCompanionClient`](../../../src/Pegasus.Infrastructure/Cazana/CazanaCompanionClient.cs)

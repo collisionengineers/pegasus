@@ -1238,7 +1238,7 @@ public interface IDownloadIntakeSource
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Serves the source of a receipt <see cref="IGetIntakeSourceMetadata"/>
+    /// Serves the source of a receipt <see cref="GetIntakeSourceMetadata"/>
     /// has already read and authorised, under the same right and checks,
     /// without reading the receipt graph again.
     /// </summary>
@@ -1421,13 +1421,6 @@ public sealed class PrincipalExistingCaseMatchException()
     : Exception("The Principal submission matches existing Case work; API-01 cannot update it.")
 {
     public const string FailureCode = "principal_existing_case_match";
-}
-
-public interface IResolveIntake
-{
-    Task<IntakeReceipt> ExecuteAsync(
-        ResolveIntakeRequest request,
-        CancellationToken cancellationToken = default);
 }
 
 public interface IReevaluateIntake
