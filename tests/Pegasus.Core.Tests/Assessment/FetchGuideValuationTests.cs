@@ -145,6 +145,144 @@ public sealed class FetchGuideValuationTests
         Assert.Empty(vins.Fills);
     }
 
+    /// <summary>
+    /// R465 (28 October 2026): a Case reaching With Engineer has its Glass's
+    /// valuation requested by the system. It is Get valuation for the current
+    /// work and the current London month, made as the Glass's recorder, and its
+    /// figures are recorded as the card a Save records, with no mileage.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomaticValuationRecordsTheGlassCardForTheCurrentMonth()
+    {
+        var caseId = Guid.NewGuid();
+        var schedule = new RecordingSchedule();
+        var store = new AutomaticStore(Accepting());
+        var run = Automatic(
+            new AnsweringProvider(ValuationSource.Glasses, new StubReport("glass-stock:1")),
+            new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)),
+            store,
+            schedule);
+
+        var outcome = await run.ExecuteAsync(caseId, default);
+
+        Assert.Equal(AutomaticGuideValuationOutcome.Recorded, outcome);
+        var (actor, card) = Assert.Single(store.Recorded);
+        Assert.Same(AutomaticGuideValuationPolicy.Actor, actor);
+        Assert.Equal(ActorKind.Automation, actor.Kind);
+        Assert.Equal(ValuationSource.Glasses, card.Source);
+        Assert.Equal(new DateOnly(2031, 5, 1), card.GuideMonth);
+        Assert.Equal(new DateOnly(2031, 5, 14), card.Date);
+        Assert.Equal(17717m, card.RetailValue);
+        Assert.Equal(15600m, card.TradeValue);
+        Assert.Null(card.Mileage);
+        Assert.Same(actor, Assert.Single(schedule.Requests).Actor);
+    }
+
+    /// <summary>
+    /// Glass's is not asked for a Case that would refuse the card: one not With
+    /// Engineer, archived, whose current work already holds a Glass's card, or
+    /// whose edit lease is held, because system work yields to a held lease.
+    /// </summary>
+    [Theory]
+    [InlineData("review")]
+    [InlineData("archived")]
+    [InlineData("card")]
+    [InlineData("lease")]
+    public async Task AnAutomaticValuationAsksNothingOfACaseThatRefusesIt(string refusal)
+    {
+        var caseId = Guid.NewGuid();
+        var provider = new CountingProvider();
+        var accepting = Accepting();
+        var store = new AutomaticStore(refusal switch
+        {
+            "review" => accepting with { State = CaseLifecycleState.Review },
+            "archived" => accepting with { IsArchived = true },
+            "card" => accepting with { HoldsSourceCard = true },
+            _ => accepting with { EditLeaseExpiresAtUtc = Now.AddMinutes(5) },
+        });
+
+        var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)), store)
+            .ExecuteAsync(caseId, default);
+
+        Assert.Equal(AutomaticGuideValuationOutcome.NotAccepted, outcome);
+        Assert.Equal(0, provider.Calls);
+        Assert.Empty(store.Recorded);
+    }
+
+    /// <summary>A lapsed lease is nobody's, so it does not stop the request.</summary>
+    [Fact]
+    public void ALapsedLeaseDoesNotRefuseTheAutomaticValuation() =>
+        Assert.True(AutomaticGuideValuationPolicy.Accepts(
+            Accepting() with { EditLeaseExpiresAtUtc = Now.AddSeconds(-1) }, Now));
+
+    [Fact]
+    public async Task AnAutomaticValuationWithoutRegistrationOrMileageAsksNothing()
+    {
+        var caseId = Guid.NewGuid();
+        var provider = new CountingProvider();
+        var store = new AutomaticStore(Accepting());
+
+        var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, " ", 69000)), store)
+            .ExecuteAsync(caseId, default);
+
+        Assert.Equal(AutomaticGuideValuationOutcome.MissingVehicleFacts, outcome);
+        Assert.Equal(0, provider.Calls);
+    }
+
+    /// <summary>
+    /// A vehicle Glass's cannot value, or Glass's not answering, records
+    /// nothing; the card stays for Get valuation.
+    /// </summary>
+    [Theory]
+    [InlineData("age", AutomaticGuideValuationOutcome.NotValued)]
+    [InlineData("down", AutomaticGuideValuationOutcome.Unavailable)]
+    public async Task AnAutomaticValuationGlassCannotAnswerRecordsNothing(
+        string answer, AutomaticGuideValuationOutcome expected)
+    {
+        var caseId = Guid.NewGuid();
+        var store = new AutomaticStore(Accepting());
+        var provider = new CountingProvider(answer == "age"
+            ? new GuideValuationNotValuedException(ValuationSource.Glasses, GuideValuationNotValuedReason.VehicleAge)
+            : new GuideValuationProviderUnavailableException(ValuationSource.Glasses));
+
+        var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)), store)
+            .ExecuteAsync(caseId, default);
+
+        Assert.Equal(expected, outcome);
+        Assert.Equal(1, provider.Calls);
+        Assert.Empty(store.Recorded);
+    }
+
+    [Fact]
+    public async Task AnAutomaticValuationWithoutAGlassProviderReadsNothing()
+    {
+        var caseData = new RecordingCaseData();
+        var store = new AutomaticStore(Accepting());
+
+        var outcome = await Automatic(new StubProvider(ValuationSource.Brego), caseData, store)
+            .ExecuteAsync(Guid.NewGuid(), default);
+
+        Assert.Equal(AutomaticGuideValuationOutcome.NotConnected, outcome);
+        Assert.Equal(0, caseData.Reads);
+        Assert.Equal(0, store.Reads);
+    }
+
+    private static readonly DateTimeOffset Now = new(2031, 5, 14, 9, 30, 0, TimeSpan.Zero);
+
+    private static AutomaticGuideValuationTarget Accepting() =>
+        new(CaseLifecycleState.ReportPreparation, IsArchived: false, EditLeaseExpiresAtUtc: null, HoldsSourceCard: false);
+
+    private static RunAutomaticGuideValuation Automatic(
+        IGuideValuationProvider provider,
+        RecordingCaseData caseData,
+        AutomaticStore store,
+        RecordingSchedule? schedule = null) =>
+        new(
+            new FetchGuideValuation([provider], caseData, schedule ?? new RecordingSchedule(), new RecordingVins()),
+            caseData,
+            store,
+            new FixedClock(Now));
+
     private static FetchGuideValuationRequest Request(ValuationSource source) => new(
         Guid.NewGuid(),
         3,
@@ -201,6 +339,52 @@ public sealed class FetchGuideValuationTests
                 Report = report,
                 Vin = vin,
             });
+    }
+
+    private sealed class CountingProvider(Exception? failure = null) : IGuideValuationProvider
+    {
+        public int Calls { get; private set; }
+
+        public ValuationSource Source => ValuationSource.Glasses;
+
+        public Task<GuideValuationQuote> GetAsync(GuideValuationRequest request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return failure is null
+                ? Task.FromResult(new GuideValuationQuote(17717m, 15600m, request.GuideMonth, request.Mileage))
+                : Task.FromException<GuideValuationQuote>(failure);
+        }
+    }
+
+    private sealed class AutomaticStore(AutomaticGuideValuationTarget target) : IAutomaticGuideValuationStore
+    {
+        public int Reads { get; private set; }
+
+        public List<(ActionActor Actor, ValuationDetails Card)> Recorded { get; } = [];
+
+        public Task<AutomaticGuideValuationTarget?> ReadAutomaticTargetAsync(
+            Guid caseId, ValuationSource source, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult<AutomaticGuideValuationTarget?>(target);
+        }
+
+        public Task<bool> RecordAutomaticAsync(
+            Guid caseId,
+            ActionActor actor,
+            string operationKey,
+            ValuationDetails card,
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken)
+        {
+            Recorded.Add((actor, card));
+            return Task.FromResult(true);
+        }
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     private sealed class RecordingVins : IFillGlassVin

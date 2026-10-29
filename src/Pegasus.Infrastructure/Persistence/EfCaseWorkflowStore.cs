@@ -654,8 +654,10 @@ public sealed class EfCaseWorkflowStore(
         CancellationToken cancellationToken)
     {
         var replayed = false;
+        var entered = false;
         var assigned = await MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
         {
+            entered = workflow.State != targetState.ToString();
             // The Review gate guards entry to With Engineer; a With Engineer
             // Case handed to another Engineer or to Unassigned (#1213) has
             // already passed it.
@@ -696,7 +698,7 @@ public sealed class EfCaseWorkflowStore(
             }
         },
         onReplay: () => replayed = true);
-        return new(assigned, replayed);
+        return new(assigned, replayed, entered && !replayed);
     }
 
     public Task<CaseWorkflowRecord> RecordReportApprovalAsync(

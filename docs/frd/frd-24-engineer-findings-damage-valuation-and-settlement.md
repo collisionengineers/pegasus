@@ -199,6 +199,21 @@ October 2026), a Valuation Evidence document
 operator, 22 October 2026), only when the report's own text names the Case
 registration (operator, 5 October 2026).
 Whatever else stops a Glass's valuation, the card shows its notice.
+A Case reaching With Engineer
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#assign-engineer): Assign
+Engineer from Review, or Start work) has its Glass's valuation requested
+automatically (R465, 28 October 2026; the trigger is the proposed one, awaiting
+the operator's confirmation). It is that Get valuation, run by the system for
+the current work and the current month: the figures are recorded as the
+Glass's card a Save records, and the report and an empty VIN follow as they do
+for staff. It is system work
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)): it asks only while
+nobody holds the Case's edit lease and the current work holds no Glass's card,
+asks again before recording, and its card advances the Case version. A work
+without an accepted registration and mileage, a vehicle Glass's cannot value
+or a provider that cannot answer records nothing and shows no notice; no
+second automatic request follows, and the card stays for Get valuation. It
+never chooses the card as the basis.
 Cazana's Get valuation signs in with the Cazana Companion account, runs one
 metered Companion lookup for the Case's accepted registration at its accepted
 mileage, and fills the card with Cazana's retail and trade (`remarket`;

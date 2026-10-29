@@ -229,6 +229,14 @@ public sealed class FetchGuideValuation(
         return quote;
     }
 
+    /// <summary>Whether the work holds the accepted registration and mileage a valuation asks for.</summary>
+    public static bool HasVehicleFacts(CaseDataProjection data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        return !string.IsNullOrWhiteSpace(Accepted(data.Vehicle.Registration)?.Value)
+            && Accepted(data.Vehicle.Mileage) is not null;
+    }
+
     /// <summary>The accepted value of a Case field: confirmed, else the intake fact; never a suggestion.</summary>
     private static CaseDataValue<T>? Accepted<T>(CaseField<T>? field) where T : notnull =>
         field?.Confirmed ?? field?.Fact;

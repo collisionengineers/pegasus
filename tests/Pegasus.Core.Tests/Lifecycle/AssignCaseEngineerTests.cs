@@ -130,6 +130,53 @@ public sealed class AssignCaseEngineerTests
         Assert.Equal((store.Current.Identity.Reference, (Guid?)EngineerId), notifier.Passed);
     }
 
+    /// <summary>
+    /// R465 (28 October 2026): the Case's Glass's valuation is requested when the
+    /// Case reaches With Engineer, once, after the assignment has committed. An
+    /// exact replay requests nothing again.
+    /// </summary>
+    [Fact]
+    public async Task ACaseReachingWithEngineerHasItsValuationRequestedOnceAndNotOnReplay()
+    {
+        var store = new RecordingWorkflowStore();
+        var valuations = new RecordingValuationSchedule();
+        var sut = Assign(store, valuations);
+        var request = CreateAssignmentRequest();
+
+        await sut.ExecuteAsync(request, default);
+        await sut.ExecuteAsync(request, default);
+
+        Assert.Equal(CaseId, Assert.Single(valuations.Scheduled));
+    }
+
+    /// <summary>A With Engineer Case handed to another Engineer has not reached With Engineer.</summary>
+    [Fact]
+    public async Task AHandOffWithinWithEngineerRequestsNoValuation()
+    {
+        var store = new RecordingWorkflowStore();
+        store.Current = store.Current with { State = CaseLifecycleState.ReportPreparation };
+        var valuations = new RecordingValuationSchedule();
+
+        await Assign(store, valuations).ExecuteAsync(CreateAssignmentRequest(), default);
+
+        Assert.Empty(valuations.Scheduled);
+    }
+
+    /// <summary>Start work brings a Review Case to With Engineer, so it requests the valuation too.</summary>
+    [Fact]
+    public async Task StartingWorkRequestsTheValuation()
+    {
+        var store = new RecordingWorkflowStore();
+        var valuations = new RecordingValuationSchedule();
+
+        var started = await new StartCaseWork(store, valuations).ExecuteAsync(
+            new ChangeCaseStateRequest(CaseId, 0, Actor, "start-work", "Start work", "lease-token"),
+            default);
+
+        Assert.Equal(CaseLifecycleState.ReportPreparation, started.State);
+        Assert.Equal(CaseId, Assert.Single(valuations.Scheduled));
+    }
+
     /// <summary>The words each Case command's state refusal has always used, now asked by the store.</summary>
     [Theory]
     [InlineData(CaseLifecycleState.NotReady)]
@@ -231,11 +278,25 @@ public sealed class AssignCaseEngineerTests
                 null, EngineerId, [Profile(EngineerId, isDefault: false), Profile(defaultSignOffEngineerId, isDefault: true)])?.StaffId);
     }
 
-    private static AssignCaseEngineer Assign(RecordingWorkflowStore store) =>
+    private static AssignCaseEngineer Assign(
+        RecordingWorkflowStore store,
+        Pegasus.Core.Assessment.IScheduleAutomaticGuideValuation? valuations = null) =>
         new(
             store,
             new FixedWorkflowConfiguration(),
-            new StubStaffAccounts([Profile(EngineerId, isDefault: false)]));
+            new StubStaffAccounts([Profile(EngineerId, isDefault: false)]),
+            automaticValuation: valuations);
+
+    private sealed class RecordingValuationSchedule : Pegasus.Core.Assessment.IScheduleAutomaticGuideValuation
+    {
+        public List<Guid> Scheduled { get; } = [];
+
+        public Task ScheduleAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            Scheduled.Add(caseId);
+            return Task.CompletedTask;
+        }
+    }
 
     private sealed class RecordingNotifier : Pegasus.Core.Notifications.ICaseStaffNotifier
     {
@@ -287,7 +348,7 @@ public sealed class AssignCaseEngineerTests
 
         public AssignCaseEngineerRequest? AppliedRequest { get; private set; }
 
-        public CaseWorkflowRecord Current { get; private set; } = new(
+        public CaseWorkflowRecord Current { get; set; } = new(
             CaseId,
             new(CaseId, "QDOS", 2026, 1, "QDOS260001"),
             CaseLifecycleState.Review,
@@ -333,18 +394,19 @@ public sealed class AssignCaseEngineerTests
                     throw new InvalidOperationException("The operation key was reused for different input.");
                 }
 
-                return Task.FromResult(new CaseEngineerAssignment(Current, true));
+                return Task.FromResult(new CaseEngineerAssignment(Current, true, false));
             }
 
             _appliedOperationKey = request.OperationKey;
             AppliedRequest = request;
+            var entered = Current.State != targetState;
             Current = Current with
             {
                 AssignedEngineerId = request.EngineerId,
                 State = targetState,
                 Version = Current.Version + 1
             };
-            return Task.FromResult(new CaseEngineerAssignment(Current, false));
+            return Task.FromResult(new CaseEngineerAssignment(Current, false, entered));
         }
 
         public Task<CaseEditLease> ClaimAsync(
@@ -374,8 +436,11 @@ public sealed class AssignCaseEngineerTests
 
         public Task<CaseWorkflowRecord> StartWorkAsync(
             CaseMutationRequest request,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            Current = Current with { State = CaseLifecycleState.ReportPreparation, Version = Current.Version + 1 };
+            return Task.FromResult(Current);
+        }
 
         public Task<CaseWorkflowRecord> HoldAsync(
             PutCaseOnHoldRequest request,

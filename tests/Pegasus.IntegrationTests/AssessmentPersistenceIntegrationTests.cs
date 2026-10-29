@@ -2034,6 +2034,64 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             scope.ServiceProvider.GetRequiredService<ICompleteMarketResearchAiJob>());
     }
 
+    /// <summary>
+    /// R465 (28 October 2026): the Glass's card a Case reaching With Engineer
+    /// asks for is system work (FRD-14). It yields while a lease is held, and
+    /// otherwise records the card as a Save does, advances the version and
+    /// leaves the retained lease as it was. It is recorded once: a work that
+    /// holds a Glass's card takes no second one.
+    /// </summary>
+    [Fact]
+    public async Task TheAutomaticGlassCardYieldsToAHeldLeaseAndAdvancesTheCaseOnce()
+    {
+        await using var harness = await Harness.CreateAsync(shared);
+        var outcome = await harness.AcceptAsync("automatic-valuation-accept-case");
+        var caseId = outcome.Identity.CaseId;
+        await SetReportPreparationAsync(harness.Factory, caseId);
+        var actor = AutomaticGuideValuationPolicy.Actor;
+        var card = new ValuationDetails(
+            ValuationSource.Glasses,
+            new DateOnly(2031, 5, 6),
+            new TimeOnly(11, 30),
+            null,
+            17717m,
+            15600m,
+            new DateOnly(2031, 5, 1));
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.EngineerActor, "automatic-valuation-lease");
+        var now = harness.Clock.GetUtcNow();
+
+        var held = await harness.Valuations.ReadAutomaticTargetAsync(caseId, ValuationSource.Glasses, CancellationToken.None);
+        Assert.False(AutomaticGuideValuationPolicy.Accepts(held!, now));
+        Assert.False(await harness.Valuations.RecordAutomaticAsync(
+            caseId, actor, "automatic-valuation:held", card, now, CancellationToken.None));
+
+        // Once the lease has lapsed nobody holds it, and the card is recorded.
+        var lapsed = lease.ExpiresAtUtc.AddSeconds(1);
+        Assert.True(await harness.Valuations.RecordAutomaticAsync(
+            caseId, actor, "automatic-valuation:lapsed", card, lapsed, CancellationToken.None));
+        Assert.False(await harness.Valuations.RecordAutomaticAsync(
+            caseId, actor, "automatic-valuation:again", card, lapsed, CancellationToken.None));
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var recorded = await context.CaseValuations.AsNoTracking().SingleAsync(item => item.WorkId == caseId);
+        Assert.Equal(nameof(ValuationSource.Glasses), recorded.Source);
+        Assert.Equal(17717m, recorded.RetailValue);
+        Assert.Equal(15600m, recorded.TradeValue);
+        Assert.Null(recorded.Mileage);
+        Assert.Equal(AutomaticGuideValuationPolicy.ActorId, recorded.RecordedBy);
+        var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+        Assert.Equal(lease.Version + 1, workflow.Version);
+        Assert.Equal(harness.EngineerActor.SubjectId, workflow.EditLeaseHolder);
+        Assert.False(string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash));
+        var history = await context.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(item => item.CaseId == caseId && item.OperationKey == "automatic-valuation:lapsed");
+        Assert.Equal(lease.Version, history.BeforeVersion);
+        Assert.Equal(workflow.Version, history.AfterVersion);
+        Assert.Equal(ActorKind.Automation.ToString(), history.ActorKind);
+        Assert.False(await context.CaseWorkflowEvents.AnyAsync(
+            item => item.CaseId == caseId && item.OperationKey == "automatic-valuation:held"));
+    }
+
     [Fact]
     public async Task MarketResearchCompletionAtomicallyRetainsEvidenceValuationAndCompletedJob()
     {
