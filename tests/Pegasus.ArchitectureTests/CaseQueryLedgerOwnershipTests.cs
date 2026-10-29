@@ -8,8 +8,7 @@ namespace Pegasus.ArchitectureTests;
 /// persistence source sets <c>HasOpenQuery</c> on an entity or adds a
 /// <c>CaseQueries</c> row. Projections that read the mark into a record
 /// (<c>HasOpenQuery = row.HasOpenQuery</c> in an initializer) are reads and
-/// are not matched. Migrations and the compiled model are generated and
-/// excluded.
+/// are not matched. Migrations are generated and excluded.
 /// </summary>
 public sealed class CaseQueryLedgerOwnershipTests
 {
@@ -50,6 +49,6 @@ public sealed class CaseQueryLedgerOwnershipTests
     {
         var relative = Path.GetRelativePath(persistence, path);
         var first = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0];
-        return first is "Migrations" or "CompiledModel";
+        return first is "Migrations";
     }
 }

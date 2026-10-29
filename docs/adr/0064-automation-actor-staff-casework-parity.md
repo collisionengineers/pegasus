@@ -24,7 +24,7 @@ This record replaces, in part:
   the rule that automation never records a professional finding (its Current
   applicability) and its consequence that automation cannot confirm
   findings. Its EVA Export decision, kill switch and attribution stand.
-- [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md),
+- [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md),
   decision 2: the structural absence of a finding tool and, from the second
   delivery, of a report-approval tool; from the fourth, of any tool that
   sends outward.

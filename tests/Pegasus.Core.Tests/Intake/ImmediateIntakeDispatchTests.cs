@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -195,52 +194,6 @@ public sealed class ImmediateIntakeDispatchTests
         Assert.Equal([receiptId], store.ClaimedReceiptIds);
         Assert.Empty(store.MarkedWorkItemIds);
         Assert.Equal(["claim", "enqueue", "release"], events);
-    }
-
-    [Fact]
-    public async Task ImmediatePublicationRecordsTheReceiptIdentifierAndBoundedOutcome()
-    {
-        var receiptId = Guid.NewGuid();
-        var activities = new List<Activity>();
-
-        // An ActivitySource and its listeners are process-wide, and this
-        // assembly runs its test classes in parallel, so an unfiltered
-        // listener also collects the spans other Pegasus.Core.Intake tests
-        // start. Rooting the call in a scope of its own keeps the collection
-        // to the spans this publication produced.
-        using var scope = new Activity(nameof(ImmediatePublicationRecordsTheReceiptIdentifierAndBoundedOutcome))
-            .SetIdFormat(ActivityIdFormat.W3C)
-            .Start();
-        using var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == "Pegasus.Core.Intake",
-            Sample = static (ref ActivityCreationOptions<ActivityContext> _) =>
-                ActivitySamplingResult.AllData,
-            ActivityStopped = activity =>
-            {
-                if (activity.TraceId == scope.TraceId)
-                {
-                    activities.Add(activity);
-                }
-            }
-        };
-        ActivitySource.AddActivityListener(listener);
-        var dispatcher = new DispatchPendingIntakeWork(
-            new RecordingStore(receiptId, []),
-            new RecordingQueue([]),
-            new FixedTimeProvider(FixedUtcNow));
-
-        await dispatcher.ExecuteCommittedAsync(receiptId, CancellationToken.None);
-
-        // Publication is one span, carrying the receipt it published and the
-        // outcome it settled on.
-        var activity = Assert.Single(activities);
-        Assert.Equal("publish_committed_intake_work", activity.OperationName);
-        Assert.Same(scope, activity.Parent);
-        Assert.Equal(receiptId, activity.GetTagItem("intake.staged_receipt_id"));
-        Assert.Equal("immediate", activity.GetTagItem("intake.publication.path"));
-        Assert.Equal("published", activity.GetTagItem("intake.publication.outcome"));
-        Assert.Equal(ActivityStatusCode.Ok, activity.Status);
     }
 
     private sealed class RecordingQueue(

@@ -48,7 +48,7 @@ internal static class AutomationDocumentStreaming
     public static async Task<IResult> GetIntakeSourceAsync(
         Guid receiptId,
         AutomationActorResolver resolver,
-        IGetIntakeSourceMetadata metadataReader,
+        GetIntakeSourceMetadata metadataReader,
         IDownloadIntakeSource downloadSource,
         HttpContext httpContext,
         CancellationToken cancellationToken)

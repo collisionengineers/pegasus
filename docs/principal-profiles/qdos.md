@@ -99,7 +99,7 @@ separate triage matcher — that abstraction had only a null implementation and
 was retired; one owner answers the question, and it is this policy.
 
 Display labels for the mail categories are owned by
-`src/Pegasus.Web/Presentation/OperatorLabels.cs`
+the `OperatorLabels` partial class files under `src/Pegasus.Web/Presentation/`
 (`MailClassification`, exhaustive map, throws on an unmapped value) and the
 correction options by
 `src/Pegasus.Web/Presentation/MailClassificationSelection.cs`.
@@ -277,6 +277,6 @@ copy. Selected images render on the case Evidence tab and are retained in Box.
 | Which case does it belong to? | `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs` + [FRD-09](../frd/frd-09-principal-and-intermediary-routes.md#accepted-principal-email-routes-and-automatic-association) |
 | What case type is allocated? | `src/Pegasus.Core/Intake/IntakeAllocation.cs` (from the classification decision) |
 | What fields are extracted, and how? | `src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs` + `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` |
-| What does the operator see? | `src/Pegasus.Web/Presentation/OperatorLabels.cs`, `MailClassificationSelection.cs`, `MailBodyPresentation.cs`, `src/Pegasus.Core/Intake/StaffForwardBodyCleaner.cs` |
+| What does the operator see? | the `OperatorLabels` partial class files under `src/Pegasus.Web/Presentation/`, `MailClassificationSelection.cs`, `MailBodyPresentation.cs`, `src/Pegasus.Core/Intake/StaffForwardBodyCleaner.cs` |
 | Which images become evidence? | `src/Pegasus.Core/Intake/InstructionEvidenceImages.cs` |
 | Behaviour owners | `docs/frd/frd-02-intake-and-source-identity.md`, `docs/frd/frd-05-documents-extraction-and-custody.md`, `docs/frd/frd-08-email-mailbox-and-background-processing.md` |
