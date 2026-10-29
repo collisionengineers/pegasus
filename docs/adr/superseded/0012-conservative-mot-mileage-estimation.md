@@ -14,5 +14,5 @@ tags: [vehicle, mot]
 > **Superseded — relocated to functional requirements.** This is feature
 > behaviour, not a technical decision. The conservative MOT mileage estimation
 > policy now lives in
-> [FRD-06 § Conservative MOT mileage estimation](../frd/frd-06-vehicle-and-engineering-evidence.md#conservative-mot-mileage-estimation).
+> [FRD-06 § Conservative MOT mileage estimation](../../frd/frd-06-vehicle-and-engineering-evidence.md#conservative-mot-mileage-estimation).
 > Retained for history; git history holds the original decision.

@@ -35,4 +35,4 @@ available; removing OCR does not remove that recovery path.
 This decision establishes intended behavior, not deployment or acceptance.
 Verification must exercise scanned email-attachment identity, readable-page
 retention, provider-result replay and parser-only estimate import. See
-[FRD-05](../frd/frd-05-documents-extraction-and-custody.md#qualified-ocr).
+[FRD-05](../../frd/frd-05-documents-extraction-and-custody.md#qualified-ocr).

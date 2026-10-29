@@ -10,7 +10,7 @@ tags: [extraction, pdf]
 ---
 # ADR-0001: Hybrid PDF extraction
 
-- Status: Superseded by [ADR-0040](0040-qualified-document-intelligence-ocr.md).
+- Status: Superseded by [ADR-0040](../0040-qualified-document-intelligence-ocr.md).
   The historical decision below is retained; ADR-0003 and ADR-0005 remain
   accepted within their scopes.
 - Date: 2026-07-23

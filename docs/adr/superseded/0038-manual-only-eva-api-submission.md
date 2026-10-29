@@ -13,7 +13,7 @@ tags: [eva, configuration, principals]
 
 ## Status
 
-Superseded by [ADR-0048](0048-principal-report-generation-policies.md).
+Superseded by [ADR-0048](../0048-principal-report-generation-policies.md).
 Its manual-only EVA API policy no longer applies. The historical rationale and
 the four manual-route safeguards below remain recoverable; ADR-0048 owns the
 current Principal report-generation choices.
@@ -57,5 +57,5 @@ setting remains frozen with its historical identity.
 
 ## Links
 
-- [FRD-07 — Direct EVA API submission](../frd/frd-07-case-export.md#export-case)
+- [FRD-07 — Direct EVA API submission](../../frd/frd-07-case-export.md#export-case)
 - [ADR-0034 — Per-Principal EVA API submission settings](0034-per-principal-eva-api-submission-settings.md)

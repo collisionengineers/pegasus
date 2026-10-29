@@ -14,7 +14,7 @@ tags: [documentation, governance]
 > **Superseded — documentation governance is not an ADR.** Repository
 > documentation rules — the documentation model, the PRD/FRD/ADR taxonomy and
 > routing, new-Markdown placement, and the `docs/adr/` decision-store layout —
-> now live in [`AGENTS.md`](../../AGENTS.md), with [`docs/index.md`](../index.md)
+> now live in [`AGENTS.md`](../../../AGENTS.md), with [`docs/index.md`](../../index.md)
 > as the navigation index and authority chain. `CONTEXT.md` remains the domain
 > glossary. This record decides nothing current; git history holds the original
 > decision.

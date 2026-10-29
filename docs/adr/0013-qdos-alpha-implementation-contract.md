@@ -39,7 +39,7 @@ removed functional clauses (1–9 and 13) are mapped to their owning FRDs in
 10. **MCP actor boundary.** MCP is a management/development-controlled ingress
     for one named, vendor-neutral Automation Actor, owned by
     [ADR-0011](0011-restrict-mcp-to-automation-actor.md) and
-    [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md);
+    [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md);
     ordinary staff receive no MCP access and no staff identity is impersonated.
 11. **The domain action is `Send to AI`.** Provider-specific UI wording does not
     redefine the action. Claude is the current provider candidate for that later
@@ -60,9 +60,9 @@ removed functional clauses (1–9 and 13) are mapped to their owning FRDs in
 
 - **Precedence.** [ADR-0011](0011-restrict-mcp-to-automation-actor.md) remains
   the Automation Actor boundary,
-  [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md) the
+  [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md) the
   Automation Actor direct-write and `Send to AI` transport contract, and
-  [ADR-0012](0012-conservative-mot-mileage-estimation.md) the mileage-estimation
+  [ADR-0012](superseded/0012-conservative-mot-mileage-estimation.md) the mileage-estimation
   policy; their other clauses are unchanged. Within its scope this ADR
   supersedes any retained wording that gives ordinary staff MCP access.
 - **No external authority created.** This decision creates no Azure target,

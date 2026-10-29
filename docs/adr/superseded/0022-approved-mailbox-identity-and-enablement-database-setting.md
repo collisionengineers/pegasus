@@ -11,7 +11,7 @@ tags: [mailbox, config]
 # ADR-0022: Approved-mailbox identity and enablement as an administrator-editable database setting
 
 - Date: 2026-08-06
-- Status: superseded by [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md); its Graph-identity poll key and cursor-carrying re-enablement no longer hold, while its administrator-owned estate decision is carried forward
+- Status: superseded by [ADR-0024](../0024-stable-approved-mailbox-identity-and-explicit-baseline.md); its Graph-identity poll key and cursor-carrying re-enablement no longer hold, while its administrator-owned estate decision is carried forward
 - Owners: Collision Engineers product owner and Pegasus development team
 - Relation: a second scoped exception to ADR-0008's code-owned-configuration
   consequence, and the intake-side counterpart to ADR-0018; ADR-0008's
@@ -79,7 +79,7 @@ Two ways of closing it were rejected:
    normally, so disabling is eventually effective within one poll page, never
    mid-message.
 
-Functional behaviour: see [FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
+Functional behaviour: see [FRD-26](../../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
 
 ## Consequences
 

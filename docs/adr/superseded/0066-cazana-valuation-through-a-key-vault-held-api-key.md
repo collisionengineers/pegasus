@@ -13,9 +13,9 @@ tags: [cazana, valuation, key-vault, custody]
 
 ## Status
 
-Superseded on 21 October 2026 by [ADR-0079](0079-cazana-companion-account-and-companion-report.md). Accepted on 9 October 2026. The operator asked for Cazana to be connected as
+Superseded on 21 October 2026 by [ADR-0079](../0079-cazana-companion-account-and-companion-report.md). Accepted on 9 October 2026. The operator asked for Cazana to be connected as
 a further guide valuation source, using the Cazana API key held in Infisical,
-entered into Key Vault. [FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)
+entered into Key Vault. [FRD-24](../../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)
 owns what staff see. This record owns how the valuation is fetched and where
 its key lives.
 
@@ -25,10 +25,10 @@ The Case page's Cazana card already existed with hand entry and the
 "unavailable" notice, because no Cazana provider was connected. The guide
 provider port, the card's Get valuation, the Case Save and
 `pegasus_valuation_get` already served Glass's
-([ADR-0060](0060-glass-valuation-account-and-valuation-report.md)): a source
+([ADR-0060](../0060-glass-valuation-account-and-valuation-report.md)): a source
 is connected exactly when a provider for it is composed.
 
-Cazana's public API ([supplied specification](../external-component-documents/cazana/cazana-api-spec.json))
+Cazana's public API ([supplied specification](../../external-component-documents/cazana/cazana-api-spec.json))
 answers `GET /valuation/1.0` for a VRM or VIN with retail, trade and dealer-type
 values. It takes an optional mileage (estimated when absent, at most 500,000)
 and an optional valuation date (today when absent). The key may be sent as a
@@ -86,6 +86,6 @@ vehicle-age answer, Glass's plate search without a type number (10 October
 
 ## Links
 
-- [FRD-24 — Valuation sources](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)
-- [ADR-0060 — Glass's valuation](0060-glass-valuation-account-and-valuation-report.md)
-- [ADR-0064 — Automation Actor staff casework parity](0064-automation-actor-staff-casework-parity.md)
+- [FRD-24 — Valuation sources](../../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)
+- [ADR-0060 — Glass's valuation](../0060-glass-valuation-account-and-valuation-report.md)
+- [ADR-0064 — Automation Actor staff casework parity](../0064-automation-actor-staff-casework-parity.md)

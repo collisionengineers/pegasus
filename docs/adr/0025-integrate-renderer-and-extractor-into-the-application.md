@@ -105,7 +105,7 @@ and operator acceptance. Until then both remain non-caller source under
 
 - [ADR-0009](0009-adopt-pegasus-monorepo-workspaces.md) — workspace boundary
   and activation conditions.
-- [ADR-0001](0001-hybrid-pdf-extraction.md), [ADR-0003](0003-pdfpig-for-first-qdos-slice.md)
+- [ADR-0001](superseded/0001-hybrid-pdf-extraction.md), [ADR-0003](0003-pdfpig-for-first-qdos-slice.md)
   — the PDF path the extractor's activation must reconcile with.
 - [`workspaces/README.md`](../../workspaces/README.md) — integration status
   register and import provenance.
