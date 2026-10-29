@@ -662,7 +662,7 @@ internal sealed class EfDocumentCustodyStore(
         // Everything the recognition was decided on is read again here: a
         // Case that no longer awaits its report, or a document that changed,
         // records nothing.
-        var authority = await CaseMutationAuthority.LoadAsync(context, command.CaseId, cancellationToken);
+        var authority = await CaseMutationGuard.LoadAsync(context, command.CaseId, cancellationToken);
         if (authority?.Workflow is not { } workflow
             || !await AwaitsRecognitionAsync(context, workflow, cancellationToken))
         {

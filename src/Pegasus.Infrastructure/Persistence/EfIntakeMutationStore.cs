@@ -195,7 +195,7 @@ internal sealed class EfIntakeMutationStore(
 
         // Any Case or Triage Case in any state may be declared (FRD-22 staff
         // linking); only one that is gone, or archived, cannot take it.
-        var authority = await CaseMutationAuthority.LoadAsync(context, request.CaseId, cancellationToken);
+        var authority = await CaseMutationGuard.LoadAsync(context, request.CaseId, cancellationToken);
         if (authority is null || authority.Workflow?.ArchivedAtUtc is not null)
         {
             return DeclaredDestinationLinkOutcome.CaseUnavailable;
@@ -341,7 +341,7 @@ internal sealed class EfIntakeMutationStore(
         // A Triage Case has no workflow row: it answers through its Triage, as
         // on every Case-level path, so a reply the thread links to its Triage
         // is written rather than failing to find a workflow (R468, R469).
-        var authority = await CaseMutationAuthority.LoadAsync(context, request.CaseId, cancellationToken)
+        var authority = await CaseMutationGuard.LoadAsync(context, request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException("The matched case does not exist.");
         var caseWorkflow = authority.Workflow;
         // The accepted eliminator predicates make every lifecycle state
@@ -829,7 +829,7 @@ internal sealed class EfIntakeMutationStore(
         // A Case answers through its workflow; a Triage Case through its
         // Triage. Only automatic association needs an eligible target: a
         // pre-report Case, or an open Triage Case not yet linked.
-        var caseAuthority = await CaseMutationAuthority.LoadAsync(context, request.CaseId, cancellationToken)
+        var caseAuthority = await CaseMutationGuard.LoadAsync(context, request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException("The case does not exist.");
         var automatic = staffGroupOrigin is null;
         caseAuthority.RequireMutable(anyLifecycleState: !automatic);
@@ -1025,7 +1025,7 @@ internal sealed class EfIntakeMutationStore(
         }
 
         CaseEntity? @case = null;
-        CaseMutationAuthority? caseAuthority = null;
+        CaseMutationGuard? caseAuthority = null;
         long? beforeCaseVersion = null;
         if (expectedCaseId is { } caseId)
         {
@@ -1033,7 +1033,7 @@ internal sealed class EfIntakeMutationStore(
             // lifecycle state and every Triage Case (operator, 24 September
             // 2026); a Triage Case answers through its Triage version and edit
             // scope.
-            caseAuthority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
+            caseAuthority = await CaseMutationGuard.LoadAsync(context, caseId, cancellationToken)
                 ?? throw new KeyNotFoundException("The case does not exist.");
             await caseAuthority.RequireStaffAuthorityAsync(
                 context,
@@ -1538,7 +1538,7 @@ internal sealed class EfIntakeMutationStore(
         // an archived Case must never reach it (D16). A Triage Case can take
         // one: a reply links to the Triage as a reply links to a Case
         // (operator, 28 October 2026; R469). The cut is the store's loader,
-        // CaseMutationAuthority: a Case with its workflow, or a Triage Case
+        // CaseMutationGuard: a Case with its workflow, or a Triage Case
         // with its Triage. The registration read already filters its own rows.
         var candidates = threadCaseIds
             .Concat(replyCaseIds)
