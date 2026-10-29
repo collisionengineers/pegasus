@@ -112,11 +112,17 @@ does.
    when unset in azd, so set them explicitly with `azd env set` before this
    step or the required-value check above refuses.
    **One-time step for the Baseline release (Phase 2, R481, R484).** Before the
-   bundle first runs with the `Baseline` migration, production adopts it by one
-   history row and keeps its 244 legacy rows, so earlier artifacts stay
-   deployable. Run this once, under the same Azure CLI identity; it is
-   re-runnable and refuses any other history state. If a release lands another
-   migration first, update the count and the head it expects:
+   bundle first runs with the `Baseline` migration, production adopts it by
+   history rows and keeps its legacy rows, so earlier artifacts stay deployable.
+   Read on 29 October 2026 (read-only, before Release 129): production's history
+   holds 243 rows with head `20261028090000_ExternalWorkSourceCase`. The squashed
+   `20261028160000_DenyApprovedMailboxSubscriptionsWrites` migration never ran
+   there and never needed to: `sys.database_permissions` on
+   `ApprovedMailboxSubscriptions` read back DENY INSERT, UPDATE and DELETE for
+   the Web role and DENY DELETE for the Worker role, held since August. Its row
+   is inserted as the record of that state, then the Baseline row. Run this once,
+   under the same Azure CLI identity; it is re-runnable and refuses any other
+   history or permission state:
 
    ```powershell
    $accessToken = (& az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv).Trim()
@@ -124,15 +130,22 @@ does.
    SET XACT_ABORT ON; BEGIN TRAN;
    IF NOT EXISTS (SELECT 1 FROM dbo.__EFMigrationsHistory WITH (UPDLOCK, HOLDLOCK) WHERE MigrationId = N'20261028171919_Baseline')
    BEGIN
-     IF (SELECT COUNT(*) FROM dbo.__EFMigrationsHistory) <> 244
-        OR (SELECT MAX(MigrationId) FROM dbo.__EFMigrationsHistory) <> N'20261028160000_DenyApprovedMailboxSubscriptionsWrites'
-       THROW 51100, 'History is not at the Release 129 head; baseline adoption refused.', 1;
+     IF (SELECT COUNT(*) FROM dbo.__EFMigrationsHistory) <> 243
+        OR (SELECT MAX(MigrationId) FROM dbo.__EFMigrationsHistory) <> N'20261028090000_ExternalWorkSourceCase'
+       THROW 51100, 'History is not at the Release 128 head; baseline adoption refused.', 1;
+     IF (SELECT COUNT(*) FROM sys.database_permissions AS pe
+         JOIN sys.database_principals AS pr ON pr.principal_id = pe.grantee_principal_id
+         JOIN sys.objects AS o ON o.object_id = pe.major_id
+         WHERE o.name = N'ApprovedMailboxSubscriptions' AND pe.state = 'D'
+           AND ((pr.name = N'pegasus_web_runtime_role' AND pe.permission_name IN (N'INSERT', N'UPDATE', N'DELETE'))
+             OR (pr.name = N'pegasus_worker_runtime_role' AND pe.permission_name = N'DELETE'))) <> 4
+       THROW 51101, 'The four ApprovedMailboxSubscriptions denials are not in place; baseline adoption refused.', 1;
+     INSERT dbo.__EFMigrationsHistory (MigrationId, ProductVersion) VALUES (N'20261028160000_DenyApprovedMailboxSubscriptionsWrites', N'10.0.10');
      INSERT dbo.__EFMigrationsHistory (MigrationId, ProductVersion) VALUES (N'20261028171919_Baseline', N'10.0.10');
    END
    COMMIT;
    "@
    ```
-
    The bundle then prints `No migrations were applied. The database is already
    up to date.` A local database the chain built is adopted the same way or
    dropped (`Invoke-LocalDevelopment.ps1 -Action Reset`). This step leaves the
