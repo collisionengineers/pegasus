@@ -14,7 +14,7 @@ tags: [cazana, valuation, key-vault, custody]
 ## Status
 
 Accepted on 21 October 2026. Supersedes
-[ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md). The
+[ADR-0066](superseded/0066-cazana-valuation-through-a-key-vault-held-api-key.md). The
 operator asked for Cazana's Get valuation to sign in to Cazana Companion, file
 the **Companion Report** PDF on the Case in the background and fill an empty
 VIN from Companion's lookup (21 October 2026; issue #1478).
@@ -24,7 +24,7 @@ Report are fetched and where the account lives.
 
 ## Context
 
-Under [ADR-0066](0066-cazana-valuation-through-a-key-vault-held-api-key.md),
+Under [ADR-0066](superseded/0066-cazana-valuation-through-a-key-vault-held-api-key.md),
 Get valuation called `GET /valuation/1.0` with the API key `Cazana:ApiKey`.
 That endpoint answers retail and trade figures, masks the VIN, and offers no
 PDF report; `POST /trade/auth` (Embedded Companion SSO) is disallowed on the
@@ -121,5 +121,5 @@ setting's key instead.
 
 - [FRD-24 — Valuation sources](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)
 - [ADR-0060 — Glass's valuation](0060-glass-valuation-account-and-valuation-report.md)
-- [ADR-0066 — Superseded API-key route](0066-cazana-valuation-through-a-key-vault-held-api-key.md)
+- [ADR-0066 — Superseded API-key route](superseded/0066-cazana-valuation-through-a-key-vault-held-api-key.md)
 - [Cazana Companion and API notes](../external-component-documents/cazana/cazana-companion-and-api-notes.md)

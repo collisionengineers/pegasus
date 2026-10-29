@@ -1,6 +1,6 @@
 # FRD-04: Parties, accounts, and access
 
-> Owner capabilities: ACC-01 to ACC-05, ACC-07 to ACC-11, ACC-15, CASE-32, RPT-08 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: ACC-01 to ACC-05, ACC-07 to ACC-11, ACC-15, RPT-08 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -417,7 +417,7 @@ acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `ACC-01`–`ACC-05`, `ACC-07`–`ACC-11`, `ACC-15`, `CASE-32`,
+- Capabilities: `ACC-01`–`ACC-05`, `ACC-07`–`ACC-11`, `ACC-15`,
   `RPT-08` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-07](frd-07-case-export.md),

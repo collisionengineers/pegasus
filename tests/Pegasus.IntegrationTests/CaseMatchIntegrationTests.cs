@@ -727,30 +727,49 @@ public sealed class CaseMatchIntegrationTests
     }
 
     /// <summary>
-    /// A Triage is not an association target. A thread whose only linked message
-    /// stands linked to a Triage therefore offers no thread candidate at all,
-    /// rather than a candidate the write would fail on (R195; FRD-08).
+    /// R469 (operator, 28 October 2026): a reply into a thread that holds a
+    /// Triage links to the Triage as a reply links to a Case, whether the
+    /// thread's earlier message opened the Triage or stands linked to it. The
+    /// reply carries no registration, the shape that once reached the write and
+    /// threw because a Triage Case has no workflow row (#1676, R468).
     /// </summary>
-    [Fact]
-    public async Task AThreadHoldingOnlyATriageIsNoAssociationCandidate()
+    [Theory]
+    [InlineData("origin")]
+    [InlineData("linked")]
+    public async Task ARegistrationlessReplyInATriageThreadLinksToTheTriage(string threadHolds)
     {
         await using var harness = await Harness.CreateAsync();
         var store = new EfIntakeMutationStore(harness.Factory);
-        var triageCaseId = await harness.SeedTriageCaseAsync("t.QDOS31901");
         var earlier = await harness.SeedRetainedMailReceiptAsync(
-            "triage-thread-earlier",
+            $"triage-thread-earlier-{threadHolds}",
             null,
             "triage-thread");
-        await harness.LinkReceiptToCaseAsync(earlier, triageCaseId);
+        var triageCaseId = await harness.SeedTriageCaseAsync(
+            "t.QDOS31901",
+            threadHolds == "origin" ? earlier : null);
+        if (threadHolds == "linked")
+        {
+            await harness.LinkReceiptToCaseAsync(earlier, triageCaseId);
+        }
 
         var later = await harness.SeedRetainedMailReceiptAsync(
-            "triage-thread-later",
+            $"triage-thread-later-{threadHolds}",
             null,
             "triage-thread");
 
         var evidence = await store.GetAsync(later, CancellationToken.None);
-        Assert.Empty(evidence!.ThreadCaseIds);
-        Assert.Null(await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(later));
+        Assert.Equal([triageCaseId], evidence!.ThreadCaseIds);
+        Assert.Equal(
+            AutomaticCaseAssociationOutcome.Associated,
+            await new AssociateRetainedMailWithCase(store, store, TimeProvider.System).ExecuteAsync(later));
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var association = await context.IntakeManualAssociations
+            .AsNoTracking()
+            .SingleAsync(item => item.IntakeReceiptId == later);
+        Assert.True(association.IsActive);
+        Assert.Equal(triageCaseId, association.CaseId);
+        Assert.Equal(nameof(ActorKind.SystemWorker), association.ActorKind);
     }
 
     [Fact]
@@ -1109,13 +1128,20 @@ public sealed class CaseMatchIntegrationTests
 
         /// <summary>
         /// A Triage Case as intake writes it: a Case row of the seeded QDOS
-        /// Principal with a <c>t.</c> reference and no CaseWorkflows row, because
-        /// a Triage is not a Case that mail association may link to.
+        /// Principal with a <c>t.</c> reference and its open Triage row, and no
+        /// CaseWorkflows row. With an origin receipt it is the Triage that
+        /// receipt opened; without one, a Triage staff created directly.
         /// </summary>
-        public async Task<Guid> SeedTriageCaseAsync(string reference)
+        public async Task<Guid> SeedTriageCaseAsync(string reference, Guid? originReceiptId = null)
         {
             await using var context = await Factory.CreateDbContextAsync();
             var principal = await SeededPrincipals.QdosAsync(context);
+            var origin = originReceiptId is { } receiptId
+                ? await context.IntakeReceipts
+                    .Where(item => item.Id == receiptId)
+                    .Select(item => new { item.SourceChannel, item.ExternalReceiptToken, item.SourceHash })
+                    .SingleAsync()
+                : null;
             var caseId = Guid.NewGuid();
             context.Cases.Add(new CaseEntity
             {
@@ -1131,8 +1157,23 @@ public sealed class CaseMatchIntegrationTests
                 Type = CaseTypeCodes.Triage,
                 InitialState = null,
                 CustodyState = "pending",
-                OriginIntakeReceiptId = null,
+                OriginIntakeReceiptId = originReceiptId,
                 CreatedAtUtc = StartUtc,
+                Version = 0,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+            context.Triage.Add(new TriageEntity
+            {
+                CaseId = caseId,
+                OriginReceiptId = originReceiptId,
+                SourceChannel = origin?.SourceChannel,
+                ExternalReceiptToken = origin?.ExternalReceiptToken,
+                SourceHash = origin?.SourceHash,
+                EvaluationRevisionId = origin is null ? null : Guid.NewGuid(),
+                NormalizedVehicleRegistration = "AB12CDE",
+                State = "open",
+                CreatedAtUtc = StartUtc,
+                CreationOperationKey = $"triage:{reference}",
                 Version = 0,
                 ConcurrencyToken = Guid.NewGuid()
             });

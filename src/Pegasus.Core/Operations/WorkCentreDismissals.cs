@@ -117,11 +117,6 @@ public sealed class WorkCentreDismissalBatch(
     }
 }
 
-public interface IDismissWorkCentreItem
-{
-    Task ExecuteAsync(DismissWorkCentreItemRequest request, CancellationToken cancellationToken);
-}
-
 public static class WorkCentreDismissalPolicy
 {
     /// <summary>
@@ -179,7 +174,7 @@ public static class WorkCentreDismissalPolicy
 
 public sealed class DismissWorkCentreItem(
     IWorkCentreDismissalStore store,
-    TimeProvider timeProvider) : IDismissWorkCentreItem
+    TimeProvider timeProvider)
 {
     private readonly IWorkCentreDismissalStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));

@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
@@ -135,33 +135,22 @@ public sealed partial class SblInstructionExtractionPolicy
         var repairer = Section(text, "Repairer Details", "Insurance & Hire");
         var hire = Section(text, "Insurance & Hire", "Important Notes");
 
-        foreach (var item in ReadLabels(fragment, instruction, ("Introducer", "Introducer")))
+        foreach (var item in ReadLabels(fragment, instruction, InstructionLabels))
             yield return item;
-        foreach (var item in ReadLabels(fragment, claim,
-            ("Claim Number", "Claim number"), ("Incident Date", "Incident date"),
-            ("Driver", "Driver"), ("Policyholder Name", "Policyholder"),
-            ("Policyholder VAT Status", "Policyholder VAT status"),
-            ("Address", "Policyholder address")))
+        foreach (var item in ReadLabels(fragment, claim, ClaimLabels))
             yield return item;
-        foreach (var item in ReadLabels(fragment, vehicle,
-            ("Vehicle Make", "Vehicle make"), ("Model", "Vehicle model"),
-            ("Registration", "Registration"), ("Mileage", "Mileage"),
-            ("Current Vehicle Location", "Current vehicle location"),
-            ("Completed Inspection Date", "Completed inspection date")))
+        foreach (var item in ReadLabels(fragment, vehicle, VehicleLabels))
             yield return item;
         if (LabelBlock(vehicle, "Incident Circumstances", "Agreed Value") is { } circumstances)
             yield return Labelled(
                 fragment,
                 "Incident circumstances",
                 circumstances.Replace('\u2019', ProtectedRightApostrophe));
-        foreach (var item in ReadLabels(fragment, repairer,
-            ("Repairer Name", "Repairer name"), ("Repairer Address", "Repairer address"),
-            ("Repairer Tel", "Repairer telephone"), ("Repairer Email", "Repairer email"),
-            ("Agreed Labour Rate", "Agreed labour rate")))
+        foreach (var item in ReadLabels(fragment, repairer, RepairerLabels))
             yield return item;
-        foreach (var item in ReadLabels(fragment, hire, ("Hire Company", "Hire company")))
+        foreach (var item in ReadLabels(fragment, hire, HireLabels))
             yield return item;
-        var hireOutDates = DateLabels(hire, "Hire Out Date");
+        var hireOutDates = DateLabels(hire, HireOutDateLabel);
         if (hireOutDates.Length > 0)
             yield return fragment with
             {
@@ -174,7 +163,7 @@ public sealed partial class SblInstructionExtractionPolicy
     private static IEnumerable<IntakeContentFragment> ReadLabels(
         IntakeContentFragment origin,
         string? section,
-        params (string Source, string Target)[] labels)
+        (string Source, string Target)[] labels)
     {
         if (section is null)
             yield break;
@@ -228,12 +217,57 @@ public sealed partial class SblInstructionExtractionPolicy
             .ToArray();
     }
 
-    private static readonly ConcurrentDictionary<string, Regex> LabelRegexes = new(StringComparer.Ordinal);
+    // Each section's source labels, with the field name each reading is given.
+    private static readonly (string Source, string Target)[] InstructionLabels =
+    [
+        ("Introducer", "Introducer")
+    ];
 
-    private static Regex LabelRegex(string label) => LabelRegexes.GetOrAdd(label, static key => new(
-        $@"(?im)^\s*{Regex.Escape(key)}\s*:[ \t]*(?<value>[^\r\n]*)",
+    private static readonly (string Source, string Target)[] ClaimLabels =
+    [
+        ("Claim Number", "Claim number"), ("Incident Date", "Incident date"),
+        ("Driver", "Driver"), ("Policyholder Name", "Policyholder"),
+        ("Policyholder VAT Status", "Policyholder VAT status"),
+        ("Address", "Policyholder address")
+    ];
+
+    private static readonly (string Source, string Target)[] VehicleLabels =
+    [
+        ("Vehicle Make", "Vehicle make"), ("Model", "Vehicle model"),
+        ("Registration", "Registration"), ("Mileage", "Mileage"),
+        ("Current Vehicle Location", "Current vehicle location"),
+        ("Completed Inspection Date", "Completed inspection date")
+    ];
+
+    private static readonly (string Source, string Target)[] RepairerLabels =
+    [
+        ("Repairer Name", "Repairer name"), ("Repairer Address", "Repairer address"),
+        ("Repairer Tel", "Repairer telephone"), ("Repairer Email", "Repairer email"),
+        ("Agreed Labour Rate", "Agreed labour rate")
+    ];
+
+    private static readonly (string Source, string Target)[] HireLabels =
+    [
+        ("Hire Company", "Hire company")
+    ];
+
+    private const string HireOutDateLabel = "Hire Out Date";
+
+    // One regex per source label, built once from the tables above, which are
+    // declared first so they are set when this is.
+    private static readonly FrozenDictionary<string, Regex> LabelRegexes =
+        new[] { InstructionLabels, ClaimLabels, VehicleLabels, RepairerLabels, HireLabels }
+            .SelectMany(labels => labels)
+            .Select(label => label.Source)
+            .Append(HireOutDateLabel)
+            .ToFrozenDictionary(label => label, BuildLabelRegex, StringComparer.Ordinal);
+
+    private static Regex LabelRegex(string label) => LabelRegexes[label];
+
+    private static Regex BuildLabelRegex(string label) => new(
+        $@"(?im)^\s*{Regex.Escape(label)}\s*:[ \t]*(?<value>[^\r\n]*)",
         RegexOptions.CultureInvariant,
-        TimeSpan.FromMilliseconds(100)));
+        TimeSpan.FromMilliseconds(100));
 
     private static IntakeContentFragment Labelled(IntakeContentFragment origin, string label, string value) =>
         origin with { Text = $"{label}: {value}" };

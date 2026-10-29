@@ -128,8 +128,10 @@ public sealed class TriageFromIntakeIntegrationTests
     /// R195 (operator, 22 October 2026): a reply into a thread that already
     /// holds a Triage, or a message linked to a Case, opens no second Triage;
     /// nor does a request in reply form that intake already linked to a Case
-    /// outside its thread. The shape a reply actually arrives in is
-    /// "FW: RE: ...": every QDOS message reaches us as a staff forward.
+    /// outside its thread. A reply into a thread that holds a Triage links to
+    /// the Triage as a reply links to a Case (operator, 28 October 2026;
+    /// R469). The shape a reply actually arrives in is "FW: RE: ...": every
+    /// QDOS message reaches us as a staff forward.
     /// </summary>
     [Theory]
     [InlineData("origin")]
@@ -141,6 +143,7 @@ public sealed class TriageFromIntakeIntegrationTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var conversation = $"conversation-{threadHolds}";
         Guid? matchedCaseId = null;
+        Guid? threadTriageCaseId = null;
         if (threadHolds == "matched")
         {
             // An instructed Case for the reply's registration and claim
@@ -162,6 +165,14 @@ public sealed class TriageFromIntakeIntegrationTests
             {
                 var caseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, null, "t.QDOS31900");
                 await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, firstReceiptId, caseId);
+                threadTriageCaseId = caseId;
+            }
+            else
+            {
+                await using var originScope = factory.Services.CreateAsyncScope();
+                threadTriageCaseId = (await originScope.ServiceProvider.GetRequiredService<ITriageQueries>()
+                    .GetByOriginReceiptAsync(firstReceiptId, CancellationToken.None))?.CaseId;
+                Assert.NotNull(threadTriageCaseId);
             }
         }
 
@@ -181,10 +192,7 @@ public sealed class TriageFromIntakeIntegrationTests
                 .GetAsync(replyReceiptId, CancellationToken.None));
         Assert.NotEqual(IntakeDecision.CaseCreated, receipt.Decision);
         Assert.Single(receipt.Evidence, item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
-        if (matchedCaseId is not null)
-        {
-            Assert.Equal(matchedCaseId, receipt.CurrentCaseId);
-        }
+        Assert.Equal(matchedCaseId ?? threadTriageCaseId, receipt.CurrentCaseId);
         Assert.Null(
             await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
                 .GetByOriginReceiptAsync(replyReceiptId, CancellationToken.None));

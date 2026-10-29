@@ -88,6 +88,6 @@ and every write needed three calls (begin lease, write, end lease).
 - [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
 - [FRD-14](../frd/frd-14-record-edit-leases.md)
 - [ADR-0011](0011-restrict-mcp-to-automation-actor.md),
-  [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md),
+  [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md),
   [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md),
   [ADR-0035](0035-ai-job-ledger.md)

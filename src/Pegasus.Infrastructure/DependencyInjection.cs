@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.AiWork;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
@@ -122,9 +122,9 @@ public static class DependencyInjection
         services.AddScoped<IIntakeAllocationStore>(
             provider => provider.GetRequiredService<EfIntakeAllocationStore>());
         services.AddScoped<IAllocateIntake, AllocateIntake>();
-        services.AddScoped<IListIntakeByCursor, ListIntakeByCursor>();
+        services.AddScoped<ListIntakeByCursor>();
         services.AddScoped<IGetIntake, GetIntake>();
-        services.AddScoped<IGetIntakeSourceMetadata, GetIntakeSourceMetadata>();
+        services.AddScoped<GetIntakeSourceMetadata>();
         // The read half of retained mail only. The write port is registered by the
         // poll compositions below, so nothing in Web can add a retained message.
         services.AddScoped<EfRetainedMailboxMessageStore>();
@@ -141,8 +141,8 @@ public static class DependencyInjection
         services.AddScoped<GetRetainedMailPreview>();
         services.AddScoped<CorrectRetainedMailClassification>();
         services.AddScoped<IRetainedMailDismissalStore, EfRetainedMailDismissalStore>();
-        services.AddScoped<IDismissRetainedMail, DismissRetainedMail>();
-        services.AddScoped<IRestoreRetainedMail, RestoreRetainedMail>();
+        services.AddScoped<DismissRetainedMail>();
+        services.AddScoped<RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
@@ -157,7 +157,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeMutationStore>());
         services.AddScoped<AssociateRetainedMailWithCase>();
         services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
-        services.AddScoped<IResolveIntake, ResolveIntake>();
+        services.AddScoped<ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
         services.AddScoped<ILinkIntake, LinkIntake>();
@@ -174,11 +174,11 @@ public static class DependencyInjection
         services.AddScoped<IImageIntakeCasePairing, ImageIntakeCasePairing>();
         services.AddScoped<EfUnidentifiedStore>();
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
-        services.AddScoped<IListUnidentifiedQueueByCursor, ListUnidentifiedQueueByCursor>();
+        services.AddScoped<ListUnidentifiedQueueByCursor>();
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
         services.AddScoped<ICloseUnidentified, CloseUnidentified>();
-        services.AddScoped<IReopenUnidentified, ReopenUnidentified>();
+        services.AddScoped<ReopenUnidentified>();
         services.AddScoped<IGetRetainedMailAttachmentOutcomes, GetRetainedMailAttachmentOutcomes>();
         services.AddScoped<IPreCaseImagePreparationStore, EfPreCaseImagePreparationStore>();
         services.AddScoped<PreCaseImagePreparations>();
@@ -194,8 +194,8 @@ public static class DependencyInjection
         services.AddSingleton<IRenderImageForDelivery, ImageDeliveryRenderer>();
         services.AddSingleton<IExtractPdfPageText, PdfPigPageTextExtractor>();
         services.AddScoped<IReadPreCaseImageThumbnail, ReadPreCaseImageThumbnail>();
-        services.AddScoped<IGetUnidentifiedItemContext, GetUnidentifiedItemContext>();
-        services.AddScoped<IGetIntakeOfferedActions, GetIntakeOfferedActions>();
+        services.AddScoped<GetUnidentifiedItemContext>();
+        services.AddScoped<GetIntakeOfferedActions>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
@@ -204,13 +204,13 @@ public static class DependencyInjection
         services.AddScoped<ITriageResponseEvidenceCandidateQueries>(
             provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<IListTriage, ListTriage>();
-        services.AddScoped<IListTriagePage, ListTriagePage>();
+        services.AddScoped<ListTriagePage>();
         services.AddScoped<IGetTriage, GetTriage>();
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
         services.AddScoped<ITriageCasePairing, TriageCasePairing>();
         services.AddScoped<IAssignTriage, AssignTriage>();
-        services.AddScoped<IAddTriageNote, AddTriageNote>();
-        services.AddScoped<IUnassignTriage, UnassignTriage>();
+        services.AddScoped<AddTriageNote>();
+        services.AddScoped<UnassignTriage>();
         services.AddScoped<IAwaitTriageInformation, AwaitTriageInformation>();
         services.AddScoped<IRecordTriageFinding, RecordTriageFinding>();
         services.AddScoped<ISupersedeTriageFinding, SupersedeTriageFinding>();
@@ -305,7 +305,7 @@ public static class DependencyInjection
         services.AddScoped<EfStaffAccountQueries>();
         services.AddScoped<IStaffAccountQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICaseEngineerChoices>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
-        services.AddScoped<IListStaffAccounts, ListStaffAccounts>();
+        services.AddScoped<ListStaffAccounts>();
         services.AddScoped<IGetStaffAccount, GetStaffAccount>();
         services.AddScoped<IDescribeCaseEditAuthorityHolder, DescribeCaseEditAuthorityHolder>();
         services.AddScoped<EfOrganizationAdministration>();
@@ -379,8 +379,8 @@ public static class DependencyInjection
         services.AddScoped<IWorkCentreVisitStore, EfWorkCentreVisitStore>();
         services.AddScoped<IListRecentCases, ListRecentCases>();
         services.AddScoped<IWorkCentreDismissalStore, EfWorkCentreDismissalStore>();
-        services.AddScoped<IDismissWorkCentreItem, DismissWorkCentreItem>();
-        services.AddScoped<IListWorkCentreAiJobs, ListWorkCentreAiJobs>();
+        services.AddScoped<DismissWorkCentreItem>();
+        services.AddScoped<ListWorkCentreAiJobs>();
         services.AddScoped<IAiDraftAdoptionQueries, EfAiDraftAdoptionQueries>();
         services.AddScoped<ISystemActionQueries, EfSystemActionQueries>();
         services.AddScoped<IListSystemActions, ListSystemActions>();
@@ -549,7 +549,7 @@ public static class DependencyInjection
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<ICreateAiJob, CreateAiJob>();
-        services.AddScoped<IStartQueryResponse, StartQueryResponse>();
+        services.AddScoped<StartQueryResponse>();
         services.AddScoped<MarketResearchQueries>();
         services.AddScoped<IStartMarketResearch, StartMarketResearch>();
         // Guide providers register beside their adapter (Glass's through
@@ -561,7 +561,7 @@ public static class DependencyInjection
         services.AddScoped<IFillGlassVin, EfGlassVinFill>();
         services.AddScoped<IFileGuideValuationReport, FileGuideValuationReport>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
-        services.AddScoped<ICancelAiJob, CancelAiJob>();
+        services.AddScoped<CancelAiJob>();
         services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();
         services.AddScoped<ICaseTaskStore>(
@@ -591,10 +591,10 @@ public static class DependencyInjection
         services.AddScoped<ICreateAuditStore, EfCreateAuditStore>();
         services.AddScoped<ICreateAudit, CreateAudit>();
         services.AddScoped<IPutCaseOnHold, PutCaseOnHold>();
-        services.AddScoped<IReleaseCaseHold, ReleaseCaseHold>();
-        services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
+        services.AddScoped<ReleaseCaseHold>();
+        services.AddScoped<ReturnCaseToReview>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
-        services.AddScoped<IStartCaseWork, StartCaseWork>();
+        services.AddScoped<StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();
         services.AddScoped<IReleaseCase, ReleaseCase>();
         services.AddScoped<ITransitionCase, TransitionCase>();
@@ -604,7 +604,7 @@ public static class DependencyInjection
         services.AddScoped<IUnlinkReportEvidence, UnlinkReportEvidence>();
         services.AddScoped<ICloseCase, CloseCase>();
         services.AddScoped<IReopenCase, ReopenCase>();
-        services.AddScoped<IReturnCaseToEngineer, ReturnCaseToEngineer>();
+        services.AddScoped<ReturnCaseToEngineer>();
         services.AddScoped<IOpenCaseQuery, OpenCaseQuery>();
         services.AddScoped<IMarkCaseQueryDone, MarkCaseQueryDone>();
         services.AddScoped<IReopenCaseQuery, ReopenCaseQuery>();
@@ -775,12 +775,12 @@ public static class DependencyInjection
         services.AddScoped<ICreateStaffAccount, CreateStaffAccount>();
         services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
         services.AddScoped<IUpdateStaffAccountSettings, UpdateStaffAccountSettings>();
-        services.AddScoped<IEnableStaffAccount, EnableStaffAccount>();
+        services.AddScoped<EnableStaffAccount>();
         services.AddScoped<IForceStaffLogout, ForceStaffLogout>();
         services.AddScoped<IResetStaffPassword, ResetStaffPassword>();
         services.AddScoped<IDeleteStaffAccount, DeleteStaffAccount>();
         services.AddScoped<IStaffPasswordChangeStore, EfStaffPasswordChange>();
-        services.AddScoped<IChangeStaffPassword, ChangeStaffPassword>();
+        services.AddScoped<ChangeStaffPassword>();
         services.AddScoped<EfPerUserExternalCredentialStore>();
         services.AddScoped<IPerUserExternalCredentialReader>(provider =>
             provider.GetRequiredService<EfPerUserExternalCredentialStore>());

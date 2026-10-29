@@ -760,6 +760,132 @@ resource telemetryDailyCapAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-
   }
 }
 
+// R447 (22 October 2026): a matching failure is the image or Triage pairing
+// step of the staged-artifact reconciliation throwing. The Worker logs it as
+// "The {Step} step failed; ..." with the exception, so it lands in AppExceptions.
+resource matchingFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${prefix}-matching-failures'
+  location: location
+  tags: tags
+  properties: {
+    displayName: 'Pegasus production matching failures'
+    severity: 2
+    enabled: true
+    evaluationFrequency: 'PT15M'
+    scopes: [logAnalytics.id]
+    targetResourceTypes: ['Microsoft.OperationalInsights/workspaces']
+    windowSize: 'PT15M'
+    criteria: {
+      allOf: [
+        {
+          query: '''
+            union AppExceptions, AppTraces
+              | where tostring(Properties.CategoryName) == "Pegasus.Worker.StagedArtifactReconciliationFunction"
+              | where tostring(Properties.Step) in ("image pairing", "Triage pairing")
+              | summarize Failures=sum(ItemCount)
+            '''
+          timeAggregation: 'Total'
+          metricMeasureColumn: 'Failures'
+          operator: 'GreaterThanOrEqual'
+          threshold: 3
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    autoMitigate: true
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}
+
+// R447: a chasing failure is the due-work sweep failing (an Error with the
+// exception) or passing its 60 s budget (a Warning). Both lines carry the job
+// name. The ruling counts per hour, so the window is one hour, read every 15 minutes.
+resource chasingFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${prefix}-chasing-failures'
+  location: location
+  tags: tags
+  properties: {
+    displayName: 'Pegasus production chasing failures'
+    severity: 2
+    enabled: true
+    evaluationFrequency: 'PT15M'
+    scopes: [logAnalytics.id]
+    targetResourceTypes: ['Microsoft.OperationalInsights/workspaces']
+    windowSize: 'PT1H'
+    criteria: {
+      allOf: [
+        {
+          query: '''
+            union AppExceptions, AppTraces
+              | where tostring(Properties.CategoryName) == "Pegasus.Worker.PendingWorkRecoveryFunction"
+              | where tostring(Properties.Job) == "due-work sweep"
+              | summarize Failures=sum(ItemCount)
+            '''
+          timeAggregation: 'Total'
+          metricMeasureColumn: 'Failures'
+          operator: 'GreaterThanOrEqual'
+          threshold: 1
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    autoMitigate: true
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}
+
+// R447: availability is webHttp5xxAlert plus this rule. The Web keeps the
+// request row of a readiness probe that fails (QuietRequestTelemetryFilter),
+// so a failed probe is an AppRequests row; a successful one leaves none.
+resource webReadinessAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${prefix}-web-readiness'
+  location: location
+  tags: tags
+  properties: {
+    displayName: 'Pegasus production Web readiness'
+    severity: 1
+    enabled: true
+    evaluationFrequency: 'PT15M'
+    scopes: [logAnalytics.id]
+    targetResourceTypes: ['Microsoft.OperationalInsights/workspaces']
+    windowSize: 'PT15M'
+    criteria: {
+      allOf: [
+        {
+          query: '''
+            AppRequests
+              | where Name == "GET /health/ready" or tostring(parse_url(Url).Path) == "/health/ready"
+              | where Success == false or toint(ResultCode) >= 500
+              | summarize FailedProbes=sum(ItemCount)
+            '''
+          timeAggregation: 'Total'
+          metricMeasureColumn: 'FailedProbes'
+          operator: 'GreaterThanOrEqual'
+          threshold: 3
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    autoMitigate: true
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}
+
 output webAppName string = webActivationApproved ? webApp!.name : ''
 output webAppHostName string = webActivationApproved ? webApp!.properties.defaultHostName : ''
 output webPublicOrigin string = webPublicOrigin

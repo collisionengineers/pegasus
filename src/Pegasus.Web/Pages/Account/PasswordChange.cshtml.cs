@@ -8,7 +8,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Web.Pages.Account;
 
 public sealed class PasswordChangeModel(
-    IChangeStaffPassword changeStaffPassword,
+    ChangeStaffPassword changeStaffPassword,
     SignInManager<PegasusIdentityUser> signInManager)
     : StaffPageModel
 {

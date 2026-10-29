@@ -54,24 +54,19 @@ public sealed record UnidentifiedItemContext(
         .ToArray() is [var single] ? single : null;
 }
 
-public interface IGetUnidentifiedItemContext
-{
-    Task<UnidentifiedItemContext?> ExecuteAsync(ActionActor actor, Guid unidentifiedItemId, CancellationToken cancellationToken);
-}
-
 public sealed class GetUnidentifiedItemContext(
     IUnidentifiedStore store,
     IIntakeReceiptQueries receipts,
     IImageIntakeQueries imageIntakes,
     ITriageQueries triages,
-    IGetIntakeOfferedActions offers,
-    IIntakeSubmissionGroupStore submissionGroups) : IGetUnidentifiedItemContext
+    GetIntakeOfferedActions offers,
+    IIntakeSubmissionGroupStore submissionGroups)
 {
     private readonly IUnidentifiedStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly IIntakeReceiptQueries _receipts = receipts ?? throw new ArgumentNullException(nameof(receipts));
     private readonly IImageIntakeQueries _imageIntakes = imageIntakes ?? throw new ArgumentNullException(nameof(imageIntakes));
     private readonly ITriageQueries _triages = triages ?? throw new ArgumentNullException(nameof(triages));
-    private readonly IGetIntakeOfferedActions _offers = offers ?? throw new ArgumentNullException(nameof(offers));
+    private readonly GetIntakeOfferedActions _offers = offers ?? throw new ArgumentNullException(nameof(offers));
     private readonly IIntakeSubmissionGroupStore _submissionGroups =
         submissionGroups ?? throw new ArgumentNullException(nameof(submissionGroups));
 

@@ -90,7 +90,10 @@ established Principal and a known registration, Pegasus allocates the `t.`
 Case/PO, opens the Triage Case as `Open`, records its origin receipt and
 history, and starts standard Case custody, all in one transaction. A
 request in reply form opens the Triage unless the thread already holds a
-Case or Triage (operator, 22 October 2026; R195). With no
+Case or Triage (operator, 22 October 2026; R195). A reply into a thread
+that holds a Triage links to the Triage as a reply links to a Case
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#automatic-case-association-of-retained-mail);
+operator, 28 October 2026; R469, superseding R455). With no
 known registration no Triage opens and no Unidentified item is made: the
 message shows in the Inbox's No Case Found scope until staff open the
 Triage from it with a registration. A message left Unclassified

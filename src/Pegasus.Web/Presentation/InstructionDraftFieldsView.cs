@@ -11,7 +11,7 @@ namespace Pegasus.Web.Presentation;
 /// person reviews or keys them while a reference is allocated, and the
 /// received-item screen, where a blocked item is corrected so it has a route
 /// forward. Two Web callers of one Core use case is not duplicate business
-/// implementation — <see cref="IResolveIntake"/> owns the rule either way — but
+/// implementation — <see cref="ResolveIntake"/> owns the rule either way — but
 /// a second copy of this markup would be a second place to forget a field. So
 /// the markup lives once, in <c>_InstructionDraftFields.cshtml</c>, and this
 /// says what to render.

@@ -58,4 +58,4 @@ keys). Dynamic client registration and per-staff MCP tokens remain excluded.
 ## Links
 
 - [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
-- [ADR-0011](0011-restrict-mcp-to-automation-actor.md), [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md), [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)
+- [ADR-0011](0011-restrict-mcp-to-automation-actor.md), [ADR-0021](superseded/0021-automation-actor-direct-write-assessment-contract.md), [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)

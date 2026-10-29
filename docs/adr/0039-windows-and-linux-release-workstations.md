@@ -48,7 +48,7 @@ This decision establishes support, not native execution or deployment proof.
 
 ## Links
 
-- Superseded choice: [ADR-0037](0037-linux-authorised-release-workstation.md).
+- Superseded choice: [ADR-0037](superseded/0037-linux-authorised-release-workstation.md).
 - Direct terminal: [ADR-0007](0007-direct-terminal-azure-deployment.md).
 - Environment boundary: [ADR-0014](0014-local-to-production-deployment.md).
 - Procedure: [Runbook](../../.agents/skills/pegasus-release/SKILL.md).
