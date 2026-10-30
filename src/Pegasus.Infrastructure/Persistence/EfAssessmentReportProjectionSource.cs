@@ -165,7 +165,6 @@ internal sealed class EfAssessmentReportProjectionSource(
                         pair.Row.DocumentId,
                         pair.Row.VersionId,
                         pair.Row.Version,
-                        pair.Row.SemanticRole,
                         pair.Row.FileName,
                         pair.Row.MediaType,
                         pair.Row.BoxFileId,
@@ -319,7 +318,7 @@ internal sealed class EfAssessmentReportProjectionSource(
                    artifact => artifact.OperationKey == occurrence.OperationKey)
          orderby occurrence.Ordinal
          select new ConfirmedDocumentRow(
-             occurrence.Id, occurrence.Ordinal, occurrence.DocumentId, occurrence.SemanticRole,
+             occurrence.Id, occurrence.Ordinal, occurrence.DocumentId,
              version.Id, version.Version, version.FileName, version.MediaType,
              version.ContentLength, version.Sha256, version.BoxFileId, version.BoxVersionId,
              document.CustodyFolder))
@@ -341,7 +340,6 @@ internal sealed class EfAssessmentReportProjectionSource(
         Guid OccurrenceId,
         int Ordinal,
         Guid DocumentId,
-        DocumentSemanticRole SemanticRole,
         Guid VersionId,
         int Version,
         string FileName,

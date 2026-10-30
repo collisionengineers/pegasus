@@ -414,6 +414,7 @@ public sealed class DependencyDirectionTests
         Assert.DoesNotContain(typeof(IGetCaseEditBasis), casePageDependencies);
         Assert.DoesNotContain(typeof(ISaveCaseWorkspace), casePageDependencies);
         Assert.Contains(typeof(ILogicallyRemoveDocument), custodyPageDependencies);
+        Assert.Contains(typeof(ISetDocumentType), custodyPageDependencies);
     }
 
     [Fact]

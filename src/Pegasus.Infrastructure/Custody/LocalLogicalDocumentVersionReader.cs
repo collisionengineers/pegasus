@@ -68,7 +68,6 @@ internal sealed class LocalLogicalDocumentVersionReader(
             resolved.Document.Id,
             resolved.Version.Id,
             resolved.Version.Version,
-            resolved.Occurrence.SemanticRole,
             resolved.Version.FileName,
             resolved.Version.MediaType,
             resolved.Version.BoxFileId,

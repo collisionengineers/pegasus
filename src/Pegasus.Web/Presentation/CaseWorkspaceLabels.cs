@@ -1346,6 +1346,12 @@ public static class CaseWorkspaceLabels
         public const string ImportEstimate = "Import as repair spec";
         public const string Remove = "Remove";
         public const string RemoveFile = "Remove file";
+        // Change type on a Documents row (operator, 21 and 30 October 2026):
+        // the button, its dialog's title, the type field and the landed notice.
+        public const string ChangeType = "Change type";
+        public const string ChangeTypeTitle = "Change document type";
+        public const string Type = "Type";
+        public const string TypeWasChanged = "The document type was changed.";
         public const string StorageNotReady = "Storage not ready";
         public const string NoDocuments = "No documents on this Case.";
         public const string NoImages = "No images on this Case.";

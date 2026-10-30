@@ -64,7 +64,6 @@ public sealed class BoxDocumentContentStoreTests
         var content = Encoding.UTF8.GetBytes("other evidence");
         var address = Address() with
         {
-            SemanticRole = DocumentSemanticRole.Other,
             FileName = "other evidence.txt",
             MediaType = "text/plain"
         };
@@ -1126,7 +1125,6 @@ public sealed class BoxDocumentContentStoreTests
         DocumentId,
         VersionId,
         1,
-        DocumentSemanticRole.Image,
         fileName,
         "image/jpeg");
 
