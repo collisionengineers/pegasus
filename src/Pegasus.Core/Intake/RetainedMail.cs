@@ -34,8 +34,7 @@ public enum MailFolderScope
 /// no linked Case that is not decided to be a Pre-Pegasus case.
 /// <paramref name="PrincipalCode"/> narrows to one Principal, the route
 /// decision's or the linked Case's. On Inbox, the default scope is All:
-/// linked mail, a New instruction, a Triage request, a Pre-Pegasus case, or
-/// a receipt nothing has classified yet.
+/// every received message not dismissed, No Case Found mail included.
 /// </summary>
 public sealed record MailWorkspaceScope(
     Guid? MailboxId,

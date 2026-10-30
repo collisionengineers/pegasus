@@ -3656,7 +3656,23 @@
         var identitiesHost = form.closest('[data-estimate-section]') || form;
         identitiesHost.addEventListener('pegasus:carried-forward', function (event) {
             var carrier = event.target;
-            if (!carrier || !carrier.matches || !carrier.matches('[data-estimate-line-ids]') || !carrier.value) {
+            if (!carrier || !carrier.matches || !carrier.value) {
+                return;
+            }
+            // A new spec's first commit created it: the editor posts its id
+            // from now on, and the address names it, so the catch up that
+            // follows draws the saved spec rather than a blank new one.
+            if (carrier.matches('[data-estimate-written]')) {
+                var posted = form.querySelector('input[name="estimateId"]');
+                if (posted && posted.value !== carrier.value) {
+                    posted.value = carrier.value;
+                    var address = new URL(window.location.href);
+                    address.searchParams.set('estimate', carrier.value);
+                    window.history.replaceState(window.history.state, '', address.toString());
+                }
+                return;
+            }
+            if (!carrier.matches('[data-estimate-line-ids]')) {
                 return;
             }
             var rows = body.querySelectorAll('tr[data-estimate-line]');

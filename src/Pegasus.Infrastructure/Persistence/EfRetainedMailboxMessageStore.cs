@@ -1261,7 +1261,7 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     /// <summary>
     /// The one filter pipeline for a workspace scope: folder, dismissal,
-    /// mailbox, unread, search, Principal and the Inbox membership. The list
+    /// mailbox, unread, search, Principal and No Case Found. The list
     /// pages it and the scope counts it; neither owns a second copy.
     /// </summary>
     private static IQueryable<RetainedMailboxMessageEntity> BuildMatches(
@@ -1341,8 +1341,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
 
         const string classified = "classified";
-        var newInstruction = MailCategories.Code(MailCategory.NewInstruction);
-        var triageRequest = MailCategories.Code(MailCategory.TriageRequest);
         var prePegasusCase = MailCategories.Code(MailCategory.PrePegasusCase);
 
         if (scope.NoCaseFound)
@@ -1374,40 +1372,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                     && receipt.MailClassificationDecision.Category == prePegasusCase)));
         }
 
-        // All, on Inbox only: linked mail, a New instruction, a Triage request,
-        // a Pre-Pegasus case, or a receipt nothing has classified yet. Sent and
-        // Upload are not the Inbox ledger. Dismissed is its own scope.
-        if (scope.Folder != MailFolderScope.Inbox || scope.DismissedOnly)
-        {
-            return messages;
-        }
-
-        return messages.Where(message =>
-            !context.IntakeReceipts.Any(receipt =>
-                receipt.SourceChannel == "mailbox"
-                && receipt.ExternalReceiptToken == message.ExternalReceiptToken
-                && receipt.MailClassificationDecision != null)
-            || context.IntakeReceipts.Any(receipt =>
-                receipt.SourceChannel == "mailbox"
-                && receipt.ExternalReceiptToken == message.ExternalReceiptToken
-                && ((receipt.MailClassificationDecision != null
-                        && receipt.MailClassificationDecision.Outcome == classified
-                        && (receipt.MailClassificationDecision.Category == newInstruction
-                            || receipt.MailClassificationDecision.Category == triageRequest
-                            || receipt.MailClassificationDecision.Category == prePegasusCase))
-                    || context.IntakeManualAssociations.Any(association =>
-                        association.IntakeReceiptId == receipt.Id && association.IsActive)
-                    || (!context.IntakeManualAssociations.Any(association =>
-                            association.IntakeReceiptId == receipt.Id)
-                        && context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == receipt.Id))
-                    || (!context.IntakeManualAssociations.Any(association =>
-                            association.IntakeReceiptId == receipt.Id && !association.IsActive)
-                        && context.IntakeAllocationAttempts
-                            .Where(attempt => attempt.IntakeReceiptId == receipt.Id)
-                            .OrderByDescending(attempt => attempt.AttemptNumber)
-                            .Select(attempt => attempt.CaseId)
-                            .FirstOrDefault() != null)
-                    || context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id))));
+        // All is every message the folder and dismissal filters left, No Case
+        // Found mail included (operator, 30 October 2026, R570).
+        return messages;
     }
 
     /// <summary>

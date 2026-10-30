@@ -184,8 +184,8 @@
                             </div>
                             @* Type (v42 H; R559): the category as its status chip with the work
                                type beneath as a plain neutral chip, the message's open query as
-                               the purple Query chip with its assignee, and Correspondence as a
-                               neutral chip. *@
+                               the purple Query chip with its assignee, and no category as a
+                               neutral chip: Correspondence when linked, No Case Found when not (R571). *@
                             <div class="inbox-cell-type">
                                 @if (item.Query is { IsOpen: true } query)
                                 {
@@ -202,7 +202,7 @@
                                 }
                                 else
                                 {
-                                    <span class="status status--neutral">@OperatorLabels.Inbox.Correspondence</span>
+                                    <span class="status status--neutral">@MailClassificationSelection.NoCategoryLabel(item.CaseId is not null)</span>
                                 }
                             </div>
                             <div class="inbox-cell-message">

@@ -645,8 +645,12 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.Null(detail.ReplyToAddresses);
     }
 
+    /// <summary>
+    /// All lists every message not dismissed, No Case Found mail included
+    /// (operator, 30 October 2026, R570); No Case Found lists the unlinked mail.
+    /// </summary>
     [Fact]
-    public async Task AllListsLinkedNewInstructionTriageAndUndecidedAndNoCaseFoundListsUnlinkedMail()
+    public async Task AllListsEveryMessageAndNoCaseFoundListsUnlinkedMail()
     {
         var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
@@ -677,7 +681,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         var all = (await queries.ListAsync(
             new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items;
         Assert.Equal(
-            ["Instruction", "Triage", "Undecided"],
+            ["Cancellation", "Correspondence", "Instruction", "Triage", "Undecided"],
             all.Select(item => item.Subject).Order(StringComparer.Ordinal));
 
         var noCaseFound = (await queries.ListAsync(
@@ -688,7 +692,6 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.Equal(
             ["Cancellation", "Correspondence", "Instruction", "Triage"],
             noCaseFound.Select(item => item.Subject).Order(StringComparer.Ordinal));
-        Assert.DoesNotContain(all, item => item.Subject is "Correspondence" or "Cancellation");
     }
 
     /// <summary>
@@ -723,7 +726,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
             messageId = (await queries.ListAsync(noCaseFound, 1, 25, CancellationToken.None))
                 .Items.Single(item => item.Subject == "Legacy chase").Id;
-            Assert.DoesNotContain(
+            Assert.Contains(
                 (await queries.ListAsync(all, 1, 25, CancellationToken.None)).Items,
                 item => item.Subject == "Legacy chase");
             await scope.ServiceProvider
@@ -769,7 +772,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.Contains(
             (await retained.ListAsync(noCaseFound, 1, 25, CancellationToken.None)).Items,
             item => item.Subject == "Legacy chase");
-        Assert.DoesNotContain(
+        Assert.Contains(
             (await retained.ListAsync(all, 1, 25, CancellationToken.None)).Items,
             item => item.Subject == "Legacy chase");
     }
@@ -952,16 +955,14 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.Null(Assert.Single(noCaseFound.Items, item => item.Subject == "Plain").CaseId);
         Assert.Null(Assert.Single(noCaseFound.Items, item => item.Subject == "Reversed link").CaseId);
 
-        // All incoming is instructions, triage requests and linked mail, plus a
-        // receipt nothing has classified yet. Unlinked correspondence stays in
-        // No Case Found.
+        // All is every message, the No Case Found ones included (R570).
         var allIncoming = (await queries.ListAsync(
             new(null, MailFolderScope.Inbox),
             1,
             25,
             CancellationToken.None)).Items;
         Assert.Equal(
-            ["Accepted link", "Active link", "No receipt", "Triage origin"],
+            ["Accepted link", "Active link", "No receipt", "Plain", "Reversed link", "Triage origin"],
             allIncoming.Select(item => item.Subject).Order(StringComparer.Ordinal));
         Assert.Equal(caseId, Assert.Single(allIncoming, item => item.Subject == "Active link").CaseId);
         Assert.Equal(caseId, Assert.Single(allIncoming, item => item.Subject == "Accepted link").CaseId);
@@ -1003,7 +1004,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
 
         // All, No Case Found, Sent and Dismissed, then a duplicate and a
         // Principal that matches nothing, to pin CountMany's positional contract.
-        // Unlinked correspondence is not in All. Dismissed is only in Dismissed.
+        // All holds every message not dismissed (R570). Dismissed is only in Dismissed.
         IReadOnlyList<MailWorkspaceScope> scopes =
         [
             new(null, MailFolderScope.Inbox),
@@ -1018,7 +1019,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
         var batchCounts = await queries.CountManyAsync(scopes, CancellationToken.None);
 
-        Assert.Equal([2, 4, 0, 1, 4, 0], batchCounts);
+        Assert.Equal([4, 4, 0, 1, 4, 0], batchCounts);
         Assert.Equal(batchCounts[1], batchCounts[4]);
         Assert.Equal(0, batchCounts[5]);
     }
@@ -1166,12 +1167,12 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
     }
 
     /// <summary>
-    /// All incoming and No Case Found filter before the SQL count and the page.
-    /// Correcting correspondence to a New instruction brings it into All incoming;
-    /// an unlinked message that stays correspondence stays in No Case Found only.
+    /// All counts and pages every message, whatever its type (R570). Correcting
+    /// correspondence to a New instruction links nothing, so the message stays
+    /// in No Case Found as well as All.
     /// </summary>
     [Fact]
-    public async Task AllIncomingAndNoCaseFoundFilterBeforeCountAndPagingAndUseCorrections()
+    public async Task AllCountsAndPagesEveryMessageAndACorrectionLinksNothing()
     {
         var database = await shared.FreshAsync();
         await SeedPollStateAsync(database);
@@ -1210,7 +1211,8 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 1,
                 25,
                 CancellationToken.None);
-            Assert.DoesNotContain(beforeAll.Items, item => item.Subject == "corrected");
+            Assert.Contains(beforeAll.Items, item => item.Subject == "corrected");
+            Assert.Contains(beforeAll.Items, item => item.Subject == "unrelated");
             var messageId = (await queries.ListAsync(noCaseFound, 1, 25, CancellationToken.None))
                 .Items.Single(item => item.Subject == "corrected").Id;
             await correctionScope.ServiceProvider
@@ -1240,13 +1242,12 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
             CancellationToken.None);
         var waiting = await retained.ListAsync(noCaseFound, 1, 25, CancellationToken.None);
 
-        // Six instructions plus the corrected one. The filter runs before the count and the page.
-        Assert.Equal(7, first.TotalCount);
+        // Six instructions, the corrected one and the unrelated one.
+        Assert.Equal(8, first.TotalCount);
         Assert.Equal(3, first.TotalPages);
         Assert.Equal(3, first.Items.Count);
         Assert.Contains(first.Items, item => item.Subject == "corrected");
-        Assert.Single(third.Items);
-        Assert.DoesNotContain(first.Items.Concat(third.Items), item => item.Subject == "unrelated");
+        Assert.Equal(2, third.Items.Count);
         // Unlinked mail of either type is in No Case Found. The correction did not link it.
         Assert.Contains(waiting.Items, item => item.Subject == "unrelated");
         Assert.Contains(waiting.Items, item => item.Subject == "corrected");
