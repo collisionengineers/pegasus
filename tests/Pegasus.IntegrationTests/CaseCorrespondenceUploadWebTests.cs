@@ -47,7 +47,7 @@ public sealed class CaseCorrespondenceUploadWebTests
             StringComparison.Ordinal);
         Assert.Contains($"id=\"{dialogId}-title\" class=\"wrap\" tabindex=\"-1\">QDOS test instruction</h2>", html, StringComparison.Ordinal);
         Assert.Contains("<span>Open full message</span>", html, StringComparison.Ordinal);
-        // R551: the full message is the Inbox's message dialog.
+        // R560: the full message is the Inbox's message dialog.
         Assert.Contains($"href=\"/Inbox?open={messageId:D}\" data-case-message-record", html, StringComparison.Ordinal);
 
         // The dialog's body is the record's content, for an uploaded email too.

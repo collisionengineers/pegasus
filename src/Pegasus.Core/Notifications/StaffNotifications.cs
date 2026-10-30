@@ -141,7 +141,7 @@ public static class StaffNotificationPolicy
 
     /// <summary>
     /// The message as the Inbox's dialog: every in-app link to a message opens
-    /// it there (operator, 30 October 2026, R551); <c>/Inbox/{id}</c> stays for
+    /// it there (operator, 30 October 2026, R560); <c>/Inbox/{id}</c> stays for
     /// a new tab and for no script (R159 (c)).
     /// </summary>
     public static string MessageRoute(Guid retainedMessageId) => $"/Inbox?open={retainedMessageId:D}";

@@ -81,7 +81,7 @@ Every other in-app link to a message (the Case's message dialog and its
 Reply, Reply all and Forward, the Case's query Reply, Unidentified, Image
 Intake, Create case, the Logs drawer and notifications) opens the Inbox with
 that message's dialog open, `/Inbox?open={id}`; the `/Inbox/{id}` page draws
-the dialog's head (operator, 30 October 2026, R551).
+the dialog's head (operator, 30 October 2026, R560).
 Clicking elsewhere on a row selects it. The selected row is marked. Up and
 Down move through the rows. In All incoming, No Case Found and Dismissed each
 row carries a checkbox in its left gutter; ticking it neither opens nor

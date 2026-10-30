@@ -860,7 +860,7 @@ Where the record offers **Reply**, **Reply all** and **Forward**, the
 dialog does too; each opens the composer in the Inbox's message dialog with
 this Case chosen. Its **Open full message** opens the Inbox with that
 message's dialog open, which keeps classification and the Case link
-(operator, 30 October 2026, R551); without script the row
+(operator, 30 October 2026, R560); without script the row
 opens the `/Inbox/{id}` record.
 There is no Compose
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
