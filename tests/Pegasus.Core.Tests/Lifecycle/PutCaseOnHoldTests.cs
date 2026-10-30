@@ -131,6 +131,15 @@ public sealed class PutCaseOnHoldTests
 
     private sealed class HoldStore : ICaseWorkflowStore
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public PutCaseOnHoldRequest? Held { get; private set; }
 
         /// <summary>Every read of the Case or of its operations a command made before the write.</summary>

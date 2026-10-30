@@ -58,6 +58,15 @@ public sealed class ReturnCaseToReviewTests
 
     private sealed class ReviewStore : ICaseWorkflowStore
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         private CaseWorkflowRecord _current =
             CaseQueryRulesTests.Workflow(CaseLifecycleState.ReportPreparation, hasOpenQuery: false);
 
