@@ -39,6 +39,22 @@ public static class CaseWorkspaceLabels
         public const string CollapseSection = "Collapse section";
         public const string ExpandSection = "Expand section";
         public const string TakeOver = "Take over";
+        /// <summary>
+        /// Requests to edit (R550–R557, 30 October 2026): the second editor on a Case a member
+        /// of staff holds asks; the holder answers Accept or Deny in a popup; an unanswered
+        /// request offers Take over anyway.
+        /// </summary>
+        public const string AskToEdit = "Ask to edit";
+        public const string TakeOverAnyway = "Take over anyway";
+        public const string RequestToEdit = "Request to edit";
+        public const string Accept = "Accept";
+        public const string Deny = "Deny";
+        public static string WaitingFor(string name) => $"Waiting for {name} to answer…";
+        public static string Declined(string name) => $"{name} declined.";
+        /// <summary>The popup's sentence to the holder.</summary>
+        public static string AsksToEdit(string name) => $"{name} has asked to edit this Case.";
+        /// <summary>The words the hidden tab's title alternates with.</summary>
+        public static string TitleFlash(string name) => $"{name} asks to edit";
         public const string Editing = "Editing";
         public const string Archived = "Archived";
         /// <summary>The aside's Views card and its two rows, present once the Case has its Audit (v29 option 4).</summary>
@@ -1330,6 +1346,12 @@ public static class CaseWorkspaceLabels
         public const string ImportEstimate = "Import as repair spec";
         public const string Remove = "Remove";
         public const string RemoveFile = "Remove file";
+        // Change type on a Documents row (operator, 21 and 30 October 2026):
+        // the button, its dialog's title, the type field and the landed notice.
+        public const string ChangeType = "Change type";
+        public const string ChangeTypeTitle = "Change document type";
+        public const string Type = "Type";
+        public const string TypeWasChanged = "The document type was changed.";
         public const string StorageNotReady = "Storage not ready";
         public const string NoDocuments = "No documents on this Case.";
         public const string NoImages = "No images on this Case.";

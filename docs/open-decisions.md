@@ -38,5 +38,7 @@ durable owner.
   duplicate Case under a new reference. The operator's ruling of 28 October
   2026 (R512) makes this the one cutover item that is decided and built before
   the v1 date; [#1336](https://github.com/collisionengineers/pegasus/issues/1336)
-  and [#1601](https://github.com/collisionengineers/pegasus/issues/1601) stay
+  was taken up on 30 October 2026 (R561: the Pre-Pegasus case mail category
+  and the classifier agent's read-only old-system lookups), and
+  [#1601](https://github.com/collisionengineers/pegasus/issues/1601) stays
   parked under R391 until the date is set.

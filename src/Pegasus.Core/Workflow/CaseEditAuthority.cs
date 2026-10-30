@@ -61,12 +61,13 @@ public static class CaseEditAuthority
     }
 
     /// <summary>
-    /// A takeover is a casework action. A staff-held lease may be taken over by a colleague or by
-    /// the Automation Actor, which may do anything a staff member can (operator, 7 October 2026);
-    /// a lease the Automation Actor holds, by a member of staff only (operator, 15 and 16 October
-    /// 2026).
+    /// The takeover of a record edit scope (an Image Intake record or a Triage Case), which keeps
+    /// the immediate takeover (R556, 30 October 2026): a staff-held scope may be taken over by a
+    /// colleague or by the Automation Actor (operator, 7 October 2026); a scope the Automation
+    /// Actor holds, by a member of staff only (operator, 15 and 16 October 2026). A Case lease
+    /// is taken over as a request makes it (<see cref="CanTakeOver"/>).
     /// </summary>
-    public static bool CanTakeOver(ActorKind? retainedLeaseHolderKind, ActionActor actor)
+    public static bool CanTakeOverRecordScope(ActorKind? retainedLeaseHolderKind, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
         return StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)

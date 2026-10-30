@@ -109,7 +109,8 @@ internal static partial class CaseWebTestSupport
         IUntagCaseImage,
         ISetCaseImageInReport,
         ICreateImageTag,
-        IMarkAsOriginalReportStore
+        IMarkAsOriginalReportStore,
+        ISetDocumentType
     {
         /// <summary>The case's documents, when a test supplies them.</summary>
         public IReadOnlyList<CaseDocument> CaseDocuments { get; set; } = [];
@@ -121,6 +122,7 @@ internal static partial class CaseWebTestSupport
         public List<SetCaseImageInReportCommand> ImagesSetInReport { get; } = [];
         public List<CreateImageTagCommand> ImageTagsCreated { get; } = [];
         public List<MarkAsOriginalReportCommand> OriginalReportMarks { get; } = [];
+        public List<SetDocumentTypeCommand> DocumentTypeChanges { get; } = [];
 
         Task<AddCaseDocumentResult> IAddCaseDocument.ExecuteAsync(
             AddCaseDocumentCommand command,
@@ -165,6 +167,16 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             DocumentRemovals.Add(command);
+            ConsumeLease();
+            return Task.CompletedTask;
+        }
+
+        Task ISetDocumentType.ExecuteAsync(
+            SetDocumentTypeCommand command,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            DocumentTypeChanges.Add(command);
             ConsumeLease();
             return Task.CompletedTask;
         }

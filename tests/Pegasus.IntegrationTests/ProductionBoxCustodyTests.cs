@@ -19,6 +19,104 @@ public sealed class ProductionBoxCustodyTests
         {"boxAppSettings":{"clientID":"client-id","appAuth":{"publicKeyID":"key-id","privateKey":"private-key","passphrase":"passphrase"}},"enterpriseID":"enterprise-id"}
         """;
 
+    /// <summary>
+    /// The old-system folder search (R561) is Box's search fenced to the
+    /// configured old-system folder: a hit from any other ancestry or of any
+    /// other type is dropped, names only come back, and without the folder
+    /// configured the answer is Unavailable with no request made.
+    /// </summary>
+    [Fact]
+    public async Task OldSystemFolderSearchReadsNamesBelowTheOldSystemFolderOnlyAndIsUnavailableWithoutOne()
+    {
+        var requests = new List<HttpRequestMessage>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add(request);
+            const string body = """
+                {"entries":[
+                  {"type":"folder","id":"1","name":"QDOS26070","modified_at":"2031-05-06T10:30:00Z","path_collection":{"entries":[{"id":"0"},{"id":"3220448509"}]}},
+                  {"type":"folder","id":"2","name":"QDOS26070 elsewhere","path_collection":{"entries":[{"id":"0"},{"id":"405543781910"}]}},
+                  {"type":"file","id":"3","name":"QDOS26070.pdf","path_collection":{"entries":[{"id":"3220448509"}]}}
+                ],"total_count":3,"limit":10,"offset":0}
+                """;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            };
+        });
+        var options = BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "405543781910",
+            BoxConfigJson,
+            "client-secret",
+            "test-holding-folder",
+            oldSystemRootFolderId: BoxCustodyOptions.ProductionOldSystemRootFolderId);
+        var client = new BoxContentClient(
+            options,
+            new HttpClient(handler),
+            new RecordingAuthorizationHeaderProvider(),
+            TimeProvider.System,
+            new MemoryCache(new MemoryCacheOptions()));
+
+        var result = await new BoxOldSystemCaseFolderSearch(client, options)
+            .SearchAsync("QDOS26070", 10, CancellationToken.None);
+
+        var request = Assert.Single(requests);
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal("/2.0/search", request.RequestUri!.AbsolutePath);
+        var query = HttpUtility.ParseQueryString(request.RequestUri.Query);
+        Assert.Equal("QDOS26070", query["query"]);
+        Assert.Equal("folder", query["type"]);
+        Assert.Equal("3220448509", query["ancestor_folder_ids"]);
+        Assert.Equal("10", query["limit"]);
+        var hit = Assert.Single(result.Items);
+        Assert.Equal("1", hit.FolderId);
+        Assert.Equal("QDOS26070", hit.Name);
+        Assert.Equal(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero), hit.ModifiedAtUtc);
+        Assert.Equal(OldSystemLookupState.Available, result.State);
+        Assert.False(result.IsTruncated);
+
+        var unconfigured = await new BoxOldSystemCaseFolderSearch(client, options with { OldSystemRootFolderId = null })
+            .SearchAsync("QDOS26070", 10, CancellationToken.None);
+
+        Assert.Equal(OldSystemLookupState.Unavailable, unconfigured.State);
+        Assert.Single(requests);
+    }
+
+    [Fact]
+    public void ConfigurationRefusesAnOldSystemFolderThatIsTheCustodyRootOrTheHoldingFolder()
+    {
+        var sameAsRoot = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "405543781910",
+            BoxConfigJson,
+            "client-secret",
+            "test-holding-folder",
+            oldSystemRootFolderId: "405543781910"));
+        var sameAsHolding = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "405543781910",
+            BoxConfigJson,
+            "client-secret",
+            "test-holding-folder",
+            oldSystemRootFolderId: "test-holding-folder"));
+        var blank = BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "405543781910",
+            BoxConfigJson,
+            "client-secret",
+            "test-holding-folder",
+            oldSystemRootFolderId: " ");
+
+        Assert.Contains("Box:OldSystemRootFolderId", sameAsRoot.Message, StringComparison.Ordinal);
+        Assert.Contains("Box:OldSystemRootFolderId", sameAsHolding.Message, StringComparison.Ordinal);
+        Assert.Null(blank.OldSystemRootFolderId);
+    }
+
     [Fact]
     public void ConfigurationRejectsAnyRootOtherThanTheApprovedFolder()
     {
@@ -1282,7 +1380,6 @@ public sealed class ProductionBoxCustodyTests
         Guid.Parse($"20000000-0000-0000-0000-{ordinal:D12}"),
         Guid.Parse($"30000000-0000-0000-{version:D4}-{ordinal:D12}"),
         version,
-        DocumentSemanticRole.Image,
         fileName,
         "image/jpeg");
 

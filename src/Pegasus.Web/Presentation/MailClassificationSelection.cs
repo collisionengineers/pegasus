@@ -5,7 +5,7 @@ namespace Pegasus.Web.Presentation;
 
 /// <summary>
 /// The one presentation-side vocabulary for choosing a mail type: Correspondence
-/// (no category) and the three categories, with a New instruction naming its
+/// (no category) and the four categories, with a New instruction naming its
 /// Case type in the same option. The message record and the Automation MCP
 /// mail tools both consume this list.
 /// </summary>
@@ -30,7 +30,7 @@ public static class MailClassificationSelection
         [CaseType.Inspection, CaseType.Audit, CaseType.InspectionAndAudit];
 
     /// <summary>
-    /// The six Type options, in order. A New instruction's value is
+    /// The seven Type options, in order. A New instruction's value is
     /// <c>new-instruction:Inspection</c> and the same shape for the other work types.
     /// </summary>
     public static IReadOnlyList<SelectionOption> TypeSelectOptions { get; } =
@@ -40,7 +40,8 @@ public static class MailClassificationSelection
         new(Combined(MailCategory.NewInstruction, CaseType.Audit), OperatorLabels.Inbox.NewInstructionAudit),
         new(Combined(MailCategory.NewInstruction, CaseType.InspectionAndAudit), OperatorLabels.Inbox.NewInstructionInspectionAndAudit),
         new(MailCategories.Code(MailCategory.TriageRequest), OperatorLabels.MailClassification(MailCategory.TriageRequest)),
-        new(MailCategories.Code(MailCategory.Cancellation), OperatorLabels.MailClassification(MailCategory.Cancellation))
+        new(MailCategories.Code(MailCategory.Cancellation), OperatorLabels.MailClassification(MailCategory.Cancellation)),
+        new(MailCategories.Code(MailCategory.PrePegasusCase), OperatorLabels.MailClassification(MailCategory.PrePegasusCase))
     ];
 
     /// <summary>The three work types a New instruction may name, for a split input.</summary>

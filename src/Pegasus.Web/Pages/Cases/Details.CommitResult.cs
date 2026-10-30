@@ -130,6 +130,13 @@ public sealed partial class DetailsModel
                     actor,
                     token))
                 : null;
+            var requester = viewerHoldsLease && Case.Frame.EditRequest is { Answer: null } asking
+                ? reads.Start(token => describeEditAuthorityHolder.ExecuteAsync(
+                    asking.RequesterKind,
+                    asking.Requester,
+                    actor,
+                    token))
+                : null;
             // The calculator's opening calculation is the one the script carries
             // forward, so it is read wherever the calculator is editable.
             var valuation = SectionIsEditable("valuation")
@@ -158,9 +165,13 @@ public sealed partial class DetailsModel
             AiDrafts = AiDraftPolicy.Drafts(await caseAiJobs, Case.Data.RequiredAiDraftTargetDays);
             if (activeLease is not null)
             {
-                ViewerHoldsEditAuthority = viewerHoldsLease;
-                ViewerMayTakeOver = CaseEditAuthority.CanTakeOver(activeLease.HolderKind, actor);
-                EditAuthorityHolder = holder is null ? CaseEditAuthorityHolder.Unnamed : await holder;
+                ApplyLeaseState(
+                    activeLease,
+                    Case.Frame.EditRequest,
+                    actor,
+                    viewerHoldsLease,
+                    holder is null ? CaseEditAuthorityHolder.Unnamed : await holder,
+                    requester is null ? null : await requester);
             }
             if (valuation is not null)
             {

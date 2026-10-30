@@ -31,10 +31,11 @@ public enum MailFolderScope
 /// is the list's sort toggle (newest first by default). <paramref name="DismissedOnly"/>
 /// is the Dismissed scope: dismissed messages appear there and nowhere else.
 /// <paramref name="NoCaseFound"/> is the No Case Found scope, received mail with
-/// no linked Case. <paramref name="PrincipalCode"/> narrows to one Principal,
-/// the route decision's or the linked Case's. On Inbox, the default scope is
-/// All: linked mail, a New instruction, a Triage request, or a receipt nothing
-/// has classified yet.
+/// no linked Case that is not decided to be a Pre-Pegasus case.
+/// <paramref name="PrincipalCode"/> narrows to one Principal, the route
+/// decision's or the linked Case's. On Inbox, the default scope is All:
+/// linked mail, a New instruction, a Triage request, a Pre-Pegasus case, or
+/// a receipt nothing has classified yet.
 /// </summary>
 public sealed record MailWorkspaceScope(
     Guid? MailboxId,

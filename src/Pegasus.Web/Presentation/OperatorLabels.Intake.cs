@@ -46,6 +46,9 @@ public static partial class OperatorLabels
         // page opened Upload for that Case (FRD-18). The card alone says
         // where the files go; no sentence follows it.
         public const string AddingTo = "Adding to";
+        // The type a file takes on the declared Case, chosen per file on its
+        // row (FRD-18; operator, 30 October 2026); Other unless chosen.
+        public const string Type = "Type";
         public const string DestinationUnavailable = "This Case is not available for evidence. Files you upload here will need a destination after upload.";
 
         // The decision panel.
@@ -422,7 +425,8 @@ public static partial class OperatorLabels
 
         /// <summary>
         /// The ledger row's Type chip tone (v42 H): navy for a New instruction,
-        /// amber for a Triage request, neutral for a Cancellation.
+        /// amber for a Triage request, neutral for a Cancellation or a
+        /// Pre-Pegasus case.
         /// </summary>
         public static string CategoryTone(Pegasus.Core.Intake.MailCategory category) => category switch
         {

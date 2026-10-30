@@ -56,11 +56,15 @@ Case at the same route renders as the Triage Case page instead
   (Saving…, Saved {time}, or why the last change was not saved) and **Done**;
 - the one **Actions** menu.
 
-When a colleague holds the lease the ribbon shows who, and offers **Take
-over**. Any staff member may take over; no reason is needed and the takeover
-is recorded in history. There is no Renew editing: editing lasts while the
-page is open (operator, 6 October 2026). The rule is in
-[FRD-14](frd-14-record-edit-leases.md#take-over).
+When a colleague holds the lease the ribbon shows who, and offers **Ask to
+edit**; while the viewer's request stands it shows "Waiting for {name} to
+answer…", after 45 seconds unanswered it offers **Take over anyway**, and
+after a denial it says so and offers Ask to edit again. The holder's page
+shows the request in a dialog with Accept and Deny. A lease the Automation
+Actor holds is offered Take over at once. There is no Renew editing: editing
+lasts while the page is open (operator, 6 October 2026). The rule is in
+[FRD-14](frd-14-record-edit-leases.md#take-over) (R550 to R557, 30 October
+2026).
 
 **The section row** sits under the ribbon. It lists the section links, marks
 the current section as you scroll, and carries **Refresh**. The page always
@@ -325,7 +329,7 @@ action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
 frees the lease it claimed, as does a request abandoned mid-action. While a
 colleague holds the lease the menu offers nothing that needs one, so only
-Export case and Tasks remain; the ribbon names them and offers Take over. A Report
+Export case and Tasks remain; the ribbon names them and offers Ask to edit. A Report
 sent Case offers Edit Case like With Engineer (operator, 11 October 2026);
 Return to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
@@ -765,7 +769,13 @@ editing, delete. A market research findings file carries the Valuation
 Evidence role ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)),
 and Valuation Evidence the Automation Actor filed wears the AI tint
 ([FRD-05](frd-05-documents-extraction-and-custody.md#document-types);
-operator, 22 October 2026).
+operator, 22 October 2026). While editing, a row offers **Change type**: a
+dialog with the type and a reason, posted at once under the session's lease
+like Remove, listing every type but Original source and Audit report, and
+Image only for a JPEG or PNG (operator, 21 and 30 October 2026; R562, R563).
+Audit report is reached on the tab only through Mark as original report
+below; the Automation Actor's `set_type` may name it
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md)).
 When an Audit lists **Original report missing**, each
 non-image row also offers **Mark as original report** while editing: the
 route for a report Pegasus did not recognise when it was filed. That action
@@ -857,9 +867,11 @@ offers **Open query** (operator, 27 October 2026): one click opens a query
 on that message and returns here
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 Where the record offers **Reply**, **Reply all** and **Forward**, the
-dialog does too; each opens the record's composer with this Case chosen. Its
-**Open full message** leads to the Inbox message record, which keeps
-classification and the Case link; without script the row opens that record.
+dialog does too; each opens the composer in the Inbox's message dialog with
+this Case chosen. Its **Open full message** opens the Inbox with that
+message's dialog open, which keeps classification and the Case link
+(operator, 30 October 2026, R560); without script the row
+opens the `/Inbox/{id}` record.
 There is no Compose
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 A file whose bytes are one of these emails is read here and is not repeated

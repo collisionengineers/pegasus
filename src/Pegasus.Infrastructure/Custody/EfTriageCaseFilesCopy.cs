@@ -254,7 +254,6 @@ internal sealed class EfTriageCaseFilesCopy(
                 row.Occurrence.DocumentId,
                 row.Id,
                 row.Version,
-                row.Occurrence.SemanticRole,
                 row.FileName,
                 row.MediaType,
                 row.BoxFileId,

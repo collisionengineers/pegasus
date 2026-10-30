@@ -5,6 +5,40 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Intake data wipe - 30 October 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped and read back `Stopped` before execution; the Web App stayed
+  Running. The dry run immediately before execution found 187 blobs
+  (67,104,218 bytes) in `pegcustody252ow37gij/transient-intake` and 88
+  non-preserved tables / 2,559 rows in SQL `pegasus` on
+  `pegasus-prod-sql-252ow37gij`; the preserve list was 34/34 found (35
+  effective). The batch reported 2,567 affected rows including the
+  mail-boundary update. Blobs remaining: 0. Wiped tables still holding rows:
+  0. Preserved rows after: 7,144. The committed mail cutoff is
+  `2026-10-30T11:03:22.1801223+00:00`; mailbox approval and activation times
+  were unchanged. `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences`
+  were unchanged at 127/15/1. `ValuationPresets` 6/6, `EmailTemplates` 3/3
+  and built-in image tags 4/4 before/after. `authentication-ring`,
+  `box-links`, `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. The Worker was resumed and read back `Running`.
+
+## Release proof checklist run - 30 October 2026
+
+The release proof checklist (R525, R526) was run once on Release 130 (`0c2acf91`)
+from 09:47Z to 10:21Z. A signed-in `alex` session walked the pages in Chrome, and
+read-only App Insights, Log Analytics and SQL queries covered the telemetry items.
+Of the 138 items, 46 passed, 34 passed in part, 51 were not run and 7 cannot be
+proved until their event happens; none failed. Sends, paid or shared lookups, MCP
+and connector work, Principal API submissions, mailbox admission and wipes were out
+of bounds (operator, 30 October 2026). Writes were limited to a.QDOS26124, which
+was left With Engineer, assigned to alex and Repairable, with its report regenerated
+at 10:21, six synthetic images and one export. The owed rows, with their wording,
+are #1801. The walk found two defects, #1799 (the viewer draws under the shell after
+keyboard input) and #1800 ("report wording is unavailable" on a Total loss that
+saved). The classifier called the model once, on 29 October at 12:45Z. This record
+names the run, so the checklist file is deleted (R525).
+
 ## Brego credential rotation - 29 October 2026
 
 - Brego reset the `digital@collisionengineers.co.uk` valuation account. A new
@@ -112,7 +146,7 @@ built from it alone.
 The owed live-proof chain that every record from Release 81 to Release 128
 carried ("Release N to M owed items otherwise stand") is settled once
 (operator, 29 October 2026, R525 and R526). Its 208 items are classified in
-[the release proof checklist](release-proof-checklist.md): 131 still provable
+the release proof checklist (run and deleted 30 October 2026): 131 still provable
 and 7 re-written for a new Case form one checklist, run on the next release and
 recorded once in that release's record; 20 are discharged by the records
 themselves, 18 are superseded by later PRs or rulings, 16 are GitHub issues and
@@ -135,6 +169,21 @@ named below, and one read-only count of 22 October 2026 posted on
 | [Classifier agent status](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#classifier-agent-status---21-october-2026-read-only-observation) | Four statements: "it has never called the model"; "no `result`, `classify`, `link` or `closed as failed` line has ever been written"; "`ActionHistory` holds no row whose reason begins `Classifier agent: `"; and, in the last row, "The Function App has never called Anthropic. No mail has been eligible since Release 116". The wipe skill lists `ActionHistory` among the tables a wipe clears and the wipe script's preserve list omits it. The agent had run in write mode since the switch read back at 08:18:28Z on 19 October ([Release 116](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#release-116---19-october-2026-classifier-activation-live)). Four wipes are recorded after it; their committed mail cutoffs are `2026-10-19T08:31:22.0176414+00:00`, `2026-10-19T13:29:39.9462093+00:00` and `2026-10-19T13:36:30.1217128+00:00` ([19 October](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#intake-data-wipe---19-october-2026)) and `2026-10-21T10:24:58.9788633+00:00` ([21 October](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#intake-data-wipe---21-october-2026)); a cutoff is a mail time and no record gives the time the SQL commit landed. Those wipes found 4 retained mails (13:29Z), 3 (13:36Z) and 4 (21 October); the 08:31Z record gives none. The ticks the records list are the dry tick at 08:15:00Z and the first write tick at 08:30:00Z on 19 October, and the six from 11:30:00Z to 12:45:00Z on 21 October; no tick between them is recorded. Release 116 read the `Classifier agent: ` rows at 0 at 08:15:50Z and 08:30:39Z, before the first cutoff. The zero in the status record was read in the pass of 12:00Z to 13:15Z on 21 October, after that day's wipe. The log statement rests on Application Insights, which "answered for about one hour of the classifier's traces on 21 October", and the `reviewed` table was unreadable (403). Whether the Function App called the model before 11:30Z on 21 October is not shown by these records. |
 | [Release 117](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#release-117---21-october-2026-deployment-live), Query Store row | Statement: "the one Case on the estate means the registration lookup (PR 1440) and the Open tasks statement (PR 1454) were not exercised, as Release 115's record anticipated". The wipe records give the Case count at four times: 1 Case at the 19 October wipe with mail cutoff 08:31:22Z (`CaseSequences` 104), 4 Cases with 54 documents at 13:29Z (108), 1 Case with 12 documents at 13:36Z (109) and, on 21 October, 2 Cases with 28 documents at 10:24Z (111). Release 117's containment read found 2 `CaseRepairSpecifications` rows at 09:23:34Z. The counts between those times are not recorded. The retained after snapshot (`artifacts/performance/query-store-release-115-after-20261021T0941Z.csv`, 48 h, 357 statements) reads: the Open tasks statement without `ActionHistory` (PR 1454) 1,003 executions, average 289.87 microseconds, total 290,742 microseconds; the candidate-page read that compares `VehicleLookupRequests.Registration` with `NormalizedRegistration` (PR 1440) 2,812 executions, average 144.52 microseconds, total 406,403 microseconds. The file holds no `INSERT` into `VehicleLookupRequests`. Executions count runs and do not show how many rows the tables held. For the earlier Open tasks text, [Release 115](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#release-115---19-october-2026-deployment-live) names a baseline of 485 executions at 31.1 ms; the retained Release 114 after snapshot (`query-store-release-114-after-20261019T0739Z.csv`, 24 h to 07:39Z on 19 October) reads 459 executions, average 112.17 microseconds, total 51,487 microseconds. |
 | [Reference-data load (REF-04)](https://github.com/collisionengineers/pegasus/blob/5a7c2b75c5d52c8d73a70e684073bf87369beec7/docs/operations.md#reference-data-load-ref-04---17-october-2026-production-applied), read-back row | Statement: "`ActionHistory` rows of batch `ref04:prod-20261017`: 329 `contact_created`, 39 `contact_saved` and 1328 `inspection_location_created`, 1696 in all", with "`OrganizationAdministrationOperations` holds 1696 `ref04` rows", read at 20:07:31Z on 17 October. A read-only count at 06:11:57Z on 22 October returned 0 `ActionHistory` rows where `CorrelationId` starts `ref04:prod-20261017:` and 1,696 `OrganizationAdministrationOperations` rows where `OperationKey` starts `ref04:prod-20261017:`. The 17 October `ActionHistory` count no longer reproduces; the operations table still holds 1,696 rows for the batch. The wipe skill lists `ActionHistory` among the tables a wipe clears and the wipe script's preserve list names `OrganizationAdministrationOperations`. The wipes this file records after that read are the three of 19 October and the one of 21 October. |
+
+## Release 130 - 30 October 2026 (deployment live, additive migration)
+
+Release 130 deployed the edit-authority collapse to three concepts (PRs 1753, 1757, 1780, 1787, 1788, 1791, 1792; R514 to R524), the Administration walk fixes by page (PRs 1758 to 1760, 1762, 1765, 1767, 1769 to 1772, 1774, 1779, 1783; R527 to R543), the intake and Case fixes and features (PRs 1754, 1761, 1763, 1766, 1778, 1781), the automatic Glass's valuation at Case creation with its Administrator switch (PR 1786; R545, R546), one Automation MCP server at `/mcp` (PR 1789; R547 to R549, ADR-0087), the wipe fix (PR 1768), the rulings and records (PRs 1764, 1773, 1777, 1782, 1784, 1785) and a focus-ring style (PR 1790). Normal route after an additive migration identity; no outage.
+
+| Observation | Value |
+| --- | --- |
+| Source | `0c2acf91bf57e9f11916b536a41478e684dc48e0`, promoted from `da599ad33b37adfc86b0363f91123fdf839ea794` after `MERGE AUTH GRANTED`; `main` and `dev` read it back; CI on the `main` push green |
+| Packages | manifest `F670ADDBDE425FDA926BF24490F81F92DF4840B549FA37584927A601E0DC3EFE`; `web.zip` `370CFE550218F9232888C5B8CFB1614ADADAEE623B4F5D4C50027263528FA022`; `worker.zip` `7991664C01646349B44DC49E617B11489D55D30DEDFC28D4DA89052D1B4274E2`; `classifier.zip` `83C23BAC6D074832CE231DF97485CA629D02B657B4D0B3580F360FFF01D6D070`; `efbundle.exe` `8D008A0E5F71A2DCC34E83AE347937235F4196846897103532F740E1BB4BDDFF` |
+| Migration | history read 245 rows at `20261028171919_Baseline`; the bundle applied `20261029120000_RemovedValuationPresetFreesItsLabel`, `20261029160000_WorkerReadsAutomaticValuationSwitch` and `20261029200000_EditScopeRetainsItsClaim` (248 rows); bootstrap census 698 permission rows and 490 effective runtime DML rows verified (the Worker's `SELECT` on `SendToAiControl`) |
+| Deployment | `azd provision` in 1 min 38 s (deployment `pegasus-prod-1793349199`); the classifier's `PEGASUS_MCP_URL` read back `https://pegasus-prod-web-252ow37gij.azurewebsites.net/mcp`; Web OneDeploy `8571ee76-4a4d-4f51-9103-1d71a71cd538` (site started in 127 s, `/diagnostics/version` read back the SHA on attempt 1); Worker `4b1c9a9c-e50f-4e10-9f1f-593b98ad3028`; classifier `2d013809-bd83-408a-ab17-c39d992ad788` |
+| Smoke | passed at 08:43Z; package SHA equals `web.zip`; intake liveness last poll 08:40:01Z, subscription expires 2026-11-04 08:25Z |
+| Web start | `model build 18554 ms, first connection 1420 ms`; warm-up finished in 33,977 ms (key-ring 17,452 ms and oauth-certificates 19,432 ms alongside); figure added to #1775 |
+| Owed | an Administrator removes the seven old connectors and adds one at `<origin>/mcp` with one consent (ticked scopes); the classifier read-back on `/mcp` with one connecting tick; `tools/list` sizes (classifier 7, full connector 69); the proof checklist not run (no signed-in session): #1776 |
+| Evidence | `artifacts/releases/release-130-0c2acf91` (packages, build and route logs) |
 
 ## Release 129 - 29 October 2026 (deployment live, Baseline adopted)
 

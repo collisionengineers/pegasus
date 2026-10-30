@@ -283,6 +283,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             // The Work Centre's E-mails received figure reads mailbox receipts by arrival time.
             entity.HasIndex(item => new { item.SourceChannel, item.ReceivedAtUtc });
             entity.HasIndex(item => item.DeclaredCaseId);
+            entity.Property(item => item.DeclaredDocumentType).HasMaxLength(32);
         });
 
         builder.Entity<IntakeAssetEntity>(entity =>
@@ -374,6 +375,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => item.SourceHash);
             entity.HasIndex(item => item.DeclaredCaseId);
+            entity.Property(item => item.DeclaredDocumentType).HasMaxLength(32);
         });
 
         builder.Entity<IntakeSubmissionGroupEntity>(entity =>
@@ -1547,6 +1549,9 @@ internal sealed class IntakeReceiptEntity
 
     /// <summary>The Case the uploading member of staff declared before the upload (Add evidence on a Case page), copied from the staged receipt.</summary>
     public Guid? DeclaredCaseId { get; set; }
+
+    /// <summary>The type the member of staff chose for the file on that upload (a <c>DocumentSemanticRole</c> name; R564), copied from the staged receipt; null when none was chosen.</summary>
+    public string? DeclaredDocumentType { get; set; }
     public InstructionDraftEntity? InstructionDraft { get; set; }
     public IntakeMailRouteDecisionEntity? MailRouteDecision { get; set; }
     public IntakeMailClassificationDecisionEntity? MailClassificationDecision { get; set; }
@@ -1665,6 +1670,9 @@ internal sealed class IntakeStagedReceiptEntity
 
     /// <summary>The Case the uploading member of staff declared before the upload (Add evidence on a Case page); null when the destination is still to be chosen.</summary>
     public Guid? DeclaredCaseId { get; set; }
+
+    /// <summary>The type the member of staff chose for the file on that upload (a <c>DocumentSemanticRole</c> name; R564); null when none was chosen.</summary>
+    public string? DeclaredDocumentType { get; set; }
     public IntakeWorkItemEntity? WorkItem { get; set; }
 }
 

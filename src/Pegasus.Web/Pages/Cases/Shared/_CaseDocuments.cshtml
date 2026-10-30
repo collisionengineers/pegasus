@@ -101,6 +101,13 @@ else
                                 <button type="submit" data-busy-label="@OperatorLabels.Busy.Marking" class="btn btn--small">@OperatorLabels.MarkAsOriginalReport</button>
                             </form>
                         }
+                        @* Change type opens the row's dialog (the type and a
+                           reason) like Remove; a row Core offers no type has
+                           no button (operator, 21 and 30 October 2026). *@
+                        @if (DocumentTypePolicy.Choices(entry).Count > 0)
+                        {
+                            <button type="button" class="btn btn--small" data-dialog-open="type-doc-@occurrence.Id">@FilesLabels.ChangeType</button>
+                        }
                         <button type="button" class="btn btn--small btn--icon btn--danger" data-dialog-open="remove-doc-@occurrence.Id" title="@FilesLabels.Remove" aria-label="@FilesLabels.Remove @version.FileName">
                             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-trash-2")" /></svg>
                         </button>
@@ -130,6 +137,32 @@ else
                     ["view"] = Model.ViewRoute
                 }
             })" />
+            var typeChoices = DocumentTypePolicy.Choices(entry);
+            if (typeChoices.Count > 0)
+            {
+                <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+                {
+                    ["DialogId"] = $"type-doc-{occurrence.Id}",
+                    ["DialogTitle"] = FilesLabels.ChangeTypeTitle,
+                    ["DialogActionUrl"] = Url.Page("/Cases/Custody", "SetDocumentType", new { id = workflow.CaseId }),
+                    ["DialogHiddenFields"] = new Dictionary<string, string?>
+                    {
+                        ["id"] = workflow.CaseId.ToString(),
+                        ["occurrenceId"] = occurrence.Id.ToString(),
+                        ["versionId"] = entry.Version.Id.ToString(),
+                        ["expectedVersion"] = workflow.Version.ToString(),
+                        ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                        ["editLeaseToken"] = leaseToken,
+                        ["view"] = Model.ViewRoute
+                    },
+                    ["DialogReasonMaxLength"] = DocumentTypePolicy.MaximumReasonLength,
+                    ["DialogChoiceLabel"] = FilesLabels.Type,
+                    ["DialogChoiceName"] = "semanticRole",
+                    ["DialogChoices"] = typeChoices
+                        .Select(role => new KeyValuePair<string, string>(role.ToString(), OperatorLabels.DocumentRole(role)))
+                        .ToArray()
+                })" />
+            }
         }
     }
 }

@@ -15,9 +15,12 @@
 - The lease belongs to the staff member, not the window. Coming back to a
   record you are still editing puts you straight back in; you never take over
   your own lease.
-- Any staff member with edit rights can **Take over** a colleague's lease,
-  or one the Automation Actor holds. No reason is needed. The takeover goes
-  into history, and the previous editor's next save is refused.
+- A second editor on a Case a colleague holds **asks to edit**. The holder's
+  open Case page shows the request with Accept and Deny. Accept hands the
+  lease over; after 45 seconds unanswered the member of staff who asked may
+  **Take over anyway**. A lease the Automation Actor holds is taken over at
+  once. The hand-over or takeover goes into history, and the previous
+  editor's next save is refused (R550 to R557, 30 October 2026).
 - Every save sends the lease token and the version that was loaded. A
   wrong or superseded lease, or a save that would overwrite a value the system
   wrote since the page loaded it, is refused and nothing is overwritten.
@@ -200,28 +203,75 @@ same token, so another window of theirs on the same record keeps editing
 (R518, 29 October 2026). Neither writes history. A one-off change made from
 elsewhere is refused while their scope is live.
 
-**A colleague's lease.** Any staff member with edit rights for that record
-may press **Take over** on a lease a colleague holds. No reason is asked for.
-Pegasus records a history line naming who took over, from whom, and when.
-The takeover is history rather than a change to the record, so it never
-advances the record's version. The previous holder's next heartbeat or save
-is refused. The value they were typing stays on screen so they can copy it,
-and they must reload to edit again. There is no Administrator-only path; the rule
-is the same for everyone with edit rights. The Automation Actor may take over
-a Case lease or Triage scope a staff member holds in the same way, and the
-takeover is recorded the same way
-([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases); operator,
-7 October 2026). Staff may take over a Case lease or record scope the
-Automation Actor holds in the same way, and only staff may: the Automation
-Actor never takes over an Automation holder (R517, 29 October 2026); the
+**A colleague's lease.** Any staff member or the Automation Actor with edit
+rights who finds a Case held by a member of staff **asks to edit** instead of
+seizing it (R550, 30 October 2026). The Case page shows the holder's name and
+**Ask to edit**; while the request stands it says "Waiting for {name} to
+answer…". The holder's open Case page shows the request in a dialog with
+**Accept** and **Deny**. The dialog has no close control and Escape does
+nothing (R557, 30 October 2026). A page held in a hidden tab flashes its title
+and raises a browser system notification where permission is granted;
+permission is asked once, on the first gesture inside edit mode, and when it
+is refused the title flash is all there is (R555, 30 October 2026). The page
+learns of a request, and the requester's page of its answer, through a long
+poll held up to about 25 seconds, so a request shows within a second (R551,
+30 October 2026).
+
+Accept lands any change not yet sent, hands the lease to the requester in one
+transaction and releases the holder's session; the holder's page redraws
+read-only with "{requester} is editing". The hand-over is Case history under
+the existing takeover event type with the sentence "Edit lease handed over to
+{name} at their request." and never advances the Case's version (R553, 30
+October 2026). Deny closes the dialog, the holder carries on, and the
+requester's page says so and offers nothing further until it asks again.
+
+The holder has 45 seconds to answer. After that the requester's ribbon offers
+**Take over anyway**, the forced takeover. It is open only to the member of
+staff who asked, and only while the holder asked still holds the lease and
+has not answered; it has no time cap (R552, 30 October 2026). No reason is
+asked for. Pegasus records a history line naming who took over, from whom,
+and when. The takeover is history rather than a change to the record, so it
+never advances the record's version. The previous holder's next heartbeat or
+save is refused. The value they were typing stays on screen so they can copy
+it, and they must reload to edit again. There is no Administrator-only path;
+the rule is the same for everyone with edit rights.
+
+One request stands per Case. Another editor is refused while the holder is
+being asked and is told it has already been asked; a request the holder never
+answered gives way to the next, and the Automation Actor's request gives way
+the same way (R550, 30 October 2026). A request is addressed to the holder
+asked and ends when the holder changes, when the lease lapses, or when the
+holder finishes with Done. The holder's own save, which ends and re-claims
+the lease, leaves it standing. A request, a denial, a withdrawal or silence
+is telemetry; an accepted hand-over and a forced takeover are history (R550,
+30 October 2026).
+
+**The Automation Actor asks and never forces.** The Automation Actor asks for
+a lease a member of staff holds through `pegasus_edit_begin` with `takeOver`.
+The call raises the request and waits inside it for the answer up to 45
+seconds, returning the lease when the holder accepts and a refusal naming
+declined, no answer or already asked otherwise. It has no force and no
+Take over anyway (R554, 30 October 2026;
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)). A Triage
+scope is unchanged: the Automation Actor takes over a Triage scope a member
+of staff holds at once (R556, 30 October 2026).
+
+**An Automation lease.** Staff take over a Case lease or record scope the
+Automation Actor holds at once, with no request, since nobody can be asked,
+and only staff may: the Automation Actor never takes over an Automation
+holder (R517, 29 October 2026; R554, 30 October 2026;
+[ADR-0075](../adr/0075-staff-take-over-of-an-automation-lease.md)). The
 history line names the Automation Actor as AI (operator, 15 and 16 October
-2026). Otherwise that lease lapses
-within five minutes, or ends at once when an Administrator stops the
-automation client
-([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)). Take over
-applies to a Case, an Image Intake record and a Triage Case (R517, 29 October
-2026). A member of staff's Triage save never takes over: its scope lasts that
-one save.
+2026). Otherwise that lease lapses within five minutes, or ends at once when
+an Administrator stops the automation client
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#edit-leases)).
+
+**Image Intake and Triage.** The request flow applies to the Case lease only.
+An Image Intake record keeps an immediate **Take over** by any staff member
+with edit rights, recorded in history as above, and a Triage Case's scope is
+unchanged; issue #1797 records standardising the request flow across record
+types (R556, 30 October 2026; R517, 29 October 2026). A member of staff's
+Triage save never takes over: its scope lasts that one save.
 
 ### Refusals and recovery
 
@@ -249,9 +299,11 @@ heartbeating, though its timers are throttled.
 | Lease state | How it is reached | What non-holders see |
 | --- | --- | --- |
 | Free | No lease, or the last one expired or was released | Edit is offered |
-| Held | Edit claimed it and heartbeats keep renewing it | Holder's name, read-only, Take over; the holder resumes it |
+| Held | Edit claimed it and heartbeats keep renewing it | Holder's name, read-only, Ask to edit; the holder resumes it |
+| Requested | A colleague asked to edit a Case the holder holds (R550, 30 October 2026) | A request stands; the holder's page shows Accept and Deny; after 45 seconds the requester is offered Take over anyway |
+| Handed over | The holder accepted (R553, 30 October 2026) | The requester holds a new lease; the previous holder's saves are refused |
 | Expired | Five minutes without a heartbeat | Edit is offered; until someone claims it, the holder's own heartbeat or save picks it up again |
-| Taken over | A colleague took it over | Previous holder's saves are refused |
+| Taken over | A colleague took it over, or forced it after 45 seconds (R552, 30 October 2026) | Previous holder's saves are refused |
 
 ## Edge cases and fail-closed behaviour
 
@@ -268,6 +320,20 @@ heartbeating, though its timers are throttled.
   again in one resumes it in both (R518, 29 October 2026).
 - A revoked session's token cannot save an existing record.
 - Automatic processing has no lease and cannot claim one.
+- Two colleagues ask for the same Case: the first request stands while it is
+  pending and the second is told the holder has already been asked (R550, 30
+  October 2026).
+- The holder has the Case open in two tabs: both show the request, and the
+  first answer wins; the other tab's dialog closes when it learns of the
+  answer (R551, 30 October 2026).
+- The requester leaves the page: a beacon withdraws the request. A lost beacon
+  leaves it to the 45-second window.
+- The holder's lease lapses while a request stands: the request ends, and the
+  requester's page offers Edit. It never claims on its own.
+- The holder's tab is asleep: the dialog is never shown, and the 45-second
+  window with Take over anyway is the design (R552, 30 October 2026).
+- Notification permission is refused: the tab title flash is the only alert
+  (R555, 30 October 2026).
 
 ## Acceptance evidence
 
@@ -276,7 +342,11 @@ wrong-holder and stale-version refusal for Cases and for record scopes, and a
 version moved only by system work. Integration tests
 cover a colleague takeover on a Case whose current version already has its
 own history, the holder's own claim and resume, the Case ribbon, the leaving
-beacon and the record pages over real HTTP. Deployment and live acceptance
+beacon and the record pages over real HTTP. Core tests cover the request
+policy (one request per Case, the 45-second window, what ends a request),
+persistence tests cover the atomic hand-over and its history line, and Web
+tests cover the long poll, the holder's dialog and the requester's ribbon
+states (R550 to R557, 30 October 2026). Deployment and live acceptance
 are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 

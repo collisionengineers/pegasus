@@ -2268,7 +2268,12 @@ public sealed class MessageModel(
     {
         if (NoCaseFoundFilter)
         {
-            return summary.IntakeReceiptId is not null && summary.CaseId is null;
+            // The same membership the store lists (ApplyWorkspaceFilter): no
+            // Case, and not decided to be a Pre-Pegasus case, which leaves the
+            // scope the moment it is set.
+            return summary.IntakeReceiptId is not null
+                && summary.CaseId is null
+                && summary.Classification?.Is(MailCategory.PrePegasusCase) != true;
         }
         return true;
     }
@@ -2351,6 +2356,11 @@ public sealed class MessageModel(
         // though a case were coming. The word is the Triage destination's
         // own (OperatorLabels.Inbox.Triage), not a new one.
         { Classification.IsTriageRequest: true } => OperatorLabels.Inbox.Triage,
+        // A Pre-Pegasus case has left No Case Found by decision, so the chip
+        // names the category rather than the scope it is no longer in
+        // (operator, 30 October 2026, R561).
+        { Classification: { } decision } when decision.Is(MailCategory.PrePegasusCase)
+            => OperatorLabels.MailClassification(MailCategory.PrePegasusCase),
         _ => OutcomeLabel(summary.ProcessingOutcome)
     };
 

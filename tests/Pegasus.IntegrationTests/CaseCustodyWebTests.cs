@@ -139,6 +139,84 @@ public sealed class CaseCustodyWebTests
     }
 
     /// <summary>
+    /// Change type on a Documents row (operator, 21 and 30 October 2026; R204,
+    /// R562): while editing, a row offers the button and its dialog, whose
+    /// choices are Core's for that row and never Audit report; the dialog
+    /// posts the type and a reason under the session's lease and comes back
+    /// to Files with the session kept.
+    /// </summary>
+    [Fact]
+    public async Task CustodyPageBindsADocumentTypeChangeFromTheRowsDialog()
+    {
+        var occurrenceId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            CaseDocuments =
+            [
+                Document(occurrenceId, versionId, "estimate.pdf", "application/pdf", DocumentSemanticRole.Other)
+            ]
+        };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISetDocumentType>(services, store));
+
+        var files = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=files");
+        var row = DocumentRow(files, occurrenceId);
+        Assert.Contains(CaseWorkspaceLabels.Files.ChangeType, row, StringComparison.Ordinal);
+        Assert.Contains($"data-dialog-open=\"type-doc-{occurrenceId:D}\"", row, StringComparison.Ordinal);
+        var dialog = Dialog(files, $"type-doc-{occurrenceId:D}");
+        Assert.Contains(CaseWorkspaceLabels.Files.ChangeTypeTitle, dialog, StringComparison.Ordinal);
+        Assert.Contains("name=\"semanticRole\"", dialog, StringComparison.Ordinal);
+        Assert.Contains($"name=\"versionId\" value=\"{versionId:D}\"", dialog, StringComparison.Ordinal);
+        Assert.Contains($"maxlength=\"{DocumentTypePolicy.MaximumReasonLength}\"", dialog, StringComparison.Ordinal);
+        foreach (var role in DocumentTypePolicy.Choices(CaseFiles.Current(store.CaseDocuments).Single()))
+        {
+            Assert.Contains(
+                $"<option value=\"{role}\">{OperatorLabels.DocumentRole(role)}</option>",
+                dialog,
+                StringComparison.Ordinal);
+        }
+        // Audit report is Mark as original report's alone (R562); a PDF cannot
+        // be an Image; the type the row has is not offered.
+        foreach (var absent in new[] { DocumentSemanticRole.AuditReport, DocumentSemanticRole.Image, DocumentSemanticRole.Other, DocumentSemanticRole.OriginalSource })
+        {
+            Assert.DoesNotContain($"<option value=\"{absent}\">", dialog, StringComparison.Ordinal);
+        }
+
+        using var changed = await workspace.PostAsync(
+            "Custody?handler=SetDocumentType",
+            workspace.MutationForm(
+                "set-document-type",
+                "Filed as the wrong type.",
+                ("occurrenceId", occurrenceId.ToString("D")),
+                ("versionId", versionId.ToString("D")),
+                ("semanticRole", DocumentSemanticRole.Estimate.ToString())));
+        AssertPrg(changed, store.CaseId, "?section=files");
+
+        var command = Assert.Single(store.DocumentTypeChanges);
+        AssertClaimant(workspace, command.Actor);
+        Assert.Equal(occurrenceId, command.OccurrenceId);
+        Assert.Equal(versionId, command.VersionId);
+        Assert.Equal(DocumentSemanticRole.Estimate, command.NewRole);
+        Assert.Equal("Filed as the wrong type.", command.Reason);
+        Assert.Equal(store.CaseVersion, command.ExpectedCaseVersion);
+        Assert.Equal(store.LeaseToken, command.EditLeaseToken);
+        Assert.Equal("set-document-type", command.OperationKey);
+        var after = await workspace.GetWorkspaceAsync();
+        Assert.Contains(CaseWorkspaceLabels.Files.TypeWasChanged, after, StringComparison.Ordinal);
+
+        await AssertRefusalKeepsEditModeAsync(
+            workspace,
+            "Custody?handler=SetDocumentType",
+            workspace.MutationForm(
+                "set-document-type-2",
+                "Not this one",
+                ("occurrenceId", occurrenceId.ToString("D")),
+                ("versionId", versionId.ToString("D")),
+                ("semanticRole", DocumentSemanticRole.Correspondence.ToString())));
+    }
+
+    /// <summary>
     /// Case Files: each live file is a row carrying its name, its
     /// type, size and source, and the two things an operator does with it —
     /// View, which is the viewer's trigger, and Save as, which is the same
@@ -216,6 +294,10 @@ public sealed class CaseCustodyWebTests
             $"<span class=\"src-tag\">{valuationEvidence}</span>",
             DocumentRow(html, guideValuationId),
             StringComparison.Ordinal);
+        // Change type is an edit-session action: read mode draws neither the
+        // button nor its dialog (operator, 30 October 2026; R562).
+        Assert.DoesNotContain(CaseWorkspaceLabels.Files.ChangeType, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"type-doc-", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -365,6 +447,16 @@ public sealed class CaseCustodyWebTests
             end = html.IndexOf("data-file-tab-panel=\"images\"", marker, StringComparison.Ordinal);
         }
         Assert.True(end > start, "The document row is not closed.");
+        return html[start..end];
+    }
+
+    /// <summary>One row's dialog (the shared `_ReasonDialog`), from its backdrop to the end of its form.</summary>
+    private static string Dialog(string html, string dialogId)
+    {
+        var start = html.IndexOf($"data-dialog=\"{dialogId}\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The dialog is not rendered.");
+        var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The dialog's form is not closed.");
         return html[start..end];
     }
 

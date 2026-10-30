@@ -76,9 +76,10 @@ public sealed class SetDocumentType(ISetDocumentTypeStore store, IReadOriginalRe
 /// <summary>
 /// Which types a document may be given and the refusals of a change (operator,
 /// 22 October 2026; R204): every type except Original source, Audit report
-/// included as a second route to Mark as original report; a typed reason of up
-/// to 500 characters; an issued report's documents and an Audit report
-/// document may be retyped.
+/// included as a second route to Mark as original report for the Automation
+/// Actor; a typed reason of up to 500 characters; an issued report's documents
+/// and an Audit report document may be retyped. On the Documents tab Audit
+/// report is Mark as original report's alone (operator, 30 October 2026; R562).
 /// </summary>
 public static class DocumentTypePolicy
 {
@@ -93,13 +94,27 @@ public static class DocumentTypePolicy
     ];
 
     /// <summary>
-    /// The types <paramref name="file"/> may change to, read from the loaded
-    /// row alone: not the type it has; Image only for a JPEG or PNG file; Audit
-    /// report only where Mark as original report is offered, a non-image
-    /// document while the Audit's original report is missing. A version that
-    /// is not current, or was removed, offers none.
+    /// The types a member of staff may give a file as they upload it to a
+    /// declared Case, one choice per file (operator, 30 October 2026; R564):
+    /// the staff set less Image, which the file's own format decides, and
+    /// Audit report, which stays Mark as original report's after filing.
     /// </summary>
-    public static IReadOnlyList<DocumentSemanticRole> Choices(CaseFile file, bool originalReportMissing)
+    public static IReadOnlyList<DocumentSemanticRole> UploadChoices { get; } =
+    [
+        .. StaffMayChoose.Where(role => role is not (DocumentSemanticRole.Image or DocumentSemanticRole.AuditReport))
+    ];
+
+    /// <summary>What a declared-Case upload files as when no type was chosen (operator, 30 October 2026; R565).</summary>
+    public const DocumentSemanticRole DefaultUploadType = DocumentSemanticRole.Other;
+
+    /// <summary>
+    /// The types the Documents tab offers <paramref name="file"/>, read from
+    /// the loaded row alone: not the type it has; Image only for a JPEG or PNG
+    /// file; never Audit report, which the tab reaches through Mark as
+    /// original report (R562). A version that is not current, or was removed,
+    /// offers none.
+    /// </summary>
+    public static IReadOnlyList<DocumentSemanticRole> Choices(CaseFile file)
     {
         ArgumentNullException.ThrowIfNull(file);
         if (!file.Version.IsCurrent || file.Version.IsLogicallyRemoved)
@@ -113,7 +128,7 @@ public static class DocumentTypePolicy
             .. StaffMayChoose.Where(role => role != current && role switch
             {
                 DocumentSemanticRole.Image => InstructionEvidenceImages.IsImage(file.Version.MediaType),
-                DocumentSemanticRole.AuditReport => originalReportMissing && current != DocumentSemanticRole.Image,
+                DocumentSemanticRole.AuditReport => false,
                 _ => true
             })
         ];

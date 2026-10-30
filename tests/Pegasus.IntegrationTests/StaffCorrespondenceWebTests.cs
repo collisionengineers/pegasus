@@ -1056,7 +1056,7 @@ public sealed class StaffCorrespondenceWebTests
         foreach (var (mode, label) in new[] { ("reply", "Reply"), ("reply-all", "Reply all"), ("forward", "Forward") })
         {
             Assert.Contains(
-                $"href=\"/Inbox/{seeded.MessageId:D}?compose={mode}&amp;correspondenceCaseReference={dialogReference}\"",
+                $"href=\"/Inbox?open={seeded.MessageId:D}&amp;compose={mode}&amp;correspondenceCaseReference={dialogReference}\"",
                 fragment,
                 StringComparison.Ordinal);
             Assert.Contains($">{label}</a>", fragment, StringComparison.Ordinal);

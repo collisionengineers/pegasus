@@ -66,7 +66,9 @@ linked e-mail became a query.
   request and Cancellation. Every other e-mail has no category: linked it is
   Case correspondence, unlinked it is No Case Found. Automatic queries come
   from deterministic criteria and the AI classifier only. That category
-  change is the following delivery; this record is its decision.
+  change is the following delivery; this record is its decision. (A fourth
+  category, Pre-Pegasus case, was added on 30 October 2026 under R561; FRD-08
+  owns the list.)
 
 ## Consequences
 

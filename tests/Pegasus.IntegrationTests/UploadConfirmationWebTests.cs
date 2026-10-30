@@ -148,10 +148,11 @@ public sealed class UploadConfirmationWebTests
                 .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
         }
 
-        // The PDF and both photographs are the Case's documents; nothing was held.
+        // The PDF and both photographs are the Case's documents; nothing was
+        // held. No type was chosen for the PDF, so it is Other (R565).
         var filed = await FiledDocumentsAsync(factory, receiptId, caseId);
         Assert.Equal(3, filed.Count);
-        Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.OriginalSource));
+        Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Other));
         Assert.Equal(2, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Image));
         var stagedReceiptId = await StagedReceiptIdAsync(factory, upload.ExternalReceiptToken!);
         var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
@@ -195,6 +196,76 @@ public sealed class UploadConfirmationWebTests
         var files = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
         Assert.Contains($"data-image-tile=\"{filed.Id}\"", files, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain($"data-document-row=\"{filed.Id}\"", files, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A file added from a Case takes the type chosen for it on its row
+    /// (operator, 30 October 2026; R564, R565): the declared picker offers the
+    /// upload types with Other chosen, an ordinary upload offers none, the
+    /// choice is recorded on the receipt and the file is filed as that type.
+    /// A replay of the same upload keeps the type first recorded.
+    /// </summary>
+    [Fact]
+    public async Task AFileAddedFromACaseIsFiledAsTheTypeChosenForIt()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "DECLARED-TYPE-01");
+
+        var picker = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload?caseId={caseId:D}");
+        Assert.Contains("data-upload-type-template", picker, StringComparison.Ordinal);
+        foreach (var role in Pegasus.Core.Documents.DocumentTypePolicy.UploadChoices)
+        {
+            Assert.Contains($"<option value=\"{role}\"", picker, StringComparison.Ordinal);
+        }
+        Assert.DoesNotContain($"<option value=\"{Pegasus.Core.Documents.DocumentSemanticRole.AuditReport}\"", picker, StringComparison.Ordinal);
+        Assert.DoesNotContain($"<option value=\"{Pegasus.Core.Documents.DocumentSemanticRole.Image}\"", picker, StringComparison.Ordinal);
+        Assert.Contains($"<option value=\"{Pegasus.Core.Documents.DocumentSemanticRole.Other}\" selected", picker, StringComparison.Ordinal);
+        var ordinary = await IntakeWebDriver.GetHtmlAsync(client, "/Upload");
+        Assert.DoesNotContain("data-upload-type-template", ordinary, StringComparison.Ordinal);
+
+        var bytes = IntakeTestEvidence.CreatePhotographPdf(1);
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "estimate.pdf",
+            "application/pdf",
+            bytes,
+            declaredCaseId: caseId,
+            documentType: Pegasus.Core.Documents.DocumentSemanticRole.Estimate);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None);
+            Assert.NotNull(receipt);
+            Assert.Equal(caseId, receipt!.DeclaredCaseId);
+            Assert.Equal(Pegasus.Core.Documents.DocumentSemanticRole.Estimate, receipt.DeclaredDocumentType);
+        }
+        var filed = await FiledDocumentsAsync(factory, receiptId, caseId);
+        Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Estimate));
+        Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Image));
+
+        // The same upload again, with another type: the first decision stands.
+        var replay = await IntakeWebDriver.UploadAsync(
+            client,
+            "estimate.pdf",
+            "application/pdf",
+            bytes,
+            externalReceiptToken: upload.ExternalReceiptToken,
+            declaredCaseId: caseId,
+            documentType: Pegasus.Core.Documents.DocumentSemanticRole.Correspondence);
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        var landing = await IntakeWebDriver.GetHtmlAsync(client, replay.Location!.OriginalString);
+        Assert.Contains("Already received for", landing, StringComparison.Ordinal);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None);
+            Assert.Equal(Pegasus.Core.Documents.DocumentSemanticRole.Estimate, receipt!.DeclaredDocumentType);
+        }
     }
 
     /// <summary>

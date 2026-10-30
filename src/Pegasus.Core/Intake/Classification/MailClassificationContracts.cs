@@ -3,17 +3,24 @@ using Pegasus.Core.Cases;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// What a received message is: one of three categories (operator, 27 October
-/// 2026). Every other message has no category: linked, it is Case
-/// correspondence; unlinked, it waits in No Case Found. A message nothing has
-/// decided yet is Unclassified, not a category. Sent mail carries no category.
-/// FRD-08 owns what each one means.
+/// What a received message is: one of four categories (operator, 27 October
+/// 2026; Pre-Pegasus case added 30 October 2026, R561). Every other message
+/// has no category: linked, it is Case correspondence; unlinked, it waits in
+/// No Case Found. A message nothing has decided yet is Unclassified, not a
+/// category. Sent mail carries no category. FRD-08 owns what each one means.
 /// </summary>
 public enum MailCategory
 {
     NewInstruction,
     TriageRequest,
-    Cancellation
+    Cancellation,
+
+    /// <summary>
+    /// Mail about a case still run in the old system, which has no Case in
+    /// Pegasus. No predicate produces it: staff, the Automation actor or the
+    /// classifier agent set it by correction. It leaves No Case Found.
+    /// </summary>
+    PrePegasusCase
 }
 
 /// <summary>
@@ -29,6 +36,7 @@ public static class MailCategories
         MailCategory.NewInstruction => "new-instruction",
         MailCategory.TriageRequest => "triage-request",
         MailCategory.Cancellation => "cancellation",
+        MailCategory.PrePegasusCase => "pre-pegasus-case",
         _ => throw new ArgumentOutOfRangeException(nameof(category), category, null)
     };
 

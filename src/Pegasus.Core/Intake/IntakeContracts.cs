@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Intake;
@@ -354,6 +355,12 @@ public sealed class IntakeArtifactRetentionException : Exception
 /// page, FRD-18). Processing links the file to it as that member of staff's
 /// decision and runs no identification. Null for every other route.
 /// </param>
+/// <param name="DeclaredDocumentType">
+/// The type the member of staff chose for this file as they uploaded it to
+/// the declared Case (one choice per file; FRD-18, R564). Null when none was
+/// chosen, so the file is filed as Other (R565); never set without
+/// <paramref name="DeclaredCaseId"/>.
+/// </param>
 public sealed record IntakeSource(
     string FileName,
     string MediaType,
@@ -361,13 +368,15 @@ public sealed record IntakeSource(
     DateTimeOffset ReceivedAtUtc,
     string Actor,
     IntakeSourceIdentity SourceIdentity,
-    Guid? DeclaredCaseId = null);
+    Guid? DeclaredCaseId = null,
+    DocumentSemanticRole? DeclaredDocumentType = null);
 
 public sealed record StreamedIntakeSource(
     string FileName, string MediaType, long ContentLength,
     Func<CancellationToken, ValueTask<Stream>> OpenContentAsync,
     DateTimeOffset ReceivedAtUtc, string Actor, IntakeSourceIdentity SourceIdentity,
-    Guid? DeclaredCaseId = null);
+    Guid? DeclaredCaseId = null,
+    DocumentSemanticRole? DeclaredDocumentType = null);
 
 /// <summary>One uploaded source whose immutable bytes can be reopened without materialising them in Web memory.</summary>
 
@@ -759,7 +768,8 @@ public sealed record IntakeReceipt(
     ActorKind? ManualAssociationActorKind = null,
     string? ManualAssociationOperationKey = null,
     Guid? DeclaredCaseId = null,
-    int? MailClassificationVersion = null)
+    int? MailClassificationVersion = null,
+    DocumentSemanticRole? DeclaredDocumentType = null)
 {
     /// <summary>
     /// Whether staff, or automation acting as staff, corrected the mail
@@ -836,7 +846,8 @@ public sealed record IntakeReceiptDraft(
     MailClassificationResult? MailClassificationDecision = null,
     CaseMatchEvaluationResult? CaseMatchDecision = null,
     IReadOnlyList<IntakeSearchDocument>? SearchDocuments = null,
-    Guid? DeclaredCaseId = null)
+    Guid? DeclaredCaseId = null,
+    DocumentSemanticRole? DeclaredDocumentType = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 

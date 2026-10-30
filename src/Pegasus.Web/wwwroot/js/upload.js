@@ -77,6 +77,22 @@
         var store = new DataTransfer();
         var previews = [];
         var uploading = false;
+        // A declared upload lets each file carry the type it takes on the
+        // Case (FRD-18): the page supplies the select once, as a template,
+        // and every row that takes a type gets its own copy, named for the
+        // file's place in the post. A photograph is an Image and a message
+        // takes none, so those rows draw no select. The choice is kept by
+        // the file's identity so removing another file does not lose it.
+        var typeTemplate = select.querySelector('[data-upload-type-template]');
+        var chosenTypes = {};
+        var fileKey = function (file) { return file.name + '|' + file.size + '|' + file.lastModified; };
+        var takesType = function (file) {
+            var type = (file.type || '').toLowerCase();
+            return type.indexOf('image/') !== 0
+                && type !== 'message/rfc822'
+                && type !== 'application/vnd.ms-outlook'
+                && !/\.(eml|msg)$/i.test(file.name);
+        };
 
         select.classList.add('is-enhanced');
 
@@ -123,6 +139,16 @@
                 var meta = document.createElement('small');
                 meta.textContent = fileSize(file.size) + ' · ' + kindOf(file);
                 name.append(title, meta);
+                var picker = null;
+                if (typeTemplate && takesType(file)) {
+                    picker = typeTemplate.content.firstElementChild.cloneNode(true);
+                    var typeSelect = picker.querySelector('select');
+                    typeSelect.name = 'DocumentTypes[' + index + ']';
+                    if (chosenTypes[fileKey(file)]) { typeSelect.value = chosenTypes[fileKey(file)]; }
+                    typeSelect.addEventListener('change', function () { chosenTypes[fileKey(file)] = typeSelect.value; });
+                    // The select stays enabled while uploading so the post carries it.
+                    row.classList.add('up-file--typed');
+                }
                 var tail;
                 if (uploading) {
                     tail = document.createElement('span');
@@ -136,7 +162,7 @@
                     tail.setAttribute('aria-label', 'Remove ' + file.name);
                     tail.appendChild(glyph('x'));
                 }
-                row.append(thumb, name, tail);
+                if (picker) { row.append(thumb, name, picker, tail); } else { row.append(thumb, name, tail); }
                 return row;
             }));
         };

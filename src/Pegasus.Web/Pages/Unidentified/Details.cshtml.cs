@@ -135,7 +135,9 @@ public sealed partial class DetailsModel(
             ? $"/Received/{emailReceipt.Id:D}/Source"
             : null;
 
-    public string? OpenMessageHref => Context.SourceMessageId is { } messageId ? $"/Inbox/{messageId:D}" : null;
+    public string? OpenMessageHref => Context.SourceMessageId is { } messageId
+        ? Pegasus.Core.Notifications.StaffNotificationPolicy.MessageRoute(messageId)
+        : null;
 
     /// <summary>
     /// Request again composes a reply to the message the material came in.
@@ -157,7 +159,8 @@ public sealed partial class DetailsModel(
     /// <summary>Whether the source message's mailbox can send and the message has a sender to answer.</summary>
     public bool SourceMessageCanReply { get; private set; }
 
-    private static string ReplyHrefFor(Guid messageId) => $"/Inbox/{messageId:D}?compose=reply";
+    private static string ReplyHrefFor(Guid messageId) =>
+        $"{Pegasus.Core.Notifications.StaffNotificationPolicy.MessageRoute(messageId)}&compose=reply";
 
     public bool IsEmail => UnidentifiedMediaKindPolicy.Classify(Receipt?.SourceIdentity.Channel, Receipt?.MediaType)
         == UnidentifiedMediaKind.Email;

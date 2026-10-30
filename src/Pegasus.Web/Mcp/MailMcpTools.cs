@@ -120,6 +120,42 @@ internal sealed record MailToolLinkDestinations(
     IReadOnlyList<MailToolLinkDestination> Items,
     string CorrelationId);
 
+internal sealed record MailToolMailboxSearchItem(
+    string MailboxId,
+    string MailboxAddress,
+    string MessageId,
+    string? Subject,
+    string? SenderAddress,
+    DateTimeOffset? ReceivedAtUtc,
+    string? Preview);
+
+internal sealed record MailToolMailboxSearchMailbox(
+    string MailboxId,
+    string MailboxAddress,
+    string State);
+
+/// <summary>The read-only approved-mailbox search (R561): headers only.</summary>
+internal sealed record MailToolMailboxSearch(
+    string Query,
+    IReadOnlyList<MailToolMailboxSearchItem> Items,
+    IReadOnlyList<MailToolMailboxSearchMailbox> Mailboxes,
+    bool IsTruncated,
+    string State,
+    string TraceIdentifier);
+
+internal sealed record MailToolOldSystemFolder(
+    string FolderId,
+    string Name,
+    DateTimeOffset? ModifiedAtUtc);
+
+/// <summary>The read-only old-system folder search (R561): names only.</summary>
+internal sealed record MailToolOldSystemFolderSearch(
+    string Query,
+    IReadOnlyList<MailToolOldSystemFolder> Items,
+    bool IsTruncated,
+    string State,
+    string TraceIdentifier);
+
 internal sealed record MailActionToolResult(
     Guid MessageId,
     string Action,
@@ -164,8 +200,94 @@ internal sealed class MailMcpTools(
     OneCommandEdit leases,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor,
-    ICursorProtector cursors)
+    ICursorProtector cursors,
+    SearchApprovedMailboxes searchMailboxes,
+    SearchOldSystemCaseFolders searchOldSystemFolders)
 {
+    [McpServerTool(
+        Name = "pegasus_mail_mailbox_search",
+        Title = "Search the approved mailboxes",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = true,
+        UseStructuredContent = true)]
+    [Description("Read-only. Searches one approved mailbox, or every approved mailbox, in Outlook for a term (a case reference, registration, claimant or claim number) and returns message headers only: subject, sender, received time and a short preview. Nothing in any mailbox is marked read, moved or changed. A mailbox the tenant has not admitted reports unavailable; state is unavailable when no mailbox answered. Use it to see whether a case an e-mail refers to has earlier correspondence, for example one still run in the old system (FRD-08 Pre-Pegasus case).")]
+    public async Task<MailToolMailboxSearch> MailboxSearchAsync(
+        [Description("The search text, 1 to 200 characters.")] string query,
+        [Description("Optional approved mailbox identifier from pegasus_mail_list; omit it to search every approved mailbox.")] Guid? mailbox = null,
+        [Description("Messages per mailbox, 1 to 100.")] int pageSize = OldSystemLookupBounds.MaximumItems,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync("pegasus_mail_mailbox_search", cancellationToken);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_mail_mailbox_search",
+            mailbox?.ToString("D") ?? "approved-mailboxes",
+            null,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var result = await searchMailboxes.ExecuteAsync(
+                    context.Actor, mailbox, query, pageSize, cancellationToken);
+                return new MailToolMailboxSearch(
+                    query.Trim(),
+                    result.Items.Select(item => new MailToolMailboxSearchItem(
+                        item.MailboxId.ToString("D"),
+                        item.MailboxAddress,
+                        item.MessageId,
+                        item.Subject,
+                        item.SenderAddress,
+                        item.ReceivedAtUtc,
+                        item.Preview)).ToArray(),
+                    result.Mailboxes.Select(item => new MailToolMailboxSearchMailbox(
+                        item.MailboxId.ToString("D"),
+                        item.MailboxAddress,
+                        LookupState(item.State))).ToArray(),
+                    result.IsTruncated,
+                    LookupState(result.State),
+                    context.TraceIdentifier);
+            }),
+            cancellationToken);
+    }
+
+    [McpServerTool(
+        Name = "pegasus_old_system_folder_search",
+        Title = "Search the old system's case folders",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = true,
+        UseStructuredContent = true)]
+    [Description("Read-only. Searches the folder names below the old system's Box folder for a term (a case reference, registration or claimant) and returns folder names and identities only; no content is read and nothing is written. state is unavailable when that folder is not configured or Box could not be read. Use it to see whether a case an e-mail refers to is one still run in the old system (FRD-08 Pre-Pegasus case).")]
+    public async Task<MailToolOldSystemFolderSearch> OldSystemFolderSearchAsync(
+        [Description("The search text, 1 to 200 characters.")] string query,
+        [Description("Folders to return, 1 to 100.")] int pageSize = OldSystemLookupBounds.MaximumItems,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync("pegasus_old_system_folder_search", cancellationToken);
+        return await auditor.RecordAsync(
+            context,
+            "pegasus_old_system_folder_search",
+            "old-system-folders",
+            null,
+            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            {
+                var result = await searchOldSystemFolders.ExecuteAsync(
+                    context.Actor, query, pageSize, cancellationToken);
+                return new MailToolOldSystemFolderSearch(
+                    query.Trim(),
+                    result.Items.Select(item => new MailToolOldSystemFolder(
+                        item.FolderId, item.Name, item.ModifiedAtUtc)).ToArray(),
+                    result.IsTruncated,
+                    LookupState(result.State),
+                    context.TraceIdentifier);
+            }),
+            cancellationToken);
+    }
+
+    private static string LookupState(OldSystemLookupState state) =>
+        state == OldSystemLookupState.Available ? "available" : "unavailable";
+
     [McpServerTool(
         Name = "pegasus_mail_list",
         Title = "List retained mail",
@@ -311,7 +433,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Corrects one retained message's type using the same versioned Core command as the staff workspace. Accepts correspondence, new-instruction, triage-request, cancellation, or the combined new-instruction:Inspection form (and Audit, InspectionAndAudit). A split new-instruction also needs workType. Requires a reason, the expected classification version, and a mcp:-prefixed operation key.")]
+    [Description("Corrects one retained message's type using the same versioned Core command as the staff workspace. Accepts correspondence, new-instruction, triage-request, cancellation, pre-pegasus-case, or the combined new-instruction:Inspection form (and Audit, InspectionAndAudit). A split new-instruction also needs workType. Requires a reason, the expected classification version, and a mcp:-prefixed operation key.")]
     public async Task<MailToolClassification> CorrectClassificationAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         [Description("The classification version last read, for optimistic concurrency.")] int expectedClassificationVersion,

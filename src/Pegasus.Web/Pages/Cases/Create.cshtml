@@ -153,7 +153,7 @@ else
     <a class="btn btn--small" href="@Model.OpenFileHref" target="_blank" rel="noopener" data-create-action="open-file">Open file</a>
     @if (Model.SourceMessageId is { } seedMessageId)
     {
-        <a class="btn btn--small" href="/Inbox/@seedMessageId.ToString("D")" data-create-action="open-message">Open message</a>
+        <a class="btn btn--small" href="@Pegasus.Core.Notifications.StaffNotificationPolicy.MessageRoute(seedMessageId)" data-create-action="open-message">Open message</a>
     }
 </div>
 
@@ -179,7 +179,7 @@ else
             <div class="cluster">
                 @if (Model.SourceMessageId is { } refusalMessageId)
                 {
-                    <a class="btn" href="/Inbox/@refusalMessageId.ToString("D")">Open message</a>
+                    <a class="btn" href="@Pegasus.Core.Notifications.StaffNotificationPolicy.MessageRoute(refusalMessageId)">Open message</a>
                 }
                 <a class="btn" href="@Model.OpenFileHref" target="_blank" rel="noopener">Open file</a>
             </div>

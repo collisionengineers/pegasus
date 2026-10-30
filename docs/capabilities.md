@@ -13,8 +13,8 @@ exclusion.
 | --- | --- | --- |
 | OPS-10 | Production environment deployed directly from an authorised terminal | [ADR-0014](adr/0014-local-to-production-deployment.md) |
 | MAIL-21 | Shared Core classification: versioned rules, evidence, Unclassified abstention | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
-| MAIL-22 | Three received-mail categories, or none (Case correspondence) | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
-| MAIL-26 | Mail classifier agent: an Automation MCP client under `automation.mail` that classifies and links only mail that is Unclassified or has no Case and was decided by the pipeline, and leaves a decision by staff, an Automation caller or a Principal alone | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
+| MAIL-22 | Four received-mail categories, or none (Case correspondence) | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
+| MAIL-26 | Mail classifier agent: an Automation MCP client under `automation.mail` that classifies and links only mail that is Unclassified or has no Case and was decided by the pipeline, leaves a decision by staff, an Automation caller or a Principal alone, and may set Pre-Pegasus case after a read-only old-system folder or mailbox lookup (R561) | [Mail categories and correction](frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction) |
 | ACC-01 | Staff sign-in with Pegasus-managed usernames and passwords | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-02 | Administrator, Engineer and User roles held as data | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
 | ACC-03 | Staff account lifecycle, password reset, force logout, role assignment | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |

@@ -25,10 +25,18 @@ public sealed record BoxCustodyOptions(
     string PrivateKey,
     string PrivateKeyPassphrase,
     string EnterpriseId,
-    string HoldingFolderId)
+    string HoldingFolderId,
+    string? OldSystemRootFolderId = null)
 {
     /// <summary>The production custody root: the "pegasus" folder every deployed Case folder sits under.</summary>
     public const string ProductionRootFolderId = "405543781910";
+
+    /// <summary>
+    /// The old system's case folders, outside the custody root, which Pegasus
+    /// reads in one way only: a folder-name search for the Pre-Pegasus case
+    /// lookup (operator, 30 October 2026, R561). Nothing below it is written.
+    /// </summary>
+    public const string ProductionOldSystemRootFolderId = "3220448509";
 
     /// <summary>
     /// The local-test custody root a DevelopmentOffline host may write under
@@ -44,7 +52,8 @@ public sealed record BoxCustodyOptions(
         string? configJson,
         string? clientSecret,
         string? holdingFolderId = null,
-        string approvedRootFolderId = ProductionRootFolderId)
+        string approvedRootFolderId = ProductionRootFolderId,
+        string? oldSystemRootFolderId = null)
     {
         var api = RequireBoxUri(baseUri, "api.box.com", "Box:BaseUri");
         var upload = RequireBoxUri(uploadUri, "upload.box.com", "Box:UploadUri");
@@ -58,6 +67,14 @@ public sealed record BoxCustodyOptions(
         {
             throw new InvalidOperationException(
                 "Box:HoldingFolderId must identify the configured holding folder below the approved root.");
+        }
+        var oldSystemRoot = string.IsNullOrWhiteSpace(oldSystemRootFolderId) ? null : oldSystemRootFolderId.Trim();
+        if (oldSystemRoot is not null
+            && (string.Equals(oldSystemRoot, rootFolderId, StringComparison.Ordinal)
+                || string.Equals(oldSystemRoot, holdingFolderId, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                "Box:OldSystemRootFolderId must name the old system's folder, not the custody root or the holding folder.");
         }
         if (string.IsNullOrWhiteSpace(configJson))
         {
@@ -94,7 +111,8 @@ public sealed record BoxCustodyOptions(
                 RequireJsonString(appAuth, "privateKey"),
                 RequireJsonString(appAuth, "passphrase"),
                 RequireJsonString(root, "enterpriseID"),
-                holdingFolderId);
+                holdingFolderId,
+                oldSystemRoot);
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException)
         {
@@ -586,6 +604,63 @@ internal sealed partial class BoxContentClient(
         await EnsureDescendantAsync(folder.Id, cancellationToken);
         return folder;
     }
+
+    /// <summary>A folder Box's search returned, by name and identity.</summary>
+    internal sealed record BoxFolderHit(string Id, string Name, DateTimeOffset? ModifiedAtUtc);
+
+    /// <summary>
+    /// Box's search, confined to folders below <paramref name="ancestorFolderId"/>
+    /// (R561). The ancestor is sent as the search's own fence and checked
+    /// again on each hit's path, so a hit from anywhere else is dropped. This
+    /// is the one read that does not walk to the custody root: it names a
+    /// different root, and reads names only.
+    /// </summary>
+    public async Task<(IReadOnlyList<BoxFolderHit> Hits, bool IsTruncated)> SearchFoldersUnderAsync(
+        string ancestorFolderId,
+        string term,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ancestorFolderId);
+        var uri = new Uri(options.BaseUri,
+            $"search?query={Uri.EscapeDataString(term)}&type=folder" +
+            $"&ancestor_folder_ids={Uri.EscapeDataString(ancestorFolderId)}" +
+            $"&limit={limit}&fields=id,name,type,modified_at,path_collection");
+        using var response = await SendAsync(HttpMethod.Get, uri, null, cancellationToken);
+        using var document = await ReadSuccessJsonAsync(response, cancellationToken);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException("Box returned an invalid search page.");
+        }
+        var hits = entries.EnumerateArray()
+            .Where(entry => string.Equals(ReadString(entry, "type"), "folder", StringComparison.Ordinal)
+                && IsBelow(entry, ancestorFolderId))
+            .Select(entry => new BoxFolderHit(
+                ReadString(entry, "id") ?? throw new InvalidDataException("Box omitted a folder identity."),
+                ReadString(entry, "name") ?? string.Empty,
+                ReadString(entry, "modified_at") is { } modified
+                    && DateTimeOffset.TryParse(
+                        modified,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal,
+                        out var modifiedAt)
+                    ? modifiedAt.ToUniversalTime()
+                    : null))
+            .ToArray();
+        var total = root.TryGetProperty("total_count", out var count) && count.TryGetInt64(out var totalCount)
+            ? totalCount
+            : hits.Length;
+        return (hits, total > limit);
+    }
+
+    private static bool IsBelow(JsonElement entry, string ancestorFolderId) =>
+        entry.TryGetProperty("path_collection", out var path)
+        && path.ValueKind == JsonValueKind.Object
+        && path.TryGetProperty("entries", out var ancestors)
+        && ancestors.ValueKind == JsonValueKind.Array
+        && ancestors.EnumerateArray().Any(ancestor =>
+            string.Equals(ReadString(ancestor, "id"), ancestorFolderId, StringComparison.Ordinal));
 
     public async Task<BoxItem> GetFolderAsync(
         string folderId,

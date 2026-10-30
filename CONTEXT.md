@@ -78,7 +78,7 @@ Safely retained image material or an inseparable image submission group that has
 _Avoid_: Triage, Blocked, Blocked intake
 
 **Mail category**:
-The one category a retained received message has, from three: New instruction (with Case type Inspection, Audit, or Inspection and Audit), Triage request, and Cancellation ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). Every other message has no category: linked, it is Case correspondence; unlinked, it waits in No Case Found. A classification may also set Opens query, which is not a category. Sent items carry no category.
+The one category a retained received message has, from four: New instruction (with Case type Inspection, Audit, or Inspection and Audit), Triage request, Cancellation, and Pre-Pegasus case, mail about a case still run in the old system with no Case in Pegasus, which leaves No Case Found and is set only by staff, the Automation actor or the classifier agent (R561) ([FRD-08](docs/frd/frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)). Every other message has no category: linked, it is Case correspondence; unlinked, it waits in No Case Found. A classification may also set Opens query, which is not a category. Sent items carry no category.
 _Avoid_: family, subtype, destination, Other, Ambiguous, Unclassified as a category, Query as a mail category
 
 **Held**:

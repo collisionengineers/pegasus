@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -74,6 +75,66 @@ public sealed class GroupedIntakeTests
         Assert.Equal(
             ["mail-images", "mail-images:1"],
             submission.Sources.Select(source => source.SourceIdentity.ExternalReceiptToken));
+    }
+
+    /// <summary>
+    /// A type chosen at upload (R564) belongs to a declared Case and is one
+    /// the Upload page offers; a submission that says otherwise is malformed
+    /// and is refused before any file is staged.
+    /// </summary>
+    [Fact]
+    public async Task RefusesADocumentTypeWithoutADeclaredCase()
+    {
+        var submission = new FakeSubmission();
+        var request = Request("typed-no-case") with
+        {
+            Files = [new(0, Source("estimate.pdf", [1]) with { DeclaredDocumentType = DocumentSemanticRole.Estimate })]
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new SubmitGroupedIntake(submission, new FakeGroupStore(), TimeProvider.System)
+                .ExecuteStreamedAsync(request));
+        Assert.Empty(submission.Sources);
+    }
+
+    [Fact]
+    public async Task RefusesADocumentTypeTheUploadDoesNotOffer()
+    {
+        var submission = new FakeSubmission();
+        var request = Request("typed-audit") with
+        {
+            DeclaredCaseId = Guid.NewGuid(),
+            Files = [new(0, Source("report.pdf", [1]) with { DeclaredDocumentType = DocumentSemanticRole.AuditReport })]
+        };
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            new SubmitGroupedIntake(submission, new FakeGroupStore(), TimeProvider.System)
+                .ExecuteStreamedAsync(request));
+        Assert.Empty(submission.Sources);
+    }
+
+    [Fact]
+    public async Task EachFileKeepsItsOwnDocumentTypeUnderTheSubmissionsCase()
+    {
+        var submission = new FakeSubmission();
+        var declaredCaseId = Guid.NewGuid();
+        var request = Request("typed") with
+        {
+            DeclaredCaseId = declaredCaseId,
+            Files =
+            [
+                new(0, Source("estimate.pdf", [1]) with { DeclaredDocumentType = DocumentSemanticRole.Estimate }),
+                new(1, Source("letter.pdf", [2]))
+            ]
+        };
+
+        await new SubmitGroupedIntake(submission, new FakeGroupStore(), TimeProvider.System)
+            .ExecuteStreamedAsync(request);
+
+        Assert.Equal(
+            [DocumentSemanticRole.Estimate, null],
+            submission.Sources.Select(source => source.DeclaredDocumentType));
+        Assert.All(submission.Sources, source => Assert.Equal(declaredCaseId, source.DeclaredCaseId));
     }
 
     [Fact]
@@ -186,7 +247,9 @@ public sealed class GroupedIntakeTests
                     buffer.ToArray(),
                     source.ReceivedAtUtc,
                     source.Actor,
-                    source.SourceIdentity),
+                    source.SourceIdentity,
+                    source.DeclaredCaseId,
+                    source.DeclaredDocumentType),
                 operationKey,
                 cancellationToken);
         }

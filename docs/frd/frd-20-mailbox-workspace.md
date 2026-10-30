@@ -35,11 +35,15 @@ reference`), All principals, All Mailboxes, the count and Received order.
 There is no Category filter and no bulk Correct classification. The bulk bar
 (Dismiss, or Restore on Dismissed) is hidden until a row is ticked.
 
-**All** lists linked mail, a New instruction, a Triage request, or a receipt
-nothing has classified yet. **No Case Found** lists received mail linked to no
-Case. The ledger is full width: a select-all tick, then Case (None, in quiet
+**All** lists linked mail, a New instruction, a Triage request, a Pre-Pegasus
+case, or a receipt nothing has classified yet. **No Case Found** lists
+received mail linked to no Case that is not decided to be a Pre-Pegasus case
+(operator, 30 October 2026, R561). The ledger is full width: a select-all tick, then Case (None, in quiet
 type, when unlinked), Type, Subject, Sender (with the Principal under it) and
-Received. A row click opens `#mailMessageDialog`.
+Received. Type is the category's status chip; a New instruction carries its
+work type beneath it as a plain neutral chip, and Correspondence is a neutral
+chip (operator, 30 October 2026, R559). A row click opens
+`#mailMessageDialog`.
 
 The message dialog is full width. A context bar under the route line shows
 Case, Type and Query. The settings menu (cog, `#icon-settings`) holds, in
@@ -61,7 +65,9 @@ The No Case Found scope (`queue=no_case_found`, operator 13 October 2026)
 lists received, not-dismissed mail whose receipt is linked to no Case: no
 active association, accepted link, Case created by its allocation, or
 Triage it opened. Once the message is linked to a Case, it leaves the
-scope. Only mail carrying nothing but photographs becomes an Unidentified
+scope. So does a message whose Type is set to Pre-Pegasus case: it is listed
+in All, and its outcome chip reads **Pre-Pegasus case** (operator, 30 October
+2026, R561). Only mail carrying nothing but photographs becomes an Unidentified
 item; any other e-mail never does
 ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference))
 and is refused by Dismiss. A message whose processing left it for sorting
@@ -74,6 +80,11 @@ Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message as a dialog over the list; the address `/Inbox/{id}` stays
 for a new tab and for no script (operator, 16 October 2026, R159 (c),
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Every other in-app link to a message (the Case's message dialog and its
+Reply, Reply all and Forward, the Case's query Reply, Unidentified, Image
+Intake, Create case, the Logs drawer and notifications) opens the Inbox with
+that message's dialog open, `/Inbox?open={id}`; the `/Inbox/{id}` page draws
+the dialog's head (operator, 30 October 2026, R560).
 Clicking elsewhere on a row selects it. The selected row is marked. Up and
 Down move through the rows. In All incoming, No Case Found and Dismissed each
 row carries a checkbox in its left gutter; ticking it neither opens nor
@@ -159,7 +170,8 @@ menu holds, in order, Case, Type, Query, Change case and Decided. Type is one
 select. It posts at once and records the fixed reason "Corrected from the
 Inbox"; no reason is typed. The select's New instruction values are combined
 (`new-instruction:Inspection` and the same shape for Audit and Inspection and
-Audit). A split New instruction plus work type is the same correction. Query
+Audit). A split New instruction plus work type is the same correction. The
+select also offers Pre-Pegasus case (`pre-pegasus-case`). Query
 is **Open query** or **Mark done**, the Case's own handlers. Change case
 links to Place on Hold or Close case only when that Case allows the act.
 Register images is offered on an unlinked, uncategorised image-only message.
@@ -205,7 +217,7 @@ chronological history, newest first by default with an oldest-first option.
 A row opens its message over the Case, read-only: no
 classification, association, read-state, Case-state or custody change. Reply,
 Reply all and Forward appear there where the record offers them and open the
-record's composer with that Case chosen
+composer in the Inbox's message dialog with that Case chosen
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 The full message record is one link away for every other action
 ([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox browsing

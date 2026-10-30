@@ -1289,12 +1289,12 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("instructions@collisionengineers.co.uk", html, StringComparison.Ordinal);
         Assert.Contains("reports@collisionengineers.co.uk", html, StringComparison.Ordinal);
         Assert.Contains("Message 1 from instructions", html, StringComparison.Ordinal);
-        // The ledger row (v42 I): the unread dot and class, the Type as plain
-        // Correspondence, the subject with its one-line excerpt beneath, the
-        // sender, and the received date with its clock.
+        // The ledger row (v42 I): the unread dot and class, the Type as the
+        // neutral Correspondence chip (R559), the subject with its one-line
+        // excerpt beneath, the sender, and the received date with its clock.
         Assert.Equal(3, CountOccurrences(html, "inbox-ledger-row unread"));
         Assert.Equal(3, CountOccurrences(html, "class=\"unread-indicator\""));
-        Assert.Equal(3, CountOccurrences(html, $"<span class=\"inbox-type-correspondence\">{OperatorLabels.Inbox.Correspondence}</span>"));
+        Assert.Equal(3, CountOccurrences(html, $"<span class=\"status status--neutral\">{OperatorLabels.Inbox.Correspondence}</span>"));
         Assert.Equal(3, CountOccurrences(html, "<span class=\"row-excerpt\">Please inspect the vehicle at the address supplied.</span>"));
         Assert.Equal(3, CountOccurrences(html, "<span class=\"inbox-sender-addr\">"));
         Assert.Equal(3, CountOccurrences(html, "<small class=\"tabular\">"));
@@ -1434,13 +1434,16 @@ public sealed class MailWorkspaceWebTests
 
     /// <summary>
     /// The Type cell (v42 H, I): a category is its status chip with the work
-    /// type beneath a New instruction; Correspondence is plain words.
+    /// type beneath a New instruction as a plain neutral chip; Correspondence is
+    /// a neutral chip (R559).
     /// </summary>
     [Theory]
     [InlineData(MailCategory.NewInstruction, "Audit", "navy", "Audit", "/Inbox")]
     [InlineData(MailCategory.TriageRequest, null, "amber", null, "/Inbox")]
     // An unlinked cancellation waits in No Case Found (D2).
     [InlineData(MailCategory.Cancellation, null, "neutral", null, "/Inbox?queue=no_case_found")]
+    // A Pre-Pegasus case leaves No Case Found and lists in All (R561).
+    [InlineData(MailCategory.PrePegasusCase, null, "neutral", null, "/Inbox")]
     public async Task TheTypeCellIsTheCategorysChipWithTheWorkTypeBeneath(
         MailCategory category, string? caseType, string tone, string? sub, string list)
     {
@@ -1458,10 +1461,10 @@ public sealed class MailWorkspaceWebTests
         var row = MailRow(await GetHtmlAsync(client, list), messageId);
         var type = Between(row, "<div class=\"inbox-cell-type\">", "</div>");
         Assert.Contains($"<span class=\"status status--{tone}\">{OperatorLabels.MailClassification(category)}</span>", type, StringComparison.Ordinal);
-        Assert.Equal(sub is not null, type.Contains("<small class=\"inbox-cell-sub\">", StringComparison.Ordinal));
+        Assert.Equal(sub is not null, type.Contains("inbox-type-work", StringComparison.Ordinal));
         if (sub is not null)
         {
-            Assert.Contains($"<small class=\"inbox-cell-sub\">{sub}</small>", type, StringComparison.Ordinal);
+            Assert.Contains($"<span class=\"status status--neutral status--plain inbox-type-work\">{sub}</span>", type, StringComparison.Ordinal);
         }
         Assert.DoesNotContain(OperatorLabels.Inbox.Correspondence, type, StringComparison.Ordinal);
     }
@@ -2004,6 +2007,13 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain($">{OperatorLabels.Inbox.Decided}<", html, StringComparison.Ordinal);
         // The record's Dismiss.
         Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
+        // R560: the page draws the dialog's head: the context bar under the one
+        // subject, the cog once, among the page's actions; no dark record head.
+        Assert.DoesNotContain("record-head", html, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(html, "data-mail-context-bar"));
+        Assert.Equal(1, CountOccurrences(html, "data-mail-settings"));
+        Assert.Contains("data-mail-context-bar", Between(html, "class=\"page-title\"", "class=\"page-actions\""), StringComparison.Ordinal);
+        Assert.Contains("data-mail-settings", Between(html, "class=\"page-actions\"", "Back to Inbox"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2301,6 +2311,71 @@ public sealed class MailWorkspaceWebTests
             "This message is no longer in the view you opened it from.",
             open,
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A message decided to be a Pre-Pegasus case has left No Case Found by
+    /// that decision alone, so opened from that view it says so, and opened
+    /// from All it does not (operator, 30 October 2026, R561).
+    /// </summary>
+    [Fact]
+    public async Task APrePegasusCaseMessageIsOutsideTheNoCaseFoundViewAndInsideAll()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await StoreMailClassificationAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxId + "-0",
+            MailClassificationResult.Classified(MailCategory.PrePegasusCase, [], "Fixture.", "fixture", 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var prePegasusMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var openMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var fromNoCaseFound = await GetHtmlAsync(
+            client,
+            $"/Inbox/{prePegasusMessageId:D}?queue=no_case_found");
+        var fromAll = await GetHtmlAsync(client, $"/Inbox/{prePegasusMessageId:D}");
+        var open = await GetHtmlAsync(
+            client,
+            $"/Inbox/{openMessageId:D}?queue=no_case_found");
+
+        Assert.Contains(
+            "This message is no longer in the view you opened it from.",
+            fromNoCaseFound,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "This message is no longer in the view you opened it from.",
+            fromAll,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "This message is no longer in the view you opened it from.",
+            open,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The outcome chip names the category for a Pre-Pegasus case, as it
+    /// names Triage for a Triage request, instead of the scope the message
+    /// has left (operator, 30 October 2026, R561).
+    /// </summary>
+    [Fact]
+    public void ThePrePegasusCaseOutcomeChipNamesTheCategoryNotNoCaseFound()
+    {
+        var summary = new RetainedMailSummary(
+            Guid.NewGuid(), Guid.NewGuid(), "desk@example.test", null, null, null,
+            "Chasing QDOS26070", null, DateTimeOffset.UtcNow, true, 0,
+            IntakeDecision.NeedsSorting, Guid.NewGuid(), null, null,
+            Classification: MailClassificationResult.Classified(
+                MailCategory.PrePegasusCase, [], "fixture", "fixture", 1));
+
+        Assert.Equal(
+            OperatorLabels.MailClassification(MailCategory.PrePegasusCase),
+            Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary));
+        Assert.Equal(
+            OperatorLabels.Inbox.NoCaseFound,
+            Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary with { Classification = null }));
     }
 
     [Fact]

@@ -591,6 +591,57 @@ internal sealed class GraphMailClient(
         return item;
     }
 
+    /// <summary>
+    /// Graph's message search over one mailbox (R561): <c>$search</c> cannot be
+    /// combined with <c>$filter</c> or <c>$orderby</c>, so the URI carries the
+    /// quoted term, the header fields and the cap only.
+    /// </summary>
+    public Uri SearchMessagesUri(string mailboxId, string term, int maximumItems) => new(
+        baseUri,
+        $"users/{Uri.EscapeDataString(mailboxId)}/messages" +
+        $"?$search={Uri.EscapeDataString(QuoteSearchTerm(term))}" +
+        $"&$select=id,subject,from,receivedDateTime,bodyPreview&$top={maximumItems}");
+
+    public async Task<IReadOnlyList<GraphSearchHit>> SearchMessagesAsync(
+        string mailboxId,
+        string term,
+        int maximumItems,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            SearchMessagesUri(mailboxId, term, maximumItems));
+        request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+        using var response = await SendAsync(request, cancellationToken);
+        await ThrowForFailureAsync(response, cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("value", out var value)
+            || value.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException("Microsoft Graph returned an invalid message search page.");
+        }
+        return value.EnumerateArray().Select(ParseSearchHit).ToArray();
+    }
+
+    /// <summary>A KQL phrase: the term in double quotes, its own quotes and backslashes escaped.</summary>
+    internal static string QuoteSearchTerm(string term) =>
+        "\"" + term.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+
+    private static GraphSearchHit ParseSearchHit(JsonElement value) => new(
+        RequiredString(value, "id"),
+        OptionalString(value, "subject"),
+        value.TryGetProperty("from", out var from)
+            && from.ValueKind == JsonValueKind.Object
+            && from.TryGetProperty("emailAddress", out var address)
+            && address.ValueKind == JsonValueKind.Object
+            ? OptionalString(address, "address")
+            : null,
+        OptionalInstant(value, "receivedDateTime"),
+        OptionalString(value, "bodyPreview"));
+
     private bool HasConfiguredOrigin(Uri uri) =>
         uri.IsAbsoluteUri
         && uri.Scheme.Equals(baseUri.Scheme, StringComparison.OrdinalIgnoreCase)
@@ -1339,6 +1390,14 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
 internal sealed record GraphDeltaPage(
     IReadOnlyList<GraphDeltaItem> Items, Uri NextUri, bool HasNextPage);
 internal sealed record GraphFolderPage(IReadOnlyList<GraphDeltaItem> Items, Uri? NextUri);
+
+/// <summary>One header a Graph message search returned (R561).</summary>
+internal sealed record GraphSearchHit(
+    string Id,
+    string? Subject,
+    string? SenderAddress,
+    DateTimeOffset? ReceivedAtUtc,
+    string? Preview);
 
 internal sealed class GraphSentReportInstructionMover(GraphMailClient client) : ISentReportInstructionMover
 {

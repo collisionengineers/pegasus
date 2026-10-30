@@ -155,9 +155,22 @@ public sealed class EfCaseWorkflowStore(
             : null;
         // A live lease refuses every claim that does not explicitly take it over, including the
         // holder's own from a one-off command elsewhere, which must never end the holder's edit
-        // session. The Case page resumes the holder's lease before it ever claims.
+        // session. The Case page resumes the holder's lease before it ever claims. Another
+        // holder's lease is taken over only as a request makes it (R552, R554): the holder's own
+        // explicit take-back rotates their lease and is never a takeover. The Automation Actor
+        // never resumes, so its sessions never take one another's lease back.
+        var retainedRequest = CaseMutationGuard.RetainedRequest(workflow);
         if (liveHolder is not null
-            && (!request.TakeOver || !CaseEditAuthority.CanTakeOver(previousHolderKind, request.Actor)))
+            && (!request.TakeOver
+                || !(CaseEditAuthority.CanResume(
+                        previousHolderKind, liveHolder, workflow.EditLeaseExpiresAtUtc, request.Actor, now)
+                    || CaseEditAuthority.CanTakeOver(
+                        previousHolderKind,
+                        liveHolder,
+                        workflow.EditLeaseExpiresAtUtc,
+                        request.Actor,
+                        retainedRequest,
+                        now))))
         {
             throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
         }
@@ -177,7 +190,7 @@ public sealed class EfCaseWorkflowStore(
         // holder's own re-claim after a save, which clears the lease rather than letting it lapse,
         // leaves it standing (R550).
         var previousLeaseLapsed = workflow.EditLeaseHolder is not null && liveHolder is null;
-        if (CaseMutationGuard.RetainedRequest(workflow) is { } standingRequest
+        if (retainedRequest is { } standingRequest
             && (previousLeaseLapsed
                 || request.Actor.Kind != ActorKind.Staff
                 || !string.Equals(standingRequest.Holder, request.Actor.SubjectId, StringComparison.Ordinal)))

@@ -5,10 +5,28 @@ namespace Pegasus.Core.Tests.Intake.Classification;
 public sealed class MailCategoryTests
 {
     [Fact]
-    public void ExactlyTheThreeCategoriesExist()
+    public void ExactlyTheFourCategoriesExist()
     {
-        string[] expected = ["new-instruction", "triage-request", "cancellation"];
+        string[] expected = ["new-instruction", "triage-request", "cancellation", "pre-pegasus-case"];
         Assert.Equal(expected, MailCategories.All.Select(MailCategories.Code).ToArray());
+    }
+
+    /// <summary>
+    /// Pre-Pegasus case (operator, 30 October 2026, R561) is a classified
+    /// category with no work type, set only by correction.
+    /// </summary>
+    [Fact]
+    public void PrePegasusCaseIsAClassifiedCategoryWithNoCaseType()
+    {
+        var result = MailClassificationResult.Classified(
+            MailCategory.PrePegasusCase, [], "reason", "policy", 1);
+
+        Assert.True(result.IsClassified);
+        Assert.True(result.Is(MailCategory.PrePegasusCase));
+        Assert.Null(result.CaseType);
+        Assert.Equal("pre-pegasus-case", MailCategories.Code(MailCategory.PrePegasusCase));
+        Assert.True(MailCategories.TryParse("pre-pegasus-case", out var parsed));
+        Assert.Equal(MailCategory.PrePegasusCase, parsed);
     }
 
     [Fact]

@@ -193,6 +193,26 @@ what `git diff` shows, is deleted. Research separates verified facts
 (read-only checks, with the command) from assumptions; an assumption a
 five-minute query would settle is run, not defended.
 
+## Migrations
+
+Two rules a migration carries, moved here from the release skill's migration
+reference (30 October 2026):
+
+- A migration or SQL that changes a user's roles, claims or enabled state also
+  sets a new `SecurityStamp` for that user. Signed-in sessions are refused only
+  when the stamp changes.
+- A migration that creates a table, or changes what a runtime role may do on
+  one, also changes that table's rows in
+  `src/Pegasus.Infrastructure/Persistence/RuntimePermissions.csv`, the
+  runtime-role permission record (one row per grant or denial for each role; a
+  `none` row for a table neither role touches). `RuntimePermissionRecordTests`
+  proves a fresh database holds exactly the recorded rows, and the release's
+  database bootstrap proves production does (R482).
+
+`Invoke-ProductionAdministratorBootstrap.ps1` runs only when a release changes
+administrator bootstrap behaviour or the approved task requires administrator
+reconciliation; it is not a routine migration step.
+
 ## Destructive operations
 
 Before a destructive or bulk operation, enumerate exact targets, inspect the

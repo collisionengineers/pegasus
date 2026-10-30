@@ -460,7 +460,7 @@ public static partial class OperatorLabels
             return "Unidentified resolution ready";
         }
 
-        if (route.StartsWith("/Inbox/", StringComparison.OrdinalIgnoreCase)
+        if (route.StartsWith("/Inbox", StringComparison.OrdinalIgnoreCase)
             || route.EndsWith("?section=correspondence", StringComparison.OrdinalIgnoreCase))
         {
             return "Query draft ready";
@@ -1368,6 +1368,7 @@ public static partial class OperatorLabels
         Pegasus.Core.Intake.MailCategory.NewInstruction => "New instruction",
         Pegasus.Core.Intake.MailCategory.TriageRequest => "Triage request",
         Pegasus.Core.Intake.MailCategory.Cancellation => "Cancellation",
+        Pegasus.Core.Intake.MailCategory.PrePegasusCase => "Pre-Pegasus case",
         _ => throw new ArgumentOutOfRangeException(nameof(category))
     };
 

@@ -182,9 +182,10 @@
                                     <small class="inbox-cell-sub">@item.VehicleSummary</small>
                                 }
                             </div>
-                            @* Type (v42 H): the category as its status chip with the work type
-                               beneath, the message's open query as the purple Query chip with
-                               its assignee, and Correspondence as plain words. *@
+                            @* Type (v42 H; R559): the category as its status chip with the work
+                               type beneath as a plain neutral chip, the message's open query as
+                               the purple Query chip with its assignee, and Correspondence as a
+                               neutral chip. *@
                             <div class="inbox-cell-type">
                                 @if (item.Query is { IsOpen: true } query)
                                 {
@@ -196,12 +197,12 @@
                                     <span class="status status--@OperatorLabels.Inbox.CategoryTone(category)">@OperatorLabels.MailClassification(category)</span>
                                     @if (category == MailCategory.NewInstruction && classification.CaseType is { } caseType)
                                     {
-                                        <small class="inbox-cell-sub">@OperatorLabels.CaseTypeName(caseType)</small>
+                                        <span class="status status--neutral status--plain inbox-type-work">@OperatorLabels.CaseTypeName(caseType)</span>
                                     }
                                 }
                                 else
                                 {
-                                    <span class="inbox-type-correspondence">@OperatorLabels.Inbox.Correspondence</span>
+                                    <span class="status status--neutral">@OperatorLabels.Inbox.Correspondence</span>
                                 }
                             </div>
                             <div class="inbox-cell-message">

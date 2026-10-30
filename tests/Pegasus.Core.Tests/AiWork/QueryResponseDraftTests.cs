@@ -77,7 +77,7 @@ public sealed class QueryResponseDraftTests
         var route = StaffNotificationPolicy.AiDraftRoute(ready);
 
         Assert.Equal(
-            $"/Inbox/{MessageId:D}?compose=reply&correspondenceCaseReference=QDOS260001&markQueryDone=true&aiJob={ready.JobId:D}",
+            $"/Inbox?open={MessageId:D}&compose=reply&correspondenceCaseReference=QDOS260001&markQueryDone=true&aiJob={ready.JobId:D}",
             route);
         Assert.Equal(route, AiDraftPolicy.ToDraft(ready, 1)!.Route);
     }

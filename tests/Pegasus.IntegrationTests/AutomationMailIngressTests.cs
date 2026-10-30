@@ -25,6 +25,67 @@ public sealed class AutomationMailIngressTests
     private const string MailboxId = "instructions";
     private const string MailboxAddress = "instructions@collisionengineers.co.uk";
 
+    /// <summary>
+    /// The two read-only old-system lookups (R561) sit in automation.mail,
+    /// refuse a token without it, refuse a blank term before any source is
+    /// asked, and report a source this host has not composed as unavailable
+    /// rather than as nothing found.
+    /// </summary>
+    [Fact]
+    public async Task TheOldSystemLookupsAreMailScopeReadsThatReportAnUncomposedSourceUnavailable()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var client = mcpFactory.CreateClient();
+
+        var casesOnlyToken = await RequestTokenAsync(client, "automation.cases");
+        using (var denied = await PostMcpAsync(
+            client,
+            casesOnlyToken,
+            ToolCallPayload(1, "pegasus_mail_mailbox_search", new { query = "QDOS26070" })))
+        {
+            await AssertScopeDeniedAsync(denied, AutomationMcp.MailScope);
+        }
+        using (var denied = await PostMcpAsync(
+            client,
+            casesOnlyToken,
+            ToolCallPayload(2, "pegasus_old_system_folder_search", new { query = "QDOS26070" })))
+        {
+            await AssertScopeDeniedAsync(denied, AutomationMcp.MailScope);
+        }
+
+        var token = await RequestTokenAsync(client, AllScopes);
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(3, "pegasus_mail_mailbox_search", new { query = " QDOS26070 ", pageSize = 10 })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal("QDOS26070", structured.GetProperty("query").GetString());
+            Assert.Equal("unavailable", structured.GetProperty("state").GetString());
+            Assert.Empty(structured.GetProperty("items").EnumerateArray());
+            Assert.False(structured.GetProperty("isTruncated").GetBoolean());
+        }
+        using (var response = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(4, "pegasus_old_system_folder_search", new { query = "QDOS26070" })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal("unavailable", structured.GetProperty("state").GetString());
+            Assert.Empty(structured.GetProperty("items").EnumerateArray());
+        }
+        using (var blank = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(5, "pegasus_old_system_folder_search", new { query = "   " })))
+        {
+            using var document = await ReadJsonRpcAsync(blank);
+            Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+            Assert.Contains("1 to 200 characters", document.RootElement.ToString(), StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public async Task ListAndDetailMirrorTheStaffWorkspaceQueriesBehindTheMailScope()
     {
@@ -197,7 +258,7 @@ public sealed class AutomationMailIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, AllScopes);
 
-        // The offered options are Correspondence and the three categories.
+        // The offered options are Correspondence and the four categories.
         using (var read = await PostMcpAsync(
             client,
             token,

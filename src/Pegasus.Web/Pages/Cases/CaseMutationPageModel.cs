@@ -730,6 +730,239 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         return new JsonResult(new { version = lease.Version });
     }
 
+    /// <summary>
+    /// Asks the member of staff holding the lease to hand it over (FRD-14 §Take over, R550). The
+    /// page the requester lands on, or redraws, reads the request's state from the Case frame, so
+    /// nothing is kept in TempData. An accepted request sent again hands the page its lease; a
+    /// free Case, and the caller's own lease, are claimed or resumed by the page as usual.
+    /// </summary>
+    protected async Task<IActionResult> RequestEditAsync(
+        CaseEditLeases leases,
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        Func<IActionResult> redirect,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        string state;
+        try
+        {
+            var raised = await leases.RaiseRequestAsync(
+                new(id, expectedVersion, actor, RequireOperationKey(operationKey)),
+                cancellationToken);
+            state = raised.Outcome switch
+            {
+                CaseEditRequestOutcome.Pending => "pending",
+                CaseEditRequestOutcome.Free => "free",
+                CaseEditRequestOutcome.Held => "held",
+                CaseEditRequestOutcome.AutomationHeld => "automation-held",
+                CaseEditRequestOutcome.Accepted => "accepted",
+                _ => throw new InvalidDataException($"An unknown request outcome '{raised.Outcome}' was answered.")
+            };
+            if (raised.Lease is { } lease)
+            {
+                StoreLeaseAuthority(id, lease.Token);
+                TempData.Remove(ReleaseLeaseOperationKeyName);
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (CaseEditRequestRefusedException exception)
+        {
+            state = exception.Refusal == CaseEditRequestRefusal.AlreadyAsked ? "already-asked" : "declined";
+        }
+        catch (KeyNotFoundException)
+        {
+            return FragmentNotFound();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "request_edit", exception);
+            state = "refused";
+        }
+
+        return IsScriptRequest ? new JsonResult(new { state }) : redirect();
+    }
+
+    /// <summary>
+    /// The holder's Accept or Deny, or the requester's withdrawal (FRD-14 §Take over, R553).
+    /// Accept hands the lease over, so the holder's page forgets the authority it held and
+    /// redraws read-only; nothing is said in TempData, because the ribbon then names who is
+    /// editing. A withdrawal is beacon-safe: it answers 204 whatever it found.
+    /// </summary>
+    protected async Task<IActionResult> AnswerEditRequestAsync(
+        CaseEditLeases leases,
+        Guid id,
+        Guid requestId,
+        string? answer,
+        string? editLeaseToken,
+        Func<IActionResult> redirect,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        var parsed = answer?.Trim().ToLowerInvariant() switch
+        {
+            "accept" => CaseEditRequestAnswer.Accepted,
+            "decline" => CaseEditRequestAnswer.Declined,
+            "withdraw" => CaseEditRequestAnswer.Withdrawn,
+            _ => (CaseEditRequestAnswer?)null
+        };
+        if (parsed is not { } parsedAnswer || id == Guid.Empty || requestId == Guid.Empty)
+        {
+            return BadRequest();
+        }
+
+        try
+        {
+            await leases.AnswerRequestAsync(
+                new(id, actor, requestId, parsedAnswer, editLeaseToken),
+                cancellationToken);
+            if (parsedAnswer == CaseEditRequestAnswer.Accepted)
+            {
+                ClearLeaseState();
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (KeyNotFoundException)
+        {
+            return FragmentNotFound();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (parsedAnswer == CaseEditRequestAnswer.Withdrawn)
+            {
+                // The request had already been answered or ended; there is nothing to withdraw.
+                return new NoContentResult();
+            }
+            LogCaseCommandFailed(logger, id, "answer_edit_request", exception);
+            if (IsLeaseLoss(exception))
+            {
+                ClearLeaseState();
+            }
+            return IsScriptRequest
+                ? new StatusCodeResult(StatusCodes.Status409Conflict)
+                : redirect();
+        }
+
+        return IsScriptRequest ? new NoContentResult() : redirect();
+    }
+
+    /// <summary>
+    /// The long poll (R551): answers at once when the Case's lease or request differs from the
+    /// stamp the page last saw, otherwise holds on the Case's signal for up to
+    /// <see cref="CaseEditRequestWatch.MaximumHold"/> and answers the Case as it stands. A page
+    /// that has gone (the request aborted) gets nothing; a host that is stopping answers at once
+    /// so the restart is not held up. No TempData on any path, as for the heartbeat.
+    /// </summary>
+    protected async Task<IActionResult> WatchEditRequestAsync(
+        CaseEditRequestWatch watch,
+        IDescribeCaseEditAuthorityHolder describeHolder,
+        IHostApplicationLifetime hostLifetime,
+        Guid id,
+        string? stamp,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (id == Guid.Empty)
+        {
+            return BadRequest();
+        }
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, hostLifetime.ApplicationStopping);
+        CaseEditRequestView view;
+        try
+        {
+            view = await watch.WaitAsync(
+                id,
+                actor,
+                string.IsNullOrWhiteSpace(stamp) ? null : stamp,
+                CaseEditRequestWatch.MaximumHold,
+                linked.Token);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return new EmptyResult();
+        }
+        catch (OperationCanceledException)
+        {
+            // The host is stopping: the page asks again as soon as it is back.
+            view = await watch.WaitAsync(id, actor, null, TimeSpan.Zero, CancellationToken.None);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (KeyNotFoundException)
+        {
+            return FragmentNotFound();
+        }
+
+        object? holder = null;
+        if (view.HolderIsLive && view.Holder is { } holderSubject)
+        {
+            var isViewer = CaseEditAuthority.IsHolder(view.HolderKind, holderSubject, actor);
+            var named = isViewer
+                ? null
+                : await describeHolder.ExecuteAsync(view.HolderKind, holderSubject, actor, cancellationToken);
+            holder = new
+            {
+                name = named is null ? null : EditModeDisplay.HolderName(named),
+                isAi = view.HolderKind == ActorKind.Automation,
+                isViewer
+            };
+        }
+
+        object? request = null;
+        if (view.Request is { } standing)
+        {
+            var isViewer = CaseEditAuthority.IsRequester(standing, actor);
+            var named = isViewer
+                ? null
+                : await describeHolder.ExecuteAsync(standing.RequesterKind, standing.Requester, actor, cancellationToken);
+            request = new
+            {
+                id = standing.Id,
+                requester = named is null ? null : EditModeDisplay.HolderName(named),
+                isAi = standing.RequesterKind == ActorKind.Automation,
+                isViewer,
+                state = standing.Answer switch
+                {
+                    CaseEditRequestAnswer.Accepted => "accepted",
+                    CaseEditRequestAnswer.Declined => "declined",
+                    CaseEditRequestAnswer.Withdrawn => "withdrawn",
+                    _ => view.RequestIsPending ? "pending" : "unanswered"
+                },
+                answerBy = standing.RequestedAtUtc + CaseEditAuthority.RequestAnswerWindow
+            };
+        }
+
+        return new JsonResult(new
+        {
+            stamp = view.Stamp,
+            version = view.Version,
+            holder,
+            request
+        });
+    }
+
     protected void StoreLeaseAuthority(Guid caseId, string leaseToken)
     {
         if (string.IsNullOrWhiteSpace(leaseToken))

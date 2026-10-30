@@ -121,7 +121,11 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
                     asset.ContentLength,
                     asset.ContentHash,
                     stream,
-                    IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType),
+                    // A file a member of staff uploaded to a declared Case
+                    // takes the type they chose for it (FRD-18; R564, R565).
+                    receipt.HasDeclaredDestination && asset.Kind == IntakeAssetKind.Source
+                        ? IntakeCaseEvidenceRoles.ForDeclaredUpload(asset.MediaType, receipt.DeclaredDocumentType)
+                        : IntakeCaseEvidenceRoles.For(asset.Kind, asset.MediaType),
                     DocumentSource.Intake,
                     preparation.ExpectedCaseVersion,
                     IsAutomaticIntakeEvidencePromotion: true,
@@ -234,4 +238,14 @@ public static class IntakeCaseEvidenceRoles
         InstructionEvidenceImages.IsImage(mediaType) ? DocumentSemanticRole.Image
         : kind == IntakeAssetKind.Source ? DocumentSemanticRole.OriginalSource
         : DocumentSemanticRole.Correspondence;
+
+    /// <summary>
+    /// The role a file takes when a member of staff uploaded it to a declared
+    /// Case (FRD-18): a photograph is an Image whatever was chosen; otherwise
+    /// the type chosen for it, Other when none (operator, 30 October 2026;
+    /// R564, R565).
+    /// </summary>
+    public static DocumentSemanticRole ForDeclaredUpload(string mediaType, DocumentSemanticRole? chosen) =>
+        InstructionEvidenceImages.IsImage(mediaType) ? DocumentSemanticRole.Image
+        : chosen ?? DocumentTypePolicy.DefaultUploadType;
 }

@@ -32,7 +32,7 @@ public sealed class ProcessIntake(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (source.DeclaredCaseId is not null)
+        if (source.DeclaredCaseId is not null || source.DeclaredDocumentType is not null)
         {
             // Only the queued Worker pass links a declared destination; this
             // direct path files nowhere and would leave the declaration idle.
@@ -239,7 +239,8 @@ public sealed class ProcessIntake(
             safeSource.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
                 ? IntakeSearchProjection.Create(readResult, assessment.MailRouteDecision)
                 : [],
-            safeSource.DeclaredCaseId);
+            safeSource.DeclaredCaseId,
+            safeSource.DeclaredDocumentType);
 
         var receipt = replaceExisting
             ? await receiptStore.ReplaceEvaluationAsync(draft, cancellationToken)

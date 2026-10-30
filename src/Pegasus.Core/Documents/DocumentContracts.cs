@@ -643,7 +643,6 @@ public sealed record ManagedDocumentContentAddress(
     Guid DocumentId,
     Guid VersionId,
     int Version,
-    DocumentSemanticRole SemanticRole,
     string FileName,
     string MediaType,
     string? BoxFileId = null,

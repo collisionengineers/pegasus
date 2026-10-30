@@ -98,11 +98,11 @@ and the [verification procedure](docs/runbook.md).
   test mailbox or disposable Box subtree.
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
-  and [migration recipe](.agents/skills/pegasus-release/references/database-migration.md)
-  for the authorized workstation and platform-matching artifacts.
+  for the authorized workstation and platform-matching artifacts; one approval
+  message grants a release's promotion push and Azure writes (R567).
 - Plan destructive migrations explicitly: identify the affected capability and
   forward-only recovery boundary, then require approved old-Worker `Stopped` and
-  exact old-Web inactive/zero-replica read-back before SQL. After actual release,
+  old-Web `Stopped` and unserved read-back before SQL. After actual release,
   approve a concrete window outside typical usage. The release is incomplete
   until approved new Web/Worker bytes are explicitly active, healthy and smoked;
   never revive old bytes after destructive SQL begins.

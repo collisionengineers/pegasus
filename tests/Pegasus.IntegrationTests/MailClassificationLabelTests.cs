@@ -26,6 +26,7 @@ public sealed class MailClassificationLabelTests
     [InlineData("new-instruction", "New instruction")]
     [InlineData("triage-request", "Triage request")]
     [InlineData("cancellation", "Cancellation")]
+    [InlineData("pre-pegasus-case", "Pre-Pegasus case")]
     public void LabelsUseTheRuledWording(string code, string label) =>
         Assert.Equal(label, OperatorLabels.MailClassification(MailCategories.Parse(code)));
 
@@ -33,6 +34,6 @@ public sealed class MailClassificationLabelTests
     public void CorrespondenceIsNotACategoryLabel()
     {
         Assert.Equal(OperatorLabels.Inbox.Correspondence, "Correspondence");
-        Assert.Equal(3, MailCategories.All.Count);
+        Assert.Equal(4, MailCategories.All.Count);
     }
 }

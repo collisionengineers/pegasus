@@ -287,6 +287,14 @@ A Triage Case has standard Case custody: its own Box case folder, its
 retained request source and staff uploads
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
+The old system's case folders sit under Box folder `3220448509`, outside
+the custody root. Pegasus reads them in one way only: a folder-name search
+behind `pegasus_old_system_folder_search`, for the Pre-Pegasus case lookup
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction),
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)). It
+returns names and identities; nothing below that folder is read as content,
+written, moved or filed (operator, 30 October 2026, R561).
+
 An inline image preview is served through this same cached content path,
 never as an audited download. Every read re-verifies the source content hash
 and serves only confirmed custody. The one exception is the upload review,
@@ -431,7 +439,9 @@ type but Original source, with a typed reason of up to 500 characters; an
 issued report's documents and an Audit report document may be retyped, and
 only a JPEG or PNG file may become an Image (operator, 22 October 2026;
 R204). A change to Audit report is Mark as original report's act
-([FRD-16](frd-16-case-record-workspace.md#files)), and an Audit report
+([FRD-16](frd-16-case-record-workspace.md#files)): the Documents tab's
+Change type never lists Audit report and the Automation Actor's `set_type`
+may name it (operator, 30 October 2026; R562). An Audit report
 document changed to another type brings back Original report missing. A
 change has the same guards as any other Case change and bumps the Case
 version, so it is on the record's timeline (operator, 21 October 2026).
@@ -442,6 +452,17 @@ import still Other and a Glass's session file still Original source became
 Estimate; a guide valuation report still Other and every Market research
 document became Valuation Evidence. A document staff marked as the original
 report kept Audit report. The re-tag is forward-only.
+
+A file a member of staff uploads to a declared Case
+([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) takes the
+type they chose for it on its row, one choice per file, from Instruction,
+Correspondence, Engineer report, Estimate, Valuation Evidence and Other;
+Other when none was chosen (operator, 30 October 2026; R564, R565). Image is
+never chosen because a JPEG or PNG is always an Image, and Audit report is
+Mark as original report's after filing. The chosen type is carried with the
+file's receipt from staging to filing and recorded on the processed receipt.
+Every other route keeps the role it files today: a received instruction is
+Original source, its attachments Correspondence.
 
 ## States and transitions
 
