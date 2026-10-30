@@ -9,9 +9,7 @@
     var linkFormId = Model.CurrentDestination is null ? "linkCaseForm" : "changeLinkedCaseForm";
     var picksCase = Model.OffersLinkToCase || Model.OffersChangeLinkedCase;
     var currentValue = MailClassificationSelection.ValueFor(dossier?.Current);
-    var typeLabel = dossier?.Current is { } current
-        ? Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(current)
-        : OperatorLabels.Inbox.Correspondence;
+    var typeLabel = Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(dossier?.Current, summary.CaseId is not null);
     var query = summary.Query;
 }
 
