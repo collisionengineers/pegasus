@@ -667,6 +667,434 @@
         document.addEventListener('visibilitychange', heartbeatOnVisible);
     }
 
+    // ---- requests to edit (R550-R557, 30 October 2026) --------------------
+    // A second editor on a Case a member of staff holds asks rather than
+    // taking it. One held request (the long poll, R551) per editing or
+    // asking page tells the holder of a request within a second, and the
+    // asking page of its answer. The holder answers in a popup only Accept
+    // or Deny closes (R557); a hidden tab flashes its title and raises a
+    // desktop notification where it may (R555). The asking page never
+    // claims a Case because it saw it free: only an accepted request hands
+    // it the lease.
+    var WATCH_RETRY_MS = 5000;
+    var watchGeneration = 0;
+    var watchRunning = false;
+    var watchStamp = null;
+    var watchTimer = null;
+    var watchAbort = null;
+    var editRequestShown = null;
+    var titleFlash = null;
+    var notificationAsked = false;
+    function editRequestDialog() {
+        return document.querySelector('[data-dialog="case-edit-request-dialog"]');
+    }
+    function stopEditWatch() {
+        watchGeneration += 1;
+        watchRunning = false;
+        if (watchTimer !== null) {
+            window.clearTimeout(watchTimer);
+            watchTimer = null;
+        }
+        if (watchAbort) {
+            watchAbort.abort();
+            watchAbort = null;
+        }
+    }
+    function bindEditWatch() {
+        if (!record.querySelector('[data-case-edit-watch]')) {
+            stopEditWatch();
+            endEditRequest();
+            return;
+        }
+        // The held request outlives a redraw of its form, and the stamp is
+        // what the page last saw, so the next ask answers only a change.
+        if (watchRunning) {
+            return;
+        }
+        watchRunning = true;
+        var generation = watchGeneration;
+        function later() {
+            if (generation === watchGeneration) {
+                watchTimer = window.setTimeout(ask, WATCH_RETRY_MS);
+            }
+        }
+        function ask() {
+            watchTimer = null;
+            if (generation !== watchGeneration) {
+                return;
+            }
+            var form = record.querySelector('[data-case-edit-watch]');
+            if (!form) {
+                stopEditWatch();
+                return;
+            }
+            var body = new FormData(form);
+            if (watchStamp) {
+                body.set('stamp', watchStamp);
+            }
+            var controller = typeof AbortController === 'function' ? new AbortController() : null;
+            watchAbort = controller;
+            fetch(form.getAttribute('action') || window.location.href, {
+                method: 'POST',
+                body: body,
+                credentials: 'same-origin',
+                redirect: 'manual',
+                headers: { 'X-Requested-With': 'fetch' },
+                signal: controller ? controller.signal : undefined
+            }).then(function (response) {
+                if (generation !== watchGeneration) {
+                    return;
+                }
+                // A redirect answer is the sign-in page, and 403 or 404 a
+                // Case this page may no longer watch: the watch ends.
+                if (response.type === 'opaqueredirect' || response.status === 403 || response.status === 404) {
+                    stopEditWatch();
+                    return;
+                }
+                if (!response.ok) {
+                    later();
+                    return;
+                }
+                return response.text().then(function (text) {
+                    if (generation !== watchGeneration) {
+                        return;
+                    }
+                    // An empty answer is the host restarting: ask again
+                    // once it is back.
+                    var answer = null;
+                    try { answer = text ? JSON.parse(text) : null; } catch (_) { answer = null; }
+                    if (!answer) {
+                        later();
+                        return;
+                    }
+                    if (answer.stamp) {
+                        watchStamp = answer.stamp;
+                    }
+                    onEditWatch(answer);
+                    ask();
+                });
+            }).catch(function () {
+                // A faulted ask says nothing about the Case; a stopped watch
+                // (an aborted ask) stays stopped.
+                later();
+            });
+        }
+        ask();
+    }
+    function onEditWatch(answer) {
+        var holder = answer.holder || null;
+        var request = answer.request || null;
+        if (record.querySelector('[data-case-heartbeat]')) {
+            // The page is editing: it is the holder a request asks.
+            if (holder && !holder.isViewer) {
+                // Someone else holds the Case now (a Take over anyway): the
+                // page draws it as it stands, keeping what the operator
+                // typed (FRD-14). A lease that lapsed with nobody holding it
+                // is the heartbeat's to pick up again.
+                endEditRequest();
+                stopHeartbeat();
+                requestCatchUp();
+                return;
+            }
+            if (request && request.state === 'pending' && !request.isViewer) {
+                showEditRequest(request);
+            } else {
+                endEditRequest();
+            }
+            return;
+        }
+        // The asking page acts on an answer that differs from what it drew.
+        var form = record.querySelector('[data-case-edit-watch]');
+        var drawn = form ? form.getAttribute('data-edit-request-drawn') || '' : '';
+        var state = request && request.isViewer ? request.state : '';
+        if (state === drawn) {
+            return;
+        }
+        if (state === 'accepted' && holder && holder.isViewer) {
+            enterHandedLease();
+            return;
+        }
+        if (state === 'declined' && form && typeof window.pegasusToast === 'function') {
+            var declined = form.getAttribute('data-edit-request-declined-text');
+            if (declined) {
+                window.pegasusToast(declined);
+            }
+        }
+        // Declined, withdrawn, unanswered (the ribbon then offers Take over
+        // anyway) or ended: the ribbon draws what the viewer may do now.
+        requestCatchUp();
+    }
+    // The lease the holder handed over is taken up as Edit Case takes it, by
+    // a post the whole record is drawn again from: the claim form's, which
+    // resumes the viewer's own lease, or, where the ribbon drew the waiting
+    // line or Take over anyway instead, Refresh, whose read resumes it too.
+    // A catch up would redraw the sections one by one into edit mode.
+    function enterHandedLease() {
+        afterCommit(function () {
+            if (record.getAttribute('data-case-editing') === 'true') {
+                return;
+            }
+            var claim = record.querySelector('[data-case-edit-form]');
+            var form = claim && !claim.querySelector('[name="takeOver"]')
+                ? claim
+                : record.querySelector('[data-refresh-form]');
+            if (form) {
+                form.requestSubmit();
+            } else {
+                requestCatchUp();
+            }
+        });
+    }
+    function showEditRequest(request) {
+        var dialog = editRequestDialog();
+        if (!dialog) {
+            return;
+        }
+        var name = request.requester || 'AI';
+        var text = (dialog.getAttribute('data-edit-request-asks') || '').split('{name}').join(name);
+        var line = dialog.querySelector('[data-edit-request-text]');
+        if (line) {
+            line.textContent = text;
+        }
+        Array.prototype.forEach.call(dialog.querySelectorAll('[data-edit-request-id]'), function (input) {
+            input.value = request.id;
+        });
+        var same = editRequestShown && editRequestShown.id === request.id;
+        editRequestShown = {
+            id: request.id,
+            text: text,
+            flash: (dialog.getAttribute('data-edit-request-flash') || '').split('{name}').join(name),
+            notification: same ? editRequestShown.notification : null
+        };
+        if (dialog.hidden && typeof dialog.pegasusOpen === 'function') {
+            // Focus goes back to where the operator was once it is answered.
+            var from = document.activeElement && document.activeElement !== document.body ? document.activeElement : undefined;
+            dialog.pegasusOpen(from);
+        }
+        alertHiddenPage();
+    }
+    function endEditRequest() {
+        stopTitleFlash();
+        if (editRequestShown && editRequestShown.notification) {
+            editRequestShown.notification.close();
+        }
+        editRequestShown = null;
+        var dialog = editRequestDialog();
+        if (dialog && !dialog.hidden && typeof dialog.pegasusClose === 'function') {
+            dialog.pegasusClose();
+        }
+    }
+    // While the tab is not in view the holder is told twice: the title
+    // alternates every second, and a desktop notification is raised once
+    // per request where permission was granted (R555).
+    function alertHiddenPage() {
+        var shown = editRequestShown;
+        if (!shown || !document.hidden) {
+            return;
+        }
+        startTitleFlash(shown.flash);
+        if (shown.notification || !('Notification' in window) || Notification.permission !== 'granted') {
+            return;
+        }
+        try {
+            var watch = record.querySelector('[data-case-edit-watch]');
+            var caseId = watch && watch.elements.namedItem('id') ? watch.elements.namedItem('id').value : '';
+            var notice = new Notification('Pegasus', { body: shown.text, tag: 'pegasus-edit-request-' + caseId });
+            notice.onclick = function () {
+                window.focus();
+                notice.close();
+            };
+            shown.notification = notice;
+        } catch (_) {
+            // A browser that will not raise it still flashes the title.
+        }
+    }
+    function startTitleFlash(words) {
+        if (titleFlash || !words) {
+            return;
+        }
+        var original = document.title;
+        var flashed = words + ' · ' + original;
+        var on = true;
+        document.title = flashed;
+        titleFlash = {
+            original: original,
+            timer: window.setInterval(function () {
+                on = !on;
+                document.title = on ? flashed : original;
+            }, 1000)
+        };
+    }
+    function stopTitleFlash() {
+        if (!titleFlash) {
+            return;
+        }
+        window.clearInterval(titleFlash.timer);
+        document.title = titleFlash.original;
+        titleFlash = null;
+    }
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) {
+            alertHiddenPage();
+        } else {
+            stopTitleFlash();
+        }
+    });
+    // Permission for the notification is asked once, on the first gesture
+    // inside edit mode.
+    function askNotificationPermission() {
+        if (notificationAsked || record.getAttribute('data-case-editing') !== 'true') {
+            return;
+        }
+        notificationAsked = true;
+        if (!('Notification' in window) || Notification.permission !== 'default') {
+            return;
+        }
+        try {
+            var asked = Notification.requestPermission();
+            if (asked && typeof asked.catch === 'function') {
+                asked.catch(function () { /* Refused: the title still flashes. */ });
+            }
+        } catch (_) {
+            // A browser that cannot ask still flashes the title.
+        }
+    }
+    record.addEventListener('pointerdown', askNotificationPermission, true);
+    record.addEventListener('keydown', askNotificationPermission, true);
+    // The popup is a decision, not a notice (R557): Escape and a click
+    // beside it, which close every other dialog, do nothing here. Capture on
+    // the window runs before the dialog's own listeners.
+    window.addEventListener('keydown', function (event) {
+        var dialog = editRequestDialog();
+        if (event.key === 'Escape' && dialog && !dialog.hidden) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }, true);
+    window.addEventListener('click', function (event) {
+        var dialog = editRequestDialog();
+        if (dialog && !dialog.hidden && event.target === dialog) {
+            event.stopPropagation();
+        }
+    }, true);
+    // Accept or Deny. Accept hands the Case over with every change on it,
+    // so a change not yet sent lands first (R553), and the page then draws
+    // the Case read-only with the one asking editing; a refused change keeps
+    // the popup open. Deny closes the popup and editing carries on. A
+    // request already gone, or a lease already lost, draws the Case as it
+    // stands.
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-edit-request-form')) {
+            return;
+        }
+        event.preventDefault();
+        var dialog = editRequestDialog();
+        if (!dialog || dialog.getAttribute('data-edit-request-answering') === 'true') {
+            return;
+        }
+        var accept = form.getAttribute('data-edit-request-form') === 'accept';
+        dialog.setAttribute('data-edit-request-answering', 'true');
+        busy(form, event.submitter || null);
+        function settled() {
+            dialog.removeAttribute('data-edit-request-answering');
+            idle(form);
+        }
+        function post() {
+            // The form is read now: a commit that landed meanwhile moved its
+            // lease token on.
+            var current = dialog.querySelector('form[data-edit-request-form="' + (accept ? 'accept' : 'decline') + '"]') || form;
+            // Accept holds the queue, as an action does, so no commit
+            // follows it under a lease it is handing over.
+            if (accept) {
+                submitting = true;
+            }
+            fetch(current.getAttribute('action') || window.location.href, {
+                method: 'POST',
+                body: new FormData(current),
+                credentials: 'same-origin',
+                redirect: 'manual',
+                headers: { 'X-Requested-With': 'fetch' }
+            }).then(function (response) {
+                if (response.status === 204 || response.status === 409) {
+                    endEditRequest();
+                    if (accept && response.status === 204) {
+                        stopHeartbeat();
+                        stopEditWatch();
+                    }
+                    if (accept || response.status === 409) {
+                        requestCatchUp();
+                    }
+                    return;
+                }
+                throw new Error(response.status === 403 || response.status === 404
+                    ? 'The action is unavailable or no longer permitted.'
+                    : 'The server could not confirm the action.');
+            }).catch(function (error) {
+                showActionError(error.message);
+            }).finally(function () {
+                settled();
+                if (accept) {
+                    submitting = false;
+                    settleQueue();
+                }
+            });
+        }
+        if (accept) {
+            afterCommit(post, settled);
+        } else {
+            post();
+        }
+    });
+    // Ask to edit posts by fetch and the ribbon is drawn again from the
+    // Case: the waiting line once the request is raised, or what the Case
+    // now offers (Edit Case on a free Case, Take over on the AI's lease).
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-case-request-edit') || !record.contains(form)) {
+            return;
+        }
+        event.preventDefault();
+        if (form.getAttribute('data-inplace-submitting') === 'true') {
+            return;
+        }
+        form.setAttribute('data-inplace-submitting', 'true');
+        busy(form, event.submitter || form.querySelector('[data-case-ask-to-edit]'));
+        fetch(form.getAttribute('action') || window.location.href, {
+            method: 'POST',
+            body: new FormData(form),
+            credentials: 'same-origin',
+            redirect: 'manual',
+            headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' }
+        }).then(function (response) {
+            if (response.status === 403 || response.status === 404) {
+                throw new Error('The action is unavailable or no longer permitted.');
+            }
+            if (response.type === 'opaqueredirect' || !response.ok) {
+                throw new Error('The server could not confirm the action.');
+            }
+            return response.json();
+        }).then(function (answer) {
+            if (answer && answer.state === 'refused') {
+                showActionError('The server could not confirm the action.');
+            }
+        }).catch(function (error) {
+            showActionError(error.message);
+        }).finally(function () {
+            form.removeAttribute('data-inplace-submitting');
+            idle(form);
+            requestCatchUp();
+        });
+    });
+    // The asking page withdraws its request as it goes, so the holder is
+    // not asked on behalf of a page nobody is watching.
+    window.addEventListener('pagehide', function () {
+        var withdraw = record.querySelector('[data-case-edit-withdraw]');
+        if (withdraw && typeof navigator.sendBeacon === 'function') {
+            navigator.sendBeacon(withdraw.getAttribute('action') || window.location.href, new FormData(withdraw));
+        }
+    });
+
     // A control holds a value not yet sent while it differs from its
     // default: the value it was drawn with, or, for a Case control, the one
     // its last landed commit sent. Script-filled hidden controls belong to a
@@ -1025,6 +1453,7 @@
             setCommitStatus(null);
         }
         bindHeartbeat();
+        bindEditWatch();
         bindEditControls();
         if (!keepSections) {
             mountApproaching();
@@ -1637,6 +2066,7 @@
     function releaseOnLeaving(link) {
         var beacon = record.querySelector('[data-case-release-beacon]');
         if (beacon && typeof navigator.sendBeacon === 'function' && leavesCase(link)) {
+            stopEditWatch();
             navigator.sendBeacon(beacon.action, new FormData(beacon));
         }
     }
@@ -1885,6 +2315,7 @@
     mountApproaching();
     spy();
     bindHeartbeat();
+    bindEditWatch();
     bindEditControls();
     var addressed = new URLSearchParams(window.location.search).get('section');
     if (addressed && addressed.trim().toLowerCase() !== 'overview') {

@@ -892,14 +892,22 @@ public sealed class AutomationAssessmentIngressTests
                 $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
     }
 
+    private const string AlreadyAskedRefusal =
+        "Refused: another editor has already asked to edit this Case. The case is at version 0; ask again later.";
+    private const string DeclinedRefusal =
+        "Refused: the member of staff editing this Case declined. The case is at version 0; ask again later or wait for the Case to be free.";
+    private const string NoAnswerRefusal =
+        "Refused: no answer to the request within 45 seconds. The case is at version 0; the Case is still held, ask again later.";
+
     /// <summary>
-    /// The Automation Actor may do what a member of staff can (operator, 7 October 2026), Take
-    /// over included: a staff-held Case lease refuses its plain claim and passes to it when it
-    /// asks to take the lease over, the Case's history records the takeover, and the lease it
-    /// took writes.
+    /// The Automation Actor asks rather than seizes (R554, 30 October 2026): on a staff-held Case
+    /// its plain claim is refused, and with takeOver the call raises a request to the holder and
+    /// waits inside the call. The holder accepts while it waits: the call returns the handed
+    /// lease, the holder's next heartbeat is refused, the hand-over is history once, and the
+    /// handed lease writes.
     /// </summary>
     [Fact]
-    public async Task AutomationTakesOverAStaffHeldLeaseOnlyWhenItAsks()
+    public async Task AutomationAsksTheStaffHolderAndTheWaitingCallReturnsTheAcceptedLease()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -915,37 +923,33 @@ public sealed class AutomationAssessmentIngressTests
             ToolCallPayload(
                 35,
                 "pegasus_edit_begin",
-                new { recordKind = "Case", recordId = caseId, expectedVersion = 0, operationKey = "mcp:takeover-plain-claim" }));
-        Assert.Equal(
-            "Staff",
-            await (await factory.DatabaseAsync).ScalarAsync<string>(
-                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+                new { recordKind = "Case", recordId = caseId, expectedVersion = 0, operationKey = "mcp:request-plain-claim" }));
+
+        var call = PostMcpAsync(client, token, AskToEditPayload(36, caseId, "mcp:request-accepted"));
+        var request = await WaitForPendingRequestAsync(mcpFactory, caseId, staff, call);
+        Assert.Equal(ActorKind.Automation, request.RequesterKind);
+        Assert.Equal(staff.SubjectId, request.Holder);
+        Assert.Equal("Staff", await HolderKindAsync(factory, caseId));
+
+        await AnswerAsStaffAsync(mcpFactory, caseId, staff, request.Id, CaseEditRequestAnswer.Accepted, staffLease.Token);
 
         string automationToken;
-        using (var response = await PostMcpAsync(
-            client,
-            token,
-            ToolCallPayload(
-                36,
-                "pegasus_edit_begin",
-                new { recordKind = "Case", recordId = caseId, expectedVersion = 0, operationKey = "mcp:takeover-claim", takeOver = true })))
+        using (var response = await call)
         {
             var lease = await ReadStructuredContentAsync(response);
             Assert.Equal(0, lease.GetProperty("version").GetInt64());
             automationToken = lease.GetProperty("editLeaseToken").GetString()!;
         }
         Assert.NotEqual(staffLease.Token, automationToken);
-        Assert.Equal(
-            "Automation",
-            await (await factory.DatabaseAsync).ScalarAsync<string>(
-                $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
-        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
-            $"""
-            SELECT COUNT(*) FROM CaseWorkflowEvents
-            WHERE CaseId = '{caseId:D}'
-              AND EventType = N'edit_lease_taken_over'
-              AND ActorKind = N'Automation'
-            """));
+        Assert.Equal("Automation", await HolderKindAsync(factory, caseId));
+        Assert.Equal(1, await TakeOverEventCountAsync(factory, caseId));
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
+                scope.ServiceProvider.GetRequiredService<CaseEditLeases>().HeartbeatAsync(
+                    new(caseId, staff, staffLease.Token),
+                    CancellationToken.None));
+        }
 
         using (var write = await PostMcpAsync(
             client,
@@ -958,14 +962,236 @@ public sealed class AutomationAssessmentIngressTests
                     caseId,
                     expectedVersion = 0,
                     editLeaseToken = automationToken,
-                    operationKey = "mcp:takeover-write",
-                    reason = "Automation wrote under the lease it took over.",
+                    operationKey = "mcp:request-accepted-write",
+                    reason = "Automation wrote under the lease it was handed.",
                     fields = new Dictionary<string, string?> { ["vehicle.condition"] = "good" }
                 })))
         {
             Assert.Equal(1, (await ReadStructuredContentAsync(write)).GetProperty("caseVersion").GetInt64());
         }
     }
+
+    /// <summary>
+    /// The holder declines the Automation Actor's request while the call waits (R554): the call
+    /// answers the Declined refusal, and the holder keeps the lease and its session.
+    /// </summary>
+    [Fact]
+    public async Task ADeclinedRequestAnswersTheDeclinedRefusalAndTheHolderKeepsTheLease()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var staffLease = await ClaimAsStaffAsync(mcpFactory, caseId, staff);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        var call = PostMcpAsync(client, token, AskToEditPayload(38, caseId, "mcp:request-declined"));
+        var request = await WaitForPendingRequestAsync(mcpFactory, caseId, staff, call);
+        await AnswerAsStaffAsync(mcpFactory, caseId, staff, request.Id, CaseEditRequestAnswer.Declined, staffLease.Token);
+
+        using (var response = await call)
+        {
+            Assert.Contains(DeclinedRefusal, await ReadErrorTextAsync(response), StringComparison.Ordinal);
+        }
+        Assert.Equal("Staff", await HolderKindAsync(factory, caseId));
+        Assert.Equal(0, await TakeOverEventCountAsync(factory, caseId));
+        await HeartbeatAsStaffAsync(mcpFactory, caseId, staff, staffLease.Token);
+    }
+
+    /// <summary>
+    /// The Automation Actor never forces (R554): a request nobody answers within the 45-second
+    /// window answers the NoAnswer refusal, and asking again under a new key is a new request,
+    /// never a takeover; it too goes unanswered, and the holder keeps the lease throughout.
+    /// </summary>
+    [Fact]
+    public async Task AnUnansweredRequestIsRefusedAndAskingAgainIsStillOnlyARequest()
+    {
+        var clock = new CaseDataCompletenessPersistenceTests.MutableTimeProvider(DateTimeOffset.UtcNow);
+        using var factory = new IntakeWebApplicationFactory(clock);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var staffLease = await ClaimAsStaffAsync(mcpFactory, caseId, staff);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        var firstCall = PostMcpAsync(client, token, AskToEditPayload(39, caseId, "mcp:request-unanswered"));
+        var first = await WaitForPendingRequestAsync(mcpFactory, caseId, staff, firstCall);
+        CloseTheAnswerWindow(mcpFactory, clock, caseId);
+        using (var response = await firstCall)
+        {
+            Assert.Contains(NoAnswerRefusal, await ReadErrorTextAsync(response), StringComparison.Ordinal);
+        }
+        Assert.Equal("Staff", await HolderKindAsync(factory, caseId));
+
+        var secondCall = PostMcpAsync(client, token, AskToEditPayload(40, caseId, "mcp:request-unanswered-again"));
+        var second = await WaitForPendingRequestAsync(mcpFactory, caseId, staff, secondCall, after: first.Id);
+        Assert.NotEqual(first.Id, second.Id);
+        Assert.Equal("Staff", await HolderKindAsync(factory, caseId));
+        Assert.Equal(0, await TakeOverEventCountAsync(factory, caseId));
+        CloseTheAnswerWindow(mcpFactory, clock, caseId);
+        using (var response = await secondCall)
+        {
+            Assert.Contains(NoAnswerRefusal, await ReadErrorTextAsync(response), StringComparison.Ordinal);
+        }
+
+        Assert.Equal("Staff", await HolderKindAsync(factory, caseId));
+        Assert.Equal(0, await TakeOverEventCountAsync(factory, caseId));
+        await HeartbeatAsStaffAsync(mcpFactory, caseId, staff, staffLease.Token);
+    }
+
+    /// <summary>
+    /// With takeOver on a free Case there is nobody to ask: the call claims the lease as a plain
+    /// claim does, raising no request and recording no takeover.
+    /// </summary>
+    [Fact]
+    public async Task AskingToEditAFreeCaseClaimsItPlainly()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using (var response = await PostMcpAsync(client, token, AskToEditPayload(41, caseId, "mcp:request-free")))
+        {
+            var lease = await ReadStructuredContentAsync(response);
+            Assert.Equal(0, lease.GetProperty("version").GetInt64());
+            Assert.False(string.IsNullOrEmpty(lease.GetProperty("editLeaseToken").GetString()));
+        }
+        Assert.Equal("Automation", await HolderKindAsync(factory, caseId));
+        Assert.Equal(0, await TakeOverEventCountAsync(factory, caseId));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseWorkflows WHERE CaseId = '{caseId:D}' AND EditRequestId IS NULL"));
+    }
+
+    /// <summary>
+    /// One request stands per Case (R550): while a colleague's request to the holder is still
+    /// being asked, the Automation Actor's request answers the AlreadyAsked refusal at once and
+    /// the colleague's request stands.
+    /// </summary>
+    [Fact]
+    public async Task AskingWhileAnotherEditorsRequestStandsAnswersTheAlreadyAskedRefusal()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        _ = await ClaimAsStaffAsync(mcpFactory, caseId, staff);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        CaseEditRequestRaised colleagueRequest;
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            colleagueRequest = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().RaiseRequestAsync(
+                new(caseId, 0, colleague, Guid.NewGuid().ToString("N")),
+                CancellationToken.None);
+        }
+        Assert.Equal(CaseEditRequestOutcome.Pending, colleagueRequest.Outcome);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        using (var response = await PostMcpAsync(client, token, AskToEditPayload(42, caseId, "mcp:request-already-asked")))
+        {
+            Assert.Contains(AlreadyAskedRefusal, await ReadErrorTextAsync(response), StringComparison.Ordinal);
+        }
+        Assert.Equal(
+            colleague.SubjectId,
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT EditRequester FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal("Staff", await HolderKindAsync(factory, caseId));
+    }
+
+    private static string AskToEditPayload(int rpcId, Guid caseId, string operationKey) =>
+        ToolCallPayload(
+            rpcId,
+            "pegasus_edit_begin",
+            new { recordKind = "Case", recordId = caseId, expectedVersion = 0, operationKey, takeOver = true });
+
+    /// <summary>
+    /// Polls the Case, as the holder reads it, until a request other than <paramref name="after"/>
+    /// is pending; the begin call must still be waiting.
+    /// </summary>
+    private static async Task<CaseEditRequestSnapshot> WaitForPendingRequestAsync(
+        WebApplicationFactory<Program> factory,
+        Guid caseId,
+        ActionActor holder,
+        Task<HttpResponseMessage> call,
+        Guid? after = null)
+    {
+        var giveUpAtUtc = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while (true)
+        {
+            if (call.IsCompleted)
+            {
+                using var early = await call;
+                Assert.Fail("The begin call answered before it raised a request: " + await early.Content.ReadAsStringAsync());
+            }
+            await using (var scope = factory.Services.CreateAsyncScope())
+            {
+                var view = await scope.ServiceProvider.GetRequiredService<CaseEditRequestWatch>().WaitAsync(
+                    caseId, holder, knownStamp: null, TimeSpan.Zero, CancellationToken.None);
+                if (view.Request is { Answer: null } request && view.RequestIsPending && request.Id != after)
+                {
+                    return request;
+                }
+            }
+            Assert.True(DateTime.UtcNow < giveUpAtUtc, "No request to edit was raised.");
+            await Task.Delay(50);
+        }
+    }
+
+    /// <summary>
+    /// Moves the clock past the request's answer window and wakes the waiting call, which reads
+    /// the Case again and finds the request unanswered.
+    /// </summary>
+    private static void CloseTheAnswerWindow(
+        WebApplicationFactory<Program> factory,
+        CaseDataCompletenessPersistenceTests.MutableTimeProvider clock,
+        Guid caseId)
+    {
+        clock.Advance(CaseEditAuthority.RequestAnswerWindow + TimeSpan.FromSeconds(1));
+        factory.Services.GetRequiredService<ICaseEditSignal>().Raise(caseId);
+    }
+
+    private static async Task AnswerAsStaffAsync(
+        WebApplicationFactory<Program> factory,
+        Guid caseId,
+        ActionActor staff,
+        Guid requestId,
+        CaseEditRequestAnswer answer,
+        string leaseToken)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().AnswerRequestAsync(
+            new(caseId, staff, requestId, answer, leaseToken),
+            CancellationToken.None);
+    }
+
+    private static async Task HeartbeatAsStaffAsync(
+        WebApplicationFactory<Program> factory,
+        Guid caseId,
+        ActionActor staff,
+        string leaseToken)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var lease = await scope.ServiceProvider.GetRequiredService<CaseEditLeases>().HeartbeatAsync(
+            new(caseId, staff, leaseToken),
+            CancellationToken.None);
+        Assert.Equal(staff.SubjectId, lease.Holder);
+    }
+
+    private static async Task<string> HolderKindAsync(IntakeWebApplicationFactory factory, Guid caseId) =>
+        await (await factory.DatabaseAsync).ScalarAsync<string>(
+            $"SELECT EditLeaseHolderKind FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
+
+    private static async Task<int> TakeOverEventCountAsync(IntakeWebApplicationFactory factory, Guid caseId) =>
+        await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseWorkflowEvents
+            WHERE CaseId = '{caseId:D}'
+              AND EventType = N'edit_lease_taken_over'
+            """);
 
     /// <summary>
     /// The reported direction: the Automation Actor holds the lease over real HTTP, the plain

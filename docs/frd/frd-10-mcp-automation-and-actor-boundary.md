@@ -150,13 +150,18 @@ the claim is refused and nothing is written (operator, 1 October 2026; R516,
 29 October 2026). `pegasus_edit_begin`,
 `pegasus_edit_renew` and `pegasus_edit_end` hold a Case or a Triage Case for
 multi-step work, named by `recordKind`, under that record's own scope
-([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). With `takeOver`,
-`pegasus_edit_begin` takes over a lease a staff member holds, as a staff
-**Take over** does, and the takeover goes into the record's history. Staff
-may take over an Automation Case lease or Triage scope in the same way, and
-only staff may: the Automation Actor never takes over an Automation holder
-(R517, 29 October 2026); the history line names the Automation Actor as AI
-(operator, 15 and 16 October 2026). `pegasus_edit_begin` replayed with the
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). With `takeOver` on a Case,
+`pegasus_edit_begin` asks the member of staff holding the lease and waits
+inside the call up to 45 seconds, returning the lease if they accept and a
+refusal naming declined, no answer or already asked otherwise; the Automation
+Actor never forces a hand-over (R554, 30 October 2026;
+[FRD-14](frd-14-record-edit-leases.md#take-over)). On a Triage Case `takeOver`
+still takes over a staff scope at once (R556, 30 October 2026), and the
+takeover goes into the record's history. Staff take over an Automation Case
+lease or Triage scope at once, and only staff may: the Automation Actor never
+takes over an Automation holder (R517, 29 October 2026;
+[ADR-0075](../adr/0075-staff-take-over-of-an-automation-lease.md)); the history
+line names the Automation Actor as AI (operator, 15 and 16 October 2026). `pegasus_edit_begin` replayed with the
 same operation key and details returns the same token while that lease is
 live, for a Triage Case as for a Case (R519, 29 October 2026). Otherwise it lapses within five minutes. An Automation lease
 that lapsed, with nobody claiming the record since, carries on with the same
@@ -559,7 +564,7 @@ its one command when none is given.
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to | none |
 | `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags | none |
 | `automation.cases` | `pegasus_work_centre_dismiss` | Dismiss a Case, Unidentified item, AI job, or a System Action's underlying receipt, image intake or query from the Work Centre | key only |
-| `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` takes a lease a staff member holds | explicit lease |
+| `automation.cases` / `automation.intake` | `pegasus_edit_begin`, `pegasus_edit_renew`, `pegasus_edit_end` | Hold a Case (`automation.cases`) or a Triage Case (`automation.intake`) for multi-step work; `takeOver` asks a staff holder of a Case to hand over and waits; takes over a staff Triage scope | explicit lease |
 | `automation.intake` | `pegasus_intake_queue_list` | List intake receipts by decision and allocation | none |
 | `automation.intake` | `pegasus_intake_submit` | Submit one immutable source on the automation channel | none |
 | `automation.intake` | `pegasus_intake_get` | One received item as the Create case page reviews it | none |
@@ -647,7 +652,9 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
   act.
 - A subject field a job kind does not take is refused, not ignored.
 - Only staff take over an Automation Case lease or Triage scope (R517,
-  29 October 2026); otherwise it lapses within five minutes.
+  29 October 2026); otherwise it lapses within five minutes. The Automation
+  Actor asks for a staff-held Case lease and never forces it (R554, 30
+  October 2026).
 - Stopping the automation client releases every lease Automation holds.
 - Missing production signing or encryption keys fail closed.
 

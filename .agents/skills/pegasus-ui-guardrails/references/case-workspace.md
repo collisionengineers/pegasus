@@ -146,8 +146,9 @@ Read and edit share one geometry and one look (operator, 23 September 2026).
   unsaved-changes question.
 - Immediate-post actions should not end the edit session unless their contract requires it.
   An action, Refresh or a link away waits for a change not yet sent to land first.
-- A colleague's lease is read-only until an eligible staff member uses the
-  audited Take over action required by FRD-14.
+- A colleague's lease is read-only until its holder accepts a request: the ribbon offers Ask to
+  edit and the holder's page shows an Accept/Deny dialog with no close control and no Escape.
+  After 45 seconds unanswered the requester's ribbon offers Take over anyway (FRD-14; R550-R557).
 
 ## Availability
 

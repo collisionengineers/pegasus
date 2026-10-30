@@ -64,10 +64,11 @@ public sealed class CaseActionsMenuWebTests
     /// Outside an edit session the menu offers the state's items too
     /// (operator, 29 September 2026), their dialogs posting no lease so the
     /// handler claims one for the action. A colleague's live lease offers
-    /// Take over, and the menu keeps only Export case and Tasks, which need no lease.
+    /// Ask to edit, never an immediate Take over (R550, 30 October 2026), and
+    /// the menu keeps only Export case and Tasks, which need no lease.
     /// </summary>
     [Fact]
-    public async Task OutsideAnEditSessionTheMenuOffersTheStatesItemsAndAColleaguesLeaseOffersOnlyTakeOver()
+    public async Task OutsideAnEditSessionTheMenuOffersTheStatesItemsAndAColleaguesLeaseOffersOnlyAskToEdit()
     {
         var store = new RecordingCaseDetailsStore();
         var page = await ReadCaseAsync(store);
@@ -90,14 +91,27 @@ public sealed class CaseActionsMenuWebTests
         Assert.Contains("data-dialog-open=\"case-tasks-dialog\"", heldBar, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-hold-dialog\"", html, StringComparison.Ordinal);
         Assert.Contains("data-edit-authority", html, StringComparison.Ordinal);
-        Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, html, StringComparison.Ordinal);
-        Assert.Contains("handler=ClaimLease", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"takeOver\" value=\"true\"", html, StringComparison.Ordinal);
+        AssertOffersAskToEditOnly(heldBar);
     }
 
     /// <summary>
-    /// A lease the Automation Actor holds is offered Take over like a colleague's (operator,
-    /// 15 October 2026): the chip names AI, the menu keeps only Export case and Tasks, and the
+    /// A member of staff's lease is asked for (R550): the ribbon's one action is Ask to edit,
+    /// posting RequestEdit, and nothing posts a takeover or claims the lease.
+    /// </summary>
+    private static void AssertOffersAskToEditOnly(string bar)
+    {
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.AskToEdit}<", bar, StringComparison.Ordinal);
+        Assert.Contains("data-case-ask-to-edit", bar, StringComparison.Ordinal);
+        Assert.Contains("handler=RequestEdit", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain($">{CaseWorkspaceLabels.Frame.TakeOver}<", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOverAnyway, bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"takeOver\"", bar, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A lease the Automation Actor holds is still offered Take over at once, since nobody can be
+    /// asked (operator, 15 October 2026; R554): the chip names AI, the menu keeps only Export case and Tasks, and the
     /// Actor's grant id appears nowhere on the page.
     /// </summary>
     [Fact]
@@ -117,24 +131,26 @@ public sealed class CaseActionsMenuWebTests
         Assert.DoesNotContain("id=\"case-hold-dialog\"", html, StringComparison.Ordinal);
         Assert.Contains("data-edit-authority", html, StringComparison.Ordinal);
         Assert.Contains("AI is editing", html, StringComparison.Ordinal);
-        Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, bar, StringComparison.Ordinal);
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.TakeOver}<", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOverAnyway, bar, StringComparison.Ordinal);
         Assert.Contains("handler=ClaimLease", bar, StringComparison.Ordinal);
         Assert.Contains("name=\"takeOver\" value=\"true\"", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=RequestEdit", bar, StringComparison.Ordinal);
         Assert.DoesNotContain(grantId, html, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
     /// A Report sent Case, with or without an open query, is editable like a
     /// With Engineer Case (operator, 11 October 2026): it offers Edit Case,
-    /// and a colleague's lease on it is offered Take over (operator, 29
-    /// September 2026) while the Actions menu keeps Export case, Tasks and Log
-    /// query: a colleague's lease does not block a query act (operator, 27
-    /// October 2026).
+    /// and a colleague's lease on it is offered Ask to edit (R550, 30 October
+    /// 2026) while the Actions menu keeps Export case, Tasks and Log query: a
+    /// colleague's lease does not block a query act (operator, 27 October
+    /// 2026).
     /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AReportSentCaseOffersEditAndTakeOverOfAColleaguesLease(bool hasOpenQuery)
+    public async Task AReportSentCaseOffersEditAndAskToEditOfAColleaguesLease(bool hasOpenQuery)
     {
         const CaseLifecycleState state = CaseLifecycleState.ReportSent;
         var reading = RecordBar(await ReadCaseAsync(new RecordingCaseDetailsStore { State = state, HasOpenQuery = hasOpenQuery }));
@@ -147,9 +163,7 @@ public sealed class CaseActionsMenuWebTests
         Assert.Equal(2, Occurrences(held, "data-dialog-open"));
         Assert.Contains("data-dialog-open=\"case-tasks-dialog\"", held, StringComparison.Ordinal);
         Assert.Contains("data-dialog-open=\"case-log-query-dialog\"", held, StringComparison.Ordinal);
-        Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, held, StringComparison.Ordinal);
-        Assert.Contains("handler=ClaimLease", held, StringComparison.Ordinal);
-        Assert.Contains("name=\"takeOver\" value=\"true\"", held, StringComparison.Ordinal);
+        AssertOffersAskToEditOnly(held);
     }
 
     /// <summary>

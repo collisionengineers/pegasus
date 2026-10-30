@@ -181,16 +181,18 @@
                 <span>@Frame.Done</span>
             </button>
         }
-        else if (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff || Model.ViewerMayTakeOver)
+        else if (!Model.ColleagueIsEditing || Model.ViewerMayTakeOver)
         {
-            @* A colleague's staff lease, or one the Automation Actor holds,
-               can be taken over by an authorised member of staff (operator,
-               15 October 2026); the operation rotates its token and records
-               the prior holder. The viewer's own lease is resumed, never taken over.
-               Both views offer Edit (operator, 2 October 2026), a Report sent
-               Case included (operator, 11 October 2026). A colleague's lease
-               is offered Take over (operator, 29 September 2026), since the
-               Actions menu is withheld while it holds the Case. *@
+            @* Edit Case on a free Case, and the viewer's own lease is resumed,
+               never taken over. Both views offer Edit (operator, 2 October
+               2026), a Report sent Case included (operator, 11 October 2026).
+               A lease the Automation Actor holds is taken over at once, since
+               nobody can be asked (ADR-0075); a member of staff's lease is
+               taken over only by the one who asked and was not answered in
+               time, as Take over anyway (R552, 30 October 2026). The operation
+               rotates the token and records the prior holder. *@
+            var takingOverStaff = Model.ColleagueIsEditing
+                && details.ActiveEditLease?.HolderKind == Pegasus.Core.Identity.ActorKind.Staff;
             <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
                 <input type="hidden" name="id" value="@summary.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -203,8 +205,65 @@
                 <input type="hidden" name="view" value="@Model.ViewRoute" />
                 <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--dark" data-case-edit>
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pencil")" /></svg>
-                    <span>@(Model.ColleagueIsEditing ? Frame.TakeOver : Frame.EditCase)</span>
+                    <span>@(!Model.ColleagueIsEditing ? Frame.EditCase : takingOverStaff ? Frame.TakeOverAnyway : Frame.TakeOver)</span>
                 </button>
+            </form>
+        }
+        else if (Model.ViewerEditRequestIsPending && Model.EditAuthorityHolder is { } askedHolder)
+        {
+            @* The viewer asked the member of staff holding the lease and the
+               answer window is open (R550, R552): the ribbon says so and
+               offers nothing until the holder answers or the window closes. *@
+            <span class="status status--amber status--plain" data-edit-request-waiting>@Frame.WaitingFor(EditModeDisplay.HolderName(askedHolder))</span>
+        }
+        else if (Model.ViewerMayAskToEdit)
+        {
+            @* A member of staff holds the lease: the second editor asks
+               instead of seizing it (R550, 30 October 2026). A denial says so
+               beside the offer to ask again. *@
+            @if (Model.ViewerEditRequest is { Answer: CaseEditRequestAnswer.Declined } && Model.EditAuthorityHolder is { } declinedBy)
+            {
+                <span class="status status--neutral status--plain" data-edit-request-declined>@Frame.Declined(EditModeDisplay.HolderName(declinedBy))</span>
+            }
+            <form method="post" asp-page-handler="RequestEdit" data-case-request-edit data-no-inplace>
+                <input type="hidden" name="id" value="@summary.CaseId" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--dark" data-case-ask-to-edit>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-pencil")" /></svg>
+                    <span>@Frame.AskToEdit</span>
+                </button>
+            </form>
+        }
+        @if (editing || Model.ViewerEditRequest is not null)
+        {
+            @* The long poll on the Case's lease and request (R551): the
+               holder's page learns of a request within a second, the asking
+               page of its answer. *@
+            var drawnRequest = Model.ViewerEditRequest switch
+            {
+                null => "",
+                { Answer: CaseEditRequestAnswer.Accepted } => "accepted",
+                { Answer: CaseEditRequestAnswer.Declined } => "declined",
+                { Answer: CaseEditRequestAnswer.Withdrawn } => "withdrawn",
+                _ => Model.ViewerEditRequestIsPending ? "pending" : "unanswered"
+            };
+            <form method="post" asp-page-handler="WatchEditRequest" data-case-edit-watch
+                  data-edit-request-drawn="@drawnRequest"
+                  data-edit-request-declined-text="@(Model.ColleagueIsEditing && Model.EditAuthorityHolder is { } watchedHolder ? Frame.Declined(EditModeDisplay.HolderName(watchedHolder)) : null)" hidden>
+                <input type="hidden" name="id" value="@summary.CaseId" />
+            </form>
+        }
+        @if (Model.ViewerEditRequestIsPending && Model.ViewerEditRequest is { } waitingRequest)
+        {
+            @* Script beacons this as the asking page goes, so a request
+               nobody is waiting on is withdrawn. *@
+            <form method="post" asp-page-handler="AnswerEditRequest" data-case-edit-withdraw hidden>
+                <input type="hidden" name="id" value="@summary.CaseId" />
+                <input type="hidden" name="requestId" value="@waitingRequest.Id" />
+                <input type="hidden" name="answer" value="withdraw" />
             </form>
         }
         <details class="menu" data-menu data-case-actions>

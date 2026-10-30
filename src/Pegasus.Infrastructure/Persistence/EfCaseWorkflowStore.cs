@@ -155,9 +155,20 @@ public sealed class EfCaseWorkflowStore(
             : null;
         // A live lease refuses every claim that does not explicitly take it over, including the
         // holder's own from a one-off command elsewhere, which must never end the holder's edit
-        // session. The Case page resumes the holder's lease before it ever claims.
+        // session. The Case page resumes the holder's lease before it ever claims. Another
+        // holder's lease is taken over only as a request makes it (R552, R554): the holder's own
+        // explicit take-back rotates their lease and is never a takeover.
+        var retainedRequest = CaseMutationGuard.RetainedRequest(workflow);
         if (liveHolder is not null
-            && (!request.TakeOver || !CaseEditAuthority.CanTakeOver(previousHolderKind, request.Actor)))
+            && (!request.TakeOver
+                || !(CaseEditAuthority.IsHolder(previousHolderKind, liveHolder, request.Actor)
+                    || CaseEditAuthority.CanTakeOver(
+                        previousHolderKind,
+                        liveHolder,
+                        workflow.EditLeaseExpiresAtUtc,
+                        request.Actor,
+                        retainedRequest,
+                        now))))
         {
             throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
         }

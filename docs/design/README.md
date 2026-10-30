@@ -144,10 +144,13 @@ the utility bar: the 56px **ribbon** — the reference as the page's heading
 under "Case workspace", Registration (its own cell, natural width above 1100px;
 operator, 8 October 2026), Claimant, Principal and Engineer; chips
 for state ("Held · review on 24 Sep"), Case type (Audit, Inspection + Audit)
-and a colleague editing (chips that do not fit beside the facts take their own
+and a colleague editing, or "Waiting for {name} to answer…" while the viewer's
+request to edit stands (chips that do not fit beside the facts take their own
 row under them; the reference and registration are never cut short); then Edit Case, or while editing the Editing badge,
 its status word (Saving…, Saved 14:02, or why the last change was not saved)
-and Done, and one **Actions** menu — and the 40px **section row** of
+and Done, or on a colleague's lease **Ask to edit**, which after 45 seconds
+unanswered becomes **Take over anyway** and after a denial returns to Ask to
+edit (Take over at once on an Automation lease; R552, 30 October 2026), and one **Actions** menu — and the 40px **section row** of
 section links and Refresh. The page always scrolls; there is no Tabs layout
 (operator, 9 October 2026). The section row
 links Case details, Claim, Original report on Audit Cases, Inspection details,
@@ -206,7 +209,10 @@ on an Inspection + Audit Case, Create audit in every state: a disabled
 `.btn` inside a `.menu-gated` span whose `title` states Core's refusal on
 hover when it is not permitted (operator, 1 October 2026) — then, after a
 separator and in red, Close case. Export case and Tasks are
-listed on every standard Case, in and out of an edit session. Damage uses the
+listed on every standard Case, in and out of an edit session. The holder's
+page shows a colleague's request in the **Request to edit** dialog: the
+requester's name and Accept and Deny only, with no close control (R557,
+30 October 2026). Damage uses the
 **plan** only: a top-down drawing of the recorded vehicle (car, van or
 motorbike), one yellow comic burst per recorded damage sized and placed by
 dragging and kept as drawn (no wider than half the vehicle, unnumbered and
@@ -268,7 +274,8 @@ the drag ends.
 Dialogs are `.dialog` inside `.dialog-backdrop`, mounted in the dialog root:
 initial focus on the first control, a focus trap, the rest of the document
 `inert` while open, Escape closes where safe, and focus returns to the
-invoking control. Toasts live in `.toast-region`, are announced restrainedly,
+invoking control. The Request to edit dialog is the one dialog with no close
+control and no Escape (R557, 30 October 2026). Toasts live in `.toast-region`, are announced restrainedly,
 and never carry an action the page does not also offer. Every toast carries the
 shared `.dismiss` × so it can be put away before it expires.
 

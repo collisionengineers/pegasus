@@ -34,6 +34,64 @@ public sealed partial class DetailsModel
         !ViewerHoldsEditAuthority && CurrentEditLease is not null && EditAuthorityHolder is not null;
 
     /// <summary>
+    /// The viewer's own request to edit standing against the colleague's lease, whatever its
+    /// answer (FRD-14 §Take over, R550): pending draws the waiting line, unanswered offers Take
+    /// over anyway, declined says so and offers Ask to edit again.
+    /// </summary>
+    public CaseEditRequestSnapshot? ViewerEditRequest { get; private set; }
+
+    /// <summary>The viewer's own request is still inside its answer window.</summary>
+    public bool ViewerEditRequestIsPending =>
+        ViewerEditRequest is { Answer: null } request
+        && CaseEditAuthority.IsRequestPending(request.RequestedAtUtc, request.Answer, clock.GetUtcNow());
+
+    /// <summary>
+    /// The ribbon offers Ask to edit: a member of staff holds the lease, the viewer is not asking
+    /// already, and nobody else's request is still being answered.
+    /// </summary>
+    public bool ViewerMayAskToEdit { get; private set; }
+
+    /// <summary>
+    /// The request addressed to the viewer, who holds the lease, that they have not answered:
+    /// the Accept or Deny dialog draws from it, with <see cref="EditRequester"/> naming who asks.
+    /// </summary>
+    public CaseEditRequestSnapshot? EditRequestToAnswer { get; private set; }
+
+    public CaseEditAuthorityHolder? EditRequester { get; private set; }
+
+    /// <summary>
+    /// The one place the page reads the lease and the request into its flags, for the first
+    /// response and for a commit answered in place alike.
+    /// </summary>
+    private void ApplyLeaseState(
+        CaseEditLeaseSnapshot activeLease,
+        CaseEditRequestSnapshot? request,
+        ActionActor actor,
+        bool viewerHoldsLease,
+        CaseEditAuthorityHolder holder,
+        CaseEditAuthorityHolder? requester)
+    {
+        var now = clock.GetUtcNow();
+        ViewerHoldsEditAuthority = viewerHoldsLease;
+        EditAuthorityHolder = holder;
+        ViewerMayTakeOver = CaseEditAuthority.CanTakeOver(
+            activeLease.HolderKind, activeLease.Holder, activeLease.ExpiresAtUtc, actor, request, now);
+        ViewerEditRequest = request is not null && CaseEditAuthority.IsRequester(request, actor)
+            ? request
+            : null;
+        var anotherIsAsking = request is not null
+            && ViewerEditRequest is null
+            && CaseEditAuthority.IsRequestPending(request.RequestedAtUtc, request.Answer, now);
+        ViewerMayAskToEdit = !viewerHoldsLease
+            && CaseEditAuthority.CanRequest(
+                activeLease.HolderKind, activeLease.Holder, activeLease.ExpiresAtUtc, actor, now)
+            && ViewerEditRequest is not { Answer: null }
+            && !anotherIsAsking;
+        EditRequestToAnswer = viewerHoldsLease && request is { Answer: null } ? request : null;
+        EditRequester = requester;
+    }
+
+    /// <summary>
     /// The Tasks dialog offers its actions (Add task, Assign, Complete, Cancel).
     /// Core owns the rule; the dialog draws from this and the Tasks body's
     /// roster read follows it.

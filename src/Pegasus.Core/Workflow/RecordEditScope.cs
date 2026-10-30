@@ -198,7 +198,7 @@ public static class EditScopeAuthority
             }
 
             if (!IsHolder(retainedHolderKind, retainedHolder, actor)
-                && CaseEditAuthority.CanTakeOver(retainedHolderKind, actor))
+                && CaseEditAuthority.CanTakeOverRecordScope(retainedHolderKind, actor))
             {
                 return EditScopeClaim.TakeOver;
             }

@@ -468,3 +468,42 @@
         </section>
     </div>
 }
+
+@if (Model.IsEditing)
+{
+    @* A request to edit addressed to the holder (R550, R553, R557): Accept
+       hands the lease to the one asking, Deny closes the popup and editing
+       carries on. It is a decision, not a notice, so it has no close
+       control and Escape does nothing. Drawn while editing so the page's
+       long poll can open it when a request arrives, and drawn open with its
+       sentence when one was already waiting as the page was drawn. *@
+    var requestToAnswer = Model.EditRequestToAnswer;
+    <div id="case-edit-request-dialog" class="dialog-backdrop" data-dialog="case-edit-request-dialog"
+         data-dialog-open-on-load="@(requestToAnswer is not null ? "true" : null)"
+         data-edit-request-asks="@Frame.AsksToEdit("{name}")" data-edit-request-flash="@Frame.TitleFlash("{name}")" hidden>
+        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-edit-request-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-edit-request-dialog-title" tabindex="-1" data-dialog-initial-focus>@Frame.RequestToEdit</h2>
+            </div>
+            <div class="dialog-body stack">
+                <p data-edit-request-text>@(requestToAnswer is not null && Model.EditRequester is { } requester ? Frame.AsksToEdit(EditModeDisplay.HolderName(requester)) : null)</p>
+            </div>
+            @foreach (var (formAnswer, formId) in new[] { ("decline", "case-edit-request-decline-form"), ("accept", "case-edit-request-accept-form") })
+            {
+                <form method="post" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-page-handler="AnswerEditRequest"
+                      id="@formId" data-edit-request-form="@formAnswer" data-no-inplace>
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="requestId" value="@(requestToAnswer?.Id)" data-edit-request-id />
+                    <input type="hidden" name="answer" value="@formAnswer" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <input type="hidden" name="section" value="@Model.Section" />
+                    <input type="hidden" name="view" value="@Model.ViewRoute" />
+                </form>
+            }
+            <div class="dialog-foot">
+                <button type="submit" form="case-edit-request-decline-form" data-busy-label="@OperatorLabels.Busy.Refusing" class="btn" data-edit-request-deny>@Frame.Deny</button>
+                <button type="submit" form="case-edit-request-accept-form" data-busy-label="@OperatorLabels.Busy.Releasing" class="btn btn--primary" data-edit-request-accept>@Frame.Accept</button>
+            </div>
+        </section>
+    </div>
+}

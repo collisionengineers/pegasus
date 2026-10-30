@@ -1173,8 +1173,8 @@ public sealed class CaseEditModeWebTests
 
     /// <summary>
     /// A lazily loaded section does not resolve who holds the lease, so it asks only whether one
-    /// is live: under a colleague's lease it offers no Edit that could only be refused. Take over
-    /// stays the ribbon's.
+    /// is live: under a colleague's lease it offers no Edit that could only be refused. Asking to
+    /// edit stays the ribbon's.
     /// </summary>
     [Fact]
     public async Task ALazySectionUnderAColleaguesLeaseOffersNoEdit()
@@ -2028,7 +2028,9 @@ public sealed class CaseEditModeWebTests
         // An open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
-        Assert.Contains("handler=ClaimLease", html, StringComparison.Ordinal);
+        // A member of staff's lease is asked for (R550, 30 October 2026).
+        Assert.Contains("handler=RequestEdit", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"takeOver\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotMatch(GuidRegex(), VisibleText(note));
     }
@@ -2196,6 +2198,12 @@ public sealed class CaseEditModeWebTests
                 EditAuthorityNote(nonHolderHtml),
                 StringComparison.Ordinal);
             AssertNoBannedVocabulary(EditAuthorityNote(nonHolderHtml));
+            // A member of staff's lease is asked for, never seized (R550, 30 October 2026).
+            var nonHolderBar = RecordBar(nonHolderHtml);
+            Assert.Contains($">{CaseWorkspaceLabels.Frame.AskToEdit}<", nonHolderBar, StringComparison.Ordinal);
+            Assert.Contains("handler=RequestEdit", nonHolderBar, StringComparison.Ordinal);
+            Assert.DoesNotContain("name=\"takeOver\"", nonHolderBar, StringComparison.Ordinal);
+            Assert.DoesNotContain($">{CaseWorkspaceLabels.Frame.TakeOver}<", nonHolderBar, StringComparison.Ordinal);
         }
     }
 
@@ -2270,6 +2278,294 @@ public sealed class CaseEditModeWebTests
         var editing = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.Equal(store.LeaseToken, InputValue(editing, "editLeaseToken"));
         Assert.DoesNotContain("data-edit-authority", editing, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Requests to edit (R550, R551, R557): the editing page holds the long poll on the Case's
+    /// lease and request, and draws the popup the holder answers in: Accept and Deny only, no
+    /// close control, each posting the holder's own lease. A request already waiting when the
+    /// page is drawn opens the popup on load and names who asks.
+    /// </summary>
+    [Fact]
+    public async Task TheEditingPageWatchesForRequestsAndDrawsAnAcceptOrDenyPopupWithNoClose()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IDescribeCaseEditAuthorityHolder>(services, new StubEditAuthorityHolders("r.hughes")));
+
+        var editing = await workspace.GetWorkspaceAsync();
+        var bar = RecordBar(editing);
+        Assert.Contains("data-case-edit-watch", bar, StringComparison.Ordinal);
+        Assert.Contains("handler=WatchEditRequest", bar, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-edit-withdraw", bar, StringComparison.Ordinal);
+        var popup = EditRequestPopup(editing);
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.RequestToEdit}<", popup, StringComparison.Ordinal);
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.Accept}<", popup, StringComparison.Ordinal);
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.Deny}<", popup, StringComparison.Ordinal);
+        Assert.Contains("data-edit-request-accept", popup, StringComparison.Ordinal);
+        Assert.Contains("data-edit-request-deny", popup, StringComparison.Ordinal);
+        Assert.DoesNotContain("dialog-close", popup, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Cancel<", popup, StringComparison.Ordinal);
+        Assert.Equal(2, Occurrences(popup, "handler=AnswerEditRequest"));
+        Assert.Contains("name=\"answer\" value=\"accept\"", popup, StringComparison.Ordinal);
+        Assert.Contains("name=\"answer\" value=\"decline\"", popup, StringComparison.Ordinal);
+        Assert.Equal(2, Occurrences(popup, $"name=\"editLeaseToken\" value=\"{store.LeaseToken}\""));
+        Assert.DoesNotContain("data-dialog-open-on-load=\"true\"", popup, StringComparison.Ordinal);
+
+        var requestId = Guid.NewGuid();
+        store.EditRequest = new(
+            requestId,
+            ActorKind.Staff,
+            Guid.NewGuid().ToString("D"),
+            workspace.Claimant.SubjectId,
+            DateTimeOffset.UtcNow,
+            null);
+        var asked = EditRequestPopup(await workspace.GetWorkspaceAsync());
+        Assert.Contains("data-dialog-open-on-load=\"true\"", asked, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.AsksToEdit("r.hughes"), asked, StringComparison.Ordinal);
+        Assert.Equal(2, Occurrences(asked, $"value=\"{requestId:D}\""));
+    }
+
+    /// <summary>
+    /// Ask to edit raises the request through the lease port with the page's version and its own
+    /// operation key. A script request is answered in place with the request's state; without
+    /// script the post returns to the Case, whose ribbon then draws the waiting line.
+    /// </summary>
+    [Fact]
+    public async Task AskToEditRaisesTheRequestAndAnswersTheScriptWithItsState()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IDescribeCaseEditAuthorityHolder>(services, new StubEditAuthorityHolders("r.hughes")));
+        store.LeaseHolder = Guid.NewGuid().ToString("D");
+        var page = await workspace.GetWorkspaceAsync();
+        var key = HandlerFormInputValue(RecordBar(page), "RequestEdit", "operationKey");
+
+        using (var scripted = await PostScriptAsync(workspace, "RequestEdit", RequestEditFields(store, key)))
+        {
+            Assert.Equal(HttpStatusCode.OK, scripted.StatusCode);
+            Assert.Equal("pending", await JsonStringAsync(scripted, "state"));
+        }
+        var raised = Assert.Single(store.EditRequestsRaised);
+        AssertClaimant(workspace, raised.Actor);
+        Assert.Equal(store.CaseId, raised.CaseId);
+        Assert.Equal(store.CaseVersion, raised.ExpectedVersion);
+        Assert.Equal(key, raised.OperationKey);
+
+        store.RaiseOutcome = CaseEditRequestOutcome.AutomationHeld;
+        using (var automation = await PostScriptAsync(workspace, "RequestEdit", RequestEditFields(store, key)))
+        {
+            Assert.Equal("automation-held", await JsonStringAsync(automation, "state"));
+        }
+        store.NextFailure = new CaseEditRequestRefusedException(store.CaseId, store.CaseVersion, CaseEditRequestRefusal.AlreadyAsked);
+        using (var refused = await PostScriptAsync(workspace, "RequestEdit", RequestEditFields(store, key)))
+        {
+            Assert.Equal("already-asked", await JsonStringAsync(refused, "state"));
+        }
+
+        store.RaiseOutcome = CaseEditRequestOutcome.Pending;
+        using var plain = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=RequestEdit",
+            Form(workspace.AntiforgeryToken, RequestEditFields(store, key)));
+        AssertPrg(plain, store.CaseId);
+    }
+
+    /// <summary>
+    /// The long poll (R551) answers the Case's lease and request as JSON with the stamp the page
+    /// sends back next: a page that has seen nothing, or has seen a different stamp, is answered
+    /// at once. The holder is the viewer and is not named; the one asking is.
+    /// </summary>
+    [Fact]
+    public async Task TheWatchAnswersTheLeaseAndTheRequestWithItsStamp()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IDescribeCaseEditAuthorityHolder>(services, new StubEditAuthorityHolders("r.hughes")));
+        var requestId = Guid.NewGuid();
+        var requestedAt = DateTimeOffset.UtcNow;
+        store.EditRequest = new(
+            requestId,
+            ActorKind.Staff,
+            Guid.NewGuid().ToString("D"),
+            workspace.Claimant.SubjectId,
+            requestedAt,
+            null);
+        store.EditRequestStamp = "stamp-7";
+
+        foreach (var known in new[] { null, "stamp-6" })
+        {
+            var fields = new List<(string Name, string Value)> { ("id", store.CaseId.ToString("D")) };
+            if (known is not null)
+            {
+                fields.Add(("stamp", known));
+            }
+            using var watched = await workspace.Client.PostAsync(
+                $"/Cases/{store.CaseId:D}?handler=WatchEditRequest",
+                Form(workspace.AntiforgeryToken, [.. fields]));
+            Assert.Equal(HttpStatusCode.OK, watched.StatusCode);
+            using var answer = System.Text.Json.JsonDocument.Parse(await watched.Content.ReadAsStringAsync());
+            var root = answer.RootElement;
+            Assert.Equal("stamp-7", root.GetProperty("stamp").GetString());
+            Assert.Equal(store.CaseVersion, root.GetProperty("version").GetInt64());
+            var holder = root.GetProperty("holder");
+            Assert.True(holder.GetProperty("isViewer").GetBoolean());
+            Assert.False(holder.GetProperty("isAi").GetBoolean());
+            var request = root.GetProperty("request");
+            Assert.Equal(requestId, request.GetProperty("id").GetGuid());
+            Assert.Equal("pending", request.GetProperty("state").GetString());
+            Assert.Equal("r.hughes", request.GetProperty("requester").GetString());
+            Assert.False(request.GetProperty("isViewer").GetBoolean());
+            Assert.False(request.GetProperty("isAi").GetBoolean());
+            Assert.Equal(
+                requestedAt + CaseEditAuthority.RequestAnswerWindow,
+                request.GetProperty("answerBy").GetDateTimeOffset());
+        }
+    }
+
+    /// <summary>
+    /// Accept and Deny carry the holder's own lease and the request they answer (R553); a script
+    /// is answered 204. A request already gone, or a lease already lost, is 409 so the page draws
+    /// the Case as it stands. The asking page's withdrawal is a beacon and answers 204 whatever it
+    /// found.
+    /// </summary>
+    [Fact]
+    public async Task AnswersCarryTheHoldersLeaseAndAWithdrawalAlwaysAnswersNoContent()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        var requestId = Guid.NewGuid();
+        (string Name, string Value)[] Answer(string answer, string? token) =>
+            token is null
+                ? [("id", store.CaseId.ToString("D")), ("requestId", requestId.ToString("D")), ("answer", answer)]
+                : [("id", store.CaseId.ToString("D")), ("requestId", requestId.ToString("D")), ("answer", answer), ("editLeaseToken", token)];
+
+        using (var accepted = await PostScriptAsync(workspace, "AnswerEditRequest", Answer("accept", store.LeaseToken)))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, accepted.StatusCode);
+        }
+        var accept = Assert.Single(store.EditRequestAnswers);
+        AssertClaimant(workspace, accept.Actor);
+        Assert.Equal(store.CaseId, accept.CaseId);
+        Assert.Equal(requestId, accept.RequestId);
+        Assert.Equal(CaseEditRequestAnswer.Accepted, accept.Answer);
+        Assert.Equal(store.LeaseToken, accept.LeaseToken);
+
+        using (var declined = await PostScriptAsync(workspace, "AnswerEditRequest", Answer("decline", store.LeaseToken)))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, declined.StatusCode);
+        }
+        Assert.Equal(CaseEditRequestAnswer.Declined, store.EditRequestAnswers[1].Answer);
+        Assert.Equal(store.LeaseToken, store.EditRequestAnswers[1].LeaseToken);
+
+        store.NextFailure = new CaseEditLeaseExpiredException(store.CaseId, store.CaseVersion);
+        using (var lost = await PostScriptAsync(workspace, "AnswerEditRequest", Answer("decline", store.LeaseToken)))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, lost.StatusCode);
+        }
+
+        store.NextFailure = new InvalidOperationException("The request was already answered.");
+        using (var withdrawn = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=AnswerEditRequest",
+            Form(workspace.AntiforgeryToken, Answer("withdraw", null))))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, withdrawn.StatusCode);
+        }
+        Assert.Equal(2, store.EditRequestAnswers.Count);
+    }
+
+    /// <summary>
+    /// The asking page's ribbon (R550, R552): while the holder may still answer it reads
+    /// "Waiting for {holder} to answer…", offers nothing and carries the withdrawal beacon; a
+    /// request the holder never answered offers Take over anyway; a denial says so beside Ask to
+    /// edit. Each carries the long poll with the state it drew.
+    /// </summary>
+    [Fact]
+    public async Task TheAskingPageWaitsThenOffersTakeOverAnywayOrSaysItWasDeclined()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IDescribeCaseEditAuthorityHolder>(services, new StubEditAuthorityHolders("r.hughes")));
+        var colleague = Guid.NewGuid().ToString("D");
+        store.LeaseHolder = colleague;
+        var requestId = Guid.NewGuid();
+        var request = new CaseEditRequestSnapshot(
+            requestId,
+            ActorKind.Staff,
+            workspace.Claimant.SubjectId,
+            colleague,
+            DateTimeOffset.UtcNow,
+            null);
+        store.EditRequest = request;
+
+        var waiting = RecordBar(await workspace.GetWorkspaceAsync());
+        Assert.Contains("data-edit-request-waiting", waiting, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.WaitingFor("r.hughes"), WebUtility.HtmlDecode(waiting), StringComparison.Ordinal);
+        Assert.Contains("data-edit-request-drawn=\"pending\"", waiting, StringComparison.Ordinal);
+        Assert.Contains("data-case-edit-withdraw", waiting, StringComparison.Ordinal);
+        Assert.Contains("name=\"answer\" value=\"withdraw\"", waiting, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{requestId:D}\"", waiting, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=RequestEdit", waiting, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", waiting, StringComparison.Ordinal);
+
+        store.EditRequest = request with
+        {
+            RequestedAtUtc = DateTimeOffset.UtcNow - CaseEditAuthority.RequestAnswerWindow - TimeSpan.FromSeconds(1)
+        };
+        var unanswered = RecordBar(await workspace.GetWorkspaceAsync());
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.TakeOverAnyway}<", unanswered, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", unanswered, StringComparison.Ordinal);
+        Assert.Contains("name=\"takeOver\" value=\"true\"", unanswered, StringComparison.Ordinal);
+        Assert.Contains("data-edit-request-drawn=\"unanswered\"", unanswered, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-edit-request-waiting", unanswered, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-edit-withdraw", unanswered, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=RequestEdit", unanswered, StringComparison.Ordinal);
+
+        store.EditRequest = request with { Answer = CaseEditRequestAnswer.Declined };
+        var declined = RecordBar(await workspace.GetWorkspaceAsync());
+        Assert.Contains("data-edit-request-declined", declined, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.Declined("r.hughes"), WebUtility.HtmlDecode(declined), StringComparison.Ordinal);
+        Assert.Contains($">{CaseWorkspaceLabels.Frame.AskToEdit}<", declined, StringComparison.Ordinal);
+        Assert.Contains("handler=RequestEdit", declined, StringComparison.Ordinal);
+        Assert.Contains("data-edit-request-drawn=\"declined\"", declined, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-edit-withdraw", declined, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"takeOver\"", declined, StringComparison.Ordinal);
+    }
+
+    private static (string Name, string Value)[] RequestEditFields(RecordingCaseDetailsStore store, string operationKey) =>
+    [
+        ("id", store.CaseId.ToString("D")),
+        ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+        ("operationKey", operationKey)
+    ];
+
+    /// <summary>A post as case-workspace.js sends it, asking for the in-place answer.</summary>
+    private static async Task<HttpResponseMessage> PostScriptAsync(
+        LeasedWorkspace workspace,
+        string handler,
+        (string Name, string Value)[] fields)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/Cases/{workspace.Store.CaseId:D}?handler={handler}")
+        {
+            Content = Form(workspace.AntiforgeryToken, fields)
+        };
+        request.Headers.Add("X-Requested-With", "fetch");
+        return await workspace.Client.SendAsync(request);
+    }
+
+    private static async Task<string?> JsonStringAsync(HttpResponseMessage response, string property)
+    {
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        using var answer = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return answer.RootElement.GetProperty(property).GetString();
+    }
+
+    private static string EditRequestPopup(string html)
+    {
+        var start = html.IndexOf("id=\"case-edit-request-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The request popup is not rendered.");
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The request popup is not closed.");
+        return html[start..end];
     }
 
     /// <summary>

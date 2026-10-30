@@ -13,6 +13,8 @@ tags: [mcp, automation, edit-lease]
 
 ## Status
 
+Amended 30 October 2026 (R552, R554): the Automation Actor no longer takes over a staff-held Case lease; it asks and waits (FRD-14 §Take over, FRD-10 §Edit leases). Staff still take over an Automation-held Case lease at once.
+
 Accepted on 16 October 2026 by operator decision. On 15 October 2026 the
 operator ruled "Allow Take over of an Automation lease (Core change under
 FRD-14 and FRD-10)"; on 16 October 2026, that the history line reads "Edit

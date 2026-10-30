@@ -56,11 +56,15 @@ Case at the same route renders as the Triage Case page instead
   (Saving…, Saved {time}, or why the last change was not saved) and **Done**;
 - the one **Actions** menu.
 
-When a colleague holds the lease the ribbon shows who, and offers **Take
-over**. Any staff member may take over; no reason is needed and the takeover
-is recorded in history. There is no Renew editing: editing lasts while the
-page is open (operator, 6 October 2026). The rule is in
-[FRD-14](frd-14-record-edit-leases.md#take-over).
+When a colleague holds the lease the ribbon shows who, and offers **Ask to
+edit**; while the viewer's request stands it shows "Waiting for {name} to
+answer…", after 45 seconds unanswered it offers **Take over anyway**, and
+after a denial it says so and offers Ask to edit again. The holder's page
+shows the request in a dialog with Accept and Deny. A lease the Automation
+Actor holds is offered Take over at once. There is no Renew editing: editing
+lasts while the page is open (operator, 6 October 2026). The rule is in
+[FRD-14](frd-14-record-edit-leases.md#take-over) (R550 to R557, 30 October
+2026).
 
 **The section row** sits under the ribbon. It lists the section links, marks
 the current section as you scroll, and carries **Refresh**. The page always
@@ -325,7 +329,7 @@ action and consumed by it, the way Generate report does
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a refused action
 frees the lease it claimed, as does a request abandoned mid-action. While a
 colleague holds the lease the menu offers nothing that needs one, so only
-Export case and Tasks remain; the ribbon names them and offers Take over. A Report
+Export case and Tasks remain; the ribbon names them and offers Ask to edit. A Report
 sent Case offers Edit Case like With Engineer (operator, 11 October 2026);
 Return to Engineer needs no session. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
