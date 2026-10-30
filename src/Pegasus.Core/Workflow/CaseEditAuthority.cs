@@ -74,6 +74,127 @@ public static class CaseEditAuthority
                 || (retainedLeaseHolderKind == ActorKind.Automation && actor.Kind == ActorKind.Staff));
     }
 
+    /// <summary>
+    /// How long the holder of a Case lease is given to answer a request to edit before the
+    /// requester may take the lease anyway (R552, 30 October 2026). Short enough that one
+    /// Automation tool call, waiting inside the call, outlasts it under the MCP clients' default
+    /// timeout of a minute.
+    /// </summary>
+    public static readonly TimeSpan RequestAnswerWindow = TimeSpan.FromSeconds(45);
+
+    /// <summary>A request nobody has answered whose window is still open.</summary>
+    public static bool IsRequestPending(
+        DateTimeOffset requestedAtUtc,
+        CaseEditRequestAnswer? answer,
+        DateTimeOffset nowUtc) =>
+        answer is null && requestedAtUtc + RequestAnswerWindow > nowUtc;
+
+    /// <summary>A request nobody has answered whose window has closed.</summary>
+    public static bool IsRequestUnanswered(
+        DateTimeOffset requestedAtUtc,
+        CaseEditRequestAnswer? answer,
+        DateTimeOffset nowUtc) =>
+        answer is null && !IsRequestPending(requestedAtUtc, answer, nowUtc);
+
+    /// <summary>
+    /// Whether a request still stands against the Case's lease: it was addressed to the holder
+    /// who still holds the live lease. A request outlives neither its holder nor the lease.
+    /// </summary>
+    public static bool RequestStands(
+        CaseEditRequestSnapshot? request,
+        ActorKind? retainedLeaseHolderKind,
+        string? retainedLeaseHolder,
+        DateTimeOffset? leaseExpiresAtUtc,
+        DateTimeOffset nowUtc) =>
+        request is not null
+        && retainedLeaseHolderKind == ActorKind.Staff
+        && string.Equals(request.Holder, retainedLeaseHolder, StringComparison.Ordinal)
+        && IsHeld(leaseExpiresAtUtc, nowUtc);
+
+    /// <summary>
+    /// Who may ask the holder to hand the lease over (R550, 30 October 2026): any actor with the
+    /// casework right, staff or the Automation Actor, while a member of staff other than the
+    /// caller holds the live lease. Nobody asks the Automation Actor, which has no page to answer
+    /// on: staff take its lease over at once (ADR-0075) and another Automation session is refused.
+    /// </summary>
+    public static bool CanRequest(
+        ActorKind? retainedLeaseHolderKind,
+        string? retainedLeaseHolder,
+        DateTimeOffset? leaseExpiresAtUtc,
+        ActionActor actor,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)
+            && retainedLeaseHolderKind == ActorKind.Staff
+            && IsHeld(leaseExpiresAtUtc, nowUtc)
+            && !IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor);
+    }
+
+    /// <summary>
+    /// Whether the actor may answer a request: only the member of staff it was addressed to, who
+    /// still holds the lease. The caller has already proven the lease with the holder's token,
+    /// which lets a holder whose lease lapsed with nobody claiming since answer as they carry on.
+    /// </summary>
+    public static bool CanAnswer(
+        CaseEditRequestSnapshot request,
+        ActorKind? retainedLeaseHolderKind,
+        string? retainedLeaseHolder,
+        ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(actor);
+        return request.Answer is null
+            && retainedLeaseHolderKind == ActorKind.Staff
+            && string.Equals(request.Holder, retainedLeaseHolder, StringComparison.Ordinal)
+            && IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor);
+    }
+
+    /// <summary>
+    /// Whether the actor is the one who made the request.
+    /// </summary>
+    public static bool IsRequester(CaseEditRequestSnapshot request, ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(actor);
+        return request.RequesterKind == actor.Kind
+            && string.Equals(request.Requester, actor.SubjectId, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A takeover as a request makes it (R552 and R554, 30 October 2026). A lease the Automation
+    /// Actor holds is taken over at once by a member of staff, since nobody can be asked
+    /// (ADR-0075). A lease a member of staff holds is taken over only by the member of staff who
+    /// asked, once their request has gone unanswered through its window, while the holder they
+    /// asked still holds the lease and has not answered; a declined request ends the matter. The
+    /// Automation Actor asks and waits, and never takes a member of staff's lease.
+    /// </summary>
+    public static bool CanTakeOver(
+        ActorKind? retainedLeaseHolderKind,
+        string? retainedLeaseHolder,
+        DateTimeOffset? leaseExpiresAtUtc,
+        ActionActor actor,
+        CaseEditRequestSnapshot? request,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)
+            || actor.Kind != ActorKind.Staff)
+        {
+            return false;
+        }
+
+        if (retainedLeaseHolderKind == ActorKind.Automation)
+        {
+            return true;
+        }
+
+        return request is not null
+            && RequestStands(request, retainedLeaseHolderKind, retainedLeaseHolder, leaseExpiresAtUtc, nowUtc)
+            && IsRequester(request, actor)
+            && IsRequestUnanswered(request.RequestedAtUtc, request.Answer, nowUtc);
+    }
+
     public static void RequireVersion(Guid caseId, long caseVersion, long expectedVersion)
     {
         if (caseVersion != expectedVersion)
@@ -263,16 +384,17 @@ public sealed record CaseEditAuthorityHolder(string? DisplayName, bool IsAutomat
     /// "Edit lease taken over from AI." for the Automation Actor (operator, 15 and 16 October
     /// 2026), the staff account name, or <see cref="UnnamedName"/> (R520, 29 October 2026).
     /// </summary>
-    public string TakeOverHistoryReason
-    {
-        get
-        {
-            var name = IsAutomation
-                ? AutomationName
-                : string.IsNullOrWhiteSpace(DisplayName) ? UnnamedName : DisplayName;
-            return $"Edit lease taken over from {name}.";
-        }
-    }
+    public string TakeOverHistoryReason => $"Edit lease taken over from {HistoryName}.";
+
+    /// <summary>
+    /// The history line for a lease the holder handed to this requester at their request (R553,
+    /// 30 October 2026), under the same event type as a takeover and named by the same rule.
+    /// </summary>
+    public string HandOverHistoryReason => $"Edit lease handed over to {HistoryName} at their request.";
+
+    private string HistoryName => IsAutomation
+        ? AutomationName
+        : string.IsNullOrWhiteSpace(DisplayName) ? UnnamedName : DisplayName;
 }
 
 public interface IDescribeCaseEditAuthorityHolder

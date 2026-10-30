@@ -862,6 +862,15 @@ public sealed partial class AssessmentReportDraftWebTests
         IGetCaseFilesSection,
         ILeaseCaseForEdit
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         private static readonly Guid CaseEngineerId = Guid.Parse("5b0c7e1a-2d4f-4b8e-9a61-3c2f8d7e1b42");
 
         private CaseEditLeaseSnapshot? activeLease;

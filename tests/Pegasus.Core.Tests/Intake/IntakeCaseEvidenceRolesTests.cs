@@ -29,7 +29,7 @@ public sealed class IntakeCaseEvidenceRolesTests
     /// <summary>
     /// A file uploaded to a declared Case takes the type chosen for it, Other
     /// when none; a photograph is an Image whatever was chosen (operator, 30
-    /// October 2026; R553, R554).
+    /// October 2026; R559, R560).
     /// </summary>
     [Theory]
     [InlineData("estimate.pdf", "application/pdf", DocumentSemanticRole.Estimate, DocumentSemanticRole.Estimate)]

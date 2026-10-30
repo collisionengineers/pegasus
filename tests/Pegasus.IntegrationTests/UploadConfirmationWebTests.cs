@@ -149,7 +149,7 @@ public sealed class UploadConfirmationWebTests
         }
 
         // The PDF and both photographs are the Case's documents; nothing was
-        // held. No type was chosen for the PDF, so it is Other (R554).
+        // held. No type was chosen for the PDF, so it is Other (R560).
         var filed = await FiledDocumentsAsync(factory, receiptId, caseId);
         Assert.Equal(3, filed.Count);
         Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Other));
@@ -200,7 +200,7 @@ public sealed class UploadConfirmationWebTests
 
     /// <summary>
     /// A file added from a Case takes the type chosen for it on its row
-    /// (operator, 30 October 2026; R553, R554): the declared picker offers the
+    /// (operator, 30 October 2026; R559, R560): the declared picker offers the
     /// upload types with Other chosen, an ordinary upload offers none, the
     /// choice is recorded on the receipt and the file is filed as that type.
     /// A replay of the same upload keeps the type first recorded.

@@ -590,6 +590,37 @@ public interface ILeaseCaseForEdit
         CancellationToken cancellationToken);
 
     Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Asks the member of staff holding the lease to hand it over (FRD-14, R550). One request
+    /// stands per Case: another editor's pending request refuses the call with
+    /// <see cref="CaseEditRequestRefusedException"/>, and the caller's own request sent again
+    /// answers its current state. A free lease, the caller's own lease and an Automation-held
+    /// lease are answered without a request, as <see cref="CaseEditRequestOutcome"/> says. A
+    /// request is telemetry, not history.
+    /// </summary>
+    Task<CaseEditRequestRaised> RaiseRequestAsync(
+        RaiseCaseEditRequestRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Answers the request. Accept hands the lease to the requester in the same transaction: a
+    /// new token under the requester, the holder's edit session ended, one history line under the
+    /// takeover event type. Decline and Withdraw only record the answer. An answer to a request
+    /// that no longer stands, or one not addressed to the caller, is refused with
+    /// <see cref="CaseEditLeaseExpiredException"/>.
+    /// </summary>
+    Task AnswerRequestAsync(
+        AnswerCaseEditRequestRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Case's lease and request facts for a waiting page or call: one read, no lock, no write.
+    /// </summary>
+    Task<CaseEditRequestView> ReadRequestAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>

@@ -78,7 +78,7 @@ public sealed class GroupedIntakeTests
     }
 
     /// <summary>
-    /// A type chosen at upload (R553) belongs to a declared Case and is one
+    /// A type chosen at upload (R559) belongs to a declared Case and is one
     /// the Upload page offers; a submission that says otherwise is malformed
     /// and is refused before any file is staged.
     /// </summary>

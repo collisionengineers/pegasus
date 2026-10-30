@@ -7,17 +7,73 @@ namespace Pegasus.Core.Workflow;
 /// <see cref="ILeaseCaseForEdit"/> port, which owns the lease rules. There is no renewal; a holder
 /// keeps the lease with a heartbeat (R524).
 /// </summary>
-public sealed class CaseEditLeases(ILeaseCaseForEdit leases)
+public sealed class CaseEditLeases(ILeaseCaseForEdit leases, ICaseEditSignal signal)
 {
     private readonly ILeaseCaseForEdit _leases =
         leases ?? throw new ArgumentNullException(nameof(leases));
+    private readonly ICaseEditSignal _signal =
+        signal ?? throw new ArgumentNullException(nameof(signal));
 
-    public Task<CaseEditLease> ClaimAsync(
+    public async Task<CaseEditLease> ClaimAsync(
         ClaimCaseEditLeaseRequest request,
         CancellationToken cancellationToken)
     {
         var normalizedRequest = ValidateClaim(request);
-        return _leases.ClaimAsync(normalizedRequest, cancellationToken);
+        var lease = await _leases.ClaimAsync(normalizedRequest, cancellationToken);
+        _signal.Raise(normalizedRequest.CaseId);
+        return lease;
+    }
+
+    /// <summary>
+    /// Asks the holder to hand the lease over (FRD-14 §Take over, R550). The request wakes the
+    /// holder's open page; the answer wakes the requester's.
+    /// </summary>
+    public async Task<CaseEditRequestRaised> RaiseRequestAsync(
+        RaiseCaseEditRequestRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateCaseAndVersion(request.CaseId, request.ExpectedVersion);
+        ValidateActor(request.Actor);
+        RequireText(request.OperationKey, "An operation key is required.", 100, nameof(request));
+        var raised = await _leases.RaiseRequestAsync(
+            request with { OperationKey = request.OperationKey.Trim() },
+            cancellationToken);
+        if (raised.Outcome == CaseEditRequestOutcome.Pending)
+        {
+            _signal.Raise(request.CaseId);
+        }
+        return raised;
+    }
+
+    public async Task AnswerRequestAsync(
+        AnswerCaseEditRequestRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(request));
+        }
+        if (request.RequestId == Guid.Empty)
+        {
+            throw new ArgumentException("A request identifier is required.", nameof(request));
+        }
+        if (!Enum.IsDefined(request.Answer))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "The answer is invalid.");
+        }
+        ValidateActor(request.Actor);
+        if (request.Answer != CaseEditRequestAnswer.Withdrawn)
+        {
+            RequireText(
+                request.LeaseToken ?? string.Empty,
+                "An active edit lease token is required.",
+                CaseEditAuthority.LeaseTokenLength,
+                nameof(request));
+        }
+        await _leases.AnswerRequestAsync(request, cancellationToken);
+        _signal.Raise(request.CaseId);
     }
 
     /// <summary>
@@ -47,12 +103,13 @@ public sealed class CaseEditLeases(ILeaseCaseForEdit leases)
         return _leases.ResumeAsync(normalizedRequest, cancellationToken);
     }
 
-    public Task ReleaseAsync(
+    public async Task ReleaseAsync(
         ReleaseCaseEditLeaseRequest request,
         CancellationToken cancellationToken)
     {
         var normalizedRequest = ValidateRelease(request);
-        return _leases.ReleaseAsync(normalizedRequest, cancellationToken);
+        await _leases.ReleaseAsync(normalizedRequest, cancellationToken);
+        _signal.Raise(normalizedRequest.CaseId);
     }
 
     private static ClaimCaseEditLeaseRequest ValidateClaim(ClaimCaseEditLeaseRequest request)

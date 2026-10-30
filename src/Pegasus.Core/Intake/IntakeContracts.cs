@@ -357,8 +357,8 @@ public sealed class IntakeArtifactRetentionException : Exception
 /// </param>
 /// <param name="DeclaredDocumentType">
 /// The type the member of staff chose for this file as they uploaded it to
-/// the declared Case (one choice per file; FRD-18, R553). Null when none was
-/// chosen, so the file is filed as Other (R554); never set without
+/// the declared Case (one choice per file; FRD-18, R559). Null when none was
+/// chosen, so the file is filed as Other (R560); never set without
 /// <paramref name="DeclaredCaseId"/>.
 /// </param>
 public sealed record IntakeSource(

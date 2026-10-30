@@ -23,6 +23,12 @@ internal static class CaseWorkflowModelConfiguration
                     "CK_CaseWorkflows_HoldReview",
                     "[HoldReviewOn] IS NULL OR [HeldAtUtc] IS NOT NULL");
                 table.HasCheckConstraint(
+                    "CK_CaseWorkflows_EditRequestAnswer",
+                    "[EditRequestAnswer] IS NULL OR [EditRequestAnswer] IN ('accepted', 'declined', 'withdrawn')");
+                table.HasCheckConstraint(
+                    "CK_CaseWorkflows_EditRequestShape",
+                    "([EditRequestId] IS NULL AND [EditRequesterKind] IS NULL AND [EditRequester] IS NULL AND [EditRequestHolder] IS NULL AND [EditRequestOperationKey] IS NULL AND [EditRequestedAtUtc] IS NULL AND [EditRequestAnswer] IS NULL) OR ([EditRequestId] IS NOT NULL AND [EditRequesterKind] IS NOT NULL AND [EditRequester] IS NOT NULL AND [EditRequestHolder] IS NOT NULL AND [EditRequestOperationKey] IS NOT NULL AND [EditRequestedAtUtc] IS NOT NULL)");
+                table.HasCheckConstraint(
                     "CK_CaseWorkflows_ArchiveMetadata",
                     "([ArchivedAtUtc] IS NULL AND [ArchivedByKind] IS NULL AND [ArchivedBySubjectId] IS NULL AND [ArchivedByRolesJson] IS NULL AND [ArchiveReason] IS NULL) OR ([ArchivedAtUtc] IS NOT NULL AND [ArchivedByKind] IS NOT NULL AND [ArchivedBySubjectId] IS NOT NULL AND [ArchivedByRolesJson] IS NOT NULL AND [ArchiveReason] IS NOT NULL AND [ArchiveReason] <> '')");
             });
@@ -41,6 +47,11 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.EditLeaseHolderKind).HasMaxLength(40);
             entity.Property(item => item.EditLeaseOperationKey).HasMaxLength(100);
             entity.Property(item => item.EditLeaseGeneration).HasDefaultValue(0L);
+            entity.Property(item => item.EditRequesterKind).HasMaxLength(40);
+            entity.Property(item => item.EditRequester).HasMaxLength(200);
+            entity.Property(item => item.EditRequestHolder).HasMaxLength(200);
+            entity.Property(item => item.EditRequestOperationKey).HasMaxLength(100);
+            entity.Property(item => item.EditRequestAnswer).HasMaxLength(16);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
             entity.HasIndex(item => item.ReportApprovalId).IsUnique();

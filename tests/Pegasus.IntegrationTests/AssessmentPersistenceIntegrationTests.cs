@@ -2553,7 +2553,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
                         new DiscardingCommittedWorkPublisher(),
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
-                    new CaseEditLeases(workflowStore),
+                    new CaseEditLeases(workflowStore, new InProcessCaseEditSignal()),
                     new SaveAssessment(
                         new EfCaseAssessmentStore(factory, timeProvider)),
                     repairSpecifications,

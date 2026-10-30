@@ -480,18 +480,27 @@ public sealed class EfEditScopeStore(
         PegasusDbContext context,
         ActorKind? previousHolderKind,
         string previousHolder,
-        CancellationToken cancellationToken)
-    {
-        var holder = await CaseEditAuthorityHolder.ResolveAsync(
-            previousHolderKind,
-            previousHolder,
+        CancellationToken cancellationToken) =>
+        (await ResolveHolderAsync(context, previousHolderKind, previousHolder, cancellationToken))
+            .TakeOverHistoryReason;
+
+    /// <summary>
+    /// The one way a retained holder or requester is named for history: the Automation Actor by
+    /// its kind, a member of staff by account name, otherwise unnamed (R520).
+    /// </summary>
+    internal static Task<CaseEditAuthorityHolder> ResolveHolderAsync(
+        PegasusDbContext context,
+        ActorKind? holderKind,
+        string holder,
+        CancellationToken cancellationToken) =>
+        CaseEditAuthorityHolder.ResolveAsync(
+            holderKind,
+            holder,
             (staffId, token) => context.Users.AsNoTracking()
                 .Where(item => item.Id == staffId)
                 .Select(item => item.UserName)
                 .SingleOrDefaultAsync(token),
             cancellationToken);
-        return holder.TakeOverHistoryReason;
-    }
 
     private static string Hash(string value) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));

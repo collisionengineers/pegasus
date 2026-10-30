@@ -172,6 +172,18 @@ public sealed class EfCaseWorkflowStore(
             ? await EfEditScopeStore.TakeOverHistoryReasonAsync(
                 context, previousHolderKind, previousHolder, cancellationToken)
             : null;
+        // A request to edit is addressed to one holder's session: a claim that changes the holder
+        // ends it, and so does a claim after the lease it was asked against lapsed; only the
+        // holder's own re-claim after a save, which clears the lease rather than letting it lapse,
+        // leaves it standing (R550).
+        var previousLeaseLapsed = workflow.EditLeaseHolder is not null && liveHolder is null;
+        if (CaseMutationGuard.RetainedRequest(workflow) is { } standingRequest
+            && (previousLeaseLapsed
+                || request.Actor.Kind != ActorKind.Staff
+                || !string.Equals(standingRequest.Holder, request.Actor.SubjectId, StringComparison.Ordinal)))
+        {
+            CaseMutationGuard.ClearRequest(workflow);
+        }
         CaseMutationGuard.ClearLease(workflow);
         var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
         var tokenHash = Hash(token);
@@ -311,6 +323,261 @@ public sealed class EfCaseWorkflowStore(
         };
     }
 
+    public async Task<CaseEditRequestRaised> RaiseRequestAsync(
+        RaiseCaseEditRequestRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await AcquireWorkflowMutationLockAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
+                item => item.CaseId == request.CaseId,
+                cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        CaseMutationGuard.RequireNotArchived(workflow);
+        CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
+
+        var now = timeProvider.GetUtcNow();
+        var operationKey = request.OperationKey.Trim();
+        var holderKind = CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind);
+        var isLive = CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now);
+        var retained = CaseMutationGuard.RetainedRequest(workflow);
+
+        // The caller's own request sent again answers its state: the lease it was handed, the
+        // request still being asked, or the refusal. A withdrawn request, or one the holder has
+        // moved on from, is asked afresh below.
+        if (retained is not null
+            && CaseEditAuthority.IsRequester(retained, request.Actor)
+            && string.Equals(workflow.EditRequestOperationKey, operationKey, StringComparison.Ordinal))
+        {
+            if (retained.Answer == CaseEditRequestAnswer.Accepted
+                && isLive
+                && CaseEditAuthority.IsHolder(holderKind, workflow.EditLeaseHolder, request.Actor)
+                && RetainedLeaseToken(workflow) is { } handedToken)
+            {
+                return new(CaseEditRequestOutcome.Accepted, retained, OwnLease(workflow, handedToken, request.Actor));
+            }
+
+            var stands = CaseEditAuthority.RequestStands(
+                retained, holderKind, workflow.EditLeaseHolder, workflow.EditLeaseExpiresAtUtc, now);
+            if (retained.Answer is null && stands)
+            {
+                return new(CaseEditRequestOutcome.Pending, retained, null);
+            }
+            if (retained.Answer == CaseEditRequestAnswer.Declined && stands)
+            {
+                throw new CaseEditRequestRefusedException(
+                    request.CaseId, workflow.Version, CaseEditRequestRefusal.Declined);
+            }
+        }
+
+        if (!isLive)
+        {
+            return new(CaseEditRequestOutcome.Free, null, null);
+        }
+        if (CaseEditAuthority.IsHolder(holderKind, workflow.EditLeaseHolder, request.Actor))
+        {
+            return new(
+                CaseEditRequestOutcome.Held,
+                null,
+                RetainedLeaseToken(workflow) is { } ownToken ? OwnLease(workflow, ownToken, request.Actor) : null);
+        }
+        if (holderKind == ActorKind.Automation)
+        {
+            return new(CaseEditRequestOutcome.AutomationHeld, null, null);
+        }
+        if (!CaseEditAuthority.CanRequest(
+                holderKind, workflow.EditLeaseHolder, workflow.EditLeaseExpiresAtUtc, request.Actor, now))
+        {
+            throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
+        }
+        // One request stands per Case: another editor's request is refused while the holder is
+        // still being asked; one the holder never answered gives way to the next (R550).
+        if (retained is not null
+            && !CaseEditAuthority.IsRequester(retained, request.Actor)
+            && CaseEditAuthority.IsRequestPending(retained.RequestedAtUtc, retained.Answer, now)
+            && CaseEditAuthority.RequestStands(
+                retained, holderKind, workflow.EditLeaseHolder, workflow.EditLeaseExpiresAtUtc, now))
+        {
+            throw new CaseEditRequestRefusedException(
+                request.CaseId, workflow.Version, CaseEditRequestRefusal.AlreadyAsked);
+        }
+
+        // The hand-over is history under the request's own key, which a Case holds once.
+        if (await context.CaseWorkflowEvents.AsNoTracking().AnyAsync(
+                item => item.CaseId == request.CaseId && item.OperationKey == operationKey,
+                cancellationToken))
+        {
+            throw new CaseOperationConflictException(request.CaseId, operationKey);
+        }
+
+        workflow.EditRequestId = Guid.NewGuid();
+        workflow.EditRequesterKind = request.Actor.Kind.ToString();
+        workflow.EditRequester = request.Actor.SubjectId;
+        workflow.EditRequestHolder = workflow.EditLeaseHolder;
+        workflow.EditRequestOperationKey = operationKey;
+        workflow.EditRequestedAtUtc = now;
+        workflow.EditRequestAnswer = null;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(CaseEditRequestOutcome.Pending, CaseMutationGuard.RetainedRequest(workflow), null);
+    }
+
+    public async Task AnswerRequestAsync(
+        AnswerCaseEditRequestRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await AcquireWorkflowMutationLockAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
+                item => item.CaseId == request.CaseId,
+                cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        CaseMutationGuard.RequireNotArchived(workflow);
+
+        var now = timeProvider.GetUtcNow();
+        var retained = CaseMutationGuard.RetainedRequest(workflow);
+        if (retained is null || retained.Id != request.RequestId || retained.Answer is not null)
+        {
+            throw new CaseEditLeaseExpiredException(request.CaseId, workflow.Version);
+        }
+
+        if (request.Answer == CaseEditRequestAnswer.Withdrawn)
+        {
+            if (!CaseEditAuthority.IsRequester(retained, request.Actor))
+            {
+                throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
+            }
+            workflow.EditRequestAnswer = CaseMutationGuard.AnswerCode(CaseEditRequestAnswer.Withdrawn);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
+
+        // The holder answers with their own lease, from any of their windows; a holder whose lease
+        // lapsed with nobody claiming since still carries on, as for any write.
+        CaseMutationGuard.RequireLease(
+            workflow, request.Actor, request.LeaseToken ?? string.Empty, now);
+        var holderKind = CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind);
+        if (!CaseEditAuthority.CanAnswer(retained, holderKind, workflow.EditLeaseHolder, request.Actor))
+        {
+            throw new CaseEditLeaseExpiredException(request.CaseId, workflow.Version);
+        }
+
+        if (request.Answer == CaseEditRequestAnswer.Declined)
+        {
+            workflow.EditRequestAnswer = CaseMutationGuard.AnswerCode(CaseEditRequestAnswer.Declined);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
+
+        // Accept hands the lease over in this one transaction: the holder's session ends, the
+        // requester holds a new token under the request's own key, and the hand-over is history
+        // under the takeover event type (R553, 30 October 2026).
+        var requesterKind = retained.RequesterKind
+            ?? throw new InvalidDataException("The retained edit request has no requester kind.");
+        var requester = await EfEditScopeStore.ResolveHolderAsync(
+            context, requesterKind, retained.Requester, cancellationToken);
+        var requestOperationKey = workflow.EditRequestOperationKey
+            ?? throw new InvalidDataException("The retained edit request has no operation key.");
+        var requestHash = Hash(JsonSerializer.Serialize(new
+        {
+            SchemaVersion = 1,
+            OperationKind = "hand-over",
+            CaseId = request.CaseId,
+            RequestId = retained.Id,
+            RequesterKind = requesterKind.ToString(),
+            Requester = retained.Requester,
+            Holder = request.Actor.SubjectId
+        }));
+        CaseMutationGuard.ClearLease(workflow);
+        var token = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+        var expiresAtUtc = now + CaseEditAuthority.LeaseDuration;
+        workflow.EditLeaseToken = token;
+        workflow.EditLeaseTokenHash = Hash(token);
+        workflow.EditLeaseRequestHash = requestHash;
+        workflow.EditLeaseHolder = retained.Requester;
+        workflow.EditLeaseHolderKind = requesterKind.ToString();
+        workflow.EditLeaseOperationKey = requestOperationKey;
+        workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
+        workflow.EditLeaseGeneration = checked(workflow.EditLeaseGeneration + 1);
+        workflow.EditRequestAnswer = CaseMutationGuard.AnswerCode(CaseEditRequestAnswer.Accepted);
+        AddEvent(
+            context, workflow, request.Actor, requestOperationKey,
+            requester.HandOverHistoryReason, requestHash,
+            "edit_lease_taken_over", workflow.Version, workflow.Version,
+            now, null, null);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<CaseEditRequestView> ReadRequestAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
+        var now = timeProvider.GetUtcNow();
+        var holderKind = CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind);
+        var isLive = CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now);
+        var request = CaseMutationGuard.RetainedRequest(workflow);
+        var pending = request is not null
+            && CaseEditAuthority.IsRequestPending(request.RequestedAtUtc, request.Answer, now);
+        var ownLease = isLive
+            && CaseEditAuthority.IsHolder(holderKind, workflow.EditLeaseHolder, actor)
+            && RetainedLeaseToken(workflow) is { } token
+                ? OwnLease(workflow, token, actor)
+                : null;
+        var stamp = Hash(JsonSerializer.Serialize(new
+        {
+            HolderKind = holderKind?.ToString(),
+            Holder = isLive ? workflow.EditLeaseHolder : null,
+            Generation = workflow.EditLeaseGeneration,
+            RequestId = request?.Id,
+            Answer = request?.Answer?.ToString(),
+            Pending = pending
+        }));
+        return new(
+            stamp,
+            workflow.Version,
+            isLive ? holderKind : null,
+            isLive ? workflow.EditLeaseHolder : null,
+            isLive,
+            request,
+            pending,
+            ownLease);
+    }
+
+    private static CaseEditLease OwnLease(CaseWorkflowEntity workflow, string token, ActionActor actor) =>
+        new(
+            workflow.CaseId,
+            token,
+            actor.SubjectId,
+            workflow.Version,
+            workflow.EditLeaseExpiresAtUtc
+                ?? throw new InvalidDataException("A retained lease has no expiry."))
+        {
+            Generation = workflow.EditLeaseGeneration
+        };
+
     public async Task ReleaseAsync(
         ReleaseCaseEditLeaseRequest request,
         CancellationToken cancellationToken)
@@ -357,6 +624,7 @@ public sealed class EfCaseWorkflowStore(
         CaseMutationGuard.RequireLease(workflow, request.Actor, request.LeaseToken, now);
         var resultVersion = workflow.Version;
         CaseMutationGuard.ClearLease(workflow);
+        CaseMutationGuard.ClearRequest(workflow);
         AddLeaseOperation(
             context,
             workflow,
@@ -400,6 +668,7 @@ public sealed class EfCaseWorkflowStore(
         foreach (var workflow in workflows)
         {
             CaseMutationGuard.ClearLease(workflow);
+            CaseMutationGuard.ClearRequest(workflow);
         }
 
         var scopes = await EfEditScopeStore.ClearForHolderKindAsync(
@@ -1361,6 +1630,7 @@ public sealed class EfCaseWorkflowStore(
         if (workflow.ArchivedAtUtc is not null)
         {
             CaseMutationGuard.ClearLease(workflow);
+            CaseMutationGuard.ClearRequest(workflow);
         }
         else
         {

@@ -362,6 +362,62 @@ internal sealed class CaseMutationGuard
     }
 
     /// <summary>
+    /// Ends the request to edit, whatever its state. Done and a claim that changes the holder
+    /// clear it; the holder's own save, which ends and re-claims the lease, leaves it standing
+    /// (R550, 30 October 2026).
+    /// </summary>
+    public static void ClearRequest(CaseWorkflowEntity workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        workflow.EditRequestId = null;
+        workflow.EditRequesterKind = null;
+        workflow.EditRequester = null;
+        workflow.EditRequestHolder = null;
+        workflow.EditRequestOperationKey = null;
+        workflow.EditRequestedAtUtc = null;
+        workflow.EditRequestAnswer = null;
+    }
+
+    /// <summary>The retained request as Core reads it, or null when none is retained.</summary>
+    public static CaseEditRequestSnapshot? RetainedRequest(CaseWorkflowEntity workflow)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        if (workflow.EditRequestId is not { } id
+            || workflow.EditRequester is null
+            || workflow.EditRequestHolder is null
+            || workflow.EditRequestedAtUtc is not { } requestedAtUtc)
+        {
+            return null;
+        }
+
+        return new(
+            id,
+            RetainedHolderKind(workflow.EditRequesterKind),
+            workflow.EditRequester,
+            workflow.EditRequestHolder,
+            requestedAtUtc,
+            RetainedAnswer(workflow.EditRequestAnswer));
+    }
+
+    public static string? AnswerCode(CaseEditRequestAnswer? answer) => answer switch
+    {
+        null => null,
+        CaseEditRequestAnswer.Accepted => "accepted",
+        CaseEditRequestAnswer.Declined => "declined",
+        CaseEditRequestAnswer.Withdrawn => "withdrawn",
+        _ => throw new ArgumentOutOfRangeException(nameof(answer))
+    };
+
+    private static CaseEditRequestAnswer? RetainedAnswer(string? code) => code switch
+    {
+        null => null,
+        "accepted" => CaseEditRequestAnswer.Accepted,
+        "declined" => CaseEditRequestAnswer.Declined,
+        "withdrawn" => CaseEditRequestAnswer.Withdrawn,
+        _ => throw new InvalidDataException($"An unrecognized edit request answer '{code}' is retained.")
+    };
+
+    /// <summary>
     /// A write under the lease: the version advances and the lease it was made under ends or
     /// stays as <see cref="CaseEditAuthority.WriteEndsLease"/> says.
     /// </summary>
