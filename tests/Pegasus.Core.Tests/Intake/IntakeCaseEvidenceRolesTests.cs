@@ -25,4 +25,25 @@ public sealed class IntakeCaseEvidenceRolesTests
     {
         Assert.Equal(expected, IntakeCaseEvidenceRoles.For(kind, mediaType));
     }
+
+    /// <summary>
+    /// A file uploaded to a declared Case takes the type chosen for it, Other
+    /// when none; a photograph is an Image whatever was chosen (operator, 30
+    /// October 2026; R559, R560).
+    /// </summary>
+    [Theory]
+    [InlineData("estimate.pdf", "application/pdf", DocumentSemanticRole.Estimate, DocumentSemanticRole.Estimate)]
+    [InlineData("letter.pdf", "application/pdf", null, DocumentSemanticRole.Other)]
+    [InlineData("front.jpg", "image/jpeg", DocumentSemanticRole.Estimate, DocumentSemanticRole.Image)]
+    [InlineData("rear.png", "image/png", null, DocumentSemanticRole.Image)]
+    [InlineData("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", DocumentSemanticRole.Correspondence, DocumentSemanticRole.Correspondence)]
+    public void ADeclaredUploadTakesTheChosenTypeOrOther(
+        string fileName,
+        string mediaType,
+        DocumentSemanticRole? chosen,
+        DocumentSemanticRole expected)
+    {
+        Assert.NotNull(fileName);
+        Assert.Equal(expected, IntakeCaseEvidenceRoles.ForDeclaredUpload(mediaType, chosen));
+    }
 }

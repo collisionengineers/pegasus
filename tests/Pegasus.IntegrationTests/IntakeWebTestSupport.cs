@@ -549,6 +549,7 @@ internal static partial class IntakeWebDriver
         byte[] bytes,
         string? externalReceiptToken = null,
         Guid? declaredCaseId = null,
+        Pegasus.Core.Documents.DocumentSemanticRole? documentType = null,
         CancellationToken cancellationToken = default)
     {
         var form = await GetUploadFormTokensAsync(client, cancellationToken);
@@ -560,6 +561,7 @@ internal static partial class IntakeWebDriver
             bytes,
             externalReceiptToken ?? form.ExternalReceiptToken,
             declaredCaseId,
+            documentType,
             cancellationToken);
     }
 
@@ -822,6 +824,7 @@ internal static partial class IntakeWebDriver
         byte[]? bytes,
         string? externalReceiptToken = null,
         Guid? declaredCaseId = null,
+        Pegasus.Core.Documents.DocumentSemanticRole? documentType = null,
         CancellationToken cancellationToken = default)
     {
 
@@ -840,6 +843,13 @@ internal static partial class IntakeWebDriver
         if (declaredCaseId is { } declared)
         {
             multipart.Add(new StringContent(declared.ToString("D")), "DeclaredCaseId");
+        }
+
+        // The type chosen for the one file on its row (FRD-18, R559): the
+        // select upload.js names for the file's place in the post.
+        if (documentType is { } chosen)
+        {
+            multipart.Add(new StringContent(chosen.ToString()), "DocumentTypes[0]");
         }
 
         if (uploadName is not null && bytes is not null)

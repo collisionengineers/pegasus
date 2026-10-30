@@ -5203,6 +5203,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("DeclaredCaseId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("DeclaredDocumentType")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("EvidenceJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -5464,6 +5468,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("DeclaredCaseId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DeclaredDocumentType")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("ExternalReceiptToken")
                         .IsRequired()

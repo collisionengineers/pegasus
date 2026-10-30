@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.Unidentified;
@@ -26,6 +27,10 @@ public enum IntakeWorkState
 /// evidence on a Case page). Carried from the source to the processed receipt
 /// so the Worker links the file there and runs no identification.
 /// </param>
+/// <param name="DeclaredDocumentType">
+/// The type the member of staff chose for the file on that upload (R559),
+/// carried the same way; null when none was chosen (R560).
+/// </param>
 public sealed record IntakeStagedReceipt(
     Guid Id,
     string SourceFileName,
@@ -37,7 +42,8 @@ public sealed record IntakeStagedReceipt(
     string Actor,
     string StorageKey,
     DateTimeOffset StagedAtUtc,
-    Guid? DeclaredCaseId = null);
+    Guid? DeclaredCaseId = null,
+    DocumentSemanticRole? DeclaredDocumentType = null);
 
 public sealed record IntakeWorkItem(
     Guid Id,
@@ -378,6 +384,7 @@ public sealed class ReceiveIntake(
             MaximumExternalReceiptTokenLength,
             nameof(source.SourceIdentity.ExternalReceiptToken));
         ValidateLength(operationKey, MaximumOperationKeyLength, nameof(operationKey));
+        RequireDeclaredDocumentType(source.DeclaredCaseId, source.DeclaredDocumentType);
         if (source.Content.IsEmpty)
         {
             throw new InvalidDataException("The intake source is empty.");
@@ -414,7 +421,7 @@ public sealed class ReceiveIntake(
             {
                 throw new IntakeSourceIdentityConflictException(existing.SourceHash, sourceHash);
             }
-            RequireSameDeclaredDestination(existing, source.DeclaredCaseId);
+            RequireSameDeclaredDestination(existing, source.DeclaredCaseId, source.DeclaredDocumentType);
 
             var received = await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
             await PublishCommittedAsync(received, cancellationToken);
@@ -449,7 +456,8 @@ public sealed class ReceiveIntake(
             source.Actor,
             stagedArtifact.StorageKey,
             nowUtc,
-            source.DeclaredCaseId);
+            source.DeclaredCaseId,
+            source.DeclaredDocumentType);
         var receivedIntake = await workStore.ReceiveAsync(stagedReceipt, operationKey, cancellationToken);
         await PublishCommittedAsync(receivedIntake, cancellationToken);
         return receivedIntake;
@@ -477,7 +485,7 @@ public sealed class ReceiveIntake(
             {
                 throw new IntakeSourceIdentityConflictException(existing.SourceHash, hash);
             }
-            RequireSameDeclaredDestination(existing, source.DeclaredCaseId);
+            RequireSameDeclaredDestination(existing, source.DeclaredCaseId, source.DeclaredDocumentType);
 
             return await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
         }
@@ -512,20 +520,52 @@ public sealed class ReceiveIntake(
             source.Actor,
             staged.StorageKey,
             now,
-            source.DeclaredCaseId);
+            source.DeclaredCaseId,
+            source.DeclaredDocumentType);
         return await workStore.ReceiveAsync(receipt, operationKey, cancellationToken);
     }
 
     /// <summary>
     /// A replay of the same upload receipt must carry the same decision: the
-    /// same token presented for a different Case is a second, different
-    /// submission, and is refused like different bytes under one identity.
+    /// same token presented for a different Case, or with a different type
+    /// for the file (R559), is a second, different submission, and is
+    /// refused like different bytes under one identity.
     /// </summary>
-    private static void RequireSameDeclaredDestination(IntakeStagedReceipt existing, Guid? declaredCaseId)
+    private static void RequireSameDeclaredDestination(
+        IntakeStagedReceipt existing,
+        Guid? declaredCaseId,
+        DocumentSemanticRole? declaredDocumentType)
     {
-        if (existing.DeclaredCaseId != declaredCaseId)
+        if (existing.DeclaredCaseId != declaredCaseId
+            || existing.DeclaredDocumentType != declaredDocumentType)
         {
             throw new IntakeSourceIdentityConflictException();
+        }
+    }
+
+    /// <summary>
+    /// A type chosen at upload belongs to a declared Case and is one the
+    /// Upload page offers (<see cref="DocumentTypePolicy.UploadChoices"/>):
+    /// anything else is a malformed submission, refused before staging.
+    /// </summary>
+    internal static void RequireDeclaredDocumentType(Guid? declaredCaseId, DocumentSemanticRole? declaredDocumentType)
+    {
+        if (declaredDocumentType is not { } type)
+        {
+            return;
+        }
+        if (declaredCaseId is null)
+        {
+            throw new ArgumentException(
+                "A document type chosen at upload needs the Case the upload was declared for.",
+                nameof(declaredDocumentType));
+        }
+        if (!DocumentTypePolicy.UploadChoices.Contains(type))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(declaredDocumentType),
+                type,
+                "The document type is not one an upload may choose.");
         }
     }
 
@@ -578,6 +618,7 @@ public sealed class ReceiveIntake(
             MaximumExternalReceiptTokenLength,
             nameof(source.SourceIdentity.ExternalReceiptToken));
         ValidateLength(operationKey, MaximumOperationKeyLength, nameof(operationKey));
+        RequireDeclaredDocumentType(source.DeclaredCaseId, source.DeclaredDocumentType);
         if (source.SourceIdentity.Channel != IntakeSourceChannel.ManualUpload)
         {
             throw new ArgumentOutOfRangeException(
@@ -950,7 +991,8 @@ public sealed class ProcessQueuedIntake(
                         stagedReceipt.ReceivedAtUtc,
                         stagedReceipt.Actor,
                         stagedReceipt.SourceIdentity,
-                        stagedReceipt.DeclaredCaseId),
+                        stagedReceipt.DeclaredCaseId,
+                        stagedReceipt.DeclaredDocumentType),
                     durableStorageKey,
                     workItem.IsReevaluation,
                     isFinalAttempt,

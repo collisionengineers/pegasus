@@ -1,5 +1,6 @@
 @page "/Upload"
 @model Pegasus.Web.Pages.UploadModel
+@using Pegasus.Core.Documents
 @using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload
 @{
     ViewData["Title"] = Labels.Title;
@@ -62,6 +63,23 @@
                         <p class="up-eyebrow">@Labels.AddingTo</p>
                         <partial name="Shared/_UploadDestinationCard" model="@declaredCase" />
                     </div>
+                    @* The type each file takes on the Case: upload.js draws
+                       this select on every row that takes one (not a
+                       photograph, which is an Image, and not a message),
+                       named for the file's place in the post. A file with no
+                       choice, and the whole no-script post, files as Other
+                       (FRD-18; operator, 30 October 2026). *@
+                    <template data-upload-type-template>
+                        <label class="up-file-type">
+                            <span class="sr-only">@Labels.Type</span>
+                            <select>
+                                @foreach (var role in DocumentTypePolicy.UploadChoices)
+                                {
+                                    <option value="@role" selected="@(role == DocumentTypePolicy.DefaultUploadType)">@OperatorLabels.DocumentRole(role)</option>
+                                }
+                            </select>
+                        </label>
+                    </template>
                 }
             </div>
             @if (declaredCase is not null)
