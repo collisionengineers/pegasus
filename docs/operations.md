@@ -5,6 +5,22 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Release proof checklist run - 30 October 2026
+
+The release proof checklist (R525, R526) was run once on Release 130 (`0c2acf91`)
+from 09:47Z to 10:21Z. A signed-in `alex` session walked the pages in Chrome, and
+read-only App Insights, Log Analytics and SQL queries covered the telemetry items.
+Of the 138 items, 46 passed, 34 passed in part, 51 were not run and 7 cannot be
+proved until their event happens; none failed. Sends, paid or shared lookups, MCP
+and connector work, Principal API submissions, mailbox admission and wipes were out
+of bounds (operator, 30 October 2026). Writes were limited to a.QDOS26124, which
+was left With Engineer, assigned to alex and Repairable, with its report regenerated
+at 10:21, six synthetic images and one export. The owed rows, with their wording,
+are #1801. The walk found two defects, #1799 (the viewer draws under the shell after
+keyboard input) and #1800 ("report wording is unavailable" on a Total loss that
+saved). The classifier called the model once, on 29 October at 12:45Z. This record
+names the run, so the checklist file is deleted (R525).
+
 ## Brego credential rotation - 29 October 2026
 
 - Brego reset the `digital@collisionengineers.co.uk` valuation account. A new
@@ -112,7 +128,7 @@ built from it alone.
 The owed live-proof chain that every record from Release 81 to Release 128
 carried ("Release N to M owed items otherwise stand") is settled once
 (operator, 29 October 2026, R525 and R526). Its 208 items are classified in
-[the release proof checklist](release-proof-checklist.md): 131 still provable
+the release proof checklist (run and deleted 30 October 2026): 131 still provable
 and 7 re-written for a new Case form one checklist, run on the next release and
 recorded once in that release's record; 20 are discharged by the records
 themselves, 18 are superseded by later PRs or rulings, 16 are GitHub issues and
