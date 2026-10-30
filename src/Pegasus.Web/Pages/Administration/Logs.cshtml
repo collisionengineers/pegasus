@@ -263,7 +263,7 @@
                         </a>
                         @if (detail.Row.MessageId is { } drawerMessageId)
                         {
-                            <a class="btn" href="/Inbox/@drawerMessageId.ToString("D")" data-intake-open-message>
+                            <a class="btn" href="@Pegasus.Core.Notifications.StaffNotificationPolicy.MessageRoute(drawerMessageId)" data-intake-open-message>
                                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail")" /></svg><span>@OperatorLabels.IntakeLog.OpenMessage</span>
                             </a>
                         }

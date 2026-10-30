@@ -167,7 +167,7 @@
                 {
                     <div class="next-row" data-cancellation-received="@cancellationMessageId">
                         <span>@Frame.CancellationReceived</span>
-                        <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@cancellationMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a>
+                        <a class="btn btn--small" asp-page="/Mail/Index" asp-route-open="@cancellationMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a>
                     </div>
                 }
                 @if (staleGeneration)
@@ -268,7 +268,7 @@
                             <strong data-next-label>@nextRow.Label</strong>
                             @if (Model.OldestOpenQuery is { Source: Pegasus.Core.Workflow.CaseQuerySource.Mail, RetainedMessageId: { } queryMessageId } && Model.StaffMailAvailable)
                             {
-                                <a class="@StepButton" asp-page="/Mail/Message" asp-route-id="@queryMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@workflow.Identity.Reference" asp-route-markQueryDone="true" data-next-reply-query>@OperatorLabels.StaffMail.Reply</a>
+                                <a class="@StepButton" asp-page="/Mail/Index" asp-route-open="@queryMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@workflow.Identity.Reference" asp-route-markQueryDone="true" data-next-reply-query>@OperatorLabels.StaffMail.Reply</a>
                             }
                             else if (Model.OldestOpenQuery is { } logged)
                             {

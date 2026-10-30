@@ -74,6 +74,11 @@ Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message as a dialog over the list; the address `/Inbox/{id}` stays
 for a new tab and for no script (operator, 16 October 2026, R159 (c),
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+Every other in-app link to a message (the Case's message dialog and its
+Reply, Reply all and Forward, the Case's query Reply, Unidentified, Image
+Intake, Create case, the Logs drawer and notifications) opens the Inbox with
+that message's dialog open, `/Inbox?open={id}`; the `/Inbox/{id}` page draws
+the dialog's head (operator, 30 October 2026, R551).
 Clicking elsewhere on a row selects it. The selected row is marked. Up and
 Down move through the rows. In All incoming, No Case Found and Dismissed each
 row carries a checkbox in its left gutter; ticking it neither opens nor
@@ -205,7 +210,7 @@ chronological history, newest first by default with an oldest-first option.
 A row opens its message over the Case, read-only: no
 classification, association, read-state, Case-state or custody change. Reply,
 Reply all and Forward appear there where the record offers them and open the
-record's composer with that Case chosen
+composer in the Inbox's message dialog with that Case chosen
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 The full message record is one link away for every other action
 ([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox browsing

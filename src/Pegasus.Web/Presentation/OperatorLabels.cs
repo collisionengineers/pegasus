@@ -460,7 +460,7 @@ public static partial class OperatorLabels
             return "Unidentified resolution ready";
         }
 
-        if (route.StartsWith("/Inbox/", StringComparison.OrdinalIgnoreCase)
+        if (route.StartsWith("/Inbox", StringComparison.OrdinalIgnoreCase)
             || route.EndsWith("?section=correspondence", StringComparison.OrdinalIgnoreCase))
         {
             return "Query draft ready";

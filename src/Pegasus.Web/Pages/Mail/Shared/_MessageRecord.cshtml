@@ -118,23 +118,19 @@
     }
     else if (Model.ActiveSection == "message")
     {
-        var routeParts = Pegasus.Web.Pages.Mail.MessageModel.RouteParts(Model.Detail);
         <div class="mail-read">
-                @* The dialog's head carries From, To and received; the page's record head
-                   carries From, the mailbox and received, so the route line follows here. *@
-                @if (!Model.InDialog && routeParts.Count > 0)
-                {
-                    <div class="mail-header">
-                        <div class="mail-route">@string.Join(" · ", routeParts)</div>
-                    </div>
-                }
+                @* The head above carries From, To and received, in the dialog and on the page alike. *@
                 <partial name="Shared/_MessageBody" model="Model.Detail" />
                 @if (Model.Detail.Attachments.Count > 0)
                 {
                     <div class="mail-inline-attachments">
                         @foreach (var attachment in Model.Detail.Attachments)
                         {
-                            <a class="mail-attachment-chip" asp-page="/Mail/Message" asp-route-id="@Model.Detail.Summary.Id" asp-route-section="attachments">
+                            <a class="mail-attachment-chip" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                               asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                               asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                               asp-route-section="attachments" data-mail-dialog-link>
                                 <span>@attachment.FileName</span>
                             </a>
                         }
@@ -294,7 +290,13 @@
                pending while Queued or Taken, Reply with AI draft once Draft ready. *@
             @if (Model.QueryResponseJob is { IsReady: true, Job: var readyJob } && Model.StaffMailAvailable && Model.CurrentCase is { } draftCase)
             {
-                <a class="btn btn--dark" href="@Pegasus.Core.Notifications.StaffNotificationPolicy.MessageReplyRoute(summary.Id, draftCase.Summary.Reference, readyJob.JobId)" data-query-ai-draft="@readyJob.JobId" data-mail-dialog-link>
+                <a class="btn btn--dark" asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                   asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                   asp-route-compose="reply" asp-route-correspondenceCaseReference="@draftCase.Summary.Reference"
+                   asp-route-markQueryDone="true" asp-route-aiJob="@readyJob.JobId"
+                   data-query-ai-draft="@readyJob.JobId" data-mail-dialog-link>
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                     <span>@OperatorLabels.QueryResponseJobs.ReplyWithDraft</span>
                 </a>

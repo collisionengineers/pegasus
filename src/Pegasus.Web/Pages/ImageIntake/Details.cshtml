@@ -97,7 +97,7 @@
         }
         @if (Model.SourceMessageId is { } messageId)
         {
-            <a class="btn" href="/Inbox/@messageId.ToString("D")" data-image-action="open-message">
+            <a class="btn" href="@Pegasus.Core.Notifications.StaffNotificationPolicy.MessageRoute(messageId)" data-image-action="open-message">
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail")" /></svg><span>Open message</span>
             </a>
         }

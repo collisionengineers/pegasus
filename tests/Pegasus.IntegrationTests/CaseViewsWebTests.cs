@@ -716,7 +716,7 @@ public sealed class CaseViewsWebTests
             Assert.Contains($"<strong data-next-label>{Frame.AnswerQuery}</strong>", next, StringComparison.Ordinal);
             var reply = Regex.Match(next, "<a[^>]*data-next-reply-query[^>]*>");
             Assert.True(reply.Success, "The Next action does not lead to the query's reply.");
-            Assert.Contains($"href=\"/Inbox/{messageId:D}?", reply.Value, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains($"href=\"/Inbox?open={messageId:D}&amp;", reply.Value, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("compose=reply", reply.Value, StringComparison.Ordinal);
             Assert.Contains($"correspondenceCaseReference={Reference}", reply.Value, StringComparison.Ordinal);
             Assert.Contains("markQueryDone=true", reply.Value, StringComparison.Ordinal);

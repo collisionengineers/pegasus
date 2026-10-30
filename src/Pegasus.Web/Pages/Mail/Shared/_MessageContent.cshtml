@@ -8,8 +8,8 @@
 @* The Case's Correspondence dialog body, fetched on open: the message's
    head, the record's text and the attachment names. The dialog
    title carries the subject. Where the record offers Reply, Reply all and
-   Forward, the dialog's foot gets them too: each opens the record's composer
-   with the dialog's Case chosen. *@
+   Forward, the dialog's foot gets them too: each opens the Inbox's message
+   dialog on its composer with the dialog's Case chosen (R551). *@
 <div data-message-content>
     <div class="mail-header">
         <div class="mail-route">
@@ -39,12 +39,12 @@
     <div class="left" data-message-actions>
         @if (Model.CanReply)
         {
-            <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-compose="reply"
+            <a class="btn" asp-page="/Mail/Index" asp-route-open="@summary.Id" asp-route-compose="reply"
                asp-route-correspondenceCaseReference="@Model.CorrespondenceCaseReference" data-case-message-record>@OperatorLabels.StaffMail.Reply</a>
-            <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-compose="reply-all"
+            <a class="btn" asp-page="/Mail/Index" asp-route-open="@summary.Id" asp-route-compose="reply-all"
                asp-route-correspondenceCaseReference="@Model.CorrespondenceCaseReference" data-case-message-record>@OperatorLabels.StaffMail.ReplyAll</a>
         }
-        <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-compose="forward"
+        <a class="btn" asp-page="/Mail/Index" asp-route-open="@summary.Id" asp-route-compose="forward"
            asp-route-correspondenceCaseReference="@Model.CorrespondenceCaseReference" data-case-message-record>@OperatorLabels.StaffMail.Forward</a>
     </div>
 }

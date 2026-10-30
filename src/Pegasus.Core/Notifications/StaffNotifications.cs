@@ -139,7 +139,12 @@ public static class StaffNotificationPolicy
     /// <summary>The Case with its Tasks dialog drawn open (operator, 13 October 2026).</summary>
     public static string CaseTasksRoute(Guid caseId) => $"/Cases/{caseId:D}?dialog=tasks";
 
-    public static string MessageRoute(Guid retainedMessageId) => $"/Inbox/{retainedMessageId:D}";
+    /// <summary>
+    /// The message as the Inbox's dialog: every in-app link to a message opens
+    /// it there (operator, 30 October 2026, R551); <c>/Inbox/{id}</c> stays for
+    /// a new tab and for no script (R159 (c)).
+    /// </summary>
+    public static string MessageRoute(Guid retainedMessageId) => $"/Inbox?open={retainedMessageId:D}";
 
     public static string UnidentifiedRoute(Guid unidentifiedId) => $"/Unidentified/{unidentifiedId:D}";
 
@@ -149,7 +154,7 @@ public static class StaffNotificationPolicy
     /// ticked, and the composer reads the draft from the named job.
     /// </summary>
     public static string MessageReplyRoute(Guid retainedMessageId, string caseReference, Guid jobId) =>
-        $"{MessageRoute(retainedMessageId)}?compose=reply"
+        $"{MessageRoute(retainedMessageId)}&compose=reply"
         + $"&correspondenceCaseReference={Uri.EscapeDataString(caseReference)}"
         + $"&markQueryDone=true&aiJob={jobId:D}";
 

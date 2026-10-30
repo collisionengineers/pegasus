@@ -123,7 +123,7 @@ public sealed class UnidentifiedRecordWebTests
 
         var open = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
         Assert.Contains(
-            $"href=\"/Inbox/{messageId:D}?compose=reply\" data-unidentified-action=\"request-again\"",
+            $"href=\"/Inbox?open={messageId:D}&amp;compose=reply\" data-unidentified-action=\"request-again\"",
             open,
             StringComparison.Ordinal);
         Assert.DoesNotContain("data-unidentified-action=\"reply\"", open, StringComparison.Ordinal);
@@ -133,7 +133,7 @@ public sealed class UnidentifiedRecordWebTests
         var record = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
         Assert.Contains("data-unidentified-state=\"closed\"", record, StringComparison.Ordinal);
         Assert.Contains(
-            $"href=\"/Inbox/{messageId:D}?compose=reply\" data-unidentified-action=\"reply\"",
+            $"href=\"/Inbox?open={messageId:D}&amp;compose=reply\" data-unidentified-action=\"reply\"",
             record,
             StringComparison.Ordinal);
         Assert.DoesNotContain("data-unidentified-action=\"request-again\"", record, StringComparison.Ordinal);
@@ -153,7 +153,7 @@ public sealed class UnidentifiedRecordWebTests
 
         var record = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
         Assert.Contains("data-unidentified-state=\"closed\"", record, StringComparison.Ordinal);
-        Assert.Contains($"href=\"/Inbox/{messageId:D}\" data-unidentified-action=\"open-message\"", record, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Inbox?open={messageId:D}\" data-unidentified-action=\"open-message\"", record, StringComparison.Ordinal);
         Assert.DoesNotContain("data-unidentified-action=\"reply\"", record, StringComparison.Ordinal);
         Assert.DoesNotContain("compose=reply", record, StringComparison.Ordinal);
     }

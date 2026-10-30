@@ -857,9 +857,11 @@ offers **Open query** (operator, 27 October 2026): one click opens a query
 on that message and returns here
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
 Where the record offers **Reply**, **Reply all** and **Forward**, the
-dialog does too; each opens the record's composer with this Case chosen. Its
-**Open full message** leads to the Inbox message record, which keeps
-classification and the Case link; without script the row opens that record.
+dialog does too; each opens the composer in the Inbox's message dialog with
+this Case chosen. Its **Open full message** opens the Inbox with that
+message's dialog open, which keeps classification and the Case link
+(operator, 30 October 2026, R551); without script the row
+opens the `/Inbox/{id}` record.
 There is no Compose
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 A file whose bytes are one of these emails is read here and is not repeated

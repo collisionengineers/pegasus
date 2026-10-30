@@ -131,7 +131,7 @@ public sealed class LogsWebTests
         Assert.Equal(ActorKind.Staff, reevaluation.Actor.Kind);
 
         // Open message sits beside Open file when the row carries its message.
-        Assert.Contains($"href=\"/Inbox/{log.MessageId:D}\" data-intake-open-message", drawer, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"href=\"/Inbox?open={log.MessageId:D}\" data-intake-open-message", drawer, StringComparison.OrdinalIgnoreCase);
 
         // Retry OCR is its own Core command with a reason, not a re-evaluation.
         var ocr = ActionForm(drawer, "retry-ocr");

@@ -47,6 +47,8 @@ public sealed class CaseCorrespondenceUploadWebTests
             StringComparison.Ordinal);
         Assert.Contains($"id=\"{dialogId}-title\" class=\"wrap\" tabindex=\"-1\">QDOS test instruction</h2>", html, StringComparison.Ordinal);
         Assert.Contains("<span>Open full message</span>", html, StringComparison.Ordinal);
+        // R551: the full message is the Inbox's message dialog.
+        Assert.Contains($"href=\"/Inbox?open={messageId:D}\" data-case-message-record", html, StringComparison.Ordinal);
 
         // The dialog's body is the record's content, for an uploaded email too.
         // Offline there is no send, so no Reply or Forward either.
@@ -83,7 +85,7 @@ public sealed class CaseCorrespondenceUploadWebTests
         html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");
         Assert.Contains($"data-cancellation-received=\"{messageId:D}\"", html, StringComparison.Ordinal);
         Assert.Contains("<span>Cancellation received</span>", html, StringComparison.Ordinal);
-        Assert.Contains($"href=\"/Inbox/{messageId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Inbox?open={messageId:D}\"", html, StringComparison.Ordinal);
 
         // Corrected to anything else, the row goes.
         await SetClassificationAsync(factory, messageId, "triage-request");
