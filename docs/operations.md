@@ -5,6 +5,24 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Intake data wipe - 30 October 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped and read back `Stopped` before execution; the Web App stayed
+  Running. The dry run immediately before execution found 187 blobs
+  (67,104,218 bytes) in `pegcustody252ow37gij/transient-intake` and 88
+  non-preserved tables / 2,559 rows in SQL `pegasus` on
+  `pegasus-prod-sql-252ow37gij`; the preserve list was 34/34 found (35
+  effective). The batch reported 2,567 affected rows including the
+  mail-boundary update. Blobs remaining: 0. Wiped tables still holding rows:
+  0. Preserved rows after: 7,144. The committed mail cutoff is
+  `2026-10-30T11:03:22.1801223+00:00`; mailbox approval and activation times
+  were unchanged. `CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences`
+  were unchanged at 127/15/1. `ValuationPresets` 6/6, `EmailTemplates` 3/3
+  and built-in image tags 4/4 before/after. `authentication-ring`,
+  `box-links`, `pegtrans252ow37gij`, Outlook and Box were untouched. No
+  `-ResetTestEstate` was used. The Worker was resumed and read back `Running`.
+
 ## Brego credential rotation - 29 October 2026
 
 - Brego reset the `digital@collisionengineers.co.uk` valuation account. A new
