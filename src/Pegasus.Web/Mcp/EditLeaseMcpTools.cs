@@ -241,9 +241,9 @@ internal sealed class EditLeaseMcpTools(
             var raised = await caseLeases.RaiseRequestAsync(
                 new(caseId, expectedVersion, actor, operationKey),
                 cancellationToken);
-            if (raised.Outcome == CaseEditRequestOutcome.Accepted && raised.Lease is { } handed)
+            if (raised.Outcome == CaseEditRequestOutcome.Accepted && raised.Lease is { } accepted)
             {
-                return handed;
+                return accepted;
             }
             if (raised.Outcome != CaseEditRequestOutcome.Pending || raised.Request is not { } request)
             {
