@@ -57,6 +57,9 @@
 .up-file-state.is-error { color: var(--danger); }
 .up-file-state.is-running { color: var(--blue); }
 .up-file-state.is-done { color: var(--green); }
+/* A declared upload's row carries the type the file takes on the Case (FRD-18): one more column, the select at its natural width. */
+.up-file--typed { grid-template-columns: 42px minmax(0, 1fr) auto auto; }
+.up-file-type select { width: auto; }
 .up-remove { width: 28px; height: 28px; border: 0; background: transparent; display: grid; place-items: center; border-radius: 3px; color: var(--muted); cursor: pointer; }
 .up-remove:hover { background: var(--danger-bg); color: var(--danger); }
 .up-remove .icon { width: 15px; height: 15px; }
@@ -212,6 +215,7 @@
     .up-head .page-actions { margin-left: auto; }
     .up-meta { display: none; }
     .up-file { grid-template-columns: 36px minmax(0, 1fr) 90px; gap: 8px; padding: 9px 12px; }
+    .up-file--typed { grid-template-columns: 36px minmax(0, 1fr) auto 90px; }
     .up-thumb { width: 36px; height: 32px; }
     .up-file-name a, .up-file-name span:first-child { font-size: 10.5px; }
     .up-file-state { font-size: 9.5px; white-space: normal; }

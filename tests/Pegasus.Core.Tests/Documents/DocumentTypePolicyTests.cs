@@ -33,6 +33,30 @@ public sealed class DocumentTypePolicyTests
         Assert.Equal(choosable, DocumentTypePolicy.StaffMayChoose);
     }
 
+    /// <summary>
+    /// The Upload page offers a declared-Case file every staff type but Image,
+    /// which the file's format decides, and Audit report, which is Mark as
+    /// original report's after filing; Other is the choice until changed
+    /// (operator, 30 October 2026; R553, R554).
+    /// </summary>
+    [Fact]
+    public void AnUploadOffersEveryStaffTypeButImageAndAuditReport()
+    {
+        DocumentSemanticRole[] offered =
+        [
+            DocumentSemanticRole.Instruction,
+            DocumentSemanticRole.Correspondence,
+            DocumentSemanticRole.EngineerReport,
+            DocumentSemanticRole.Estimate,
+            DocumentSemanticRole.ValuationEvidence,
+            DocumentSemanticRole.Other
+        ];
+
+        Assert.Equal(offered, DocumentTypePolicy.UploadChoices);
+        Assert.Equal(DocumentSemanticRole.Other, DocumentTypePolicy.DefaultUploadType);
+        Assert.Contains(DocumentTypePolicy.DefaultUploadType, DocumentTypePolicy.UploadChoices);
+    }
+
     [Theory]
     [InlineData("estimate.pdf", DocumentSemanticRole.Other, "application/pdf", false,
         "Instruction,Correspondence,EngineerReport,Estimate,ValuationEvidence")]

@@ -74,6 +74,15 @@ upload rather than chosen after it:
 - The declaration travels with every file of the submission and is read
   again at post. The same upload receipt presented for a different Case is
   refused, like different bytes under one identity.
+- Each file's row offers its **Type** on the Case (operator, 30 October
+  2026; R553, R554): Instruction, Correspondence, Engineer report, Estimate,
+  Valuation Evidence or Other, with Other chosen until the member of staff
+  changes it. The choice travels with that file and is read again at post; a
+  replay of the same upload keeps the type first recorded, as it keeps the
+  Case. A photograph is an Image whatever was chosen, so its row
+  offers no type, and an uploaded message offers none: its attachments keep
+  their own role ([FRD-05](frd-05-documents-extraction-and-custody.md#document-types)).
+  Without script no choice is posted and every file files as Other.
 - Processing reads the files and keeps their photographs exactly as for any
   other upload, but runs no principal, route, match, OCR or registration
   work: there is nothing left to identify. It records the association as

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -106,7 +107,8 @@ public sealed class ProcessIntakeTests
         var source = CreateSource() with
         {
             SourceIdentity = new(IntakeSourceChannel.ManualUpload, "33333333333333333333333333333333"),
-            DeclaredCaseId = declaredCaseId
+            DeclaredCaseId = declaredCaseId,
+            DeclaredDocumentType = DocumentSemanticRole.Estimate
         };
 
         var receipt = await sut.ExecuteRetainedAsync(source, "retained/selected.pdf");
@@ -115,6 +117,9 @@ public sealed class ProcessIntakeTests
         Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
         Assert.Equal(ProcessQueuedIntake.DeclaredDestinationReason, draft.DecisionReason);
         Assert.Equal(declaredCaseId, draft.DeclaredCaseId);
+        // The type chosen at upload reaches the processed receipt with the
+        // declaration (R553), for the filer to read.
+        Assert.Equal(DocumentSemanticRole.Estimate, draft.DeclaredDocumentType);
         Assert.Contains(draft.Evidence, evidence =>
             evidence.Signal == IntakeEvidenceSignals.DeclaredDestination
             && evidence.Finding == IntakeEvidenceFinding.Information);
@@ -170,6 +175,15 @@ public sealed class ProcessIntakeTests
     {
         var sut = CreateSut(new StubReader(Readable()), new RecordingStore());
         var source = CreateSource() with { DeclaredCaseId = Guid.NewGuid() };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => sut.ExecuteAsync(source));
+    }
+
+    [Fact]
+    public async Task ADeclaredDocumentTypeIsRefusedOnTheDirectPath()
+    {
+        var sut = CreateSut(new StubReader(Readable()), new RecordingStore());
+        var source = CreateSource() with { DeclaredDocumentType = DocumentSemanticRole.Estimate };
 
         await Assert.ThrowsAsync<ArgumentException>(() => sut.ExecuteAsync(source));
     }

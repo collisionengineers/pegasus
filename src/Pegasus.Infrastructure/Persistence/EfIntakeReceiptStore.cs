@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -118,6 +119,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         receipt.FailureCode = draft.FailureCode;
         receipt.FailureReason = draft.FailureReason;
         receipt.DeclaredCaseId = draft.DeclaredCaseId;
+        receipt.DeclaredDocumentType = draft.DeclaredDocumentType?.ToString();
         ApplyInstructionDraft(context, receipt, draft.InstructionDraft);
         ApplyMailRouteDecision(context, receipt, draft.MailRouteDecision);
         ApplyMailClassificationDecision(
@@ -460,7 +462,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             OcrCandidatesJson = SerializeEnvelope(draft.ScannedPdfPages),
             FailureCode = draft.FailureCode,
             FailureReason = draft.FailureReason,
-            DeclaredCaseId = draft.DeclaredCaseId
+            DeclaredCaseId = draft.DeclaredCaseId,
+            DeclaredDocumentType = draft.DeclaredDocumentType?.ToString()
         };
         if (draft.InstructionDraft is not null)
         {
@@ -615,8 +618,15 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 ? activeAssociationKey.LastOperationKey
                 : null,
             entity.DeclaredCaseId,
-            entity.MailClassificationDecision?.Version);
+            entity.MailClassificationDecision?.Version,
+            ParseDeclaredDocumentType(entity.DeclaredDocumentType));
     }
+
+    /// <summary>The stored type name back to its value; a null or unknown name is no choice.</summary>
+    internal static DocumentSemanticRole? ParseDeclaredDocumentType(string? stored) =>
+        Enum.TryParse<DocumentSemanticRole>(stored, ignoreCase: false, out var type) && Enum.IsDefined(type)
+            ? type
+            : null;
 
     private static async Task<IntakeAllocationState?> GetAllocationStateAsync(
         PegasusDbContext context,

@@ -93,6 +93,20 @@ public static class DocumentTypePolicy
     ];
 
     /// <summary>
+    /// The types a member of staff may give a file as they upload it to a
+    /// declared Case, one choice per file (operator, 30 October 2026; R553):
+    /// the staff set less Image, which the file's own format decides, and
+    /// Audit report, which stays Mark as original report's after filing.
+    /// </summary>
+    public static IReadOnlyList<DocumentSemanticRole> UploadChoices { get; } =
+    [
+        .. StaffMayChoose.Where(role => role is not (DocumentSemanticRole.Image or DocumentSemanticRole.AuditReport))
+    ];
+
+    /// <summary>What a declared-Case upload files as when no type was chosen (operator, 30 October 2026; R554).</summary>
+    public const DocumentSemanticRole DefaultUploadType = DocumentSemanticRole.Other;
+
+    /// <summary>
     /// The types <paramref name="file"/> may change to, read from the loaded
     /// row alone: not the type it has; Image only for a JPEG or PNG file; Audit
     /// report only where Mark as original report is offered, a non-image

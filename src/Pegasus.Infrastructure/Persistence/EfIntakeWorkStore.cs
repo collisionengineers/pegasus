@@ -148,7 +148,8 @@ public sealed class EfIntakeWorkStore(
             Actor = receipt.Actor,
             StorageKey = receipt.StorageKey,
             StagedAtUtc = receipt.StagedAtUtc,
-            DeclaredCaseId = receipt.DeclaredCaseId
+            DeclaredCaseId = receipt.DeclaredCaseId,
+            DeclaredDocumentType = receipt.DeclaredDocumentType?.ToString()
         };
         context.IntakeStagedReceipts.Add(entity);
         context.IntakeWorkItems.Add(new()
@@ -641,7 +642,8 @@ public sealed class EfIntakeWorkStore(
         entity.Actor,
         entity.StorageKey,
         entity.StagedAtUtc,
-        entity.DeclaredCaseId);
+        entity.DeclaredCaseId,
+        EfIntakeReceiptStore.ParseDeclaredDocumentType(entity.DeclaredDocumentType));
 
     private static IntakeWorkItem Map(IntakeWorkItemEntity entity) => new(
         entity.Id,
