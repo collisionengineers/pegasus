@@ -258,7 +258,7 @@ public sealed partial class CreateModel(
             }
             IsManual = true;
             OperationId = NewOperationKey();
-            ExternalReceiptToken = Guid.NewGuid().ToString("N");
+            ExternalReceiptToken = NewOperationKey();
             CaseType = CaseType.Inspection;
             await PopulateClaimSourceChoicesAsync(actor, cancellationToken);
             return Page();
