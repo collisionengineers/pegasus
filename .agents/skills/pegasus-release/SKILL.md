@@ -155,9 +155,7 @@ an outage, not a release.
   says, and the record names the files.
 - The smoke proves the right bytes, configuration and intake liveness, not the
   changed journey. Run only the focused live check the released change needs
-  and record its result without overclaiming; when a signed-in staff session
-  is at hand, run the [release proof checklist](../../../docs/release-proof-checklist.md)
-  once (issue 1776).
+  and record its result without overclaiming.
 
 ## 5. The record
 
