@@ -146,6 +146,50 @@ public sealed class CaseReportWordingWebTests
         Assert.DoesNotContain("data-report-wording", SectionHtml(html, "report"), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// #1800 (R572): a save the wording rows do not travel with never reads the
+    /// report, so a Total loss's salvage category lands while the report cannot
+    /// yet be projected. Wording the Engineer changed meanwhile is refused, with
+    /// no composed sentence to compare it with, and nothing else in that save lands.
+    /// </summary>
+    [Fact]
+    public async Task OnlyChangedWordingIsRefusedWhileTheReportCannotBeProjected()
+    {
+        var store = ReadyStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
+            Substitute<ICaseReportSnapshotSource>(services, new ReadyReportSnapshots(store, currentEstimate: false));
+        });
+        await workspace.GetWorkspaceAsync();
+        var category = Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SalvageCategory);
+
+        using var landed = await SaveAsync(workspace, (category, "S"));
+
+        AssertPrg(landed, store.CaseId);
+        Assert.Equal(
+            "S",
+            Assert.Single(store.Saves).Settlement!.AssessmentFields![AssessmentVocabulary.SalvageCategory]);
+
+        using var refused = await SaveAsync(
+            workspace,
+            (category, "N"),
+            ("wordingEdits[0].Key", "nature"),
+            ("wordingEdits[0].Title", "Nature of Incident"),
+            ("wordingEdits[0].Text", "The vehicle was struck from behind while stationary."),
+            ("wordingEdits[0].Order", "0"),
+            ("wordingEdits[0].Included", "true"),
+            ("wordingEdits[0].Manual", "false"));
+
+        AssertPrg(refused, store.CaseId);
+        Assert.Single(store.Saves);
+        Assert.Contains(
+            Pegasus.Web.Presentation.ReportWordingEdits.Unavailable,
+            await workspace.GetWorkspaceAsync(),
+            StringComparison.Ordinal);
+    }
+
     private static RecordingCaseDetailsStore ReadyStore() => new()
     {
         State = CaseLifecycleState.ReportPreparation,

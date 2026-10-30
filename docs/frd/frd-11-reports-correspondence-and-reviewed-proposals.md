@@ -119,7 +119,10 @@ place. The Engineer may rename a block, move it, take it off the report, put
 it back, and add a paragraph of their own. Wording that reads the same as the
 composed sentence is no change, so the block keeps tracking its fields. The
 Engineer's changes are held per Case, separately for the Inspection and the
-Audit once an Audit exists, and written by the one Case save.
+Audit once an Audit exists, and written by the one Case save. The save
+carries the wording only when the Engineer changed it; a wording change is
+refused while the report cannot be projected, and the typed wording stays on
+screen (operator, 30 October 2026; R572).
 
 Report wording comes from two sources only (operator, 27 September 2026):
 the supplied template, `reference/rendererref1`, and the old manager's case
