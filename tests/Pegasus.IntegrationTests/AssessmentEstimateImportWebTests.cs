@@ -2491,6 +2491,15 @@ public sealed partial class AssessmentEstimateImportWebTests
           IRepairSpecificationSnapshotStore, ISaveCaseWorkspace, ILabourRateCardStore,
           IGetCaseFilesSection
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public const long CaseVersion = 7;
 
         /// <summary>

@@ -505,6 +505,128 @@ public sealed class CaseEditAuthorityTests
             RequireHeartbeat(retainedLeaseHolderKind: ActorKind.Automation));
     }
 
+    /// <summary>
+    /// Anyone with the casework right, staff or the Automation Actor, may ask a member of staff
+    /// who holds the live lease to hand it over (R550, 30 October 2026). Nobody asks themself, and
+    /// nobody asks the Automation Actor, which has no page to answer on; a lapsed lease is free to
+    /// claim, not to ask for.
+    /// </summary>
+    [Fact]
+    public void AnyoneWithCaseworkMayAskAStaffHolderAndNobodyAsksTheAutomationActor()
+    {
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var automation = ActionActor.Automation("pegasus-automation");
+        var live = Now.AddMinutes(4);
+
+        Assert.True(CaseEditAuthority.CanRequest(ActorKind.Staff, Holder, live, colleague, Now));
+        Assert.True(CaseEditAuthority.CanRequest(ActorKind.Staff, Holder, live, automation, Now));
+
+        Assert.False(CaseEditAuthority.CanRequest(ActorKind.Staff, Holder, live, HolderActor, Now));
+        Assert.False(CaseEditAuthority.CanRequest(ActorKind.Automation, "pegasus-automation", live, colleague, Now));
+        Assert.False(CaseEditAuthority.CanRequest(ActorKind.Staff, Holder, Now, colleague, Now));
+        Assert.False(CaseEditAuthority.CanRequest(null, Holder, live, colleague, Now));
+        Assert.False(CaseEditAuthority.CanRequest(ActorKind.Staff, Holder, live, ActionActor.Principal(Guid.NewGuid()), Now));
+        Assert.False(CaseEditAuthority.CanRequest(ActorKind.Staff, Holder, live, ActionActor.SystemWorker("w"), Now));
+    }
+
+    /// <summary>
+    /// The holder has 45 seconds to answer (R552, 30 October 2026): inside the window the request
+    /// is pending, after it unanswered, and an answer ends both.
+    /// </summary>
+    [Fact]
+    public void ARequestIsPendingForFortyFiveSecondsThenUnanswered()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(45), CaseEditAuthority.RequestAnswerWindow);
+
+        Assert.True(CaseEditAuthority.IsRequestPending(Now, null, Now.AddSeconds(44)));
+        Assert.False(CaseEditAuthority.IsRequestUnanswered(Now, null, Now.AddSeconds(44)));
+        Assert.False(CaseEditAuthority.IsRequestPending(Now, null, Now.AddSeconds(45)));
+        Assert.True(CaseEditAuthority.IsRequestUnanswered(Now, null, Now.AddSeconds(45)));
+        foreach (var answer in Enum.GetValues<CaseEditRequestAnswer>())
+        {
+            Assert.False(CaseEditAuthority.IsRequestPending(Now, answer, Now));
+            Assert.False(CaseEditAuthority.IsRequestUnanswered(Now, answer, Now.AddMinutes(1)));
+        }
+    }
+
+    /// <summary>
+    /// A takeover follows a request (R552 and R554, 30 October 2026): the member of staff who
+    /// asked takes the lease once the holder they asked has left the request unanswered through
+    /// its window, never after a decline, never while it is still pending, never once the lease
+    /// has moved to someone else, and never anyone else's request. A lease the Automation Actor
+    /// holds is taken over at once (ADR-0075). The Automation Actor takes over nothing.
+    /// </summary>
+    [Fact]
+    public void ATakeoverIsTheRequestersOwnAfterAnUnansweredRequestAndNeverTheAutomationActors()
+    {
+        var requester = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var other = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var automation = ActionActor.Automation("pegasus-automation");
+        var live = Now.AddMinutes(4);
+        var unanswered = new CaseEditRequestSnapshot(
+            Guid.NewGuid(), ActorKind.Staff, requester.SubjectId, Holder, Now.AddSeconds(-45), null);
+
+        Assert.True(CaseEditAuthority.CanTakeOver(ActorKind.Staff, Holder, live, requester, unanswered, Now));
+        Assert.True(CaseEditAuthority.CanTakeOver(ActorKind.Automation, "pegasus-automation", live, requester, null, Now));
+
+        Assert.False(CaseEditAuthority.CanTakeOver(ActorKind.Staff, Holder, live, requester, null, Now));
+        Assert.False(CaseEditAuthority.CanTakeOver(ActorKind.Staff, Holder, live, other, unanswered, Now));
+        Assert.False(CaseEditAuthority.CanTakeOver(
+            ActorKind.Staff, Holder, live, requester, unanswered with { RequestedAtUtc = Now.AddSeconds(-44) }, Now));
+        Assert.False(CaseEditAuthority.CanTakeOver(
+            ActorKind.Staff, Holder, live, requester, unanswered with { Answer = CaseEditRequestAnswer.Declined }, Now));
+        Assert.False(CaseEditAuthority.CanTakeOver(
+            ActorKind.Staff, other.SubjectId, live, requester, unanswered, Now));
+        Assert.False(CaseEditAuthority.CanTakeOver(ActorKind.Staff, Holder, Now, requester, unanswered, Now));
+        var automationAsked = unanswered with { RequesterKind = ActorKind.Automation, Requester = automation.SubjectId };
+        Assert.False(CaseEditAuthority.CanTakeOver(ActorKind.Staff, Holder, live, automation, automationAsked, Now));
+        Assert.False(CaseEditAuthority.CanTakeOver(ActorKind.Automation, "other-session", live, automation, null, Now));
+        Assert.False(CaseEditAuthority.CanTakeOver(
+            ActorKind.Staff, Holder, live, ActionActor.Principal(Guid.NewGuid()), unanswered, Now));
+    }
+
+    /// <summary>
+    /// Only the member of staff the request was addressed to answers it, while it is unanswered;
+    /// the lease itself is proven separately by their token.
+    /// </summary>
+    [Fact]
+    public void OnlyTheHolderAskedAnswersAnUnansweredRequest()
+    {
+        var requester = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var request = new CaseEditRequestSnapshot(
+            Guid.NewGuid(), ActorKind.Staff, requester.SubjectId, Holder, Now, null);
+
+        Assert.True(CaseEditAuthority.CanAnswer(request, ActorKind.Staff, Holder, HolderActor));
+        Assert.True(CaseEditAuthority.IsRequester(request, requester));
+
+        Assert.False(CaseEditAuthority.CanAnswer(request, ActorKind.Staff, Holder, requester));
+        Assert.False(CaseEditAuthority.CanAnswer(request, ActorKind.Staff, requester.SubjectId, HolderActor));
+        Assert.False(CaseEditAuthority.CanAnswer(
+            request with { Answer = CaseEditRequestAnswer.Accepted }, ActorKind.Staff, Holder, HolderActor));
+        Assert.False(CaseEditAuthority.CanAnswer(request, ActorKind.Automation, Holder, HolderActor));
+        Assert.False(CaseEditAuthority.IsRequester(request, HolderActor));
+        Assert.False(CaseEditAuthority.IsRequester(
+            request, ActionActor.Automation(requester.SubjectId)));
+    }
+
+    /// <summary>
+    /// The hand-over history line names the requester by the holder rule (R553, 30 October
+    /// 2026): the account name, AI, or another member of staff, never an identifier.
+    /// </summary>
+    [Fact]
+    public void TheHandOverHistoryLineNamesTheRequesterByTheHolderRule()
+    {
+        Assert.Equal(
+            "Edit lease handed over to r.hughes at their request.",
+            new CaseEditAuthorityHolder("r.hughes").HandOverHistoryReason);
+        Assert.Equal(
+            "Edit lease handed over to AI at their request.",
+            CaseEditAuthorityHolder.Automation.HandOverHistoryReason);
+        Assert.Equal(
+            "Edit lease handed over to another member of staff at their request.",
+            CaseEditAuthorityHolder.Unnamed.HandOverHistoryReason);
+    }
+
     private static void RequireHeartbeat(
         string? presentedLeaseToken = "a-live-token",
         ActorKind? retainedLeaseHolderKind = ActorKind.Staff,

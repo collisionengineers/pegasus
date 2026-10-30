@@ -2982,6 +2982,32 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nchar(64)")
                         .IsFixedLength();
 
+                    b.Property<string>("EditRequestAnswer")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("EditRequestHolder")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("EditRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EditRequestOperationKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("EditRequestedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("EditRequester")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("EditRequesterKind")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<bool>("HasOpenQuery")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -3052,6 +3078,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_CaseWorkflows_ArchiveMetadata", "([ArchivedAtUtc] IS NULL AND [ArchivedByKind] IS NULL AND [ArchivedBySubjectId] IS NULL AND [ArchivedByRolesJson] IS NULL AND [ArchiveReason] IS NULL) OR ([ArchivedAtUtc] IS NOT NULL AND [ArchivedByKind] IS NOT NULL AND [ArchivedBySubjectId] IS NOT NULL AND [ArchivedByRolesJson] IS NOT NULL AND [ArchiveReason] IS NOT NULL AND [ArchiveReason] <> '')");
 
                             t.HasCheckConstraint("CK_CaseWorkflows_EditLeaseGeneration", "[EditLeaseGeneration] >= 0");
+
+                            t.HasCheckConstraint("CK_CaseWorkflows_EditRequestAnswer", "[EditRequestAnswer] IS NULL OR [EditRequestAnswer] IN ('accepted', 'declined', 'withdrawn')");
+
+                            t.HasCheckConstraint("CK_CaseWorkflows_EditRequestShape", "([EditRequestId] IS NULL AND [EditRequesterKind] IS NULL AND [EditRequester] IS NULL AND [EditRequestHolder] IS NULL AND [EditRequestOperationKey] IS NULL AND [EditRequestedAtUtc] IS NULL AND [EditRequestAnswer] IS NULL) OR ([EditRequestId] IS NOT NULL AND [EditRequesterKind] IS NOT NULL AND [EditRequester] IS NOT NULL AND [EditRequestHolder] IS NOT NULL AND [EditRequestOperationKey] IS NOT NULL AND [EditRequestedAtUtc] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_CaseWorkflows_HoldReview", "[HoldReviewOn] IS NULL OR [HeldAtUtc] IS NOT NULL");
 

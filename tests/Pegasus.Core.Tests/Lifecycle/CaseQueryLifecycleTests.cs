@@ -68,6 +68,15 @@ public sealed class CaseQueryLifecycleTests
 
     private sealed class QueryStore : ICaseWorkflowStore
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Guid OpenedId { get; } = Guid.NewGuid();
         public OpenCaseQueryRequest? Opened { get; private set; }
         public CaseQueryActRequest? Marked { get; private set; }

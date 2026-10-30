@@ -40,6 +40,16 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     public string? EditLeaseHolderKind { get; set; }
     public string? EditLeaseOperationKey { get; set; }
     public DateTimeOffset? EditLeaseExpiresAtUtc { get; set; }
+    // The one request to edit against the lease (FRD-14 §Take over): who asked, which holder they
+    // asked, and the answer; null answer while unanswered. Cleared by Done and by a claim that
+    // changes the holder, never by the holder's own save, which ends and re-claims the lease.
+    public Guid? EditRequestId { get; set; }
+    public string? EditRequesterKind { get; set; }
+    public string? EditRequester { get; set; }
+    public string? EditRequestHolder { get; set; }
+    public string? EditRequestOperationKey { get; set; }
+    public DateTimeOffset? EditRequestedAtUtc { get; set; }
+    public string? EditRequestAnswer { get; set; }
     public Guid ConcurrencyToken { get; set; }
 }
 

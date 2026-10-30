@@ -928,7 +928,7 @@ public sealed class CaseMatchIntegrationTests
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider))),
                     new EfCaseWorkspaceStore(factory, timeProvider, matchPolicies),
-                    new CaseEditLeases(workflowStore));
+                    new CaseEditLeases(workflowStore, new InProcessCaseEditSignal()));
             }
             catch
             {

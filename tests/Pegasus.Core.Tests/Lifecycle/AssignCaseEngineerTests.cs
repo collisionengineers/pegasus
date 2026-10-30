@@ -283,6 +283,15 @@ public sealed class AssignCaseEngineerTests
 
     private sealed class RecordingWorkflowStore : ICaseWorkflowStore
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         private string? _appliedOperationKey;
 
         public AssignCaseEngineerRequest? AppliedRequest { get; private set; }

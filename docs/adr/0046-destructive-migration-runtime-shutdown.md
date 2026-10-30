@@ -37,7 +37,7 @@ deployment state. That staging is not activation. After migration, runtime grant
 and migration-head verification, the release provisions the approved new Web with
 the Worker still disabled, then explicitly enables the same approved release and
 proves active Web, running Worker, exact enabled census, and the full smoke.
-Amended 30 October 2026 (R553): after the migration and the deploy of the new
+Amended 30 October 2026 (R564): after the migration and the deploy of the new
 Web package to the stopped site, the release provisions once with Web and
 Worker approved, then starts the Web App and proves the same four things; the
 new Worker bytes were staged before SQL, so that one provision enables nothing
