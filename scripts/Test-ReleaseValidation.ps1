@@ -273,7 +273,8 @@ if ($joined.StartsWith('functionapp deployment source config-zip')) { "{`"id`":`
 [Console]::Error.WriteLine("fake az: unhandled call: $joined"); exit 2
 '@
     Set-Content -LiteralPath (Join-Path $Directory 'azd.ps1') -Encoding ascii -Value @'
-param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
+# No [Parameter()]: it would add the common parameters and make azd's -e ambiguous.
+$Arguments = [string[]]$args
 $joined = $Arguments -join ' '
 Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value "azd $joined"
 if ($joined.StartsWith('env get-values')) { Get-Content -LiteralPath $env:PEGASUS_TEST_AZD_VALUES_PATH; exit 0 }

@@ -619,8 +619,8 @@ function Invoke-Promotion {
     # SHA.
     param([Parameter(Mandatory)][string] $Sha)
     Invoke-Git -Arguments @('fetch', 'origin', '--prune')
-    $mainSha = (Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
-    $devSha = (Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
+    $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
+    $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     if ($mainSha -ceq $Sha) {
         if ($devSha -cne $Sha) { throw "origin/main is already at $Sha but origin/dev is at $devSha." }
         Write-Host "origin/main already reads $Sha; promotion was done."
@@ -632,8 +632,8 @@ function Invoke-Promotion {
     Invoke-Git -Failure 'Atomic promotion failed.' -Arguments @(
         'push', '--atomic', "--force-with-lease=refs/heads/dev:$Sha", 'origin', "${Sha}:refs/heads/main", "${Sha}:refs/heads/dev") | ForEach-Object { Write-Host $_ }
     Invoke-Git -Arguments @('fetch', 'origin', '--prune')
-    $promotedMain = (Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
-    $promotedDev = (Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
+    $promotedMain = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
+    $promotedDev = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     if ($promotedMain -cne $Sha -or $promotedDev -cne $Sha) { throw 'Remote read-back does not equal the approved release SHA.' }
     Write-Host "main and dev read back $Sha."
     $script:record['Source'] = "$Sha, promoted from $mainSha; main and dev read it back"
@@ -644,8 +644,8 @@ function Invoke-Promotion {
 function Invoke-Preflight {
     Write-Host '=== Preflight (read-only) ==='
     Invoke-Git -Arguments @('fetch', 'origin', '--prune')
-    $mainSha = (Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
-    $devSha = (Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
+    $mainSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()
+    $devSha = @(Invoke-Git -Arguments @('rev-parse', 'origin/dev'))[0].Trim()
     & git -C $RepositoryRoot merge-base --is-ancestor $mainSha $devSha
     if ($LASTEXITCODE -ne 0) { throw 'origin/main is not an ancestor of origin/dev.' }
     Write-Host "origin/main $mainSha"
@@ -993,7 +993,7 @@ switch ($PSCmdlet.ParameterSetName) {
             throw "The Azure CLI account is $($account.subscription)/$($account.tenant), not the fixed target."
         }
         $root = Get-ReleaseRoot -Sha $ApprovedReleaseSha
-        if (-not (Test-Path -LiteralPath $root)) { throw "No release worktree at $root: run the default (read-only) run first." }
+        if (-not (Test-Path -LiteralPath $root)) { throw "No release worktree at ${root}: run the default (read-only) run first." }
         $head = (& git -C $root rev-parse HEAD).Trim()
         if ($LASTEXITCODE -ne 0 -or $head -cne $ApprovedReleaseSha) { throw "The release worktree at $root is not at the approved SHA." }
         if (@(& git -C $root status --porcelain).Count -ne 0) { throw "The release worktree at $root is not clean." }
