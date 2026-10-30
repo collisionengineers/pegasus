@@ -99,7 +99,7 @@ and the [verification procedure](docs/runbook.md).
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
   for the authorized workstation and platform-matching artifacts; one approval
-  message grants a release's promotion push and Azure writes (R562).
+  message grants a release's promotion push and Azure writes (R567).
 - Plan destructive migrations explicitly: identify the affected capability and
   forward-only recovery boundary, then require approved old-Worker `Stopped` and
   old-Web `Stopped` and unserved read-back before SQL. After actual release,
