@@ -1,5 +1,6 @@
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Tests.Workflow;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Lifecycle;
