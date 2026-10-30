@@ -17,7 +17,7 @@ public sealed class OneCommandEditAuthorityTests
         var caseId = Guid.NewGuid();
         var leases = new RecordingLeases();
         var scopes = new RecordingScopes(new(EditScopeKind.Triage, caseId, "scope-token", "holder", 4, DateTimeOffset.MaxValue));
-        var authority = new OneCommandEditAuthority(new CaseEditLeases(leases), scopes);
+        var authority = new OneCommandEditAuthority(new CaseEditLeases(leases, new RecordingCaseEditSignal()), scopes);
 
         var claim = await authority.ClaimAsync(caseId, isTriageCase: true, 4, Actor, "triage-write-claim:k", default);
         await authority.ReleaseAsync(claim, Actor, "triage-write-claim:k:release", default);
@@ -37,7 +37,7 @@ public sealed class OneCommandEditAuthorityTests
         var caseId = Guid.NewGuid();
         var leases = new RecordingLeases(new CaseEditLease(caseId, "lease-token", "holder", 9, DateTimeOffset.MaxValue));
         var scopes = new RecordingScopes(null);
-        var authority = new OneCommandEditAuthority(new CaseEditLeases(leases), scopes);
+        var authority = new OneCommandEditAuthority(new CaseEditLeases(leases, new RecordingCaseEditSignal()), scopes);
 
         var claim = await authority.ClaimAsync(caseId, isTriageCase: false, 7, Actor, "claim-key", default);
         await authority.ReleaseAsync(claim, Actor, "release-key", default);
@@ -92,6 +92,15 @@ public sealed class OneCommandEditAuthorityTests
 
     private sealed class RecordingLeases(CaseEditLease? claimResult = null) : ILeaseCaseForEdit
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
         public List<ReleaseCaseEditLeaseRequest> Releases { get; } = [];
 

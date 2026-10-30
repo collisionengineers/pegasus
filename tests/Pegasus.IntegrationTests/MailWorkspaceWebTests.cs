@@ -3018,6 +3018,15 @@ public sealed class MailWorkspaceWebTests
         ILeaseCaseForEdit leases,
         ReleaseFailureGate failures) : ILeaseCaseForEdit
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<CaseEditLease> ClaimAsync(
             ClaimCaseEditLeaseRequest request,
             CancellationToken cancellationToken) =>

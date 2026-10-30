@@ -1096,6 +1096,15 @@ public sealed class CaseDetailsWebTests
     /// <summary>The store's first claim enters edit mode; a later one, the reclaim after a save, is refused.</summary>
     private sealed class ClaimsOnce(RecordingCaseDetailsStore store) : ILeaseCaseForEdit
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         private int claims;
 
         public Task<CaseEditLease> ClaimAsync(

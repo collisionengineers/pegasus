@@ -361,6 +361,15 @@ public sealed partial class SendToAiIntegrationTests
         IGetAssessmentWorkspace,
         ILeaseCaseForEdit
     {
+        public Task<CaseEditRequestRaised> RaiseRequestAsync(RaiseCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AnswerRequestAsync(AnswerCaseEditRequestRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseEditRequestView> ReadRequestAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         private CaseEditLeaseSnapshot? activeLease;
 
         /// <summary>The page's own Edit Case claim, so the section renders inside the session.</summary>
