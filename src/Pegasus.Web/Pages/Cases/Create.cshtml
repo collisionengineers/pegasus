@@ -8,6 +8,15 @@
     var draft = Model.IsManual ? null : Model.DraftFields.Draft;
 }
 
+@* The direct form's Files panel is the Upload sheet's picker (R576); the
+   form opened from a receipt has no picker, so the script finds nothing there. *@
+@section Styles {
+    <link rel="stylesheet" href="~/css/upload.css" asp-append-version="true" />
+}
+@section Scripts {
+    <script src="~/js/upload.js" asp-append-version="true"></script>
+}
+
 @*
     The second half of one operator action: a file was dropped on Upload, it
     was read while they waited, and this is where what came out of it becomes
@@ -37,6 +46,15 @@
     }
 }
 
+@* The active Principals' codes, offered as completions on either form's
+   principal code; the box still takes any code typed. *@
+<datalist id="principal-codes">
+    @foreach (var code in Model.PrincipalCodes)
+    {
+        <option value="@code"></option>
+    }
+</datalist>
+
 @if (Model.IsManual)
 {
     <header class="page-header">
@@ -46,9 +64,10 @@
         </div>
     </header>
 
-    <form method="post" asp-page-handler="Create" class="stack create-form">
+    <form method="post" asp-page-handler="Create" enctype="multipart/form-data" class="stack create-form" data-upload-form>
         <input asp-for="IsManual" type="hidden" />
         <input asp-for="OperationId" type="hidden" />
+        <input asp-for="ExternalReceiptToken" type="hidden" />
         <partial name="Shared/_ErrorSummary" />
 
         <section class="panel" aria-labelledby="case-title">
@@ -57,7 +76,7 @@
                 <div class="grid grid-3">
                     <div class="field">
                         <label class="req" asp-for="PrincipalCode">Principal code</label>
-                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" required />
+                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" list="principal-codes" required />
                         <span asp-validation-for="PrincipalCode" class="field-error"></span>
                     </div>
                     <div class="field" data-triage-hidden>
@@ -78,6 +97,7 @@
                            every other field (v29 p11). *@
                         <select asp-for="CaseType" data-manual-case-type="@CaseType.Triage">
                             <option value="@CaseType.Inspection">Inspection</option>
+                            <option value="@CaseType.Audit">Audit</option>
                             <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
                             <option value="@CaseType.Triage">Triage</option>
                         </select>
@@ -118,6 +138,24 @@
                 </div>
                 <div class="field" data-triage-hidden><label asp-for="InspectionAddress">Inspection address</label><textarea asp-for="InspectionAddress" maxlength="1000" rows="3"></textarea></div>
                 <div class="field" data-triage-hidden><label asp-for="AccidentCircumstances">Accident circumstances</label><textarea asp-for="AccidentCircumstances" maxlength="2000" rows="4"></textarea></div>
+            </div>
+        </section>
+
+        @* Files chosen here are the Upload sheet's own picker: the one Create
+           case press creates the Case, then files them on it through the
+           declared-Case upload, each with its chosen Type (FRD-18; operator,
+           30 October 2026, R576). Every Case type takes them, a Triage
+           included, as its page has Add evidence too. *@
+        <section class="panel" aria-labelledby="files-title">
+            <div class="panel-head"><h2 id="files-title">Files</h2></div>
+            <div class="panel-body">
+                <div class="up-picker"
+                     data-upload-select
+                     data-max-files="@Pegasus.Web.Pages.UploadModel.MaximumFileCount"
+                     data-max-bytes="@Pegasus.Web.Pages.UploadModel.MaximumFileBytes"
+                     data-max-total="@Pegasus.Web.Pages.UploadModel.MaximumTotalBytes">
+                    <partial name="Shared/_UploadPicker" model="true" />
+                </div>
             </div>
         </section>
 
@@ -332,7 +370,7 @@ else
                 <div class="grid grid-2">
                     <div class="field">
                         <label asp-for="PrincipalCode">Confirmed principal code</label>
-                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" />
+                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" list="principal-codes" />
                         <span asp-validation-for="PrincipalCode" class="field-error"></span>
                     </div>
                     <div class="field">

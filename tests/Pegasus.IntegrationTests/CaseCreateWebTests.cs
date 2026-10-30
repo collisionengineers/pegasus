@@ -61,6 +61,23 @@ public sealed partial class CaseCreateWebTests
         Assert.DoesNotContain("Open the received item", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The principal code box completes from the active Principals' codes.
+    /// </summary>
+    [Fact]
+    public async Task ManualCaseFormOffersTheActivePrincipalCodesAsCompletions()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+
+        Assert.Contains("list=\"principal-codes\"", form.Html, StringComparison.Ordinal);
+        Assert.Contains("<datalist id=\"principal-codes\">", form.Html, StringComparison.Ordinal);
+        Assert.Contains($"<option value=\"{PrincipalCode}\"></option>", form.Html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ManualCreateMakesAReceiptlessCaseWithStaffConfirmedFacts()
     {
@@ -288,6 +305,165 @@ public sealed partial class CaseCreateWebTests
         Assert.StartsWith("a.", created.Reference, StringComparison.Ordinal);
         Assert.Null(created.StandaloneAuditAssessment);
         Assert.Null(created.StandaloneAuditEvidenceId);
+    }
+
+    /// <summary>
+    /// The direct form offers Audit (operator, 30 October 2026, R575): the
+    /// Case takes its own a. reference and shows Original report missing
+    /// until a filed document is recorded as the original report.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateMakesAStandaloneAuditWithItsOriginalReportMissing()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        Assert.Contains($"<option value=\"{CaseType.Audit}\">Audit</option>", form.Html, StringComparison.Ordinal);
+        var fields = KeyedFields();
+        fields["CaseType"] = CaseType.Audit.ToString();
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var created = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == caseId);
+        Assert.Equal(CaseTypeCodes.ToCode(CaseType.Audit), created.Type);
+        Assert.Equal($"a.{PrincipalCode}31001", created.Reference);
+        Assert.Null(created.StandaloneAuditEvidenceId);
+
+        using var record = await client.GetAsync($"/Cases/{caseId:D}");
+        Assert.Equal(HttpStatusCode.OK, record.StatusCode);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.OriginalReportMissing,
+            await record.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A Case created directly records its Principal as the creator's
+    /// confirmation (FRD-02), as a staff acceptance does, so it is a match
+    /// target for later mail and images and its export names the Principal.
+    /// Before, it recorded none and the match index projected no row.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateRecordsItsPrincipalSoTheCaseIsAMatchTarget()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, QdosPrincipal.Code);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        var fields = KeyedFields();
+        fields["PrincipalCode"] = QdosPrincipal.Code;
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var snapshot = await context.CaseDataSnapshots
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.WorkId == caseId);
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.PrincipalCode
+            && item.ValueKind == CaseDataCodes.Confirmed
+            && item.SourceKind == CaseDataCodes.CaseAcceptance
+            && item.Value == QdosPrincipal.Code);
+        Assert.True(await context.CaseMatchIndex.AnyAsync(item =>
+            item.CaseId == caseId && item.PrincipalCode == QdosPrincipal.Code));
+    }
+
+    /// <summary>
+    /// A Case created directly for a Principal that inspects by images takes
+    /// Image Based Assessment from the Principal setting, as an accepted
+    /// intake does (ADR-0018), with the same history line.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateForAnImageBasedPrincipalTakesImageBasedAssessment()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+        await using (var seed = factory.Services.CreateAsyncScope())
+        {
+            var seedContext = seed.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            await seedContext.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Principals SET InspectionMode = {PrincipalInspectionModePolicy.ImageBasedAssessmentCode} WHERE Code = {PrincipalCode}");
+        }
+
+        var form = await OpenManualCaseScreenAsync(client);
+        var fields = KeyedFields();
+        fields["VehicleMileageUnit"] = "miles";
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var snapshot = await context.CaseDataSnapshots
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.WorkId == caseId);
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.InspectionAddress
+            && item.ValueKind == CaseDataCodes.Confirmed
+            && item.SourceKind == CaseDataCodes.PrincipalSetting
+            && item.Value == Ext18InspectionAddressPolicy.ImageBasedAssessment);
+        Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.InspectionMode
+            && item.ValueKind == CaseDataCodes.Confirmed
+            && item.Value == PrincipalInspectionModePolicy.ImageBasedAssessmentCode);
+        Assert.True(await context.CaseHistory.AnyAsync(item =>
+            item.CaseId == caseId && item.EventType == "principal_inspection_mode_applied"));
+    }
+
+    /// <summary>
+    /// Files chosen on the direct form go through the declared-Case upload
+    /// (FRD-18; operator, 30 October 2026, R576): one press creates the Case,
+    /// then submits its files for it with the type chosen for each, and the
+    /// operator lands on the Case's Files.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateWithFilesFilesThemOnTheCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        Assert.Contains("data-upload-type-template", form.Html, StringComparison.Ordinal);
+        Assert.Contains("enctype=\"multipart/form-data\"", form.Html, StringComparison.Ordinal);
+        var fields = KeyedFields();
+        fields["VehicleMileageUnit"] = "miles";
+        fields["ExternalReceiptToken"] = InputValue(form.Html, "ExternalReceiptToken");
+        fields["DocumentTypes[0]"] = Pegasus.Core.Documents.DocumentSemanticRole.Instruction.ToString();
+        using var multipart = new MultipartFormDataContent();
+        foreach (var (key, value) in form.Values.Concat(fields))
+        {
+            multipart.Add(new StringContent(value), key);
+        }
+        var pdf = new ByteArrayContent(IntakeTestEvidence.CreatePdf("A hand-keyed instruction."));
+        pdf.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/pdf");
+        multipart.Add(pdf, "Upload", "instruction.pdf");
+        var photograph = new ByteArrayContent(MultiFormatFixture.Photograph(1));
+        photograph.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("image/jpeg");
+        multipart.Add(photograph, "Upload", "front.jpg");
+
+        using var response = await client.PostAsync("/Cases/Create?handler=Create", multipart);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location!.OriginalString;
+        Assert.Contains("section=files", location, StringComparison.Ordinal);
+        var caseId = Guid.Parse(location.Split('?')[0].Split('/', StringSplitOptions.RemoveEmptyEntries).Last());
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var staged = await context.IntakeStagedReceipts.AsNoTracking()
+            .Where(item => item.DeclaredCaseId == caseId)
+            .ToListAsync();
+        Assert.Equal(2, staged.Count);
+        Assert.Contains(staged, item => item.SourceFileName == "instruction.pdf"
+            && item.DeclaredDocumentType == nameof(Pegasus.Core.Documents.DocumentSemanticRole.Instruction));
+        Assert.Contains(staged, item => item.SourceFileName == "front.jpg" && item.DeclaredDocumentType is null);
+        // The Case itself still has no receipt of its own (FRD-02).
+        Assert.Null((await context.Cases.AsNoTracking().SingleAsync(item => item.Id == caseId)).OriginIntakeReceiptId);
     }
 
     /// <summary>

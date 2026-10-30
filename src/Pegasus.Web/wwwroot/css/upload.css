@@ -1,6 +1,7 @@
 /* Upload: page-specific rules composed on the shared shell tokens. Linked
    from Pages/Upload.cshtml (v42 E, "Focused record sheet"), UploadGroupStatus
-   and UploadStatus (v30 E, "Inspection studio") only. */
+   and UploadStatus (v30 E, "Inspection studio"), and Cases/Create for the
+   picker in its Files panel (R576), only. */
 
 .up-head { margin-bottom: 20px; }
 .up-meta { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
@@ -92,19 +93,28 @@
 .up-sheet .up-declared .up-final-destination p { color: inherit; opacity: .82; }
 .up-sheet .record-body { padding: 24px 26px; display: flex; flex-direction: column; gap: 18px; flex: 1; min-height: 0; min-width: 0; overflow: auto; }
 .up-sheet .up-alert { margin-bottom: 0; flex: none; }
-.up-sheet .up-evidence { flex: none; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+.up-sheet .up-evidence { flex: none; }
 .up-sheet .record-bar { padding: 14px 26px; border-top: 1px solid var(--line); border-bottom: 0; background: var(--surface-2); margin-top: auto; }
 .up-sheet .record-bar p { margin: 0; font-size: 11.5px; color: var(--muted); }
 
-/* The drop target: the whole body, so a real drag is easy to hit. */
-.up-sheet .up-drop { flex: 1; min-height: 420px; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-2); text-align: center; padding: 56px 32px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
-.up-sheet .up-drop.is-over { background: var(--navy-bg); border-color: var(--navy); }
-.up-sheet .up-drop-badge { width: 60px; height: 60px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 2px 6px rgba(20, 30, 35, .06); display: grid; place-items: center; color: var(--navy); }
-.up-sheet .up-drop-badge .icon { width: 26px; height: 26px; }
+/* The picker (Shared/_UploadPicker): its drop target and the selected files
+   under it, wherever it is drawn, on the Upload sheet and in Create case's
+   Files panel (R576). */
+.up-drop { border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-2); text-align: center; padding: 32px 24px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+.up-drop.is-over { background: var(--navy-bg); border-color: var(--navy); }
+.up-drop-badge { width: 60px; height: 60px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 2px 6px rgba(20, 30, 35, .06); display: grid; place-items: center; color: var(--navy); }
+.up-drop-badge .icon { width: 26px; height: 26px; }
+.up-drop h2 { font-size: 16px; }
+.up-drop p { margin: 0; font-size: 12px; color: var(--muted); max-width: 400px; line-height: 1.7; }
+.up-drop label { cursor: pointer; margin: 3px 0; }
+.up-drop input[type="file"] { max-width: 100%; }
+.up-evidence { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+.up-picker { display: flex; flex-direction: column; gap: 14px; }
+.up-picker .up-alert { margin-bottom: 0; }
+/* On the Upload sheet the drop target is the whole body, so a real drag is
+   easy to hit. */
+.up-sheet .up-drop { flex: 1; min-height: 420px; padding: 56px 32px; }
 .up-sheet .up-drop h2 { font-size: 20px; }
-.up-sheet .up-drop p { margin: 0; font-size: 12px; color: var(--muted); max-width: 400px; line-height: 1.7; }
-.up-sheet .up-drop label { cursor: pointer; margin: 3px 0; }
-.up-sheet .up-drop input[type="file"] { max-width: 100%; }
 /* Choosing files keeps the sheet in place: the drop target gives up the
    height the selected files take. */
 .up-sheet.has-files .up-drop { min-height: 220px; padding: 32px 24px; }

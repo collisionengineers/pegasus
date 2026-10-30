@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
 
@@ -43,6 +44,14 @@ namespace Pegasus.Web.Pages.Cases;
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
+// The direct form's Files panel posts the same batch the Upload sheet does
+// (R576), so it takes the same request limits.
+[RequestSizeLimit(IntakeEnvelopeLimits.MaximumBatchContentLength)]
+[RequestFormLimits(
+    BufferBody = true,
+    BufferBodyLengthLimit = IntakeEnvelopeLimits.MaximumBatchContentLength,
+    MultipartBodyLengthLimit = IntakeEnvelopeLimits.MaximumBatchContentLength,
+    MemoryBufferThreshold = 64 * 1024)]
 public sealed partial class CreateModel(
     IGetIntake getIntake,
     ResolveIntake resolveIntake,
@@ -52,6 +61,9 @@ public sealed partial class CreateModel(
     IPrincipalInspectionModeStore principalInspectionModeStore,
     ICreateManualCase createManualCase,
     IContactDirectoryQueries contacts,
+    IImageIntakeQueries principalQueries,
+    IGroupedIntakeSubmission groupedSubmission,
+    TimeProvider timeProvider,
     ILogger<CreateModel> logger,
     GetRetainedMail? getRetainedMail = null) : StaffPageModel
 {
@@ -87,8 +99,23 @@ public sealed partial class CreateModel(
 
     public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
 
+    /// <summary>The active Principals' codes, the principal code box's completions.</summary>
+    public IReadOnlyList<string> PrincipalCodes { get; private set; } = [];
+
     [BindProperty]
     public bool IsManual { get; set; }
+
+    /// <summary>The files chosen in the direct form's Files panel (R576).</summary>
+    [BindProperty]
+    public IFormFile[] Upload { get; set; } = [];
+
+    /// <summary>
+    /// The upload receipt for those files, rendered with the form beside
+    /// <see cref="OperationId"/>: a re-post replays the Case and is the same
+    /// upload, so it neither allocates nor stores twice.
+    /// </summary>
+    [BindProperty]
+    public string? ExternalReceiptToken { get; set; }
 
     /// <summary>
     /// Set when the item cannot become a case at all, so the page states why
@@ -236,8 +263,9 @@ public sealed partial class CreateModel(
             }
             IsManual = true;
             OperationId = NewOperationKey();
+            ExternalReceiptToken = NewOperationKey();
             CaseType = CaseType.Inspection;
-            await PopulateClaimSourceChoicesAsync(actor, cancellationToken);
+            await PopulateManualChoicesAsync(actor, cancellationToken);
             return Page();
         }
 
@@ -511,13 +539,9 @@ public sealed partial class CreateModel(
         {
             ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
         }
-        else if (CaseType == CaseType.Audit)
-        {
-            ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
-        }
 
         var mileageUnit = VehicleMileage.HasValue ? VehicleMileageUnit : null;
-        await PopulateClaimSourceChoicesAsync(actor, cancellationToken);
+        await PopulateManualChoicesAsync(actor, cancellationToken);
         // A Triage Case asks only for its Principal and the registration; the
         // other manual fields are not part of it.
         var isTriage = CaseType == CaseType.Triage;
@@ -581,18 +605,50 @@ public sealed partial class CreateModel(
         {
             ModelState.AddModelError(string.Empty, exception.Message);
         }
+
+        // The chosen files pass the Upload sheet's own checks before the Case
+        // exists, so a refused file never leaves a Case behind it (R576).
+        var uploader = IntakeActorIdentity.Staff(actor.SubjectId);
+        IReadOnlyList<StreamedGroupedIntakeFile> files = [];
+        if (Upload.Length > 0)
+        {
+            if (Guid.TryParseExact(ExternalReceiptToken, "N", out var token))
+            {
+                ExternalReceiptToken = token.ToString("N");
+            }
+            else
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    "The upload receipt is invalid. Refresh the page and try again.");
+            }
+            var errorsBefore = ModelState.ErrorCount;
+            UploadFormValidation.CheckLimits(Upload, ModelState, nameof(Upload));
+            if (ModelState.ErrorCount == errorsBefore)
+            {
+                files = await UploadFormValidation.ReadAsync(
+                    Upload,
+                    Request.Form,
+                    declared: true,
+                    ExternalReceiptToken ?? string.Empty,
+                    uploader,
+                    timeProvider.GetUtcNow(),
+                    ModelState,
+                    nameof(Upload),
+                    cancellationToken);
+            }
+        }
         if (!ModelState.IsValid)
         {
             return Page();
         }
 
+        CaseIdentity identity;
         try
         {
-            var identity = await createManualCase.ExecuteAsync(
+            identity = await createManualCase.ExecuteAsync(
                 new(actor, $"manual-case:{operationId:N}", PrincipalCode, CaseType, data),
                 cancellationToken);
-            TempData["CaseDetailsStatus"] = $"Case {identity.AuditReference ?? identity.Reference} was created.";
-            return RedirectToPage("/Cases/Details", new { id = identity.CaseId });
         }
         catch (StaffAuthorizationException)
         {
@@ -601,21 +657,59 @@ public sealed partial class CreateModel(
         catch (PrincipalUnavailableException)
         {
             ModelState.AddModelError(nameof(PrincipalCode), "This principal is unavailable.");
+            return Page();
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
+            return Page();
         }
 
-        return Page();
+        var reference = identity.AuditReference ?? identity.Reference;
+        if (files.Count == 0)
+        {
+            TempData["CaseDetailsStatus"] = $"Case {reference} was created.";
+            return RedirectToPage("/Cases/Details", new { id = identity.CaseId });
+        }
+
+        // The Case exists, so whatever happens to its files the operator lands
+        // on it: the files go through the declared-Case upload, exactly as Add
+        // evidence sends them (FRD-18).
+        try
+        {
+            var result = await groupedSubmission.ExecuteStreamedAsync(
+                new StreamedGroupedIntakeSubmissionRequest(
+                    ExternalReceiptToken!,
+                    uploader,
+                    timeProvider.GetUtcNow(),
+                    files,
+                    IntakeSourceChannel.ManualUpload,
+                    DeclaredCaseId: identity.CaseId),
+                cancellationToken);
+            TempData["CaseStatus"] = $"Case {reference} was created. " + (result.Members.All(member => member.IsDuplicate)
+                ? OperatorLabels.Upload.AlreadyReceivedForCase(reference)
+                : OperatorLabels.Upload.ReceivedForCase(result.Members.Count, reference));
+        }
+        catch (Exception exception) when (
+            exception is IntakeSourceIdentityConflictException or IntakeArtifactRetentionException
+            || IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            LogCreatedCaseFilesFailed(logger, identity.CaseId, exception);
+            TempData["CaseError"] = $"Case {reference} was created. Its files could not be stored; use Add evidence to try again.";
+        }
+        return RedirectToPage("/Cases/Details", new { id = identity.CaseId, section = "files" });
     }
 
-    private async Task PopulateClaimSourceChoicesAsync(
+    private async Task PopulateManualChoicesAsync(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        ClaimSourceChoices = await contacts.ListByRoleAsync(
+        var claimSourcesRead = contacts.ListByRoleAsync(
             actor, ContactRole.ClaimSource, cancellationToken);
+        var principalCodesRead = principalQueries.ListActivePrincipalCodesAsync(cancellationToken);
+        await Task.WhenAll(claimSourcesRead, principalCodesRead);
+        ClaimSourceChoices = await claimSourcesRead;
+        PrincipalCodes = await principalCodesRead;
     }
 
     private ContactChoice? ResolveClaimSource()
@@ -819,6 +913,7 @@ public sealed partial class CreateModel(
         var effectivePrincipalCode = Optional(PrincipalCode)
             ?? receipt.InstructionDraft?.SuggestedPrincipalCode;
         PrincipalIsImageBased = await IsImageBasedAsync(effectivePrincipalCode, cancellationToken);
+        PrincipalCodes = await principalQueries.ListActivePrincipalCodesAsync(cancellationToken);
         AddressResolution = await addressResolutionStore.GetAsync(receiptId, cancellationToken)
             ?? new(
                 receiptId,
@@ -890,6 +985,15 @@ public sealed partial class CreateModel(
     private static partial void LogCaseCreationConflicted(
         ILogger logger,
         Guid receiptId,
+        Exception exception);
+
+    [LoggerMessage(
+        EventId = 1216,
+        Level = LogLevel.Warning,
+        Message = "Case {CaseId} was created directly but its files could not be stored.")]
+    private static partial void LogCreatedCaseFilesFailed(
+        ILogger logger,
+        Guid caseId,
         Exception exception);
 
     [LoggerMessage(

@@ -79,10 +79,6 @@ public sealed class CreateManualCase(
             throw new InvalidOperationException(
                 $"A manual case needs {string.Join(", ", missingIdentity)}.");
         }
-        if (request.CaseType is CaseType.Audit)
-        {
-            throw new InvalidOperationException("The case type is invalid.");
-        }
 
         var outcome = await store.CreateAsync(request with
         {

@@ -81,6 +81,11 @@ report.
   and may attach the original report. The declaration records the
   assessment at creation, with or without the report.
 - On manual upload, a staff member must accept the proposal first.
+- Staff and the Automation Actor may also create an Audit directly, with no
+  received item ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts);
+  operator, 30 October 2026, [R575](../rulings.md)). It starts with
+  **Original report missing**; files chosen at creation may include the
+  report.
 
 If no original report is filed on the Case and no standalone-Audit evidence
 was kept at intake, the Case shows **Original report missing** as an
