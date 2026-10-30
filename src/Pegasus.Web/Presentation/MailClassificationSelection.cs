@@ -16,7 +16,13 @@ public static class MailClassificationSelection
     /// <summary>The choice that corrects a message to no category.</summary>
     public const string CorrespondenceKey = "correspondence";
 
-    public const string CorrespondenceLabel = OperatorLabels.Inbox.Correspondence;
+    /// <summary>
+    /// What a message with no category reads: Correspondence once it is linked
+    /// to a Case, No Case Found while it is not (FRD-08; operator, 30 October
+    /// 2026, R571).
+    /// </summary>
+    public static string NoCategoryLabel(bool linked) =>
+        linked ? OperatorLabels.Inbox.Correspondence : OperatorLabels.Inbox.NoCaseFound;
 
     /// <summary>
     /// The reason a Type select on the message record records: it applies at
@@ -49,6 +55,12 @@ public static class MailClassificationSelection
         [.. WorkTypes.Select(type => new SelectionOption(
             type.ToString(),
             type == CaseType.InspectionAndAudit ? "Inspection and Audit" : OperatorLabels.CaseTypeName(type)))];
+
+    /// <summary>The Type options a message's select draws, the no-category option named by its link state.</summary>
+    public static IReadOnlyList<SelectionOption> TypeSelectOptionsFor(bool linked) =>
+        [.. TypeSelectOptions.Select(option => option.Value == CorrespondenceKey
+            ? option with { Label = NoCategoryLabel(linked) }
+            : option)];
 
     public static string Combined(MailCategory category, CaseType caseType) =>
         $"{MailCategories.Code(category)}:{caseType}";

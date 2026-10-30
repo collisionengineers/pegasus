@@ -35,15 +35,17 @@ reference`), All principals, All Mailboxes, the count and Received order.
 There is no Category filter and no bulk Correct classification. The bulk bar
 (Dismiss, or Restore on Dismissed) is hidden until a row is ticked.
 
-**All** lists linked mail, a New instruction, a Triage request, a Pre-Pegasus
-case, or a receipt nothing has classified yet. **No Case Found** lists
+**All** lists every received message that is not dismissed, No Case Found
+mail included (operator, 30 October 2026, R570). **No Case Found** lists
 received mail linked to no Case that is not decided to be a Pre-Pegasus case
 (operator, 30 October 2026, R561). The ledger is full width: a select-all tick, then Case (None, in quiet
 type, when unlinked), Type, Subject, Sender (with the Principal under it) and
 Received. Type is the category's status chip; a New instruction carries its
-work type beneath it as a plain neutral chip, and Correspondence is a neutral
-chip (operator, 30 October 2026, R559). A row click opens
-`#mailMessageDialog`.
+work type beneath it as a plain neutral chip (operator, 30 October 2026,
+R559). A message with no category reads Correspondence when linked and
+No Case Found when not, each a neutral chip; the message dialog's context
+bar and the first option of its Type select read the same (operator,
+30 October 2026, R559, R571). A row click opens `#mailMessageDialog`.
 
 The message dialog is full width. A context bar under the route line shows
 Case, Type and Query. The settings menu (cog, `#icon-settings`) holds, in

@@ -101,7 +101,7 @@ public sealed class MessageModel(
     public string? RetainedOperationKey { get; private set; }
 
     public IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
-        MailClassificationSelection.TypeSelectOptions;
+        MailClassificationSelection.TypeSelectOptionsFor(Detail.Summary.CaseId is not null);
 
     /// <summary>
     /// The list scope this message was opened from, carried through untouched so
@@ -2315,20 +2315,14 @@ public sealed class MessageModel(
 
     public int? PageRouteValue => PageNumber is > 1 ? PageNumber : null;
 
-    public static string ClassificationLabel(MailClassificationOutcome? outcome) => outcome switch
-    {
-        MailClassificationOutcome.Classified => "Classified",
-        MailClassificationOutcome.Unclassified => OperatorLabels.Inbox.Correspondence,
-        _ => "Not yet processed"
-    };
-
-    public static string DecisionLabel(MailClassificationResult result) =>
+    /// <summary>The message's Type: its category, or with none, what no category reads for its link state (R571).</summary>
+    public static string DecisionLabel(MailClassificationResult? result, bool linked) =>
         result is { IsClassified: true, Category: { } category }
             ? category == MailCategory.NewInstruction && result.CaseType is { } caseType
                 ? MailClassificationSelection.TypeSelectOptions
                     .First(option => option.Value == MailClassificationSelection.Combined(category, caseType)).Label
                 : DecisionLabel(category)
-            : OperatorLabels.Inbox.Correspondence;
+            : MailClassificationSelection.NoCategoryLabel(linked);
 
     public static string DecisionLabel(MailCategory category) =>
         OperatorLabels.MailClassification(category);

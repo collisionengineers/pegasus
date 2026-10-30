@@ -1289,12 +1289,14 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("instructions@collisionengineers.co.uk", html, StringComparison.Ordinal);
         Assert.Contains("reports@collisionengineers.co.uk", html, StringComparison.Ordinal);
         Assert.Contains("Message 1 from instructions", html, StringComparison.Ordinal);
-        // The ledger row (v42 I): the unread dot and class, the Type as the
-        // neutral Correspondence chip (R559), the subject with its one-line
+        // The ledger row (v42 I): the unread dot and class, the Type of an
+        // unlinked message with no category as the neutral No Case Found chip
+        // (R559, R571), the subject with its one-line
         // excerpt beneath, the sender, and the received date with its clock.
         Assert.Equal(3, CountOccurrences(html, "inbox-ledger-row unread"));
         Assert.Equal(3, CountOccurrences(html, "class=\"unread-indicator\""));
-        Assert.Equal(3, CountOccurrences(html, $"<span class=\"status status--neutral\">{OperatorLabels.Inbox.Correspondence}</span>"));
+        Assert.Equal(3, CountOccurrences(html, $"<span class=\"status status--neutral\">{OperatorLabels.Inbox.NoCaseFound}</span>"));
+        Assert.DoesNotContain(OperatorLabels.Inbox.Correspondence, Between(html, "data-row-list", "data-mail-dialog-root"), StringComparison.Ordinal);
         Assert.Equal(3, CountOccurrences(html, "<span class=\"row-excerpt\">Please inspect the vehicle at the address supplied.</span>"));
         Assert.Equal(3, CountOccurrences(html, "<span class=\"inbox-sender-addr\">"));
         Assert.Equal(3, CountOccurrences(html, "<small class=\"tabular\">"));
@@ -1557,7 +1559,9 @@ public sealed class MailWorkspaceWebTests
 
         var row = MailRow(html, messageId);
         Assert.Contains($">{OperatorLabels.Inbox.NoCase}<", row, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.Inbox.Correspondence, row, StringComparison.Ordinal);
+        // No category and no Case reads No Case Found, never Correspondence (R571).
+        Assert.Contains($"<span class=\"status status--neutral\">{OperatorLabels.Inbox.NoCaseFound}</span>", row, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Inbox.Correspondence, row, StringComparison.Ordinal);
         Assert.DoesNotContain(">Unidentified<", row, StringComparison.Ordinal);
     }
 
@@ -2040,6 +2044,13 @@ public sealed class MailWorkspaceWebTests
             .Select(match => match.Groups["value"].Value)
             .ToArray();
         Assert.Equal(MailClassificationSelection.TypeSelectOptions.Select(option => option.Value).ToArray(), options);
+        // Unlinked with no category: the context bar and the no-category option
+        // read No Case Found, not Correspondence (R571).
+        Assert.Contains($"data-context-type>{OperatorLabels.Inbox.NoCaseFound}</strong>", html, StringComparison.Ordinal);
+        Assert.Matches(
+            $"value=\"{MailClassificationSelection.CorrespondenceKey}\"[^>]*>{OperatorLabels.Inbox.NoCaseFound}</option>",
+            Between(html, "id=\"mailTypeSelect\"", "</select>"));
+        Assert.DoesNotContain(OperatorLabels.Inbox.Correspondence, Between(html, "id=\"mailTypeSelect\"", "</select>"), StringComparison.Ordinal);
         // An unlinked message has no Destination row.
         Assert.DoesNotContain("<span>Destination</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("shared-mail-policy", html, StringComparison.Ordinal);
@@ -2601,7 +2612,7 @@ public sealed class MailWorkspaceWebTests
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
         for (var index = 0; index < ids.Length; index++)
         {
-            // A New instruction is in All incoming; an unclassified message is not.
+            // Each row reads New instruction; All lists every message either way (R570).
             await StoreClassifiedInstructionAsync(factory, FirstMailboxId, $"{FirstMailboxId}-{index}");
         }
         using var client = IntakeWebDriver.CreateClient(factory);
