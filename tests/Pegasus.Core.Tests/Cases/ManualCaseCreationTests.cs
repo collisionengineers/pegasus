@@ -57,20 +57,26 @@ public sealed class ManualCaseCreationTests
         Assert.Equal("mcp:manual-create-automation", store.Request.OperationKey);
     }
 
+    /// <summary>
+    /// An Audit may be created directly (operator, 30 October 2026, R573): it
+    /// takes the same identity-critical facts as an Inspection, and its
+    /// original report is a Case requirement rather than a creation refusal.
+    /// </summary>
     [Fact]
-    public async Task RefusesAStandaloneAuditOutsideTheRetainedClassificationRoute()
+    public async Task AStandaloneAuditMayBeCreatedDirectly()
     {
-        var useCase = new CreateManualCase(new RecordingStore(), new CommittedWorkPublisherDouble());
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => useCase.ExecuteAsync(new(
+        await useCase.ExecuteAsync(new(
             Staff,
             "manual-create-2",
             "CE",
             CaseType.Audit,
             new(ClaimantName: "Jane Doe", ClaimNumber: "C-1", VehicleRegistration: "AB12CDE")),
-            CancellationToken.None));
+            CancellationToken.None);
 
-        Assert.Equal("The case type is invalid.", exception.Message);
+        Assert.Equal(CaseType.Audit, store.Request!.CaseType);
     }
 
     /// <summary>

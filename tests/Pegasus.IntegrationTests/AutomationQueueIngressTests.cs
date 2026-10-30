@@ -273,12 +273,28 @@ public sealed class AutomationQueueIngressTests
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_case_create", new
         {
             principalCode = QdosPrincipal.Code,
+            caseType = "Survey",
+            vehicleRegistration = "AB12CDE",
+            operationKey = "mcp:case-create-unknown"
+        })))
+        {
+            Assert.Contains("Inspection, Audit, InspectionAndAudit or Triage", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+        }
+
+        // An Audit may be created directly, as staff may (R573): it takes the
+        // Audit's own a. reference.
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_case_create", new
+        {
+            principalCode = QdosPrincipal.Code,
             caseType = "Audit",
             vehicleRegistration = "AB12CDE",
+            claimantName = "Automation Audit Claimant",
+            claimNumber = "AUTO-AUDIT-1",
             operationKey = "mcp:case-create-audit"
         })))
         {
-            Assert.Contains("Inspection, InspectionAndAudit or Triage", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+            var created = await ReadStructuredContentAsync(response);
+            Assert.StartsWith("a.", created.GetProperty("reference").GetString(), StringComparison.Ordinal);
         }
 
         using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_case_create", new

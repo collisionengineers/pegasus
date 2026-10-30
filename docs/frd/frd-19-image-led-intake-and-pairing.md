@@ -385,7 +385,8 @@ instruction, never formal Cases; its Show choice also lists the open or
 closed Unidentified items
 ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)).
 Rows show reference, registration,
-image count, custody, received, source, and chase facts;
+image count, received, source, and chase facts, and no custody (operator,
+30 October 2026, [R572](../rulings.md));
 `?tab=unassigned` selects the queue. Not ready holds only formal instructed Cases. Selecting a row
 shows a quick detail with the definition list, the open action, and **Add
 to an existing case**. The operator types a Case reference and presses the

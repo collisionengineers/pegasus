@@ -1,0 +1,56 @@
+@model bool
+@using Pegasus.Core.Documents
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload
+@* The Upload sheet's picker: the drop target with the native file input, and
+   the selected files under it. Upload draws it in its sheet and Create case in
+   its Files panel (FRD-18; operator, 30 October 2026, R574); upload.js keeps
+   the accumulated selection, validates it against the limits the enclosing
+   [data-upload-select] declares and lists it. The model is true when the
+   files go to a declared Case, so each file's row offers its Type. *@
+@if (Model)
+{
+    @* The type each file takes on the Case: upload.js draws this select on
+       every row that takes one (not a photograph, which is an Image, and not
+       a message), named for the file's place in the post. A file with no
+       choice, and the whole no-script post, files as Other (FRD-18; operator,
+       30 October 2026). *@
+    <template data-upload-type-template>
+        <label class="up-file-type">
+            <span class="sr-only">@Labels.Type</span>
+            <select>
+                @foreach (var role in DocumentTypePolicy.UploadChoices)
+                {
+                    <option value="@role" selected="@(role == DocumentTypePolicy.DefaultUploadType)">@OperatorLabels.DocumentRole(role)</option>
+                }
+            </select>
+        </label>
+    </template>
+}
+<span class="sr-only" data-select-heading>@Labels.ChooseHeading</span>
+<div class="up-alert up-alert--error" role="alert" tabindex="-1" hidden data-select-errors>
+    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-circle")" /></svg>
+    <div>
+        <strong data-select-error-title>@Labels.CheckFiles</strong>
+        <div data-select-error-list></div>
+    </div>
+</div>
+<div class="up-drop" data-drop>
+    <span class="up-drop-badge" aria-hidden="true">
+        <svg class="icon"><use href="@IconSprite.Href("icon-upload")" /></svg>
+    </span>
+    <h2 data-drop-heading>@Labels.DropHeading</h2>
+    <p>@Labels.AcceptedKinds<br />@Labels.AcceptedExtensions</p>
+    <input id="Upload" name="Upload" type="file" multiple class="up-file-input"
+           accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,.mp4,.mov,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png,video/mp4,video/quicktime" />
+    <label class="btn btn--primary" for="Upload" data-select-choose>
+        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg>
+        <span>@Labels.Choose</span>
+    </label>
+</div>
+<section class="up-evidence" aria-labelledby="up-selected-title" hidden data-select-files>
+    <header class="up-section-head">
+        <h2 id="up-selected-title">@Labels.SelectedFiles</h2>
+        <span data-select-count></span>
+    </header>
+    <ul class="up-file-list" data-select-list role="status" aria-live="polite"></ul>
+</section>

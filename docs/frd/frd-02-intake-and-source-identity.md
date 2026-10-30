@@ -86,12 +86,23 @@ work holds none; nothing already recorded is replaced (operator, 12 October
 **Direct Case creation** is a staff path that the Automation Actor also
 takes, through `pegasus_case_create`
 ([ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). It uses
-the same permanent Case/PO allocator as intake acceptance. The creator must
+the same permanent Case/PO allocator as intake acceptance. It creates an
+Inspection, an Audit, an Inspection and Audit or a Triage; an Audit created
+this way starts with **Original report missing** until a filed document is
+recorded as the original report
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
+operator, 30 October 2026, [R573](../rulings.md)). The creator must
 supply the identity-critical Case facts. The action is recorded in the
 creator's name. No intake receipt and no invented source provenance are
 created. Its Received date, which is the Case's instruction date, is the
 date it was created
 ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
+Files chosen on the form at creation are staff uploads for the new Case,
+filed through the declared-Case upload with the Type chosen for each
+([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)); none is the
+Case's Original source (operator, 30 October 2026, [R574](../rulings.md)).
+When the Principal inspects by images, the Case takes image-based
+assessment as its inspection mode, as an accepted intake does.
 Ordinary detail may still be missing, so the new Case starts in `Not ready`
 until its normal requirements are met. A Triage created this way needs only
 its Principal and registration, starts `Open` and follows the Triage states

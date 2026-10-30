@@ -827,10 +827,6 @@ public sealed class IndexModel(
             ("Registration", item.NormalizedVehicleRegistration),
             ("Images", imageCountLabel),
         };
-        if (item.Custody is { } custodyDetail)
-        {
-            facts.Add(("Box", OperatorLabels.ImageCustodyState(custodyDetail)));
-        }
         facts.Add(("Received", OperatorLabels.OfficeDate(item.RegisteredAtUtc)));
         facts.Add(("Source", OperatorLabels.SourceChannel(item.Source)));
         facts.Add(("Chase", OperatorLabels.ImageChaseState(

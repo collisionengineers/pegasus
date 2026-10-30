@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -95,8 +96,14 @@ public sealed class EfManualCaseCreationStore(
             return await CreateTriageAsync(
                 context, transaction, request, principal, allocated, fingerprint, now, cancellationToken);
         }
+        // An image-based Principal's Case takes its inspection mode from the
+        // Principal setting, as an accepted intake does (ADR-0018), so its
+        // address counts toward the instruction like the autofilled value.
+        var imageBased = principal.InspectionMode == PrincipalInspectionModePolicy.ImageBasedAssessmentCode;
         var completeness = new CaseCompleteness(
-            InstructionComplete: IsInstructionComplete(request.Data),
+            InstructionComplete: IsInstructionComplete(imageBased
+                ? request.Data with { InspectionAddress = Ext18InspectionAddressPolicy.ImageBasedAssessment }
+                : request.Data),
             ImagesComplete: false);
         var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
         var evaluation = CaseCompletenessPolicy.Evaluate(completeness, configuration);
@@ -127,6 +134,38 @@ public sealed class EfManualCaseCreationStore(
         var snapshot = CaseDataSnapshotFactory.CreateManual(
             caseEntity, evaluation, now);
         CaseDataFieldWriter.ApplyEditableData(context, snapshot, request.Data, request.Actor, now);
+        // The accepted Principal is the creator's confirmation, as on a
+        // receipt-backed staff acceptance (FRD-02): without it the match index
+        // projected no row and the Case export named no Work Provider.
+        CaseDataSnapshotFactory.AddStaffAllocatedPrincipal(
+            snapshot,
+            request.Actor,
+            principal.Code,
+            evaluation.PolicyKey,
+            evaluation.PolicyVersion,
+            now);
+        if (imageBased)
+        {
+            CaseDataSnapshotFactory.AddPrincipalInspectionMode(
+                snapshot,
+                principal.Code,
+                request.Actor.SubjectId,
+                request.Actor.SubjectId,
+                now);
+            context.CaseHistory.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                Case = caseEntity,
+                CaseId = caseId,
+                EventType = "principal_inspection_mode_applied",
+                Actor = request.Actor.SubjectId,
+                Reason = "Principal setting: inspection address autofilled as Image Based Assessment",
+                OccurredAtUtc = now,
+                OperationKey = $"principal-mode:{caseId:N}",
+                BeforeVersion = null,
+                AfterVersion = 0
+            });
+        }
         context.CaseDataSnapshots.Add(snapshot);
         CaseMatchIndexProjector.Apply(
             context,

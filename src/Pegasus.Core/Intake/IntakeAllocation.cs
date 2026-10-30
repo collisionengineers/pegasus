@@ -601,9 +601,10 @@ public sealed class AllocateIntake(
             IntakeAllocationRecoveryDisposition.ReloadThenRetry,
             "The receipt or allocation state changed. Reload it before retrying."),
         // An unclassified fault used to be terminal, which left an
-        // automatic standalone Audit with no route at all — staff cannot
-        // create an Audit by hand. It is therefore a reasoned staff retry of
-        // the same immutable command, which re-runs the retained evidence path.
+        // automatic standalone Audit with no route back to its retained
+        // evidence: an Audit created by hand starts without that evidence. It
+        // is therefore a reasoned staff retry of the same immutable command,
+        // which re-runs the retained evidence path.
         _ => (
             IntakeAllocationFailureKind.Unexpected,
             IntakeAllocationRecoveryDisposition.ReloadThenRetry,
