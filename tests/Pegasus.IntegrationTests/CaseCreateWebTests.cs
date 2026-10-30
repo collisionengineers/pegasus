@@ -61,6 +61,23 @@ public sealed partial class CaseCreateWebTests
         Assert.DoesNotContain("Open the received item", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The principal code box completes from the active Principals' codes.
+    /// </summary>
+    [Fact]
+    public async Task ManualCaseFormOffersTheActivePrincipalCodesAsCompletions()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+
+        Assert.Contains("list=\"principal-codes\"", form.Html, StringComparison.Ordinal);
+        Assert.Contains("<datalist id=\"principal-codes\">", form.Html, StringComparison.Ordinal);
+        Assert.Contains($"<option value=\"{PrincipalCode}\"></option>", form.Html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ManualCreateMakesAReceiptlessCaseWithStaffConfirmedFacts()
     {

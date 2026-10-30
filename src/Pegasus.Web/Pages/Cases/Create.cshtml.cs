@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
 
@@ -60,6 +61,7 @@ public sealed partial class CreateModel(
     IPrincipalInspectionModeStore principalInspectionModeStore,
     ICreateManualCase createManualCase,
     IContactDirectoryQueries contacts,
+    IImageIntakeQueries principalQueries,
     IGroupedIntakeSubmission groupedSubmission,
     TimeProvider timeProvider,
     ILogger<CreateModel> logger,
@@ -96,6 +98,9 @@ public sealed partial class CreateModel(
     public bool PrincipalIsImageBased { get; private set; }
 
     public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
+
+    /// <summary>The active Principals' codes, the principal code box's completions.</summary>
+    public IReadOnlyList<string> PrincipalCodes { get; private set; } = [];
 
     [BindProperty]
     public bool IsManual { get; set; }
@@ -260,7 +265,7 @@ public sealed partial class CreateModel(
             OperationId = NewOperationKey();
             ExternalReceiptToken = NewOperationKey();
             CaseType = CaseType.Inspection;
-            await PopulateClaimSourceChoicesAsync(actor, cancellationToken);
+            await PopulateManualChoicesAsync(actor, cancellationToken);
             return Page();
         }
 
@@ -536,7 +541,7 @@ public sealed partial class CreateModel(
         }
 
         var mileageUnit = VehicleMileage.HasValue ? VehicleMileageUnit : null;
-        await PopulateClaimSourceChoicesAsync(actor, cancellationToken);
+        await PopulateManualChoicesAsync(actor, cancellationToken);
         // A Triage Case asks only for its Principal and the registration; the
         // other manual fields are not part of it.
         var isTriage = CaseType == CaseType.Triage;
@@ -695,12 +700,16 @@ public sealed partial class CreateModel(
         return RedirectToPage("/Cases/Details", new { id = identity.CaseId, section = "files" });
     }
 
-    private async Task PopulateClaimSourceChoicesAsync(
+    private async Task PopulateManualChoicesAsync(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        ClaimSourceChoices = await contacts.ListByRoleAsync(
+        var claimSourcesRead = contacts.ListByRoleAsync(
             actor, ContactRole.ClaimSource, cancellationToken);
+        var principalCodesRead = principalQueries.ListActivePrincipalCodesAsync(cancellationToken);
+        await Task.WhenAll(claimSourcesRead, principalCodesRead);
+        ClaimSourceChoices = await claimSourcesRead;
+        PrincipalCodes = await principalCodesRead;
     }
 
     private ContactChoice? ResolveClaimSource()
@@ -904,6 +913,7 @@ public sealed partial class CreateModel(
         var effectivePrincipalCode = Optional(PrincipalCode)
             ?? receipt.InstructionDraft?.SuggestedPrincipalCode;
         PrincipalIsImageBased = await IsImageBasedAsync(effectivePrincipalCode, cancellationToken);
+        PrincipalCodes = await principalQueries.ListActivePrincipalCodesAsync(cancellationToken);
         AddressResolution = await addressResolutionStore.GetAsync(receiptId, cancellationToken)
             ?? new(
                 receiptId,

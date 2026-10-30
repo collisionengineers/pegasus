@@ -46,6 +46,15 @@
     }
 }
 
+@* The active Principals' codes, offered as completions on either form's
+   principal code; the box still takes any code typed. *@
+<datalist id="principal-codes">
+    @foreach (var code in Model.PrincipalCodes)
+    {
+        <option value="@code"></option>
+    }
+</datalist>
+
 @if (Model.IsManual)
 {
     <header class="page-header">
@@ -67,7 +76,7 @@
                 <div class="grid grid-3">
                     <div class="field">
                         <label class="req" asp-for="PrincipalCode">Principal code</label>
-                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" required />
+                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" list="principal-codes" required />
                         <span asp-validation-for="PrincipalCode" class="field-error"></span>
                     </div>
                     <div class="field" data-triage-hidden>
@@ -361,7 +370,7 @@ else
                 <div class="grid grid-2">
                     <div class="field">
                         <label asp-for="PrincipalCode">Confirmed principal code</label>
-                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" />
+                        <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" list="principal-codes" />
                         <span asp-validation-for="PrincipalCode" class="field-error"></span>
                     </div>
                     <div class="field">

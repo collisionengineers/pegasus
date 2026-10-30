@@ -92,7 +92,10 @@ this way starts with **Original report missing** until a filed document is
 recorded as the original report
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
 operator, 30 October 2026, [R573](../rulings.md)). The creator must
-supply the identity-critical Case facts. The action is recorded in the
+supply the identity-critical Case facts. The principal code box offers the
+active Principals' codes as completions while it is typed; a code it does not
+offer can still be entered and is checked on create (operator, 30 October
+2026, [R575](../rulings.md)). The action is recorded in the
 creator's name. No intake receipt and no invented source provenance are
 created. Its Received date, which is the Case's instruction date, is the
 date it was created
