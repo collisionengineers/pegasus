@@ -122,7 +122,7 @@ export async function runClassifier(log: Logger): Promise<RunSummary> {
           permissionMode: "dontAsk",
           settingSources: [],
           persistSession: false,
-          // Up to two lookups beside the list, classify and link per e-mail (R550).
+          // Up to two lookups beside the list, classify and link per e-mail (R561).
           maxTurns: config.batch * 5 + 5,
           maxBudgetUsd: config.maxBudgetUsd,
           abortController,

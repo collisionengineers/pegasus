@@ -1442,7 +1442,7 @@ public sealed class MailWorkspaceWebTests
     [InlineData(MailCategory.TriageRequest, null, "amber", null, "/Inbox")]
     // An unlinked cancellation waits in No Case Found (D2).
     [InlineData(MailCategory.Cancellation, null, "neutral", null, "/Inbox?queue=no_case_found")]
-    // A Pre-Pegasus case leaves No Case Found and lists in All (R550).
+    // A Pre-Pegasus case leaves No Case Found and lists in All (R561).
     [InlineData(MailCategory.PrePegasusCase, null, "neutral", null, "/Inbox")]
     public async Task TheTypeCellIsTheCategorysChipWithTheWorkTypeBeneath(
         MailCategory category, string? caseType, string tone, string? sub, string list)
@@ -2316,7 +2316,7 @@ public sealed class MailWorkspaceWebTests
     /// <summary>
     /// A message decided to be a Pre-Pegasus case has left No Case Found by
     /// that decision alone, so opened from that view it says so, and opened
-    /// from All it does not (operator, 30 October 2026, R550).
+    /// from All it does not (operator, 30 October 2026, R561).
     /// </summary>
     [Fact]
     public async Task APrePegasusCaseMessageIsOutsideTheNoCaseFoundViewAndInsideAll()
@@ -2358,7 +2358,7 @@ public sealed class MailWorkspaceWebTests
     /// <summary>
     /// The outcome chip names the category for a Pre-Pegasus case, as it
     /// names Triage for a Triage request, instead of the scope the message
-    /// has left (operator, 30 October 2026, R550).
+    /// has left (operator, 30 October 2026, R561).
     /// </summary>
     [Fact]
     public void ThePrePegasusCaseOutcomeChipNamesTheCategoryNotNoCaseFound()

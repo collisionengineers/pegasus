@@ -6,7 +6,7 @@ namespace Pegasus.Core.Intake;
 /// Whether a read-only lookup reached its source. Unavailable is a source
 /// that refused, throttled or failed, or one no host has composed; a caller
 /// shows it as such and never as "nothing found" (operator, 30 October 2026,
-/// R550).
+/// R561).
 /// </summary>
 public enum OldSystemLookupState
 {
@@ -114,7 +114,7 @@ public static class OldSystemLookupBounds
 
 /// <summary>
 /// Searches the old system's case folders by name for a caseworker or the
-/// Automation actor (R550). Read-only.
+/// Automation actor (R561). Read-only.
 /// </summary>
 public sealed class SearchOldSystemCaseFolders(IOldSystemCaseFolderSearch source)
 {
@@ -133,7 +133,7 @@ public sealed class SearchOldSystemCaseFolders(IOldSystemCaseFolderSearch source
 
 /// <summary>
 /// Searches the approved mailboxes for a term, for a caseworker or the
-/// Automation actor (R550). Read-only; headers only.
+/// Automation actor (R561). Read-only; headers only.
 /// </summary>
 public sealed class SearchApprovedMailboxes(IApprovedMailboxSearchSource source)
 {

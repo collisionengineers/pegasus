@@ -1353,7 +1353,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             // row exists; else the Case the latest allocation created, unless an
             // association was reversed; else the Triage the receipt opened. A
             // message decided to be a Pre-Pegasus case has left the scope
-            // (operator, 30 October 2026, R550).
+            // (operator, 30 October 2026, R561).
             return messages.Where(message => context.IntakeReceipts.Any(receipt =>
                 receipt.SourceChannel == "mailbox"
                 && receipt.ExternalReceiptToken == message.ExternalReceiptToken

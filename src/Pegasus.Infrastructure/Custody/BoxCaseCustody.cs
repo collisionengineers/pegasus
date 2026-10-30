@@ -34,7 +34,7 @@ public sealed record BoxCustodyOptions(
     /// <summary>
     /// The old system's case folders, outside the custody root, which Pegasus
     /// reads in one way only: a folder-name search for the Pre-Pegasus case
-    /// lookup (operator, 30 October 2026, R550). Nothing below it is written.
+    /// lookup (operator, 30 October 2026, R561). Nothing below it is written.
     /// </summary>
     public const string ProductionOldSystemRootFolderId = "3220448509";
 
@@ -610,7 +610,7 @@ internal sealed partial class BoxContentClient(
 
     /// <summary>
     /// Box's search, confined to folders below <paramref name="ancestorFolderId"/>
-    /// (R550). The ancestor is sent as the search's own fence and checked
+    /// (R561). The ancestor is sent as the search's own fence and checked
     /// again on each hit's path, so a hit from anywhere else is dropped. This
     /// is the one read that does not walk to the custody root: it names a
     /// different root, and reads names only.

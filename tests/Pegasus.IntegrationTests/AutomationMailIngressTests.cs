@@ -26,7 +26,7 @@ public sealed class AutomationMailIngressTests
     private const string MailboxAddress = "instructions@collisionengineers.co.uk";
 
     /// <summary>
-    /// The two read-only old-system lookups (R550) sit in automation.mail,
+    /// The two read-only old-system lookups (R561) sit in automation.mail,
     /// refuse a token without it, refuse a blank term before any source is
     /// asked, and report a source this host has not composed as unavailable
     /// rather than as nothing found.

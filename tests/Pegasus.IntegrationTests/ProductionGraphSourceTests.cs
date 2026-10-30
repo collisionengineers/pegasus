@@ -60,7 +60,7 @@ public sealed class ProductionGraphSourceTests
     }
 
     /// <summary>
-    /// The approved-mailbox search (R550) issues Graph's message search with
+    /// The approved-mailbox search (R561) issues Graph's message search with
     /// the quoted term, the header fields and the cap, and no ordering; a
     /// mailbox the tenant refuses is reported unavailable beside the one that
     /// answered, and the result is still available.

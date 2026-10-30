@@ -592,7 +592,7 @@ internal sealed class GraphMailClient(
     }
 
     /// <summary>
-    /// Graph's message search over one mailbox (R550): <c>$search</c> cannot be
+    /// Graph's message search over one mailbox (R561): <c>$search</c> cannot be
     /// combined with <c>$filter</c> or <c>$orderby</c>, so the URI carries the
     /// quoted term, the header fields and the cap only.
     /// </summary>
@@ -1391,7 +1391,7 @@ internal sealed record GraphDeltaPage(
     IReadOnlyList<GraphDeltaItem> Items, Uri NextUri, bool HasNextPage);
 internal sealed record GraphFolderPage(IReadOnlyList<GraphDeltaItem> Items, Uri? NextUri);
 
-/// <summary>One header a Graph message search returned (R550).</summary>
+/// <summary>One header a Graph message search returned (R561).</summary>
 internal sealed record GraphSearchHit(
     string Id,
     string? Subject,

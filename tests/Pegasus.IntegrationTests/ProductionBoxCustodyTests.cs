@@ -20,7 +20,7 @@ public sealed class ProductionBoxCustodyTests
         """;
 
     /// <summary>
-    /// The old-system folder search (R550) is Box's search fenced to the
+    /// The old-system folder search (R561) is Box's search fenced to the
     /// configured old-system folder: a hit from any other ancestry or of any
     /// other type is dropped, names only come back, and without the folder
     /// configured the answer is Unavailable with no request made.

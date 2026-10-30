@@ -728,7 +728,7 @@ documentStorage: composesLocalArtifactRoot
             liveBoxCustody
                 ? BoxCustodyOptions.DevelopmentRootFolderId
                 : BoxCustodyOptions.ProductionRootFolderId,
-            // The old system's folder, read by name search only (R550).
+            // The old system's folder, read by name search only (R561).
             builder.Configuration["Box:OldSystemRootFolderId"]))));
 // The staff-identity surfaces need this host's Identity and key ring.
 builder.Services.AddPegasusStaffIdentity();

@@ -2358,7 +2358,7 @@ public sealed class MessageModel(
         { Classification.IsTriageRequest: true } => OperatorLabels.Inbox.Triage,
         // A Pre-Pegasus case has left No Case Found by decision, so the chip
         // names the category rather than the scope it is no longer in
-        // (operator, 30 October 2026, R550).
+        // (operator, 30 October 2026, R561).
         { Classification: { } decision } when decision.Is(MailCategory.PrePegasusCase)
             => OperatorLabels.MailClassification(MailCategory.PrePegasusCase),
         _ => OutcomeLabel(summary.ProcessingOutcome)

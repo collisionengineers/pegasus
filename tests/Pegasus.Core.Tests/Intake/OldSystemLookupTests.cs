@@ -4,7 +4,7 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Core.Tests.Intake;
 
 /// <summary>
-/// The two read-only old-system lookups (operator, 30 October 2026, R550):
+/// The two read-only old-system lookups (operator, 30 October 2026, R561):
 /// casework authorisation, the term and cap bounds of the Deleted Items
 /// search they replace, and an Unavailable source reported as such.
 /// </summary>

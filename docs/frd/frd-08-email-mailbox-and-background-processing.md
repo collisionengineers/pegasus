@@ -113,7 +113,7 @@ later corrections.
 | New instruction | Accepted Principal Audit, diminution or Inspection instruction evidence; initial work from a client with no accepted route; website-origin evidence meeting the accepted independent fingerprints. A body keyword or quoted old instruction is not enough | route predicate or staff | Carries a work type: Inspection, Audit, or Inspection and Audit. Offers **Create case**; automatic case allocation goes by the work type |
 | Triage request | Accepted Triage request; with a missing VRM it waits in No Case Found under FRD-03 | route predicate or staff | No automatic case: opens the Triage workflow on its accepted Triage match evidence ([FRD-03](frd-03-triage.md)); it gets no Unidentified item |
 | Cancellation | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | The Case aside's Cancellation received row and the Cancellation received staff notice |
-| Pre-Pegasus case | Mail about a case still run in the old system, which has no Case in Pegasus: the e-mail chases or refers to a case Pegasus does not hold (operator, 30 October 2026, [R550](../rulings.md)) | staff, the Automation actor or the classifier agent; no predicate assigns it | Leaves No Case Found and is listed in All with its Type chip; the message record's outcome chip reads Pre-Pegasus case; Link to case, Create case and the other acts are unchanged ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) |
+| Pre-Pegasus case | Mail about a case still run in the old system, which has no Case in Pegasus: the e-mail chases or refers to a case Pegasus does not hold (operator, 30 October 2026, [R561](../rulings.md)) | staff, the Automation actor or the classifier agent; no predicate assigns it | Leaves No Case Found and is listed in All with its Type chip; the message record's outcome chip reads Pre-Pegasus case; Link to case, Create case and the other acts are unchanged ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) |
 | Correspondence | Everything else. Not a category. Garage allocation, repairs authorised, report chase and automatic replies are correspondence | route predicate or staff | Linked, it is Case correspondence. Unlinked, it is No Case Found. Register images is offered only while the message is unlinked, image-only and has no category ([FRD-19](frd-19-image-led-intake-and-pairing.md)) |
 
 Unclassified is the explicit abstention when no accepted predicate matches
@@ -171,7 +171,7 @@ or a Principal alone (operator, 15 October 2026). It may set Pre-Pegasus case
 when the e-mail chases or refers to a case Pegasus does not hold, and it has
 two read-only lookups for that: `pegasus_mail_mailbox_search` over the
 approved mailboxes and `pegasus_old_system_folder_search` under the
-old-system Box folder (operator, 30 October 2026, R550;
+old-system Box folder (operator, 30 October 2026, R561;
 [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)).
 
 **History.** Every automated or human classification decision keeps the

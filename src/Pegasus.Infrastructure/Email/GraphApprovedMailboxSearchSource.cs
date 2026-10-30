@@ -7,7 +7,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Email;
 
 /// <summary>
-/// The approved-mailbox search port over Graph (R550). It asks each pollable
+/// The approved-mailbox search port over Graph (R561). It asks each pollable
 /// approved mailbox, or the one named, and reports a mailbox the tenant has
 /// not admitted, or one that throttled or failed, as Unavailable rather than
 /// empty. Read-only: nothing is marked read, moved or changed.

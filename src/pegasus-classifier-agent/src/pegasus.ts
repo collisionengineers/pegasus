@@ -161,12 +161,12 @@ export class PegasusMail {
     return this.call("pegasus_mail_open_query", args);
   }
 
-  /** The read-only old-system folder search (R550): names and identities only. */
+  /** The read-only old-system folder search (R561): names and identities only. */
   searchOldSystemFolders(query: string, pageSize: number): Promise<OldSystemFolderSearch> {
     return this.call("pegasus_old_system_folder_search", { query, pageSize });
   }
 
-  /** The read-only approved-mailbox search (R550): message headers only. */
+  /** The read-only approved-mailbox search (R561): message headers only. */
   searchMailboxes(query: string, pageSize: number): Promise<MailboxSearch> {
     return this.call("pegasus_mail_mailbox_search", { query, pageSize });
   }

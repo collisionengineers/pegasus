@@ -36,7 +36,7 @@ Automation MCP client, not a composition root. It reaches Pegasus only through
 caller does, so Pegasus applies the same checks to its writes. Its six tools
 list, classify and link mail that is Unclassified or has no Case, open a
 query, and look up the old system's Box folders and the approved mailboxes
-through Pegasus's two read-only lookup tools (R550); they leave any message
+through Pegasus's two read-only lookup tools (R561); they leave any message
 staff or an Automation caller has decided.
 
 ## Flows and data ownership

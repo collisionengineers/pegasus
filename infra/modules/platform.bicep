@@ -453,7 +453,7 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         { name: 'Box__RootFolderId', value: '405543781910' }
         { name: 'Box__HoldingFolderId', value: boxHoldingFolderId }
         // The old system's case folders, read by name search only for the
-        // Pre-Pegasus case lookup (R550). Web alone serves that MCP tool.
+        // Pre-Pegasus case lookup (R561). Web alone serves that MCP tool.
         { name: 'Box__OldSystemRootFolderId', value: '3220448509' }
         { name: 'Box__ConfigJson', value: '@Microsoft.KeyVault(SecretUri=${boxConfigJsonSecretUri})' }
         { name: 'Box__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${boxClientSecretSecretUri})' }

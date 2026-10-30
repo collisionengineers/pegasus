@@ -450,7 +450,7 @@ replays by its operation key.
   ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
 - `pegasus_mail_mailbox_search` and `pegasus_old_system_folder_search` are
   the Actor's two read-only lookups outside Pegasus's retained records
-  (operator, 30 October 2026, R550): the first searches one or every
+  (operator, 30 October 2026, R561): the first searches one or every
   approved mailbox in Outlook for a term and returns message headers only
   (subject, sender, received time, preview), marking nothing read and moving
   nothing; the second searches folder names below the old system's Box
@@ -605,8 +605,8 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_link_case` | Link the message to a Case or Triage Case through the staff command | one-command lease |
 | `automation.mail` | `pegasus_mail_open_query` | Open a query on a linked message whose report is sent | key only |
 | `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
-| `automation.mail` | `pegasus_mail_mailbox_search` | Read-only: message headers (subject, sender, received time, preview) matching a term in one or every approved mailbox; a mailbox the tenant has not admitted reports unavailable (R550) | none |
-| `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; unavailable until that folder is configured (R550) | none |
+| `automation.mail` | `pegasus_mail_mailbox_search` | Read-only: message headers (subject, sender, received time, preview) matching a term in one or every approved mailbox; a mailbox the tenant has not admitted reports unavailable (R561) | none |
+| `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; unavailable until that folder is configured (R561) | none |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone` and `aiJobId`), `forward`, `triage_reply` | Case or Triage version and key |

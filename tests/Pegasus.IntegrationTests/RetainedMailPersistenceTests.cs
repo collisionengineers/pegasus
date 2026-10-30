@@ -694,7 +694,7 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
     /// <summary>
     /// A Pre-Pegasus case leaves No Case Found the moment it is set and is
     /// listed in All; correcting it back to correspondence returns it
-    /// (operator, 30 October 2026, R550). The SQL proof of the scope clauses.
+    /// (operator, 30 October 2026, R561). The SQL proof of the scope clauses.
     /// </summary>
     [Fact]
     public async Task APrePegasusCaseCorrectionLeavesNoCaseFoundAndListsInAllAndCorrectingBackReturnsIt()

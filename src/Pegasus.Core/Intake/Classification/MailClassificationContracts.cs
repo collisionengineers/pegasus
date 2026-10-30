@@ -4,7 +4,7 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// What a received message is: one of four categories (operator, 27 October
-/// 2026; Pre-Pegasus case added 30 October 2026, R550). Every other message
+/// 2026; Pre-Pegasus case added 30 October 2026, R561). Every other message
 /// has no category: linked, it is Case correspondence; unlinked, it waits in
 /// No Case Found. A message nothing has decided yet is Unclassified, not a
 /// category. Sent mail carries no category. FRD-08 owns what each one means.

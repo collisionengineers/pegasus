@@ -134,7 +134,7 @@ internal sealed record MailToolMailboxSearchMailbox(
     string MailboxAddress,
     string State);
 
-/// <summary>The read-only approved-mailbox search (R550): headers only.</summary>
+/// <summary>The read-only approved-mailbox search (R561): headers only.</summary>
 internal sealed record MailToolMailboxSearch(
     string Query,
     IReadOnlyList<MailToolMailboxSearchItem> Items,
@@ -148,7 +148,7 @@ internal sealed record MailToolOldSystemFolder(
     string Name,
     DateTimeOffset? ModifiedAtUtc);
 
-/// <summary>The read-only old-system folder search (R550): names only.</summary>
+/// <summary>The read-only old-system folder search (R561): names only.</summary>
 internal sealed record MailToolOldSystemFolderSearch(
     string Query,
     IReadOnlyList<MailToolOldSystemFolder> Items,

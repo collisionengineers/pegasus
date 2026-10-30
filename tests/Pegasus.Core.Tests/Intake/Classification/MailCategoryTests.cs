@@ -12,7 +12,7 @@ public sealed class MailCategoryTests
     }
 
     /// <summary>
-    /// Pre-Pegasus case (operator, 30 October 2026, R550) is a classified
+    /// Pre-Pegasus case (operator, 30 October 2026, R561) is a classified
     /// category with no work type, set only by correction.
     /// </summary>
     [Fact]

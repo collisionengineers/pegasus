@@ -145,7 +145,7 @@ public static class DependencyInjection
         services.AddScoped<DismissRetainedMail>();
         services.AddScoped<RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
-        // The read-only old-system lookups (R550): Unavailable until a host
+        // The read-only old-system lookups (R561): Unavailable until a host
         // composes the Graph and Box adapters, and the MCP tools say so.
         services.TryAddSingleton<IApprovedMailboxSearchSource, UnavailableApprovedMailboxSearchSource>();
         services.TryAddSingleton<IOldSystemCaseFolderSearch, UnavailableOldSystemCaseFolderSearch>();
@@ -962,7 +962,7 @@ public static class DependencyInjection
         services.AddSingleton<IDocumentContentStore>(provider => new BoxDocumentContentStore(
             provider.GetRequiredService<BoxContentClient>()));
         // The old-system folder search behind pegasus_old_system_folder_search
-        // (R550): Unavailable until Box:OldSystemRootFolderId names the folder.
+        // (R561): Unavailable until Box:OldSystemRootFolderId names the folder.
         services.Replace(ServiceDescriptor.Singleton<IOldSystemCaseFolderSearch>(provider =>
             new BoxOldSystemCaseFolderSearch(
                 provider.GetRequiredService<BoxContentClient>(),
@@ -1179,7 +1179,7 @@ public static class DependencyInjection
         // Web sends and reads; the Sent-evidence poll that settles Submitted
         // into Sent is the Worker's alone (AddProductionExternalAdapters).
         AddStaffMailSending(services);
-        // The approved-mailbox search behind pegasus_mail_mailbox_search (R550).
+        // The approved-mailbox search behind pegasus_mail_mailbox_search (R561).
         services.Replace(ServiceDescriptor.Scoped<IApprovedMailboxSearchSource, GraphApprovedMailboxSearchSource>());
         return services;
     }

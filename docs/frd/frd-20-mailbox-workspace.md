@@ -38,7 +38,7 @@ There is no Category filter and no bulk Correct classification. The bulk bar
 **All** lists linked mail, a New instruction, a Triage request, a Pre-Pegasus
 case, or a receipt nothing has classified yet. **No Case Found** lists
 received mail linked to no Case that is not decided to be a Pre-Pegasus case
-(operator, 30 October 2026, R550). The ledger is full width: a select-all tick, then Case (None, in quiet
+(operator, 30 October 2026, R561). The ledger is full width: a select-all tick, then Case (None, in quiet
 type, when unlinked), Type, Subject, Sender (with the Principal under it) and
 Received. Type is the category's status chip; a New instruction carries its
 work type beneath it as a plain neutral chip, and Correspondence is a neutral
@@ -67,7 +67,7 @@ active association, accepted link, Case created by its allocation, or
 Triage it opened. Once the message is linked to a Case, it leaves the
 scope. So does a message whose Type is set to Pre-Pegasus case: it is listed
 in All, and its outcome chip reads **Pre-Pegasus case** (operator, 30 October
-2026, R550). Only mail carrying nothing but photographs becomes an Unidentified
+2026, R561). Only mail carrying nothing but photographs becomes an Unidentified
 item; any other e-mail never does
 ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference))
 and is refused by Dismiss. A message whose processing left it for sorting

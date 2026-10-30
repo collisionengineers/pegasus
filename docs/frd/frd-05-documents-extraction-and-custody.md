@@ -293,7 +293,7 @@ behind `pegasus_old_system_folder_search`, for the Pre-Pegasus case lookup
 ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction),
 [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)). It
 returns names and identities; nothing below that folder is read as content,
-written, moved or filed (operator, 30 October 2026, R550).
+written, moved or filed (operator, 30 October 2026, R561).
 
 An inline image preview is served through this same cached content path,
 never as an audited download. Every read re-verifies the source content hash

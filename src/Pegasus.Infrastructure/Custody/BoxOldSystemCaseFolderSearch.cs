@@ -4,7 +4,7 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Infrastructure.Custody;
 
 /// <summary>
-/// The old-system folder search port over Box (R550): a name search below
+/// The old-system folder search port over Box (R561): a name search below
 /// the configured old-system folder, returning names and identities only.
 /// Without that folder configured, or when Box refuses, throttles or fails,
 /// the answer is Unavailable rather than empty. Nothing is written.
