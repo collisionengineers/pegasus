@@ -33,9 +33,11 @@ The mail classifier agent (`src/pegasus-classifier-agent`, TypeScript on its
 own Flex Consumption Function App from `infra/modules/classifier.bicep`) is an
 Automation MCP client, not a composition root. It reaches Pegasus only through
 `/mcp` under `automation.mail` and calls the mail tools as any Automation
-caller does, so Pegasus applies the same checks to its writes. Its three tools
-list, classify and link mail that is Unclassified or has no Case, and leave
-any message staff or an Automation caller has decided.
+caller does, so Pegasus applies the same checks to its writes. Its six tools
+list, classify and link mail that is Unclassified or has no Case, open a
+query, and look up the old system's Box folders and the approved mailboxes
+through Pegasus's two read-only lookup tools (R550); they leave any message
+staff or an Automation caller has decided.
 
 ## Flows and data ownership
 
@@ -101,7 +103,7 @@ any message staff or an Automation caller has decided.
 | Core source-download contract and policy | `src/Pegasus.Core/Intake/DownloadIntakeSource.cs`, `src/Pegasus.Core/Intake/IntakeContracts.cs`; the upload review's image from intake bytes, `src/Pegasus.Core/Intake/ReadUploadedImage.cs` |
 | QDOS extraction policy | `src/Pegasus.Core/Intake/DirectPrincipals/Qdos/QdosInstructionExtractionPolicy.cs` |
 | Evidenced principal mail route, classification, and case-match policies | `src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`; the intermediaries the route reads from the Contacts directory: `src/Pegasus.Core/Intake/IntermediaryDomains.cs` (`IIntermediaryRegistry`, `IntermediaryDomains`), `src/Pegasus.Infrastructure/Persistence/EfIntermediaryRegistry.cs` ([ADR-0078](adr/0078-intermediaries-are-linked-claim-sources.md)) |
-| Core mail categories (three: New instruction, Triage request, Cancellation; [ADR-0085](adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)) | `src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs` (`MailCategory`, `MailCategories`, `MailClassificationResult.OpensQuery`) |
+| Core mail categories (four: New instruction, Triage request, Cancellation, Pre-Pegasus case; [ADR-0085](adr/0085-mail-is-instructions-or-correspondence-and-queries-are-assignable.md)) | `src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs` (`MailCategory`, `MailCategories`, `MailClassificationResult.OpensQuery`) |
 | Query criteria on a joined message | `CaseQueryRules.OpensOnMailJoined`; `EfIntakeMutationStore` opens through `CaseQueryLedger.OpenForMessageAsync` when the decision's `OpensQuery` is set; a category correction does not open or withdraw a query |
 | Core case-match evaluator and `CaseMatchIndex` read model | `src/Pegasus.Core/Intake/CaseMatching/` (the shared evaluator and `principal_case_match` policy, the `mail_case_association` v2 policy in `AutomaticMailCaseAssociation.cs`, its bounded claim-reference tokens in `MailClaimReferenceTokens.cs`), `src/Pegasus.Infrastructure/Persistence/CaseMatchEntities.cs` |
 | Core image-intake registration, pairing, and lifecycle use cases | `src/Pegasus.Core/ImageIntake/` |

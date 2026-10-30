@@ -35,9 +35,10 @@ reference`), All principals, All Mailboxes, the count and Received order.
 There is no Category filter and no bulk Correct classification. The bulk bar
 (Dismiss, or Restore on Dismissed) is hidden until a row is ticked.
 
-**All** lists linked mail, a New instruction, a Triage request, or a receipt
-nothing has classified yet. **No Case Found** lists received mail linked to no
-Case. The ledger is full width: a select-all tick, then Case (None, in quiet
+**All** lists linked mail, a New instruction, a Triage request, a Pre-Pegasus
+case, or a receipt nothing has classified yet. **No Case Found** lists
+received mail linked to no Case that is not decided to be a Pre-Pegasus case
+(operator, 30 October 2026, R550). The ledger is full width: a select-all tick, then Case (None, in quiet
 type, when unlinked), Type, Subject, Sender (with the Principal under it) and
 Received. A row click opens `#mailMessageDialog`.
 
@@ -61,7 +62,9 @@ The No Case Found scope (`queue=no_case_found`, operator 13 October 2026)
 lists received, not-dismissed mail whose receipt is linked to no Case: no
 active association, accepted link, Case created by its allocation, or
 Triage it opened. Once the message is linked to a Case, it leaves the
-scope. Only mail carrying nothing but photographs becomes an Unidentified
+scope. So does a message whose Type is set to Pre-Pegasus case: it is listed
+in All, and its outcome chip reads **Pre-Pegasus case** (operator, 30 October
+2026, R550). Only mail carrying nothing but photographs becomes an Unidentified
 item; any other e-mail never does
 ([FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference))
 and is refused by Dismiss. A message whose processing left it for sorting
@@ -159,7 +162,8 @@ menu holds, in order, Case, Type, Query, Change case and Decided. Type is one
 select. It posts at once and records the fixed reason "Corrected from the
 Inbox"; no reason is typed. The select's New instruction values are combined
 (`new-instruction:Inspection` and the same shape for Audit and Inspection and
-Audit). A split New instruction plus work type is the same correction. Query
+Audit). A split New instruction plus work type is the same correction. The
+select also offers Pre-Pegasus case (`pre-pegasus-case`). Query
 is **Open query** or **Mark done**, the Case's own handlers. Change case
 links to Place on Hold or Close case only when that Case allows the act.
 Register images is offered on an unlinked, uncategorised image-only message.

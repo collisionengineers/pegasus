@@ -438,7 +438,7 @@ replays by its operation key.
   tools in scope `automation.mail` (operator ruling, 15 October 2026).
 - `pegasus_mail_list` folder is `inbox`, `sent` or `dismissed`.
 - `pegasus_mail_correct_classification` takes `correspondence`, one of the
-  three category codes, or `new-instruction:Inspection` (and Audit,
+  four category codes, or `new-instruction:Inspection` (and Audit,
   InspectionAndAudit), with a reason, as the staff Type select does
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
 - `pegasus_mail_link_destinations` lists the Cases and Triage Cases the
@@ -448,6 +448,20 @@ replays by its operation key.
 - `pegasus_mail_action` with `dismiss` or `restore` changes the message's
   Pegasus scope only
   ([FRD-20](frd-20-mailbox-workspace.md#dismiss)).
+- `pegasus_mail_mailbox_search` and `pegasus_old_system_folder_search` are
+  the Actor's two read-only lookups outside Pegasus's retained records
+  (operator, 30 October 2026, R550): the first searches one or every
+  approved mailbox in Outlook for a term and returns message headers only
+  (subject, sender, received time, preview), marking nothing read and moving
+  nothing; the second searches folder names below the old system's Box
+  folder and returns names and identities only
+  ([FRD-05](frd-05-documents-extraction-and-custody.md#custody-and-derived-reads)).
+  Each takes a term of 1 to 200 characters and at most 100 items, the
+  bounds of the staff Deleted Items search they replace, and reports a
+  source that refused, throttled, failed or is not composed as
+  `unavailable`, never as nothing found. They exist so the classifier
+  agent can tell a Pre-Pegasus case from correspondence
+  ([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction)).
 - `pegasus_work_centre_dismiss` dismisses a record from the Work Centre for
   everyone, as a row's **Dismiss** does. The record id is the Case, the
   Unidentified item, the AI job, or — for a System Action — the underlying
@@ -543,7 +557,7 @@ server's instructions restate this document's cross-tool rules and make
 none. The seven servers of Release 123 at `/mcp/<scope word>` are replaced,
 not aliased: an Administrator adds one connector and consents once.
 
-The Actor's whole inventory, 69 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 71 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -591,6 +605,8 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_link_case` | Link the message to a Case or Triage Case through the staff command | one-command lease |
 | `automation.mail` | `pegasus_mail_open_query` | Open a query on a linked message whose report is sent | key only |
 | `automation.mail` | `pegasus_mail_action` | `dismiss` or `restore` in Pegasus | key |
+| `automation.mail` | `pegasus_mail_mailbox_search` | Read-only: message headers (subject, sender, received time, preview) matching a term in one or every approved mailbox; a mailbox the tenant has not admitted reports unavailable (R550) | none |
+| `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; unavailable until that folder is configured (R550) | none |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does | one-command lease |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone` and `aiJobId`), `forward`, `triage_reply` | Case or Triage version and key |

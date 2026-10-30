@@ -1,8 +1,10 @@
-// The agent's only three tools, served in-process. Each write re-reads the
-// message from Pegasus and refuses it, without calling Pegasus, when staff have
-// decided it or its classification version or linked Case differs from what
-// this run listed (or last wrote itself); Pegasus then applies its own checks
-// (versions, leases, link rules) as it does for staff.
+// The agent's six tools, served in-process: one list, three writes and two
+// read-only lookups. Each write re-reads the message from Pegasus and refuses
+// it, without calling Pegasus, when staff have decided it or its
+// classification version or linked Case differs from what this run listed (or
+// last wrote itself); Pegasus then applies its own checks (versions, leases,
+// link rules) as it does for staff. The lookups read the old system's Box
+// folders and the approved mailboxes through Pegasus's own read-only tools.
 
 import { randomUUID } from "node:crypto";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
@@ -21,7 +23,17 @@ export interface Logger {
 }
 
 export const ServerName = "classifier";
-export const ToolNames = ["list_eligible_emails", "classify_email", "link_case", "open_query"] as const;
+export const ToolNames = [
+  "list_eligible_emails",
+  "classify_email",
+  "link_case",
+  "open_query",
+  "search_old_system_folders",
+  "search_mailboxes",
+] as const;
+
+/** Hits per lookup: enough to tell whether the old system holds the case, not a listing. */
+const LookupLimit = 10;
 
 const BodyLimit = 6000;
 const ReasonPrefix = "Classifier agent: ";
@@ -264,7 +276,52 @@ export function createClassifierServer(options: {
           log("open query failed", { messageId: args.messageId, error: (error as Error).message });
           return text(`Pegasus refused the query: ${(error as Error).message}`, true);
         }
-      })],
+      }),
+    tool(
+      "search_old_system_folders",
+      "Read-only. Searches the firm's old-system case folders by name (a case reference, registration or claimant) and returns folder names only. state is unavailable when the folders could not be read.",
+      { query: z.string().min(1).max(200).describe("A case reference, registration, claimant or claim number") },
+      async (args) => {
+        try {
+          const result = await pegasus.searchOldSystemFolders(args.query, LookupLimit);
+          log("search old system folders", { query: args.query, state: result.state, hits: result.items.length });
+          return text({
+            state: result.state,
+            isTruncated: result.isTruncated,
+            folders: result.items.map((item) => ({ name: item.name, modifiedAtUtc: item.modifiedAtUtc })),
+          });
+        } catch (error) {
+          log("search old system folders failed", { query: args.query, error: (error as Error).message });
+          return text(`Pegasus refused the lookup: ${(error as Error).message}`, true);
+        }
+      },
+      { annotations: { readOnlyHint: true, openWorldHint: true } }),
+    tool(
+      "search_mailboxes",
+      "Read-only. Searches the firm's approved mailboxes for earlier e-mail about a term and returns subjects, senders and dates only. state is unavailable when no mailbox could be read.",
+      { query: z.string().min(1).max(200).describe("A case reference, registration, claimant or claim number") },
+      async (args) => {
+        try {
+          const result = await pegasus.searchMailboxes(args.query, LookupLimit);
+          log("search mailboxes", { query: args.query, state: result.state, hits: result.items.length });
+          return text({
+            state: result.state,
+            isTruncated: result.isTruncated,
+            mailboxes: result.mailboxes.map((item) => ({ address: item.mailboxAddress, state: item.state })),
+            messages: result.items.map((item) => ({
+              mailbox: item.mailboxAddress,
+              subject: item.subject,
+              from: item.senderAddress,
+              receivedAtUtc: item.receivedAtUtc,
+              preview: item.preview,
+            })),
+          });
+        } catch (error) {
+          log("search mailboxes failed", { query: args.query, error: (error as Error).message });
+          return text(`Pegasus refused the lookup: ${(error as Error).message}`, true);
+        }
+      },
+      { annotations: { readOnlyHint: true, openWorldHint: true } })],
     alwaysLoad: true,
   });
 }

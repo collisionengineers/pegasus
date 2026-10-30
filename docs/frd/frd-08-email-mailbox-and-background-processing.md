@@ -7,8 +7,8 @@
 - Every retained message keeps its mailbox, folder, item, Message-ID,
   conversation and content hash as separate facts. Mailbox plus Message-ID
   is what makes a message unique.
-- Every received message gets one of three mail categories — New instruction,
-  Triage request or Cancellation — or no category. No category is Case
+- Every received message gets one of four mail categories — New instruction,
+  Triage request, Cancellation or Pre-Pegasus case — or no category. No category is Case
   correspondence when the message is linked, and No Case Found when it is not.
   A decision may also set Opens query. Sent items carry no category.
 - A received message linked to no Case waits in the Inbox's No Case Found
@@ -87,7 +87,7 @@ they do not loosen this rule.
 
 ### Mail categories and correction
 
-A received message has one of three categories, or none. None is
+A received message has one of four categories, or none. None is
 correspondence: linked, it is Case correspondence; unlinked, it waits in
 No Case Found. A message nothing has decided yet is Unclassified, not a
 category. Unidentified is not a category. Sent items carry no category.
@@ -113,6 +113,7 @@ later corrections.
 | New instruction | Accepted Principal Audit, diminution or Inspection instruction evidence; initial work from a client with no accepted route; website-origin evidence meeting the accepted independent fingerprints. A body keyword or quoted old instruction is not enough | route predicate or staff | Carries a work type: Inspection, Audit, or Inspection and Audit. Offers **Create case**; automatic case allocation goes by the work type |
 | Triage request | Accepted Triage request; with a missing VRM it waits in No Case Found under FRD-03 | route predicate or staff | No automatic case: opens the Triage workflow on its accepted Triage match evidence ([FRD-03](frd-03-triage.md)); it gets no Unidentified item |
 | Cancellation | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | The Case aside's Cancellation received row and the Cancellation received staff notice |
+| Pre-Pegasus case | Mail about a case still run in the old system, which has no Case in Pegasus: the e-mail chases or refers to a case Pegasus does not hold (operator, 30 October 2026, [R550](../rulings.md)) | staff, the Automation actor or the classifier agent; no predicate assigns it | Leaves No Case Found and is listed in All with its Type chip; the message record's outcome chip reads Pre-Pegasus case; Link to case, Create case and the other acts are unchanged ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) |
 | Correspondence | Everything else. Not a category. Garage allocation, repairs authorised, report chase and automatic replies are correspondence | route predicate or staff | Linked, it is Case correspondence. Unlinked, it is No Case Found. Register images is offered only while the message is unlinked, image-only and has no category ([FRD-19](frd-19-image-led-intake-and-pairing.md)) |
 
 Unclassified is the explicit abstention when no accepted predicate matches
@@ -154,7 +155,7 @@ invented winner resolves it.
 predicates.
 
 **Correction.** Staff, or the Automation actor, may correct a message to one
-of the three categories or to correspondence, with a reason; the history is
+of the four categories or to correspondence, with a reason; the history is
 kept. A removed code is refused. A
 correction to New instruction names the work type the instruction carries,
 Inspection, Audit or Inspection and Audit, which Create case preselects and
@@ -166,7 +167,12 @@ never removes or overwrites it or its history.
 The mail classifier agent is an Automation MCP client under `automation.mail`;
 it classifies and links only mail that is Unclassified or has no Case and was
 decided by the pipeline, and leaves a decision by staff, an Automation caller
-or a Principal alone (operator, 15 October 2026).
+or a Principal alone (operator, 15 October 2026). It may set Pre-Pegasus case
+when the e-mail chases or refers to a case Pegasus does not hold, and it has
+two read-only lookups for that: `pegasus_mail_mailbox_search` over the
+approved mailboxes and `pegasus_old_system_folder_search` under the
+old-system Box folder (operator, 30 October 2026, R550;
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)).
 
 **History.** Every automated or human classification decision keeps the
 source identity, policy key and version, outcome, evidence references,
@@ -244,7 +250,7 @@ received query and the actual reply are retained as Case correspondence.
 
 | Thing | States |
 | --- | --- |
-| A retained message | Processing (sender not yet established); one of three categories, correspondence, or Unclassified; Case-associated or not |
+| A retained message | Processing (sender not yet established); one of four categories, correspondence, or Unclassified; Case-associated or not |
 
 Case states are owned by
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels). Approved

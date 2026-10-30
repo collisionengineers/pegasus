@@ -691,6 +691,89 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.DoesNotContain(all, item => item.Subject is "Correspondence" or "Cancellation");
     }
 
+    /// <summary>
+    /// A Pre-Pegasus case leaves No Case Found the moment it is set and is
+    /// listed in All; correcting it back to correspondence returns it
+    /// (operator, 30 October 2026, R550). The SQL proof of the scope clauses.
+    /// </summary>
+    [Fact]
+    public async Task APrePegasusCaseCorrectionLeavesNoCaseFoundAndListsInAllAndCorrectingBackReturnsIt()
+    {
+        var database = await shared.FreshAsync();
+        await SeedPollStateAsync(database);
+        var correspondence = MailClassificationResult.Unclassified([], "fixture", "test", 1);
+        var prePegasus = MailClassificationResult.Classified(
+            MailCategory.PrePegasusCase, [], "fixture", "test", 1);
+        var legacy = Message("legacy", subject: "Legacy chase");
+        await RetainAsync(database, legacy);
+        await StoreClassifiedReceiptAsync(database, legacy, correspondence);
+        var instruction = Message("legacy-instruction", subject: "Instruction");
+        await RetainAsync(database, instruction);
+        await StoreClassifiedReceiptAsync(
+            database, instruction, MailClassificationResult.Classified(
+                MailCategory.NewInstruction, [], "fixture", "test", 1));
+        var undecided = Message("legacy-undecided", subject: "Undecided");
+        await RetainAsync(database, undecided);
+
+        var all = new MailWorkspaceScope(null, MailFolderScope.Inbox);
+        var noCaseFound = new MailWorkspaceScope(null, MailFolderScope.Inbox, NoCaseFound: true);
+        Guid messageId;
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+            messageId = (await queries.ListAsync(noCaseFound, 1, 25, CancellationToken.None))
+                .Items.Single(item => item.Subject == "Legacy chase").Id;
+            Assert.DoesNotContain(
+                (await queries.ListAsync(all, 1, 25, CancellationToken.None)).Items,
+                item => item.Subject == "Legacy chase");
+            await scope.ServiceProvider
+                .GetRequiredService<IRetainedMailClassificationStore>()
+                .AppendCorrectionAsync(
+                    messageId,
+                    1,
+                    correspondence,
+                    prePegasus,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                    "Pre-Pegasus case.",
+                    ReceivedAtUtc.AddMinutes(20),
+                    CancellationToken.None);
+        }
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+            var waiting = (await queries.ListAsync(noCaseFound, 1, 25, CancellationToken.None)).Items;
+            var listed = (await queries.ListAsync(all, 1, 25, CancellationToken.None)).Items;
+            Assert.DoesNotContain(waiting, item => item.Subject == "Legacy chase");
+            Assert.Contains(listed, item => item.Subject == "Legacy chase");
+            // The controls keep their places: an unlinked New instruction is
+            // in both scopes, an undecided receipt is in All.
+            Assert.Contains(waiting, item => item.Subject == "Instruction");
+            Assert.Contains(listed, item => item.Subject == "Instruction");
+            Assert.Contains(listed, item => item.Subject == "Undecided");
+            await scope.ServiceProvider
+                .GetRequiredService<IRetainedMailClassificationStore>()
+                .AppendCorrectionAsync(
+                    messageId,
+                    2,
+                    prePegasus,
+                    correspondence,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                    "Correspondence after all.",
+                    ReceivedAtUtc.AddMinutes(30),
+                    CancellationToken.None);
+        }
+
+        await using var last = database.CreateAsyncScope();
+        var retained = last.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        Assert.Contains(
+            (await retained.ListAsync(noCaseFound, 1, 25, CancellationToken.None)).Items,
+            item => item.Subject == "Legacy chase");
+        Assert.DoesNotContain(
+            (await retained.ListAsync(all, 1, 25, CancellationToken.None)).Items,
+            item => item.Subject == "Legacy chase");
+    }
+
     [Fact]
     public async Task PrincipalFilterAndSummaryProjectionAreReadInOneBatch()
     {

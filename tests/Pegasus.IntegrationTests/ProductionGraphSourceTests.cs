@@ -59,6 +59,65 @@ public sealed class ProductionGraphSourceTests
         Assert.Equal("recipient@example.invalid", Assert.Single(message.To.Mailboxes).Address);
     }
 
+    /// <summary>
+    /// The approved-mailbox search (R550) issues Graph's message search with
+    /// the quoted term, the header fields and the cap, and no ordering; a
+    /// mailbox the tenant refuses is reported unavailable beside the one that
+    /// answered, and the result is still available.
+    /// </summary>
+    [Fact]
+    public async Task ApprovedMailboxSearchIssuesGraphSearchAndReportsARefusedMailboxUnavailable()
+    {
+        var requests = new List<HttpRequestMessage>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add(request);
+            return request.RequestUri!.AbsolutePath.Contains("/users/refused/", StringComparison.Ordinal)
+                ? Response(HttpStatusCode.Forbidden, "{}")
+                : Response(
+                    HttpStatusCode.OK,
+                    """{"value":[{"id":"m1","subject":"RE: QDOS26070","from":{"emailAddress":{"address":"claims@example.invalid"}},"receivedDateTime":"2031-05-06T10:30:00Z","bodyPreview":"Chasing the report"}]}""");
+        });
+        var admitted = Guid.NewGuid();
+        var refused = Guid.NewGuid();
+        var source = new GraphApprovedMailboxSearchSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new FixedApprovedMailboxes(
+            [
+                new(admitted, "admitted", "desk@example.invalid", "inbox", DateTimeOffset.UnixEpoch),
+                new(refused, "refused", "info@example.invalid", "inbox", DateTimeOffset.UnixEpoch)
+            ]));
+
+        var result = await source.SearchAsync(null, "QDOS26070", 10, CancellationToken.None);
+
+        var search = Assert.Single(requests, request => request.RequestUri!.AbsolutePath == "/v1.0/users/admitted/messages");
+        Assert.Equal(HttpMethod.Get, search.Method);
+        Assert.Contains("$search=%22QDOS26070%22", search.RequestUri!.Query, StringComparison.Ordinal);
+        Assert.Contains("$select=id,subject,from,receivedDateTime,bodyPreview", search.RequestUri.Query, StringComparison.Ordinal);
+        Assert.EndsWith("&$top=10", search.RequestUri.Query, StringComparison.Ordinal);
+        Assert.DoesNotContain("$orderby", search.RequestUri.Query, StringComparison.Ordinal);
+        Assert.DoesNotContain("$filter", search.RequestUri.Query, StringComparison.Ordinal);
+        Assert.Equal("IdType=\"ImmutableId\"", search.Headers.GetValues("Prefer").Single());
+        var item = Assert.Single(result.Items);
+        Assert.Equal(admitted, item.MailboxId);
+        Assert.Equal("m1", item.MessageId);
+        Assert.Equal("RE: QDOS26070", item.Subject);
+        Assert.Equal("claims@example.invalid", item.SenderAddress);
+        Assert.Equal(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero), item.ReceivedAtUtc);
+        Assert.Equal("Chasing the report", item.Preview);
+        Assert.Equal(OldSystemLookupState.Available, result.Mailboxes.Single(mailbox => mailbox.MailboxId == admitted).State);
+        Assert.Equal(OldSystemLookupState.Unavailable, result.Mailboxes.Single(mailbox => mailbox.MailboxId == refused).State);
+        Assert.Equal(OldSystemLookupState.Available, result.State);
+        Assert.False(result.IsTruncated);
+        Assert.Equal("\"a \\\"quoted\\\" term\"", GraphMailClient.QuoteSearchTerm("a \"quoted\" term"));
+    }
+
+    private sealed class FixedApprovedMailboxes(IReadOnlyList<ApprovedIntakeMailbox> items) : IApprovedIntakeMailboxes
+    {
+        public Task<IReadOnlyList<ApprovedIntakeMailbox>> ListPollableAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(items);
+    }
+
     [Fact]
     public async Task KnownGraphDraftRejectionIsTypedAndNeverSends()
     {

@@ -1340,13 +1340,20 @@ internal sealed class EfRetainedMailboxMessageStore(
                                 triage.OriginReceiptId == receipt.Id && triage.CaseId == caseRow.Id))))));
         }
 
+        const string classified = "classified";
+        var newInstruction = MailCategories.Code(MailCategory.NewInstruction);
+        var triageRequest = MailCategories.Code(MailCategory.TriageRequest);
+        var prePegasusCase = MailCategories.Code(MailCategory.PrePegasusCase);
+
         if (scope.NoCaseFound)
         {
             // No Case Found: received mail whose receipt stands linked to no Case.
             // The same order the summaries read the Case in (MapSummariesAsync):
             // an active association; else an accepted link when no association
             // row exists; else the Case the latest allocation created, unless an
-            // association was reversed; else the Triage the receipt opened.
+            // association was reversed; else the Triage the receipt opened. A
+            // message decided to be a Pre-Pegasus case has left the scope
+            // (operator, 30 October 2026, R550).
             return messages.Where(message => context.IntakeReceipts.Any(receipt =>
                 receipt.SourceChannel == "mailbox"
                 && receipt.ExternalReceiptToken == message.ExternalReceiptToken
@@ -1361,20 +1368,20 @@ internal sealed class EfRetainedMailboxMessageStore(
                         .OrderByDescending(attempt => attempt.AttemptNumber)
                         .Select(attempt => attempt.CaseId)
                         .FirstOrDefault() == null)
-                && !context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id)));
+                && !context.Triage.Any(triage => triage.OriginReceiptId == receipt.Id)
+                && !(receipt.MailClassificationDecision != null
+                    && receipt.MailClassificationDecision.Outcome == classified
+                    && receipt.MailClassificationDecision.Category == prePegasusCase)));
         }
 
         // All, on Inbox only: linked mail, a New instruction, a Triage request,
-        // or a receipt nothing has classified yet. Sent and Upload are not the
-        // Inbox ledger. Dismissed is its own scope.
+        // a Pre-Pegasus case, or a receipt nothing has classified yet. Sent and
+        // Upload are not the Inbox ledger. Dismissed is its own scope.
         if (scope.Folder != MailFolderScope.Inbox || scope.DismissedOnly)
         {
             return messages;
         }
 
-        var newInstruction = MailCategories.Code(MailCategory.NewInstruction);
-        var triageRequest = MailCategories.Code(MailCategory.TriageRequest);
-        const string classified = "classified";
         return messages.Where(message =>
             !context.IntakeReceipts.Any(receipt =>
                 receipt.SourceChannel == "mailbox"
@@ -1386,7 +1393,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                 && ((receipt.MailClassificationDecision != null
                         && receipt.MailClassificationDecision.Outcome == classified
                         && (receipt.MailClassificationDecision.Category == newInstruction
-                            || receipt.MailClassificationDecision.Category == triageRequest))
+                            || receipt.MailClassificationDecision.Category == triageRequest
+                            || receipt.MailClassificationDecision.Category == prePegasusCase))
                     || context.IntakeManualAssociations.Any(association =>
                         association.IntakeReceiptId == receipt.Id && association.IsActive)
                     || (!context.IntakeManualAssociations.Any(association =>

@@ -1441,6 +1441,8 @@ public sealed class MailWorkspaceWebTests
     [InlineData(MailCategory.TriageRequest, null, "amber", null, "/Inbox")]
     // An unlinked cancellation waits in No Case Found (D2).
     [InlineData(MailCategory.Cancellation, null, "neutral", null, "/Inbox?queue=no_case_found")]
+    // A Pre-Pegasus case leaves No Case Found and lists in All (R550).
+    [InlineData(MailCategory.PrePegasusCase, null, "neutral", null, "/Inbox")]
     public async Task TheTypeCellIsTheCategorysChipWithTheWorkTypeBeneath(
         MailCategory category, string? caseType, string tone, string? sub, string list)
     {
@@ -2301,6 +2303,71 @@ public sealed class MailWorkspaceWebTests
             "This message is no longer in the view you opened it from.",
             open,
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A message decided to be a Pre-Pegasus case has left No Case Found by
+    /// that decision alone, so opened from that view it says so, and opened
+    /// from All it does not (operator, 30 October 2026, R550).
+    /// </summary>
+    [Fact]
+    public async Task APrePegasusCaseMessageIsOutsideTheNoCaseFoundViewAndInsideAll()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await StoreMailClassificationAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxId + "-0",
+            MailClassificationResult.Classified(MailCategory.PrePegasusCase, [], "Fixture.", "fixture", 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var prePegasusMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var openMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var fromNoCaseFound = await GetHtmlAsync(
+            client,
+            $"/Inbox/{prePegasusMessageId:D}?queue=no_case_found");
+        var fromAll = await GetHtmlAsync(client, $"/Inbox/{prePegasusMessageId:D}");
+        var open = await GetHtmlAsync(
+            client,
+            $"/Inbox/{openMessageId:D}?queue=no_case_found");
+
+        Assert.Contains(
+            "This message is no longer in the view you opened it from.",
+            fromNoCaseFound,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "This message is no longer in the view you opened it from.",
+            fromAll,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "This message is no longer in the view you opened it from.",
+            open,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The outcome chip names the category for a Pre-Pegasus case, as it
+    /// names Triage for a Triage request, instead of the scope the message
+    /// has left (operator, 30 October 2026, R550).
+    /// </summary>
+    [Fact]
+    public void ThePrePegasusCaseOutcomeChipNamesTheCategoryNotNoCaseFound()
+    {
+        var summary = new RetainedMailSummary(
+            Guid.NewGuid(), Guid.NewGuid(), "desk@example.test", null, null, null,
+            "Chasing QDOS26070", null, DateTimeOffset.UtcNow, true, 0,
+            IntakeDecision.NeedsSorting, Guid.NewGuid(), null, null,
+            Classification: MailClassificationResult.Classified(
+                MailCategory.PrePegasusCase, [], "fixture", "fixture", 1));
+
+        Assert.Equal(
+            OperatorLabels.MailClassification(MailCategory.PrePegasusCase),
+            Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary));
+        Assert.Equal(
+            OperatorLabels.Inbox.NoCaseFound,
+            Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary with { Classification = null }));
     }
 
     [Fact]

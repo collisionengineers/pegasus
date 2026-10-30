@@ -287,6 +287,14 @@ A Triage Case has standard Case custody: its own Box case folder, its
 retained request source and staff uploads
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
+The old system's case folders sit under Box folder `3220448509`, outside
+the custody root. Pegasus reads them in one way only: a folder-name search
+behind `pegasus_old_system_folder_search`, for the Pre-Pegasus case lookup
+([FRD-08](frd-08-email-mailbox-and-background-processing.md#mail-categories-and-correction),
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#tool-inventory)). It
+returns names and identities; nothing below that folder is read as content,
+written, moved or filed (operator, 30 October 2026, R550).
+
 An inline image preview is served through this same cached content path,
 never as an audited download. Every read re-verifies the source content hash
 and serves only confirmed custody. The one exception is the upload review,
